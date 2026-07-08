@@ -1,0 +1,11 @@
+nowo_wiki:
+    user_class: App\Entity\User
+    space_scope: user
+    ai:
+        enabled: true
+        agent: wiki_assistant
+        context_injection: true
+    routes:
+        index:
+            path: /tools/wiki
+            name: nowo_wiki_index

@@ -1,0 +1,18 @@
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+/vendor/
+/node_modules/
+/.pnpm-store/
+/coverage/
+/coverage-ts/
+/coverage-php.txt
+/coverage-ts.txt
+/coverage.xml
+/.phpunit.cache/
+/.php-cs-fixer.cache

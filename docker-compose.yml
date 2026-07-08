@@ -1,0 +1,21 @@
+name: wiki-bundle
+
+services:
+  php:
+    build: .
+    volumes:
+      - .:/app
+      - ../TiptapEditorBundle:/var/tiptap-editor-bundle
+      - coverage-data:/app/coverage
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    environment:
+      GIT_CONFIG_COUNT: 2
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /app
+      GIT_CONFIG_KEY_1: safe.directory
+      GIT_CONFIG_VALUE_1: /var/tiptap-editor-bundle
+
+volumes:
+  coverage-data:

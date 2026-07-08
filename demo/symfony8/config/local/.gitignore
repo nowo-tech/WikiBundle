@@ -1,0 +1,3 @@
+# Ignore all local overrides (S3 scaffold, etc.)
+*
+!.gitignore

@@ -1,0 +1,59 @@
+name: wiki-bundle-demo-symfony-8
+
+services:
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wiki-demo-symfony8-php
+    working_dir: /app
+    ports:
+      - "${PORT:-8025}:80"
+    volumes:
+      - .:/app
+      - ../../:/var/wiki-bundle
+      - ../../../TiptapEditorBundle:/var/tiptap-editor-bundle
+      - composer-cache:/root/.composer/cache
+      - ./docker/php-dev.ini:/usr/local/etc/php/conf.d/99-php-dev.ini:ro
+    env_file:
+      - .env
+    environment:
+      - COMPOSER_ALLOW_SUPERUSER=1
+      - SERVER_NAME=:80
+      - DATABASE_URL=mysql://${MYSQL_USER:-demo}:${MYSQL_PASSWORD:-demo}@mysql:3306/${MYSQL_DATABASE:-wiki_demo}?serverVersion=8.0.32&charset=utf8mb4
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - wiki-demo-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: wiki-demo-symfony8-mysql
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wiki_demo}
+      MYSQL_USER: ${MYSQL_USER:-demo}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-demo}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - wiki-demo-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  composer-cache:
+  mysql-data:
+
+networks:
+  wiki-demo-network:
+    driver: bridge

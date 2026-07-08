@@ -1,0 +1,89 @@
+{% extends layout %}
+
+{% block title %}{{ 'wiki.index.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}
+
+{% block body %}
+    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+        page_title: 'wiki.index.title'|trans({}, 'NowoWikiBundle'),
+        page_subtitle: 'wiki.index.intro'|trans({}, 'NowoWikiBundle'),
+        wiki_home_link: false,
+        show_search: true,
+        show_ai: can_ask_ai|default(false),
+        wiki_ai_modal: can_ask_ai|default(false),
+    } %}
+
+    <div class="card mb-4 border-primary">
+        <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+                <span class="avatar bg-primary-lt"><i class="ti ti-search" aria-hidden="true"></i></span>
+                <div>
+                    <h2 class="card-title mb-1">{{ 'wiki.search.highlight_title'|trans({}, 'NowoWikiBundle') }}</h2>
+                    <p class="text-secondary mb-0">{{ 'wiki.search.highlight_intro'|trans({}, 'NowoWikiBundle') }}</p>
+                </div>
+            </div>
+            <form action="{{ path(routes.search.name) }}" method="get" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="wiki-index-search-space">{{ 'wiki.search.pick_space'|trans({}, 'NowoWikiBundle') }}</label>
+                    <select id="wiki-index-search-space" name="space" class="form-select">
+                        <option value="">{{ 'wiki.search.all_spaces'|trans({}, 'NowoWikiBundle') }}</option>
+                        {% for space in spaces %}
+                            <option value="{{ space.slug }}">{{ space.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="wiki-index-search-q">{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}</label>
+                    <input type="search" id="wiki-index-search-q" name="q" class="form-control" placeholder="{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}" required>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">{{ 'wiki.search.submit'|trans({}, 'NowoWikiBundle') }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if can_ask_ai|default(false) and routes.ai_ask is defined %}
+        <div class="card mb-4 border-azure">
+            <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+                    <span class="avatar bg-azure-lt"><i class="ti ti-sparkles" aria-hidden="true"></i></span>
+                    <div>
+                        <h2 class="card-title mb-1">{{ 'wiki.ai.highlight_title'|trans({}, 'NowoWikiBundle') }}</h2>
+                        <p class="text-secondary mb-0">{{ 'wiki.ai.highlight_intro'|trans({}, 'NowoWikiBundle') }}</p>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-azure" data-bs-toggle="modal" data-bs-target="#wikiAiAskModal">
+                    <i class="ti ti-sparkles me-1" aria-hidden="true"></i>{{ 'wiki.ai.open'|trans({}, 'NowoWikiBundle') }}
+                </button>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if can_ask_ai|default(false) and routes.ai_ask is defined %}
+        {% include '@NowoWikiBundle/manage/_ai_ask_modal.html.twig' with {spaces: spaces, routes: routes} only %}
+    {% endif %}
+
+    {% if spaces is empty %}
+        <div class="card">
+            <div class="card-body">
+                <p class="text-secondary mb-0">{{ 'wiki.index.empty'|trans({}, 'NowoWikiBundle') }}</p>
+            </div>
+        </div>
+    {% else %}
+        <div class="row row-cards">
+            {% for space in spaces %}
+                <div class="col-md-6 col-lg-4">
+                    <a href="{{ path(routes.space.name, {spaceSlug: space.slug}) }}" class="card card-link">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="avatar bg-primary-lt me-3"><i class="ti ti-notebook" aria-hidden="true"></i></span>
+                                <h2 class="card-title mb-0">{{ space.name }}</h2>
+                            </div>
+                            <p class="text-secondary mb-0"><code>{{ space.slug }}</code></p>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endblock %}

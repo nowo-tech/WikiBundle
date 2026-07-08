@@ -1,0 +1,14 @@
+{
+    "manifests": {
+        "nowo-tech/wiki-bundle": {
+            "manifest": {
+                "bundles": {
+                    "Nowo\\WikiBundle\\WikiBundle": ["all"]
+                },
+                "copy-from-recipe": {
+                    "config/": "%CONFIG_DIR%/"
+                }
+            }
+        }
+    }
+}

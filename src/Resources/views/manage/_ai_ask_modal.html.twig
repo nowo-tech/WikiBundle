@@ -1,0 +1,44 @@
+{# Tabler/Bootstrap modal: initial AI question (POST → full answer page). #}
+<div class="modal modal-blur fade" id="wikiAiAskModal" tabindex="-1" aria-labelledby="wikiAiAskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="avatar bg-azure-lt"><i class="ti ti-sparkles" aria-hidden="true"></i></span>
+                    <div>
+                        <h2 class="modal-title mb-0" id="wikiAiAskModalLabel">{{ 'wiki.ai.highlight_title'|trans({}, 'NowoWikiBundle') }}</h2>
+                        <p class="text-secondary small mb-0">{{ 'wiki.ai.highlight_intro'|trans({}, 'NowoWikiBundle') }}</p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}"></button>
+            </div>
+            <form action="{{ path(routes.ai_ask.name) }}" method="post">
+                <input type="hidden" name="_token" value="{{ csrf_token('wiki_ai_ask') }}">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label" for="wiki-ai-modal-space">{{ 'wiki.search.pick_space'|trans({}, 'NowoWikiBundle') }}</label>
+                            <select id="wiki-ai-modal-space" name="space" class="form-select">
+                                <option value="">{{ 'wiki.search.all_spaces'|trans({}, 'NowoWikiBundle') }}</option>
+                                {% for item in spaces %}
+                                    <option value="{{ item.slug }}"{% if ai_default_space|default('') == item.slug %} selected{% endif %}>{{ item.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label" for="wiki-ai-modal-question">{{ 'wiki.ai.placeholder'|trans({}, 'NowoWikiBundle') }}</label>
+                            <input type="search" id="wiki-ai-modal-question" name="q" class="form-control" placeholder="{{ 'wiki.ai.placeholder'|trans({}, 'NowoWikiBundle') }}" required autofocus>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mt-3 mb-0">{{ 'wiki.ai.help'|trans({}, 'NowoWikiBundle') }}</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}</button>
+                    <button type="submit" class="btn btn-azure">
+                        <i class="ti ti-sparkles me-1" aria-hidden="true"></i>{{ 'wiki.ai.submit'|trans({}, 'NowoWikiBundle') }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,73 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Instanceof between Doctrine\\ORM\\Mapping\\ManyToManyInverseSideMapping\|Doctrine\\ORM\\Mapping\\ManyToManyOwningSideMapping\|Doctrine\\ORM\\Mapping\\ManyToOneAssociationMapping\|Doctrine\\ORM\\Mapping\\OneToManyAssociationMapping\|Doctrine\\ORM\\Mapping\\OneToOneInverseSideMapping\|Doctrine\\ORM\\Mapping\\OneToOneOwningSideMapping and Doctrine\\ORM\\Mapping\\AssociationMapping will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Doctrine/WikiMetadataListener.php
+
+		-
+			message: '#^Method Nowo\\WikiBundle\\Doctrine\\WikiMetadataListener\:\:remapAuthorAssociation\(\) has parameter \$metadata with generic class Doctrine\\ORM\\Mapping\\ClassMetadata but does not specify its types\: T$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Doctrine/WikiMetadataListener.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: src/Doctrine/WikiMetadataListener.php
+
+		-
+			message: '#^Method Nowo\\WikiBundle\\Repository\\DoctrineOrmWikiSpaceRepository\:\:findAccessible\(\) has parameter \$ownerScopeIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Repository/DoctrineOrmWikiSpaceRepository.php
+
+		-
+			message: '#^Method Nowo\\WikiBundle\\Repository\\WikiSpaceRepositoryInterface\:\:findAccessible\(\) has parameter \$ownerScopeIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Repository/WikiSpaceRepositoryInterface.php
+
+		-
+			message: '#^Method Nowo\\WikiBundle\\Routing\\WikiRouteLoader\:\:createRoute\(\) has parameter \$defaults with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Routing/WikiRouteLoader.php
+
+		-
+			message: '#^Call to function is_array\(\) with (array\{0\: Nowo\\WikiBundle\\Entity\\WikiPage, contentHtml\: string\}|list<array\{0: Nowo\\WikiBundle\\Entity\\WikiPage, contentHtml: string\}>) will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 2
+			path: src/Service/WikiSearchService.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Service/WikiSearchService.php
+
+		-
+			message: '#^Instanceof between Nowo\\WikiBundle\\Entity\\WikiPage and Nowo\\WikiBundle\\Entity\\WikiPage will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Service/WikiSearchService.php
+
+		-
+			message: '#^Offset ''contentHtml'' on array\{0\: Nowo\\WikiBundle\\Entity\\WikiPage, contentHtml\: string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Service/WikiSearchService.php
+
+		-
+			message: '#^Offset 0 on array\{0\: Nowo\\WikiBundle\\Entity\\WikiPage, contentHtml\: string\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: src/Service/WikiSearchService.php
+
+		-
+			message: '#^Result of \|\| is always false\.$#'
+			identifier: booleanOr.alwaysFalse
+			count: 2
+			path: src/Service/WikiSearchService.php

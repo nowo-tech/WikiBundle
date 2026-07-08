@@ -1,0 +1,131 @@
+{
+    "name": "nowo-tech/wiki-bundle",
+    "description": "Symfony bundle for versionable team wiki pages (Outline/Notion-style) with Tiptap rich text",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "keywords": [
+        "symfony",
+        "symfony-bundle",
+        "wiki",
+        "documentation",
+        "knowledge-base",
+        "tiptap",
+        "versioning"
+    ],
+    "homepage": "https://github.com/nowo-tech/WikiBundle",
+    "support": {
+        "issues": "https://github.com/nowo-tech/WikiBundle/issues",
+        "source": "https://github.com/nowo-tech/WikiBundle"
+    },
+    "authors": [
+        {
+            "name": "Héctor Franco Aceituno",
+            "email": "hectorfranco@nowo.tech",
+            "homepage": "https://github.com/HecFranco",
+            "role": "Developer"
+        },
+        {
+            "name": "Nowo.tech",
+            "homepage": "https://nowo.tech"
+        }
+    ],
+    "require": {
+        "php": ">=8.2 <8.6",
+        "doctrine/doctrine-bundle": "^2.10 || ^3.0",
+        "doctrine/orm": "^2.15 || ^3.0",
+        "ext-zip": "*",
+        "league/commonmark": "^2.7",
+        "league/html-to-markdown": "^5.1",
+        "nowo-tech/tiptap-editor-bundle": "^1.0",
+        "symfony/console": "^7.4 || ^8.0",
+        "symfony/config": "^7.4 || ^8.0",
+        "symfony/dependency-injection": "^7.4 || ^8.0",
+        "symfony/form": "^7.4 || ^8.0",
+        "symfony/framework-bundle": "^7.4 || ^8.0",
+        "symfony/http-kernel": "^7.4 || ^8.0",
+        "symfony/routing": "^7.4 || ^8.0",
+        "symfony/security-bundle": "^7.4 || ^8.0",
+        "symfony/translation": "^7.4 || ^8.0",
+        "symfony/twig-bundle": "^7.4 || ^8.0",
+        "symfony/validator": "^7.4 || ^8.0",
+        "symfony/yaml": "^7.4 || ^8.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "phpstan/extension-installer": "^1.0",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-symfony": "^2.0",
+        "phpunit/phpunit": "^10.0",
+        "rector/rector": "^2.0",
+        "symfony/ai-agent": "^0.1",
+        "symfony/ai-bundle": "^0.1",
+        "symfony/browser-kit": "^7.4 || ^8.0",
+        "symfony/asset": "^7.4 || ^8.0",
+        "symfony/dom-crawler": "^7.4 || ^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Nowo\\WikiBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Nowo\\WikiBundle\\Tests\\": "tests/"
+        }
+    },
+    "archive": {
+        "exclude": [
+            "/demo",
+            "/.cursor"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    },
+    "extra": {
+        "symfony": {
+            "bundle": "Nowo\\WikiBundle\\WikiBundle"
+        }
+    },
+    "suggest": {
+        "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
+        "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
+        "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales."
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "@php vendor/bin/phpunit --color=always",
+        "test-coverage": "@php vendor/bin/phpunit --colors=always --coverage-html coverage --coverage-clover coverage.xml --coverage-text",
+        "test-coverage-100": [
+            "@test-coverage",
+            "@php scripts/check-coverage.php coverage.xml --min-percent=100"
+        ],
+        "coverage-check": "@test-coverage-100",
+        "cs-check": "@php vendor/bin/php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "@php vendor/bin/php-cs-fixer fix",
+        "phpstan": "@php vendor/bin/phpstan analyse --memory-limit=512M",
+        "rector": "@php vendor/bin/rector process",
+        "rector-dry": "@php vendor/bin/rector process --dry-run --no-progress-bar",
+        "qa": [
+            "@cs-check",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Run PHPUnit tests",
+        "test-coverage": "Run PHPUnit tests with code coverage",
+        "test-coverage-100": "Run test-coverage and fail if coverage is below 100%",
+        "coverage-check": "Alias for test-coverage-100",
+        "cs-check": "Check code style with PHP-CS-Fixer",
+        "cs-fix": "Fix code style with PHP-CS-Fixer",
+        "phpstan": "Run PHPStan static analysis",
+        "rector": "Apply Rector refactoring",
+        "rector-dry": "Run Rector in dry-run mode",
+        "qa": "Run all quality assurance checks"
+    }
+}

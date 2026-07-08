@@ -1,0 +1,14 @@
+{% macro render_tree(nodes, space, routes, depth) %}
+    <ul class="list-unstyled mb-0 wiki-tree">
+        {% for node in nodes %}
+            <li class="wiki-tree-item" style="--depth: {{ depth }}">
+                <a href="{{ path(routes.page_view.name, {spaceSlug: space.slug, pageSlug: node.page.slug}) }}" class="text-reset">{{ node.page.title }}</a>
+                {% if node.children is not empty %}
+                    {{ _self.render_tree(node.children, space, routes, depth + 1) }}
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+{% endmacro %}
+
+{{ _self.render_tree(tree, space, routes, 0) }}

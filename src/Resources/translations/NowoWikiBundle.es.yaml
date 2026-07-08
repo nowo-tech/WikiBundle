@@ -1,0 +1,76 @@
+wiki:
+  title: Wiki
+  back_dashboard: Volver al panel
+  index:
+    title: Espacios wiki
+    intro: Espacios de documentación con páginas versionadas.
+    empty: Aún no hay espacios wiki disponibles.
+  space:
+    new_page: Nueva página
+    pick_page: Elige una página en la barra lateral o crea una.
+    pages: Páginas
+  page:
+    new: Nueva página
+    edit: Editar
+    history: Historial
+  form:
+    title: Título
+    content: Contenido
+    save: Guardar
+  editor:
+    help: 'Selecciona texto para la barra flotante. Ctrl+K (Cmd+K) para enlaces. Doble clic en imágenes o embeds para cambiar la URL. Pegar funciona con normalidad.'
+  action:
+    cancel: Cancelar
+  history:
+    title: Historial de versiones
+    created: Creado
+    diff: Comparar
+  diff:
+    title: Diferencias
+  search:
+    title: Buscar
+    intro: Búsqueda de texto completo dentro de un espacio.
+    highlight_title: Buscar en la wiki
+    highlight_intro: Encuentra páginas por título o contenido en un espacio o en todos los que puedas ver.
+    help: Coincide con títulos y el cuerpo de la revisión actual. Las páginas archivadas se excluyen.
+    all_spaces: Todos los espacios
+    global_results: Resultados en todos los espacios accesibles
+    results_count: '{count, plural, =1 {# resultado} other {# resultados}}'
+    placeholder: Buscar páginas…
+    submit: Buscar
+    pick_space: Elige un espacio
+    empty: Sin resultados.
+  ai:
+    title: Preguntar a la wiki
+    intro: Haz preguntas sobre tu documentación. Las respuestas usan Symfony AI y el contexto de búsqueda de la wiki.
+    highlight_title: Asistente de documentación con IA
+    highlight_intro: Preguntas en lenguaje natural sobre las páginas a las que tienes acceso, con fuentes citadas.
+    placeholder: ¿Cómo desplegamos a producción?
+    submit: Preguntar
+    open: Abrir asistente IA
+    help: Requiere symfony/ai-bundle y un agente configurado (ver nowo_wiki.ai). Las respuestas se basan solo en el contenido de la wiki.
+    answer_title: Respuesta
+    sources_title: Fuentes
+    unavailable: La IA de la wiki no está disponible. Instala symfony/ai-bundle, configura ai.yaml y activa nowo_wiki.ai.
+    empty_question: Escribe una pregunta.
+    error: El asistente de IA no pudo responder. Revisa la configuración del modelo e inténtalo de nuevo.
+    follow_up: Hacer otra pregunta
+  import_export:
+    title: Importar y exportar
+    intro: Intercambia páginas con Outline o Notion mediante archivos ZIP con Markdown.
+  import:
+    format: Formato
+    format_auto: Detectar automáticamente
+    format_outline: Outline
+    format_notion: Notion
+    file: Archivo ZIP
+    submit: Importar
+    update_existing: Actualizar páginas existentes
+    help: Sube un ZIP de exportación Markdown de Outline o Notion. Para carpetas locales usa bin/console wiki:import.
+    missing_file: Elige un archivo ZIP para importar.
+    file_too_large: El archivo supera el límite de tamaño configurado.
+    invalid_archive: Solo se admiten archivos ZIP en la importación web.
+    success: Importación completada.
+  export:
+    outline: Exportar (ZIP Outline)
+    notion: Exportar (ZIP Notion)

@@ -1,0 +1,11 @@
+parameters:
+    level: 6
+    paths:
+        - src
+    scanDirectories:
+        - vendor/symfony/ai-agent/src
+    excludePaths:
+        - src/Resources/assets/*
+
+includes:
+    - phpstan-baseline.neon

@@ -1,0 +1,47 @@
+{% extends layout %}
+
+{% block title %}{{ 'wiki.history.title'|trans({}, 'NowoWikiBundle') }} — {{ page.title }}{% endblock %}
+
+{% block body %}
+    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+        page_title: 'wiki.history.title'|trans({}, 'NowoWikiBundle'),
+        page_subtitle: page.title,
+    } %}
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>{{ 'wiki.history.created'|trans({}, 'NowoWikiBundle') }}</th>
+                            <th class="w-1"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for revision in revisions %}
+                            <tr>
+                                <td>{{ revision.revisionNumber }}</td>
+                                <td>{{ revision.createdAt|date('Y-m-d H:i') }}</td>
+                                <td class="text-end">
+                                    {% if not loop.last %}
+                                        {% set older = revisions[loop.index] %}
+                                        <a href="{{ path(routes.page_diff.name, {spaceSlug: space.slug, pageSlug: page.slug, from: older.revisionNumber, to: revision.revisionNumber}) }}" class="btn btn-sm btn-outline-primary">
+                                            {{ 'wiki.history.diff'|trans({}, 'NowoWikiBundle') }}
+                                        </a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer">
+            <a href="{{ path(routes.page_view.name, {spaceSlug: space.slug, pageSlug: page.slug}) }}" class="btn btn-outline-secondary">
+                <i class="ti ti-arrow-left me-1" aria-hidden="true"></i>{{ page.title }}
+            </a>
+        </div>
+    </div>
+{% endblock %}

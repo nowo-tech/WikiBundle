@@ -1,0 +1,62 @@
+{% extends layout %}
+
+{% block title %}{{ 'wiki.search.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}
+
+{% block body %}
+    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+        page_title: 'wiki.search.title'|trans({}, 'NowoWikiBundle'),
+        page_subtitle: global_search|default(false) and query ? ('wiki.search.global_results'|trans({}, 'NowoWikiBundle')) : ('wiki.search.intro'|trans({}, 'NowoWikiBundle')),
+        wiki_home_link: false,
+    } %}
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form action="{{ path(routes.search.name) }}" method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label" for="wiki-search-space">{{ 'wiki.search.pick_space'|trans({}, 'NowoWikiBundle') }}</label>
+                    <select id="wiki-search-space" name="space" class="form-select">
+                        <option value="">{{ 'wiki.search.all_spaces'|trans({}, 'NowoWikiBundle') }}</option>
+                        {% for s in spaces %}
+                            <option value="{{ s.slug }}" {% if space and space.slug == s.slug %}selected{% endif %}>{{ s.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="wiki-search-q">{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}</label>
+                    <input type="search" id="wiki-search-q" name="q" value="{{ query }}" class="form-control" placeholder="{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}" required>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">{{ 'wiki.search.submit'|trans({}, 'NowoWikiBundle') }}</button>
+                </div>
+            </form>
+            <p class="text-secondary small mb-0 mt-3">{{ 'wiki.search.help'|trans({}, 'NowoWikiBundle') }}</p>
+        </div>
+    </div>
+
+    {% if results is not empty %}
+        <p class="text-secondary mb-3">{{ 'wiki.search.results_count'|trans({'%count%': results|length}, 'NowoWikiBundle') }}</p>
+        <div class="row row-cards">
+            {% for row in results %}
+                <div class="col-12">
+                    <a href="{{ path(routes.page_view.name, {spaceSlug: row.space.slug, pageSlug: row.page.slug}) }}" class="card card-link">
+                        <div class="card-body">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                <h3 class="card-title mb-0">{{ row.page.title }}</h3>
+                                {% if global_search|default(false) or not space %}
+                                    <span class="badge bg-blue-lt">{{ row.space.name }}</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-secondary mb-0">{{ row.excerpt }}</p>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    {% elseif query %}
+        <div class="card">
+            <div class="card-body">
+                <p class="text-secondary mb-0">{{ 'wiki.search.empty'|trans({}, 'NowoWikiBundle') }}</p>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %}

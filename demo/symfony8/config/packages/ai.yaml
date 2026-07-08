@@ -1,0 +1,18 @@
+# config/packages/ai.yaml
+# Requires OPENAI_API_KEY or a running Ollama instance (OLLAMA_HOST_URL).
+ai:
+    platform:
+        openai:
+            api_key: '%env(default::OPENAI_API_KEY)%'
+        ollama:
+            host_url: '%env(default:ollama_host:OLLAMA_HOST_URL)%'
+    agent:
+        wiki_assistant:
+            platform: 'ai.platform.openai'
+            model: 'gpt-4o-mini'
+            prompt:
+                text: |
+                    You are a wiki documentation assistant. Use wiki_knowledge_search when you need page content.
+                    Cite page titles. Answer only from wiki content. Reply in the user's language.
+            tools:
+                - 'Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool'

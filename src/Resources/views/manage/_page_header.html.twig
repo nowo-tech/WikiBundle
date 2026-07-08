@@ -1,0 +1,36 @@
+<div class="page-header d-print-none mb-4">
+    <div class="row align-items-center">
+        <div class="col">
+            {% if wiki_home_link|default(true) %}
+                <div class="text-secondary small mb-1">
+                    <a href="{{ path(routes.index.name) }}" class="text-reset">{{ 'wiki.title'|trans({}, 'NowoWikiBundle') }}</a>
+                </div>
+            {% endif %}
+            <h1 class="page-title">{{ page_title }}</h1>
+            {% if page_subtitle|default(null) %}
+                <p class="text-secondary mb-0">{{ page_subtitle }}</p>
+            {% endif %}
+        </div>
+        <div class="col-auto d-flex flex-wrap gap-2">
+            {% if show_search|default(false) %}
+                <a href="{{ path(routes.search.name) }}" class="btn btn-primary">
+                    <i class="ti ti-search me-1" aria-hidden="true"></i>{{ 'wiki.search.title'|trans({}, 'NowoWikiBundle') }}
+                </a>
+            {% endif %}
+            {% if show_ai|default(false) and routes.ai_ask is defined %}
+                {% if wiki_ai_modal|default(false) %}
+                    <button type="button" class="btn btn-azure" data-bs-toggle="modal" data-bs-target="#wikiAiAskModal">
+                        <i class="ti ti-sparkles me-1" aria-hidden="true"></i>{{ 'wiki.ai.title'|trans({}, 'NowoWikiBundle') }}
+                    </button>
+                {% else %}
+                    <a href="{{ path(routes.ai_ask.name) }}" class="btn btn-azure">
+                        <i class="ti ti-sparkles me-1" aria-hidden="true"></i>{{ 'wiki.ai.title'|trans({}, 'NowoWikiBundle') }}
+                    </a>
+                {% endif %}
+            {% endif %}
+            {% if dashboard_route %}
+                <a href="{{ path(dashboard_route) }}" class="btn btn-outline-secondary">{{ 'wiki.back_dashboard'|trans({}, 'NowoWikiBundle') }}</a>
+            {% endif %}
+        </div>
+    </div>
+</div>

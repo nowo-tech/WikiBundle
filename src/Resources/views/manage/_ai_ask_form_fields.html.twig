@@ -1,0 +1,19 @@
+<input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">
+<div class="row g-2 align-items-end">
+    <div class="col-md-4">
+        <label class="form-label" for="wiki-ai-space">{{ 'wiki.search.pick_space'|trans({}, 'NowoWikiBundle') }}</label>
+        <select id="wiki-ai-space" name="space" class="form-select">
+            <option value="">{{ 'wiki.search.all_spaces'|trans({}, 'NowoWikiBundle') }}</option>
+            {% for item in spaces %}
+                <option value="{{ item.slug }}"{% if space and space.slug == item.slug %} selected{% endif %}>{{ item.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label" for="wiki-ai-question">{{ 'wiki.ai.placeholder'|trans({}, 'NowoWikiBundle') }}</label>
+        <input type="search" id="wiki-ai-question" name="q" class="form-control" value="{{ question|default('') }}" placeholder="{{ 'wiki.ai.placeholder'|trans({}, 'NowoWikiBundle') }}" required>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-azure w-100">{{ 'wiki.ai.submit'|trans({}, 'NowoWikiBundle') }}</button>
+    </div>
+</div>

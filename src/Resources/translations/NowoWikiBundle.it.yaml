@@ -1,0 +1,73 @@
+wiki:
+  title: Wiki
+  back_dashboard: Torna alla dashboard
+  index:
+    title: Spazi wiki
+    intro: Spazi di documentazione con pagine versionate.
+    empty: Nessuno spazio wiki disponibile.
+  space:
+    new_page: Nuova pagina
+    pick_page: Seleziona una pagina dalla barra laterale o creane una.
+    pages: Pagine
+  page:
+    new: Nuova pagina
+    edit: Modifica
+    history: Cronologia
+  form:
+    title: Titolo
+    content: Contenuto
+    save: Salva
+  action:
+    cancel: Annulla
+  history:
+    title: Cronologia versioni
+    created: Creato
+    diff: Confronta
+  diff:
+    title: Differenze
+  search:
+    title: Cerca
+    intro: Ricerca full-text all'interno di uno spazio.
+    highlight_title: Cerca nella wiki
+    highlight_intro: Trova pagine per titolo o contenuto in uno o tutti gli spazi accessibili.
+    help: Cerca nei titoli e nel corpo della revisione corrente. Le pagine archiviate sono escluse.
+    all_spaces: Tutti gli spazi
+    global_results: Risultati in tutti gli spazi accessibili
+    results_count: '{count, plural, =1 {# risultato} other {# risultati}}'
+    placeholder: Cerca pagine…
+    submit: Cerca
+    pick_space: Scegli uno spazio
+    empty: Nessun risultato.
+  ai:
+    title: Chiedi alla wiki
+    intro: Domande sulla documentazione con Symfony AI.
+    highlight_title: Assistente documentazione IA
+    highlight_intro: Domande in linguaggio naturale con fonti citate.
+    placeholder: Come facciamo il deploy in produzione?
+    submit: Chiedi
+    open: Apri assistente IA
+    help: Richiede symfony/ai-bundle e nowo_wiki.ai abilitato.
+    answer_title: Risposta
+    sources_title: Fonti
+    unavailable: L'IA wiki non è disponibile.
+    empty_question: Inserisci una domanda.
+    error: L'assistente IA non ha potuto rispondere.
+  import_export:
+    title: Importa ed esporta
+    intro: Scambia pagine con Outline o Notion tramite archivi ZIP Markdown.
+  import:
+    format: Formato
+    format_auto: Rilevamento automatico
+    format_outline: Outline
+    format_notion: Notion
+    file: Archivio ZIP
+    submit: Importa
+    update_existing: Aggiorna pagine esistenti
+    help: Carica un ZIP Markdown esportato da Outline o Notion. Per cartelle locali usa bin/console wiki:import.
+    missing_file: Scegli un file ZIP da importare.
+    file_too_large: Il file supera il limite di dimensione configurato.
+    invalid_archive: Per l'import web sono supportati solo archivi ZIP.
+    success: Importazione completata.
+  export:
+    outline: Esporta (ZIP Outline)
+    notion: Esporta (ZIP Notion)

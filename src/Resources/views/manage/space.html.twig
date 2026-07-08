@@ -1,0 +1,94 @@
+{% extends layout %}
+
+{% block title %}{{ space.name }}{% endblock %}
+
+{% block body %}
+    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+        page_title: space.name,
+        page_subtitle: 'wiki.space.pick_page'|trans({}, 'NowoWikiBundle'),
+        show_search: true,
+    } %}
+
+    <div class="row g-3">
+        <div class="col-lg-4">
+            <div class="card" data-wiki-sidebar>
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h3 class="card-title mb-0">{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}</h3>
+                    {% if can_create %}
+                        <a href="{{ path(routes.page_new.name, {spaceSlug: space.slug}) }}" class="btn btn-sm btn-primary">
+                            <i class="ti ti-plus me-1" aria-hidden="true"></i>{{ 'wiki.space.new_page'|trans({}, 'NowoWikiBundle') }}
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <nav aria-label="{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}">
+                        {% include '@NowoWikiBundle/manage/_page_tree.html.twig' with {tree: tree, space: space, routes: routes} %}
+                    </nav>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-8">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <p class="text-secondary">{{ 'wiki.space.pick_page'|trans({}, 'NowoWikiBundle') }}</p>
+                    <form action="{{ path(routes.search.name) }}" method="get" class="row g-2 align-items-end">
+                        <input type="hidden" name="space" value="{{ space.slug }}">
+                        <div class="col">
+                            <label class="form-label" for="wiki-space-search">{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}</label>
+                            <input type="search" id="wiki-space-search" name="q" class="form-control" placeholder="{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}">
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary">{{ 'wiki.search.submit'|trans({}, 'NowoWikiBundle') }}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if can_export or can_import %}
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">{{ 'wiki.import_export.title'|trans({}, 'NowoWikiBundle') }}</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-secondary">{{ 'wiki.import_export.intro'|trans({}, 'NowoWikiBundle') }}</p>
+                        {% if can_export %}
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <a href="{{ path(routes.space_export.name, {spaceSlug: space.slug, format: 'outline'}) }}" class="btn btn-outline-primary">
+                                    <i class="ti ti-download me-1" aria-hidden="true"></i>{{ 'wiki.export.outline'|trans({}, 'NowoWikiBundle') }}
+                                </a>
+                                <a href="{{ path(routes.space_export.name, {spaceSlug: space.slug, format: 'notion'}) }}" class="btn btn-outline-primary">
+                                    <i class="ti ti-download me-1" aria-hidden="true"></i>{{ 'wiki.export.notion'|trans({}, 'NowoWikiBundle') }}
+                                </a>
+                            </div>
+                        {% endif %}
+                        {% if can_import %}
+                            <form action="{{ path(routes.space_import.name, {spaceSlug: space.slug}) }}" method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+                                <input type="hidden" name="_token" value="{{ csrf_token('wiki_import_' ~ space.id) }}">
+                                <div class="col-md-4">
+                                    <label class="form-label" for="wiki-import-format">{{ 'wiki.import.format'|trans({}, 'NowoWikiBundle') }}</label>
+                                    <select id="wiki-import-format" name="format" class="form-select">
+                                        <option value="auto">{{ 'wiki.import.format_auto'|trans({}, 'NowoWikiBundle') }}</option>
+                                        <option value="outline">{{ 'wiki.import.format_outline'|trans({}, 'NowoWikiBundle') }}</option>
+                                        <option value="notion">{{ 'wiki.import.format_notion'|trans({}, 'NowoWikiBundle') }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label" for="wiki-import-archive">{{ 'wiki.import.file'|trans({}, 'NowoWikiBundle') }}</label>
+                                    <input type="file" id="wiki-import-archive" name="archive" class="form-control" accept=".zip,application/zip" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" name="update_existing" value="1" id="wiki-import-update">
+                                        <label class="form-check-label" for="wiki-import-update">{{ 'wiki.import.update_existing'|trans({}, 'NowoWikiBundle') }}</label>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">{{ 'wiki.import.submit'|trans({}, 'NowoWikiBundle') }}</button>
+                                </div>
+                            </form>
+                            <p class="small text-secondary mt-2 mb-0">{{ 'wiki.import.help'|trans({}, 'NowoWikiBundle') }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

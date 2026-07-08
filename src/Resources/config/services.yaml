@@ -1,0 +1,48 @@
+# Bundle service definitions. Parameters are set by WikiExtension from config/packages/nowo_wiki.yaml.
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    Nowo\WikiBundle\:
+        resource: '../../'
+        exclude:
+            - '../../DependencyInjection/'
+            - '../../WikiBundle.php'
+            - '../../Repository/'
+            - '../../Doctrine/'
+            - '../../Ai/'
+            - '../../Command/'
+            - '../../Service/WikiSpaceAccessResolver.php'
+            - '../../Service/WikiAuthorResolver.php'
+
+    Nowo\WikiBundle\Service\WikiAuthorResolver:
+        arguments:
+            $userClass: '%nowo_wiki.user_class%'
+
+    Nowo\WikiBundle\Command\:
+        resource: '../../Command/'
+        tags: ['console.command']
+        bind:
+            $enabled: '%nowo_wiki.import_export.enabled%'
+
+    Nowo\WikiBundle\Controller\:
+        resource: '../../Controller/'
+        public: true
+
+    Nowo\WikiBundle\Routing\WikiRouteLoader:
+        arguments:
+            $routes: '%nowo_wiki.routes%'
+            $routePrefix: '%nowo_wiki.route_prefix%'
+        tags:
+            - { name: routing.loader }
+
+    Nowo\WikiBundle\Controller\WikiManageController:
+        public: true
+        arguments:
+            $routes: '%nowo_wiki.routes%'
+            $templates: '%nowo_wiki.templates%'
+            $dashboardRoute: '%nowo_wiki.dashboard_route%'
+            $editor: '%nowo_wiki.editor%'
+            $importExport: '%nowo_wiki.import_export%'

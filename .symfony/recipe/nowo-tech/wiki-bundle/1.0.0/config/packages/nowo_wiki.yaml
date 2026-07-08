@@ -1,0 +1,2 @@
+nowo_wiki:
+    user_class: App\Entity\User

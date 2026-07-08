@@ -1,0 +1,1 @@
+(function(){function e(e=document){e.querySelectorAll(`[data-wiki-sidebar]`).forEach(e=>{e.setAttribute(`role`,`navigation`)})}function t(e=document){let t=e.querySelector(`#wikiAiAskModal`);t instanceof HTMLElement&&t.addEventListener(`shown.bs.modal`,()=>{t.querySelector(`#wiki-ai-modal-question`)?.focus()})}document.documentElement.classList.add(`wiki-ready`),e(),t()})();

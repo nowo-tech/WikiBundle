@@ -1,0 +1,76 @@
+wiki:
+  title: Wiki
+  back_dashboard: Back to dashboard
+  index:
+    title: Wiki spaces
+    intro: Team and personal documentation spaces with versioned pages.
+    empty: No wiki spaces available yet.
+  space:
+    new_page: New page
+    pick_page: Select a page from the sidebar or create one.
+    pages: Pages
+  page:
+    new: New page
+    edit: Edit
+    history: History
+  form:
+    title: Title
+    content: Content
+    save: Save
+  editor:
+    help: 'Select text for the floating toolbar. Ctrl+K (Cmd+K) for links. Double-click images or embeds to change their URL. Paste works as usual.'
+  action:
+    cancel: Cancel
+  history:
+    title: Version history
+    created: Created
+    diff: Compare
+  diff:
+    title: Diff
+  search:
+    title: Search
+    intro: Full-text search within a space.
+    highlight_title: Search the wiki
+    highlight_intro: Find pages by title or body across one space or all spaces you can access.
+    help: Matches page titles and the current revision body. Archived pages are excluded.
+    all_spaces: All spaces
+    global_results: Results across all accessible spaces
+    results_count: '{count, plural, =1 {# result} other {# results}}'
+    placeholder: Search pages…
+    submit: Search
+    pick_space: Choose a space
+    empty: No results.
+  ai:
+    title: Ask the wiki
+    intro: Ask questions about your documentation. Answers use Symfony AI and wiki search context.
+    highlight_title: AI documentation assistant
+    highlight_intro: Natural-language questions across pages you can access, with cited sources.
+    placeholder: How do we deploy to production?
+    submit: Ask
+    open: Open AI assistant
+    help: Requires symfony/ai-bundle and a configured agent (see nowo_wiki.ai). Answers are based on wiki content only.
+    answer_title: Answer
+    sources_title: Sources
+    unavailable: Wiki AI is not available. Install symfony/ai-bundle, configure ai.yaml, and enable nowo_wiki.ai.
+    empty_question: Please enter a question.
+    error: The AI assistant could not answer right now. Check your model configuration and try again.
+    follow_up: Ask another question
+  import_export:
+    title: Import & export
+    intro: Exchange pages with Outline or Notion using Markdown ZIP archives.
+  import:
+    format: Format
+    format_auto: Auto-detect
+    format_outline: Outline
+    format_notion: Notion
+    file: ZIP archive
+    submit: Import
+    update_existing: Update existing pages
+    help: Upload a Markdown export ZIP from Outline or Notion. Use bin/console wiki:import for directory imports.
+    missing_file: Please choose a ZIP file to import.
+    file_too_large: The uploaded file exceeds the configured size limit.
+    invalid_archive: Only ZIP archives are supported for web import.
+    success: Import completed.
+  export:
+    outline: Export (Outline ZIP)
+    notion: Export (Notion ZIP)

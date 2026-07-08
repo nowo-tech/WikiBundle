@@ -1,0 +1,81 @@
+/* Wiki-specific styles on top of Tabler (see Vault/Yopass layout pattern). */
+
+.wiki-tree-item {
+  padding-left: calc(var(--depth, 0) * 0.85rem);
+  margin: 0.15rem 0;
+}
+
+.wiki-tree-item a {
+  display: block;
+  padding: 0.15rem 0;
+  font-size: 0.9rem;
+}
+
+.wiki-page-content {
+  line-height: 1.7;
+}
+
+.wiki-page-content h1,
+.wiki-page-content h2,
+.wiki-page-content h3 {
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+}
+
+.wiki-page-content p {
+  margin: 0.75em 0;
+}
+
+.wiki-page-content ul,
+.wiki-page-content ol {
+  padding-left: 1.5rem;
+}
+
+.wiki-page-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.35rem;
+}
+
+.wiki-page-content iframe {
+  max-width: 100%;
+  border: 0;
+  border-radius: 0.35rem;
+}
+
+.wiki-diff-list {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+}
+
+.wiki-diff-add {
+  color: #166534;
+  background: #ecfdf5;
+  display: block;
+  padding: 0.1rem 0;
+}
+
+.wiki-diff-remove {
+  color: #991b1b;
+  background: #fef2f2;
+  display: block;
+  padding: 0.1rem 0;
+}
+
+.wiki-diff-same {
+  color: #475569;
+  display: block;
+  padding: 0.1rem 0;
+}
+
+.wiki-form .form-label {
+  font-weight: 500;
+}
+
+#wikiAiAskModal .modal-header {
+  align-items: flex-start;
+}
+
+#wikiAiAskModal .modal-title {
+  font-size: 1.125rem;
+}

@@ -1,0 +1,9 @@
+Wiki routes are registered automatically via `nowo_wiki` routing.
+
+After install:
+1. Configure `config/packages/nowo_wiki.yaml` (`user_class`, optional ACL services).
+2. Require `nowo-tech/tiptap-editor-bundle` and configure `nowo_tiptap_editor.yaml`.
+3. Run Doctrine migrations for wiki tables (`{table_prefix}spaces`, `{table_prefix}pages`, `{table_prefix}page_revisions`).
+4. Implement `WikiAccessCheckerInterface` and optionally `WikiTeamMembershipResolverInterface` in your app.
+
+Manage UI: `/tools/wiki` (requires authentication on your main firewall).

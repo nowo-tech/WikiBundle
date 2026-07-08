@@ -1,0 +1,35 @@
+{% extends layout %}
+
+{% block title %}{% if page %}{{ page.title }}{% else %}{{ 'wiki.page.new'|trans({}, 'NowoWikiBundle') }}{% endif %}{% endblock %}
+
+{% block wiki_editor_scripts %}
+    <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js')) }}"></script>
+{% endblock %}
+
+{% block body %}
+    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+        page_title: page ? ('wiki.page.edit'|trans({}, 'NowoWikiBundle') ~ ': ' ~ page.title) : ('wiki.page.new'|trans({}, 'NowoWikiBundle')),
+        page_subtitle: space.name,
+    } %}
+
+    <div class="card">
+        <div class="card-body">
+            {{ form_start(form, {attr: {class: 'wiki-form'}}) }}
+                <div class="mb-3">
+                    {{ form_label(form.title, null, {label_attr: {class: 'form-label'}}) }}
+                    {{ form_widget(form.title, {attr: {class: 'form-control'}}) }}
+                    {{ form_errors(form.title) }}
+                </div>
+                <div class="mb-3">
+                    {{ form_label(form.content, 'wiki.form.content'|trans({}, 'NowoWikiBundle'), {label_attr: {class: 'form-label'}}) }}
+                    <p class="text-secondary small mb-2">{{ 'wiki.editor.help'|trans({}, 'NowoWikiBundle') }}</p>
+                    {{ form_widget(form.content) }}
+                    {{ form_errors(form.content) }}
+                </div>
+                <input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">
+                <button type="submit" class="btn btn-primary">{{ 'wiki.form.save'|trans({}, 'NowoWikiBundle') }}</button>
+                <a href="{{ path(routes.space.name, {spaceSlug: space.slug}) }}" class="btn btn-outline-secondary ms-2">{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}</a>
+            {{ form_end(form, {render_rest: false}) }}
+        </div>
+    </div>
+{% endblock %}

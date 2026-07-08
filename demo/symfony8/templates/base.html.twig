@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Wiki Demo{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="{{ asset('css/demo.css') }}">
+</head>
+<body>
+<div class="page">
+    <div class="container py-4">
+        {% block body %}{% endblock %}
+    </div>
+</div>
+</body>
+</html>

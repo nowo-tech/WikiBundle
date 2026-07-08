@@ -1,0 +1,74 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
+
+use LogicException;
+use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
+use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
+use Nowo\WikiBundle\DependencyInjection\WikiExtension;
+use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
+use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+
+final class WikiExtensionTest extends TestCase
+{
+    public function testRegistersHtmlSanitizerAlias(): void
+    {
+        $container = new ContainerBuilder();
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+
+        self::assertTrue($container->hasAlias(WikiHtmlSanitizerInterface::class));
+        self::assertTrue($container->hasDefinition(WikiHtmlSanitizer::class));
+    }
+
+    public function testPrependsFrameworkAssets(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new \Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension());
+
+        (new WikiExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('framework');
+        self::assertNotEmpty($configs);
+    }
+
+    public function testPrependsDoctrineMappingsWhenExtensionPresent(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new \Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension());
+
+        (new WikiExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('doctrine');
+        self::assertNotEmpty($configs);
+    }
+
+    public function testRegistersNullAiAssistantByDefault(): void
+    {
+        $container = new ContainerBuilder();
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+
+        self::assertTrue($container->hasAlias(WikiAiAssistantInterface::class));
+        self::assertSame(NullWikiAiAssistant::class, (string) $container->getAlias(WikiAiAssistantInterface::class));
+    }
+
+    public function testAiEnabledWithoutBundleThrows(): void
+    {
+        if (interface_exists(\Symfony\AI\Agent\AgentInterface::class)) {
+            self::markTestSkipped('symfony/ai-bundle is installed in this environment.');
+        }
+
+        $container = new ContainerBuilder();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('symfony/ai-bundle');
+
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'ai'         => ['enabled' => true],
+        ]], $container);
+    }
+}

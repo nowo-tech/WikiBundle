@@ -1,0 +1,73 @@
+wiki:
+  title: Wiki
+  back_dashboard: Terug naar dashboard
+  index:
+    title: Wiki-ruimtes
+    intro: Documentatieruimtes met versioneerde pagina's.
+    empty: Nog geen wiki-ruimtes beschikbaar.
+  space:
+    new_page: Nieuwe pagina
+    pick_page: Kies een pagina in de zijbalk of maak er een aan.
+    pages: Pagina's
+  page:
+    new: Nieuwe pagina
+    edit: Bewerken
+    history: Geschiedenis
+  form:
+    title: Titel
+    content: Inhoud
+    save: Opslaan
+  action:
+    cancel: Annuleren
+  history:
+    title: Versiegeschiedenis
+    created: Aangemaakt
+    diff: Vergelijken
+  diff:
+    title: Verschillen
+  search:
+    title: Zoeken
+    intro: Volledige tekstzoekopdracht binnen een ruimte.
+    highlight_title: Doorzoek de wiki
+    highlight_intro: Vind pagina's op titel of inhoud in één of alle toegankelijke ruimtes.
+    help: Zoekt in titels en de huidige revisie-inhoud. Gearchiveerde pagina's worden uitgesloten.
+    all_spaces: Alle ruimtes
+    global_results: Resultaten in alle toegankelijke ruimtes
+    results_count: '{count, plural, =1 {# resultaat} other {# resultaten}}'
+    placeholder: Pagina's zoeken…
+    submit: Zoeken
+    pick_space: Kies een ruimte
+    empty: Geen resultaten.
+  ai:
+    title: Vraag de wiki
+    intro: Stel vragen over uw documentatie met Symfony AI.
+    highlight_title: AI-documentatieassistent
+    highlight_intro: Vragen in natuurlijke taal met bronvermelding.
+    placeholder: Hoe deployen we naar productie?
+    submit: Vragen
+    open: AI-assistent openen
+    help: Vereist symfony/ai-bundle en ingeschakeld nowo_wiki.ai.
+    answer_title: Antwoord
+    sources_title: Bronnen
+    unavailable: Wiki-AI is niet beschikbaar.
+    empty_question: Voer een vraag in.
+    error: De AI-assistent kon niet antwoorden.
+  import_export:
+    title: Importeren en exporteren
+    intro: Wissel pagina's uit met Outline of Notion via Markdown-ZIP-archieven.
+  import:
+    format: Formaat
+    format_auto: Automatisch detecteren
+    format_outline: Outline
+    format_notion: Notion
+    file: ZIP-archief
+    submit: Importeren
+    update_existing: Bestaande pagina's bijwerken
+    help: Upload een Markdown-export-ZIP van Outline of Notion. Voor mappen gebruik bin/console wiki:import.
+    missing_file: Kies een ZIP-bestand om te importeren.
+    file_too_large: Het bestand overschrijdt de geconfigureerde limiet.
+    invalid_archive: Alleen ZIP-archieven worden ondersteund voor webimport.
+    success: Import voltooid.
+  export:
+    outline: Exporteren (Outline ZIP)
+    notion: Exporteren (Notion ZIP)
