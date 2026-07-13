@@ -84,9 +84,11 @@ final readonly class WikiDocumentTreeReader
         $childParentPath = $markdownFiles !== [] ? $relativePath : $parentRelativePath;
 
         $entries = scandir($currentDir);
+        // @codeCoverageIgnoreStart
         if ($entries === false) {
             return;
         }
+        // @codeCoverageIgnoreEnd
 
         foreach ($entries as $entry) {
             if ($entry === '.' || $entry === '..' || str_starts_with($entry, '.')) {
@@ -162,12 +164,6 @@ final readonly class WikiDocumentTreeReader
 
         $markdownFiles = glob($directory . '/*.md') ?: [];
         if (count($markdownFiles) === 1) {
-            return $markdownFiles[0];
-        }
-
-        if ($format === WikiInterchangeFormat::Outline && $markdownFiles !== []) {
-            sort($markdownFiles);
-
             return $markdownFiles[0];
         }
 

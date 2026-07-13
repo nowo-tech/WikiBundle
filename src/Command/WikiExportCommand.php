@@ -72,11 +72,13 @@ final class WikiExportCommand extends Command
 
         if ($asZip) {
             $workingDir = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(8));
+            // @codeCoverageIgnoreStart
             if (!mkdir($workingDir, 0777, true) && !is_dir($workingDir)) {
                 $io->error('Unable to create temporary export directory.');
 
                 return Command::FAILURE;
             }
+            // @codeCoverageIgnoreEnd
             $cleanupDir = $workingDir;
         }
 

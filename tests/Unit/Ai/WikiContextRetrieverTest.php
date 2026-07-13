@@ -16,6 +16,8 @@ use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 
+use function count;
+
 final class WikiContextRetrieverTest extends TestCase
 {
     public function testRetrieveBuildsContextFromSearchHits(): void
@@ -45,6 +47,73 @@ final class WikiContextRetrieverTest extends TestCase
 
         $this->expectException(WikiAiUnavailableException::class);
         $assistant->ask(new TestUser(), 'question');
+    }
+
+    public function testRetrieveReturnsEmptyForBlankQuestion(): void
+    {
+        $retriever = new WikiContextRetriever(
+            new WikiSearchService($this->createMock(\Doctrine\ORM\EntityManagerInterface::class)),
+            $this->createMock(WikiSpaceAccessResolverInterface::class),
+        );
+
+        $result = $retriever->retrieve(new TestUser(), '   ', null, 5, 5000);
+
+        self::assertSame('', $result['context']);
+        self::assertSame([], $result['sources']);
+    }
+
+    public function testRetrieveUsesScopedSpace(): void
+    {
+        $user  = new TestUser();
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'deploy', 'Deploy');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>deploy steps</p>', $user));
+
+        $retriever = new WikiContextRetriever(
+            $this->createSearchService([[$page, 'contentHtml' => '<p>deploy steps</p>']]),
+            $this->createMock(WikiSpaceAccessResolverInterface::class),
+        );
+
+        $result = $retriever->retrieve($user, 'deploy question', $space, 3, 5000);
+
+        self::assertNotEmpty($result['sources']);
+    }
+
+    public function testRetrieveStopsWhenContextBudgetExceeded(): void
+    {
+        $user  = new TestUser();
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $pages = [];
+        for ($i = 0; $i < 5; ++$i) {
+            $page = new WikiPage($space, 'page-' . $i, 'Page ' . $i);
+            $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>' . str_repeat('content ', 200) . '</p>', $user));
+            $pages[] = [$page, 'contentHtml' => '<p>' . str_repeat('content ', 200) . '</p>'];
+        }
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $result = (new WikiContextRetriever($this->createSearchService($pages), $resolver))
+            ->retrieve($user, 'content search terms here', null, 5, 600);
+
+        self::assertLessThanOrEqual(5, count($result['sources']));
+        self::assertLessThan(600, mb_strlen($result['context']));
+    }
+
+    public function testRetrieveUsesExcerptWhenRevisionMissing(): void
+    {
+        $user  = new TestUser();
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'draft', 'Draft');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $search = $this->createSearchService([[$page, 'contentHtml' => '']]);
+
+        $result = (new WikiContextRetriever($search, $resolver))->retrieve($user, 'draft page', null, 5, 5000);
+
+        self::assertStringContainsString('Draft', $result['context']);
     }
 
     /**

@@ -25,4 +25,29 @@ final class WikiHtmlSanitizerTest extends TestCase
 
         self::assertStringNotContainsString('onclick', $result);
     }
+
+    public function testAllowsTrustedIframeHosts(): void
+    {
+        $sanitizer = new WikiHtmlSanitizer();
+        $iframe    = '<iframe src="https://www.youtube.com/embed/demo"></iframe>';
+        $result    = $sanitizer->sanitize($iframe);
+
+        self::assertStringContainsString('youtube.com', $result);
+    }
+
+    public function testStripsUntrustedIframeHosts(): void
+    {
+        $sanitizer = new WikiHtmlSanitizer();
+        $result    = $sanitizer->sanitize('<iframe src="https://evil.example/embed"></iframe>');
+
+        self::assertStringNotContainsString('iframe', $result);
+    }
+
+    public function testStripsIframeWithoutSrc(): void
+    {
+        $sanitizer = new WikiHtmlSanitizer();
+        $result    = $sanitizer->sanitize('<iframe></iframe>');
+
+        self::assertStringNotContainsString('iframe', $result);
+    }
 }

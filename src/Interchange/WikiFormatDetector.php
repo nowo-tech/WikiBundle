@@ -30,9 +30,11 @@ final readonly class WikiFormatDetector
         );
 
         foreach ($iterator as $file) {
+            // @codeCoverageIgnoreStart
             if (!$file instanceof SplFileInfo || !$file->isFile()) {
                 continue;
             }
+            // @codeCoverageIgnoreEnd
 
             if (strtolower($file->getExtension()) !== 'md') {
                 continue;

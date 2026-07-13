@@ -9,6 +9,8 @@ use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use PHPUnit\Framework\TestCase;
 
+use const PHP_OS_FAMILY;
+
 final class WikiDocumentTreeReaderTest extends TestCase
 {
     public function testReadsOutlineFlatMarkdown(): void
@@ -69,6 +71,87 @@ MD);
             unlink($parentDir . '/Parent Page.md');
             rmdir($childDir);
             rmdir($parentDir);
+            rmdir($root);
+        }
+    }
+
+    public function testNormalizesExportWrapperDirectory(): void
+    {
+        $root    = sys_get_temp_dir() . '/wiki-outline-' . bin2hex(random_bytes(4));
+        $wrapper = $root . '/Export-Team-Wiki';
+        mkdir($wrapper, 0777, true);
+        file_put_contents($wrapper . '/intro.md', <<<'MD'
+---
+title: Intro
+wiki_slug: intro
+---
+Body
+MD);
+
+        try {
+            $nodes = (new WikiDocumentTreeReader(new WikiFrontMatterParser()))->read($root, WikiInterchangeFormat::Outline);
+            self::assertCount(1, $nodes);
+            self::assertSame('intro', $nodes[0]->slug);
+        } finally {
+            unlink($wrapper . '/intro.md');
+            rmdir($wrapper);
+            rmdir($root);
+        }
+    }
+
+    public function testNotionUsesSingleMarkdownFallback(): void
+    {
+        $root = sys_get_temp_dir() . '/wiki-notion-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/only.md', "# Only\n\nText");
+
+        try {
+            $nodes = (new WikiDocumentTreeReader(new WikiFrontMatterParser()))->read($root, WikiInterchangeFormat::Notion);
+            self::assertCount(1, $nodes);
+            self::assertSame('Only', $nodes[0]->title);
+        } finally {
+            unlink($root . '/only.md');
+            rmdir($root);
+        }
+    }
+
+    public function testOutlineUsesFirstMarkdownWhenMultipleExist(): void
+    {
+        $root = sys_get_temp_dir() . '/wiki-outline-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/alpha.md', "# Alpha\n\nA");
+        file_put_contents($root . '/beta.md', "# Beta\n\nB");
+
+        try {
+            $nodes = (new WikiDocumentTreeReader(new WikiFrontMatterParser()))->read($root, WikiInterchangeFormat::Outline);
+            self::assertCount(2, $nodes);
+        } finally {
+            unlink($root . '/alpha.md');
+            unlink($root . '/beta.md');
+            rmdir($root);
+        }
+    }
+
+    public function testWalkSkipsUnreadableDirectories(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            self::markTestSkipped('chmod-based unreadable directory test is Unix-specific.');
+        }
+
+        $root = sys_get_temp_dir() . '/wiki-tree-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/visible.md', "# Visible\n\nBody");
+        $hidden = $root . '/hidden';
+        mkdir($hidden);
+        chmod($hidden, 0000);
+
+        try {
+            $nodes = (new WikiDocumentTreeReader(new WikiFrontMatterParser()))->read($root, WikiInterchangeFormat::Outline);
+            self::assertCount(1, $nodes);
+        } finally {
+            chmod($hidden, 0700);
+            rmdir($hidden);
+            unlink($root . '/visible.md');
             rmdir($root);
         }
     }

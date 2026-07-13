@@ -64,7 +64,7 @@ make -C demo/symfony8 up
 | PHP | **100%** — `make test-coverage` |
 | TypeScript | **100%** — `make test-ts` (wiki assets) |
 
-PHPUnit: **122 tests**. Coverage threshold enforced via `make test-coverage-100` / `composer test-coverage-100`.
+PHPUnit: **230 tests**. Coverage threshold enforced via `make test-coverage-100` / `composer test-coverage-100`.
 
 ## License
 

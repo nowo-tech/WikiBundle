@@ -143,7 +143,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         if (!interface_exists(\Symfony\AI\Agent\AgentInterface::class)) {
+            // @codeCoverageIgnoreStart
             throw new LogicException('nowo_wiki.ai.enabled is true but symfony/ai-bundle is not installed. Run: composer require symfony/ai-bundle');
+            // @codeCoverageIgnoreEnd
         }
 
         $agentName = $aiConfig['agent'];

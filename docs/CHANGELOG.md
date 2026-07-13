@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-07-08
+## [1.0.0] - 2026-07-13
 
 ### Added
 
@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** — `WikiAccessCheckerInterface`, `WikiSpaceAccessResolver`, CSRF on POST, `WikiHtmlSanitizer`, role-based import/export ACL.
 - **Symfony** — dynamic routes, Twig overrides, Flex recipe `1.0.0`, Doctrine metadata listener.
 - **i18n** — `NowoWikiBundle` translations (`en`, `es`, `fr`, `de`, `it`, `pt`, `nl`).
-- **Tests** — 122 PHPUnit tests, 100% PHP coverage; Vitest for `wiki.ts`.
+- **Tests** — 230 PHPUnit tests, 100% PHP coverage; Vitest for `wiki.ts`.
 - **CI** — GitHub Actions (PHPUnit, PHPStan, Vitest, `composer audit`).
 - **Demo** — Symfony 8 + FrankenPHP on port **8025** with auto-login fixtures.
 

@@ -78,4 +78,27 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
 
         self::assertSame([$space], $found);
     }
+
+    public function testFindFirstBySlug(): void
+    {
+        $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't');
+
+        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query->method('getOneOrNullResult')->willReturn($space);
+
+        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('setParameter')->willReturnSelf();
+        $qb->method('setMaxResults')->willReturnSelf();
+        $qb->method('getQuery')->willReturn($query);
+
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('createQueryBuilder')->willReturn($qb);
+
+        $found = (new DoctrineOrmWikiSpaceRepository($em))->findFirstBySlug('docs');
+
+        self::assertSame($space, $found);
+    }
 }

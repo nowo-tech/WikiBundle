@@ -169,7 +169,11 @@ final readonly class WikiDocumentImporter
             throw new InvalidArgumentException('Invalid slug in import document.');
         }
 
-        if (!isset($slugMap[$slug]) && $this->pageRepository->countBySpaceAndSlug($space, $slug) === 0) {
+        if (isset($slugMap[$slug])) {
+            return $slug;
+        }
+
+        if ($this->pageRepository->countBySpaceAndSlug($space, $slug) === 0) {
             return $slug;
         }
 

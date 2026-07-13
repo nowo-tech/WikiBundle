@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
 
 use LogicException;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
+use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
+use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
@@ -70,5 +72,27 @@ final class WikiExtensionTest extends TestCase
             'user_class' => 'App\\Entity\\User',
             'ai'         => ['enabled' => true],
         ]], $container);
+    }
+
+    public function testGetAlias(): void
+    {
+        self::assertSame('nowo_wiki', (new WikiExtension())->getAlias());
+    }
+
+    public function testRegistersSymfonyAiAssistantWhenEnabled(): void
+    {
+        if (!interface_exists(\Symfony\AI\Agent\AgentInterface::class)) {
+            self::markTestSkipped('symfony/ai-bundle is not installed in this environment.');
+        }
+
+        $container = new ContainerBuilder();
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'ai'         => ['enabled' => true, 'agent' => 'wiki_assistant'],
+        ]], $container);
+
+        self::assertTrue($container->hasDefinition(SymfonyAiWikiAssistant::class));
+        self::assertTrue($container->hasDefinition(WikiKnowledgeSearchTool::class));
+        self::assertSame(SymfonyAiWikiAssistant::class, (string) $container->getAlias(WikiAiAssistantInterface::class));
     }
 }

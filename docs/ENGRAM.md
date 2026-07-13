@@ -28,7 +28,7 @@ Versionable team wiki (Outline/Notion-style): spaces, page trees, immutable revi
 
 ## Tests
 
-- PHP: `make test` / `make test-coverage-100` (100% line coverage, 111 tests)
+- PHP: `make test` / `make test-coverage-100` (100% line coverage, 230 tests)
 - TS: `make test-ts` (wiki.ts, 100% coverage)
 - Demo: `make -C demo/symfony8 up` → http://localhost:8025/tools/wiki
 

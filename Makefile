@@ -1,4 +1,5 @@
 # Wiki Bundle - Development
+SHELL := /bin/bash
 .PHONY: help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts ensure-up rector rector-dry phpstan release-check release-check-demos composer-sync update validate validate-translations
 
 COMPOSE_FILE ?= docker-compose.yml
@@ -74,7 +75,7 @@ test-coverage: ensure-up
 
 test-coverage-100: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer install --no-interaction
-	$(COMPOSE) exec $(SERVICE_PHP) composer test-coverage-100 | tee coverage-php.txt
+	set -o pipefail; $(COMPOSE) exec $(SERVICE_PHP) composer test-coverage-100 | tee coverage-php.txt
 	sh .scripts/php-coverage-percent.sh coverage-php.txt
 
 cs-check: ensure-up

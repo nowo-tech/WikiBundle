@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Controller;
 
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
+use Nowo\WikiBundle\Ai\WikiAiAnswer;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
@@ -32,12 +34,16 @@ use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
+use RuntimeException;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use ZipArchive;
 
 final class WikiManageControllerTest extends TestCase
 {
@@ -620,6 +626,323 @@ final class WikiManageControllerTest extends TestCase
         self::assertStringContainsString('page_edit', (string) $response->getContent());
     }
 
+    public function testImportSpaceNotFoundWhenImportExportDisabled(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            importExportEnabled: false,
+        );
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $this->expectException(NotFoundHttpException::class);
+        $controller->importSpace(Request::create('/import', 'POST'), 'eng');
+    }
+
+    public function testExportSpaceUsesOutlineWhenFormatAuto(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'intro', 'Intro');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hello</p>', $user));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([$page]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->exportSpace(Request::create('/export?format=auto'), 'eng');
+
+        self::assertInstanceOf(BinaryFileResponse::class, $response);
+        @unlink($response->getFile()->getPathname());
+    }
+
+    public function testImportSpaceRejectsOversizedUpload(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            maxUploadBytes: 10,
+        );
+        $container = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $temp = tempnam(sys_get_temp_dir(), 'wiki-upload-');
+        file_put_contents($temp, str_repeat('x', 20));
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($temp, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        $response = $controller->importSpace($request, 'eng');
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        @unlink($temp);
+    }
+
+    public function testImportSpaceHandlesImporterException(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $zipPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(4)) . '.zip';
+        file_put_contents($zipPath, 'not-a-valid-zip');
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        $response = $controller->importSpace($request, 'eng');
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        @unlink($zipPath);
+    }
+
+    public function testImportSpaceFlashesWarningMessages(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $sourceDir = sys_get_temp_dir() . '/wiki-upload-src-' . bin2hex(random_bytes(4));
+        mkdir($sourceDir);
+        file_put_contents($sourceDir . '/intro.md', <<<'MD'
+---
+title: Intro
+wiki_slug: intro
+---
+Welcome.
+MD);
+
+        $zipPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(4)) . '.zip';
+        $zip     = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFile($sourceDir . '/intro.md', 'intro.md');
+        $zip->close();
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $page     = new WikiPage($space, 'intro', 'Intro');
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([$page]);
+        $pageRepo->method('countBySpaceAndSlug')->willReturn(1);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        $response = $controller->importSpace($request, 'eng');
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        unlink($sourceDir . '/intro.md');
+        rmdir($sourceDir);
+        @unlink($zipPath);
+    }
+
+    public function testImportSpaceImportsZipWithFormatOption(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $sourceDir = sys_get_temp_dir() . '/wiki-upload-src-' . bin2hex(random_bytes(4));
+        mkdir($sourceDir);
+        file_put_contents($sourceDir . '/intro.md', <<<'MD'
+---
+title: Intro
+wiki_slug: intro
+---
+Welcome.
+MD);
+
+        $zipPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(4)) . '.zip';
+        $zip     = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFile($sourceDir . '/intro.md', 'intro.md');
+        $zip->close();
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([]);
+        $pageRepo->method('countBySpaceAndSlug')->willReturn(0);
+        $pageRepo->expects(self::exactly(2))->method('save');
+
+        $revisionRepo = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepo->method('getNextRevisionNumber')->willReturn(1);
+        $revisionRepo->expects(self::once())->method('save');
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisionRepo);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+            'format' => WikiInterchangeFormat::Outline->value,
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        try {
+            $response = $controller->importSpace($request, 'eng');
+            self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        } finally {
+            unlink($sourceDir . '/intro.md');
+            rmdir($sourceDir);
+            @unlink($zipPath);
+        }
+    }
+
+    public function testImportSpaceUsesAutoFormatFallback(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $sourceDir = sys_get_temp_dir() . '/wiki-upload-src-' . bin2hex(random_bytes(4));
+        mkdir($sourceDir);
+        file_put_contents($sourceDir . '/intro.md', <<<'MD'
+---
+title: Intro
+wiki_slug: intro
+---
+Welcome.
+MD);
+
+        $zipPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(4)) . '.zip';
+        $zip     = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFile($sourceDir . '/intro.md', 'intro.md');
+        $zip->close();
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([]);
+        $pageRepo->method('countBySpaceAndSlug')->willReturn(0);
+        $pageRepo->method('save');
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+            'format' => 'not-a-format',
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        try {
+            $response = $controller->importSpace($request, 'eng');
+            self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        } finally {
+            unlink($sourceDir . '/intro.md');
+            rmdir($sourceDir);
+            @unlink($zipPath);
+        }
+    }
+
+    public function testExportSpaceUsesAutoFormatFallback(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'intro', 'Intro');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hello</p>', $user));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([$page]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->exportSpace(
+            Request::create('/export?format=' . WikiInterchangeFormat::Auto->value),
+            'eng',
+        );
+
+        self::assertInstanceOf(BinaryFileResponse::class, $response);
+        @unlink($response->getFile()->getPathname());
+    }
+
+    public function testExportSpaceFallsBackWhenFormatInvalid(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'intro', 'Intro');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hello</p>', $user));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([$page]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->exportSpace(Request::create('/export?format=not-valid'), 'eng');
+
+        self::assertInstanceOf(BinaryFileResponse::class, $response);
+        @unlink($response->getFile()->getPathname());
+    }
+
+    public function testImportSpaceRedirectsWhenCopyFails(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $upload = $this->createMock(UploadedFile::class);
+        $upload->method('getClientOriginalExtension')->willReturn('zip');
+        $upload->method('getPathname')->willReturn('/tmp/does-not-exist-' . bin2hex(random_bytes(4)) . '.zip');
+        $upload->method('getSize')->willReturn(100);
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => $upload,
+        ]);
+
+        $response = $controller->importSpace($request, 'eng');
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+    }
+
     public function testDenyUnlessFeatureFallsBackToCanAccess(): void
     {
         $checker = $this->createMock(WikiAccessCheckerInterface::class);
@@ -630,6 +953,292 @@ final class WikiManageControllerTest extends TestCase
 
         $this->expectException(AccessDeniedHttpException::class);
         $method->invoke($controller, 'unknown');
+    }
+
+    public function testDenyWhenCannotExport(): void
+    {
+        $checker = $this->createMock(WikiAccessCheckerInterface::class);
+        $checker->method('canExport')->willReturn(false);
+
+        $controller = $this->controller(accessChecker: $checker);
+        WikiControllerContainerBuilder::bind($controller, new TestUser());
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $controller->exportSpace(Request::create('/export'), 'eng');
+    }
+
+    public function testExportSpaceReturnsZipDownload(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'intro', 'Intro');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hello</p>', $user));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([$page]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->exportSpace(Request::create('/export?format=outline'), 'eng');
+
+        self::assertInstanceOf(BinaryFileResponse::class, $response);
+        self::assertFileExists($response->getFile()->getPathname());
+        @unlink($response->getFile()->getPathname());
+    }
+
+    public function testExportSpaceNotFoundWhenImportExportDisabled(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            importExportEnabled: false,
+        );
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $this->expectException(NotFoundHttpException::class);
+        $controller->exportSpace(Request::create('/export'), 'eng');
+    }
+
+    public function testDenyWhenCannotImport(): void
+    {
+        $checker = $this->createMock(WikiAccessCheckerInterface::class);
+        $checker->method('canImport')->willReturn(false);
+
+        $controller = $this->controller(accessChecker: $checker);
+        WikiControllerContainerBuilder::bind($controller, new TestUser());
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $controller->importSpace(Request::create('/import', 'POST'), 'eng');
+    }
+
+    public function testImportSpaceRedirectsWhenFileMissing(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ]);
+
+        $response = $controller->importSpace($request, 'eng');
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+    }
+
+    public function testImportSpaceRejectsNonZipUpload(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $temp    = tempnam(sys_get_temp_dir(), 'wiki-upload-');
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($temp, 'notes.txt', 'text/plain', null, true),
+        ]);
+
+        $response = $controller->importSpace($request, 'eng');
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        @unlink($temp);
+    }
+
+    public function testImportSpaceImportsZipArchive(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $sourceDir = sys_get_temp_dir() . '/wiki-upload-src-' . bin2hex(random_bytes(4));
+        mkdir($sourceDir);
+        file_put_contents($sourceDir . '/intro.md', <<<'MD'
+---
+title: Intro
+wiki_slug: intro
+---
+Welcome.
+MD);
+
+        $zipPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(4)) . '.zip';
+        $zip     = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFile($sourceDir . '/intro.md', 'intro.md');
+        $zip->close();
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([]);
+        $pageRepo->method('countBySpaceAndSlug')->willReturn(0);
+        $pageRepo->expects(self::exactly(2))->method('save');
+
+        $revisionRepo = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepo->method('getNextRevisionNumber')->willReturn(1);
+        $revisionRepo->expects(self::once())->method('save');
+
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            pageRepository: $pageRepo,
+            revisionRepository: $revisionRepo,
+        );
+        $container = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        try {
+            $response = $controller->importSpace($request, 'eng');
+            self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        } finally {
+            unlink($sourceDir . '/intro.md');
+            rmdir($sourceDir);
+            if (is_file($zipPath)) {
+                unlink($zipPath);
+            }
+        }
+    }
+
+    public function testImportSpaceRejectsInvalidCsrf(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $controller->importSpace(Request::create('/import', 'POST'), 'eng');
+    }
+
+    public function testAskAiPostReturnsAnswer(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $aiAssistant = $this->createMock(WikiAiAssistantInterface::class);
+        $aiAssistant->method('isAvailable')->willReturn(true);
+        $aiAssistant->method('ask')->willReturn(new WikiAiAnswer('Use the runbook.', []));
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $aiAssistant);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->askAi(Request::create('/ask', 'POST', [
+            'q'      => 'How do I deploy?',
+            'space'  => 'eng',
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_ai_ask'),
+        ]));
+
+        self::assertSame(Response::HTTP_OK, $response->getStatusCode());
+        self::assertStringContainsString('ai_ask', (string) $response->getContent());
+    }
+
+    public function testAskAiPostRejectsEmptyQuestion(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $aiAssistant = $this->createMock(WikiAiAssistantInterface::class);
+        $aiAssistant->method('isAvailable')->willReturn(true);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $aiAssistant);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->askAi(Request::create('/ask', 'POST', [
+            'q'      => '   ',
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_ai_ask'),
+        ]));
+
+        self::assertStringContainsString('ai_ask', (string) $response->getContent());
+    }
+
+    public function testAskAiPostHandlesAssistantFailure(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $aiAssistant = $this->createMock(WikiAiAssistantInterface::class);
+        $aiAssistant->method('isAvailable')->willReturn(true);
+        $aiAssistant->method('ask')->willThrowException(new RuntimeException('AI down'));
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $aiAssistant);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->askAi(Request::create('/ask', 'POST', [
+            'q'      => 'question',
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_ai_ask'),
+        ]));
+
+        self::assertStringContainsString('ai_ask', (string) $response->getContent());
+    }
+
+    public function testAskAiPostRejectsInvalidCsrf(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $aiAssistant = $this->createMock(WikiAiAssistantInterface::class);
+        $aiAssistant->method('isAvailable')->willReturn(true);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $aiAssistant);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $controller->askAi(Request::create('/ask', 'POST', ['q' => 'question']));
+    }
+
+    public function testAskAiWithSpaceSlug(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->askAi(Request::create('/ask?space=eng&q=deploy'));
+
+        self::assertSame(Response::HTTP_OK, $response->getStatusCode());
     }
 
     /**
@@ -677,6 +1286,8 @@ final class WikiManageControllerTest extends TestCase
         ?WikiPageService $pageService = null,
         ?WikiSearchService $searchService = null,
         ?WikiAiAssistantInterface $aiAssistant = null,
+        bool $importExportEnabled = true,
+        int $maxUploadBytes = 52428800,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -717,7 +1328,7 @@ final class WikiManageControllerTest extends TestCase
             $this->templates,
             null,
             ['tiptap_config' => 'notion'],
-            ['enabled'       => true, 'max_upload_bytes' => 52428800],
+            ['enabled'       => $importExportEnabled, 'max_upload_bytes' => $maxUploadBytes],
         );
     }
 

@@ -26,4 +26,14 @@ final class WikiMarkdownConverterTest extends TestCase
         self::assertStringContainsString('Title', $markdown);
         self::assertStringContainsString('<h2', $html);
     }
+
+    public function testEmptyMarkdownReturnsEmptyParagraph(): void
+    {
+        self::assertSame('<p></p>', (new WikiMarkdownConverter())->markdownToHtml('   '));
+    }
+
+    public function testEmptyHtmlReturnsEmptyString(): void
+    {
+        self::assertSame('', (new WikiMarkdownConverter())->htmlToMarkdown('   '));
+    }
 }

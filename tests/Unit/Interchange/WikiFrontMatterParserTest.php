@@ -46,4 +46,33 @@ MD);
         self::assertStringContainsString('wiki_slug: page', $content);
         self::assertStringContainsString('## Section', $content);
     }
+
+    public function testReturnsBodyWhenFrontMatterIsUnclosed(): void
+    {
+        $parsed = (new WikiFrontMatterParser())->parse("---\ntitle: Broken\nBody without closing delimiter");
+
+        self::assertSame([], $parsed['meta']);
+        self::assertStringContainsString('Body without closing delimiter', $parsed['body']);
+    }
+
+    public function testParsesWindowsLineEndings(): void
+    {
+        $parsed = (new WikiFrontMatterParser())->parse("---\r\ntitle: Windows\r\n---\r\n\r\nBody");
+
+        self::assertSame('Windows', $parsed['meta']['title']);
+        self::assertSame('Body', trim($parsed['body']));
+    }
+
+    public function testReturnsBodyWhenYamlIsInvalid(): void
+    {
+        $parsed = (new WikiFrontMatterParser())->parse("---\ntitle: [broken\n---\n\nBody");
+
+        self::assertSame([], $parsed['meta']);
+        self::assertStringContainsString('Body', $parsed['body']);
+    }
+
+    public function testSerializeReturnsBodyOnlyWhenMetaEmpty(): void
+    {
+        self::assertSame('Plain body', (new WikiFrontMatterParser())->serialize([], 'Plain body'));
+    }
 }
