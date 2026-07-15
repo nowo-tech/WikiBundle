@@ -17,6 +17,8 @@ wiki:
     title: Titre
     content: Contenu
     save: Enregistrer
+  editor:
+    help: 'Sélectionnez du texte pour la barre flottante. Ctrl+K (Cmd+K) pour les liens. Double-cliquez sur les images ou embeds pour changer l''URL. Le collage fonctionne normalement.'
   action:
     cancel: Annuler
   history:
@@ -52,6 +54,7 @@ wiki:
     unavailable: L'IA wiki n'est pas disponible.
     empty_question: Saisissez une question.
     error: L'assistant IA n'a pas pu répondre.
+    follow_up: Poser une autre question
   import_export:
     title: Import et export
     intro: Échangez des pages avec Outline ou Notion via des archives ZIP Markdown.

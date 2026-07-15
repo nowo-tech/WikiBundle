@@ -34,3 +34,5 @@ curl -sf http://localhost:8025/tools/wiki
 
 - Verify Packagist version and GitHub release assets.
 - Open `[Unreleased]` section in `CHANGELOG.md` for the next cycle.
+
+After creating the release commit and tag, run `make check-no-cursor-coauthor` again **before** `git push` (REQ-GIT-001). The release commit itself is not covered by an earlier `release-check` run.

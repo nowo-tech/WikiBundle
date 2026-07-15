@@ -1,5 +1,12 @@
 # Upgrading
 
+## To 1.0.1
+
+No breaking changes. Optional for consumers:
+
+- Contributors: run `make setup-hooks` once per clone so commit-msg rejects Cursor co-author trailers (REQ-GIT-001).
+- See [CHANGELOG.md](CHANGELOG.md) for documentation and CI additions.
+
 ## To 1.0.0
 
 Initial stable release. No prior versions.

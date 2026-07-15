@@ -17,6 +17,8 @@ wiki:
     title: Título
     content: Conteúdo
     save: Guardar
+  editor:
+    help: 'Selecione texto para a barra flutuante. Ctrl+K (Cmd+K) para ligações. Duplo clique em imagens ou embeds para alterar o URL. Colar funciona normalmente.'
   action:
     cancel: Cancelar
   history:
@@ -52,6 +54,7 @@ wiki:
     unavailable: A IA da wiki não está disponível.
     empty_question: Introduza uma pergunta.
     error: O assistente IA não conseguiu responder.
+    follow_up: Fazer outra pergunta
   import_export:
     title: Importar e exportar
     intro: Troque páginas com Outline ou Notion usando arquivos ZIP Markdown.

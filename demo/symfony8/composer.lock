@@ -1809,7 +1809,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/tiptap-editor-bundle",
-                "reference": "91b5fad9905719d0e5609174e2823ae7e7716950"
+                "reference": "e803326da6f4dfb40ecf45560530d52b50cd6aad"
             },
             "require": {
                 "php": ">=8.2 <8.6",
@@ -1921,7 +1921,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "981be5de5fc05b1ad6636866f65e0334e84907a3"
+                "reference": "e83c3d824c91db502e43e64a0a8c81f7f506b41c"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -8178,16 +8178,16 @@
         },
         {
             "name": "nowo-tech/twig-inspector-bundle",
-            "version": "v1.0.34",
+            "version": "v1.0.35",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/TwigInspectorBundle.git",
-                "reference": "e926c092b6df59edaded71ec011075e67190c783"
+                "reference": "08e29d6f4e226440c2125e0b9a3f896ce58aa07b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/TwigInspectorBundle/zipball/e926c092b6df59edaded71ec011075e67190c783",
-                "reference": "e926c092b6df59edaded71ec011075e67190c783",
+                "url": "https://api.github.com/repos/nowo-tech/TwigInspectorBundle/zipball/08e29d6f4e226440c2125e0b9a3f896ce58aa07b",
+                "reference": "08e29d6f4e226440c2125e0b9a3f896ce58aa07b",
                 "shasum": ""
             },
             "require": {
@@ -8276,7 +8276,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-07-07T14:45:27+00:00"
+            "time": "2026-07-13T11:13:24+00:00"
         },
         {
             "name": "phar-io/manifest",

@@ -17,6 +17,8 @@ wiki:
     title: Titel
     content: Inhoud
     save: Opslaan
+  editor:
+    help: 'Selecteer tekst voor de zwevende werkbalk. Ctrl+K (Cmd+K) voor links. Dubbelklik op afbeeldingen of embeds om de URL te wijzigen. Plakken werkt zoals gewoonlijk.'
   action:
     cancel: Annuleren
   history:
@@ -52,6 +54,7 @@ wiki:
     unavailable: Wiki-AI is niet beschikbaar.
     empty_question: Voer een vraag in.
     error: De AI-assistent kon niet antwoorden.
+    follow_up: Stel nog een vraag
   import_export:
     title: Importeren en exporteren
     intro: Wissel pagina's uit met Outline of Notion via Markdown-ZIP-archieven.

@@ -17,6 +17,8 @@ wiki:
     title: Titel
     content: Inhalt
     save: Speichern
+  editor:
+    help: 'Text markieren für die schwebende Toolbar. Strg+K (Cmd+K) für Links. Doppelklick auf Bilder oder Embeds ändert die URL. Einfügen funktioniert wie gewohnt.'
   action:
     cancel: Abbrechen
   history:
@@ -52,6 +54,7 @@ wiki:
     unavailable: Wiki-KI ist nicht verfügbar.
     empty_question: Bitte eine Frage eingeben.
     error: Der KI-Assistent konnte nicht antworten.
+    follow_up: Weitere Frage stellen
   import_export:
     title: Import & Export
     intro: Seiten mit Outline oder Notion über Markdown-ZIP-Archive austauschen.
