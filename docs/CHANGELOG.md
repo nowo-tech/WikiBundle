@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **CI / Doctrine** — `WikiMetadataListenerDoctrineTest` enables PHP 8.4 native lazy objects; add `symfony/var-exporter` as a require-dev dependency for Doctrine ORM proxies.
+- **CI / Doctrine** — `WikiMetadataListenerDoctrineTest` loads attribute metadata via `AttributeDriver` (no `EntityManager` / LazyGhost). Add `symfony/var-exporter` as require-dev; CI runs full `composer update`.
 - **CI matrix** — Drop Symfony 7.0 (unsupported; `composer.json` requires `^7.4 || ^8.0`); coverage jobs use Symfony 7.4.
 
 ## [1.0.2] - 2026-07-16

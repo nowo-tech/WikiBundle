@@ -97,7 +97,7 @@ jobs:
             symfony/var-exporter:^${SYMFONY} \
             doctrine/doctrine-bundle:${DOCTRINE_BUNDLE} \
             --no-interaction --no-update
-          composer update symfony/* doctrine/* --with-all-dependencies --no-interaction --prefer-dist --no-progress
+          composer update --with-all-dependencies --no-interaction --prefer-dist --no-progress
 
       - name: Run tests
         run: |
