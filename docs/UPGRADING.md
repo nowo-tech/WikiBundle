@@ -1,5 +1,9 @@
 # Upgrading
 
+## To 1.0.3
+
+No breaking changes for application consumers. CI and test-dev tooling only (`symfony/var-exporter` in `require-dev`, GitHub Actions matrix aligned to Symfony `^7.4`).
+
 ## To 1.0.2
 
 No breaking changes. Documentation only: CI requirements live in [GITHUB_CI.md](GITHUB_CI.md) (formerly `GITLAB_CI.md`).

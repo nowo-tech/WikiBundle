@@ -1921,7 +1921,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "05d4919c931050b43265decf52201eaf3be99019"
+                "reference": "55e9422b45d88a45569f071cacc65b8965516713"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -1956,7 +1956,8 @@
                 "symfony/ai-bundle": "^0.1",
                 "symfony/asset": "^7.4 || ^8.0",
                 "symfony/browser-kit": "^7.4 || ^8.0",
-                "symfony/dom-crawler": "^7.4 || ^8.0"
+                "symfony/dom-crawler": "^7.4 || ^8.0",
+                "symfony/var-exporter": "^7.4 || ^8.0"
             },
             "suggest": {
                 "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
