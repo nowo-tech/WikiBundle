@@ -1921,7 +1921,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "e83c3d824c91db502e43e64a0a8c81f7f506b41c"
+                "reference": "05d4919c931050b43265decf52201eaf3be99019"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",

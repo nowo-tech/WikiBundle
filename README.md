@@ -42,7 +42,7 @@ make -C demo/symfony8 up
 
 ## Documentation
 
-- [GitLab CI requirements](docs/GITLAB_CI.md)
+- [GitHub Actions CI requirements](docs/GITHUB_CI.md)
 - [Installation](docs/INSTALLATION.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Usage](docs/USAGE.md)

@@ -1,6 +1,6 @@
-# GitLab CI — requirements and configuration
+# GitHub Actions CI — requirements and configuration
 
-This document describes the repository **CI requirements** and how to apply them on GitLab. The bundle publishes via GitHub (Actions + Packagist); if the project is mirrored or migrated to internal GitLab, these requirements must be replicated in the pipeline.
+This document describes the repository **CI requirements** for REQ-GIT-001 and how they are enforced on GitHub Actions.
 
 ## CI requirements
 
@@ -64,59 +64,31 @@ git push --force-with-lease origin main
 
 5. If release tags are affected, recreate them on the release commit and force-push the tag.
 
-#### Example job in `.gitlab-ci.yml`
+#### Example job in `.github/workflows/ci.yml`
 
 ```yaml
-stages:
-  - validate
-  - test
-
 git-hygiene:
-  stage: validate
-  image: alpine/git:latest
-  variables:
-    GIT_DEPTH: "0"
-  script:
-    - chmod +x .scripts/check-no-cursor-coauthor.sh
-    - ./.scripts/check-no-cursor-coauthor.sh HEAD
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  name: Git history (no Cursor co-author)
+  runs-on: ubuntu-latest
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Check for Cursor co-author trailers (REQ-GIT-001)
+      run: |
+        chmod +x .scripts/check-no-cursor-coauthor.sh
+        ./.scripts/check-no-cursor-coauthor.sh HEAD
 ```
 
-`GIT_DEPTH: "0"` is required: with a shallow clone the job does not see full history and may pass incorrectly.
+`fetch-depth: 0` is required: with a shallow clone the job does not see full history and may pass incorrectly.
 
 #### Prevention
 
 - Run `make setup-hooks` when cloning.
 - Do not add `Co-authored-by: Cursor` manually to commit messages.
 - Before release: `make release-check` (includes `check-no-cursor-coauthor`).
-
----
-
-## Package Registry (optional)
-
-If the bundle is published to the internal GitLab Package Registry (`https://gitlab.internal.nowo.tech`), follow the same pattern as other `nowo/bundles` bundles:
-
-1. Configure `composer.json` with the group repository.
-2. Add a `deploy` stage that calls the Composer API when a tag is created.
-3. Document `auth.json` in the consuming project.
-
-Minimal tag publish example:
-
-```yaml
-deploy:
-  stage: deploy
-  script:
-    - apk add --no-cache curl
-    - >
-      curl --fail-with-body
-      --header "Job-Token: $CI_JOB_TOKEN"
-      --data "tag=${CI_COMMIT_TAG}"
-      "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/composer"
-  rules:
-    - if: $CI_COMMIT_TAG
-```
 
 ---
 

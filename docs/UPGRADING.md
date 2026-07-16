@@ -1,5 +1,9 @@
 # Upgrading
 
+## To 1.0.2
+
+No breaking changes. Documentation only: CI requirements live in [GITHUB_CI.md](GITHUB_CI.md) (formerly `GITLAB_CI.md`).
+
 ## To 1.0.1
 
 No breaking changes. Optional for consumers:
