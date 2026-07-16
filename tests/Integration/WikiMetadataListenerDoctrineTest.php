@@ -19,8 +19,12 @@ final class WikiMetadataListenerDoctrineTest extends TestCase
     public function testRemapsAuthorAssociationForOrmAssociationMapping(): void
     {
         $config = ORMSetup::createAttributeMetadataConfiguration([dirname(__DIR__, 2) . '/src/Entity'], true);
-        $conn   = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
-        $em     = new EntityManager($conn, $config);
+        // Doctrine ORM 3 needs LazyGhost (symfony/var-exporter) or PHP 8.4 native lazy objects.
+        if (\PHP_VERSION_ID >= 80400 && method_exists($config, 'enableNativeLazyObjects')) {
+            $config->enableNativeLazyObjects(true);
+        }
+        $conn = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $em   = new EntityManager($conn, $config);
 
         $metadata = $em->getClassMetadata(WikiPageRevision::class);
         $args     = new LoadClassMetadataEventArgs($metadata, $em);

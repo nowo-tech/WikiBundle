@@ -1,4 +1,4 @@
-# CI: tests on PHP 8.2–8.5 × Symfony 7.0, 7.4, 8.0, 8.1 (exclusions for incompatible pairs).
+# CI: tests on PHP 8.2–8.5 × Symfony 7.4, 8.0, 8.1 (exclusions for incompatible pairs).
 # Coverage with PCOV; release updated via release.yml on tag push.
 name: CI
 
@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         php: ['8.2', '8.3', '8.4', '8.5']
-        symfony: ['7.0', '7.4', '8.0', '8.1']
+        symfony: ['7.4', '8.0', '8.1']
         exclude:
           - php: '8.2'
             symfony: '8.0'
@@ -94,6 +94,7 @@ jobs:
             symfony/twig-bundle:^${SYMFONY} \
             symfony/validator:^${SYMFONY} \
             symfony/yaml:^${SYMFONY} \
+            symfony/var-exporter:^${SYMFONY} \
             doctrine/doctrine-bundle:${DOCTRINE_BUNDLE} \
             --no-interaction --no-update
           composer update symfony/* doctrine/* --with-all-dependencies --no-interaction --prefer-dist --no-progress
@@ -108,8 +109,8 @@ jobs:
           fi
           echo "✅ All tests passed successfully"
 
-      - name: Run tests with coverage (PHP 8.2 + Symfony 7.0 only)
-        if: matrix.php == '8.2' && matrix.symfony == '7.0'
+      - name: Run tests with coverage (PHP 8.2 + Symfony 7.4 only)
+        if: matrix.php == '8.2' && matrix.symfony == '7.4'
         run: |
           echo "📊 Generating coverage report..."
           composer test-coverage
@@ -206,9 +207,9 @@ jobs:
           coverage: pcov
           tools: composer:v2
 
-      - name: Install dependencies (Symfony 7.0)
+      - name: Install dependencies (Symfony 7.4)
         run: |
-          composer require symfony/config:^7.0 symfony/dependency-injection:^7.0 symfony/form:^7.0 symfony/framework-bundle:^7.0 symfony/http-foundation:^7.0 symfony/http-kernel:^7.0 symfony/routing:^7.0 symfony/twig-bundle:^7.0 symfony/web-profiler-bundle:^7.0 doctrine/doctrine-bundle:^2.10 --no-interaction --no-update
+          composer require symfony/config:^7.4 symfony/dependency-injection:^7.4 symfony/form:^7.4 symfony/framework-bundle:^7.4 symfony/http-foundation:^7.4 symfony/http-kernel:^7.4 symfony/routing:^7.4 symfony/twig-bundle:^7.4 symfony/web-profiler-bundle:^7.4 symfony/var-exporter:^7.4 doctrine/doctrine-bundle:^2.10 --no-interaction --no-update
           composer update symfony/* doctrine/* --with-all-dependencies --no-interaction --prefer-dist --no-progress
 
       - name: Run tests with coverage
