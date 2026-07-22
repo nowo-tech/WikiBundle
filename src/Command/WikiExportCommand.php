@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Command;
 
+use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
@@ -56,7 +57,7 @@ final class WikiExportCommand extends Command
         $asZip     = (bool) $input->getOption('zip');
 
         $space = $this->spaceRepository->findFirstBySlug($spaceSlug);
-        if (!$space instanceof \Nowo\WikiBundle\Entity\WikiSpace) {
+        if (!$space instanceof WikiSpace) {
             $io->error(sprintf('Space "%s" not found.', $spaceSlug));
 
             return Command::FAILURE;

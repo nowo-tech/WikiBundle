@@ -10,6 +10,7 @@ use InvalidArgumentException;
 use Nowo\WikiBundle\Service\WikiAuthorResolver;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 final class WikiAuthorResolverTest extends TestCase
 {
@@ -57,7 +58,7 @@ final class WikiAuthorResolverTest extends TestCase
     }
 }
 
-final class EmailUserStub implements \Symfony\Component\Security\Core\User\UserInterface
+final class EmailUserStub implements UserInterface
 {
     public function getEmail(): string
     {

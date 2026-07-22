@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Ai;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
+use Doctrine\ORM\QueryBuilder;
 use Nowo\WikiBundle\Ai\Exception\WikiAiUnavailableException;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\WikiContextRetriever;
@@ -52,7 +55,7 @@ final class WikiContextRetrieverTest extends TestCase
     public function testRetrieveReturnsEmptyForBlankQuestion(): void
     {
         $retriever = new WikiContextRetriever(
-            new WikiSearchService($this->createMock(\Doctrine\ORM\EntityManagerInterface::class)),
+            new WikiSearchService($this->createMock(EntityManagerInterface::class)),
             $this->createMock(WikiSpaceAccessResolverInterface::class),
         );
 
@@ -121,10 +124,10 @@ final class WikiContextRetrieverTest extends TestCase
      */
     private function createSearchService(array $rows): WikiSearchService
     {
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getResult')->willReturn($rows);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('innerJoin')->willReturnSelf();
@@ -135,7 +138,7 @@ final class WikiContextRetrieverTest extends TestCase
         $qb->method('setMaxResults')->willReturnSelf();
         $qb->method('getQuery')->willReturn($query);
 
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
 
         return new WikiSearchService($em);

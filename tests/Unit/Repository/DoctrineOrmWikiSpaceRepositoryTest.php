@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\Tests\Unit\Repository;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
+use Doctrine\ORM\Query;
+use Doctrine\ORM\QueryBuilder;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
@@ -59,10 +61,10 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
     {
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
 
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getResult')->willReturn([$space]);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('where')->willReturnSelf();
@@ -83,10 +85,10 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
     {
         $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't');
 
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getOneOrNullResult')->willReturn($space);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('where')->willReturnSelf();

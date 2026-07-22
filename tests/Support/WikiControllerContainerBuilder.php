@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Support;
 
+use Nowo\TiptapEditorBundle\Form\TiptapEditorType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Container;
@@ -51,8 +52,8 @@ final class WikiControllerContainerBuilder
         $csrfManager = new CsrfTokenManager(null, new SessionTokenStorage($requestStack));
 
         $formTypes = [new WikiPageFormType()];
-        if (class_exists(\Nowo\TiptapEditorBundle\Form\TiptapEditorType::class)) {
-            $formTypes[] = new \Nowo\TiptapEditorBundle\Form\TiptapEditorType([
+        if (class_exists(TiptapEditorType::class)) {
+            $formTypes[] = new TiptapEditorType([
                 'notion' => [
                     'toolbar'    => true,
                     'min_height' => '200px',

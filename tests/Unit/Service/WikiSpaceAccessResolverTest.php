@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 final class WikiSpaceAccessResolverTest extends TestCase
 {
@@ -40,7 +41,7 @@ final class WikiSpaceAccessResolverTest extends TestCase
 
     public function testUsesUserIdentifierWhenUserHasNoId(): void
     {
-        $user = new class implements \Symfony\Component\Security\Core\User\UserInterface {
+        $user = new class implements UserInterface {
             public function getUserIdentifier(): string
             {
                 return 'identifier-only';

@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
@@ -134,7 +135,7 @@ final class WikiExportCommandTest extends TestCase
         $page = new WikiPage($space, 'intro', 'Intro');
         $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hello</p>', new TestUser()));
 
-        $pageRepository = $this->createMock(\Nowo\WikiBundle\Repository\WikiPageRepositoryInterface::class);
+        $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
         $pageRepository->method('findActiveBySpace')->willReturnCallback(static fn (WikiSpace $s): array => $s->getSlug() === $space->getSlug() ? [$page] : []);
 
         $spaceRepository ??= $this->createMock(WikiSpaceRepositoryInterface::class);

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Service;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
+use Doctrine\ORM\QueryBuilder;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -80,10 +82,10 @@ final class WikiSearchServiceTest extends TestCase
 
     private function entityManager(mixed $rows): EntityManagerInterface
     {
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getResult')->willReturn($rows);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('innerJoin')->willReturnSelf();

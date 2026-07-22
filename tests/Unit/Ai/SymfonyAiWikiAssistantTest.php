@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Ai;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
+use Doctrine\ORM\QueryBuilder;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\WikiContextRetriever;
@@ -19,6 +22,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Metadata\Metadata;
+use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\ResultInterface;
 
 use function count;
@@ -95,7 +99,7 @@ final class SymfonyAiWikiAssistantTest extends TestCase
 
         $assistant = new SymfonyAiWikiAssistant(
             $agent,
-            new WikiContextRetriever(new WikiSearchService($this->createMock(\Doctrine\ORM\EntityManagerInterface::class)), $resolver),
+            new WikiContextRetriever(new WikiSearchService($this->createMock(EntityManagerInterface::class)), $resolver),
             true,
             5,
             5000,
@@ -112,10 +116,10 @@ final class SymfonyAiWikiAssistantTest extends TestCase
      */
     private function createSearchService(array $rows): WikiSearchService
     {
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getResult')->willReturn($rows);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('innerJoin')->willReturnSelf();
@@ -126,7 +130,7 @@ final class SymfonyAiWikiAssistantTest extends TestCase
         $qb->method('setMaxResults')->willReturnSelf();
         $qb->method('getQuery')->willReturn($query);
 
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
 
         return new WikiSearchService($em);
@@ -142,7 +146,7 @@ final class SymfonyAiWikiAssistantTest extends TestCase
         return new SymfonyAiWikiAssistant(
             $agent,
             new WikiContextRetriever(
-                new WikiSearchService($this->createMock(\Doctrine\ORM\EntityManagerInterface::class)),
+                new WikiSearchService($this->createMock(EntityManagerInterface::class)),
                 $resolver,
             ),
             $withContext,
@@ -195,7 +199,7 @@ final readonly class ResultStub implements ResultInterface
         return new Metadata([]);
     }
 
-    public function getRawResult(): ?\Symfony\AI\Platform\Result\RawResultInterface
+    public function getRawResult(): ?RawResultInterface
     {
         return null;
     }

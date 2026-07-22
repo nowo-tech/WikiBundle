@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Routing;
 
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Routing\Route;
 
 final class WikiRouteLoaderTest extends TestCase
 {
@@ -18,8 +19,8 @@ final class WikiRouteLoaderTest extends TestCase
 
         $collection = $loader->load('nowo_wiki', 'nowo_wiki');
 
-        self::assertTrue($collection->get('nowo_wiki_index') instanceof \Symfony\Component\Routing\Route);
-        self::assertTrue($collection->get('nowo_wiki_space') instanceof \Symfony\Component\Routing\Route);
+        self::assertTrue($collection->get('nowo_wiki_index') instanceof Route);
+        self::assertTrue($collection->get('nowo_wiki_space') instanceof Route);
     }
 
     public function testSupportsNowoWikiType(): void

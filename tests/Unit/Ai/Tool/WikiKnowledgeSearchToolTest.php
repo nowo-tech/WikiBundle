@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Ai\Tool;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
+use Doctrine\ORM\QueryBuilder;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -24,7 +27,7 @@ final class WikiKnowledgeSearchToolTest extends TestCase
 
         $json = (new WikiKnowledgeSearchTool(
             $security,
-            new WikiSearchService($this->createMock(\Doctrine\ORM\EntityManagerInterface::class)),
+            new WikiSearchService($this->createMock(EntityManagerInterface::class)),
             $this->createMock(WikiSpaceAccessResolverInterface::class),
         ))('deploy');
 
@@ -80,10 +83,10 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         $user  = new TestUser();
         $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
 
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getResult')->willReturn([]);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('innerJoin')->willReturnSelf();
@@ -94,7 +97,7 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         $qb->method('setMaxResults')->with(25)->willReturnSelf();
         $qb->method('getQuery')->willReturn($query);
 
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
 
         $security = $this->createMock(Security::class);
@@ -119,10 +122,10 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         $security = $this->createMock(Security::class);
         $security->method('getUser')->willReturn($user);
 
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getResult')->willReturn($rows);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('innerJoin')->willReturnSelf();
@@ -133,7 +136,7 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         $qb->method('setMaxResults')->willReturnSelf();
         $qb->method('getQuery')->willReturn($query);
 
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
 
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);

@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 final class WikiMetadataListenerTest extends TestCase
 {
@@ -21,7 +22,7 @@ final class WikiMetadataListenerTest extends TestCase
         $metadata->table                         = ['name' => 'wiki_page_revisions'];
         $metadata->associationMappings['author'] = [
             'fieldName'    => 'author',
-            'targetEntity' => \Symfony\Component\Security\Core\User\UserInterface::class,
+            'targetEntity' => UserInterface::class,
         ];
 
         $args = $this->createMock(LoadClassMetadataEventArgs::class);

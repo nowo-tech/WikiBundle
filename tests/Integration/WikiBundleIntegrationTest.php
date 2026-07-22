@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\WikiBundle;
 use PHPUnit\Framework\TestCase;
@@ -34,9 +35,9 @@ final class WikiBundleIntegrationTest extends TestCase
         self::assertTrue($container->hasAlias(WikiPageRepositoryInterface::class));
         self::assertTrue($container->hasAlias(WikiPageRevisionRepositoryInterface::class));
         self::assertTrue($container->hasAlias(WikiHtmlSanitizerInterface::class));
-        self::assertTrue($container->hasDefinition(\Nowo\WikiBundle\Security\WikiHtmlSanitizer::class));
+        self::assertTrue($container->hasDefinition(WikiHtmlSanitizer::class));
         self::assertSame(
-            \Nowo\WikiBundle\Security\WikiHtmlSanitizer::class,
+            WikiHtmlSanitizer::class,
             (string) $container->getAlias(WikiHtmlSanitizerInterface::class),
         );
     }

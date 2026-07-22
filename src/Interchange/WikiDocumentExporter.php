@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Interchange;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Dto\WikiExportReport;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
@@ -109,7 +110,7 @@ final readonly class WikiDocumentExporter
     private function writeMarkdownFile(string $path, WikiPage $page, ?WikiPage $parent): void
     {
         $revision = $page->getCurrentRevision();
-        $markdown = $revision instanceof \Nowo\WikiBundle\Entity\WikiPageRevision ? $this->markdownConverter->htmlToMarkdown($revision->getContentHtml()) : '';
+        $markdown = $revision instanceof WikiPageRevision ? $this->markdownConverter->htmlToMarkdown($revision->getContentHtml()) : '';
         $meta     = [
             'title'       => $page->getTitle(),
             'wiki_slug'   => $page->getSlug(),

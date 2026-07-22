@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 // This file is auto-generated and is for apps only. Bundles SHOULD NOT rely on its content.
 
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
@@ -1284,8 +1282,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     keyboard_shortcut?: scalar|Param|null, // Keyboard shortcut to toggle inspector (e.g. "Ctrl+Shift+T"). Empty to disable. // Default: "Ctrl+Shift+T"
  * }
  * @psalm-type NowoTiptapEditorConfig = array{
- *     default_config?: scalar|Param|null, // Profile name used when the form field omits the "config" option. // Default: "default"
- *     configs?: array<string, array{ // Default: []
+ *     default_profile?: scalar|Param|null, // Profile name used when the form field omits the "config" option (form option key remains "config" for BC). // Default: "default"
+ *     profiles?: array<string, array{ // Default: []
  *         toolbar?: bool|Param, // When true, the frontend shows a compact formatting toolbar (bold, lists, undo, etc.). // Default: true
  *         min_height?: scalar|Param|null, // Default CSS min-height for the editor surface (e.g. 240px, 12rem). // Default: "240px"
  *         form_theme?: scalar|Param|null, // Base Symfony form layout (must match twig.form_themes in your app). // Default: "form_div_layout.html.twig"

@@ -25,6 +25,7 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -142,7 +143,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             return;
         }
 
-        if (!interface_exists(\Symfony\AI\Agent\AgentInterface::class)) {
+        if (!interface_exists(AgentInterface::class)) {
             // @codeCoverageIgnoreStart
             throw new LogicException('nowo_wiki.ai.enabled is true but symfony/ai-bundle is not installed. Run: composer require symfony/ai-bundle');
             // @codeCoverageIgnoreEnd

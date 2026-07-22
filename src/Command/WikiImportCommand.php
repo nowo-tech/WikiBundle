@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Command;
 
+use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
@@ -65,7 +66,7 @@ final class WikiImportCommand extends Command
         }
 
         $space = $this->spaceRepository->findFirstBySlug($spaceSlug);
-        if (!$space instanceof \Nowo\WikiBundle\Entity\WikiSpace) {
+        if (!$space instanceof WikiSpace) {
             $io->error(sprintf('Space "%s" not found.', $spaceSlug));
 
             return Command::FAILURE;

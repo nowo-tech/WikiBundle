@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Dto\WikiPageFormData;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Form\WikiPageFormType;
@@ -26,6 +27,7 @@ use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
@@ -256,7 +258,7 @@ final class WikiManageController extends AbstractController
         $from       = $this->revisionRepository->findByPageAndNumber($page, $fromNumber);
         $to         = $this->revisionRepository->findByPageAndNumber($page, $toNumber);
 
-        if (!$from instanceof \Nowo\WikiBundle\Entity\WikiPageRevision || !$to instanceof \Nowo\WikiBundle\Entity\WikiPageRevision) {
+        if (!$from instanceof WikiPageRevision || !$to instanceof WikiPageRevision) {
             throw new NotFoundHttpException('Revisions not found.');
         }
 
@@ -274,7 +276,7 @@ final class WikiManageController extends AbstractController
         ]);
     }
 
-    public function archivePage(Request $request, string $spaceSlug, string $pageSlug): \Symfony\Component\HttpFoundation\RedirectResponse
+    public function archivePage(Request $request, string $spaceSlug, string $pageSlug): RedirectResponse
     {
         $this->denyUnlessFeature('archive');
         $user  = $this->requireUser();
@@ -361,7 +363,7 @@ final class WikiManageController extends AbstractController
         return $response;
     }
 
-    public function importSpace(Request $request, string $spaceSlug): \Symfony\Component\HttpFoundation\RedirectResponse
+    public function importSpace(Request $request, string $spaceSlug): RedirectResponse
     {
         $this->denyUnlessFeature('import');
         if (!$this->importExport['enabled']) {

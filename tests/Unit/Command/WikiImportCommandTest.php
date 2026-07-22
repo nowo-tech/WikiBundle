@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Command;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityRepository;
 use Nowo\WikiBundle\Command\WikiImportCommand;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
@@ -15,6 +17,7 @@ use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Service\WikiAuthorResolver;
@@ -133,7 +136,7 @@ MD);
         $pageRepository->method('countBySpaceAndSlug')->willReturn(0);
         $pageRepository->method('save');
 
-        $revisionRepository = $this->createMock(\Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface::class);
+        $revisionRepository = $this->createMock(WikiPageRevisionRepositoryInterface::class);
         $revisionRepository->method('getNextRevisionNumber')->willReturn(1);
         $revisionRepository->method('save');
 
@@ -166,13 +169,13 @@ MD);
         );
     }
 
-    private function authorEntityManager(object $user): \Doctrine\ORM\EntityManagerInterface
+    private function authorEntityManager(object $user): EntityManagerInterface
     {
-        $repo = $this->createMock(\Doctrine\ORM\EntityRepository::class);
+        $repo = $this->createMock(EntityRepository::class);
         $repo->method('find')->willReturn($user);
         $repo->method('findOneBy')->willReturn(null);
 
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $em = $this->createMock(EntityManagerInterface::class);
         $em->method('getRepository')->willReturn($repo);
 
         return $em;

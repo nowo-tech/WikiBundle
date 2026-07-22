@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
 
+use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use LogicException;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
@@ -13,6 +14,8 @@ use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use PHPUnit\Framework\TestCase;
+use Symfony\AI\Agent\AgentInterface;
+use Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
 final class WikiExtensionTest extends TestCase
@@ -29,7 +32,7 @@ final class WikiExtensionTest extends TestCase
     public function testPrependsFrameworkAssets(): void
     {
         $container = new ContainerBuilder();
-        $container->registerExtension(new \Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension());
+        $container->registerExtension(new FrameworkExtension());
 
         (new WikiExtension())->prepend($container);
 
@@ -40,7 +43,7 @@ final class WikiExtensionTest extends TestCase
     public function testPrependsDoctrineMappingsWhenExtensionPresent(): void
     {
         $container = new ContainerBuilder();
-        $container->registerExtension(new \Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension());
+        $container->registerExtension(new DoctrineExtension());
 
         (new WikiExtension())->prepend($container);
 
@@ -59,7 +62,7 @@ final class WikiExtensionTest extends TestCase
 
     public function testAiEnabledWithoutBundleThrows(): void
     {
-        if (interface_exists(\Symfony\AI\Agent\AgentInterface::class)) {
+        if (interface_exists(AgentInterface::class)) {
             self::markTestSkipped('symfony/ai-bundle is installed in this environment.');
         }
 
@@ -81,7 +84,7 @@ final class WikiExtensionTest extends TestCase
 
     public function testRegistersSymfonyAiAssistantWhenEnabled(): void
     {
-        if (!interface_exists(\Symfony\AI\Agent\AgentInterface::class)) {
+        if (!interface_exists(AgentInterface::class)) {
             self::markTestSkipped('symfony/ai-bundle is not installed in this environment.');
         }
 

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-07-22
+
+### Added
+
+- **Demo** — `FRANKENPHP_MODE` (`worker` default, or `classic`) selects FrankenPHP Caddyfile at container start; documented in [DEMO-FRANKENPHP.md](DEMO-FRANKENPHP.md).
+
+### Changed
+
+- **Dependencies** — `nowo-tech/tiptap-editor-bundle` lockfile bump to `1.2.0` (constraint remains `^1.0`); dev `jsdom` to `29.1.1`.
+- **REQ-GIT-001** — Co-author check uses `git --no-replace-objects`; strip script refuses dirty working trees; [GITHUB_CI.md](GITHUB_CI.md) expanded as canonical adoption doc.
+- **Tooling** — PHP-CS-Fixer `fully_qualified_strict_types.import_symbols` enabled (import + short class names).
+
 ## [1.0.3] - 2026-07-16
 
 ### Fixed
@@ -63,7 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.4
 [1.0.3]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.3
 [1.0.2]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.2
 [1.0.1]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.1

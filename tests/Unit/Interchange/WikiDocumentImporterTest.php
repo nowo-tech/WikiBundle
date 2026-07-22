@@ -17,10 +17,12 @@ use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use ZipArchive;
@@ -208,7 +210,7 @@ MD);
         $pageRepository->method('countBySpaceAndSlug')->willReturn(1);
         $pageRepository->expects(self::atLeastOnce())->method('save');
 
-        $revisionRepository = $this->createMock(\Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface::class);
+        $revisionRepository = $this->createMock(WikiPageRevisionRepositoryInterface::class);
         $revisionRepository->method('getNextRevisionNumber')->willReturn(2);
         $revisionRepository->expects(self::once())->method('save');
 
@@ -466,7 +468,7 @@ MD);
         }
     }
 
-    private function pageRepository(): WikiPageRepositoryInterface&\PHPUnit\Framework\MockObject\MockObject
+    private function pageRepository(): WikiPageRepositoryInterface&MockObject
     {
         $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
         $pageRepository->method('findActiveBySpace')->willReturn([]);
@@ -478,10 +480,10 @@ MD);
 
     private function importer(
         WikiPageRepositoryInterface $pageRepository,
-        ?\Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface $revisionRepository = null,
+        ?WikiPageRevisionRepositoryInterface $revisionRepository = null,
     ): WikiDocumentImporter {
         $revisionRepository ??= $this->createConfiguredMock(
-            \Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface::class,
+            WikiPageRevisionRepositoryInterface::class,
             [
                 'getNextRevisionNumber' => 1,
             ],

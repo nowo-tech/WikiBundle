@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Controller;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
+use Doctrine\ORM\QueryBuilder;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\WikiAiAnswer;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
@@ -514,10 +517,10 @@ final class WikiManageControllerTest extends TestCase
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->method('listSpacesForUser')->willReturn([$space]);
 
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getResult')->willReturn([[$page, 'contentHtml' => '<p>welcome</p>']]);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('innerJoin')->willReturnSelf();
@@ -528,7 +531,7 @@ final class WikiManageControllerTest extends TestCase
         $qb->method('setMaxResults')->willReturnSelf();
         $qb->method('getQuery')->willReturn($query);
 
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
 
         $controller = $this->controller(
@@ -1258,10 +1261,10 @@ MD);
 
     private function createSearchService(array $rows): WikiSearchService
     {
-        $query = $this->createMock(\Doctrine\ORM\Query::class);
+        $query = $this->createMock(Query::class);
         $query->method('getResult')->willReturn($rows);
 
-        $qb = $this->createMock(\Doctrine\ORM\QueryBuilder::class);
+        $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('innerJoin')->willReturnSelf();
@@ -1272,7 +1275,7 @@ MD);
         $qb->method('setMaxResults')->willReturnSelf();
         $qb->method('getQuery')->willReturn($query);
 
-        $em = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+        $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
 
         return new WikiSearchService($em);
@@ -1319,7 +1322,7 @@ MD);
             $pageService,
             new WikiPageTreeBuilder(),
             new WikiRevisionDiffService($revisionRepository),
-            $searchService ?? new WikiSearchService($this->createMock(\Doctrine\ORM\EntityManagerInterface::class)),
+            $searchService ?? new WikiSearchService($this->createMock(EntityManagerInterface::class)),
             $aiAssistant ?? new NullWikiAiAssistant(),
             $this->documentImporter($pageRepository, $pageService),
             $this->documentExporter($pageRepository),
