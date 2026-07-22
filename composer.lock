@@ -1446,16 +1446,16 @@
         },
         {
             "name": "nowo-tech/tiptap-editor-bundle",
-            "version": "v1.1.1",
+            "version": "v1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/TiptapEditorBundle.git",
-                "reference": "451febf7debfc608cca41f22b848f78be20f4c46"
+                "reference": "802ed720323fadd4a4fcc2eb8d80ba128e4da47a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/TiptapEditorBundle/zipball/451febf7debfc608cca41f22b848f78be20f4c46",
-                "reference": "451febf7debfc608cca41f22b848f78be20f4c46",
+                "url": "https://api.github.com/repos/nowo-tech/TiptapEditorBundle/zipball/802ed720323fadd4a4fcc2eb8d80ba128e4da47a",
+                "reference": "802ed720323fadd4a4fcc2eb8d80ba128e4da47a",
                 "shasum": ""
             },
             "require": {
@@ -1519,7 +1519,7 @@
                 "issues": "https://github.com/nowo-tech/TiptapEditorBundle/issues",
                 "source": "https://github.com/nowo-tech/TiptapEditorBundle"
             },
-            "time": "2026-07-13T11:18:49+00:00"
+            "time": "2026-07-18T16:51:30+00:00"
         },
         {
             "name": "psr/cache",
