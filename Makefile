@@ -1,9 +1,16 @@
 # Wiki Bundle - Development
 SHELL := /bin/bash
-.PHONY: help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts ensure-up rector rector-dry phpstan release-check release-check-demos composer-sync update validate validate-translations check-no-cursor-coauthor strip-cursor-coauthor-from-history
+.PHONY: help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts ensure-up rector rector-dry phpstan release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history
 
 COMPOSE_FILE ?= docker-compose.yml
-COMPOSE     ?= /usr/bin/docker compose -f $(COMPOSE_FILE)
+# Prefer Compose V2; absolute docker path avoids shadowing by local docker/ (REQ-MAKE-010).
+DOCKER_BIN := $(shell PATH="/usr/local/bin:/usr/bin:/bin:$$PATH" command -v docker 2>/dev/null)
+ifeq ($(DOCKER_BIN),)
+COMPOSE_BIN ?= docker-compose
+else
+COMPOSE_BIN ?= $(shell $(DOCKER_BIN) compose version >/dev/null 2>&1 && echo "$(DOCKER_BIN) compose" || echo "docker-compose")
+endif
+COMPOSE     ?= $(COMPOSE_BIN) -f $(COMPOSE_FILE)
 SERVICE_PHP ?= php
 
 help:
@@ -18,7 +25,9 @@ help:
 	@echo "  test-ts         Run TypeScript (Vitest) unit tests"
 	@echo "  test            Run PHPUnit tests"
 	@echo "  test-coverage   Run tests with code coverage"
-	@echo "  release-check   Pre-release checks"
+	@echo "  release-check   Pre-release: check-open-prs, phpstan, coverage, demos"
+	@echo "  demo-smoke      REQ-TEST-011: boot demo and assert HTTP 200"
+	@echo "  check-open-prs  REQ-REL-003: fail if unresolved open PRs"
 	@echo ""
 	@echo "Demos: make -C demo up"
 
@@ -100,10 +109,18 @@ composer-sync: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer validate --strict
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer update --no-install
 
-release-check: check-no-cursor-coauthor ensure-up composer-sync cs-fix cs-check rector-dry phpstan validate-translations test-coverage-100 release-check-demos test-ts
+release-check: check-no-cursor-coauthor check-open-prs ensure-up composer-sync cs-fix cs-check rector-dry phpstan validate-translations test-coverage-100 release-check-demos test-ts
 
 release-check-demos:
 	@$(MAKE) -C demo release-check
+
+# REQ-TEST-011: boot primary demo + HTTP 200
+demo-smoke:
+	@$(MAKE) -C demo demo-smoke
+
+check-open-prs:
+	@chmod +x .scripts/check-open-prs.sh
+	@bash .scripts/check-open-prs.sh
 
 update: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer update --no-interaction
@@ -112,7 +129,8 @@ validate: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer validate --strict
 
 BUNDLE_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-include $(BUNDLE_ROOT)/../.scripts/Makefile.update-deps.mk
+# Optional: monorepo helper absent on standalone GitHub Actions checkout (REQ-MAKE-009).
+-include $(BUNDLE_ROOT)/../.scripts/Makefile.update-deps.mk
 check-no-cursor-coauthor:
 	@chmod +x .scripts/check-no-cursor-coauthor.sh
 	@./.scripts/check-no-cursor-coauthor.sh HEAD

@@ -25,4 +25,8 @@
             <file>src/Service/WikiSpaceAccessResolverInterface.php</file>
         </exclude>
     </source>
+    <php>
+        <!-- REQ-SF-005: fail on direct Symfony deprecations -->
+        <env name="SYMFONY_DEPRECATIONS_HELPER" value="max[direct]=0"/>
+    </php>
 </phpunit>

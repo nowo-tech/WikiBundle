@@ -77,6 +77,7 @@ final class WikiRouteLoader extends Loader
     }
 
     /**
+     * @param array<string, mixed> $defaults
      * @param list<string> $methods
      * @param array<string, string> $requirements
      */

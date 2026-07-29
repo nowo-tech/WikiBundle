@@ -1,13 +1,21 @@
-COMPOSE = /usr/bin/docker compose
+# Prefer Compose V2; absolute docker path avoids shadowing by local docker/ when PATH has "." (REQ-MAKE-010).
+DOCKER_BIN := $(shell PATH="/usr/local/bin:/usr/bin:/bin:$$PATH" command -v docker 2>/dev/null)
+ifeq ($(DOCKER_BIN),)
+COMPOSE ?= docker-compose
+else
+COMPOSE ?= $(shell $(DOCKER_BIN) compose version >/dev/null 2>&1 && echo "$(DOCKER_BIN) compose" || echo "docker-compose")
+endif
 SERVICE_PHP = php
 
-.PHONY: help ensure-env up down build install database shell test update-bundle fixtures seed
+.PHONY: help ensure-env up down build install database shell test update-bundle fixtures seed restart verify
 
 help:
 	@echo "Wiki Bundle — Symfony 8.1 Demo"
 	@echo ""
 	@echo "  up             Start demo (FrankenPHP, port from .env)"
 	@echo "  down           Stop containers"
+	@echo "  restart        Restart PHP service"
+	@echo "  verify         HTTP 200 check on /tools/wiki"
 	@echo "  install        Install Composer dependencies"
 	@echo "  database       Create DB and run migrations"
 	@echo "  fixtures       Load demo fixtures (append)"
@@ -38,6 +46,17 @@ up: ensure-env
 
 down:
 	@$(COMPOSE) down
+
+restart: ensure-env
+	@$(COMPOSE) restart $(SERVICE_PHP)
+
+verify: ensure-env
+	@PORT=$$(grep "^PORT=" .env 2>/dev/null | cut -d= -f2 | tr -d '\r'); \
+	[ -z "$$PORT" ] && PORT=$$(grep "^PORT=" .env.example 2>/dev/null | cut -d= -f2 | tr -d '\r'); \
+	[ -z "$$PORT" ] && PORT=8025; \
+	code=$$(curl -sL -o /dev/null -w "%{http_code}" "http://127.0.0.1:$$PORT/tools/wiki" || true); \
+	if [ "$$code" != "200" ]; then echo "verify failed HTTP $$code"; exit 1; fi; \
+	echo "verify OK (HTTP $$code)"
 
 build:
 	@$(COMPOSE) build

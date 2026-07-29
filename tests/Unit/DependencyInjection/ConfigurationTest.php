@@ -23,5 +23,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame('wiki_assistant', $config['ai']['agent']);
         self::assertTrue($config['import_export']['enabled']);
         self::assertSame(['ROLE_ADMIN'], $config['security']['import_roles']);
+        self::assertSame('tabler', $config['web_ui']['css_framework']);
+        self::assertTrue($config['web_ui']['enabled']);
     }
 }

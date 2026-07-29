@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 // This file is auto-generated and is for apps only. Bundles SHOULD NOT rely on its content.
 
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
@@ -1394,6 +1392,11 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         page_diff?: scalar|Param|null, // Default: "@NowoWikiBundle/manage/page_diff.html.twig"
  *         search?: scalar|Param|null, // Default: "@NowoWikiBundle/manage/search.html.twig"
  *         ai_ask?: scalar|Param|null, // Default: "@NowoWikiBundle/manage/ai_ask.html.twig"
+ *     },
+ *     web_ui?: array{ // Admin / manage Web UI look-and-feel (REQ-UI-001).
+ *         enabled?: bool|Param, // Default: true
+ *         css_framework?: "bootstrap"|"bootstrap4"|"bootstrap5"|"tabler"|"tailwind"|"foundation"|"custom"|"none"|Param, // Host-chosen CSS stack. Default tabler matches the bundled layout CDN. // Default: "tabler"
+ *         layout_template?: scalar|Param|null, // Optional host layout Twig path; when set, overrides templates.layout for integration. // Default: null
  *     },
  *     firewall?: scalar|Param|null, // Default: "main"
  * }

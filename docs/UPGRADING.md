@@ -1,5 +1,21 @@
 # Upgrading
 
+## Unreleased
+
+_Placeholder for the next release._
+
+## To 1.0.5
+
+No breaking changes for application consumers. Defaults keep Tabler-compatible markup.
+
+- Optional `nowo_wiki.web_ui` (`css_framework`, `layout_template`) — see [CONFIGURATION.md](CONFIGURATION.md).
+- Demo FrankenPHP image is **PHP 8.5** (`dunglas/frankenphp:1-php8.5-bookworm`); recreate the demo container after pull.
+- PHPUnit / CI: `SYMFONY_DEPRECATIONS_HELPER=max[direct]=0` (REQ-SF-005).
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
 ## To 1.0.4
 
 No breaking changes for application consumers.

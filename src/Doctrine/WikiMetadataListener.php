@@ -52,6 +52,9 @@ final readonly class WikiMetadataListener
         }
     }
 
+    /**
+     * @param ClassMetadata<object> $metadata
+     */
     private function remapAuthorAssociation(ClassMetadata $metadata): void
     {
         if (!isset($metadata->associationMappings['author'])) {

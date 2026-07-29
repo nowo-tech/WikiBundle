@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-07-29
+
+### Added
+
+- FrankenPHP Friendly Worker Mode banner (REQ-DOCS-017); `make check-open-prs` / `demo-smoke`.
+- `SYMFONY_DEPRECATIONS_HELPER=max[direct]=0` (REQ-SF-005).
+- `nowo_wiki.web_ui` (`css_framework`, `layout_template`) + `nowo-ui-*` layout hooks (REQ-UI-001).
+- GitHub About topics/homepage; optional GH workflows (stale, pr-lint, copilot-instructions).
+
+### Changed
+
+- Demo FrankenPHP image **PHP 8.5**; PHPStan level **8** with empty `ignoreErrors` (REQ-CS-005/006).
+- README Documentation order and badge order (REQ-DOCS-002/004).
+- Packagist keywords include `php` and `frankenphp`.
+
 ## [1.0.4] - 2026-07-22
 
 ### Added
@@ -75,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.5
 [1.0.4]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.4
 [1.0.3]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.3
 [1.0.2]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.2

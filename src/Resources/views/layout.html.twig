@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ 'wiki.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}</title>
     {% block styles %}
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+        {% set css_framework = nowo_wiki_web_ui.css_framework|default('tabler') %}
+        {% if css_framework in ['tabler', 'bootstrap', 'bootstrap5'] %}
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+        {% endif %}
         <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
         <style>
             body { background: #f6f8fb; }
@@ -15,9 +18,9 @@
         </style>
     {% endblock %}
 </head>
-<body>
-<div class="page">
-    <div class="{% block container_class %}container container-wiki{% endblock %} py-4">
+<body class="nowo-ui-body nowo-ui-wiki" data-nowo-ui-framework="{{ nowo_wiki_web_ui.css_framework|default('tabler') }}">
+<div class="page nowo-ui-page">
+    <div class="{% block container_class %}container container-wiki nowo-ui-container{% endblock %} py-4">
         {% block body %}{% endblock %}
     </div>
 </div>

@@ -15,9 +15,21 @@ This runs: `composer validate`, CS-Fixer, Rector dry-run, PHPStan, translation Y
 ## Tagging
 
 1. Update `docs/CHANGELOG.md` (move `[Unreleased]` entries to `[x.y.z] - YYYY-MM-DD`).
-2. Commit and push to `main`.
-3. Create GitHub release — `release.yml` publishes to Packagist when the tag is pushed.
-4. `sync-releases.yml` mirrors release notes into `CHANGELOG.md` when configured.
+2. Update `docs/UPGRADING.md` when integrators need notes.
+3. Commit and push to `main`.
+4. Create annotated tag and push — `release.yml` publishes to Packagist when the tag is pushed.
+5. `sync-releases.yml` mirrors release notes into `CHANGELOG.md` when configured.
+
+### Example for v1.0.5
+
+```bash
+git add -A
+git -c core.hooksPath=.githooks commit -m "Release 1.0.5: web_ui hooks, FrankenPHP banner, demo php8.5"
+make check-no-cursor-coauthor
+git tag -a v1.0.5 -m "Release 1.0.5"
+git push origin main
+git push origin v1.0.5
+```
 
 ## Packagist
 

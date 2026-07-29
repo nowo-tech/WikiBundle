@@ -58,3 +58,6 @@ volumes:
 networks:
   wiki-demo-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.250.80.0/24

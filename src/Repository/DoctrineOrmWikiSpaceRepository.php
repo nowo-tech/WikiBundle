@@ -50,6 +50,11 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
         return $space;
     }
 
+    /**
+     * @param list<string> $ownerScopeIds
+     *
+     * @return list<WikiSpace>
+     */
     public function findAccessible(string $ownerScopeType, array $ownerScopeIds): array
     {
         if ($ownerScopeIds === []) {

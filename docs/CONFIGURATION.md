@@ -23,6 +23,21 @@ Root key: `nowo_wiki`.
 | `security.export_roles` | `ROLE_USER` | Roles allowed to export a space |
 | `import_export.enabled` | `true` | Enable import/export UI and console commands |
 | `import_export.max_upload_bytes` | `52428800` | Max upload size for space import (bytes) |
+| `web_ui.css_framework` | `tabler` | REQ-UI-001 CSS stack (`bootstrap5`, `tabler`, `tailwind`, `custom`, …) |
+| `web_ui.layout_template` | null | Optional host layout Twig path |
+
+
+## Web UI (REQ-UI-001)
+
+```yaml
+nowo_wiki:
+    web_ui:
+        enabled: true
+        css_framework: tabler   # or bootstrap5, tailwind, custom, …
+        # layout_template: 'layouts/app.html.twig'  # optional host layout
+```
+
+Semantic hooks: `nowo-ui-body`, `nowo-ui-page`, `nowo-ui-container`, `data-nowo-ui-framework`. Override Twig under `templates/bundles/NowoWikiBundle/` or set `web_ui.layout_template`.
 
 ## Import / export
 

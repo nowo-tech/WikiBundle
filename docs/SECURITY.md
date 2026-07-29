@@ -58,6 +58,10 @@ See [docs/examples/AccessControl.md](examples/AccessControl.md) and [USAGE.md](U
 
 Run `composer audit` and Dependabot before releases.
 
+## REQ-SEC-004
+
+AI audit + remedia **2026-07-29** — grade **Pass (conditional)** / residual risk **Medium** (stored HTML depends on sanitizer allowlist; AI prompt-injection; ZIP import within size cap; host must keep ACL roles tight).
+
 ## Reporting
 
 See [.github/SECURITY.md](../.github/SECURITY.md) for coordinated disclosure.

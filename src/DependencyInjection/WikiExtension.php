@@ -70,6 +70,14 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.ai', $config['ai']);
         $container->setParameter('nowo_wiki.import_export', $config['import_export']);
         $container->setParameter('nowo_wiki.import_export.enabled', (bool) $config['import_export']['enabled']);
+        $container->setParameter('nowo_wiki.web_ui', $config['web_ui']);
+        $container->setParameter('nowo_wiki.web_ui.css_framework', $config['web_ui']['css_framework']);
+
+        $layoutTemplate = $config['web_ui']['layout_template'] ?? null;
+        if (is_string($layoutTemplate) && $layoutTemplate !== '') {
+            $config['templates']['layout'] = $layoutTemplate;
+            $container->setParameter('nowo_wiki.templates', $config['templates']);
+        }
 
         $teamResolverId = $config['team_membership_resolver'] ?? null;
         if (!is_string($teamResolverId) || $teamResolverId === '') {
@@ -172,6 +180,23 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
     public function prepend(ContainerBuilder $container): void
     {
+        // Parameter must exist before Twig globals resolve during container build.
+        if (!$container->hasParameter('nowo_wiki.web_ui')) {
+            $container->setParameter('nowo_wiki.web_ui', [
+                'enabled'         => true,
+                'css_framework'   => 'tabler',
+                'layout_template' => null,
+            ]);
+        }
+
+        if ($container->hasExtension('twig')) {
+            $container->prependExtensionConfig('twig', [
+                'globals' => [
+                    'nowo_wiki_web_ui' => '%nowo_wiki.web_ui%',
+                ],
+            ]);
+        }
+
         if ($container->hasExtension('framework')) {
             $container->prependExtensionConfig('framework', [
                 'assets' => [
