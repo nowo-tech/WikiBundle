@@ -1,0 +1,22 @@
+{# Page shell (REQ-UI-001): extends controller `layout` and stacks Wiki CSS/JS with parent(). #}
+{% extends layout %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    {% block nowo_ui_styles %}
+        <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+        <style>
+            body { background: #f6f8fb; }
+            .container-narrow { max-width: 960px; }
+            .container-wiki { max-width: 1180px; }
+        </style>
+    {% endblock %}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {% block nowo_ui_scripts %}
+        <script src="{{ asset('wiki.js', 'nowo_wiki') }}" defer></script>
+    {% endblock %}
+    {% block wiki_editor_scripts %}{% endblock %}
+{% endblock %}

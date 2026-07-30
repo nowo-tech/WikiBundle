@@ -4,18 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ 'wiki.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}</title>
+    {# Demo root layout: no parent() (full HTML). Package assets stack in base.html.twig. #}
     {% block styles %}
-        {% set css_framework = nowo_wiki_web_ui.css_framework|default('tabler') %}
-        {% if css_framework in ['tabler', 'bootstrap', 'bootstrap5'] %}
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
-        {% endif %}
-        <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
-        <style>
-            body { background: #f6f8fb; }
-            .container-narrow { max-width: 960px; }
-            .container-wiki { max-width: 1180px; }
-        </style>
+        {% block stylesheets %}
+            {% set css_framework = nowo_wiki_web_ui.css_framework|default('tabler') %}
+            {% if css_framework in ['tabler', 'bootstrap', 'bootstrap5'] %}
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+                <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+            {% endif %}
+        {% endblock %}
     {% endblock %}
 </head>
 <body class="nowo-ui-body nowo-ui-wiki" data-nowo-ui-framework="{{ nowo_wiki_web_ui.css_framework|default('tabler') }}">
@@ -25,9 +22,10 @@
     </div>
 </div>
 {% block javascripts %}
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
-    <script src="{{ asset('wiki.js', 'nowo_wiki') }}" defer></script>
-    {% block wiki_editor_scripts %}{% endblock %}
+    {% set css_framework = nowo_wiki_web_ui.css_framework|default('tabler') %}
+    {% if css_framework in ['tabler', 'bootstrap', 'bootstrap5'] %}
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+    {% endif %}
 {% endblock %}
 </body>
 </html>

@@ -4,6 +4,25 @@
 
 _Placeholder for the next release._
 
+## To 1.1.0
+
+Optional manage page shell for REQ-UI-001. **Non-breaking** — `web_ui.css_framework` / `layout_template` from **1.0.5** unchanged.
+
+```bash
+composer require nowo-tech/wiki-bundle:^1.1.0
+php bin/console cache:clear
+```
+
+- Manage pages go through `@NowoWikiBundle/base.html.twig` (stacks package CSS/JS with `parent()`). Prefer `web_ui.layout_template` at the host chrome instead of freezing every page.
+- If you **overrode** manage templates that `{% extends layout %}`, update them to `{% extends '@NowoWikiBundle/base.html.twig' %}` (or keep extending your own shell and stack assets yourself).
+
+```yaml
+nowo_wiki:
+    web_ui:
+        css_framework: bootstrap5
+        layout_template: 'layouts/app.html.twig'
+```
+
 ## To 1.0.5
 
 No breaking changes for application consumers. Defaults keep Tabler-compatible markup.

@@ -49,8 +49,29 @@ Example: `/tools/wiki/search?q=deploy&space=engineering`
 
 1. Implement `WikiAccessCheckerInterface` (or use role-based defaults).
 2. For team spaces, register `WikiTeamMembershipResolverInterface`.
-3. Override `@NowoWikiBundle/layout.html.twig` in `templates/bundles/NowoWikiBundle/`.
+3. Prefer **`nowo_wiki.web_ui.layout_template`** (or `templates.layout`) pointing at your host layout — manage pages extend `@NowoWikiBundle/base.html.twig`, which stacks `wiki.css` / `wiki.js` with **`{{ parent() }}`** (REQ-UI-001). Avoid forking every manage page.
 4. Seed `WikiSpace` rows per team (or expose a create UI in your app).
+
+## Twig overrides (REQ-TWIG-001)
+
+The bundle registers **`@NowoWikiBundle/`**. Application files under **`templates/bundles/NowoWikiBundle/`** win over vendor (`TwigPathsPass`).
+
+**Freeze rule:** a full-file override hides vendor updates for that path until you delete or merge it. Prefer `web_ui.layout_template` / `web_ui.css_framework` over copying manage pages.
+
+**Procedure:** copy only the `<subpath>` you customise into `templates/bundles/NowoWikiBundle/<subpath>`, then clear the Twig cache if needed.
+
+| Prefer | Notes |
+|--------|--------|
+| `web_ui.layout_template` | Host chrome; pages keep package assets via `base.html.twig` |
+| `web_ui.css_framework` | Stack hint (`tabler` default); demo CDN gated for Tabler/Bootstrap |
+| Override `base.html.twig` / one manage page | Surgical freeze when config is not enough |
+
+```yaml
+nowo_wiki:
+    web_ui:
+        css_framework: bootstrap5
+        layout_template: 'layouts/app.html.twig'
+```
 
 ## Events
 

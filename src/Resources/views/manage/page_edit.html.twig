@@ -1,4 +1,4 @@
-{% extends layout %}
+{% extends '@NowoWikiBundle/base.html.twig' %}
 
 {% block title %}{% if page %}{{ page.title }}{% else %}{{ 'wiki.page.new'|trans({}, 'NowoWikiBundle') }}{% endif %}{% endblock %}
 

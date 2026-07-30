@@ -37,7 +37,7 @@ nowo_wiki:
         # layout_template: 'layouts/app.html.twig'  # optional host layout
 ```
 
-Semantic hooks: `nowo-ui-body`, `nowo-ui-page`, `nowo-ui-container`, `data-nowo-ui-framework`. Override Twig under `templates/bundles/NowoWikiBundle/` or set `web_ui.layout_template`.
+Semantic hooks: `nowo-ui-body`, `nowo-ui-page`, `nowo-ui-container`, `data-nowo-ui-framework`. Manage pages extend `@NowoWikiBundle/base.html.twig` (stacks package CSS/JS with `parent()`). Prefer `web_ui.layout_template` over copying every page; override under `templates/bundles/NowoWikiBundle/` only when needed (see [USAGE](USAGE.md#twig-overrides-req-twig-001)).
 
 ## Import / export
 
