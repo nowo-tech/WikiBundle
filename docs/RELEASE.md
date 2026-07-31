@@ -20,6 +20,17 @@ This runs: `composer validate`, CS-Fixer, Rector dry-run, PHPStan, translation Y
 4. Create annotated tag and push — `release.yml` publishes to Packagist when the tag is pushed.
 5. `sync-releases.yml` mirrors release notes into `CHANGELOG.md` when configured.
 
+### Example for v1.1.1
+
+```bash
+git add -A
+git -c core.hooksPath=.githooks commit -m "Release 1.1.1: Vitest CI on Node.js 22"
+make check-no-cursor-coauthor
+git tag -a v1.1.1 -m "Release 1.1.1 - Vitest CI on Node.js 22"
+git push origin main
+git push origin v1.1.1
+```
+
 ### Example for v1.1.0
 
 ```bash

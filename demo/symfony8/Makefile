@@ -7,7 +7,7 @@ COMPOSE ?= $(shell $(DOCKER_BIN) compose version >/dev/null 2>&1 && echo "$(DOCK
 endif
 SERVICE_PHP = php
 
-.PHONY: help ensure-env up down build install database shell test update-bundle fixtures seed restart verify
+.PHONY: help ensure-env ensure-up up down build install database shell test update-bundle fixtures seed restart verify release-check
 
 help:
 	@echo "Wiki Bundle — Symfony 8.1 Demo"
@@ -23,10 +23,17 @@ help:
 	@echo "  shell          Open shell in PHP container"
 	@echo "  test           Run demo smoke checks"
 	@echo "  update-bundle  Sync bundles, assets:install, clear cache"
+	@echo "  release-check  update-bundle + test + verify"
 
 ensure-env:
 	@test -f .env || (cp .env.example .env && echo "Created .env from .env.example")
 	@rm -f .env.dev
+
+ensure-up: ensure-env
+	@if ! $(COMPOSE) exec -T $(SERVICE_PHP) true 2>/dev/null; then \
+		echo "Starting demo container..."; \
+		$(MAKE) up; \
+	fi
 
 up: ensure-env
 	@$(COMPOSE) up -d
@@ -50,7 +57,7 @@ down:
 restart: ensure-env
 	@$(COMPOSE) restart $(SERVICE_PHP)
 
-verify: ensure-env
+verify: ensure-up
 	@PORT=$$(grep "^PORT=" .env 2>/dev/null | cut -d= -f2 | tr -d '\r'); \
 	[ -z "$$PORT" ] && PORT=$$(grep "^PORT=" .env.example 2>/dev/null | cut -d= -f2 | tr -d '\r'); \
 	[ -z "$$PORT" ] && PORT=8025; \
@@ -76,16 +83,19 @@ seed: fixtures
 shell:
 	@$(COMPOSE) exec $(SERVICE_PHP) sh
 
-update-bundle:
+update-bundle: ensure-up
 	@$(COMPOSE) exec -T $(SERVICE_PHP) composer update nowo-tech/wiki-bundle --no-interaction --no-scripts
 	@$(COMPOSE) exec -T $(SERVICE_PHP) composer dump-autoload
 	@$(COMPOSE) exec -T $(SERVICE_PHP) php bin/console assets:install public --symlink --relative
 	@$(COMPOSE) exec -T $(SERVICE_PHP) php bin/console cache:clear --env=dev --no-warmup || true
 
-update-deps:
+update-deps: ensure-up
 	@$(COMPOSE) exec -T $(SERVICE_PHP) composer update --no-interaction
 
 test: update-bundle
 	@$(COMPOSE) exec -T $(SERVICE_PHP) php bin/console lint:yaml config/ --parse-tags
 	@$(COMPOSE) exec -T $(SERVICE_PHP) php bin/console lint:twig templates/
 	@$(COMPOSE) exec -T $(SERVICE_PHP) php bin/console doctrine:schema:validate --skip-sync
+
+release-check: ensure-up update-bundle test verify
+	@echo "✅ Demo passed release-check."

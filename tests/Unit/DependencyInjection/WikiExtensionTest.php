@@ -16,6 +16,7 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension;
+use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
 final class WikiExtensionTest extends TestCase
@@ -97,5 +98,32 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->hasDefinition(SymfonyAiWikiAssistant::class));
         self::assertTrue($container->hasDefinition(WikiKnowledgeSearchTool::class));
         self::assertSame(SymfonyAiWikiAssistant::class, (string) $container->getAlias(WikiAiAssistantInterface::class));
+    }
+
+    public function testLayoutTemplateOverridesTemplatesLayoutParameter(): void
+    {
+        $container = new ContainerBuilder();
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => [
+                'layout_template' => 'layouts/app.html.twig',
+            ],
+        ]], $container);
+
+        /** @var array{layout: string} $templates */
+        $templates = $container->getParameter('nowo_wiki.templates');
+        self::assertSame('layouts/app.html.twig', $templates['layout']);
+    }
+
+    public function testPrependsTwigGlobalsWhenExtensionPresent(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new TwigExtension());
+
+        (new WikiExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('twig');
+        self::assertNotEmpty($configs);
+        self::assertSame('%nowo_wiki.web_ui%', $configs[0]['globals']['nowo_wiki_web_ui'] ?? null);
     }
 }

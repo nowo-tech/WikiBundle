@@ -4,8 +4,7 @@ up-symfony8:
 	@$(MAKE) -C symfony8 up
 
 release-check:
-	@$(MAKE) -C symfony8 update-bundle
-	@$(MAKE) -C symfony8 test
+	@$(MAKE) -C symfony8 release-check
 
 # REQ-TEST-011: boot FrankenPHP demo and assert HTTP 200 on /tools/wiki
 demo-smoke:

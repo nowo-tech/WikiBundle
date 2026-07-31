@@ -4,6 +4,16 @@
 
 _Placeholder for the next release._
 
+## To 1.1.1
+
+**CI tooling only** (Vitest on Node.js 22). **No application or config changes.**
+
+```bash
+composer require nowo-tech/wiki-bundle:^1.1.1
+```
+
+Integrators: no changes. Bundle contributors: local/CI TypeScript coverage needs Node **22+** when using `jsdom@30`.
+
 ## To 1.1.0
 
 Optional manage page shell for REQ-UI-001. **Non-breaking** — `web_ui.css_framework` / `layout_template` from **1.0.5** unchanged.

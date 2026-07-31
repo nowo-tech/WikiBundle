@@ -1811,10 +1811,11 @@
             "dist": {
                 "type": "path",
                 "url": "/var/tiptap-editor-bundle",
-                "reference": "802ed720323fadd4a4fcc2eb8d80ba128e4da47a"
+                "reference": "0fe81af5c1d3a71047213569c5a5ba9b8c553a21"
             },
             "require": {
                 "php": ">=8.2 <8.6",
+                "symfony/asset": "^6.4 || ^7.0 || ^8.0",
                 "symfony/config": "^6.4 || ^7.0 || ^8.0",
                 "symfony/dependency-injection": "^6.4 || ^7.0 || ^8.0",
                 "symfony/form": "^6.4 || ^7.0 || ^8.0",
@@ -1900,6 +1901,8 @@
             "keywords": [
                 "editor",
                 "form",
+                "frankenphp",
+                "php",
                 "prosemirror",
                 "rich-text",
                 "symfony",
@@ -1924,7 +1927,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "ee23689f41d1feb3e58c636d551d811de8712df8"
+                "reference": "acd947905b62e5c6b3f68da94b333d6c74a401c9"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -1949,6 +1952,7 @@
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
+                "nowo-tech/phpstan-frankenphp": "^1.0",
                 "phpstan/extension-installer": "^1.0",
                 "phpstan/phpstan": "^2.0",
                 "phpstan/phpstan-phpunit": "^2.0",
@@ -2042,7 +2046,9 @@
             "homepage": "https://github.com/nowo-tech/WikiBundle",
             "keywords": [
                 "documentation",
+                "frankenphp",
                 "knowledge-base",
+                "php",
                 "symfony",
                 "symfony-bundle",
                 "tiptap",

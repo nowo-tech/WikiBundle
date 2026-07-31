@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-07-31
+
+### Fixed
+
+- **CI / Vitest** — TypeScript job uses Node.js **22** so `jsdom@30` / `undici@8` can load (`markAsUncloneable`); Node 20 failed `pnpm run test:coverage`.
+- **Demo** — `release-check` / `update-bundle` start the FrankenPHP container via `ensure-up` before Composer/exec.
+
+### Tests
+
+- Unit coverage for `web_ui.layout_template` → `nowo_wiki.templates.layout` and Twig `nowo_wiki_web_ui` prepend (restores **100%** PHP line coverage).
+
+### Upgrade
+
+```bash
+composer require nowo-tech/wiki-bundle:^1.1.1
+```
+
+No application or config API changes. See [UPGRADING.md](UPGRADING.md).
+
 ## [1.1.0] - 2026-07-30
 
 ### Added
@@ -106,7 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
 [1.0.5]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.5
 [1.0.4]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.4
