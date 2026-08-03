@@ -32,4 +32,4 @@ Sample content: **Engineering** and **Product** spaces with nested pages, images
 | `make update-bundle` | Refresh path-repo bundles + `assets:install` |
 | `make shell` | Shell in PHP container |
 
-Bundles mounted in the container: `/var/wiki-bundle`, `/var/tiptap-editor-bundle` (path repositories).
+Bundles mounted in the container: `/var/wiki-bundle` (path repository for this package only; other deps from Packagist).

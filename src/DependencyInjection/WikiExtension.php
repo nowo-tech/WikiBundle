@@ -17,6 +17,7 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -48,6 +49,14 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $configuration = new Configuration();
         $config        = $this->processConfiguration($configuration, $configs);
 
+        if (
+            ($config['web_ui']['enabled'] ?? true)
+            && !$config['security']['allow_unauthenticated']
+            && !$this->isSecurityBundleAvailable($container)
+        ) {
+            throw new LogicException('WikiBundle manage UI requires symfony/security-bundle when security.allow_unauthenticated is false.');
+        }
+
         $prefix         = rtrim((string) $config['table_prefix'], '_');
         $spacesTable    = $prefix . '_spaces';
         $pagesTable     = $prefix . '_pages';
@@ -66,6 +75,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.routes', $config['routes']);
         $container->setParameter('nowo_wiki.templates', $config['templates']);
         $container->setParameter('nowo_wiki.firewall', $config['firewall']);
+        $container->setParameter('nowo_wiki.security.allow_unauthenticated', $config['security']['allow_unauthenticated']);
         $container->setParameter('nowo_wiki.editor', $config['editor']);
         $container->setParameter('nowo_wiki.ai', $config['ai']);
         $container->setParameter('nowo_wiki.import_export', $config['import_export']);
@@ -87,7 +97,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setAlias(WikiTeamMembershipResolverInterface::class, $teamResolverId);
 
         $accessCheckerId = $config['security']['access_checker'] ?? null;
-        if (!is_string($accessCheckerId) || $accessCheckerId === '') {
+        if ($config['security']['allow_unauthenticated']) {
+            $accessCheckerId = 'nowo_wiki.access_checker.allow_all';
+            $container->setDefinition($accessCheckerId, new Definition(AllowAllWikiAccessChecker::class));
+        } elseif (!is_string($accessCheckerId) || $accessCheckerId === '') {
             $accessCheckerId = 'nowo_wiki.access_checker.default';
             $security        = $config['security'];
             $container->setDefinition($accessCheckerId, (new Definition(ConfigurableWikiAccessChecker::class))
@@ -176,6 +189,26 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     public function getAlias(): string
     {
         return Configuration::ALIAS;
+    }
+
+    /**
+     * Prefer kernel.bundles: ContainerBuilder::hasExtension() can be false while SecurityBundle
+     * is already registered (e.g. during early Flex cache:clear boots).
+     */
+    private function isSecurityBundleAvailable(ContainerBuilder $container): bool
+    {
+        if ($container->hasExtension('security')) {
+            return true;
+        }
+
+        if (!$container->hasParameter('kernel.bundles')) {
+            return false;
+        }
+
+        /** @var array<string, class-string> $bundles */
+        $bundles = $container->getParameter('kernel.bundles');
+
+        return isset($bundles['SecurityBundle']);
     }
 
     public function prepend(ContainerBuilder $container): void

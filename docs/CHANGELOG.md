@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-03
+
+### Added
+
+- **REQ-UI-002:** `security.allow_unauthenticated` (default `false`) with `AllowAllWikiAccessChecker`, compile-time SecurityBundle guard when the manage Web UI is enabled, and controller soft-gate (no hard `#[IsGranted('IS_AUTHENTICATED')]`).
+- Docs: CONFIGURATION / SECURITY host firewall example; Flex recipe comments for `access_roles` / `allow_unauthenticated`.
+
+### Changed
+
+- Demo: resolve TipTap from Packagist (no sibling Docker mount); FrankenPHP docs/README aligned.
+- Dev deps: `actions/stale` v11, jsdom 30.0.1, vite 8.2.0; TipTap / Rector lock refresh.
+
+### Compatibility
+
+- PHP `>=8.2 <8.6`; Symfony `^7.4 || ^8.0` (see `composer.json`).
+- Manage UI with default security settings requires **SecurityBundle** (or set `allow_unauthenticated: true` for trusted local demos only).
+
+### Upgrade
+
+```bash
+composer require nowo-tech/wiki-bundle:^1.2
+```
+
+See [UPGRADING.md](UPGRADING.md).
+
 ## [1.1.1] - 2026-07-31
 
 ### Fixed
@@ -125,7 +150,8 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
 [1.0.5]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.0.5

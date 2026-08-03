@@ -12,7 +12,6 @@ services:
     volumes:
       - .:/app
       - ../../:/var/wiki-bundle
-      - ../../../TiptapEditorBundle:/var/tiptap-editor-bundle
       - composer-cache:/root/.composer/cache
       - ./docker/php-dev.ini:/usr/local/etc/php/conf.d/99-php-dev.ini:ro
     env_file:

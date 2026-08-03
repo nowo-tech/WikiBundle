@@ -23,8 +23,7 @@ Open **http://localhost:8025/tools/wiki** (port from `demo/symfony8/.env`).
 
 Inside the PHP container:
 
-- `/var/wiki-bundle` — this bundle (symlink)
-- `/var/tiptap-editor-bundle` — Tiptap editor bundle
+- `/var/wiki-bundle` — this bundle only (symlink). `nowo-tech/tiptap-editor-bundle` and other deps come from Packagist.
 
 ## Commands
 

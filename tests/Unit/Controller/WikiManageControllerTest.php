@@ -949,13 +949,26 @@ MD);
     public function testDenyUnlessFeatureFallsBackToCanAccess(): void
     {
         $checker = $this->createMock(WikiAccessCheckerInterface::class);
-        $checker->method('canAccess')->willReturn(false);
+        $checker->expects(self::once())->method('canAccess')->willReturn(false);
 
         $controller = $this->controller(accessChecker: $checker);
-        $method     = new ReflectionMethod(WikiManageController::class, 'denyUnlessFeature');
+        WikiControllerContainerBuilder::bind($controller, new TestUser());
+        $method = new ReflectionMethod(WikiManageController::class, 'denyUnlessFeature');
 
         $this->expectException(AccessDeniedHttpException::class);
         $method->invoke($controller, 'unknown');
+    }
+
+    public function testDenyUnlessFeatureSkippedWhenAllowUnauthenticated(): void
+    {
+        $checker = $this->createMock(WikiAccessCheckerInterface::class);
+        $checker->expects(self::never())->method(self::anything());
+
+        $controller = $this->controller(accessChecker: $checker, allowUnauthenticated: true);
+        $method     = new ReflectionMethod(WikiManageController::class, 'denyUnlessFeature');
+
+        $method->invoke($controller, 'list');
+        self::assertTrue(true);
     }
 
     public function testDenyWhenCannotExport(): void
@@ -1291,6 +1304,7 @@ MD);
         ?WikiAiAssistantInterface $aiAssistant = null,
         bool $importExportEnabled = true,
         int $maxUploadBytes = 52428800,
+        bool $allowUnauthenticated = false,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1332,6 +1346,7 @@ MD);
             null,
             ['tiptap_config' => 'notion'],
             ['enabled'       => $importExportEnabled, 'max_upload_bytes' => $maxUploadBytes],
+            $allowUnauthenticated,
         );
     }
 

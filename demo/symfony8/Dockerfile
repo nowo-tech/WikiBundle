@@ -8,8 +8,7 @@ RUN install-php-extensions intl pdo_mysql zip
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 RUN git config --global --add safe.directory /app \
-    && git config --global --add safe.directory /var/wiki-bundle \
-    && git config --global --add safe.directory /var/tiptap-editor-bundle
+    && git config --global --add safe.directory /var/wiki-bundle
 
 WORKDIR /app
 

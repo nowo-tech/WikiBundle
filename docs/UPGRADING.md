@@ -1,8 +1,33 @@
 # Upgrading
 
-## Unreleased
+## To 1.2.0
 
-_Placeholder for the next release._
+Minor release: REQ-UI-002 — `security.allow_unauthenticated`, AllowAll checker, SecurityBundle compile-time guard, and soft manage-UI gate.
+
+```bash
+composer require nowo-tech/wiki-bundle:^1.2
+php bin/console cache:clear
+```
+
+### Behaviour
+
+| Topic | Before | 1.2.0 |
+| --- | --- | --- |
+| Apps without SecurityBundle (Web UI on) | Could boot | Boot fails with `LogicException` unless `allow_unauthenticated: true` |
+| Manage auth attribute | `#[IsGranted('IS_AUTHENTICATED')]` | Feature checks via `WikiAccessCheckerInterface` (+ optional AllowAll) |
+| Host firewall | Recommended | Still required in production (`access_control` on `/tools/wiki`) |
+
+**Trusted local demos only:**
+
+```yaml
+nowo_wiki:
+    security:
+        allow_unauthenticated: true   # never in production
+```
+
+**Production:** keep `allow_unauthenticated: false`, install SecurityBundle, grant roles, and protect manage paths with host `access_control`.
+
+Page mutations still call `requireUser()` — anonymous demos need a host authenticator (or real login) for write flows.
 
 ## To 1.1.1
 

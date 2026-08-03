@@ -46,3 +46,4 @@ services:
             $dashboardRoute: '%nowo_wiki.dashboard_route%'
             $editor: '%nowo_wiki.editor%'
             $importExport: '%nowo_wiki.import_export%'
+            $allowUnauthenticated: '%nowo_wiki.security.allow_unauthenticated%'

@@ -11,11 +11,14 @@ use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
+use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension;
+use Symfony\Bundle\SecurityBundle\DependencyInjection\SecurityExtension;
+use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
@@ -24,6 +27,7 @@ final class WikiExtensionTest extends TestCase
     public function testRegistersHtmlSanitizerAlias(): void
     {
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
 
         self::assertTrue($container->hasAlias(WikiHtmlSanitizerInterface::class));
@@ -55,6 +59,7 @@ final class WikiExtensionTest extends TestCase
     public function testRegistersNullAiAssistantByDefault(): void
     {
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
 
         self::assertTrue($container->hasAlias(WikiAiAssistantInterface::class));
@@ -68,6 +73,7 @@ final class WikiExtensionTest extends TestCase
         }
 
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
 
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('symfony/ai-bundle');
@@ -90,6 +96,7 @@ final class WikiExtensionTest extends TestCase
         }
 
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([[
             'user_class' => 'App\\Entity\\User',
             'ai'         => ['enabled' => true, 'agent' => 'wiki_assistant'],
@@ -103,6 +110,7 @@ final class WikiExtensionTest extends TestCase
     public function testLayoutTemplateOverridesTemplatesLayoutParameter(): void
     {
         $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([[
             'user_class' => 'App\\Entity\\User',
             'web_ui'     => [
@@ -125,5 +133,46 @@ final class WikiExtensionTest extends TestCase
         $configs = $container->getExtensionConfig('twig');
         self::assertNotEmpty($configs);
         self::assertSame('%nowo_wiki.web_ui%', $configs[0]['globals']['nowo_wiki_web_ui'] ?? null);
+    }
+
+    public function testLoadThrowsWhenSecurityBundleMissingAndUnauthenticatedDisallowed(): void
+    {
+        $container = new ContainerBuilder();
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('allow_unauthenticated');
+
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'security'   => ['allow_unauthenticated' => false],
+        ]], $container);
+    }
+
+    public function testLoadRegistersAllowAllAccessCheckerWhenUnauthenticatedAllowed(): void
+    {
+        $container = new ContainerBuilder();
+
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'security'   => ['allow_unauthenticated' => true],
+        ]], $container);
+
+        self::assertTrue($container->hasDefinition('nowo_wiki.access_checker.allow_all'));
+        self::assertSame(
+            'nowo_wiki.access_checker.allow_all',
+            (string) $container->getAlias(WikiAccessCheckerInterface::class),
+        );
+        self::assertTrue($container->getParameter('nowo_wiki.security.allow_unauthenticated'));
+    }
+
+    public function testLoadAcceptsSecurityBundleViaHasExtension(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension(new SecurityExtension());
+
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+
+        self::assertTrue($container->hasDefinition('nowo_wiki.access_checker.default'));
+        self::assertFalse($container->getParameter('nowo_wiki.security.allow_unauthenticated'));
     }
 }

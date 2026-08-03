@@ -72,6 +72,7 @@ final class Configuration implements ConfigurationInterface
                         ->arrayNode('ai_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
                         ->arrayNode('import_roles')->scalarPrototype()->end()->defaultValue(['ROLE_ADMIN'])->end()
                         ->arrayNode('export_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
+                        ->booleanNode('allow_unauthenticated')->defaultFalse()->end()
                     ->end()
                 ->end()
                 ->arrayNode('import_export')

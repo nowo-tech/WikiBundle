@@ -42,6 +42,15 @@ Replace defaults via `nowo_wiki.security.access_checker` and `nowo_wiki.team_mem
 - **Team scope:** spaces visible when `owner_scope_id` is in resolver team ids.
 - **User scope:** spaces owned by the current user id.
 - **Roles:** `ConfigurableWikiAccessChecker` supports admin bypass and per-action role lists.
+- **Demo bypass:** `security.allow_unauthenticated: true` wires `AllowAllWikiAccessChecker` (never in production).
+
+Host firewall example:
+
+```yaml
+security:
+    access_control:
+        - { path: ^/tools/wiki, roles: ROLE_USER }
+```
 
 See [docs/examples/AccessControl.md](examples/AccessControl.md) and [USAGE.md](USAGE.md).
 

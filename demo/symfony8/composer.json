@@ -13,16 +13,6 @@
                     "nowo-tech/wiki-bundle": "1.0.0"
                 }
             }
-        },
-        {
-            "type": "path",
-            "url": "/var/tiptap-editor-bundle",
-            "options": {
-                "symlink": true,
-                "versions": {
-                    "nowo-tech/tiptap-editor-bundle": "1.0.0"
-                }
-            }
         }
     ],
     "require": {
@@ -53,7 +43,7 @@
         "symfony/yaml": "8.1.*"
     },
     "require-dev": {
-        "nowo-tech/twig-inspector-bundle": "*",
+        "nowo-tech/twig-inspector-bundle": "^1.0",
         "phpunit/phpunit": "^11.0",
         "symfony/browser-kit": "8.1.*",
         "symfony/css-selector": "8.1.*",

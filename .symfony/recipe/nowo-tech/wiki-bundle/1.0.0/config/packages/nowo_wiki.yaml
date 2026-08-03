@@ -1,2 +1,6 @@
 nowo_wiki:
     user_class: App\Entity\User
+    # security:
+    #     access_roles: [ROLE_USER]
+    #     access_checker: null
+    #     allow_unauthenticated: false  # never true in production

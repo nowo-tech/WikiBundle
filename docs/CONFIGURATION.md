@@ -10,6 +10,8 @@ Root key: `nowo_wiki`.
 | `team_membership_resolver` | null | Service id implementing `WikiTeamMembershipResolverInterface` |
 | `editor.tiptap_config` | `notion` | TiptapEditorBundle config profile name |
 | `security.access_checker` | null | Custom `WikiAccessCheckerInterface` service id |
+| `security.access_roles` | `[ROLE_USER]` | Open manage UI (hosts may set `ROLE_ADMIN` for admin-only) |
+| `security.allow_unauthenticated` | `false` | DEV/DEMO only — wires AllowAll checker; requires SecurityBundle when `false` |
 | `routes.*` | see defaults | Path and route name per action |
 | `templates.*` | bundle views | Twig override targets |
 | `ai.enabled` | `false` | Enable Symfony AI assistant (`composer require symfony/ai-bundle`) |

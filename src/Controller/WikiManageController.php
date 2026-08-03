@@ -34,15 +34,16 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Security\Core\User\UserInterface;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Throwable;
 
 use function sprintf;
 
 /**
  * Authenticated wiki management (spaces, pages, revisions, search).
+ *
+ * Soft-gated via {@see WikiAccessCheckerInterface}; set security.allow_unauthenticated
+ * for trusted demos only (never in production).
  */
-#[IsGranted('IS_AUTHENTICATED')]
 final class WikiManageController extends AbstractController
 {
     use WikiCsrfTrait;
@@ -71,6 +72,7 @@ final class WikiManageController extends AbstractController
         private readonly ?string $dashboardRoute,
         private readonly array $editor,
         private readonly array $importExport,
+        private readonly bool $allowUnauthenticated = false,
     ) {
     }
 
@@ -493,16 +495,23 @@ final class WikiManageController extends AbstractController
 
     private function denyUnlessFeature(string $feature): void
     {
+        if ($this->allowUnauthenticated) {
+            return;
+        }
+
+        $user = $this->getUser();
+        $user = $user instanceof UserInterface ? $user : null;
+
         $allowed = match ($feature) {
-            'list'    => $this->accessChecker->canList(),
-            'create'  => $this->accessChecker->canCreate(),
-            'edit'    => $this->accessChecker->canEdit(),
-            'history' => $this->accessChecker->canViewHistory(),
-            'archive' => $this->accessChecker->canArchive(),
-            'ai'      => $this->accessChecker->canAskAi(),
-            'import'  => $this->accessChecker->canImport(),
-            'export'  => $this->accessChecker->canExport(),
-            default   => $this->accessChecker->canAccess(),
+            'list'    => $this->accessChecker->canList($user),
+            'create'  => $this->accessChecker->canCreate($user),
+            'edit'    => $this->accessChecker->canEdit($user),
+            'history' => $this->accessChecker->canViewHistory($user),
+            'archive' => $this->accessChecker->canArchive($user),
+            'ai'      => $this->accessChecker->canAskAi($user),
+            'import'  => $this->accessChecker->canImport($user),
+            'export'  => $this->accessChecker->canExport($user),
+            default   => $this->accessChecker->canAccess($user),
         };
 
         if (!$allowed) {
