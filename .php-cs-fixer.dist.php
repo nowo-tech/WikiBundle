@@ -97,4 +97,6 @@ return (new Config())
         (new Finder())
             ->in(__DIR__)
             ->exclude(['vendor', 'var', 'coverage', '.phpunit.cache'])
+            // Symfony auto-generated DI reference dumps (no declare_strict_types).
+            ->notPath('config/reference.php')
     );
