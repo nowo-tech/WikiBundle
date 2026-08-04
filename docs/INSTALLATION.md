@@ -2,6 +2,8 @@
 
 ## Requirements
 
+- **FormKitBundle** (`nowo-tech/form-kit-bundle` ^2.0) — dashboard/admin Symfony forms (`FormOptionsTrait`, profile `wiki`). Register `NowoFormKitBundle` in `config/bundles.php` (Flex / demo). Optional host YAML: `config/packages/nowo_form_kit.yaml`.
+
 - PHP 8.2+
 - Symfony 7.4, 8.0, or 8.1
 - Doctrine ORM
@@ -60,3 +62,13 @@ If you override the wiki layout, keep `{% block wiki_editor_scripts %}` or add:
 ```twig
 <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js')) }}"></script>
 ```
+
+## Twig Extra Bundle (REQ-TWIG-004)
+
+This package ships Twig templates. Host applications **must** install and enable Twig Extra:
+
+```bash
+composer require twig/extra-bundle twig/string-extra
+```
+
+Register `Twig\Extra\TwigExtraBundle\TwigExtraBundle` in `config/bundles.php` (Flex usually does this). Demos already include the same stack. The package `release-check` runs `make check-twig-extra` to guard this contract.

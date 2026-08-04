@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Form;
 use Nowo\TiptapEditorBundle\Form\TiptapEditorType;
 use Nowo\WikiBundle\Dto\WikiPageFormData;
 use Nowo\WikiBundle\Form\WikiPageFormType;
+use Nowo\WikiBundle\Tests\Support\FormKitTestSupport;
 use Symfony\Component\Form\Extension\HttpFoundation\HttpFoundationExtension;
 use Symfony\Component\Form\PreloadedExtension;
 use Symfony\Component\Form\Test\TypeTestCase;
@@ -18,7 +19,7 @@ final class WikiPageFormTypeTest extends TypeTestCase
         return [
             new HttpFoundationExtension(),
             new PreloadedExtension([
-                new WikiPageFormType(),
+                FormKitTestSupport::withMerger(new WikiPageFormType()),
                 new TiptapEditorType([
                     'notion' => [
                         'toolbar'    => true,

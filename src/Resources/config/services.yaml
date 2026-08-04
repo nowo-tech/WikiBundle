@@ -47,3 +47,9 @@ services:
             $editor: '%nowo_wiki.editor%'
             $importExport: '%nowo_wiki.import_export%'
             $allowUnauthenticated: '%nowo_wiki.security.allow_unauthenticated%'
+
+    # Form Kit injects FormOptionsMerger into tagged form types (FormOptionsMergerInjectorCompilerPass).
+    Nowo\WikiBundle\Form\:
+        resource: '../../Form/'
+        exclude: '../../Form/DataTransformer/'
+        tags: ['form.type']

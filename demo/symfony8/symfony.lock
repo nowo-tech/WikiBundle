@@ -47,11 +47,17 @@
             "migrations/.gitignore"
         ]
     },
+    "nowo-tech/form-kit-bundle": {
+        "version": "v2.0.20"
+    },
     "nowo-tech/tiptap-editor-bundle": {
         "version": "1.0.0"
     },
     "nowo-tech/twig-inspector-bundle": {
         "version": "v1.0.33"
+    },
+    "nowo-tech/ui-kit-bundle": {
+        "version": "v1.4.0"
     },
     "nowo-tech/wiki-bundle": {
         "version": "1.0.0"
@@ -276,5 +282,8 @@
             "config/packages/web_profiler.yaml",
             "config/routes/web_profiler.yaml"
         ]
+    },
+    "twig/extra-bundle": {
+        "version": "v3.24.0"
     }
 }

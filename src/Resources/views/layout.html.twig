@@ -1,3 +1,4 @@
+{% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
 <!DOCTYPE html>
 <html lang="{{ app.request.locale|default('en') }}">
 <head>
@@ -12,6 +13,7 @@
                 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
                 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
             {% endif %}
+            <link rel="stylesheet" href="{{ asset('css/nowo-ui.css', 'nowo_ui_kit') }}">
         {% endblock %}
     {% endblock %}
 </head>

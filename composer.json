@@ -21,7 +21,7 @@
     },
     "authors": [
         {
-            "name": "Héctor Franco Aceituno",
+            "name": "H\u00e9ctor Franco Aceituno",
             "email": "hectorfranco@nowo.tech",
             "homepage": "https://github.com/HecFranco",
             "role": "Developer"
@@ -32,15 +32,17 @@
         }
     ],
     "require": {
-        "php": ">=8.2 <8.6",
         "doctrine/doctrine-bundle": "^2.10 || ^3.0",
         "doctrine/orm": "^2.15 || ^3.0",
         "ext-zip": "*",
         "league/commonmark": "^2.7",
         "league/html-to-markdown": "^5.1",
+        "nowo-tech/form-kit-bundle": "^2.0",
         "nowo-tech/tiptap-editor-bundle": "^1.0",
-        "symfony/console": "^7.4 || ^8.0",
+        "nowo-tech/ui-kit-bundle": "^1.4",
+        "php": ">=8.2 <8.6",
         "symfony/config": "^7.4 || ^8.0",
+        "symfony/console": "^7.4 || ^8.0",
         "symfony/dependency-injection": "^7.4 || ^8.0",
         "symfony/form": "^7.4 || ^8.0",
         "symfony/framework-bundle": "^7.4 || ^8.0",
@@ -50,7 +52,9 @@
         "symfony/translation": "^7.4 || ^8.0",
         "symfony/twig-bundle": "^7.4 || ^8.0",
         "symfony/validator": "^7.4 || ^8.0",
-        "symfony/yaml": "^7.4 || ^8.0"
+        "symfony/yaml": "^7.4 || ^8.0",
+        "twig/extra-bundle": "^3.12",
+        "twig/string-extra": "^3.12"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
@@ -66,7 +70,8 @@
         "symfony/asset": "^7.4 || ^8.0",
         "symfony/browser-kit": "^7.4 || ^8.0",
         "symfony/dom-crawler": "^7.4 || ^8.0",
-        "symfony/var-exporter": "^7.4 || ^8.0"
+        "symfony/var-exporter": "^7.4 || ^8.0",
+        "vincentlanglet/twig-cs-fixer": "^3.0"
     },
     "autoload": {
         "psr-4": {
@@ -118,7 +123,10 @@
         "qa": [
             "@cs-check",
             "@test"
-        ]
+        ],
+        "twig:lint": "twig-cs-fixer lint --config=.twig-cs-fixer.php",
+        "twig:fix": "twig-cs-fixer fix --config=.twig-cs-fixer.php",
+        "twig:fix:check": "twig-cs-fixer lint --config=.twig-cs-fixer.php --fix"
     },
     "scripts-descriptions": {
         "test": "Run PHPUnit tests",

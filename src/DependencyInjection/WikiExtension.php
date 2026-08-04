@@ -35,6 +35,8 @@ use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 
+use function array_key_exists;
+use function is_array;
 use function is_string;
 use function rtrim;
 use function sprintf;
@@ -213,6 +215,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
     public function prepend(ContainerBuilder $container): void
     {
+        $this->prependFormKitDefaults($container);
         // Parameter must exist before Twig globals resolve during container build.
         if (!$container->hasParameter('nowo_wiki.web_ui')) {
             $container->setParameter('nowo_wiki.web_ui', [
@@ -253,6 +256,119 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                     ],
                 ],
             ]);
+        }
+
+        $this->prependUiKitDefaults($container);
+    }
+
+    /**
+     * When UiKit is installed, seed nowo_ui_kit.css_framework / icon_set from web_ui
+     * so kit macros resolve the same stack. Does not override keys the host already set.
+     */
+
+    /**
+     * When FormKit is installed, register the wiki profile. Forms select it via #[FormKitConfig].
+     */
+    private function prependFormKitDefaults(ContainerBuilder $container): void
+    {
+        if (!$container->hasExtension('nowo_form_kit')) {
+            return;
+        }
+
+        $hostHasCssFramework = false;
+        $hostHasProfile      = false;
+        foreach ($container->getExtensionConfig('nowo_form_kit') as $cfg) {
+            /** @var array<string, mixed> $cfg */
+            if (array_key_exists('css_framework', $cfg)) {
+                $hostHasCssFramework = true;
+            }
+            $profiles = $cfg['profiles'] ?? null;
+            if (is_array($profiles) && array_key_exists('wiki', $profiles)) {
+                $hostHasProfile = true;
+            }
+        }
+
+        $seed = [];
+
+        if (!$hostHasCssFramework) {
+            $seed['css_framework'] = 'bootstrap';
+        }
+
+        if (!$hostHasProfile) {
+            $seed['profiles'] = [
+                'wiki' => [
+                    'alias'              => 'wiki',
+                    'translation_domain' => 'NowoWikiBundle',
+                    'defaults'           => [
+                        'attr'     => ['class' => 'nowo-ui-input form-control'],
+                        'row_attr' => ['class' => 'mb-2'],
+                    ],
+                    'field_types' => [
+                        'checkbox' => [
+                            'attr'     => ['class' => 'form-check-input'],
+                            'row_attr' => ['class' => 'form-check mb-2'],
+                        ],
+                        'choice' => [
+                            'attr' => ['class' => 'form-select'],
+                        ],
+                        'entity' => [
+                            'attr' => ['class' => 'form-select'],
+                        ],
+                        'file' => [
+                            'attr' => ['class' => 'nowo-ui-input form-control'],
+                        ],
+                        'textarea' => [
+                            'attr' => ['class' => 'nowo-ui-input form-control'],
+                        ],
+                    ],
+                ],
+            ];
+        }
+
+        if ($seed !== []) {
+            $container->prependExtensionConfig('nowo_form_kit', $seed);
+        }
+    }
+
+    private function prependUiKitDefaults(ContainerBuilder $container): void
+    {
+        if (!$container->hasExtension('nowo_ui_kit')) {
+            return;
+        }
+
+        $hostHasCssFramework = false;
+        $hostHasIconSet      = false;
+        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
+            if (!is_array($cfg)) {
+                continue;
+            }
+            if (array_key_exists('css_framework', $cfg)) {
+                $hostHasCssFramework = true;
+            }
+            if (array_key_exists('icon_set', $cfg)) {
+                $hostHasIconSet = true;
+            }
+        }
+
+        if ($hostHasCssFramework && $hostHasIconSet) {
+            return;
+        }
+
+        $config   = $this->processConfiguration(new Configuration(), $container->getExtensionConfig(Configuration::ALIAS));
+        $webUi    = is_array($config['web_ui'] ?? null) ? $config['web_ui'] : [];
+        $defaults = [];
+
+        if (!$hostHasCssFramework) {
+            $fw                        = (string) ($webUi['css_framework'] ?? 'tabler');
+            $defaults['css_framework'] = $fw === 'bootstrap' ? 'bootstrap5' : $fw;
+        }
+        if (!$hostHasIconSet) {
+            $fwForIcons           = (string) ($defaults['css_framework'] ?? $webUi['css_framework'] ?? 'tabler');
+            $defaults['icon_set'] = $fwForIcons === 'tabler' ? 'tabler-icons' : 'bootstrap-icons';
+        }
+
+        if ($defaults !== []) {
+            $container->prependExtensionConfig('nowo_ui_kit', $defaults);
         }
     }
 }
