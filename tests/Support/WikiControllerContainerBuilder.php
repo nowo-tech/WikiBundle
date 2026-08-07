@@ -51,7 +51,7 @@ final class WikiControllerContainerBuilder
 
         $csrfManager = new CsrfTokenManager(null, new SessionTokenStorage($requestStack));
 
-        $formTypes = [new WikiPageFormType()];
+        $formTypes = [FormKitTestSupport::withMerger(new WikiPageFormType())];
         if (class_exists(TiptapEditorType::class)) {
             $formTypes[] = new TiptapEditorType([
                 'notion' => [

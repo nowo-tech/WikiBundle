@@ -1,5 +1,25 @@
 # Upgrading
 
+## To 1.3.1
+
+From **1.3.0** — test-only FormKit merger wiring for controller unit tests. No host migration.
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+## To 1.3.0
+
+From **1.2.0** — FormKit admin forms, UiKit macros, Twig Extra (REQ-TWIG-004), Twig-CS-Fixer.
+
+```bash
+composer update nowo-tech/wiki-bundle
+php bin/console cache:clear
+php bin/console assets:install --symlink --relative public
+```
+
+Requires `nowo-tech/form-kit-bundle` ^2.0 and `nowo-tech/ui-kit-bundle` ^1.4.
+
 ## To 1.2.0
 
 Minor release: REQ-UI-002 — `security.allow_unauthenticated`, AllowAll checker, SecurityBundle compile-time guard, and soft manage-UI gate.

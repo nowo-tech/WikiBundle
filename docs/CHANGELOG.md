@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-07
+
+### Fixed
+
+- **CI / FormKit:** `WikiControllerContainerBuilder` injects `FormOptionsMerger` via `FormKitTestSupport::withMerger()` so controller unit tests no longer hit uninitialized `$formOptionsMerger` on `WikiPageFormType`.
+
+[1.3.1]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.3.1
+
 ## [1.3.0] - 2026-08-04
 
 ### Changed
