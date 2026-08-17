@@ -1546,16 +1546,16 @@
         },
         {
             "name": "nowo-tech/tiptap-editor-bundle",
-            "version": "v1.2.3",
+            "version": "v1.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/TiptapEditorBundle.git",
-                "reference": "0a6a3a9d5bcc9fc4d5724243c7534424419f0565"
+                "reference": "7460aac4c78e66a5245efccc417431b57d1cbc07"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/TiptapEditorBundle/zipball/0a6a3a9d5bcc9fc4d5724243c7534424419f0565",
-                "reference": "0a6a3a9d5bcc9fc4d5724243c7534424419f0565",
+                "url": "https://api.github.com/repos/nowo-tech/TiptapEditorBundle/zipball/7460aac4c78e66a5245efccc417431b57d1cbc07",
+                "reference": "7460aac4c78e66a5245efccc417431b57d1cbc07",
                 "shasum": ""
             },
             "require": {
@@ -1568,7 +1568,9 @@
                 "symfony/http-foundation": "^6.4 || ^7.0 || ^8.0",
                 "symfony/http-kernel": "^6.4 || ^7.0 || ^8.0",
                 "symfony/routing": "^6.4 || ^7.0 || ^8.0",
-                "symfony/twig-bundle": "^6.4 || ^7.0 || ^8.0"
+                "symfony/twig-bundle": "^6.4 || ^7.0 || ^8.0",
+                "twig/extra-bundle": "^3.12",
+                "twig/string-extra": "^3.12"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
@@ -1579,7 +1581,8 @@
                 "phpstan/phpstan-symfony": "^2.0",
                 "phpunit/phpunit": "^11.0",
                 "rector/rector": "^2.0",
-                "symfony/yaml": "^6.4 || ^7.0 || ^8.0"
+                "symfony/yaml": "^6.4 || ^7.0 || ^8.0",
+                "vincentlanglet/twig-cs-fixer": "^3.0"
             },
             "type": "symfony-bundle",
             "autoload": {
@@ -1623,7 +1626,7 @@
                 "issues": "https://github.com/nowo-tech/TiptapEditorBundle/issues",
                 "source": "https://github.com/nowo-tech/TiptapEditorBundle"
             },
-            "time": "2026-08-03T13:28:53+00:00"
+            "time": "2026-08-04T12:17:56+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
