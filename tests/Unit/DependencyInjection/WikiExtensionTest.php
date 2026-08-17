@@ -21,6 +21,7 @@ use Symfony\Bundle\SecurityBundle\DependencyInjection\SecurityExtension;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 
 final class WikiExtensionTest extends TestCase
 {
@@ -174,5 +175,169 @@ final class WikiExtensionTest extends TestCase
 
         self::assertTrue($container->hasDefinition('nowo_wiki.access_checker.default'));
         self::assertFalse($container->getParameter('nowo_wiki.security.allow_unauthenticated'));
+    }
+
+    public function testPrependSeedsFormKitWikiProfileWhenHostUnset(): void
+    {
+        $container = new ContainerBuilder();
+        $this->registerStubExtension($container, 'nowo_form_kit');
+        $extension = new WikiExtension();
+        $container->registerExtension($extension);
+
+        $extension->prepend($container);
+
+        $found = false;
+        foreach ($container->getExtensionConfig('nowo_form_kit') as $cfg) {
+            if (($cfg['css_framework'] ?? null) === 'bootstrap'
+                && isset($cfg['profiles']['wiki']['alias'])
+                && $cfg['profiles']['wiki']['alias'] === 'wiki'
+            ) {
+                $found = true;
+                self::assertSame('NowoWikiBundle', $cfg['profiles']['wiki']['translation_domain']);
+                break;
+            }
+        }
+        self::assertTrue($found);
+    }
+
+    public function testPrependDoesNotOverrideExplicitFormKitHostConfig(): void
+    {
+        $container = new ContainerBuilder();
+        $this->registerStubExtension($container, 'nowo_form_kit');
+        $container->prependExtensionConfig('nowo_form_kit', [
+            'css_framework' => 'none',
+            'profiles'      => [
+                'wiki' => [
+                    'alias'              => 'wiki',
+                    'translation_domain' => 'HostDomain',
+                ],
+            ],
+        ]);
+        $extension = new WikiExtension();
+        $container->registerExtension($extension);
+
+        $extension->prepend($container);
+
+        $bootstrapSeed = false;
+        $wikiReseed    = false;
+        foreach ($container->getExtensionConfig('nowo_form_kit') as $cfg) {
+            if (($cfg['css_framework'] ?? null) === 'bootstrap') {
+                $bootstrapSeed = true;
+            }
+            if (($cfg['profiles']['wiki']['translation_domain'] ?? null) === 'NowoWikiBundle') {
+                $wikiReseed = true;
+            }
+        }
+        self::assertFalse($bootstrapSeed);
+        self::assertFalse($wikiReseed);
+    }
+
+    public function testPrependSeedsUiKitFromWebUiWhenHostUnset(): void
+    {
+        $container = new ContainerBuilder();
+        $this->registerStubExtension($container, 'nowo_ui_kit');
+        $extension = new WikiExtension();
+        $container->registerExtension($extension);
+        $container->prependExtensionConfig('nowo_wiki', [
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => [
+                'css_framework' => 'tabler',
+            ],
+        ]);
+
+        $extension->prepend($container);
+
+        $found = false;
+        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
+            if (($cfg['css_framework'] ?? null) === 'tabler'
+                && ($cfg['icon_set'] ?? null) === 'tabler-icons'
+            ) {
+                $found = true;
+                break;
+            }
+        }
+        self::assertTrue($found);
+    }
+
+    public function testPrependSeedsUiKitBootstrapFromWebUi(): void
+    {
+        $container = new ContainerBuilder();
+        $this->registerStubExtension($container, 'nowo_ui_kit');
+        $extension = new WikiExtension();
+        $container->registerExtension($extension);
+        $container->prependExtensionConfig('nowo_wiki', [
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => [
+                'css_framework' => 'bootstrap',
+            ],
+        ]);
+
+        $extension->prepend($container);
+
+        $found = false;
+        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
+            if (($cfg['css_framework'] ?? null) === 'bootstrap5'
+                && ($cfg['icon_set'] ?? null) === 'bootstrap-icons'
+            ) {
+                $found = true;
+                break;
+            }
+        }
+        self::assertTrue($found);
+    }
+
+    public function testPrependDoesNotOverrideExplicitUiKitHostConfig(): void
+    {
+        $container = new ContainerBuilder();
+        $this->registerStubExtension($container, 'nowo_ui_kit');
+        $container->prependExtensionConfig('nowo_ui_kit', [
+            'css_framework' => 'none',
+            'icon_set'      => 'none',
+        ]);
+        $extension = new WikiExtension();
+        $container->registerExtension($extension);
+        $container->prependExtensionConfig('nowo_wiki', [
+            'user_class' => 'App\\Entity\\User',
+        ]);
+
+        $extension->prepend($container);
+
+        $seeded = false;
+        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
+            if (($cfg['css_framework'] ?? null) === 'tabler'
+                || ($cfg['css_framework'] ?? null) === 'bootstrap5'
+            ) {
+                $seeded = true;
+            }
+        }
+        self::assertFalse($seeded);
+    }
+
+    private function registerStubExtension(ContainerBuilder $container, string $alias): void
+    {
+        $container->registerExtension(new class($alias) implements ExtensionInterface {
+            public function __construct(private readonly string $extensionAlias)
+            {
+            }
+
+            public function load(array $configs, ContainerBuilder $container): void
+            {
+            }
+
+            public function getNamespace(): string
+            {
+                return '';
+            }
+
+            public function getXsdValidationBasePath(): string|false
+            {
+                return false;
+            }
+
+            public function getAlias(): string
+            {
+                return $this->extensionAlias;
+            }
+        });
     }
 }

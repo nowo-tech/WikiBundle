@@ -215,7 +215,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
     public function prepend(ContainerBuilder $container): void
     {
-        $this->prependFormKitDefaults($container);
         // Parameter must exist before Twig globals resolve during container build.
         if (!$container->hasParameter('nowo_wiki.web_ui')) {
             $container->setParameter('nowo_wiki.web_ui', [
@@ -258,6 +257,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ]);
         }
 
+        $this->prependFormKitDefaults($container);
         $this->prependUiKitDefaults($container);
     }
 
