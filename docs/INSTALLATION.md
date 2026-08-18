@@ -15,6 +15,8 @@
 composer require nowo-tech/wiki-bundle nowo-tech/tiptap-editor-bundle
 ```
 
+The Flex recipe lives under `.symfony/recipe/` (copy those files if Flex does not apply them).
+
 Register bundles if Flex does not:
 
 ```php

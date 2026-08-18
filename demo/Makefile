@@ -1,4 +1,13 @@
-.PHONY: up-symfony8 release-check demo-smoke
+.PHONY: up down update-bundle up-symfony8 release-check demo-smoke
+
+up:
+	@$(MAKE) -C symfony8 up
+
+down:
+	@$(MAKE) -C symfony8 down
+
+update-bundle:
+	@$(MAKE) -C symfony8 update-bundle
 
 up-symfony8:
 	@$(MAKE) -C symfony8 up

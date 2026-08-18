@@ -53,6 +53,9 @@
     "nowo-tech/tiptap-editor-bundle": {
         "version": "1.0.0"
     },
+    "nowo-tech/hot-reload-bundle": {
+        "version": "v1.3.2"
+    },
     "nowo-tech/twig-inspector-bundle": {
         "version": "v1.0.33"
     },
