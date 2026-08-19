@@ -1,5 +1,13 @@
 # Upgrading
 
+## To 1.3.3
+
+No application upgrade steps.
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
 ## To 1.3.2
 
 No application upgrade steps. **Demos only:** Hot Reload Bundle `^1.4` (FrankenPHP Mercure/`hot_reload`, `dev`/`test`).
