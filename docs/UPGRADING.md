@@ -1,5 +1,27 @@
 # Upgrading
 
+## Table of contents
+
+- [From 1.3.3 to 1.3.4](#from-133-to-134)
+
+## From 1.3.3 to 1.3.4
+
+No breaking changes. **No application upgrade steps.**
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+## From 1.3.3 to 1.3.4
+
+No breaking changes. **No application upgrade steps.**
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+# Upgrading
+
 ## To 1.3.3
 
 No application upgrade steps.
