@@ -1,5 +1,7 @@
 /**
  * Wiki sidebar toggle for narrow viewports.
+ *
+ * @param root - Document subtree to scan for `[data-wiki-sidebar]` nodes.
  */
 export function initWikiSidebars(root: ParentNode = document): void {
     root.querySelectorAll('[data-wiki-sidebar]').forEach((sidebar) => {
@@ -7,7 +9,10 @@ export function initWikiSidebars(root: ParentNode = document): void {
     });
 }
 
-/** Focus question field when the AI ask modal opens. */
+/** Focus question field when the AI ask modal opens.
+ *
+ * @param root - Document subtree that contains `#wikiAiAskModal`.
+ */
 export function initWikiAiModal(root: ParentNode = document): void {
     const modal = root.querySelector('#wikiAiAskModal');
     if (!(modal instanceof HTMLElement)) {
