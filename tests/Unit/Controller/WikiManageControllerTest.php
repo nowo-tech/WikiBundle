@@ -1345,7 +1345,7 @@ MD);
             $this->templates,
             null,
             ['tiptap_config' => 'notion'],
-            ['enabled'       => $importExportEnabled, 'max_upload_bytes' => $maxUploadBytes],
+            ['enabled' => $importExportEnabled, 'max_upload_bytes' => $maxUploadBytes],
             $allowUnauthenticated,
         );
     }
