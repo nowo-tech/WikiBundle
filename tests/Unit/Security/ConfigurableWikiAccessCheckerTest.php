@@ -43,7 +43,6 @@ final class ConfigurableWikiAccessCheckerTest extends TestCase
             ['ROLE_WIKI_VIEW'],
             ['ROLE_WIKI_EDITOR'],
             ['ROLE_WIKI_EDITOR'],
-            ['ROLE_WIKI_VIEW'],
             ['ROLE_WIKI_IMPORT'],
             ['ROLE_WIKI_EXPORT'],
         );

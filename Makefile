@@ -1,6 +1,6 @@
 # Wiki Bundle - Development
 SHELL := /bin/bash
-.PHONY: help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts ensure-up rector rector-dry phpstan release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra
+.PHONY: help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra
 
 COMPOSE_FILE ?= docker-compose.yml
 # Prefer Compose V2; absolute docker path avoids shadowing by local docker/ (REQ-MAKE-010).
@@ -113,7 +113,11 @@ composer-sync: ensure-up
 check-twig-extra:
 	@chmod +x .scripts/check-twig-extra.sh
 	@./.scripts/check-twig-extra.sh
-release-check: check-no-cursor-coauthor check-open-prs check-twig-extra ensure-up composer-sync cs-fix cs-check rector-dry phpstan validate-translations test-coverage-100 release-check-demos test-ts
+
+# Run Igor worker-state audit (REQ-CS-008)
+igor: ensure-up
+	$(COMPOSE) exec -T php composer igor
+release-check: check-no-cursor-coauthor check-open-prs check-twig-extra ensure-up composer-sync cs-fix cs-check rector-dry phpstan igor validate-translations test-coverage-100 release-check-demos test-ts
 
 release-check-demos:
 	@$(MAKE) -C demo release-check

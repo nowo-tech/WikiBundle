@@ -72,7 +72,9 @@ class WikiPage
 
     public function setTitle(string $title): void
     {
-        $this->title     = $title;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->title = $title;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
         $this->updatedAt = new DateTimeImmutable();
     }
 
@@ -88,7 +90,9 @@ class WikiPage
 
     public function setPosition(int $position): void
     {
-        $this->position  = $position;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->position = $position;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
         $this->updatedAt = new DateTimeImmutable();
     }
 
@@ -99,8 +103,10 @@ class WikiPage
 
     public function setCurrentRevision(?WikiPageRevision $revision): void
     {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
         $this->currentRevision = $revision;
-        $this->updatedAt       = new DateTimeImmutable();
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->updatedAt = new DateTimeImmutable();
     }
 
     public function getArchivedAt(): ?DateTimeImmutable
@@ -115,8 +121,10 @@ class WikiPage
 
     public function archive(): void
     {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
         $this->archivedAt = new DateTimeImmutable();
-        $this->updatedAt  = new DateTimeImmutable();
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->updatedAt = new DateTimeImmutable();
     }
 
     public function getCreatedAt(): DateTimeImmutable

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Service;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
+use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 
@@ -17,7 +19,7 @@ use function is_string;
 final readonly class WikiSearchService
 {
     public function __construct(
-        private EntityManagerInterface $entityManager,
+        private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
     ) {
     }
 
@@ -53,8 +55,10 @@ final readonly class WikiSearchService
 
         $like = '%' . addcslashes($query, '%_') . '%';
 
+        $entityManager = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
+
         /** @var list<array{0: WikiPage, contentHtml: string}> $rows */
-        $rows = $this->entityManager->createQueryBuilder()
+        $rows = $entityManager->createQueryBuilder()
             ->select('p', 's', 'r.contentHtml AS contentHtml')
             ->from(WikiPage::class, 'p')
             ->innerJoin('p.space', 's')
@@ -66,6 +70,7 @@ final readonly class WikiSearchService
             ->setParameter('q', $like)
             ->setMaxResults($limit)
             ->getQuery()
+            ->setHint(Query::HINT_REFRESH, true)
             ->getResult();
 
         if (!is_array($rows)) {

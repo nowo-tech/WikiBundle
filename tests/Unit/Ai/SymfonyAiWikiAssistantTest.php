@@ -117,6 +117,7 @@ final class SymfonyAiWikiAssistantTest extends TestCase
     private function createSearchService(array $rows): WikiSearchService
     {
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getResult')->willReturn($rows);
 
         $qb = $this->createMock(QueryBuilder::class);

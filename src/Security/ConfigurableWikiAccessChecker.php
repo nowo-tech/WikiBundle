@@ -36,6 +36,7 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
         private array $aiRoles,
         private array $importRoles,
         private array $exportRoles,
+        private ?WikiTokenGuard $tokenGuard = null,
     ) {
     }
 
@@ -86,6 +87,10 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
 
     private function isAdmin(): bool
     {
+        if (!$this->isTokenTrusted()) {
+            return false;
+        }
+
         foreach ($this->adminRoles as $role) {
             if ($this->security->isGranted($role)) {
                 return true;
@@ -100,6 +105,10 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     private function hasAnyRole(array $roles): bool
     {
+        if (!$this->isTokenTrusted()) {
+            return false;
+        }
+
         foreach ($roles as $role) {
             if ($this->security->isGranted($role)) {
                 return true;
@@ -107,5 +116,10 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
         }
 
         return false;
+    }
+
+    private function isTokenTrusted(): bool
+    {
+        return !$this->tokenGuard instanceof WikiTokenGuard || $this->tokenGuard->isTokenTrusted();
     }
 }

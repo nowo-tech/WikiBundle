@@ -91,6 +91,7 @@ final class WikiExportCommand extends Command
         }
 
         if ($cleanupDir !== null) {
+            // @igor-ignore - Console command; not executed in FrankenPHP worker HTTP requests.
             $this->archiveHelper->removeDirectory($cleanupDir);
         }
 

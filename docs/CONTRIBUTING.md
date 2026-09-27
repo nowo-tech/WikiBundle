@@ -28,7 +28,7 @@ make -C demo/symfony8 up
 | Command | Scope |
 |---------|--------|
 | `make qa` | PHP-CS-Fixer + PHPUnit |
-| `make phpstan` | Static analysis (level 6 + baseline) |
+| `make phpstan`, `make igor` | Static analysis (level 6 + baseline) |
 | `make test-coverage-100` | PHPUnit with 100% line threshold |
 | `make test-ts` | Vitest (`wiki.ts`) |
 | `make release-check` | Full pre-release pipeline |

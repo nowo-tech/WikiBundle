@@ -60,7 +60,9 @@ class WikiSpace
 
     public function setName(string $name): void
     {
-        $this->name      = $name;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->name = $name;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
         $this->updatedAt = new DateTimeImmutable();
     }
 

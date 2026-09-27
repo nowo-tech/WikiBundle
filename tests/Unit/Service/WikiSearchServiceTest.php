@@ -7,6 +7,8 @@ namespace Nowo\WikiBundle\Tests\Unit\Service;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
+use Doctrine\Persistence\ManagerRegistry;
+use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -80,9 +82,26 @@ final class WikiSearchServiceTest extends TestCase
         self::assertSame([], $service->search($space, 'deploy'));
     }
 
-    private function entityManager(mixed $rows): EntityManagerInterface
+    public function testSearchResolvesEntityManagerThroughProviderAndRefreshesResults(): void
+    {
+        $space    = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't1');
+        $page     = new WikiPage($space, 'deploy', 'Deploy guide');
+        $registry = $this->createMock(ManagerRegistry::class);
+        $registry->expects(self::once())->method('getManager')->with('default')->willReturn($this->entityManager([[$page, 'contentHtml' => '']], true));
+
+        $service = new WikiSearchService(new WikiEntityManagerProvider($registry));
+
+        self::assertCount(1, $service->search($space, 'deploy'));
+    }
+
+    private function entityManager(mixed $rows, bool $expectRefreshHint = false): EntityManagerInterface
     {
         $query = $this->createMock(Query::class);
+        if ($expectRefreshHint) {
+            $query->expects(self::once())->method('setHint')->with(Query::HINT_REFRESH, true)->willReturnSelf();
+        } else {
+            $query->method('setHint')->willReturnSelf();
+        }
         $query->method('getResult')->willReturn($rows);
 
         $qb = $this->createMock(QueryBuilder::class);
@@ -98,6 +117,7 @@ final class WikiSearchServiceTest extends TestCase
 
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
+        $em->method('isOpen')->willReturn(true);
 
         return $em;
     }

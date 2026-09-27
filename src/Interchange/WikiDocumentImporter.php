@@ -89,6 +89,7 @@ final readonly class WikiDocumentImporter
             }
         } finally {
             if ($cleanupDir !== null) {
+                // @igor-ignore - Not shared worker service state.
                 $this->archiveHelper->removeDirectory($cleanupDir);
             }
         }

@@ -27,6 +27,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
+use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
@@ -43,6 +44,7 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -518,6 +520,7 @@ final class WikiManageControllerTest extends TestCase
         $resolver->method('listSpacesForUser')->willReturn([$space]);
 
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getResult')->willReturn([[$page, 'contentHtml' => '<p>welcome</p>']]);
 
         $qb = $this->createMock(QueryBuilder::class);
@@ -1006,6 +1009,54 @@ MD);
         @unlink($response->getFile()->getPathname());
     }
 
+    public function testStaleTokenFromPreviousRequestIsIgnoredOutsideSecuredFirewall(): void
+    {
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->expects(self::once())->method('listSpacesForUser')->willReturn([$space]);
+
+        $requestStack = new RequestStack();
+        $controller   = $this->controller(spaceAccessResolver: $resolver, tokenGuard: new WikiTokenGuard($requestStack));
+        // The token storage keeps the user between requests, as it does in a worker without reset.
+        WikiControllerContainerBuilder::bind($controller, new TestUser('user-1'));
+
+        $secured = Request::create('/tools/wiki');
+        $secured->attributes->set('_firewall_context', 'security.firewall.map.context.main');
+        $requestStack->push($secured);
+        self::assertSame(Response::HTTP_OK, $controller->index()->getStatusCode());
+        $requestStack->pop();
+
+        $requestStack->push(Request::create('/tools/wiki'));
+        $this->expectException(AccessDeniedHttpException::class);
+        $controller->index();
+    }
+
+    public function testExportSpaceFailureLeavesNoTemporaryFiles(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng-fail', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willThrowException(new RuntimeException('export failed'));
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $before = glob(sys_get_temp_dir() . '/wiki-export-*') ?: [];
+
+        try {
+            $controller->exportSpace(Request::create('/export?format=outline'), 'eng-fail');
+            self::fail('Export should have failed.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('export failed', $exception->getMessage());
+        }
+
+        self::assertSame($before, glob(sys_get_temp_dir() . '/wiki-export-*') ?: []);
+    }
+
     public function testExportSpaceNotFoundWhenImportExportDisabled(): void
     {
         $user  = new TestUser('user-1');
@@ -1275,6 +1326,7 @@ MD);
     private function createSearchService(array $rows): WikiSearchService
     {
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getResult')->willReturn($rows);
 
         $qb = $this->createMock(QueryBuilder::class);
@@ -1305,6 +1357,7 @@ MD);
         bool $importExportEnabled = true,
         int $maxUploadBytes = 52428800,
         bool $allowUnauthenticated = false,
+        ?WikiTokenGuard $tokenGuard = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1347,6 +1400,7 @@ MD);
             ['tiptap_config' => 'notion'],
             ['enabled' => $importExportEnabled, 'max_upload_bytes' => $maxUploadBytes],
             $allowUnauthenticated,
+            $tokenGuard,
         );
     }
 

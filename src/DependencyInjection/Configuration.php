@@ -91,6 +91,7 @@ final class Configuration implements ConfigurationInterface
                         ->integerNode('max_context_pages')->defaultValue(8)->min(1)->max(25)->end()
                         ->integerNode('max_context_chars')->defaultValue(12000)->min(1000)->max(100000)->end()
                         ->scalarNode('system_prompt')->defaultNull()->end()
+                        ->integerNode('http_timeout')->defaultValue(30)->min(1)->max(600)->info('Idle timeout and max duration (seconds) of the nowo_wiki.ai.http_client service; set it as http_client of your AI platform.')->end()
                     ->end()
                 ->end()
                 ->arrayNode('routes')

@@ -2,7 +2,37 @@
 
 ## Table of contents
 
+- [Unreleased](#unreleased)
+- [To 1.3.5](#to-135)
 - [From 1.3.3 to 1.3.4](#from-133-to-134)
+
+## Unreleased
+
+## To 1.3.5
+
+From **1.3.4** — REQ-CS-008 Igor FrankenPHP worker audit (igor-php require-dev, igor.json, make igor).
+
+```bash
+composer update nowo-tech/wiki-bundle
+php bin/console cache:clear
+```
+
+No breaking changes for configuration. Behaviour changes relevant to FrankenPHP worker mode:
+
+- **Wiki routes outside a secured firewall are anonymous.** The controller, the default access checker and `WikiKnowledgeSearchTool` only use the security token when the main request is handled by a firewall with `security: true`. Keep `route_prefix` behind such a firewall (or use `security.allow_unauthenticated: true`).
+- **AI timeout:** set the bundle HTTP client on your platform and tune `nowo_wiki.ai.http_timeout` (seconds, default 30):
+
+```yaml
+# config/packages/ai.yaml
+ai:
+    platform:
+        openai:
+            http_client: 'nowo_wiki.ai.http_client'
+```
+
+- **Custom wiring:** `DoctrineOrmWiki*Repository` and `WikiSearchService` now receive `Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider` from the extension; passing an `EntityManagerInterface` still works. `WikiManageController`, `ConfigurableWikiAccessChecker` and `WikiKnowledgeSearchTool` take an optional last `?WikiTokenGuard` argument.
+- No application upgrade steps for require-dev Igor tooling (REQ-CS-008). Consumers do not pull `igor-php/igor-php` transitively.
+
 
 ## From 1.3.3 to 1.3.4
 

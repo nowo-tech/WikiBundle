@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Ai\WikiContextRetriever;
+use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
@@ -24,6 +25,7 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
+use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\AI\Agent\AgentInterface;
@@ -34,12 +36,12 @@ use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 use function array_key_exists;
 use function is_array;
 use function is_string;
 use function rtrim;
-use function sprintf;
 
 /**
  * Loads bundle configuration and registers services.
@@ -122,7 +124,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setAlias(WikiHtmlSanitizerInterface::class, WikiHtmlSanitizer::class);
         $container->setDefinition(WikiHtmlSanitizer::class, new Definition(WikiHtmlSanitizer::class));
 
-        $emRef = new Reference(sprintf('doctrine.orm.%s_entity_manager', $emName));
+        $container->setDefinition(WikiEntityManagerProvider::class, (new Definition(WikiEntityManagerProvider::class))
+            ->setArgument('$registry', new Reference('doctrine'))
+            ->setArgument('$managerName', $emName));
+        $emProviderRef = new Reference(WikiEntityManagerProvider::class);
 
         foreach ([
             DoctrineOrmWikiSpaceRepository::class        => WikiSpaceRepositoryInterface::class,
@@ -131,7 +136,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         ] as $repoClass => $interface) {
             $container->setDefinition($repoClass, (new Definition($repoClass))
                 ->setAutowired(false)
-                ->setArgument('$entityManager', $emRef));
+                ->setArgument('$entityManager', $emProviderRef));
             $container->setAlias($interface, $repoClass);
         }
 
@@ -149,12 +154,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
         $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
         $loader->load('services.yaml');
+        $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
 
         $this->registerAiServices($container, $config['ai']);
     }
 
     /**
-     * @param array{enabled: bool, agent: string, context_injection: bool, max_context_pages: int, max_context_chars: int, system_prompt: ?string} $aiConfig
+     * @param array{enabled: bool, agent: string, context_injection: bool, max_context_pages: int, max_context_chars: int, system_prompt: ?string, http_timeout: int} $aiConfig
      */
     private function registerAiServices(ContainerBuilder $container, array $aiConfig): void
     {
@@ -171,6 +177,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             throw new LogicException('nowo_wiki.ai.enabled is true but symfony/ai-bundle is not installed. Run: composer require symfony/ai-bundle');
             // @codeCoverageIgnoreEnd
         }
+
+        $container->setDefinition('nowo_wiki.ai.http_client', (new Definition(HttpClientInterface::class))
+            ->setFactory([new Reference('http_client'), 'withOptions'])
+            ->setArguments([[
+                'timeout'      => (float) $aiConfig['http_timeout'],
+                'max_duration' => (float) $aiConfig['http_timeout'],
+            ]]));
 
         $agentName = $aiConfig['agent'];
         $agentId   = str_starts_with($agentName, 'ai.agent.') ? $agentName : 'ai.agent.' . $agentName;

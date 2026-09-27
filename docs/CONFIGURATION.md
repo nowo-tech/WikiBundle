@@ -20,6 +20,7 @@ Root key: `nowo_wiki`.
 | `ai.max_context_pages` | `8` | Max pages in injected context |
 | `ai.max_context_chars` | `12000` | Max characters of wiki context |
 | `ai.system_prompt` | null | Optional override of the default system prompt |
+| `ai.http_timeout` | `30` | Timeout and max duration (seconds, 1–600) of `nowo_wiki.ai.http_client`; set it as `http_client` of your AI platform |
 | `security.ai_roles` | `ROLE_USER` | Roles allowed to use `/tools/wiki/ask` |
 | `security.import_roles` | `ROLE_ADMIN` | Roles allowed to import into a space |
 | `security.export_roles` | `ROLE_USER` | Roles allowed to export a space |
@@ -59,6 +60,8 @@ nowo_wiki:
         enabled: true
         agent: wiki_assistant
 ```
+
+To bound LLM calls (important with FrankenPHP workers), set `http_client: 'nowo_wiki.ai.http_client'` on the platform in `config/packages/ai.yaml`; its timeout comes from `ai.http_timeout`.
 
 The bundle registers `Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool` for agent toolboxes. Add it under `agent.wiki_assistant.tools` or rely on `context_injection` for one-shot answers.
 

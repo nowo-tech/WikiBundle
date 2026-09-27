@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Repository;
 
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -32,6 +31,7 @@ final class DoctrineOrmWikiPageRepositoryTest extends TestCase
         $page  = new WikiPage($space, 'p', 'P');
 
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getResult')->willReturn([$page]);
 
         $qb = $this->createMock(QueryBuilder::class);
@@ -57,6 +57,7 @@ final class DoctrineOrmWikiPageRepositoryTest extends TestCase
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
 
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getSingleScalarResult')->willReturn(0);
 
         $qb = $this->createMock(QueryBuilder::class);
@@ -79,11 +80,21 @@ final class DoctrineOrmWikiPageRepositoryTest extends TestCase
     {
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
         $page  = new WikiPage($space, 'p', 'P');
-        $repo  = $this->createMock(EntityRepository::class);
-        $repo->method('findOneBy')->willReturn($page);
+        $query = $this->createMock(Query::class);
+        $query->expects(self::once())->method('setHint')->with(Query::HINT_REFRESH, true)->willReturnSelf();
+        $query->method('getOneOrNullResult')->willReturn($page);
+
+        $qb = $this->createMock(QueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('setParameter')->willReturnSelf();
+        $qb->method('setMaxResults')->willReturnSelf();
+        $qb->method('getQuery')->willReturn($query);
 
         $em = $this->createMock(EntityManagerInterface::class);
-        $em->method('getRepository')->willReturn($repo);
+        $em->method('createQueryBuilder')->willReturn($qb);
 
         $found = (new DoctrineOrmWikiPageRepository($em))->findBySlug($space, 'p');
 
@@ -95,6 +106,7 @@ final class DoctrineOrmWikiPageRepositoryTest extends TestCase
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
         $page  = new WikiPage($space, 'p', 'P');
         $em    = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::once())->method('refresh');
         $em->method('find')->willReturn($page);
 
         $found = (new DoctrineOrmWikiPageRepository($em))->findById($page->getId());

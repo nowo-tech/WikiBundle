@@ -12,11 +12,14 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 final class WikiKnowledgeSearchToolTest extends TestCase
 {
@@ -32,6 +35,29 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         ))('deploy');
 
         self::assertStringContainsString('Authentication required', $json);
+    }
+
+    public function testIgnoresTokenLeftByPreviousRequestOutsideSecuredFirewall(): void
+    {
+        $security = $this->createMock(Security::class);
+        $security->method('getUser')->willReturn(new TestUser());
+
+        $requestStack = new RequestStack();
+        $tool         = new WikiKnowledgeSearchTool(
+            $security,
+            new WikiSearchService($this->createMock(EntityManagerInterface::class)),
+            $this->createMock(WikiSpaceAccessResolverInterface::class),
+            new WikiTokenGuard($requestStack),
+        );
+
+        $secured = Request::create('/tools/wiki/ask');
+        $secured->attributes->set('_firewall_context', 'security.firewall.map.context.main');
+        $requestStack->push($secured);
+        self::assertStringContainsString('"results":[]', str_replace(' ', '', $tool('   ')));
+        $requestStack->pop();
+
+        $requestStack->push(Request::create('/public/ask'));
+        self::assertStringContainsString('Authentication required', $tool('deploy'));
     }
 
     public function testReturnsEmptyResultsForBlankQuery(): void
@@ -84,6 +110,7 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
 
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getResult')->willReturn([]);
 
         $qb = $this->createMock(QueryBuilder::class);
@@ -123,6 +150,7 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         $security->method('getUser')->willReturn($user);
 
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getResult')->willReturn($rows);
 
         $qb = $this->createMock(QueryBuilder::class);

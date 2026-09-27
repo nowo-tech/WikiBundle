@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Ai\Tool;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
@@ -28,6 +29,7 @@ final readonly class WikiKnowledgeSearchTool
         private Security $security,
         private WikiSearchService $searchService,
         private WikiSpaceAccessResolverInterface $spaceAccessResolver,
+        private ?WikiTokenGuard $tokenGuard = null,
     ) {
     }
 
@@ -36,7 +38,7 @@ final readonly class WikiKnowledgeSearchTool
      */
     public function __invoke(string $query, ?string $space_slug = null, int $limit = 8): string
     {
-        $user = $this->security->getUser();
+        $user = $this->tokenGuard?->isTokenTrusted() === false ? null : $this->security->getUser();
         if (!$user instanceof UserInterface) {
             return json_encode(['error' => 'Authentication required.'], JSON_THROW_ON_ERROR);
         }

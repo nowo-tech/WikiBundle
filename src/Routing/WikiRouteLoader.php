@@ -32,6 +32,7 @@ final class WikiRouteLoader extends Loader
             throw new RuntimeException('Wiki routes already loaded.');
         }
 
+        // @igor-ignore - Route loader builds routes at compile/cache warm; not per-request mutation.
         $this->loaded = true;
         $collection   = new RouteCollection();
         $controller   = WikiManageController::class;

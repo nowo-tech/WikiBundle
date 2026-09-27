@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Repository;
 
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -27,11 +26,21 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
     public function testFindBySlugDelegatesToRepository(): void
     {
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
-        $repo  = $this->createMock(EntityRepository::class);
-        $repo->method('findOneBy')->willReturn($space);
+        $query = $this->createMock(Query::class);
+        $query->expects(self::once())->method('setHint')->with(Query::HINT_REFRESH, true)->willReturnSelf();
+        $query->method('getOneOrNullResult')->willReturn($space);
+
+        $qb = $this->createMock(QueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('setParameter')->willReturnSelf();
+        $qb->method('setMaxResults')->willReturnSelf();
+        $qb->method('getQuery')->willReturn($query);
 
         $em = $this->createMock(EntityManagerInterface::class);
-        $em->method('getRepository')->willReturn($repo);
+        $em->method('createQueryBuilder')->willReturn($qb);
 
         $found = (new DoctrineOrmWikiSpaceRepository($em))->findBySlug(WikiSpaceOwnerScope::Team, 't', 's');
 
@@ -42,6 +51,7 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
     {
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
         $em    = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::once())->method('refresh');
         $em->method('find')->willReturn($space);
 
         $found = (new DoctrineOrmWikiSpaceRepository($em))->findById($space->getId());
@@ -62,6 +72,7 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
 
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getResult')->willReturn([$space]);
 
         $qb = $this->createMock(QueryBuilder::class);
@@ -86,6 +97,7 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
         $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't');
 
         $query = $this->createMock(Query::class);
+        $query->method('setHint')->willReturnSelf();
         $query->method('getOneOrNullResult')->willReturn($space);
 
         $qb = $this->createMock(QueryBuilder::class);

@@ -22,6 +22,7 @@ final class WikiImportReport
 
     public function addMessage(string $message): void
     {
+        // @igor-ignore - Not shared worker service state.
         $this->messages[] = $message;
     }
 }

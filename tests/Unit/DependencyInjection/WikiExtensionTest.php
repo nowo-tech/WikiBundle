@@ -11,9 +11,13 @@ use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
+use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\Service\WikiSearchService;
 use PHPUnit\Framework\TestCase;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension;
@@ -22,6 +26,7 @@ use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
+use Symfony\Component\DependencyInjection\Reference;
 
 final class WikiExtensionTest extends TestCase
 {
@@ -106,6 +111,43 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->hasDefinition(SymfonyAiWikiAssistant::class));
         self::assertTrue($container->hasDefinition(WikiKnowledgeSearchTool::class));
         self::assertSame(SymfonyAiWikiAssistant::class, (string) $container->getAlias(WikiAiAssistantInterface::class));
+
+        $httpClient = $container->getDefinition('nowo_wiki.ai.http_client');
+        self::assertSame([['timeout' => 30.0, 'max_duration' => 30.0]], $httpClient->getArguments());
+    }
+
+    public function testAiHttpClientUsesConfiguredTimeout(): void
+    {
+        if (!interface_exists(AgentInterface::class)) {
+            self::markTestSkipped('symfony/ai-bundle is not installed in this environment.');
+        }
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'ai'         => ['enabled' => true, 'http_timeout' => 12],
+        ]], $container);
+
+        $factory = $container->getDefinition('nowo_wiki.ai.http_client')->getFactory();
+        self::assertIsArray($factory);
+        self::assertSame('http_client', (string) $factory[0]);
+        self::assertSame('withOptions', $factory[1]);
+        self::assertSame([['timeout' => 12.0, 'max_duration' => 12.0]], $container->getDefinition('nowo_wiki.ai.http_client')->getArguments());
+    }
+
+    public function testRepositoriesAndSearchResolveEntityManagerPerCall(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+
+        $provider = $container->getDefinition(WikiEntityManagerProvider::class);
+        self::assertEquals(new Reference('doctrine'), $provider->getArgument('$registry'));
+        self::assertSame('default', $provider->getArgument('$managerName'));
+        self::assertEquals(new Reference(WikiEntityManagerProvider::class), $container->getDefinition(DoctrineOrmWikiPageRepository::class)->getArgument('$entityManager'));
+        self::assertEquals(new Reference(WikiEntityManagerProvider::class), $container->getDefinition(WikiSearchService::class)->getArgument('$entityManager'));
+        self::assertTrue($container->hasDefinition(WikiTokenGuard::class));
     }
 
     public function testLayoutTemplateOverridesTemplatesLayoutParameter(): void

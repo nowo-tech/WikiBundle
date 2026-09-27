@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
@@ -73,6 +74,7 @@ final class WikiManageController extends AbstractController
         private readonly array $editor,
         private readonly array $importExport,
         private readonly bool $allowUnauthenticated = false,
+        private readonly ?WikiTokenGuard $tokenGuard = null,
     ) {
     }
 
@@ -351,7 +353,16 @@ final class WikiManageController extends AbstractController
         try {
             $this->documentExporter->export($space, $workingDir, $format);
             $this->archiveHelper->createZipFromDirectory($workingDir, $zipPath);
+        } catch (Throwable $exception) {
+            // @codeCoverageIgnoreStart
+            if (is_file($zipPath)) {
+                unlink($zipPath);
+            }
+            // @codeCoverageIgnoreEnd
+
+            throw $exception;
         } finally {
+            // @igor-ignore - HTTP handler delegates to services; no controller worker state.
             $this->archiveHelper->removeDirectory($workingDir);
         }
 
@@ -499,8 +510,7 @@ final class WikiManageController extends AbstractController
             return;
         }
 
-        $user = $this->getUser();
-        $user = $user instanceof UserInterface ? $user : null;
+        $user = $this->currentUser();
 
         $allowed = match ($feature) {
             'list'    => $this->accessChecker->canList($user),
@@ -521,12 +531,23 @@ final class WikiManageController extends AbstractController
 
     private function requireUser(): UserInterface
     {
-        $user = $this->getUser();
+        $user = $this->currentUser();
         if (!$user instanceof UserInterface) {
             throw new AccessDeniedHttpException('Authentication required.');
         }
 
         return $user;
+    }
+
+    private function currentUser(): ?UserInterface
+    {
+        if ($this->tokenGuard instanceof WikiTokenGuard && !$this->tokenGuard->isTokenTrusted()) {
+            return null;
+        }
+
+        $user = $this->getUser();
+
+        return $user instanceof UserInterface ? $user : null;
     }
 
     private function requireAccessibleSpace(UserInterface $user, string $spaceSlug): WikiSpace

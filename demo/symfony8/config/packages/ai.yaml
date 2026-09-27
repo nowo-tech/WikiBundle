@@ -4,8 +4,10 @@ ai:
     platform:
         openai:
             api_key: '%env(default::OPENAI_API_KEY)%'
+            http_client: 'nowo_wiki.ai.http_client'
         ollama:
             host_url: '%env(default:ollama_host:OLLAMA_HOST_URL)%'
+            http_client: 'nowo_wiki.ai.http_client'
     agent:
         wiki_assistant:
             platform: 'ai.platform.openai'
