@@ -25,6 +25,8 @@ use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
 
+use const PHP_VERSION_ID;
+
 /**
  * Two entity managers on one SQLite file stand in for two FrankenPHP worker threads that are
  * never reset between requests.
@@ -131,6 +133,9 @@ final class WikiRepositoryWorkerTest extends TestCase
             true,
             sys_get_temp_dir() . '/wiki_worker_proxies',
         );
+        if (PHP_VERSION_ID >= 80400 && method_exists($config, 'enableNativeLazyObjects')) {
+            $config->enableNativeLazyObjects(true);
+        }
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'path' => $this->dbFile], $config);
         $em         = new EntityManager($connection, $config);
 
