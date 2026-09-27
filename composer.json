@@ -33,7 +33,7 @@
     ],
     "require": {
         "doctrine/doctrine-bundle": "^2.10 || ^3.0",
-        "doctrine/orm": "^2.15 || ^3.0",
+        "doctrine/orm": "^3.7",
         "ext-zip": "*",
         "league/commonmark": "^2.7",
         "league/html-to-markdown": "^5.1",

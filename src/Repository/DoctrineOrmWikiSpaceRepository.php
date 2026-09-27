@@ -9,6 +9,7 @@ use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use SortDirection;
 
 /**
  * Lookups refresh already-managed spaces ({@see Query::HINT_REFRESH}) so changes made by another
@@ -94,7 +95,7 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
             ->andWhere('s.ownerScopeId IN (:scopeIds)')
             ->setParameter('scopeType', $ownerScopeType)
             ->setParameter('scopeIds', $ownerScopeIds)
-            ->orderBy('s.name', 'ASC')
+            ->orderBy('s.name', SortDirection::Ascending)
             ->getQuery()
             ->setHint(Query::HINT_REFRESH, true)
             ->getResult();

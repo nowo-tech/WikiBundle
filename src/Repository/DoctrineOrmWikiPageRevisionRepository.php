@@ -8,6 +8,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use SortDirection;
 
 final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRevisionRepositoryInterface
 {
@@ -36,7 +37,7 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
             ->from(WikiPageRevision::class, 'r')
             ->where('r.page = :page')
             ->setParameter('page', $page)
-            ->orderBy('r.revisionNumber', 'DESC')
+            ->orderBy('r.revisionNumber', SortDirection::Descending)
             ->getQuery()
             ->getResult();
     }

@@ -9,6 +9,7 @@ use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use SortDirection;
 
 /**
  * Lookups refresh already-managed pages ({@see Query::HINT_REFRESH}) so a page renamed or archived
@@ -66,8 +67,8 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->where('p.space = :space')
             ->andWhere('p.archivedAt IS NULL')
             ->setParameter('space', $space)
-            ->orderBy('p.position', 'ASC')
-            ->addOrderBy('p.title', 'ASC')
+            ->orderBy('p.position', SortDirection::Ascending)
+            ->addOrderBy('p.title', SortDirection::Ascending)
             ->getQuery()
             ->setHint(Query::HINT_REFRESH, true)
             ->getResult();
