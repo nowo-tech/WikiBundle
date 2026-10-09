@@ -3,10 +3,23 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.4.0](#to-140)
 - [To 1.3.5](#to-135)
 - [From 1.3.3 to 1.3.4](#from-133-to-134)
 
 ## Unreleased
+
+## To 1.4.0
+
+From **1.3.5** — Doctrine ORM `^3.7` requirement (`\SortDirection`); dependency updates.
+
+```bash
+composer update nowo-tech/wiki-bundle doctrine/orm
+php bin/console cache:clear
+```
+
+- **Requirement:** `doctrine/orm` must be `^3.7` (ORM 2.x and 3.0–3.6 are no longer supported). It pulls `symfony/polyfill-php86`, which provides the global `\SortDirection` enum on PHP < 8.6.
+- No configuration, route or template changes. No database migration.
 
 ## To 1.3.5
 

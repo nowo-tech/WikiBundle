@@ -6,7 +6,7 @@
 
 - PHP 8.2+
 - Symfony 7.4, 8.0, or 8.1
-- Doctrine ORM
+- Doctrine ORM `^3.7` (QueryBuilder sort directions use `\SortDirection`, polyfilled by `symfony/polyfill-php86`)
 - [nowo-tech/tiptap-editor-bundle](https://github.com/nowo-tech/TiptapEditorBundle)
 
 ## Composer
