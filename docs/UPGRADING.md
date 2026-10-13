@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.6.1](#to-161)
 - [To 1.6.0](#to-160)
 - [To 1.5.0](#to-150)
 - [To 1.4.1](#to-141)
@@ -32,6 +33,16 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.6.1
+
+From **1.6.0** — space export sets application/zip without symfony/mime
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+- No breaking changes. No application upgrade steps.
 
 ## To 1.6.0
 
