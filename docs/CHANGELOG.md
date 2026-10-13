@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-13
+
 ### Changed
 
 - Development: `composer.json` pins `config.platform.php` to 8.2.0 so the committed lock stays installable on the minimum PHP; CI overrides the platform per matrix cell.
+- Repository: `.twig-cs-fixer.cache` is now git-ignored.
+
+### Dependencies
+
+- `nowo-tech/form-kit-bundle` 2.6.1 → 2.7.1 (development lock; #54).
+- `nowo-tech/ui-kit-bundle` 1.9.2 → 1.11.0 (development lock; #55).
+- `doctrine/orm` 3.7.4 → 3.7.5 (development lock; #56).
+- `jsdom` 30.1.1 → 30.1.2 (frontend tooling; #57).
+- `vite` 8.3.2 → 8.3.4 (frontend tooling; #58).
+
+[1.4.1]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.4.1
 
 ## [1.4.0] - 2026-10-09
 
@@ -45,7 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ai.http_timeout` (default 30 s) and the `nowo_wiki.ai.http_client` service (timeout + max duration) to set as `http_client` of the AI platform.
 
 ### Changed
-
 
 - **Worker safety (Igor):** justified `// @igor-ignore` annotations and/or `ResetInterface` / request-scoped fixes so `make igor` passes on package `src/`.
 - Repository and `WikiSearchService` constructors accept `EntityManagerInterface|WikiEntityManagerProvider`; controller, access checker and AI tool accept an optional `WikiTokenGuard`. See [UPGRADING](UPGRADING.md) and [FRANKENPHP-WORKER-AUDIT](FRANKENPHP-WORKER-AUDIT.md).

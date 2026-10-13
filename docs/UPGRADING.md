@@ -3,11 +3,22 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.4.1](#to-141)
 - [To 1.4.0](#to-140)
 - [To 1.3.5](#to-135)
 - [From 1.3.3 to 1.3.4](#from-133-to-134)
 
 ## Unreleased
+
+## To 1.4.1
+
+From **1.4.0** — dependency refresh and repository maintenance.
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+- No breaking changes. No application upgrade steps.
 
 ## To 1.4.0
 
@@ -45,7 +56,6 @@ ai:
 
 - **Custom wiring:** `DoctrineOrmWiki*Repository` and `WikiSearchService` now receive `Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider` from the extension; passing an `EntityManagerInterface` still works. `WikiManageController`, `ConfigurableWikiAccessChecker` and `WikiKnowledgeSearchTool` take an optional last `?WikiTokenGuard` argument.
 - No application upgrade steps for require-dev Igor tooling (REQ-CS-008). Consumers do not pull `igor-php/igor-php` transitively.
-
 
 ## From 1.3.3 to 1.3.4
 
