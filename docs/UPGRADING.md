@@ -11,6 +11,9 @@
 
 ## Unreleased
 
+- **Deprecated keys:** remove `nowo_wiki.database.driver`, `nowo_wiki.database.platform` and `nowo_wiki.firewall` from your config. They never had an effect and now trigger a deprecation (removal in 2.0). `database.entity_manager` is still used.
+- **Flash messages:** the bundle templates now render session flashes (import results and errors). If your host layout also renders `app.flashes`, the messages are consumed by whichever template runs first; override `@NowoWikiBundle/manage/_flashes.html.twig` with an empty template to keep only yours.
+
 ## To 1.5.0
 
 From **1.4.1** — security: HTML sanitizer rebuilt on symfony/html-sanitizer, render-time sanitizing, ZIP import limits.
@@ -78,16 +81,6 @@ No breaking changes. **No application upgrade steps.**
 composer update nowo-tech/wiki-bundle
 ```
 
-## From 1.3.3 to 1.3.4
-
-No breaking changes. **No application upgrade steps.**
-
-```bash
-composer update nowo-tech/wiki-bundle
-```
-
-# Upgrading
-
 ## To 1.3.3
 
 No application upgrade steps.
@@ -124,6 +117,20 @@ php bin/console assets:install --symlink --relative public
 ```
 
 Requires `nowo-tech/form-kit-bundle` ^2.0 and `nowo-tech/ui-kit-bundle` ^1.4.
+
+### Twig Extra Bundle (REQ-TWIG-004)
+
+Hosts that render this bundle's Twig templates must install:
+
+```bash
+composer require twig/extra-bundle twig/string-extra
+```
+
+and enable `Twig\Extra\TwigExtraBundle\TwigExtraBundle`. Flex recipes usually register it automatically.
+
+### Twig-CS-Fixer (maintainers)
+
+Package maintainers: `composer twig:lint` / `composer twig:fix` use `.twig-cs-fixer.php` over `src/` (and `templates/` when present).
 
 ## To 1.2.0
 
@@ -276,29 +283,3 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 ### FormKitBundle (admin forms)
 
 If you use admin/dashboard Symfony forms, ensure `nowo-tech/form-kit-bundle` ^2.0 is installed (pulled transitively) and `Nowo\FormKitBundle\NowoFormKitBundle` is registered. Form types use profile `wiki` via `#[FormKitConfig]`; the bundle prepends that profile when the host has not defined it.
-
-## Unreleased
-
-## To 1.3.0
-
-From **1.2.0** — Adds FormKit and/or UiKit where applicable, Twig Extra (REQ-TWIG-004), and Twig-CS-Fixer. Register TwigExtraBundle, NowoFormKitBundle, and NowoUiKitBundle if Flex did not. See CHANGELOG.
-
-```bash
-composer update nowo-tech/wiki-bundle
-php bin/console cache:clear
-```
-
-### Twig Extra Bundle (REQ-TWIG-004)
-
-Hosts that render this bundle's Twig templates must install:
-
-```bash
-composer require twig/extra-bundle twig/string-extra
-```
-
-and enable `Twig\Extra\TwigExtraBundle\TwigExtraBundle`. Flex recipes usually register it automatically.
-
-### Twig-CS-Fixer (maintainers)
-
-Package maintainers: `composer twig:lint` / `composer twig:fix` use `.twig-cs-fixer.php` over `src/` (and `templates/` when present).
-

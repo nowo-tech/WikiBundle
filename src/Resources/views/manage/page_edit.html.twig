@@ -7,10 +7,10 @@
 {% endblock %}
 
 {% block body %}
-    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+    {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
         page_title: page ? ('wiki.page.edit'|trans({}, 'NowoWikiBundle') ~ ': ' ~ page.title) : ('wiki.page.new'|trans({}, 'NowoWikiBundle')),
         page_subtitle: space.name,
-    } %}
+    }) }}
 
     <div class="card">
         <div class="card-body">

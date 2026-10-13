@@ -55,6 +55,19 @@ final class WikiSearchServiceTest extends TestCase
         self::assertStringContainsString('deploy', strtolower($results[0]['excerpt']));
     }
 
+    public function testExcerptCentresOnMatchAfterMultibyteText(): void
+    {
+        $space   = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't1');
+        $page    = new WikiPage($space, 'multibyte', 'Multibyte');
+        $content = '<p>' . str_repeat('é', 60) . ' Needle ' . str_repeat('x', 200) . '</p>';
+
+        $service = new WikiSearchService($this->entityManager([[$page, 'contentHtml' => $content]]));
+        $results = $service->search($space, 'NEEDLE');
+
+        self::assertStringContainsString('Needle', $results[0]['excerpt']);
+        self::assertStringStartsWith('…' . str_repeat('é', 39) . ' Needle', $results[0]['excerpt']);
+    }
+
     public function testSearchIgnoresInvalidRows(): void
     {
         $space   = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't1');

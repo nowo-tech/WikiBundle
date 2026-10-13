@@ -3,10 +3,10 @@
 {% block title %}{{ 'wiki.history.title'|trans({}, 'NowoWikiBundle') }} — {{ page.title }}{% endblock %}
 
 {% block body %}
-    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+    {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
         page_title: 'wiki.history.title'|trans({}, 'NowoWikiBundle'),
         page_subtitle: page.title,
-    } %}
+    }) }}
 
     <div class="card">
         <div class="card-body p-0">

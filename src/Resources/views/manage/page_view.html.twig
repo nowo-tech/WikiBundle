@@ -3,6 +3,7 @@
 {% block title %}{{ page.title }}{% endblock %}
 
 {% block body %}
+    {{ include('@NowoWikiBundle/manage/_flashes.html.twig') }}
     <div class="row g-3">
         <div class="col-lg-4">
             <div class="card" data-wiki-sidebar>
@@ -13,7 +14,7 @@
                 </div>
                 <div class="card-body py-2">
                     <nav aria-label="{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}">
-                        {% include '@NowoWikiBundle/manage/_page_tree.html.twig' with {tree: tree|default([]), space: space, routes: routes} only %}
+                        {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {tree: tree|default([]), space: space, routes: routes}, false) }}
                     </nav>
                 </div>
             </div>

@@ -28,6 +28,8 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\DependencyInjection\Reference;
 
+use function is_array;
+
 final class WikiExtensionTest extends TestCase
 {
     public function testRegistersHtmlSanitizerAlias(): void
@@ -353,6 +355,37 @@ final class WikiExtensionTest extends TestCase
             }
         }
         self::assertFalse($seeded);
+    }
+
+    public function testPrependSkipsNonArrayUiKitConfigEntries(): void
+    {
+        // A container whose nowo_ui_kit config stack holds a malformed (non-array) entry next to a partial host config.
+        $container = new class extends ContainerBuilder {
+            public function getExtensionConfig(string $name): array
+            {
+                $configs = parent::getExtensionConfig($name);
+
+                return $name === 'nowo_ui_kit' ? ['broken', ...$configs] : $configs;
+            }
+        };
+        $this->registerStubExtension($container, 'nowo_ui_kit');
+        $container->prependExtensionConfig('nowo_ui_kit', ['icon_set' => 'none']);
+        $extension = new WikiExtension();
+        $container->registerExtension($extension);
+        $container->prependExtensionConfig('nowo_wiki', [
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['css_framework' => 'tabler'],
+        ]);
+
+        $extension->prepend($container);
+
+        $seeded = null;
+        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
+            if (is_array($cfg) && isset($cfg['css_framework'])) {
+                $seeded = $cfg;
+            }
+        }
+        self::assertSame(['css_framework' => 'tabler'], $seeded);
     }
 
     private function registerStubExtension(ContainerBuilder $container, string $alias): void

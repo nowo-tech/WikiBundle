@@ -3,11 +3,11 @@
 {% block title %}{{ 'wiki.search.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}
 
 {% block body %}
-    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+    {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
         page_title: 'wiki.search.title'|trans({}, 'NowoWikiBundle'),
         page_subtitle: global_search|default(false) and query ? ('wiki.search.global_results'|trans({}, 'NowoWikiBundle')) : ('wiki.search.intro'|trans({}, 'NowoWikiBundle')),
         wiki_home_link: false,
-    } %}
+    }) }}
 
     <div class="card mb-4">
         <div class="card-body">

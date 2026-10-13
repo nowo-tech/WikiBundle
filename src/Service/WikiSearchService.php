@@ -53,7 +53,8 @@ final readonly class WikiSearchService
             return [];
         }
 
-        $like = '%' . addcslashes($query, '%_') . '%';
+        // Escape LIKE wildcards (and the escape character itself) so user input matches literally on every platform.
+        $like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $query) . '%';
 
         $entityManager = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
 
@@ -65,7 +66,7 @@ final readonly class WikiSearchService
             ->leftJoin('p.currentRevision', 'r')
             ->where('p.space IN (:spaces)')
             ->andWhere('p.archivedAt IS NULL')
-            ->andWhere('p.title LIKE :q OR r.contentHtml LIKE :q')
+            ->andWhere("p.title LIKE :q ESCAPE '!' OR r.contentHtml LIKE :q ESCAPE '!'")
             ->setParameter('spaces', $spaces)
             ->setParameter('q', $like)
             ->setMaxResults($limit)
@@ -102,7 +103,7 @@ final readonly class WikiSearchService
             return $title;
         }
 
-        $pos = stripos($text, $query);
+        $pos = mb_stripos($text, $query);
         if ($pos === false) {
             return mb_substr($text, 0, 120) . (mb_strlen($text) > 120 ? '…' : '');
         }

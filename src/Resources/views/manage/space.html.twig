@@ -3,11 +3,11 @@
 {% block title %}{{ space.name }}{% endblock %}
 
 {% block body %}
-    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+    {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
         page_title: space.name,
         page_subtitle: 'wiki.space.pick_page'|trans({}, 'NowoWikiBundle'),
         show_search: true,
-    } %}
+    }) }}
 
     <div class="row g-3">
         <div class="col-lg-4">
@@ -22,7 +22,7 @@
                 </div>
                 <div class="card-body">
                     <nav aria-label="{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}">
-                        {% include '@NowoWikiBundle/manage/_page_tree.html.twig' with {tree: tree, space: space, routes: routes} %}
+                        {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {tree: tree, space: space, routes: routes}) }}
                     </nav>
                 </div>
             </div>

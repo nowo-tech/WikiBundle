@@ -8,6 +8,10 @@ Root key: `nowo_wiki`.
 | `table_prefix` | `wiki_` | DB table prefix |
 | `space_scope` | `team` | `team` or `user` |
 | `team_membership_resolver` | null | Service id implementing `WikiTeamMembershipResolverInterface` |
+| `database.entity_manager` | `default` | Doctrine entity manager used by the wiki repositories and search |
+| `database.driver` | `doctrine_orm` | **Deprecated since 1.6, no effect** (only Doctrine ORM is supported); remove it from your config |
+| `database.platform` | `mysql` | **Deprecated since 1.6, no effect** (the platform comes from the Doctrine connection); remove it from your config |
+| `firewall` | `main` | **Deprecated since 1.6, no effect** (the bundle trusts any secured firewall that handles the wiki routes); remove it from your config |
 | `editor.tiptap_config` | `notion` | TiptapEditorBundle config profile name |
 | `security.access_checker` | null | Custom `WikiAccessCheckerInterface` service id |
 | `security.access_roles` | `[ROLE_USER]` | Open manage UI (hosts may set `ROLE_ADMIN` for admin-only) |

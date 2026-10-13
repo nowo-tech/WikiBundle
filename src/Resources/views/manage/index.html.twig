@@ -3,14 +3,14 @@
 {% block title %}{{ 'wiki.index.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}
 
 {% block body %}
-    {% include '@NowoWikiBundle/manage/_page_header.html.twig' with {
+    {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
         page_title: 'wiki.index.title'|trans({}, 'NowoWikiBundle'),
         page_subtitle: 'wiki.index.intro'|trans({}, 'NowoWikiBundle'),
         wiki_home_link: false,
         show_search: true,
         show_ai: can_ask_ai|default(false),
         wiki_ai_modal: can_ask_ai|default(false),
-    } %}
+    }) }}
 
     <div class="card mb-4 border-primary">
         <div class="card-body">
@@ -60,7 +60,7 @@
     {% endif %}
 
     {% if can_ask_ai|default(false) and routes.ai_ask is defined %}
-        {% include '@NowoWikiBundle/manage/_ai_ask_modal.html.twig' with {spaces: spaces, routes: routes} only %}
+        {{ include('@NowoWikiBundle/manage/_ai_ask_modal.html.twig', {spaces: spaces, routes: routes}, false) }}
     {% endif %}
 
     {% if spaces is empty %}

@@ -1,0 +1,9 @@
+{# Session flash messages (import/export reports, validation errors). Values are translation keys in the NowoWikiBundle domain or already-final text. #}
+{% set wiki_flash_classes = {error: 'danger', danger: 'danger', warning: 'warning', info: 'info', success: 'success'} %}
+{% for type, messages in app.flashes|default({}) %}
+    {% for message in messages %}
+        <div class="alert alert-{{ wiki_flash_classes[type]|default('info') }} nowo-ui-flash nowo-ui-flash--{{ type }}" role="{{ type in ['error', 'danger', 'warning'] ? 'alert' : 'status' }}" data-wiki-flash="{{ type }}">
+            {{ message|trans({}, 'NowoWikiBundle') }}
+        </div>
+    {% endfor %}
+{% endfor %}
