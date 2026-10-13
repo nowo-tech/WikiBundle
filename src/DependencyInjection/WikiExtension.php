@@ -93,6 +93,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             $container->setParameter('nowo_wiki.templates', $config['templates']);
         }
 
+        // Load the resource scan first: every explicit definition below must win over the
+        // autowired one that services.yaml registers for the same class (e.g. Security/).
+        $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
+        $loader->load('services.yaml');
+
         $teamResolverId = $config['team_membership_resolver'] ?? null;
         if (!is_string($teamResolverId) || $teamResolverId === '') {
             $teamResolverId = NullWikiTeamMembershipResolver::class;
@@ -152,8 +157,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$defaultOwnerScope', $config['space_scope']));
         $container->setAlias(WikiSpaceAccessResolverInterface::class, WikiSpaceAccessResolver::class);
 
-        $loader = new YamlFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
-        $loader->load('services.yaml');
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
 
         $this->registerAiServices($container, $config['ai']);

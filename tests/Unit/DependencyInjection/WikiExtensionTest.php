@@ -13,9 +13,11 @@ use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
+use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use PHPUnit\Framework\TestCase;
@@ -40,6 +42,59 @@ final class WikiExtensionTest extends TestCase
 
         self::assertTrue($container->hasAlias(WikiHtmlSanitizerInterface::class));
         self::assertTrue($container->hasDefinition(WikiHtmlSanitizer::class));
+    }
+
+    /**
+     * services.yaml scans Security/; the explicit definitions registered by load() must win
+     * over the autowired/autoconfigured ones from the resource scan regardless of order.
+     */
+    public function testExplicitSecurityDefinitionsWinOverResourceScan(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+
+        $resolver = $container->getDefinition(NullWikiTeamMembershipResolver::class);
+        self::assertSame(NullWikiTeamMembershipResolver::class, $resolver->getClass());
+        self::assertSame([], $resolver->getArguments());
+        self::assertFalse($resolver->isAutowired());
+        self::assertFalse($resolver->isAutoconfigured());
+        self::assertSame(
+            NullWikiTeamMembershipResolver::class,
+            (string) $container->getAlias(WikiTeamMembershipResolverInterface::class),
+        );
+
+        $sanitizer = $container->getDefinition(WikiHtmlSanitizer::class);
+        self::assertSame(WikiHtmlSanitizer::class, $sanitizer->getClass());
+        self::assertSame([], $sanitizer->getArguments());
+        self::assertFalse($sanitizer->isAutowired());
+        self::assertFalse($sanitizer->isAutoconfigured());
+        self::assertSame(
+            WikiHtmlSanitizer::class,
+            (string) $container->getAlias(WikiHtmlSanitizerInterface::class),
+        );
+
+        $checker = $container->getDefinition('nowo_wiki.access_checker.default');
+        self::assertSame(['ROLE_ADMIN'], $checker->getArgument('$adminRoles'));
+        self::assertSame(
+            'nowo_wiki.access_checker.default',
+            (string) $container->getAlias(WikiAccessCheckerInterface::class),
+        );
+    }
+
+    public function testCustomTeamMembershipResolverAliasIsKept(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class'               => 'App\\Entity\\User',
+            'team_membership_resolver' => 'app.wiki_team_resolver',
+        ]], $container);
+
+        self::assertSame(
+            'app.wiki_team_resolver',
+            (string) $container->getAlias(WikiTeamMembershipResolverInterface::class),
+        );
     }
 
     public function testPrependsFrameworkAssets(): void
