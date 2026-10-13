@@ -1009,6 +1009,40 @@ MD);
         @unlink($response->getFile()->getPathname());
     }
 
+    public function testExportSpaceSetsZipContentTypeWithoutMimeGuessing(): void
+    {
+        // symfony/mime is not a dependency: prepare() must not need to guess the type.
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'intro', 'Intro');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hello</p>', $user));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([$page]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $request  = Request::create('/export?format=outline');
+        $response = $controller->exportSpace($request, 'eng');
+        $path     = $response->getFile()->getPathname();
+
+        try {
+            $response->prepare($request);
+
+            self::assertSame('application/zip', $response->headers->get('Content-Type'));
+            self::assertSame(
+                'attachment; filename=eng-outline-export.zip',
+                $response->headers->get('Content-Disposition'),
+            );
+        } finally {
+            @unlink($path);
+        }
+    }
+
     public function testStaleTokenFromPreviousRequestIsIgnoredOutsideSecuredFirewall(): void
     {
         $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');

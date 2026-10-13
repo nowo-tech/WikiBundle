@@ -366,7 +366,9 @@ final class WikiManageController extends AbstractController
             $this->archiveHelper->removeDirectory($workingDir);
         }
 
-        $response = new BinaryFileResponse($zipPath);
+        // Explicit Content-Type: BinaryFileResponse::prepare() would otherwise guess it via
+        // symfony/mime, which is not a dependency of this bundle (500 when it is absent).
+        $response = new BinaryFileResponse($zipPath, Response::HTTP_OK, ['Content-Type' => 'application/zip']);
         $response->setContentDisposition(
             ResponseHeaderBag::DISPOSITION_ATTACHMENT,
             $space->getSlug() . '-' . $format->value . '-export.zip',
