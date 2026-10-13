@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.6.2](#to-162)
 - [To 1.6.1](#to-161)
 - [To 1.6.0](#to-160)
 - [To 1.5.0](#to-150)
@@ -33,6 +34,16 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.6.2
+
+From **1.6.1** — explicit security service definitions win over the resource scan
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+- No breaking changes. No application upgrade steps.
 
 ## To 1.6.1
 
