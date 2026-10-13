@@ -12,6 +12,7 @@ use RuntimeException;
 use SplFileInfo;
 use ZipArchive;
 
+use function sprintf;
 use function strlen;
 
 /**
@@ -19,6 +20,18 @@ use function strlen;
  */
 final class WikiArchiveHelper
 {
+    /** Maximum number of entries accepted in an imported ZIP archive. */
+    public const DEFAULT_MAX_ENTRIES = 10000;
+
+    /** Maximum total uncompressed size (bytes) accepted in an imported ZIP archive (512 MiB). */
+    public const DEFAULT_MAX_UNCOMPRESSED_BYTES = 536870912;
+
+    public function __construct(
+        private readonly int $maxEntries = self::DEFAULT_MAX_ENTRIES,
+        private readonly int $maxUncompressedBytes = self::DEFAULT_MAX_UNCOMPRESSED_BYTES,
+    ) {
+    }
+
     public function isZipPath(string $path): bool
     {
         return is_file($path) && str_ends_with(strtolower($path), '.zip');
@@ -33,6 +46,14 @@ final class WikiArchiveHelper
         $zip = new ZipArchive();
         if ($zip->open($zipPath) !== true) {
             throw new InvalidArgumentException('Unable to open ZIP archive.');
+        }
+
+        try {
+            $this->assertWithinLimits($zip);
+        } catch (InvalidArgumentException $e) {
+            $zip->close();
+
+            throw $e;
         }
 
         $targetDir = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(8));
@@ -55,6 +76,32 @@ final class WikiArchiveHelper
         $zip->close();
 
         return $targetDir;
+    }
+
+    /**
+     * Rejects ZIP bombs before extraction: caps the entry count and the declared total uncompressed size
+     * (libzip never writes more than the declared size of an entry).
+     */
+    private function assertWithinLimits(ZipArchive $zip): void
+    {
+        if ($zip->numFiles > $this->maxEntries) {
+            throw new InvalidArgumentException(sprintf('ZIP archive has too many entries (%d, max %d).', $zip->numFiles, $this->maxEntries));
+        }
+
+        $total = 0;
+        for ($i = 0; $i < $zip->numFiles; ++$i) {
+            $stat = $zip->statIndex($i);
+            // @codeCoverageIgnoreStart
+            if ($stat === false) {
+                throw new InvalidArgumentException('Unable to read ZIP archive entry.');
+            }
+            // @codeCoverageIgnoreEnd
+
+            $total += $stat['size'];
+            if ($total > $this->maxUncompressedBytes) {
+                throw new InvalidArgumentException(sprintf('ZIP archive uncompressed size exceeds the limit of %d bytes.', $this->maxUncompressedBytes));
+            }
+        }
     }
 
     public function createZipFromDirectory(string $sourceDir, string $zipPath): void

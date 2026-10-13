@@ -10,6 +10,7 @@ services:
         exclude:
             - '../../DependencyInjection/'
             - '../../WikiBundle.php'
+            - '../../Security/AttributeSanitizer/'
             - '../../Repository/'
             - '../../Doctrine/'
             - '../../Ai/'

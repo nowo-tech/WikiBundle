@@ -209,4 +209,67 @@ final class WikiArchiveHelperTest extends TestCase
             }
         }
     }
+
+    public function testExtractZipRejectsTooManyEntries(): void
+    {
+        $zipPath = $this->createZip(['a.md' => 'a', 'b.md' => 'b', 'c.md' => 'c']);
+        $helper  = new WikiArchiveHelper(maxEntries: 2);
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('too many entries');
+            $helper->extractZip($zipPath);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    public function testExtractZipRejectsZipBombBeforeExtracting(): void
+    {
+        // 2 MiB of zeros compresses to a few KiB: a miniature ZIP bomb.
+        $zipPath = $this->createZip(['bomb.md' => str_repeat("\0", 2 * 1024 * 1024), 'ok.md' => 'ok']);
+        $helper  = new WikiArchiveHelper(maxUncompressedBytes: 1024 * 1024);
+        $before  = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
+
+        try {
+            self::assertLessThan(1024 * 1024, (int) filesize($zipPath));
+            $helper->extractZip($zipPath);
+            self::fail('Expected the ZIP bomb to be rejected.');
+        } catch (InvalidArgumentException $e) {
+            self::assertStringContainsString('uncompressed size exceeds', $e->getMessage());
+            self::assertSame($before, glob(sys_get_temp_dir() . '/wiki-import-*') ?: []);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    public function testExtractZipAcceptsArchiveWithinLimits(): void
+    {
+        $zipPath = $this->createZip(['a.md' => 'a', 'b.md' => 'b']);
+        $helper  = new WikiArchiveHelper(maxEntries: 2, maxUncompressedBytes: 2);
+
+        try {
+            $extracted = $helper->extractZip($zipPath);
+            self::assertFileExists($extracted . '/b.md');
+            $helper->removeDirectory($extracted);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    /**
+     * @param array<string, string> $entries
+     */
+    private function createZip(array $entries): string
+    {
+        $zipPath = sys_get_temp_dir() . '/wiki-archive-' . bin2hex(random_bytes(4)) . '.zip';
+        $zip     = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        foreach ($entries as $name => $content) {
+            $zip->addFromString($name, $content);
+        }
+        $zip->close();
+
+        return $zipPath;
+    }
 }
