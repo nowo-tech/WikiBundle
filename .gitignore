@@ -16,6 +16,7 @@
 /coverage.xml
 /.phpunit.cache/
 /.php-cs-fixer.cache
+/.twig-cs-fixer.cache
 # Cursor local sandbox (machine-specific; REQ-IDE-005)
 .cursor/sandbox.json
 
