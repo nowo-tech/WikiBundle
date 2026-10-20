@@ -1,5 +1,13 @@
 # Release process
 
+## Table of contents
+
+- [Versioning](#versioning)
+- [Pre-release checklist](#pre-release-checklist)
+- [Tagging](#tagging)
+  - [Example for v1.2.0](#example-for-v120)
+  - [Example for v1.1.1](#example-for-v111)
+
 ## Versioning
 
 [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.

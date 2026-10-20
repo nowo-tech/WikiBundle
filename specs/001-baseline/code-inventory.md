@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-07-07
+**Last audited**: 2026-10-20 (worker guards, attribute sanitizers, render-time sanitizing; audit: `git ls-files src | grep -v '\.test\.ts$' | wc -l` → 92)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -86,6 +86,10 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Security/WikiHtmlSanitizer.php` | HTML sanitizer impl | FR-SEC-005 |
 | `Security/WikiHtmlSanitizerInterface.php` | Sanitizer contract | FR-SEC-005 |
 | `Security/WikiTeamMembershipResolverInterface.php` | Team membership contract | FR-SEC-006 |
+| `Security/AllowAllWikiAccessChecker.php` | Permissive checker (allow_unauthenticated) | FR-SEC-001 |
+| `Security/AttributeSanitizer/EmbedIframeSrcAttributeSanitizer.php` | iframe src allowlist | FR-SEC-007 |
+| `Security/AttributeSanitizer/TextAlignStyleAttributeSanitizer.php` | TextAlign style filter | FR-SEC-007 |
+| `Security/WikiTokenGuard.php` | Stale token guard | FR-WORKER-001 |
 
 ## AI
 
@@ -118,6 +122,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Interchange/WikiFormatDetector.php` | Import/export interchange | FR-IX-001 |
 | `Interchange/WikiFrontMatterParser.php` | Import/export interchange | FR-IX-001 |
 | `Interchange/WikiMarkdownConverter.php` | Import/export interchange | FR-IX-001 |
+| `Doctrine/WikiEntityManagerProvider.php` | Per-call entity manager (closed-manager reset) | FR-WORKER-001 |
 
 ## Support utilities
 
@@ -169,6 +174,9 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Resources/views/manage/page_view.html.twig` | Manage UI template | FR-VIEW-005 |
 | `Resources/views/manage/search.html.twig` | Manage UI template | FR-VIEW-005 |
 | `Resources/views/manage/space.html.twig` | Manage UI template | FR-VIEW-005 |
+| `Twig/WikiHtmlTwigExtension.php` | Render-time HTML re-sanitizing | FR-SEC-008 |
+| `Resources/views/base.html.twig` | Page shell (UiKit CSS/JS stack) | FR-VIEW-001 |
+| `Resources/views/manage/_flashes.html.twig` | Flash messages partial | FR-VIEW-005 |
 
 ## Coverage summary
 
@@ -181,15 +189,15 @@ This file proves that **every production source artifact** under `src/` is refer
 | Forms | 1 | 1 |
 | Domain models | 5 | 5 |
 | Application services | 12 | 12 |
-| Security | 6 | 6 |
+| Security | 10 | 10 |
 | AI | 7 | 7 |
 | Routing | 1 | 1 |
-| Persistence integration | 9 | 9 |
+| Persistence integration | 10 | 10 |
 | Support utilities | 2 | 2 |
 | Frontend TypeScript | 3 | 3 |
 | Symfony config | 1 | 1 |
 | Translations | 7 | 7 |
-| Twig views | 13 | 13 |
-| **Total production sources** | **84** | **84** |
+| Twig views | 16 | 16 |
+| **Total production sources** | **92** | **92** |
 
 Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l`

@@ -9,6 +9,20 @@
 | Remediation (2026-09-23) | W-01, W-02, W-03 and W-04 fixed (uncommitted, `[Unreleased]`); W-05 unchanged (Info). Regression tests simulate consecutive requests on one container without `reset()` |
 | **Verdict** | ✅ **Viable under scenario B** — repositories and search resolve the EntityManager per call (closed manager recovered, reads refreshed from the database), access decisions ignore a token left by a previous request, failed exports leave no ZIP, and AI calls can use a bundle HTTP client with timeout. Hosts still own the identity-map lifetime and firewall layout (see usage recommendations). |
 
+## Table of contents
+
+- [Execution model assumed](#execution-model-assumed)
+- [Summary](#summary)
+- [Services reviewed](#services-reviewed)
+- [Findings](#findings)
+  - [W-01 — Relies on Doctrine's reset for a closed or bloated EntityManager (Medium)](#w-01--relies-on-doctrines-reset-for-a-closed-or-bloated-entitymanager-medium)
+  - [W-02 — Security decisions depend on the token storage being reset (Medium)](#w-02--security-decisions-depend-on-the-token-storage-being-reset-medium)
+  - [W-03 — Temporary export ZIP can be left behind (Low)](#w-03--temporary-export-zip-can-be-left-behind-low)
+  - [W-04 — AI requests have no bundle-level timeout (Low)](#w-04--ai-requests-have-no-bundle-level-timeout-low)
+  - [W-05 — `WikiRouteLoader` uses a one-shot `$loaded` flag (Info)](#w-05--wikirouteloader-uses-a-one-shot-loaded-flag-info)
+- [Usage recommendations in worker mode](#usage-recommendations-in-worker-mode)
+- [Re-audit triggers](#re-audit-triggers)
+
 ## Execution model assumed
 
 FrankenPHP worker mode boots the Symfony kernel once per worker and serves many requests with the same container. This audit assumes the **strict** variant: the kernel is **not** rebooted between requests, so every shared service, static property and PHP global survives from one request to the next. Two scenarios are evaluated:

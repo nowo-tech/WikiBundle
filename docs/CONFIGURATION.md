@@ -34,6 +34,12 @@ Root key: `nowo_wiki`.
 | `web_ui.layout_template` | null | Optional host layout Twig path |
 
 
+## Table of contents
+
+- [Web UI (REQ-UI-001)](#web-ui-req-ui-001)
+- [Import / export](#import--export)
+- [Symfony AI integration](#symfony-ai-integration)
+
 ## Web UI (REQ-UI-001)
 
 ```yaml

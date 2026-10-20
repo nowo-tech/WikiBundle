@@ -10,6 +10,19 @@ There is no separate executable spec language (for example Gherkin); Spec Kit sp
 
 ---
 
+## Table of contents
+
+- [Product vision](#product-vision)
+- [Scope](#scope)
+- [User stories](#user-stories)
+- [Business rules](#business-rules)
+- [REQ traceability](#req-traceability)
+- [Validating the functional spec](#validating-the-functional-spec)
+- [Engram](#engram)
+- [Suggested workflow for contributors](#suggested-workflow-for-contributors)
+- [GitHub Spec Kit (summary)](#github-spec-kit-summary)
+- [See also](#see-also)
+
 ## Product vision
 
 Versionable internal wiki for Symfony apps: runbooks, ADRs, and team documentation with Outline/Notion-style rich text (Tiptap), immutable revisions, and pluggable ACL.

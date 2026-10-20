@@ -2,6 +2,18 @@
 
 Thank you for contributing to Wiki Bundle.
 
+## Table of contents
+
+- [Code of Conduct](#code-of-conduct)
+- [Development setup](#development-setup)
+- [Quality checks](#quality-checks)
+- [Pull requests](#pull-requests)
+- [Documentation](#documentation)
+- [Code style](#code-style)
+- [Cursor Agent](#cursor-agent)
+- [Git hooks (REQ-GIT-001)](#git-hooks-req-git-001)
+- [License](#license)
+
 ## Code of Conduct
 
 This project follows the [Contributor Covenant Code of Conduct](../CODE_OF_CONDUCT.md). By participating, you are expected to uphold it. Please report unacceptable behavior to **hectorfranco@nowo.tech**.
@@ -55,6 +67,21 @@ Run `make release-check` before tagging a release.
 - TypeScript: `src/Resources/assets/src/`; run `make test-ts` after changes.
 - Comments and PHPDoc: **English** (see `BUNDLES_FULL_SPECS_CHECKLIST.md`).
 
+## Cursor Agent
+
+Contributors using Cursor Agent on this repository should enable these user-level settings (REQ-IDE-006):
+
+1. **Submit with Ctrl + Enter** (macOS: **⌘ + Enter**) — Cursor Settings → Agents / Chat. Enter inserts a newline; Ctrl/⌘+Enter submits.
+2. **Queue follow-ups** in user `settings.json`:
+
+```json
+{
+  "cursor.composer.queueMessageDefaultBehavior": "queue"
+}
+```
+
+Do not use `"steer"` as the default: it interrupts a running agent turn.
+
 ## Git hooks (REQ-GIT-001)
 
 Do **not** add `Co-authored-by: Cursor` or `cursoragent@cursor.com` trailers, nor `Co-Authored-By: Claude …` / `noreply@anthropic.com` ones, to commit messages.
@@ -65,6 +92,7 @@ make check-no-cursor-coauthor
 ```
 
 `make setup-hooks` installs `.githooks/commit-msg` (or sets `core.hooksPath` to `.githooks`). Run it once per clone before your first commit.
+Maintainers run `make check-no-cursor-coauthor` again **after** the release commit and **before** `git push`: an earlier `release-check` does not cover a commit created after it finished.
 
 If CI fails because trailers are already on the remote, see [GITHUB_CI.md](GITHUB_CI.md) (REQ-GIT-001) and run `make strip-cursor-coauthor-from-history` before `git push --force-with-lease`.
 

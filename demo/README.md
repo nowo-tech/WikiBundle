@@ -1,6 +1,6 @@
 # Wiki Bundle — Demo
 
-Symfony 8.1 demo with FrankenPHP + MySQL.
+Symfony 8.1 demo with FrankenPHP + MySQL. Development vs production setup, `FRANKENPHP_MODE` (`worker` by default, `classic` for per-request PHP) and troubleshooting: [docs/DEMO-FRANKENPHP.md](../docs/DEMO-FRANKENPHP.md).
 
 ## Quick start
 

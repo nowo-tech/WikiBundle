@@ -68,6 +68,9 @@ As a user, I ask questions grounded in wiki content when Symfony AI is configure
 - **FR-ENTITY-001 / FR-REPO-001 / FR-REPO-002**: Spaces, pages, revisions; ORM repositories.
 - **FR-PAGE-001 / FR-SPACE-001 / FR-TREE-001 / FR-REV-001 / FR-SEARCH-001**: Page/space CRUD, tree, diff, search services.
 - **FR-SEC-001 / FR-SEC-005 / FR-SEC-006**: Access checker, HTML sanitizer, team membership resolver.
+- **FR-SEC-007**: Attribute-level sanitizers keep only safe attributes: `EmbedIframeSrcAttributeSanitizer` (`<iframe src>` only for https hosts on the embed allowlist) and `TextAlignStyleAttributeSanitizer` (`style` only when it is exactly a Tiptap TextAlign declaration).
+- **FR-SEC-008**: `WikiHtmlTwigExtension` (`nowo_wiki_safe_html`) re-sanitizes stored page HTML at render time, so revisions saved under an older policy are rendered with the current one.
+- **FR-WORKER-001**: Safe without kernel / `services_resetter` reset (FrankenPHP worker): `WikiEntityManagerProvider` resolves the configured entity manager on every call and resets a closed one; `WikiTokenGuard` refuses to trust a token left in storage by a previous request. `AllowAllWikiAccessChecker` (FR-SEC-001) is only used when `security.allow_unauthenticated` is true (demo/dev).
 - **FR-FORM-001**: Page form with slug and content fields.
 - **FR-EVT-001 / FR-EVT-002**: Domain events for list/access and page lifecycle.
 
@@ -87,7 +90,7 @@ As a user, I ask questions grounded in wiki content when Symfony AI is configure
 
 ## Success Criteria
 
-- **SC-001**: 100% of production files in `src/` appear in [`code-inventory.md`](code-inventory.md) with requirement IDs (84/84 mapped).
+- **SC-001**: 100% of production files in `src/` appear in [`code-inventory.md`](code-inventory.md) with requirement IDs (92/92 mapped; the co-located Vitest file `wiki.test.ts` is excluded).
 - **SC-002**: Configuration keys in `docs/CONFIGURATION.md` match `Configuration.php`.
 - **SC-003**: `composer qa` / `make release-check` pass in CI (PHPUnit, PHPStan, Vitest where applicable).
 - **SC-004**: No Packagist-visible behavior change without spec, inventory, and test updates.

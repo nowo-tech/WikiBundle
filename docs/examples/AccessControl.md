@@ -2,6 +2,12 @@
 
 Integrators replace `WikiAccessCheckerInterface` and optionally `WikiTeamMembershipResolverInterface`.
 
+## Table of contents
+
+- [Team-based tool access (DevKit pattern)](#team-based-tool-access-devkit-pattern)
+- [Role-based defaults](#role-based-defaults)
+- [Events](#events)
+
 ## Team-based tool access (DevKit pattern)
 
 ```php

@@ -1,5 +1,15 @@
 # Usage — WikiBundle
 
+## Table of contents
+
+- [Manage UI routes (defaults)](#manage-ui-routes-defaults)
+- [Import / export](#import--export)
+- [Symfony AI](#symfony-ai)
+- [Search](#search)
+- [Application integration](#application-integration)
+- [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
+- [Events](#events)
+
 ## Manage UI routes (defaults)
 
 | Route name | Path |

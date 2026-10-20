@@ -7,6 +7,7 @@
 - [Access control](#access-control)
 - [Content safety](#content-safety)
 - [Dependencies](#dependencies)
+- [REQ-SEC-004](#req-sec-004)
 - [Reporting](#reporting)
 - [Release security checklist (12.4.1)](#release-security-checklist-1241)
 

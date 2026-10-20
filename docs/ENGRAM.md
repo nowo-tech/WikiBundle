@@ -2,6 +2,16 @@
 
 Persistent context for agents working on this repository.
 
+## Table of contents
+
+- [Package](#package)
+- [Purpose](#purpose)
+- [Key extension points](#key-extension-points)
+- [Dependencies](#dependencies)
+- [Tests](#tests)
+- [Security notes](#security-notes)
+- [MCP / Cursor](#mcp--cursor)
+
 ## Package
 
 - **Composer:** `nowo-tech/wiki-bundle`

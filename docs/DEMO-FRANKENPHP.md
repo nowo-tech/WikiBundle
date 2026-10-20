@@ -4,6 +4,17 @@
 
 The Symfony 8 demo runs on [FrankenPHP](https://frankenphp.dev/) inside Docker (Caddy + PHP worker).
 
+## Table of contents
+
+- [Quick start](#quick-start)
+- [Stack](#stack)
+- [Path repositories](#path-repositories)
+- [Commands](#commands)
+- [Styling](#styling)
+- [Production note](#production-note)
+- [Switching classic vs worker (`FRANKENPHP_MODE`)](#switching-classic-vs-worker-frankenphp_mode)
+- [Troubleshooting](#troubleshooting)
+
 ## Quick start
 
 ```bash
@@ -53,3 +64,15 @@ Demos select the FrankenPHP runtime via **`FRANKENPHP_MODE`** in `.env` / `.env.
 | **`classic`** | Entrypoint copies `Caddyfile.dev` (plain `php_server`, hot-reload friendly) |
 
 Compose passes `FRANKENPHP_MODE=${FRANKENPHP_MODE:-worker}` into the PHP service. After changing `.env`, run `docker compose up -d` (or `make up`) so the container is **recreated** — a plain `restart` does not reload env. No image rebuild is required.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Twig or PHP changes do not show on refresh | Worker mode keeps the kernel in memory | Set `FRANKENPHP_MODE=classic` in `demo/symfony8/.env`, then `make -C demo/symfony8 up` (recreates the container), or `make -C demo/symfony8 restart` after edits |
+| Changing `FRANKENPHP_MODE` has no effect | `docker compose restart` does not reload `.env` | Run `make -C demo/symfony8 up` / `docker compose up -d` so the container is recreated |
+| `Unknown FRANKENPHP_MODE=…` and the container exits | Value other than `classic` / `worker` | Fix the value in `.env` |
+| Bundle changes not picked up | Path repository autoload or cache is stale | `make -C demo/symfony8 update-bundle` |
+| Port already in use | Another stack uses `PORT` | Change `PORT` and `DEFAULT_URI` in `demo/symfony8/.env` |
+| Database errors after pulling changes | Schema or fixtures are out of date | `make -C demo/symfony8 database` then `make -C demo/symfony8 seed` |
+| Wiki AI answers fail | No AI provider configured | Set `OPENAI_API_KEY` or point `OLLAMA_HOST_URL` at a running Ollama server |

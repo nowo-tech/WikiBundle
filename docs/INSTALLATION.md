@@ -1,5 +1,14 @@
 # Installation — WikiBundle
 
+## Table of contents
+
+- [Requirements](#requirements)
+- [Composer](#composer)
+- [Routing](#routing)
+- [Database](#database)
+- [Tiptap editor](#tiptap-editor)
+- [Twig Extra Bundle (REQ-TWIG-004)](#twig-extra-bundle-req-twig-004)
+
 ## Requirements
 
 - **FormKitBundle** (`nowo-tech/form-kit-bundle` ^2.0) — dashboard/admin Symfony forms (`FormOptionsTrait`, profile `wiki`). Register `NowoFormKitBundle` in `config/bundles.php` (Flex / demo). Optional host YAML: `config/packages/nowo_form_kit.yaml`.
