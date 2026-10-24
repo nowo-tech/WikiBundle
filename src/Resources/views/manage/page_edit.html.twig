@@ -26,10 +26,16 @@
                     {{ form_widget(form.content) }}
                     {{ form_errors(form.content) }}
                 </div>
+                {# REQ-TWIG-003 rule 3: title and content use custom markup above; the loop renders any remaining child. #}
+                {% for child in form %}
+                    {% if not child.rendered %}
+                        {{ form_row(child) }}
+                    {% endif %}
+                {% endfor %}
                 <input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">
                 <button type="submit" class="btn btn-primary">{{ 'wiki.form.save'|trans({}, 'NowoWikiBundle') }}</button>
                 <a href="{{ path(routes.space.name, {spaceSlug: space.slug}) }}" class="btn btn-outline-secondary ms-2">{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}</a>
-            {{ form_end(form, {render_rest: false}) }}
+            {{ form_end(form) }}
         </div>
     </div>
 {% endblock %}
