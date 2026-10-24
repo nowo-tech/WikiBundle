@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.6.4] - 2026-10-24](#164---2026-10-24)
 - [[1.6.3] - 2026-10-18](#163---2026-10-18)
 - [[1.6.2] - 2026-10-13](#162---2026-10-13)
 - [[1.6.1] - 2026-10-13](#161---2026-10-13)
@@ -33,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.4] - 2026-10-24
+
+Bundle views render form bodies through the child loop (REQ-TWIG-003). See [UPGRADING](UPGRADING.md#to-164).
+
 ### Changed
 
 - Dependencies refreshed (Composer and pnpm/npm lock files of the bundle and its demos, campaign 2026-10-19).
@@ -41,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   any remaining child through the child loop (`{% for child in form %}` + `not child.rendered` + `form_row(child)`),
   closing with `form_end(form)` instead of `render_rest: false`, per REQ-TWIG-003.
 - Documentation: wave-1 REQ compliance — README preamble order, stars badge image and documentation list order, CONTRIBUTING Cursor Agent settings and post-release-commit trailer check, canonical bug-report template, demo `.env.example` / `.env.test` comments, DEMO-FRANKENPHP troubleshooting linked from `demo/README.md`, doc TOCs, Spec Kit inventory refresh (92/92).
+
+[1.6.4]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.6.4
 
 ## [1.6.3] - 2026-10-18
 
@@ -359,7 +366,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.6.3...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.6.4...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
