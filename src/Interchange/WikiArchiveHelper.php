@@ -18,7 +18,7 @@ use function strlen;
 /**
  * ZIP helpers for Notion exports and wiki download bundles.
  */
-final class WikiArchiveHelper
+final readonly class WikiArchiveHelper
 {
     /** Maximum number of entries accepted in an imported ZIP archive. */
     public const DEFAULT_MAX_ENTRIES = 10000;
@@ -27,8 +27,8 @@ final class WikiArchiveHelper
     public const DEFAULT_MAX_UNCOMPRESSED_BYTES = 536870912;
 
     public function __construct(
-        private readonly int $maxEntries = self::DEFAULT_MAX_ENTRIES,
-        private readonly int $maxUncompressedBytes = self::DEFAULT_MAX_UNCOMPRESSED_BYTES,
+        private int $maxEntries = self::DEFAULT_MAX_ENTRIES,
+        private int $maxUncompressedBytes = self::DEFAULT_MAX_UNCOMPRESSED_BYTES,
     ) {
     }
 

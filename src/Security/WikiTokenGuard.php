@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Security;
 
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
@@ -25,7 +26,7 @@ final readonly class WikiTokenGuard
     public function isTokenTrusted(): bool
     {
         $request = $this->requestStack->getMainRequest();
-        if ($request === null) {
+        if (!$request instanceof Request) {
             return true;
         }
 

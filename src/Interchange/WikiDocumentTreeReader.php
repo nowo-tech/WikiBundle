@@ -60,9 +60,7 @@ final readonly class WikiDocumentTreeReader
             $slug       = $this->stringMeta($meta, 'wiki_slug') ?? $this->stringMeta($meta, 'slug');
             $parentSlug = $this->stringMeta($meta, 'wiki_parent') ?? $this->stringMeta($meta, 'parent');
 
-            if ($title === null) {
-                $title = $this->extractFirstHeading($parsed['body']) ?? basename($markdownFile, '.md');
-            }
+            $title ??= $this->extractFirstHeading($parsed['body']) ?? basename($markdownFile, '.md');
 
             $fileRelativePath = $format === WikiInterchangeFormat::Notion
                 ? $relativePath

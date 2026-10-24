@@ -17,10 +17,10 @@ use function strtolower;
  *
  * @internal
  */
-final class EmbedIframeSrcAttributeSanitizer implements AttributeSanitizerInterface
+final readonly class EmbedIframeSrcAttributeSanitizer implements AttributeSanitizerInterface
 {
     /** @var list<string> */
-    private readonly array $allowedHosts;
+    private array $allowedHosts;
 
     /**
      * @param list<string> $allowedHosts
