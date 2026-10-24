@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fail if the GitHub repo has unresolved open pull requests (REQ-REL-003).
 # Allowed temporary exceptions: label hold|do-not-merge AND a future review-by ISO date
-# in the PR body (body must carry the date).
+# in the PR body. Conflicted PRs without a valid hold also fail.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
@@ -22,26 +22,21 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 1
 fi
 
-# Resolve owner/name for -R (works when SSH remotes confuse `gh` default repo detection).
-resolve_repo() {
-  local url owner_repo
-  if url="$(git remote get-url origin 2>/dev/null)"; then
-    # git@github.com:org/repo.git  |  https://github.com/org/repo.git
-    owner_repo="$(printf '%s\n' "${url}" | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')"
-    if [[ "${owner_repo}" == */* ]]; then
-      printf '%s\n' "${owner_repo}"
-      return 0
-    fi
+# Prefer explicit --repo: some environments fail to map git@github.com remotes to a gh host.
+REPO="${GH_REPO:-}"
+if [[ -z "${REPO}" ]]; then
+  ORIGIN_URL="$(git remote get-url origin 2>/dev/null || true)"
+  if [[ "${ORIGIN_URL}" =~ github\.com[:/](.+/[^/.]+)(\.git)?$ ]]; then
+    REPO="${BASH_REMATCH[1]}"
   fi
-  return 1
-}
-
-REPO_ARGS=()
-if REPO="$(resolve_repo)"; then
-  REPO_ARGS=(-R "${REPO}")
 fi
 
-PRS_JSON="$(gh pr list "${REPO_ARGS[@]}" --state open --limit 100 --json number,title,labels,body,url)"
+GH_PR_ARGS=(pr list --state open --limit 100 --json number,title,labels,body,url,mergeable,mergeStateStatus)
+if [[ -n "${REPO}" ]]; then
+  GH_PR_ARGS+=(--repo "${REPO}")
+fi
+
+PRS_JSON="$(gh "${GH_PR_ARGS[@]}")"
 
 export PRS_JSON
 python3 <<'PY'
@@ -60,6 +55,7 @@ HOLD_LABELS = {"hold", "do-not-merge"}
 REVIEW_BY_RE = re.compile(
     r"(?i)\breview[-_ ]?by\b\s*[:=]?\s*(\d{4}-\d{2}-\d{2})"
 )
+CONFLICT_STATES = {"CONFLICTING", "DIRTY"}
 
 today = date.today()
 unresolved = []
@@ -79,18 +75,25 @@ for pr in prs:
     has_hold = bool(labels & HOLD_LABELS)
     hold_valid = has_hold and review_by is not None and review_by >= today
 
+    mergeable = pr.get("mergeable")
+    merge_state = (pr.get("mergeStateStatus") or "").upper()
+    conflicted = mergeable is False or merge_state in CONFLICT_STATES
+
     entry = f"#{pr['number']} {pr.get('title') or ''} ({pr.get('url') or ''})"
     if hold_valid:
         held_ok.append(f"{entry} [hold until {review_by.isoformat()}]")
-    else:
-        reasons = []
-        if not has_hold:
-            reasons.append("missing hold/do-not-merge label")
-        if review_by is None:
-            reasons.append("missing review-by YYYY-MM-DD in body")
-        elif review_by < today:
-            reasons.append(f"review-by {review_by.isoformat()} expired")
-        unresolved.append(f"{entry} — {', '.join(reasons)}")
+        continue
+
+    reasons = []
+    if not has_hold:
+        reasons.append("missing hold/do-not-merge label")
+    if review_by is None:
+        reasons.append("missing review-by YYYY-MM-DD in body")
+    elif review_by < today:
+        reasons.append(f"review-by {review_by.isoformat()} expired")
+    if conflicted:
+        reasons.append(f"merge conflict (mergeable={mergeable}, mergeStateStatus={merge_state or 'n/a'})")
+    unresolved.append(f"{entry} — {', '.join(reasons)}")
 
 if held_ok:
     print("Allowed hold exceptions:")
