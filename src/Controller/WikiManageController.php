@@ -11,7 +11,10 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
+use Nowo\WikiBundle\Form\WikiAiAskType;
+use Nowo\WikiBundle\Form\WikiImportType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
+use Nowo\WikiBundle\Form\WikiSearchType;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
@@ -26,6 +29,8 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -37,6 +42,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
+use function is_string;
 use function sprintf;
 
 /**
@@ -91,6 +97,8 @@ final class WikiManageController extends AbstractController
             'dashboard_route' => $this->dashboardRoute,
             'can_create'      => $this->accessChecker->canCreate($user),
             'can_ask_ai'      => $this->accessChecker->canAskAi($user) && $this->aiAssistant->isAvailable(),
+            'search_form'     => $this->createSearchForm($spaces, [], ['space' => 'wiki-index-search-space', 'q' => 'wiki-index-search-q']),
+            'ai_form'         => $this->createAiAskForm($spaces, [], ['space' => 'wiki-ai-modal-space', 'q' => 'wiki-ai-modal-question'], ['autofocus' => true])->createView(),
         ]);
     }
 
@@ -111,6 +119,8 @@ final class WikiManageController extends AbstractController
             'can_create'      => $this->accessChecker->canCreate($user),
             'can_import'      => $this->importExport['enabled'] && $this->accessChecker->canImport($user),
             'can_export'      => $this->importExport['enabled'] && $this->accessChecker->canExport($user),
+            'search_form'     => $this->createSearchForm(null, ['space' => $space->getSlug()], ['q' => 'wiki-space-search'], false),
+            'import_form'     => $this->createImportForm($space),
         ]);
     }
 
@@ -148,16 +158,14 @@ final class WikiManageController extends AbstractController
             $page->getCurrentRevision()?->getContentHtml() ?? '',
         );
 
+        // REQ-TWIG-005: the Form's own CSRF field (token id wiki_edit_<page id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
             'tiptap_config' => $this->editor['tiptap_config'],
+            'csrf_token_id' => 'wiki_edit_' . $page->getId(),
         ]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            if (!$this->isValidCsrf($request, 'wiki_edit_' . $page->getId())) {
-                throw new AccessDeniedHttpException('Invalid CSRF token.');
-            }
-
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
             $this->pageService->saveRevision($page, $payload->title, $payload->content, $user);
@@ -186,16 +194,14 @@ final class WikiManageController extends AbstractController
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $data  = new WikiPageFormData();
 
+        // REQ-TWIG-005: the Form's own CSRF field (token id wiki_new_<space id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
             'tiptap_config' => $this->editor['tiptap_config'],
+            'csrf_token_id' => 'wiki_new_' . $space->getId(),
         ]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            if (!$this->isValidCsrf($request, 'wiki_new_' . $space->getId())) {
-                throw new AccessDeniedHttpException('Invalid CSRF token.');
-            }
-
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
 
@@ -324,6 +330,11 @@ final class WikiManageController extends AbstractController
             'global_search'   => $global,
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
+            'search_form'     => $this->createSearchForm(
+                $spaces,
+                ['space' => $space?->getSlug(), 'q' => $query],
+                ['space' => 'wiki-search-space', 'q' => 'wiki-search-q'],
+            ),
         ]);
     }
 
@@ -388,12 +399,12 @@ final class WikiManageController extends AbstractController
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
 
-        if (!$this->isValidCsrf($request, 'wiki_import_' . $space->getId())) {
+        $form = $this->createImportForm($space);
+        if (!$this->isValidSubmittedForm($form, $request)) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
         }
 
-        /** @var UploadedFile|null $upload */
-        $upload = $request->files->get('archive');
+        $upload = $form->get('archive')->getData();
         if (!$upload instanceof UploadedFile) {
             $this->addFlash('error', 'wiki.import.missing_file');
 
@@ -406,8 +417,8 @@ final class WikiManageController extends AbstractController
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
 
-        $format = WikiInterchangeFormat::tryFrom($request->request->getString('format', WikiInterchangeFormat::Auto->value))
-            ?? WikiInterchangeFormat::Auto;
+        $formatValue = $form->get('format')->getData();
+        $format      = WikiInterchangeFormat::tryFrom(is_string($formatValue) ? $formatValue : '') ?? WikiInterchangeFormat::Auto;
 
         if (strtolower($upload->getClientOriginalExtension()) !== 'zip') {
             $this->addFlash('error', 'wiki.import.invalid_archive');
@@ -428,7 +439,7 @@ final class WikiManageController extends AbstractController
                 $zipTempPath,
                 $format,
                 $user,
-                $request->request->getBoolean('update_existing'),
+                $form->get('update_existing')->getData() === true,
             );
         } catch (InvalidArgumentException $exception) {
             $this->addFlash('error', $exception->getMessage());
@@ -475,7 +486,7 @@ final class WikiManageController extends AbstractController
         if (!$this->aiAssistant->isAvailable()) {
             $error = 'wiki.ai.unavailable';
         } elseif ($request->isMethod('POST')) {
-            if (!$this->isValidCsrf($request, 'wiki_ai_ask')) {
+            if (!$this->isValidSubmittedForm($this->createAiAskForm($spaces, [], []), $request)) {
                 throw new AccessDeniedHttpException('Invalid CSRF token.');
             }
 
@@ -502,8 +513,76 @@ final class WikiManageController extends AbstractController
             'error'           => $error,
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
-            'csrf_token_id'   => 'wiki_ai_ask',
+            'csrf_token_id'   => WikiAiAskType::CSRF_TOKEN_ID,
+            'ai_form'         => $this->createAiAskForm(
+                $spaces,
+                ['space' => $space?->getSlug(), 'q' => $question],
+                ['space' => 'wiki-ai-space', 'q' => 'wiki-ai-question'],
+            )->createView(),
         ]);
+    }
+
+    /**
+     * GET search filter (flat {@code space} / {@code q}); {@code $spaces === null} renders the space as a hidden field.
+     *
+     * @param list<WikiSpace>|null $spaces
+     * @param array<string, mixed> $data
+     * @param array<string, string> $ids
+     */
+    private function createSearchForm(?array $spaces, array $data, array $ids, bool $queryRequired = true): FormView
+    {
+        return $this->createForm(WikiSearchType::class, $data, [
+            'action'         => $this->generateUrl($this->routes['search']['name']),
+            'space_choices'  => $spaces === null ? null : $this->spaceChoices($spaces),
+            'element_ids'    => $ids,
+            'query_required' => $queryRequired,
+        ])->createView();
+    }
+
+    /**
+     * AI question form (flat {@code space} / {@code q} / {@code _token}).
+     *
+     * @param list<WikiSpace> $spaces
+     * @param array<string, mixed> $data
+     * @param array<string, string> $ids
+     * @param array<string, mixed> $questionAttr
+     *
+     * @return FormInterface<mixed>
+     */
+    private function createAiAskForm(array $spaces, array $data, array $ids, array $questionAttr = []): FormInterface
+    {
+        return $this->createForm(WikiAiAskType::class, $data, [
+            'action'        => isset($this->routes['ai_ask']) ? $this->generateUrl($this->routes['ai_ask']['name']) : '',
+            'space_choices' => $this->spaceChoices($spaces),
+            'element_ids'   => $ids,
+            'question_attr' => $questionAttr,
+        ]);
+    }
+
+    /**
+     * @return FormInterface<mixed>
+     */
+    private function createImportForm(WikiSpace $space): FormInterface
+    {
+        return $this->createForm(WikiImportType::class, null, [
+            'action'        => $this->generateUrl($this->routes['space_import']['name'], ['spaceSlug' => $space->getSlug()]),
+            'csrf_token_id' => 'wiki_import_' . $space->getId(),
+        ]);
+    }
+
+    /**
+     * @param list<WikiSpace> $spaces
+     *
+     * @return array<string, string> slug => name
+     */
+    private function spaceChoices(array $spaces): array
+    {
+        $choices = [];
+        foreach ($spaces as $item) {
+            $choices[$item->getSlug()] = $item->getName();
+        }
+
+        return $choices;
     }
 
     private function denyUnlessFeature(string $feature): void

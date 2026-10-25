@@ -8,6 +8,7 @@
 - [Search](#search)
 - [Application integration](#application-integration)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
+  - [Forms in templates (REQ-TWIG-005)](#forms-in-templates-req-twig-005)
 - [Events](#events)
 
 ## Manage UI routes (defaults)
@@ -82,6 +83,34 @@ nowo_wiki:
         css_framework: bootstrap5
         layout_template: 'layouts/app.html.twig'
 ```
+
+### Forms in templates (REQ-TWIG-005)
+
+Every form in the manage views is a PHP Symfony Form Type (Form Kit `wiki` profile) built by `WikiManageController` and rendered with `form_start` / the child loop / `form_end`:
+
+| View | Variable | Form Type |
+| ---- | -------- | --------- |
+| `manage/page_edit.html.twig` | `form` | `WikiPageFormType` — its own CSRF field (token id `wiki_edit_<page id>` / `wiki_new_<space id>`) replaces the former top-level `_token` |
+| `manage/index.html.twig`, `manage/space.html.twig`, `manage/search.html.twig` | `search_form` | `WikiSearchType` (GET, flat `space` / `q`) |
+| `manage/space.html.twig` | `import_form` | `WikiImportType` (multipart, flat `format` / `archive` / `update_existing` / `_token`) |
+| `manage/ai_ask.html.twig`, `manage/_ai_ask_modal.html.twig`, `manage/_ai_ask_form_fields.html.twig` | `ai_form` | `WikiAiAskType` (flat `space` / `q` / `_token`, token id `wiki_ai_ask`) |
+
+Render custom children first, then the canonical loop so remaining children (CSRF, hidden fields) still appear:
+
+```twig
+{{ form_start(search_form, {attr: {class: 'row g-2 align-items-end'}}) }}
+    {{ form_label(search_form.q) }}
+    {{ form_widget(search_form.q) }}
+    {% for child in search_form %}
+        {% if not child.rendered %}
+            {{ form_row(child) }}
+        {% endif %}
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">…</button>
+{{ form_end(search_form) }}
+```
+
+Template overrides and demos **must not** reintroduce raw `<form>`, `<input>`, `<textarea>` or `<select>` markup; `make check-no-raw-html-form` (part of `release-check`) fails when they do.
 
 ## Events
 

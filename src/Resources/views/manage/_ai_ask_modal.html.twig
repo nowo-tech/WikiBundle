@@ -12,24 +12,24 @@
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}"></button>
             </div>
-            <form action="{{ path(routes.ai_ask.name) }}" method="post">
-                <input type="hidden" name="_token" value="{{ csrf_token('wiki_ai_ask') }}">
+            {# REQ-TWIG-005: WikiAiAskType (flat space / q / _token, token id wiki_ai_ask); the controller passes ai_form. #}
+            {{ form_start(ai_form) }}
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-5">
-                            <label class="form-label" for="wiki-ai-modal-space">{{ 'wiki.search.pick_space'|trans({}, 'NowoWikiBundle') }}</label>
-                            <select id="wiki-ai-modal-space" name="space" class="form-select">
-                                <option value="">{{ 'wiki.search.all_spaces'|trans({}, 'NowoWikiBundle') }}</option>
-                                {% for item in spaces %}
-                                    <option value="{{ item.slug }}"{% if ai_default_space|default('') == item.slug %} selected{% endif %}>{{ item.name }}</option>
-                                {% endfor %}
-                            </select>
+                            {{ form_label(ai_form.space) }}
+                            {{ form_widget(ai_form.space) }}
                         </div>
                         <div class="col-md-7">
-                            <label class="form-label" for="wiki-ai-modal-question">{{ 'wiki.ai.placeholder'|trans({}, 'NowoWikiBundle') }}</label>
-                            <input type="search" id="wiki-ai-modal-question" name="q" class="form-control" placeholder="{{ 'wiki.ai.placeholder'|trans({}, 'NowoWikiBundle') }}" required autofocus>
+                            {{ form_label(ai_form.q) }}
+                            {{ form_widget(ai_form.q) }}
                         </div>
                     </div>
+                    {% for child in ai_form %}
+                        {% if not child.rendered %}
+                            {{ form_row(child) }}
+                        {% endif %}
+                    {% endfor %}
                     <p class="text-secondary small mt-3 mb-0">{{ 'wiki.ai.help'|trans({}, 'NowoWikiBundle') }}</p>
                 </div>
                 <div class="modal-footer">
@@ -38,7 +38,7 @@
                         <i class="ti ti-sparkles me-1" aria-hidden="true"></i>{{ 'wiki.ai.submit'|trans({}, 'NowoWikiBundle') }}
                     </button>
                 </div>
-            </form>
+            {{ form_end(ai_form) }}
         </div>
     </div>
 </div>

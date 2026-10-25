@@ -51,17 +51,17 @@
                 <h3 class="card-title mb-0">{{ 'wiki.ai.follow_up'|trans({}, 'NowoWikiBundle') }}</h3>
             </div>
             <div class="card-body">
-                <form action="{{ path(routes.ai_ask.name) }}" method="post" class="mb-0">
+                {{ form_start(ai_form, {attr: {class: 'mb-0'}}) }}
                     {{ include('@NowoWikiBundle/manage/_ai_ask_form_fields.html.twig') }}
-                </form>
+                {{ form_end(ai_form) }}
             </div>
         </div>
     {% else %}
         <div class="card border-azure">
             <div class="card-body">
-                <form action="{{ path(routes.ai_ask.name) }}" method="post" class="mb-0">
+                {{ form_start(ai_form, {attr: {class: 'mb-0'}}) }}
                     {{ include('@NowoWikiBundle/manage/_ai_ask_form_fields.html.twig') }}
-                </form>
+                {{ form_end(ai_form) }}
                 <p class="text-secondary small mt-3 mb-0">{{ 'wiki.ai.help'|trans({}, 'NowoWikiBundle') }}</p>
             </div>
         </div>

@@ -582,8 +582,10 @@ final class WikiManageControllerTest extends TestCase
             'content' => '<p>Updated</p>',
         ]);
 
-        $this->expectException(AccessDeniedHttpException::class);
-        $controller->editPage($request, 'eng', 'welcome');
+        // REQ-TWIG-005: the Form's own CSRF field now guards the page form; an invalid token re-renders the form (422).
+        $pageRepo->expects(self::never())->method('save');
+        $response = $controller->editPage($request, 'eng', 'welcome');
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $response->getStatusCode());
     }
 
     public function testNewPagePostRejectsInvalidCsrf(): void
@@ -602,8 +604,9 @@ final class WikiManageControllerTest extends TestCase
             'content' => '<p>Body</p>',
         ]);
 
-        $this->expectException(AccessDeniedHttpException::class);
-        $controller->newPage($request, 'eng');
+        $response = $controller->newPage($request, 'eng');
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $response->getStatusCode());
+        self::assertStringContainsString('page_edit', (string) $response->getContent());
     }
 
     public function testNewPagePostRerendersOnDuplicateSlug(): void
@@ -937,6 +940,8 @@ MD);
         $upload->method('getClientOriginalExtension')->willReturn('zip');
         $upload->method('getPathname')->willReturn('/tmp/does-not-exist-' . bin2hex(random_bytes(4)) . '.zip');
         $upload->method('getSize')->willReturn(100);
+        // REQ-TWIG-005: the upload now goes through WikiImportType's FileType, which rejects an invalid upload.
+        $upload->method('isValid')->willReturn(true);
 
         $request = Request::create('/import', 'POST', [
             '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
@@ -1351,9 +1356,8 @@ MD);
             'wiki_page_form' => array_merge([
                 'title'   => 'Title',
                 'content' => '<p>Content</p>',
-                '_token'  => WikiControllerContainerBuilder::csrfToken($container, 'wiki_page_form'),
+                '_token'  => WikiControllerContainerBuilder::csrfToken($container, $actionTokenId),
             ], $fields),
-            '_token' => WikiControllerContainerBuilder::csrfToken($container, $actionTokenId),
         ]);
     }
 

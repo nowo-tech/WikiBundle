@@ -37,6 +37,20 @@
 
 ## Unreleased
 
+### Forms rendered through Form Types (REQ-TWIG-005)
+
+`WikiManageController` now always passes these form variables; **if you override a manage template**, render them with `form_start` / the child loop / `form_end` instead of raw markup (see [USAGE — Forms in templates](USAGE.md#forms-in-templates-req-twig-005)):
+
+| Template | New variable | Notes |
+| -------- | ------------ | ----- |
+| `manage/index.html.twig` | `search_form`, `ai_form` | `ai_form` must also be passed to `_ai_ask_modal.html.twig` (it is included with `with_context = false`) |
+| `manage/space.html.twig` | `search_form`, `import_form` | Same `space` / `q` and `format` / `archive` / `update_existing` / `_token` names |
+| `manage/search.html.twig` | `search_form` | Same query names (bookmarks keep working) |
+| `manage/ai_ask.html.twig`, `manage/_ai_ask_form_fields.html.twig` | `ai_form` | The fields partial now renders `ai_form` children; the caller wraps it in `form_start(ai_form)` / `form_end(ai_form)` |
+| `manage/page_edit.html.twig` | — | Remove the hand-rolled `<input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">`: the page form's own `_token` child (rendered by the loop / `form_end`) is now the one checked. A page-edit override that still posts only the top-level `_token` fails CSRF validation. |
+
+`csrf_token_id` is still passed to `page_edit.html.twig` and `ai_ask.html.twig` for backward compatibility but no longer used by the shipped templates.
+
 ## To 1.6.4
 
 From **1.6.3**:

@@ -21,24 +21,25 @@
                     <p class="text-secondary mb-0">{{ 'wiki.search.highlight_intro'|trans({}, 'NowoWikiBundle') }}</p>
                 </div>
             </div>
-            <form action="{{ path(routes.search.name) }}" method="get" class="row g-2 align-items-end">
+            {# REQ-TWIG-005: WikiSearchType (GET, flat space / q). #}
+            {{ form_start(search_form, {attr: {class: 'row g-2 align-items-end'}}) }}
                 <div class="col-md-4">
-                    <label class="form-label" for="wiki-index-search-space">{{ 'wiki.search.pick_space'|trans({}, 'NowoWikiBundle') }}</label>
-                    <select id="wiki-index-search-space" name="space" class="form-select">
-                        <option value="">{{ 'wiki.search.all_spaces'|trans({}, 'NowoWikiBundle') }}</option>
-                        {% for space in spaces %}
-                            <option value="{{ space.slug }}">{{ space.name }}</option>
-                        {% endfor %}
-                    </select>
+                    {{ form_label(search_form.space) }}
+                    {{ form_widget(search_form.space) }}
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label" for="wiki-index-search-q">{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}</label>
-                    <input type="search" id="wiki-index-search-q" name="q" class="form-control" placeholder="{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}" required>
+                    {{ form_label(search_form.q) }}
+                    {{ form_widget(search_form.q) }}
                 </div>
+                {% for child in search_form %}
+                    {% if not child.rendered %}
+                        {{ form_row(child) }}
+                    {% endif %}
+                {% endfor %}
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary w-100">{{ 'wiki.search.submit'|trans({}, 'NowoWikiBundle') }}</button>
                 </div>
-            </form>
+            {{ form_end(search_form) }}
         </div>
     </div>
 
@@ -60,7 +61,7 @@
     {% endif %}
 
     {% if can_ask_ai|default(false) and routes.ai_ask is defined %}
-        {{ include('@NowoWikiBundle/manage/_ai_ask_modal.html.twig', {spaces: spaces, routes: routes}, false) }}
+        {{ include('@NowoWikiBundle/manage/_ai_ask_modal.html.twig', {spaces: spaces, routes: routes, ai_form: ai_form}, false) }}
     {% endif %}
 
     {% if spaces is empty %}

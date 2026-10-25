@@ -31,16 +31,21 @@
             <div class="card mb-3">
                 <div class="card-body">
                     <p class="text-secondary">{{ 'wiki.space.pick_page'|trans({}, 'NowoWikiBundle') }}</p>
-                    <form action="{{ path(routes.search.name) }}" method="get" class="row g-2 align-items-end">
-                        <input type="hidden" name="space" value="{{ space.slug }}">
+                    {# REQ-TWIG-005: WikiSearchType (GET, flat space / q). #}
+                    {{ form_start(search_form, {attr: {class: 'row g-2 align-items-end'}}) }}
                         <div class="col">
-                            <label class="form-label" for="wiki-space-search">{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}</label>
-                            <input type="search" id="wiki-space-search" name="q" class="form-control" placeholder="{{ 'wiki.search.placeholder'|trans({}, 'NowoWikiBundle') }}">
+                            {{ form_label(search_form.q) }}
+                            {{ form_widget(search_form.q) }}
                         </div>
+                        {% for child in search_form %}
+                            {% if not child.rendered %}
+                                {{ form_row(child) }}
+                            {% endif %}
+                        {% endfor %}
                         <div class="col-auto">
                             <button type="submit" class="btn btn-primary">{{ 'wiki.search.submit'|trans({}, 'NowoWikiBundle') }}</button>
                         </div>
-                    </form>
+                    {{ form_end(search_form) }}
                 </div>
             </div>
 
@@ -62,28 +67,29 @@
                             </div>
                         {% endif %}
                         {% if can_import %}
-                            <form action="{{ path(routes.space_import.name, {spaceSlug: space.slug}) }}" method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
-                                <input type="hidden" name="_token" value="{{ csrf_token('wiki_import_' ~ space.id) }}">
+                            {# REQ-TWIG-005: WikiImportType (multipart, flat format / archive / update_existing / _token). #}
+                            {{ form_start(import_form, {attr: {class: 'row g-2 align-items-end'}}) }}
                                 <div class="col-md-4">
-                                    <label class="form-label" for="wiki-import-format">{{ 'wiki.import.format'|trans({}, 'NowoWikiBundle') }}</label>
-                                    <select id="wiki-import-format" name="format" class="form-select">
-                                        <option value="auto">{{ 'wiki.import.format_auto'|trans({}, 'NowoWikiBundle') }}</option>
-                                        <option value="outline">{{ 'wiki.import.format_outline'|trans({}, 'NowoWikiBundle') }}</option>
-                                        <option value="notion">{{ 'wiki.import.format_notion'|trans({}, 'NowoWikiBundle') }}</option>
-                                    </select>
+                                    {{ form_label(import_form.format) }}
+                                    {{ form_widget(import_form.format) }}
                                 </div>
                                 <div class="col-md-5">
-                                    <label class="form-label" for="wiki-import-archive">{{ 'wiki.import.file'|trans({}, 'NowoWikiBundle') }}</label>
-                                    <input type="file" id="wiki-import-archive" name="archive" class="form-control" accept=".zip,application/zip" required>
+                                    {{ form_label(import_form.archive) }}
+                                    {{ form_widget(import_form.archive) }}
                                 </div>
                                 <div class="col-md-3">
                                     <div class="form-check mb-2">
-                                        <input class="form-check-input" type="checkbox" name="update_existing" value="1" id="wiki-import-update">
-                                        <label class="form-check-label" for="wiki-import-update">{{ 'wiki.import.update_existing'|trans({}, 'NowoWikiBundle') }}</label>
+                                        {{ form_widget(import_form.update_existing) }}
+                                        {{ form_label(import_form.update_existing) }}
                                     </div>
+                                    {% for child in import_form %}
+                                        {% if not child.rendered %}
+                                            {{ form_row(child) }}
+                                        {% endif %}
+                                    {% endfor %}
                                     <button type="submit" class="btn btn-primary w-100">{{ 'wiki.import.submit'|trans({}, 'NowoWikiBundle') }}</button>
                                 </div>
-                            </form>
+                            {{ form_end(import_form) }}
                             <p class="small text-secondary mt-2 mb-0">{{ 'wiki.import.help'|trans({}, 'NowoWikiBundle') }}</p>
                         {% endif %}
                     </div>

@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Support;
 
 use Nowo\TiptapEditorBundle\Form\TiptapEditorType;
+use Nowo\WikiBundle\Form\WikiAiAskType;
+use Nowo\WikiBundle\Form\WikiImportType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
+use Nowo\WikiBundle\Form\WikiSearchType;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\Form\Extension\Csrf\CsrfExtension;
@@ -51,7 +54,12 @@ final class WikiControllerContainerBuilder
 
         $csrfManager = new CsrfTokenManager(null, new SessionTokenStorage($requestStack));
 
-        $formTypes = [FormKitTestSupport::withMerger(new WikiPageFormType())];
+        $formTypes = [
+            FormKitTestSupport::withMerger(new WikiPageFormType()),
+            FormKitTestSupport::withMerger(new WikiSearchType()),
+            FormKitTestSupport::withMerger(new WikiAiAskType()),
+            FormKitTestSupport::withMerger(new WikiImportType()),
+        ];
         if (class_exists(TiptapEditorType::class)) {
             $formTypes[] = new TiptapEditorType([
                 'notion' => [
