@@ -93,6 +93,9 @@ cs-check: ensure-up
 cs-fix: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer cs-fix
 
+rector: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer rector
+
 rector-dry: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer rector-dry
 
