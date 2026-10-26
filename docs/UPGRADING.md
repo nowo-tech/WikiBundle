@@ -3,6 +3,8 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.7.0](#to-170)
+  - [Forms rendered through Form Types (REQ-TWIG-005)](#forms-rendered-through-form-types-req-twig-005)
 - [To 1.6.4](#to-164)
 - [To 1.6.3](#to-163)
 - [To 1.6.2](#to-162)
@@ -36,6 +38,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.7.0
+
+From **1.6.4**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ### Forms rendered through Form Types (REQ-TWIG-005)
 

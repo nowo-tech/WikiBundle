@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.7.0] - 2026-10-26](#170---2026-10-26)
 - [[1.6.4] - 2026-10-24](#164---2026-10-24)
 - [[1.6.3] - 2026-10-18](#163---2026-10-18)
 - [[1.6.2] - 2026-10-13](#162---2026-10-13)
@@ -34,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-26
+
+Forms in the bundle views are Symfony Form Types rendered with form_start / child loop / form_end, no raw form controls (REQ-TWIG-005). See [UPGRADING](UPGRADING.md#to-170).
+
 ### Changed
 
 - Manage views render every form through Symfony Form Types (REQ-TWIG-005): search filters (`WikiSearchType`, GET, same `space` / `q` query names), the space ZIP import (`WikiImportType`, same field names and token id) and the AI question forms (`WikiAiAskType`, same field names and token id `wiki_ai_ask`); import and AI POSTs are validated through the Form. The page editor drops the hand-rolled top-level `_token`: `WikiPageFormType` is created with `csrf_token_id` `wiki_edit_<page id>` / `wiki_new_<space id>` and its own CSRF field is checked, so an invalid token now re-renders the form with an error (HTTP 422) instead of a 403. Template overrides must render the new form variables (see UPGRADING).
@@ -47,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Developer tooling: `make release-check` runs the full REQ-MAKE-002 chain in order (`ensure-up` first, then `check-no-cursor-coauthor`, `check-open-prs`, `check-twig-extra`, `composer-sync`, `cs-fix`, `cs-check`, `rector-dry`, `phpstan`, `igor`, `validate-translations`, `test-coverage-100`, demo release-check, `test-ts`); `check-open-prs` also fails on conflicted pull requests (REQ-REL-003). `check-no-raw-html-form` (REQ-TWIG-005) is wired once the remaining raw form markup is migrated.
 - Internal: applied the pending Rector suggestions (`readonly` on the final classes `WikiArchiveHelper`, `WikiHtmlSanitizer`, `EmbedIframeSrcAttributeSanitizer`; `instanceof` null check in `WikiTokenGuard`; `??=` in `WikiDocumentTreeReader`); no behaviour change. `make rector-dry` is clean again.
 - Developer tooling: new `make rector` target applies the Rector refactorings (`make rector-dry` only reports them).
+
+[1.7.0]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.7.0
 
 ## [1.6.4] - 2026-10-24
 
@@ -380,7 +387,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.6.4...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.7.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
