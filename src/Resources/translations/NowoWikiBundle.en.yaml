@@ -35,7 +35,7 @@ wiki:
     help: Matches page titles and the current revision body. Archived pages are excluded.
     all_spaces: All spaces
     global_results: Results across all accessible spaces
-    results_count: '{count, plural, =1 {# result} other {# results}}'
+    results_count: '{0} %count% results|{1} %count% result|]1,Inf[ %count% results'
     placeholder: Search pages…
     submit: Search
     pick_space: Choose a space

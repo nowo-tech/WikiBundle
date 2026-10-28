@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Page editor script.** `manage/page_edit.html.twig` resolved the Tiptap script without the `nowo_tiptap_editor`
+  asset package, so it requested `/tiptap-editor.js` (404) and the editor never loaded.
+- **Search results count.** `wiki.search.results_count` was an ICU message in non-ICU catalogues, printed raw
+  (`{count, plural, …}`); all seven locales use Symfony's plural syntax now.
+
 ## [1.7.1] - 2026-10-28
 
 Security: import / export temp directories are 0700 and the export ZIP 0600. See [UPGRADING](UPGRADING.md#to-171).

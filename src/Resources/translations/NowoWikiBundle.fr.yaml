@@ -35,7 +35,7 @@ wiki:
     help: Correspond aux titres et au corps de la révision actuelle. Les pages archivées sont exclues.
     all_spaces: Tous les espaces
     global_results: Résultats dans tous les espaces accessibles
-    results_count: '{count, plural, =1 {# résultat} other {# résultats}}'
+    results_count: '{0} %count% résultats|{1} %count% résultat|]1,Inf[ %count% résultats'
     placeholder: Rechercher des pages…
     submit: Rechercher
     pick_space: Choisir un espace

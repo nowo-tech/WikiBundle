@@ -20,8 +20,16 @@ test.describe('Wiki demo', () => {
     await expect(page.locator('h2.card-title', { hasText: 'Getting Started' })).toBeVisible();
   });
 
-  test('search finds pages across spaces', async ({ page }) => {
+  test('search finds pages across spaces and pluralises the count', async ({ page }) => {
     await page.goto('/tools/wiki/search?q=deploy');
     await expect(page.locator('a.card-link h3', { hasText: 'Deploy' }).first()).toBeVisible();
+    await expect(page.getByText(/^\d+ results?$/)).toBeVisible();
+  });
+
+  test('page editor loads the Tiptap script and mounts the editor', async ({ page }) => {
+    const script = page.waitForResponse((r) => r.url().includes('tiptap-editor.js'));
+    await page.goto(welcome + '/edit');
+    expect((await script).ok()).toBeTruthy();
+    await expect(page.locator('nowo-tiptap-editor .ProseMirror, nowo-tiptap-editor [contenteditable="true"]').first()).toBeVisible();
   });
 });

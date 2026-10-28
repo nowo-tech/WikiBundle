@@ -35,7 +35,7 @@ wiki:
     help: Durchsucht Titel und aktuellen Revisionsinhalt. Archivierte Seiten werden ausgeschlossen.
     all_spaces: Alle Bereiche
     global_results: Ergebnisse in allen zugänglichen Bereichen
-    results_count: '{count, plural, =1 {# Ergebnis} other {# Ergebnisse}}'
+    results_count: '{0} %count% Ergebnisse|{1} %count% Ergebnis|]1,Inf[ %count% Ergebnisse'
     placeholder: Seiten suchen…
     submit: Suchen
     pick_space: Bereich wählen

@@ -35,7 +35,7 @@ wiki:
     help: Zoekt in titels en de huidige revisie-inhoud. Gearchiveerde pagina's worden uitgesloten.
     all_spaces: Alle ruimtes
     global_results: Resultaten in alle toegankelijke ruimtes
-    results_count: '{count, plural, =1 {# resultaat} other {# resultaten}}'
+    results_count: '{0} %count% resultaten|{1} %count% resultaat|]1,Inf[ %count% resultaten'
     placeholder: Pagina's zoeken…
     submit: Zoeken
     pick_space: Kies een ruimte

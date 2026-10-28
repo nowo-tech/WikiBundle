@@ -3,7 +3,7 @@
 {% block title %}{% if page %}{{ page.title }}{% else %}{{ 'wiki.page.new'|trans({}, 'NowoWikiBundle') }}{% endif %}{% endblock %}
 
 {% block wiki_editor_scripts %}
-    <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js')) }}"></script>
+    <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"></script>
 {% endblock %}
 
 {% block body %}

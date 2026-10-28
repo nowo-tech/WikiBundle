@@ -35,7 +35,7 @@ wiki:
     help: Cerca nei titoli e nel corpo della revisione corrente. Le pagine archiviate sono escluse.
     all_spaces: Tutti gli spazi
     global_results: Risultati in tutti gli spazi accessibili
-    results_count: '{count, plural, =1 {# risultato} other {# risultati}}'
+    results_count: '{0} %count% risultati|{1} %count% risultato|]1,Inf[ %count% risultati'
     placeholder: Cerca pagine…
     submit: Cerca
     pick_space: Scegli uno spazio
