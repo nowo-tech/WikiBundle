@@ -12,6 +12,7 @@ use RuntimeException;
 use SplFileInfo;
 use ZipArchive;
 
+use function chmod;
 use function sprintf;
 use function strlen;
 
@@ -58,7 +59,7 @@ final readonly class WikiArchiveHelper
 
         $targetDir = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(8));
         // @codeCoverageIgnoreStart
-        if (!mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
+        if (!mkdir($targetDir, 0700, true) && !is_dir($targetDir)) {
             $zip->close();
             throw new RuntimeException('Unable to create temporary directory.');
         }
@@ -144,6 +145,8 @@ final readonly class WikiArchiveHelper
         }
 
         $zip->close();
+        // Exported spaces may be private: owner-only, whatever the umask (the archive sits in the shared temp dir).
+        chmod($zipPath, 0o600);
     }
 
     public function removeDirectory(string $directory): void

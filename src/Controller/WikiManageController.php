@@ -355,7 +355,7 @@ final class WikiManageController extends AbstractController
 
         $workingDir = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(8));
         // @codeCoverageIgnoreStart
-        if (!mkdir($workingDir, 0777, true) && !is_dir($workingDir)) {
+        if (!mkdir($workingDir, 0700, true) && !is_dir($workingDir)) {
             throw new RuntimeException('Unable to create export directory.');
         }
         // @codeCoverageIgnoreEnd

@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Import / export temp files are owner-only.** Import and export working directories were created `0777` in the
+  shared temp dir and the export ZIP with the default umask (usually world-readable): other local users could read
+  exported private spaces until the download finished. Directories are now `0700` and the ZIP `0600`.
+
 ## [1.7.0] - 2026-10-26
 
 Forms in the bundle views are Symfony Form Types rendered with form_start / child loop / form_end, no raw form controls (REQ-TWIG-005). See [UPGRADING](UPGRADING.md#to-170).

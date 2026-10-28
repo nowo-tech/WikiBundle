@@ -37,7 +37,7 @@ final readonly class WikiDocumentExporter
             $format = WikiInterchangeFormat::Outline;
         }
 
-        if (!is_dir($targetDir) && !mkdir($targetDir, 0777, true) && !is_dir($targetDir)) {
+        if (!is_dir($targetDir) && !mkdir($targetDir, 0700, true) && !is_dir($targetDir)) {
             throw new InvalidArgumentException('Unable to create export directory.');
         }
 
@@ -65,7 +65,7 @@ final readonly class WikiDocumentExporter
     {
         $page   = $node['page'];
         $folder = $targetDir . DIRECTORY_SEPARATOR . $this->sanitizeFilesystemName($page->getTitle());
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+        if (!is_dir($folder) && !mkdir($folder, 0700, true) && !is_dir($folder)) {
             throw new InvalidArgumentException('Unable to create export folder.');
         }
 

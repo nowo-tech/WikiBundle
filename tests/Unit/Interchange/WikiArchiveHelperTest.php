@@ -75,6 +75,7 @@ final class WikiArchiveHelperTest extends TestCase
             $this->helper->createZipFromDirectory($sourceDir, $zipPath);
 
             self::assertFileExists($zipPath);
+            self::assertSame(0o600, fileperms($zipPath) & 0o777, 'exported spaces are owner-only');
             $zip = new ZipArchive();
             $zip->open($zipPath);
             self::assertNotFalse($zip->locateName('intro.md'));
