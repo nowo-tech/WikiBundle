@@ -12,6 +12,8 @@ Symfony bundle for a **versionable team wiki**: spaces, page trees, immutable re
 
 This bundle is **FrankenPHP worker mode friendly**.
 
+![Wiki page view: nested page tree of a space next to the rendered page with internal links, edit and history actions](docs/images/demo/wiki-page.webp)
+
 ## Features
 
 - Wiki **spaces** scoped per team or user
@@ -47,6 +49,8 @@ make -C demo/symfony8 up
 # Demo started at: http://localhost:8025  →  /tools/wiki
 make demo-smoke
 ```
+
+The screenshot at the top of this README comes from this demo; refresh it with `make -C demo/symfony8 demo-screenshots` (`make -C demo/symfony8 test-e2e` runs the Playwright happy path).
 
 ## Documentation
 

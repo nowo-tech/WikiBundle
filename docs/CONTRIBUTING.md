@@ -12,6 +12,7 @@ Thank you for contributing to Wiki Bundle.
 - [Code style](#code-style)
 - [Cursor Agent](#cursor-agent)
 - [Git hooks (REQ-GIT-001)](#git-hooks-req-git-001)
+- [End-to-end tests and screenshots (REQ-DEMO-013)](#end-to-end-tests-and-screenshots-req-demo-013)
 - [License](#license)
 
 ## Code of Conduct
@@ -95,6 +96,17 @@ make check-no-cursor-coauthor
 Maintainers run `make check-no-cursor-coauthor` again **after** the release commit and **before** `git push`: an earlier `release-check` does not cover a commit created after it finished.
 
 If CI fails because trailers are already on the remote, see [GITHUB_CI.md](GITHUB_CI.md) (REQ-GIT-001) and run `make strip-cursor-coauthor-from-history` before `git push --force-with-lease`.
+
+## End-to-end tests and screenshots (REQ-DEMO-013)
+
+The Symfony 8 demo ships a Playwright suite in `demo/symfony8/e2e/` (official Playwright image, nothing to install on the host):
+
+```bash
+make -C demo/symfony8 test-e2e          # starts the demo if needed, runs the happy-path specs
+make -C demo/symfony8 demo-screenshots  # resets the demo DB, recaptures docs/images/demo/*.webp (PNG → WebP via sharp)
+```
+
+Refresh the screenshots when the demo UI changes and commit only the `.webp` files.
 
 ## License
 
