@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.7.1] - 2026-10-28](#171---2026-10-28)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
 - [[1.6.4] - 2026-10-24](#164---2026-10-24)
 - [[1.6.3] - 2026-10-18](#163---2026-10-18)
@@ -35,11 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-10-28
+
+Security: import / export temp directories are 0700 and the export ZIP 0600. See [UPGRADING](UPGRADING.md#to-171).
+
 ### Security
 
 - **Import / export temp files are owner-only.** Import and export working directories were created `0777` in the
   shared temp dir and the export ZIP with the default umask (usually world-readable): other local users could read
   exported private spaces until the download finished. Directories are now `0700` and the ZIP `0600`.
+
+[1.7.1]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.7.1
 
 ## [1.7.0] - 2026-10-26
 
@@ -393,7 +400,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.7.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
