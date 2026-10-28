@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.7.2] - 2026-10-28](#172---2026-10-28)
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
 - [[1.6.4] - 2026-10-24](#164---2026-10-24)
@@ -36,12 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-10-28
+
+Wiki: the page editor loads its Tiptap script; the search results count is pluralised. See [UPGRADING](UPGRADING.md#to-172).
+
 ### Fixed
 
 - **Page editor script.** `manage/page_edit.html.twig` resolved the Tiptap script without the `nowo_tiptap_editor`
   asset package, so it requested `/tiptap-editor.js` (404) and the editor never loaded.
 - **Search results count.** `wiki.search.results_count` was an ICU message in non-ICU catalogues, printed raw
   (`{count, plural, …}`); all seven locales use Symfony's plural syntax now.
+
+[1.7.2]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.7.2
 
 ## [1.7.1] - 2026-10-28
 
@@ -407,7 +414,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.7.2...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
