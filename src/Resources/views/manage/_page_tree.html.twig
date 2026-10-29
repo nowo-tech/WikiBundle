@@ -12,3 +12,11 @@
 {% endmacro %}
 
 {{ _self.render_tree(tree, space, routes, 0) }}
+{% if tree_truncated|default(false) %}
+    <p class="text-secondary small mt-2 mb-0 wiki-tree-truncated">
+        {{ 'wiki.space.tree_truncated'|trans({'%count%': max_tree_pages|default(0)}, 'NowoWikiBundle') }}
+        {% if routes.search is defined %}
+            <a href="{{ path(routes.search.name, {space: space.slug}) }}">{{ 'wiki.search.title'|trans({}, 'NowoWikiBundle') }}</a>
+        {% endif %}
+    </p>
+{% endif %}

@@ -20,12 +20,22 @@ use const ENT_QUOTES;
  */
 final readonly class WikiRevisionDiffService
 {
+    /**
+     * Stores the revision repository used to look up revisions.
+     *
+     * @param WikiPageRevisionRepositoryInterface $revisionRepository revision persistence
+     */
     public function __construct(
         private WikiPageRevisionRepositoryInterface $revisionRepository,
     ) {
     }
 
     /**
+     * Computes a line diff ({@code same} / {@code add} / {@code remove}) between the text of two revisions.
+     *
+     * @param WikiPageRevision $from older revision
+     * @param WikiPageRevision $to newer revision
+     *
      * @return list<array{kind: string, line: string}>
      */
     public function diff(WikiPageRevision $from, WikiPageRevision $to): array
@@ -36,6 +46,15 @@ final readonly class WikiRevisionDiffService
         return $this->lineDiff($fromLines, $toLines);
     }
 
+    /**
+     * Loads a revision by identifier.
+     *
+     * @param string $revisionId revision identifier
+     *
+     * @throws RuntimeException when the revision does not exist
+     *
+     * @return WikiPageRevision the revision
+     */
     public function findRevisionOrFail(string $revisionId): WikiPageRevision
     {
         $revision = $this->revisionRepository->findById($revisionId);

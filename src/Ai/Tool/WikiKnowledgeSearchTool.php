@@ -25,6 +25,14 @@ use const JSON_THROW_ON_ERROR;
 )]
 final readonly class WikiKnowledgeSearchTool
 {
+    /**
+     * Wires the security, search and access services used by the tool.
+     *
+     * @param Security $security resolves the current user
+     * @param WikiSearchService $searchService page search service
+     * @param WikiSpaceAccessResolverInterface $spaceAccessResolver lists the spaces the user can access
+     * @param WikiTokenGuard|null $tokenGuard optional guard rejecting untrusted tokens
+     */
     public function __construct(
         private Security $security,
         private WikiSearchService $searchService,
@@ -34,6 +42,14 @@ final readonly class WikiKnowledgeSearchTool
     }
 
     /**
+     * Searches the pages the current user can access, in one space or across all accessible spaces.
+     *
+     * Returns a JSON error payload when no trusted authenticated user is available.
+     *
+     * @param string $query search keywords (empty yields no results)
+     * @param string|null $space_slug optional slug restricting the search to one accessible space
+     * @param int $limit maximum number of hits (clamped to 1..25)
+     *
      * @return string JSON-encoded hits
      */
     public function __invoke(string $query, ?string $space_slug = null, int $limit = 8): string

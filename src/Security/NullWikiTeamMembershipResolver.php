@@ -11,6 +11,13 @@ use Symfony\Component\Security\Core\User\UserInterface;
  */
 final class NullWikiTeamMembershipResolver implements WikiTeamMembershipResolverInterface
 {
+    /**
+     * Returns the team identifiers the user belongs to; always empty.
+     *
+     * @param UserInterface $user user to resolve
+     *
+     * @return list<string> always an empty list
+     */
     public function getTeamIdsForUser(UserInterface $user): array
     {
         return [];

@@ -13,6 +13,7 @@ The Symfony 8 demo runs on [FrankenPHP](https://frankenphp.dev/) inside Docker (
 - [Styling](#styling)
 - [Production note](#production-note)
 - [Switching classic vs worker (`FRANKENPHP_MODE`)](#switching-classic-vs-worker-frankenphp_mode)
+- [Timeouts (REQ-RUNTIME-001)](#timeouts-req-runtime-001)
 - [Troubleshooting](#troubleshooting)
 
 ## Quick start
@@ -64,6 +65,19 @@ Demos select the FrankenPHP runtime via **`FRANKENPHP_MODE`** in `.env` / `.env.
 | **`classic`** | Entrypoint copies `Caddyfile.dev` (plain `php_server`, hot-reload friendly) |
 
 Compose passes `FRANKENPHP_MODE=${FRANKENPHP_MODE:-worker}` into the PHP service. After changing `.env`, run `docker compose up -d` (or `make up`) so the container is **recreated** — a plain `restart` does not reload env. No image rebuild is required.
+
+## Timeouts (REQ-RUNTIME-001)
+
+Both `Caddyfile` (worker) and `Caddyfile.dev` (classic) set the same hierarchy, innermost first:
+
+| Layer | Value | Where |
+| ----- | ----- | ----- |
+| LLM call (`nowo_wiki.ai.http_client`) | 30 s (`nowo_wiki.ai.http_timeout`) | `config/packages/ai.yaml` sets `http_client: 'nowo_wiki.ai.http_client'` |
+| PHP `max_execution_time` / `max_input_time` | 60 s | `frankenphp { php_ini … }` |
+| Caddy `servers.timeouts.write` | 75 s | global `servers { timeouts { write 75s } }` |
+| FrankenPHP `max_wait_time` | 30 s | `frankenphp { max_wait_time 30s }` — requests waiting longer for a free thread get a 504 |
+
+Raise all layers together. Smoke check: set `nowo_wiki.ai.http_timeout: 1` and point `OLLAMA_HOST_URL` at a host that accepts the connection but never answers; `/tools/wiki/ask` must return the page with the "could not answer" error after about one second, with a `Wiki AI agent call failed.` error on the `nowo_wiki` log channel.
 
 ## Troubleshooting
 

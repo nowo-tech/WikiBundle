@@ -31,6 +31,7 @@ use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
@@ -48,6 +49,16 @@ use function rtrim;
  */
 final class WikiExtension extends Extension implements PrependExtensionInterface
 {
+    /**
+     * Processes the {@code nowo_wiki} configuration, sets the bundle parameters and registers the services and aliases.
+     *
+     * Registers the null AI assistant when AI is disabled, or the Symfony AI assistant otherwise.
+     *
+     * @param array<int, array<string, mixed>> $configs raw configuration arrays
+     * @param ContainerBuilder $container container being built
+     *
+     * @throws LogicException when the manage UI needs symfony/security-bundle, or AI is enabled without symfony/ai-bundle
+     */
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
@@ -83,6 +94,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.editor', $config['editor']);
         $container->setParameter('nowo_wiki.ai', $config['ai']);
         $container->setParameter('nowo_wiki.import_export', $config['import_export']);
+        $container->setParameter('nowo_wiki.pagination', $config['pagination']);
         $container->setParameter('nowo_wiki.import_export.enabled', (bool) $config['import_export']['enabled']);
         $container->setParameter('nowo_wiki.web_ui', $config['web_ui']);
         $container->setParameter('nowo_wiki.web_ui.css_framework', $config['web_ui']['css_framework']);
@@ -200,10 +212,17 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$useContextInjection', $aiConfig['context_injection'])
             ->setArgument('$maxContextPages', $aiConfig['max_context_pages'])
             ->setArgument('$maxContextChars', $aiConfig['max_context_chars'])
-            ->setArgument('$systemPrompt', $aiConfig['system_prompt']));
+            ->setArgument('$systemPrompt', $aiConfig['system_prompt'])
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
         $container->setAlias(WikiAiAssistantInterface::class, SymfonyAiWikiAssistant::class);
     }
 
+    /**
+     * Returns the configuration alias of the bundle.
+     *
+     * @return string the {@code nowo_wiki} alias
+     */
     public function getAlias(): string
     {
         return Configuration::ALIAS;
@@ -229,6 +248,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         return isset($bundles['SecurityBundle']);
     }
 
+    /**
+     * Prepends Twig globals, asset package, Doctrine mapping, FormKit and UiKit defaults when those extensions are present.
+     *
+     * @param ContainerBuilder $container container being built
+     */
     public function prepend(ContainerBuilder $container): void
     {
         // Parameter must exist before Twig globals resolve during container build.

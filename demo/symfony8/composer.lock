@@ -2290,7 +2290,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "6ce526349a59d05f5e993545a3c1e16e17278bda"
+                "reference": "1c569fbc02775aea93436bd8be7b924aaa427633"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -2302,6 +2302,7 @@
                 "nowo-tech/tiptap-editor-bundle": "^1.0",
                 "nowo-tech/ui-kit-bundle": "^1.4 || ^2.2",
                 "php": ">=8.2 <8.6",
+                "psr/log": "^1.1 || ^2.0 || ^3.0",
                 "symfony/config": "^7.4 || ^8.0",
                 "symfony/console": "^7.4 || ^8.0",
                 "symfony/dependency-injection": "^7.4 || ^8.0",

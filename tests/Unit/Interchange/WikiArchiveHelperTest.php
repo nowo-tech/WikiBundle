@@ -211,6 +211,24 @@ final class WikiArchiveHelperTest extends TestCase
         }
     }
 
+    public function testExtractZipRejectsPathTraversalEntries(): void
+    {
+        foreach (['../evil.md', 'docs/../../evil.md', '/etc/evil.md', 'C:/evil.md', '..\\evil.md'] as $entry) {
+            $zipPath = $this->createZip(['ok.md' => 'ok', $entry => 'x']);
+            $before  = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
+
+            try {
+                $this->helper->extractZip($zipPath);
+                self::fail('Expected entry ' . $entry . ' to be rejected.');
+            } catch (InvalidArgumentException $e) {
+                self::assertStringContainsString('escapes the extraction directory', $e->getMessage());
+                self::assertSame($before, glob(sys_get_temp_dir() . '/wiki-import-*') ?: []);
+            } finally {
+                unlink($zipPath);
+            }
+        }
+    }
+
     public function testExtractZipRejectsTooManyEntries(): void
     {
         $zipPath = $this->createZip(['a.md' => 'a', 'b.md' => 'b', 'c.md' => 'c']);

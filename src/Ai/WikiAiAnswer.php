@@ -13,7 +13,10 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 final readonly class WikiAiAnswer
 {
     /**
-     * @param list<array{page: WikiPage, space: WikiSpace, excerpt: string}> $sources
+     * Holds the assistant answer and the pages used as context.
+     *
+     * @param string $answer answer text returned by the agent
+     * @param list<array{page: WikiPage, space: WikiSpace, excerpt: string}> $sources pages used as context
      */
     public function __construct(
         public string $answer,

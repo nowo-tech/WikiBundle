@@ -14,11 +14,21 @@ use Twig\TwigFilter;
  */
 final class WikiHtmlTwigExtension extends AbstractExtension
 {
+    /**
+     * Creates the extension.
+     *
+     * @param WikiHtmlSanitizerInterface $sanitizer sanitizer applied to page HTML at render time
+     */
     public function __construct(
         private readonly WikiHtmlSanitizerInterface $sanitizer,
     ) {
     }
 
+    /**
+     * Registers the `nowo_wiki_safe_html` filter, marked as HTML-safe.
+     *
+     * @return list<TwigFilter> filters provided by this extension
+     */
     public function getFilters(): array
     {
         return [
@@ -26,6 +36,13 @@ final class WikiHtmlTwigExtension extends AbstractExtension
         ];
     }
 
+    /**
+     * Sanitizes stored page HTML for output; returns an empty string for null or empty input.
+     *
+     * @param string|null $html stored page HTML
+     *
+     * @return string sanitized HTML
+     */
     public function sanitize(?string $html): string
     {
         return $html === null || $html === '' ? '' : $this->sanitizer->sanitize($html);

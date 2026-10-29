@@ -22,6 +22,12 @@ use function trim;
  */
 final readonly class WikiContextRetriever
 {
+    /**
+     * Wires the search and space access services used to retrieve context.
+     *
+     * @param WikiSearchService $searchService page search service
+     * @param WikiSpaceAccessResolverInterface $spaceAccessResolver lists the spaces the user can access
+     */
     public function __construct(
         private WikiSearchService $searchService,
         private WikiSpaceAccessResolverInterface $spaceAccessResolver,
@@ -29,6 +35,16 @@ final readonly class WikiContextRetriever
     }
 
     /**
+     * Searches accessible pages for the question and its longer terms and builds a context text within the character budget.
+     *
+     * An empty question yields an empty context and no sources.
+     *
+     * @param UserInterface $user user asking; only spaces they can access are searched
+     * @param string $question natural-language question
+     * @param WikiSpace|null $space optional space to restrict the search to
+     * @param int $maxPages maximum number of source pages
+     * @param int $maxChars character budget of the context (at least 500)
+     *
      * @return array{context: string, sources: list<array{page: WikiPage, space: WikiSpace, excerpt: string}>}
      */
     public function retrieve(

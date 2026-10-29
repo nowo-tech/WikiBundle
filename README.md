@@ -72,6 +72,7 @@ The screenshot at the top of this README comes from this demo; refresh it with `
 - [PSR evaluation (REQ-CS-007)](docs/PSR.md)
 - [GitHub Actions CI requirements](docs/GITHUB_CI.md)
 - [Demo with FrankenPHP](docs/DEMO-FRANKENPHP.md)
+- [Coverage gates and exclusions (REQ-TEST-003)](docs/COVERAGE.md)
 
 ## Tests and coverage
 
@@ -80,7 +81,7 @@ The screenshot at the top of this README comes from this demo; refresh it with `
 | PHP | **100%** — `make test-coverage` |
 | TypeScript | **100%** — `make test-ts` (wiki assets) |
 
-PHPUnit: **230 tests**. Coverage threshold enforced via `make test-coverage-100` / `composer test-coverage-100`.
+PHPUnit: **337 tests**. PHP coverage is enforced at 100% via `make test-coverage-100` / `composer test-coverage-100`; TypeScript coverage is enforced by the `vitest.config.ts` thresholds (100%). The few defensive `@codeCoverageIgnore` blocks are listed in [docs/COVERAGE.md](docs/COVERAGE.md).
 
 ## License
 

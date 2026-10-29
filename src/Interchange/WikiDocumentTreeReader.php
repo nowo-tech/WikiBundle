@@ -21,12 +21,22 @@ use const DIRECTORY_SEPARATOR;
  */
 final readonly class WikiDocumentTreeReader
 {
+    /**
+     * Stores the front matter parser used to read Markdown files.
+     *
+     * @param WikiFrontMatterParser $frontMatterParser front matter parser
+     */
     public function __construct(
         private WikiFrontMatterParser $frontMatterParser,
     ) {
     }
 
     /**
+     * Walks an export directory tree (unwrapping a single export wrapper folder) into document nodes, parents first.
+     *
+     * @param string $rootDir root directory of the export
+     * @param WikiInterchangeFormat $format export layout (Outline or Notion)
+     *
      * @return list<WikiDocumentNode>
      */
     public function read(string $rootDir, WikiInterchangeFormat $format): array

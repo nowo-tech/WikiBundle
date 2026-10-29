@@ -14,6 +14,11 @@ final class Configuration implements ConfigurationInterface
 {
     public const ALIAS = 'nowo_wiki';
 
+    /**
+     * Builds the {@code nowo_wiki} configuration tree (user class, tables, routes, templates, security, AI, import/export, pagination, web UI).
+     *
+     * @return TreeBuilder configuration tree builder
+     */
     public function getConfigTreeBuilder(): TreeBuilder
     {
         $treeBuilder = new TreeBuilder(self::ALIAS);
@@ -86,6 +91,15 @@ final class Configuration implements ConfigurationInterface
                     ->children()
                         ->booleanNode('enabled')->defaultTrue()->end()
                         ->integerNode('max_upload_bytes')->defaultValue(52428800)->min(1048576)->max(524288000)->end()
+                    ->end()
+                ->end()
+                ->arrayNode('pagination')
+                    ->info('REQ-PERF-001: caps on the list pages of the manage UI.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->integerNode('spaces_per_page')->defaultValue(24)->min(1)->max(500)->info('Space cards per page on the wiki index (?page=N).')->end()
+                        ->integerNode('revisions_per_page')->defaultValue(25)->min(1)->max(500)->info('Revisions per page on the page history (?page=N).')->end()
+                        ->integerNode('max_tree_pages')->defaultValue(500)->min(10)->max(10000)->info('Maximum pages loaded into the sidebar page tree; a notice links to search when more exist.')->end()
                     ->end()
                 ->end()
                 ->arrayNode('ai')

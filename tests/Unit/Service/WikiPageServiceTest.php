@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Service\WikiPageArchivedEvent;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -77,6 +78,26 @@ final class WikiPageServiceTest extends TestCase
         $service->saveRevision($page, 'New title', '<p>v2</p>', new TestUser());
 
         self::assertSame('New title', $page->getTitle());
+    }
+
+    public function testArchiveIsLogged(): void
+    {
+        $page    = new WikiPage(new WikiSpace('d', 'D', WikiSpaceOwnerScope::Team, 't'), 'p', 'P');
+        $logger  = new RecordingLogger();
+        $service = new WikiPageService(
+            $this->createMock(WikiPageRepositoryInterface::class),
+            $this->createMock(WikiPageRevisionRepositoryInterface::class),
+            new WikiSlugger(),
+            new WikiHtmlSanitizer(),
+            new EventDispatcher(),
+            $logger,
+        );
+
+        $service->archive($page);
+        $service->archive($page);
+
+        self::assertSame(['info: Wiki page archived.'], $logger->lines());
+        self::assertSame(['bundle' => 'nowo_wiki', 'action' => 'archive', 'space' => 'd', 'page' => 'p'], $logger->records[0]['context']);
     }
 
     public function testArchiveDispatchesEvent(): void

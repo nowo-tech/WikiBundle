@@ -44,6 +44,16 @@ final class WikiAuthorResolverTest extends TestCase
         self::assertSame($user, $resolved);
     }
 
+    public function testThrowsWhenUserClassDoesNotExist(): void
+    {
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::never())->method('getRepository');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('User class "App\\Missing\\User" does not exist.');
+        (new WikiAuthorResolver($em, 'App\\Missing\\User'))->resolveByIdentifier('user-1');
+    }
+
     public function testThrowsWhenUserNotFound(): void
     {
         $repo = $this->createMock(EntityRepository::class);

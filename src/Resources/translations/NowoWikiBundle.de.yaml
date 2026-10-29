@@ -9,6 +9,7 @@ wiki:
     new_page: Neue Seite
     pick_page: Wählen Sie eine Seite in der Seitenleiste oder erstellen Sie eine.
     pages: Seiten
+    tree_truncated: "Es werden nur die ersten %count% Seiten angezeigt."
   page:
     new: Neue Seite
     edit: Bearbeiten
@@ -74,3 +75,8 @@ wiki:
   export:
     outline: Export (Outline ZIP)
     notion: Export (Notion ZIP)
+  pagination:
+    label: "Seitennavigation"
+    previous: "Zurück"
+    next: "Weiter"
+    page_of: "Seite %page% von %pages%"

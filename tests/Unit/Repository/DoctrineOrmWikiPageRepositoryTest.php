@@ -42,12 +42,19 @@ final class DoctrineOrmWikiPageRepositoryTest extends TestCase
         $qb->method('setParameter')->willReturnSelf();
         $qb->method('orderBy')->willReturnSelf();
         $qb->method('addOrderBy')->willReturnSelf();
+        $qb->expects(self::exactly(2))->method('setMaxResults')
+            ->willReturnCallback(static function (?int $limit) use ($qb): QueryBuilder {
+                self::assertContains($limit, [null, 501]);
+
+                return $qb;
+            });
         $qb->method('getQuery')->willReturn($query);
 
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
 
         $found = (new DoctrineOrmWikiPageRepository($em))->findActiveBySpace($space);
+        self::assertSame([$page], (new DoctrineOrmWikiPageRepository($em))->findActiveBySpace($space, 501));
 
         self::assertSame([$page], $found);
     }

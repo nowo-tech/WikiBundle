@@ -18,12 +18,25 @@ use function sprintf;
  */
 final readonly class WikiEntityManagerProvider
 {
+    /**
+     * Stores the registry and the name of the entity manager to resolve.
+     *
+     * @param ManagerRegistry $registry Doctrine manager registry
+     * @param string $managerName name of the wiki entity manager
+     */
     public function __construct(
         private ManagerRegistry $registry,
         private string $managerName = 'default',
     ) {
     }
 
+    /**
+     * Returns the wiki entity manager, resetting it first when it has been closed.
+     *
+     * @throws LogicException when the configured manager is not an ORM entity manager
+     *
+     * @return EntityManagerInterface open wiki entity manager
+     */
     public function get(): EntityManagerInterface
     {
         $manager = $this->registry->getManager($this->managerName);

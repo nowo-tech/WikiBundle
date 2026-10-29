@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Doctrine;
 
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
-use Doctrine\ORM\Mapping\AssociationMapping;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -19,6 +18,14 @@ use function ltrim;
  */
 final readonly class WikiMetadataListener
 {
+    /**
+     * Stores the configured table names and the application user class.
+     *
+     * @param string $spacesTableName table name for wiki spaces
+     * @param string $pagesTableName table name for wiki pages
+     * @param string $revisionsTableName table name for wiki page revisions
+     * @param string $userClass entity class targeted by the revision author association
+     */
     public function __construct(
         private string $spacesTableName,
         private string $pagesTableName,
@@ -27,6 +34,11 @@ final readonly class WikiMetadataListener
     ) {
     }
 
+    /**
+     * Applies the configured table names to the wiki entities and remaps the revision author to the user class.
+     *
+     * @param LoadClassMetadataEventArgs $args Doctrine metadata event arguments
+     */
     public function loadClassMetadata(LoadClassMetadataEventArgs $args): void
     {
         $metadata = $args->getClassMetadata();
@@ -64,18 +76,10 @@ final readonly class WikiMetadataListener
         $mapping      = $metadata->associationMappings['author'];
         $targetEntity = ltrim($this->userClass, '\\');
 
-        if ($mapping instanceof AssociationMapping) {
-            $newMapping              = array_replace_recursive($mapping->toArray(), ['targetEntity' => $targetEntity]);
-            $newMapping['fieldName'] = $mapping->fieldName;
-            unset($metadata->associationMappings['author']);
-            $metadata->mapManyToOne($newMapping);
-
-            return;
-        }
-
-        /** @var array<string, mixed> $legacyMapping */
-        $legacyMapping                           = $mapping;
-        $legacyMapping['targetEntity']           = $targetEntity;
-        $metadata->associationMappings['author'] = $legacyMapping;
+        // doctrine/orm ^3 stores association mappings as AssociationMapping objects only.
+        $newMapping              = array_replace_recursive($mapping->toArray(), ['targetEntity' => $targetEntity]);
+        $newMapping['fieldName'] = $mapping->fieldName;
+        unset($metadata->associationMappings['author']);
+        $metadata->mapManyToOne($newMapping);
     }
 }

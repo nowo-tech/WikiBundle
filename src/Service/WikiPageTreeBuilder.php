@@ -12,33 +12,55 @@ use Nowo\WikiBundle\Entity\WikiPage;
 final class WikiPageTreeBuilder
 {
     /**
-     * @param list<WikiPage> $pages
+     * Nests the pages under their parents (input order kept); pages whose parent is absent from the list become roots.
+     *
+     * @param list<WikiPage> $pages flat list of pages of one space
      *
      * @return list<array{page: WikiPage, children: list<mixed>}>
      */
     public function build(array $pages): array
     {
-        /** @var array<string, array{page: WikiPage, children: list<array{page: WikiPage, children: list<mixed>}>}> $byId */
-        $byId = [];
+        /** @var array<string, true> $ids */
+        $ids = [];
         foreach ($pages as $page) {
-            $byId[$page->getId()] = ['page' => $page, 'children' => []];
+            $ids[$page->getId()] = true;
         }
 
+        /** @var array<string, list<WikiPage>> $childrenByParent */
+        $childrenByParent = [];
+        $roots            = [];
         foreach ($pages as $page) {
             $parentId = $page->getParent()?->getId();
-            if ($parentId !== null && isset($byId[$parentId])) {
-                $byId[$parentId]['children'][] = $byId[$page->getId()];
+            if ($parentId !== null && isset($ids[$parentId]) && $parentId !== $page->getId()) {
+                $childrenByParent[$parentId][] = $page;
+            } else {
+                $roots[] = $page;
             }
         }
 
-        $roots = [];
-        foreach ($pages as $page) {
-            $parentId = $page->getParent()?->getId();
-            if ($parentId === null || !isset($byId[$parentId])) {
-                $roots[] = $byId[$page->getId()];
-            }
+        $tree = [];
+        foreach ($roots as $root) {
+            $tree[] = $this->node($root, $childrenByParent);
         }
 
-        return $roots;
+        return $tree;
+    }
+
+    /**
+     * Builds one node with its descendants (input order kept). Each page has a single parent, so a
+     * node reachable from a root cannot be part of a parent cycle.
+     *
+     * @param array<string, list<WikiPage>> $childrenByParent
+     *
+     * @return array{page: WikiPage, children: list<mixed>}
+     */
+    private function node(WikiPage $page, array $childrenByParent): array
+    {
+        $children = [];
+        foreach ($childrenByParent[$page->getId()] ?? [] as $child) {
+            $children[] = $this->node($child, $childrenByParent);
+        }
+
+        return ['page' => $page, 'children' => $children];
     }
 }

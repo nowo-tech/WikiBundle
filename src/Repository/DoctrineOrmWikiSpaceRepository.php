@@ -17,11 +17,21 @@ use SortDirection;
  */
 final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceRepositoryInterface
 {
+    /**
+     * Creates the repository.
+     *
+     * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager entity manager, or a provider resolving the configured one lazily
+     */
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
     ) {
     }
 
+    /**
+     * Persists the space and flushes it immediately.
+     *
+     * @param WikiSpace $space space to save
+     */
     public function save(WikiSpace $space): void
     {
         $entityManager = $this->entityManager();
@@ -29,6 +39,13 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
         $entityManager->flush();
     }
 
+    /**
+     * Finds a space by its identifier, refreshing it from the database when found.
+     *
+     * @param string $id space UUID
+     *
+     * @return WikiSpace|null the space, or null when none exists
+     */
     public function findById(string $id): ?WikiSpace
     {
         $entityManager = $this->entityManager();
@@ -40,6 +57,15 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
         return $space;
     }
 
+    /**
+     * Finds a space by slug within an owner scope.
+     *
+     * @param WikiSpaceOwnerScope $scopeType kind of owner (team or user)
+     * @param string $ownerScopeId identifier of the owning team or user
+     * @param string $slug space slug
+     *
+     * @return WikiSpace|null the space, or null when none matches
+     */
     public function findBySlug(WikiSpaceOwnerScope $scopeType, string $ownerScopeId, string $slug): ?WikiSpace
     {
         /** @var WikiSpace|null $space */
@@ -60,6 +86,13 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
         return $space;
     }
 
+    /**
+     * Finds the first space with the given slug, whatever its owner scope.
+     *
+     * @param string $slug space slug
+     *
+     * @return WikiSpace|null the first matching space, or null when none matches
+     */
     public function findFirstBySlug(string $slug): ?WikiSpace
     {
         /** @var WikiSpace|null $space */
@@ -77,7 +110,11 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
     }
 
     /**
-     * @param list<string> $ownerScopeIds
+     * Returns the spaces of the given owner scope type owned by any of the given identifiers, ordered by name.
+     * Returns an empty list without querying when no identifier is given.
+     *
+     * @param string $ownerScopeType owner scope type value (e.g. `team` or `user`)
+     * @param list<string> $ownerScopeIds identifiers of the owning teams or users
      *
      * @return list<WikiSpace>
      */

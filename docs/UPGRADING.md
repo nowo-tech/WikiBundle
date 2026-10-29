@@ -41,6 +41,14 @@
 
 ## Unreleased
 
+No configuration change is required.
+
+- **List limits (new defaults):** the wiki index shows 24 spaces per page, the page history 25 revisions per page and the sidebar tree at most 500 pages. Tune them under `nowo_wiki.pagination` (`spaces_per_page`, `revisions_per_page`, `max_tree_pages`).
+- **Custom repositories:** if you aliased `WikiPageRepositoryInterface` or `WikiPageRevisionRepositoryInterface` to your own class, add the new optional parameters: `findActiveBySpace(WikiSpace $space, ?int $limit = null)` and `findByPage(WikiPage $page, ?int $limit = null, int $offset = 0)`.
+- **Template overrides:** `manage/index.html.twig` now loops over `space_page` (current page of `spaces`) and includes `manage/_pagination.html.twig`; `manage/page_history.html.twig` uses `older_revision` for the last row and includes the pager; `manage/_page_tree.html.twig` receives `tree_truncated` / `max_tree_pages`. Overrides keep working but show every space / only the first page of history until you merge these changes.
+- **Logging:** route the new `nowo_wiki` Monolog channel if you want it in a separate file (see CONFIGURATION, Logging).
+- **Imports:** ZIP archives with absolute or `..` entry names are now rejected.
+
 ## To 1.7.2
 
 From **1.7.1**:

@@ -38,6 +38,8 @@ ensure-up: ensure-env
 	fi
 
 up: ensure-env
+	@# Worker mode cannot boot without vendor/: bootstrap it with a one-off container on a fresh clone.
+	@test -f vendor/autoload_runtime.php || $(COMPOSE) run --rm --no-deps --entrypoint composer $(SERVICE_PHP) install --no-interaction --no-scripts
 	@$(COMPOSE) up -d
 	@echo "Waiting for container to be ready..."
 	@sleep 5
@@ -51,7 +53,7 @@ up: ensure-env
 	@$(COMPOSE) exec -T $(SERVICE_PHP) php bin/console doctrine:fixtures:load --no-interaction --append || true
 	@PORT=$$(grep "^PORT=" .env 2>/dev/null | cut -d= -f2 | tr -d '\r'); \
 	[ -z "$$PORT" ] && PORT=$$(grep "^PORT=" .env.example 2>/dev/null | cut -d= -f2 | tr -d '\r'); \
-	echo "Demo started at: http://localhost:$$PORT/tools/wiki"
+	echo "Demo started at: http://localhost:$$PORT"
 
 down:
 	@$(COMPOSE) down

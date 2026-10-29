@@ -12,6 +12,12 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
  */
 final readonly class WikiPageSavedEvent
 {
+    /**
+     * Creates the event for a saved page revision.
+     *
+     * @param WikiPage $page page that was saved
+     * @param WikiPageRevision $revision revision that was created
+     */
     public function __construct(
         public WikiPage $page,
         public WikiPageRevision $revision,

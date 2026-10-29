@@ -12,22 +12,51 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use Throwable;
 
 use const DIRECTORY_SEPARATOR;
 
 /**
  * Exports a wiki space to Outline or Notion compatible Markdown trees.
+ *
+ * Logs start / success / failure of every export (space slug, format, page count; never page content).
  */
 final readonly class WikiDocumentExporter
 {
+    /**
+     * Wires the repository, tree builder, converter and front matter services used by the export.
+     *
+     * @param WikiPageRepositoryInterface $pageRepository loads the pages of the space
+     * @param WikiPageTreeBuilder $pageTreeBuilder nests pages for the directory layout
+     * @param WikiMarkdownConverter $markdownConverter converts stored HTML to Markdown
+     * @param WikiFrontMatterParser $frontMatterParser serializes the YAML front matter
+     * @param LoggerInterface|null $logger logger (defaults to a NullLogger)
+     */
     public function __construct(
         private WikiPageRepositoryInterface $pageRepository,
         private WikiPageTreeBuilder $pageTreeBuilder,
         private WikiMarkdownConverter $markdownConverter,
         private WikiFrontMatterParser $frontMatterParser,
+        ?LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger ?? new NullLogger();
     }
 
+    private LoggerInterface $logger;
+
+    /**
+     * Writes every active page of the space as Markdown files under the target directory.
+     *
+     * @param WikiSpace $space space to export
+     * @param string $targetDir output directory (created when missing)
+     * @param WikiInterchangeFormat $format Outline or Notion layout (Auto means Outline)
+     *
+     * @throws InvalidArgumentException when an output directory cannot be created
+     *
+     * @return WikiExportReport output path and number of exported pages
+     */
     public function export(
         WikiSpace $space,
         string $targetDir,
@@ -36,6 +65,25 @@ final readonly class WikiDocumentExporter
         if ($format === WikiInterchangeFormat::Auto) {
             $format = WikiInterchangeFormat::Outline;
         }
+
+        $logContext = ['bundle' => 'nowo_wiki', 'action' => 'export', 'space' => $space->getSlug(), 'format' => $format->value];
+        $this->logger->info('Wiki export started.', $logContext);
+
+        try {
+            $report = $this->doExport($space, $targetDir, $format);
+        } catch (Throwable $exception) {
+            $this->logger->error('Wiki export failed.', $logContext + ['exception_class' => $exception::class]);
+
+            throw $exception;
+        }
+
+        $this->logger->info('Wiki export finished.', $logContext + ['pages_exported' => $report->pagesExported]);
+
+        return $report;
+    }
+
+    private function doExport(WikiSpace $space, string $targetDir, WikiInterchangeFormat $format): WikiExportReport
+    {
 
         if (!is_dir($targetDir) && !mkdir($targetDir, 0700, true) && !is_dir($targetDir)) {
             throw new InvalidArgumentException('Unable to create export directory.');

@@ -18,6 +18,9 @@ final readonly class WikiMarkdownConverter
 
     private HtmlConverter $htmlConverter;
 
+    /**
+     * Configures the CommonMark converter (raw HTML stripped, unsafe links disabled) and the HTML-to-Markdown converter.
+     */
     public function __construct()
     {
         $environment = new Environment([
@@ -34,6 +37,13 @@ final readonly class WikiMarkdownConverter
         ]);
     }
 
+    /**
+     * Converts Markdown to HTML; empty input yields an empty paragraph.
+     *
+     * @param string $markdown Markdown source
+     *
+     * @return string rendered HTML
+     */
     public function markdownToHtml(string $markdown): string
     {
         $markdown = trim($markdown);
@@ -44,6 +54,13 @@ final readonly class WikiMarkdownConverter
         return trim($this->markdownConverter->convert($markdown)->getContent());
     }
 
+    /**
+     * Converts stored HTML to ATX-style Markdown, dropping script and style nodes; empty input yields an empty string.
+     *
+     * @param string $html HTML source
+     *
+     * @return string Markdown text
+     */
     public function htmlToMarkdown(string $html): string
     {
         $html = trim($html);

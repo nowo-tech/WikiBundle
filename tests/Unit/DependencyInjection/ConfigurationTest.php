@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
 
+use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -29,6 +30,17 @@ final class ConfigurationTest extends TestCase
         self::assertSame(['ROLE_ADMIN'], $config['security']['import_roles']);
         self::assertSame('tabler', $config['web_ui']['css_framework']);
         self::assertTrue($config['web_ui']['enabled']);
+        self::assertSame(['spaces_per_page' => 24, 'revisions_per_page' => 25, 'max_tree_pages' => 500], $config['pagination']);
+        self::assertSame(WikiManageController::DEFAULT_PAGINATION, $config['pagination']);
+    }
+
+    public function testPaginationRejectsZeroPageSize(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'pagination' => ['spaces_per_page' => 0],
+        ]]);
     }
 
     public function testDeadKeysAreDeprecated(): void

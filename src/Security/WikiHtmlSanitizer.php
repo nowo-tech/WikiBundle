@@ -85,6 +85,8 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
     private HtmlSanitizerInterface $sanitizer;
 
     /**
+     * Builds the underlying symfony/html-sanitizer instance from the element allowlist and attribute sanitizers.
+     *
      * @param list<string> $allowedEmbedHosts Hosts allowed in `<iframe src="https://…">`
      */
     public function __construct(array $allowedEmbedHosts = self::DEFAULT_EMBED_HOSTS)
@@ -108,6 +110,14 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
         $this->sanitizer = new HtmlSanitizer($config);
     }
 
+    /**
+     * Sanitizes rich-text HTML, keeping only allowlisted elements, attributes and URLs.
+     * Iframes whose `src` was rejected are removed entirely.
+     *
+     * @param string $html untrusted HTML
+     *
+     * @return string sanitized HTML
+     */
     public function sanitize(string $html): string
     {
         $html = $this->sanitizer->sanitize($html);

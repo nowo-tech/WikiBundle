@@ -19,6 +19,13 @@ final class TwigPathsPass implements CompilerPassInterface
 {
     private const TWIG_NAMESPACE = 'NowoWikiBundle';
 
+    /**
+     * Registers the bundle views under the {@code NowoWikiBundle} Twig namespace, prepending the app override directory when it exists.
+     *
+     * Does nothing when no native Twig filesystem loader is defined.
+     *
+     * @param ContainerBuilder $container container being compiled
+     */
     public function process(ContainerBuilder $container): void
     {
         $loaderId = $this->getNativeLoaderServiceId($container);

@@ -12,14 +12,31 @@ use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use Throwable;
 
 use function sprintf;
 
 /**
  * Imports Outline/Notion Markdown trees into a wiki space.
+ *
+ * Logs start / success / failure of every import (space slug, format, counters; never page content).
  */
 final readonly class WikiDocumentImporter
 {
+    /**
+     * Wires the archive, detection, parsing, conversion and persistence services used by the import.
+     *
+     * @param WikiArchiveHelper $archiveHelper extracts ZIP sources to a temporary directory
+     * @param WikiFormatDetector $formatDetector detects the export layout when the format is Auto
+     * @param WikiDocumentTreeReader $treeReader reads the export tree into document nodes
+     * @param WikiMarkdownConverter $markdownConverter converts Markdown bodies to HTML
+     * @param WikiPageRepositoryInterface $pageRepository looks up existing pages by slug
+     * @param WikiPageService $pageService creates pages and appends revisions
+     * @param WikiSlugger $slugger derives and validates page slugs
+     * @param LoggerInterface|null $logger logger (defaults to a NullLogger)
+     */
     public function __construct(
         private WikiArchiveHelper $archiveHelper,
         private WikiFormatDetector $formatDetector,
@@ -28,9 +45,27 @@ final readonly class WikiDocumentImporter
         private WikiPageRepositoryInterface $pageRepository,
         private WikiPageService $pageService,
         private WikiSlugger $slugger,
+        ?LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger ?? new NullLogger();
     }
 
+    private LoggerInterface $logger;
+
+    /**
+     * Imports a Markdown directory tree or ZIP archive into the given space.
+     *
+     * @param WikiSpace $space target space
+     * @param string $sourcePath directory or ZIP archive path
+     * @param WikiInterchangeFormat $format source format (Auto detects it)
+     * @param object $author application user recorded as revision author
+     * @param bool $updateExisting append a revision to pages whose slug already exists
+     * @param bool $dryRun count changes without writing anything
+     *
+     * @throws InvalidArgumentException when the source is neither a directory nor a ZIP archive
+     *
+     * @return WikiImportReport counters and per-document messages
+     */
     public function import(
         WikiSpace $space,
         string $sourcePath,
@@ -38,6 +73,42 @@ final readonly class WikiDocumentImporter
         object $author,
         bool $updateExisting = false,
         bool $dryRun = false,
+    ): WikiImportReport {
+        $logContext = [
+            'bundle'          => 'nowo_wiki',
+            'action'          => 'import',
+            'space'           => $space->getSlug(),
+            'format'          => $format->value,
+            'update_existing' => $updateExisting,
+            'dry_run'         => $dryRun,
+        ];
+        $this->logger->info('Wiki import started.', $logContext);
+
+        try {
+            $report = $this->doImport($space, $sourcePath, $format, $author, $updateExisting, $dryRun);
+        } catch (Throwable $exception) {
+            $this->logger->error('Wiki import failed.', $logContext + ['exception_class' => $exception::class]);
+
+            throw $exception;
+        }
+
+        $this->logger->info('Wiki import finished.', $logContext + [
+            'created' => $report->created,
+            'updated' => $report->updated,
+            'skipped' => $report->skipped,
+            'failed'  => $report->failed,
+        ]);
+
+        return $report;
+    }
+
+    private function doImport(
+        WikiSpace $space,
+        string $sourcePath,
+        WikiInterchangeFormat $format,
+        object $author,
+        bool $updateExisting,
+        bool $dryRun,
     ): WikiImportReport {
         $report      = new WikiImportReport();
         $cleanupDir  = null;

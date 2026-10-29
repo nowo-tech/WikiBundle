@@ -21,6 +21,7 @@ services:
       - COMPOSER_ALLOW_SUPERUSER=1
       - SERVER_NAME=:80
       - DATABASE_URL=mysql://${MYSQL_USER:-demo}:${MYSQL_PASSWORD:-demo}@mysql:3306/${MYSQL_DATABASE:-wiki_demo}?serverVersion=8.0.32&charset=utf8mb4
+    # Mitigate Docker/WSL DNS failures resolving repo.packagist.org (composer curl error 6).
     dns:
       - 8.8.8.8
       - 8.8.4.4

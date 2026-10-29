@@ -40,6 +40,12 @@ final class WikiAiAskType extends AbstractType
 
     public const CSRF_TOKEN_ID = 'wiki_ai_ask';
 
+    /**
+     * Adds the `space` select and the `q` question field, and normalises an unknown posted space slug to "all spaces" before validation.
+     *
+     * @param FormBuilderInterface<array<string, mixed>|null> $builder form builder
+     * @param array<string, mixed> $options resolved options (`space_choices` slug => name, `question_attr`)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         /** @var array<string, string> $spaces */
@@ -76,6 +82,13 @@ final class WikiAiAskType extends AbstractType
         });
     }
 
+    /**
+     * Assigns the configured element ids to the child views.
+     *
+     * @param FormView $view root form view
+     * @param FormInterface<array<string, mixed>> $form root form
+     * @param array<string, mixed> $options resolved form options
+     */
     public function finishView(FormView $view, FormInterface $form, array $options): void
     {
         /** @var array<string, string> $ids */
@@ -83,6 +96,11 @@ final class WikiAiAskType extends AbstractType
         $this->applyElementIds($view, $ids);
     }
 
+    /**
+     * Configures POST with CSRF (`wiki_ai_ask` token id, `_token` field) and the `space_choices`, `element_ids` and `question_attr` options.
+     *
+     * @param OptionsResolver $resolver options resolver
+     */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
@@ -101,6 +119,11 @@ final class WikiAiAskType extends AbstractType
         $resolver->setAllowedTypes('question_attr', 'array');
     }
 
+    /**
+     * Returns an empty block prefix so the form renders flat (nameless-root) field names.
+     *
+     * @return string empty prefix
+     */
     #[Override]
     public function getBlockPrefix(): string
     {

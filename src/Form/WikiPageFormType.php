@@ -23,6 +23,12 @@ final class WikiPageFormType extends AbstractType
 {
     use FormOptionsTrait;
 
+    /**
+     * Adds the `title` text field and the `content` Tiptap editor field.
+     *
+     * @param FormBuilderInterface<WikiPageFormData|null> $builder form builder
+     * @param array<string, mixed> $options resolved options (`tiptap_config` editor preset)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $this->withBuilder($builder, function () use ($options): void {
@@ -36,6 +42,11 @@ final class WikiPageFormType extends AbstractType
         });
     }
 
+    /**
+     * Binds the form to WikiPageFormData and defines the `tiptap_config` option (default `notion`).
+     *
+     * @param OptionsResolver $resolver options resolver
+     */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

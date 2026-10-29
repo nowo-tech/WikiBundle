@@ -20,12 +20,23 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use function is_string;
 use function sprintf;
 
+/**
+ * Console command {@code wiki:import}: imports Outline or Notion Markdown exports into a wiki space.
+ */
 #[AsCommand(
     name: 'wiki:import',
     description: 'Import Markdown documents from an Outline or Notion export (directory or ZIP)',
 )]
 final class WikiImportCommand extends Command
 {
+    /**
+     * Wires the repositories and services used by the import.
+     *
+     * @param WikiSpaceRepositoryInterface $spaceRepository repository used to find the target space
+     * @param WikiDocumentImporter $documentImporter importer that writes pages and revisions
+     * @param WikiAuthorResolver $authorResolver resolves the {@code --author-id} user
+     * @param bool $enabled whether import/export is enabled in configuration
+     */
     public function __construct(
         private readonly WikiSpaceRepositoryInterface $spaceRepository,
         private readonly WikiDocumentImporter $documentImporter,
@@ -35,6 +46,9 @@ final class WikiImportCommand extends Command
         parent::__construct();
     }
 
+    /**
+     * Declares the space and source arguments and the format, author, update and dry-run options.
+     */
     protected function configure(): void
     {
         $this
@@ -46,6 +60,14 @@ final class WikiImportCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Parse and report without writing to the database');
     }
 
+    /**
+     * Runs the import into the given space and prints the import report.
+     *
+     * @param InputInterface $input console input
+     * @param OutputInterface $output console output
+     *
+     * @return int Command::FAILURE when disabled, the author or space is missing, or any document failed; Command::SUCCESS otherwise
+     */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         if (!$this->enabled) {

@@ -36,6 +36,12 @@ final class WikiImportType extends AbstractType
     use FormOptionsTrait;
     use WikiFormIdsTrait;
 
+    /**
+     * Adds the `format` select, the `archive` ZIP file field and the `update_existing` checkbox; an unknown posted format falls back to `auto`.
+     *
+     * @param FormBuilderInterface<array<string, mixed>|null> $builder form builder
+     * @param array<string, mixed> $options resolved form options
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder->add('format', ChoiceType::class, [
@@ -76,6 +82,13 @@ final class WikiImportType extends AbstractType
         });
     }
 
+    /**
+     * Assigns the historical `wiki-import-*` element ids to the child views.
+     *
+     * @param FormView $view root form view
+     * @param FormInterface<array<string, mixed>> $form root form
+     * @param array<string, mixed> $options resolved form options
+     */
     public function finishView(FormView $view, FormInterface $form, array $options): void
     {
         $this->applyElementIds($view, [
@@ -85,6 +98,11 @@ final class WikiImportType extends AbstractType
         ]);
     }
 
+    /**
+     * Configures POST with CSRF (`_token` field) and requires the `csrf_token_id` option.
+     *
+     * @param OptionsResolver $resolver options resolver
+     */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
@@ -98,6 +116,11 @@ final class WikiImportType extends AbstractType
         $resolver->setAllowedTypes('csrf_token_id', 'string');
     }
 
+    /**
+     * Returns an empty block prefix so the form renders flat (nameless-root) field names.
+     *
+     * @return string empty prefix
+     */
     #[Override]
     public function getBlockPrefix(): string
     {

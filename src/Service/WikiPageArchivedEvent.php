@@ -11,6 +11,11 @@ use Nowo\WikiBundle\Entity\WikiPage;
  */
 final readonly class WikiPageArchivedEvent
 {
+    /**
+     * Creates the event for the archived page.
+     *
+     * @param WikiPage $page archived page
+     */
     public function __construct(
         public WikiPage $page,
     ) {

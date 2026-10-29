@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-10-20 (worker guards, attribute sanitizers, render-time sanitizing; audit: `git ls-files src | grep -v '\.test\.ts$' | wc -l` → 92)
+**Last audited**: 2026-10-29 (pagination partial, PSR-3 logging, recursive tree; audit: `git ls-files src | grep -v '\.test\.ts$' | wc -l` → 97)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -48,6 +48,10 @@ This file proves that **every production source artifact** under `src/` is refer
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
 | `Form/WikiPageFormType.php` | Symfony form type | FR-FORM-001 |
+| `Form/WikiSearchType.php` | Search filter form (GET space / q; REQ-TWIG-005) | FR-FORM-001 |
+| `Form/WikiAiAskType.php` | AI question form (space / q / CSRF; REQ-TWIG-005) | FR-FORM-001 |
+| `Form/WikiImportType.php` | Space import form (format / archive / update_existing; REQ-TWIG-005) | FR-FORM-001 |
+| `Form/WikiFormIdsTrait.php` | Shared element-id options of the wiki form types | FR-FORM-001 |
 
 ## Domain models
 
@@ -177,6 +181,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Twig/WikiHtmlTwigExtension.php` | Render-time HTML re-sanitizing | FR-SEC-008 |
 | `Resources/views/base.html.twig` | Page shell (UiKit CSS/JS stack) | FR-VIEW-001 |
 | `Resources/views/manage/_flashes.html.twig` | Flash messages partial | FR-VIEW-005 |
+| `Resources/views/manage/_pagination.html.twig` | Previous / next pager (index, history; REQ-PERF-001) | FR-VIEW-005 |
 
 ## Coverage summary
 

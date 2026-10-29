@@ -72,7 +72,7 @@
         </div>
     {% else %}
         <div class="row row-cards">
-            {% for space in spaces %}
+            {% for space in space_page|default(spaces) %}
                 <div class="col-md-6 col-lg-4">
                     <a href="{{ path(routes.space.name, {spaceSlug: space.slug}) }}" class="card card-link">
                         <div class="card-body">
@@ -86,5 +86,15 @@
                 </div>
             {% endfor %}
         </div>
+        {% if pagination is defined %}
+            {{ include('@NowoWikiBundle/manage/_pagination.html.twig', {
+                route: routes.index.name,
+                route_params: {},
+                page: pagination.page,
+                pages: pagination.pages,
+                has_previous: pagination.page > 1,
+                has_next: pagination.page < pagination.pages,
+            }, false) }}
+        {% endif %}
     {% endif %}
 {% endblock %}

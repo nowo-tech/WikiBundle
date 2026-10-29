@@ -10,6 +10,9 @@ use Symfony\Component\Config\Loader\Loader;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
 
+/**
+ * Route loader for the {@code nowo_wiki} resource type: builds the wiki management routes from configuration.
+ */
 final class WikiRouteLoader extends Loader
 {
     private bool $loaded = false;
@@ -18,7 +21,10 @@ final class WikiRouteLoader extends Loader
     private const PAGE_SLUG = '(?!new$)[a-z0-9]+(?:-[a-z0-9]+)*';
 
     /**
-     * @param array<string, array{path: string, name: string}> $routes
+     * Stores the configured routes and the prefix prepended to every path.
+     *
+     * @param array<string, array{path: string, name: string}> $routes route name/path per action key
+     * @param string $routePrefix path prefix for all wiki routes
      */
     public function __construct(
         private readonly array $routes,
@@ -26,6 +32,18 @@ final class WikiRouteLoader extends Loader
     ) {
     }
 
+    /**
+     * Builds the configured wiki routes (prefixed with the route prefix) mapped to {@see WikiManageController} actions.
+     *
+     * Route keys missing from the configuration are skipped.
+     *
+     * @param mixed $resource resource being loaded (unused)
+     * @param string|null $type resource type
+     *
+     * @throws RuntimeException when the routes have already been loaded
+     *
+     * @return RouteCollection collection of wiki routes
+     */
     public function load(mixed $resource, ?string $type = null): RouteCollection
     {
         if ($this->loaded) {
@@ -72,6 +90,14 @@ final class WikiRouteLoader extends Loader
         return $collection;
     }
 
+    /**
+     * Tells whether this loader handles the given resource type.
+     *
+     * @param mixed $resource resource being loaded (unused)
+     * @param string|null $type resource type
+     *
+     * @return bool true for the {@code nowo_wiki} type
+     */
     public function supports(mixed $resource, ?string $type = null): bool
     {
         return $type === 'nowo_wiki';

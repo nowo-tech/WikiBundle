@@ -1,6 +1,18 @@
 {
 	order mercure after encode
-	frankenphp
+	# REQ-RUNTIME-001 timeout hierarchy (innermost first): nowo_wiki.ai.http_timeout (30s)
+	# < PHP max_execution_time (60s) < Caddy write timeout (75s); max_wait_time caps the
+	# queue for a free PHP thread (504 after 30s). Raise all layers together.
+	servers {
+		timeouts {
+			write 75s
+		}
+	}
+	frankenphp {
+		php_ini max_execution_time 60
+		php_ini max_input_time 60
+		max_wait_time 30s
+	}
 }
 
 :80 {

@@ -44,12 +44,25 @@ final class DoctrineOrmWikiPageRevisionRepositoryTest extends TestCase
         $qb->method('where')->willReturnSelf();
         $qb->method('setParameter')->willReturnSelf();
         $qb->method('orderBy')->willReturnSelf();
+        $qb->expects(self::exactly(2))->method('setFirstResult')
+            ->willReturnCallback(static function (int $offset) use ($qb): QueryBuilder {
+                self::assertContains($offset, [0, 50]);
+
+                return $qb;
+            });
+        $qb->expects(self::exactly(2))->method('setMaxResults')
+            ->willReturnCallback(static function (?int $limit) use ($qb): QueryBuilder {
+                self::assertContains($limit, [null, 26]);
+
+                return $qb;
+            });
         $qb->method('getQuery')->willReturn($query);
 
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($qb);
 
         $found = (new DoctrineOrmWikiPageRevisionRepository($em))->findByPage($page);
+        self::assertSame([$revision], (new DoctrineOrmWikiPageRevisionRepository($em))->findByPage($page, 26, 50));
 
         self::assertSame([$revision], $found);
     }

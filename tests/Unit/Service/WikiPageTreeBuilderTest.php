@@ -25,4 +25,21 @@ final class WikiPageTreeBuilderTest extends TestCase
         self::assertCount(1, $tree[0]['children']);
         self::assertSame('Child', $tree[0]['children'][0]['page']->getTitle());
     }
+
+    public function testKeepsGrandchildren(): void
+    {
+        $space      = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $root       = new WikiPage($space, 'index', 'Index');
+        $child      = new WikiPage($space, 'child', 'Child', $root);
+        $grandchild = new WikiPage($space, 'grandchild', 'Grandchild', $child);
+
+        foreach ([[$root, $child, $grandchild], [$grandchild, $child, $root]] as $pages) {
+            $tree = (new WikiPageTreeBuilder())->build($pages);
+
+            self::assertCount(1, $tree);
+            self::assertCount(1, $tree[0]['children']);
+            self::assertCount(1, $tree[0]['children'][0]['children']);
+            self::assertSame('Grandchild', $tree[0]['children'][0]['children'][0]['page']->getTitle());
+        }
+    }
 }

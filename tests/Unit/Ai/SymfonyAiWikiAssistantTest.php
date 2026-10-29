@@ -17,6 +17,7 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\TestCase;
 use Symfony\AI\Agent\AgentInterface;
@@ -24,8 +25,13 @@ use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Metadata\Metadata;
 use Symfony\AI\Platform\Result\RawResultInterface;
 use Symfony\AI\Platform\Result\ResultInterface;
+use Symfony\Component\HttpClient\Exception\TimeoutException;
+use Throwable;
+use UnexpectedValueException;
 
 use function count;
+
+use const JSON_THROW_ON_ERROR;
 
 final class SymfonyAiWikiAssistantTest extends TestCase
 {
@@ -38,6 +44,50 @@ final class SymfonyAiWikiAssistantTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->assistant(withContext: false)->ask(new TestUser(), '   ');
+    }
+
+    public function testAskLogsCallWithoutQuestionText(): void
+    {
+        $logger    = new RecordingLogger();
+        $assistant = $this->assistant(new AgentStub('Answer text'), withContext: false, logger: $logger);
+
+        $assistant->ask(new TestUser(), 'What is the secret plan?');
+
+        self::assertSame(['info: Wiki AI agent call started.', 'info: Wiki AI agent call succeeded.'], $logger->lines());
+        self::assertSame(24, $logger->records[0]['context']['question_length']);
+        self::assertSame(11, $logger->records[1]['context']['answer_length']);
+        self::assertStringNotContainsString('secret plan', json_encode($logger->records, JSON_THROW_ON_ERROR));
+    }
+
+    public function testAgentTimeoutIsLoggedAndRethrown(): void
+    {
+        $logger    = new RecordingLogger();
+        $agent     = new AgentStub('unused', new TimeoutException('Idle timeout reached for "https://llm.example.test/v1".'));
+        $assistant = $this->assistant($agent, withContext: false, logger: $logger);
+
+        try {
+            $assistant->ask(new TestUser(), 'Slow provider?');
+            self::fail('Expected TimeoutException.');
+        } catch (TimeoutException) {
+        }
+
+        self::assertSame(['info: Wiki AI agent call started.', 'error: Wiki AI agent call failed.'], $logger->lines());
+        self::assertSame(TimeoutException::class, $logger->records[1]['context']['exception_class']);
+    }
+
+    public function testNonTextAgentResultIsRejected(): void
+    {
+        $logger    = new RecordingLogger();
+        $assistant = $this->assistant(new AgentStub(['structured' => true]), withContext: false, logger: $logger);
+
+        try {
+            $assistant->ask(new TestUser(), 'Give me JSON');
+            self::fail('Expected UnexpectedValueException.');
+        } catch (UnexpectedValueException) {
+        }
+
+        self::assertSame('error: Wiki AI agent returned a non-text result.', $logger->lines()[1]);
+        self::assertSame('array', $logger->records[1]['context']['result_type']);
     }
 
     public function testAskWithoutContextInjection(): void
@@ -137,7 +187,7 @@ final class SymfonyAiWikiAssistantTest extends TestCase
         return new WikiSearchService($em);
     }
 
-    private function assistant(?AgentInterface $agent = null, bool $withContext = true): SymfonyAiWikiAssistant
+    private function assistant(?AgentInterface $agent = null, bool $withContext = true, ?RecordingLogger $logger = null): SymfonyAiWikiAssistant
     {
         $agent ??= new AgentStub('default answer');
 
@@ -154,6 +204,7 @@ final class SymfonyAiWikiAssistantTest extends TestCase
             8,
             12000,
             null,
+            $logger,
         );
     }
 }
@@ -163,8 +214,12 @@ final class AgentStub implements AgentInterface
     /** @var callable|null */
     public $expectsMessages;
 
+    /**
+     * @param array<string, mixed>|string $content
+     */
     public function __construct(
-        private readonly string $content,
+        private readonly string|array $content,
+        private readonly ?Throwable $failure = null,
     ) {
     }
 
@@ -172,6 +227,10 @@ final class AgentStub implements AgentInterface
     {
         if ($this->expectsMessages !== null) {
             Assert::assertTrue(($this->expectsMessages)($messages));
+        }
+
+        if ($this->failure instanceof Throwable) {
+            throw $this->failure;
         }
 
         return new ResultStub($this->content);
@@ -185,12 +244,18 @@ final class AgentStub implements AgentInterface
 
 final readonly class ResultStub implements ResultInterface
 {
+    /**
+     * @param array<string, mixed>|string $content
+     */
     public function __construct(
-        private string $content,
+        private string|array $content,
     ) {
     }
 
-    public function getContent(): string
+    /**
+     * @return array<string, mixed>|string
+     */
+    public function getContent(): string|array
     {
         return $this->content;
     }

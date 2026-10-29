@@ -50,6 +50,8 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use ZipArchive;
 
+use function array_slice;
+
 final class WikiManageControllerTest extends TestCase
 {
     /** @var array<string, array{path: string, name: string}> */
@@ -102,6 +104,118 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('@NowoWikiBundle/manage/index.html.twig', (string) $response->getContent());
+    }
+
+    public function testIndexPaginatesSpaces(): void
+    {
+        $spaces = [];
+        for ($i = 1; $i <= 5; ++$i) {
+            $spaces[] = new WikiSpace('space-' . $i, 'Space ' . $i, WikiSpaceOwnerScope::User, 'user-1');
+        }
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn($spaces);
+
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            pagination: ['spaces_per_page' => 2, 'revisions_per_page' => 25, 'max_tree_pages' => 500],
+        );
+        WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $twig]);
+
+        $controller->index(new Request(['page' => '2']));
+        self::assertSame(['page' => 2, 'pages' => 3, 'total' => 5, 'per_page' => 2], $twig->context['pagination']);
+        self::assertSame([$spaces[2], $spaces[3]], $twig->context['space_page']);
+        self::assertSame($spaces, $twig->context['spaces']);
+
+        $controller->index(new Request(['page' => '99']));
+        self::assertSame(3, $twig->context['pagination']['page']);
+        self::assertSame([$spaces[4]], $twig->context['space_page']);
+
+        $controller->index(new Request(['page' => '-4']));
+        self::assertSame(1, $twig->context['pagination']['page']);
+
+        $controller->index();
+        self::assertSame(1, $twig->context['pagination']['page']);
+    }
+
+    public function testSpaceTreeIsCappedAndFlagged(): void
+    {
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $pages = [];
+        for ($i = 1; $i <= 11; ++$i) {
+            $pages[] = new WikiPage($space, 'page-' . $i, 'Page ' . $i);
+        }
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->expects(self::exactly(2))->method('findActiveBySpace')
+            ->with($space, 11)
+            ->willReturnOnConsecutiveCalls($pages, array_slice($pages, 0, 10));
+
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            pageRepository: $pageRepo,
+            pagination: ['spaces_per_page' => 24, 'revisions_per_page' => 25, 'max_tree_pages' => 10],
+        );
+        WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $twig]);
+
+        $controller->space('eng');
+        self::assertTrue($twig->context['tree_truncated']);
+        self::assertCount(10, $twig->context['tree']);
+        self::assertSame(10, $twig->context['max_tree_pages']);
+
+        $controller->space('eng');
+        self::assertFalse($twig->context['tree_truncated']);
+        self::assertCount(10, $twig->context['tree']);
+    }
+
+    public function testPageHistoryPaginatesRevisions(): void
+    {
+        $user      = new TestUser('user-1');
+        $space     = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page      = new WikiPage($space, 'welcome', 'Welcome');
+        $revisions = [];
+        for ($i = 6; $i >= 1; --$i) {
+            $revisions[] = new WikiPageRevision($page, $i, '<p>' . $i . '</p>', $user);
+        }
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+
+        $revisionRepo = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepo->method('findByPage')->willReturnCallback(
+            static fn (WikiPage $p, ?int $limit, int $offset): array => array_slice($revisions, $offset, $limit),
+        );
+
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            pageRepository: $pageRepo,
+            revisionRepository: $revisionRepo,
+            pagination: ['spaces_per_page' => 24, 'revisions_per_page' => 2, 'max_tree_pages' => 500],
+        );
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+
+        $controller->pageHistory('eng', 'welcome', new Request(['page' => '2']));
+        self::assertSame([$revisions[2], $revisions[3]], $twig->context['revisions']);
+        self::assertSame($revisions[4], $twig->context['older_revision']);
+        self::assertSame(['page' => 2, 'has_previous' => true, 'has_next' => true, 'per_page' => 2], $twig->context['pagination']);
+
+        $controller->pageHistory('eng', 'welcome', new Request(['page' => '3']));
+        self::assertSame([$revisions[4], $revisions[5]], $twig->context['revisions']);
+        self::assertNull($twig->context['older_revision']);
+        self::assertFalse($twig->context['pagination']['has_next']);
+
+        $controller->pageHistory('eng', 'welcome');
+        self::assertSame(1, $twig->context['pagination']['page']);
+        self::assertFalse($twig->context['pagination']['has_previous']);
     }
 
     public function testDenyWhenCannotList(): void
@@ -1396,6 +1510,7 @@ MD);
         int $maxUploadBytes = 52428800,
         bool $allowUnauthenticated = false,
         ?WikiTokenGuard $tokenGuard = null,
+        array $pagination = WikiManageController::DEFAULT_PAGINATION,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1439,7 +1554,29 @@ MD);
             ['enabled' => $importExportEnabled, 'max_upload_bytes' => $maxUploadBytes],
             $allowUnauthenticated,
             $tokenGuard,
+            $pagination,
         );
+    }
+
+    /**
+     * Twig stub that keeps the context of the last render.
+     */
+    private function capturingTwig(): object
+    {
+        return new class {
+            /** @var array<string, mixed> */
+            public array $context = [];
+
+            /**
+             * @param array<string, mixed> $context
+             */
+            public function render(string $name, array $context = []): string
+            {
+                $this->context = $context;
+
+                return $name;
+            }
+        };
     }
 
     private function documentImporter(

@@ -15,6 +15,12 @@ use function is_array;
 final class WikiFrontMatterParser
 {
     /**
+     * Splits a leading {@code ---} YAML front matter block from the Markdown body.
+     *
+     * Content without a closed or valid YAML block is returned whole as the body with empty meta.
+     *
+     * @param string $content raw Markdown file content
+     *
      * @return array{meta: array<string, mixed>, body: string}
      */
     public function parse(string $content): array
@@ -54,7 +60,12 @@ final class WikiFrontMatterParser
     }
 
     /**
-     * @param array<string, mixed> $meta
+     * Prepends the metadata as a YAML front matter block to the body; returns the body unchanged when meta is empty.
+     *
+     * @param array<string, mixed> $meta front matter values
+     * @param string $body Markdown body
+     *
+     * @return string Markdown document with front matter
      */
     public function serialize(array $meta, string $body): string
     {

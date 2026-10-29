@@ -16,6 +16,7 @@ use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use PHPUnit\Framework\TestCase;
 
 final class WikiDocumentExporterTest extends TestCase
@@ -166,6 +167,50 @@ final class WikiDocumentExporterTest extends TestCase
             unlink($target . '/draft.md');
             rmdir($target);
         }
+    }
+
+    public function testLogsExportStartFinishAndFailure(): void
+    {
+        $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $page  = new WikiPage($space, 'intro', 'Intro');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hello</p>', new TestUser()));
+
+        $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepository->method('findActiveBySpace')->willReturn([$page]);
+
+        $logger   = new RecordingLogger();
+        $exporter = new WikiDocumentExporter(
+            $pageRepository,
+            new WikiPageTreeBuilder(),
+            new WikiMarkdownConverter(),
+            new WikiFrontMatterParser(),
+            $logger,
+        );
+
+        $target = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(4));
+        mkdir($target);
+        try {
+            $exporter->export($space, $target, WikiInterchangeFormat::Notion);
+        } finally {
+            unlink($target . '/Intro/Intro.md');
+            rmdir($target . '/Intro');
+            rmdir($target);
+        }
+
+        self::assertSame(['info: Wiki export started.', 'info: Wiki export finished.'], $logger->lines());
+        self::assertSame(['bundle' => 'nowo_wiki', 'action' => 'export', 'space' => 'docs', 'format' => 'notion', 'pages_exported' => 1], $logger->records[1]['context']);
+
+        $blocked = sys_get_temp_dir() . '/wiki-export-block-' . bin2hex(random_bytes(4));
+        file_put_contents($blocked, 'blocked');
+        try {
+            @$exporter->export($space, $blocked . '/nested', WikiInterchangeFormat::Outline);
+            self::fail('Expected InvalidArgumentException.');
+        } catch (InvalidArgumentException) {
+        } finally {
+            unlink($blocked);
+        }
+
+        self::assertSame('error: Wiki export failed.', $logger->lines()[3]);
     }
 
     public function testThrowsWhenExportDirectoryCannotBeCreated(): void

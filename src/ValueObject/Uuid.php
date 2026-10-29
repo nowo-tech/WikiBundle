@@ -23,11 +23,25 @@ final readonly class Uuid implements Stringable
         }
     }
 
+    /**
+     * Creates a UUID from its string representation, normalized to lowercase.
+     *
+     * @param string $value UUID string (RFC 4122 versions 1-5)
+     *
+     * @throws InvalidArgumentException when the value is not a valid UUID
+     *
+     * @return self the UUID value object
+     */
     public static function fromString(string $value): self
     {
         return new self(strtolower($value));
     }
 
+    /**
+     * Generates a new random (version 4) UUID.
+     *
+     * @return self the generated UUID
+     */
     public static function generate(): self
     {
         $bytes    = random_bytes(16);
@@ -37,11 +51,21 @@ final readonly class Uuid implements Stringable
         return new self(vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4)));
     }
 
+    /**
+     * Returns the lowercase canonical string form of the UUID.
+     *
+     * @return string canonical UUID string
+     */
     public function toString(): string
     {
         return $this->value;
     }
 
+    /**
+     * Returns the lowercase canonical string form of the UUID.
+     *
+     * @return string canonical UUID string
+     */
     public function __toString(): string
     {
         return $this->value;

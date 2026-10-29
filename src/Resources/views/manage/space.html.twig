@@ -22,7 +22,7 @@
                 </div>
                 <div class="card-body">
                     <nav aria-label="{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}">
-                        {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {tree: tree, space: space, routes: routes}) }}
+                        {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {tree: tree, space: space, routes: routes, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(null)}) }}
                     </nav>
                 </div>
             </div>

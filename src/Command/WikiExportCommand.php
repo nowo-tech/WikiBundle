@@ -19,12 +19,23 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function sprintf;
 
+/**
+ * Console command {@code wiki:export}: exports a wiki space as Outline or Notion compatible Markdown.
+ */
 #[AsCommand(
     name: 'wiki:export',
     description: 'Export a wiki space to Outline or Notion compatible Markdown',
 )]
 final class WikiExportCommand extends Command
 {
+    /**
+     * Wires the repositories and services used by the export.
+     *
+     * @param WikiSpaceRepositoryInterface $spaceRepository repository used to find the space
+     * @param WikiDocumentExporter $documentExporter exporter that writes the Markdown tree
+     * @param WikiArchiveHelper $archiveHelper ZIP and temporary directory helper
+     * @param bool $enabled whether import/export is enabled in configuration
+     */
     public function __construct(
         private readonly WikiSpaceRepositoryInterface $spaceRepository,
         private readonly WikiDocumentExporter $documentExporter,
@@ -34,6 +45,9 @@ final class WikiExportCommand extends Command
         parent::__construct();
     }
 
+    /**
+     * Declares the space and target arguments and the format and zip options.
+     */
     protected function configure(): void
     {
         $this
@@ -43,6 +57,14 @@ final class WikiExportCommand extends Command
             ->addOption('zip', null, InputOption::VALUE_NONE, 'Write a ZIP archive instead of a directory tree');
     }
 
+    /**
+     * Exports the space to a directory, or to a ZIP archive built from a temporary directory with {@code --zip}.
+     *
+     * @param InputInterface $input console input
+     * @param OutputInterface $output console output
+     *
+     * @return int Command::FAILURE when disabled or the space is missing; Command::SUCCESS otherwise
+     */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         if (!$this->enabled) {

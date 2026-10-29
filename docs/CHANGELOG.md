@@ -37,6 +37,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `nowo_wiki.pagination` (`spaces_per_page` 24, `revisions_per_page` 25, `max_tree_pages` 500): the wiki index and the page history are paginated (`?page=N`, new `manage/_pagination.html.twig`), and the sidebar tree loads at most `max_tree_pages` pages with a notice linking to search (REQ-PERF-001).
+- PSR-3 logging on the `nowo_wiki` channel: start / finish / failure of imports and exports, page archiving and every AI agent call — slugs, counters and lengths only, never content, questions, answers or secrets (REQ-OBS-001). `psr/log` is now a direct requirement.
+- `make validate-translations` also checks the seven required locales and key parity against `en` (`scripts/check-translation-parity.php`, REQ-MAKE-004).
+- Demo Caddyfiles set the REQ-RUNTIME-001 timeout hierarchy (PHP 60 s, Caddy write 75 s, FrankenPHP `max_wait_time` 30 s above the 30 s AI HTTP timeout); documented in CONFIGURATION / DEMO-FRANKENPHP.
+- Translation keys `wiki.space.tree_truncated` and `wiki.pagination.*` in all seven locales.
+
+### Changed
+
+- `WikiPageRepositoryInterface::findActiveBySpace()` takes an optional `?int $limit`, `WikiPageRevisionRepositoryInterface::findByPage()` optional `?int $limit` / `int $offset` (see UPGRADING).
+- `SymfonyAiWikiAssistant::ask()` throws `UnexpectedValueException` when the agent returns a non-text result instead of a `TypeError`.
+- PHPStan raised from level 6 to level 8 (`ignoreErrors: []`); the last inline `@phpstan-ignore` was removed (`WikiAuthorResolver` now checks that `user_class` exists).
+- `make help` lists every standard target in the REQ-MAKE-001 order; the demo `up` prints `Demo started at: http://localhost:<PORT>`.
+- TypeScript coverage fails below 100% (Vitest `coverage.thresholds`); PHPDoc on every public class and method.
+- Docs: Twig override subpath table and recovery procedure (REQ-TWIG-001), translation override procedure (REQ-I18N-001), SECURITY secrets / logging / limits sections and a complete 12.4.1 release checklist, PSR evaluation (PSR-3 adopted), `docs/COVERAGE.md`.
+
+### Fixed
+
+- The page tree (sidebar and Outline / Notion exports) dropped grandchildren and deeper pages; `WikiPageTreeBuilder` now builds the tree recursively.
+- Space imports reject ZIP entries with absolute or `..` paths before extracting.
+
+### Removed
+
+- The legacy array-mapping branch of `WikiMetadataListener` (doctrine/orm ^3 only produces `AssociationMapping` objects) and coverage-ignored dead branches in the interchange iterators.
+
 ## [1.7.2] - 2026-10-28
 
 Wiki: the page editor loads its Tiptap script; the search results count is pluralised. See [UPGRADING](UPGRADING.md#to-172).

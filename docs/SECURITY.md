@@ -6,6 +6,9 @@
 - [Threats and mitigations](#threats-and-mitigations)
 - [Access control](#access-control)
 - [Content safety](#content-safety)
+- [Secrets and cryptography](#secrets-and-cryptography)
+- [Logging](#logging)
+- [Limits and DoS](#limits-and-dos)
 - [Dependencies](#dependencies)
 - [REQ-SEC-004](#req-sec-004)
 - [Reporting](#reporting)
@@ -35,6 +38,9 @@
 | **Search abuse** | Expensive LIKE queries. | `setMaxResults(25)` default; scope limited to accessible space. |
 | **Malicious import** | ZIP bomb or oversized upload. | `import_export.max_upload_bytes` (default 50 MB); `WikiArchiveHelper` rejects archives with more than 10 000 entries or more than 512 MiB declared uncompressed size before extracting; archive extracted to temp dir; import requires `import_roles`. |
 | **AI prompt injection** | User steers agent via page content. | Context limited by `max_context_pages` / `max_context_chars`; restrict `ai_roles`; review agent system prompt. |
+| **SSRF / outbound HTTP** | The only outbound call is the host-configured AI platform. | Endpoint comes from host config (`config/packages/ai.yaml`), never from user input; bounded by `nowo_wiki.ai.http_client` (`ai.http_timeout`). |
+| **Path traversal on import** | ZIP entries such as `../../etc`. | `WikiArchiveHelper` rejects absolute / `..` entries before extracting into a fresh `0700` temp directory, removed afterwards. |
+| **Resource exhaustion** | Slow LLM, huge spaces, long histories. | See [Limits and DoS](#limits-and-dos). |
 
 ## Access control
 
@@ -62,12 +68,34 @@ See [docs/examples/AccessControl.md](examples/AccessControl.md) and [USAGE.md](U
 - Tiptap variant `notion` is layout only; it does not replace server-side sanitization.
 - For high-security deployments, add a Content-Security-Policy header in the application layout override.
 
+## Secrets and cryptography
+
+- The bundle stores no credentials and uses no cryptography of its own. CSRF tokens come from `symfony/security-csrf`; page and space ids are random UUIDs (`ValueObject\Uuid`), not secrets.
+- AI provider keys (`OPENAI_API_KEY`, …) live only in the host environment and `config/packages/ai.yaml`; the bundle never reads, stores or logs them.
+- Nothing secret is committed: demo `.env` files are git-ignored, `.env.example` holds placeholders only, and the demo MySQL is reachable only on the internal Docker network.
+- Exported ZIPs are created with mode `0600` in the system temp dir and deleted after sending.
+
+## Logging
+
+Channel `nowo_wiki` (PSR-3, see [CONFIGURATION.md](CONFIGURATION.md#logging-req-obs-001)):
+
+- **Logged:** start / finish / failure of imports and exports (space slug, format, counters), page archiving (space and page slugs), every AI agent call (space slug, question / answer **length**, number of context pages, exception class).
+- **Never logged:** page HTML or Markdown, question / answer text, user ids or e-mails, passwords, session ids, API keys, exception messages (they may embed provider URLs).
+- No `dump()`, `var_dump()` or `error_log()` in `src/`.
+
+## Limits and DoS
+
+| Resource | Limit |
+| -------- | ----- |
+| LLM call | `ai.http_timeout` (default 30 s, timeout + max duration); PHP / Caddy / FrankenPHP layers above it ([timeout hierarchy](CONFIGURATION.md#timeout-hierarchy-req-runtime-001)) |
+| Upload | `import_export.max_upload_bytes` (default 50 MB); ZIP: ≤ 10 000 entries, ≤ 512 MiB declared uncompressed size |
+| Lists | `pagination.*`: 24 spaces / page, 25 revisions / page, 500 pages in the tree; search capped at 25 hits |
+| AI context | `max_context_pages` (8), `max_context_chars` (12 000) |
+
 ## Dependencies
 
-- `nowo-tech/tiptap-editor-bundle` (editor widget)
-- Doctrine ORM (persistence)
-
-Run `composer audit` and Dependabot before releases.
+- `nowo-tech/tiptap-editor-bundle` (editor widget), `symfony/html-sanitizer` (stored HTML), Doctrine ORM (persistence), `league/commonmark` / `league/html-to-markdown` (interchange); `symfony/ai-bundle` is optional.
+- CI runs `composer audit` on every push / PR (job **Composer audit**); Dependabot opens update PRs. Security fixes are released as patch versions as soon as they are available; advisories go through GitHub Security Advisories ([.github/SECURITY.md](../.github/SECURITY.md)).
 
 ## REQ-SEC-004
 
@@ -79,8 +107,18 @@ See [.github/SECURITY.md](../.github/SECURITY.md) for coordinated disclosure.
 
 ## Release security checklist (12.4.1)
 
-- [ ] No secrets in repo or demo `.env` committed
-- [ ] `composer audit` clean
-- [ ] ACL and CSRF documented for integrators
-- [ ] HTML sanitization covered by tests
-- [ ] Demo uses `space_scope: user` with auto-login only for local dev
+Confirm every item before tagging (note it in the release PR):
+
+| # | Item | How to confirm |
+| - | ---- | -------------- |
+| 1 | `docs/SECURITY.md` up to date | Threats, limits and logging sections match the release |
+| 2 | `.env` ignored | Root and `demo/symfony8/.gitignore` ignore `.env` / `.env.dev`; `git ls-files '*.env'` is empty |
+| 3 | No secrets | No keys / passwords in the diff; `.env.example` holds placeholders only |
+| 4 | Safe config / recipe | Defaults: `allow_unauthenticated: false`, `import_roles: [ROLE_ADMIN]`, AI disabled |
+| 5 | Input / output | HTML sanitized on write and read (tests green); CSRF on every POST; slug route requirements |
+| 6 | Dependencies | CI **Composer audit** green on the release SHA |
+| 7 | No-secret logs | Log context reviewed against [Logging](#logging) |
+| 8 | Cryptography | N/A beyond Symfony CSRF tokens and random UUIDs ([Secrets and cryptography](#secrets-and-cryptography)) |
+| 9 | Permissions / exposure | Routes and role lists documented ([Access control](#access-control)); demo auto-login only for local dev |
+| 10 | Limits / DoS | [Limits and DoS](#limits-and-dos) values unchanged or documented in CHANGELOG |
+| 11 | AI security audit (REQ-SEC-004) | Latest grade recorded in [REQ-SEC-004](#req-sec-004) / `BUNDLES_SECURITY_ANALYSIS.md` is a pass |

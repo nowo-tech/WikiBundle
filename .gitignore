@@ -20,3 +20,8 @@
 # Cursor local sandbox (machine-specific; REQ-IDE-005)
 .cursor/sandbox.json
 
+
+# Local environment files (never commit secrets)
+/.env
+/.env.local
+/.env.*.local

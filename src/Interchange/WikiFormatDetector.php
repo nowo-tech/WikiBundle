@@ -15,11 +15,25 @@ use SplFileInfo;
  */
 final readonly class WikiFormatDetector
 {
+    /**
+     * Stores the front matter parser used to inspect Markdown files.
+     *
+     * @param WikiFrontMatterParser $frontMatterParser front matter parser
+     */
     public function __construct(
         private WikiFrontMatterParser $frontMatterParser,
     ) {
     }
 
+    /**
+     * Scores the Markdown files of a directory tree and returns the most likely export format.
+     *
+     * Files named after their directory count for Notion, slug/parent front matter for Outline; ties resolve to Outline.
+     *
+     * @param string $rootDir root directory of the export
+     *
+     * @return WikiInterchangeFormat Notion or Outline
+     */
     public function detect(string $rootDir): WikiInterchangeFormat
     {
         $notionScore  = 0;
@@ -29,14 +43,9 @@ final readonly class WikiFormatDetector
             new RecursiveDirectoryIterator($rootDir, FilesystemIterator::SKIP_DOTS),
         );
 
+        /** @var SplFileInfo $file RecursiveDirectoryIterator yields SplFileInfo (default flags) */
         foreach ($iterator as $file) {
-            // @codeCoverageIgnoreStart
-            if (!$file instanceof SplFileInfo || !$file->isFile()) {
-                continue;
-            }
-            // @codeCoverageIgnoreEnd
-
-            if (strtolower($file->getExtension()) !== 'md') {
+            if (!$file->isFile() || strtolower($file->getExtension()) !== 'md') {
                 continue;
             }
 

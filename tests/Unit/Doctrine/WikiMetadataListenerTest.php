@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Doctrine;
 
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\ORM\Mapping\ManyToOneAssociationMapping;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -20,10 +21,12 @@ final class WikiMetadataListenerTest extends TestCase
     {
         $metadata                                = new ClassMetadata(WikiPageRevision::class);
         $metadata->table                         = ['name' => 'wiki_page_revisions'];
-        $metadata->associationMappings['author'] = [
+        $metadata->associationMappings['author'] = ManyToOneAssociationMapping::fromMappingArray([
             'fieldName'    => 'author',
+            'sourceEntity' => WikiPageRevision::class,
             'targetEntity' => UserInterface::class,
-        ];
+            'joinColumns'  => [['name' => 'author_id', 'referencedColumnName' => 'id']],
+        ]);
 
         $args = $this->createMock(LoadClassMetadataEventArgs::class);
         $args->method('getClassMetadata')->willReturn($metadata);
@@ -32,7 +35,8 @@ final class WikiMetadataListenerTest extends TestCase
             ->loadClassMetadata($args);
 
         self::assertSame('custom_revisions', $metadata->table['name']);
-        self::assertSame('App\\Entity\\User', $metadata->associationMappings['author']['targetEntity']);
+        self::assertSame('App\\Entity\\User', $metadata->associationMappings['author']->targetEntity);
+        self::assertSame('author', $metadata->associationMappings['author']->fieldName);
     }
 
     public function testAppliesSpaceTable(): void

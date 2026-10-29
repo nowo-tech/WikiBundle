@@ -17,12 +17,24 @@ use Symfony\Component\HttpFoundation\RequestStack;
  */
 final readonly class WikiTokenGuard
 {
+    /**
+     * Creates the guard.
+     *
+     * @param RequestStack $requestStack request stack used to read the main request
+     * @param Security|null $security security helper used to read the firewall config, or null to fall back to the `_firewall_context` request attribute
+     */
     public function __construct(
         private RequestStack $requestStack,
         private ?Security $security = null,
     ) {
     }
 
+    /**
+     * Tells whether the security token can be trusted for the current request.
+     * Returns true outside HTTP (no main request); otherwise true only when the main request went through a secured firewall.
+     *
+     * @return bool true when the token can be used for access decisions
+     */
     public function isTokenTrusted(): bool
     {
         $request = $this->requestStack->getMainRequest();

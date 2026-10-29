@@ -9,6 +9,7 @@ wiki:
     new_page: Nieuwe pagina
     pick_page: Kies een pagina in de zijbalk of maak er een aan.
     pages: Pagina's
+    tree_truncated: "Alleen de eerste %count% pagina's worden getoond."
   page:
     new: Nieuwe pagina
     edit: Bewerken
@@ -74,3 +75,8 @@ wiki:
   export:
     outline: Exporteren (Outline ZIP)
     notion: Exporteren (Notion ZIP)
+  pagination:
+    label: "Paginering"
+    previous: "Vorige"
+    next: "Volgende"
+    page_of: "Pagina %page% van %pages%"

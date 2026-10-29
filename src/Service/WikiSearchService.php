@@ -18,12 +18,23 @@ use function is_string;
  */
 final readonly class WikiSearchService
 {
+    /**
+     * Stores the entity manager (or the provider resolving it on each call).
+     *
+     * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager wiki entity manager or its provider
+     */
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
     ) {
     }
 
     /**
+     * Searches non-archived pages of one space by title or current revision content.
+     *
+     * @param WikiSpace $space space to search
+     * @param string $query search text (matched literally; empty yields no results)
+     * @param int $limit maximum number of hits
+     *
      * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
      */
     public function search(WikiSpace $space, string $query, int $limit = 25): array
@@ -32,7 +43,11 @@ final readonly class WikiSearchService
     }
 
     /**
-     * @param list<WikiSpace> $spaces
+     * Searches non-archived pages of several spaces by title or current revision content.
+     *
+     * @param list<WikiSpace> $spaces spaces to search (empty yields no results)
+     * @param string $query search text (matched literally; empty yields no results)
+     * @param int $limit maximum number of hits
      *
      * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
      */

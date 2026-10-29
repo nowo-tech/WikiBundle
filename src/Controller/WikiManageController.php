@@ -42,7 +42,12 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
+use function array_slice;
+use function ceil;
+use function count;
 use function is_string;
+use function max;
+use function min;
 use function sprintf;
 
 /**
@@ -55,11 +60,21 @@ final class WikiManageController extends AbstractController
 {
     use WikiCsrfTrait;
 
+    /** Defaults of the nowo_wiki.pagination config node (REQ-PERF-001). */
+    public const DEFAULT_PAGINATION = [
+        'spaces_per_page'    => 24,
+        'revisions_per_page' => 25,
+        'max_tree_pages'     => 500,
+    ];
+
     /**
-     * @param array<string, array{path: string, name: string}> $routes
-     * @param array<string, string> $templates
-     * @param array{tiptap_config: string} $editor
-     * @param array{enabled: bool, max_upload_bytes: int} $importExport
+     * Wires the wiki services and the processed nowo_wiki configuration.
+     *
+     * @param array<string, array{path: string, name: string}> $routes route name/path per action
+     * @param array<string, string> $templates Twig template per page
+     * @param array{tiptap_config: string} $editor editor options
+     * @param array{enabled: bool, max_upload_bytes: int} $importExport import/export options
+     * @param array{spaces_per_page: int, revisions_per_page: int, max_tree_pages: int} $pagination list size limits
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -81,18 +96,32 @@ final class WikiManageController extends AbstractController
         private readonly array $importExport,
         private readonly bool $allowUnauthenticated = false,
         private readonly ?WikiTokenGuard $tokenGuard = null,
+        private readonly array $pagination = self::DEFAULT_PAGINATION,
     ) {
     }
 
-    public function index(): Response
+    /**
+     * Lists the spaces the user can access, paginated by {@code pagination.spaces_per_page} ({@code ?page=N}).
+     *
+     * @param Request|null $request current request (reads the {@code page} query parameter)
+     *
+     * @return Response rendered index page
+     */
+    public function index(?Request $request = null): Response
     {
         $this->denyUnlessFeature('list');
-        $user   = $this->requireUser();
-        $spaces = $this->spaceAccessResolver->listSpacesForUser($user);
+        $user      = $this->requireUser();
+        $spaces    = $this->spaceAccessResolver->listSpacesForUser($user);
+        $perPage   = max(1, $this->pagination['spaces_per_page']);
+        $total     = count($spaces);
+        $pageCount = max(1, (int) ceil($total / $perPage));
+        $current   = min($pageCount, max(1, $request?->query->getInt('page', 1) ?? 1));
 
         return $this->render($this->templates['index'], [
             'layout'          => $this->templates['layout'],
             'spaces'          => $spaces,
+            'space_page'      => array_slice($spaces, ($current - 1) * $perPage, $perPage),
+            'pagination'      => ['page' => $current, 'pages' => $pageCount, 'total' => $total, 'per_page' => $perPage],
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'can_create'      => $this->accessChecker->canCreate($user),
@@ -102,18 +131,26 @@ final class WikiManageController extends AbstractController
         ]);
     }
 
+    /**
+     * Shows a space with its page tree (capped at {@code pagination.max_tree_pages}).
+     *
+     * @param string $spaceSlug space slug from the route
+     *
+     * @return Response rendered space page
+     */
     public function space(string $spaceSlug): Response
     {
         $this->denyUnlessFeature('list');
-        $user  = $this->requireUser();
-        $space = $this->requireAccessibleSpace($user, $spaceSlug);
-        $pages = $this->pageRepository->findActiveBySpace($space);
-        $tree  = $this->pageTreeBuilder->build($pages);
+        $user                   = $this->requireUser();
+        $space                  = $this->requireAccessibleSpace($user, $spaceSlug);
+        [$tree, $treeTruncated] = $this->buildTree($space);
 
         return $this->render($this->templates['space'], [
             'layout'          => $this->templates['layout'],
             'space'           => $space,
             'tree'            => $tree,
+            'tree_truncated'  => $treeTruncated,
+            'max_tree_pages'  => $this->pagination['max_tree_pages'],
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'can_create'      => $this->accessChecker->canCreate($user),
@@ -124,14 +161,22 @@ final class WikiManageController extends AbstractController
         ]);
     }
 
+    /**
+     * Shows the current revision of a page next to the (capped) space tree.
+     *
+     * @param string $spaceSlug space slug from the route
+     * @param string $pageSlug page slug from the route
+     *
+     * @return Response rendered page view
+     */
     public function viewPage(string $spaceSlug, string $pageSlug): Response
     {
         $this->denyUnlessFeature('list');
-        $user     = $this->requireUser();
-        $space    = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page     = $this->requirePage($space, $pageSlug);
-        $revision = $page->getCurrentRevision();
-        $tree     = $this->pageTreeBuilder->build($this->pageRepository->findActiveBySpace($space));
+        $user                   = $this->requireUser();
+        $space                  = $this->requireAccessibleSpace($user, $spaceSlug);
+        $page                   = $this->requirePage($space, $pageSlug);
+        $revision               = $page->getCurrentRevision();
+        [$tree, $treeTruncated] = $this->buildTree($space);
 
         return $this->render($this->templates['page_view'], [
             'layout'          => $this->templates['layout'],
@@ -139,6 +184,8 @@ final class WikiManageController extends AbstractController
             'page'            => $page,
             'revision'        => $revision,
             'tree'            => $tree,
+            'tree_truncated'  => $treeTruncated,
+            'max_tree_pages'  => $this->pagination['max_tree_pages'],
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'can_edit'        => $this->accessChecker->canEdit($user),
@@ -146,6 +193,17 @@ final class WikiManageController extends AbstractController
         ]);
     }
 
+    /**
+     * Shows the edit form of a page and saves a new revision on valid submission.
+     *
+     * Redirects to the page view after saving; re-renders the form otherwise.
+     *
+     * @param Request $request current request (form submission)
+     * @param string $spaceSlug space slug from the route
+     * @param string $pageSlug page slug from the route
+     *
+     * @return Response rendered edit form or redirect to the page view
+     */
     public function editPage(Request $request, string $spaceSlug, string $pageSlug): Response
     {
         $this->denyUnlessFeature('edit');
@@ -187,6 +245,16 @@ final class WikiManageController extends AbstractController
         ]);
     }
 
+    /**
+     * Shows the create-page form and creates the page (with its first revision) on valid submission.
+     *
+     * Re-renders the form with an error flash when the page service rejects the input (e.g. duplicate slug).
+     *
+     * @param Request $request current request (form submission)
+     * @param string $spaceSlug space slug from the route
+     *
+     * @return Response rendered create form or redirect to the new page
+     */
     public function newPage(Request $request, string $spaceSlug): Response
     {
         $this->denyUnlessFeature('create');
@@ -238,24 +306,49 @@ final class WikiManageController extends AbstractController
         ]);
     }
 
-    public function pageHistory(string $spaceSlug, string $pageSlug): Response
+    /**
+     * Lists the revisions of a page, newest first, paginated by {@code pagination.revisions_per_page} ({@code ?page=N}).
+     *
+     * @param string $spaceSlug space slug from the route
+     * @param string $pageSlug page slug from the route
+     * @param Request|null $request current request (reads the {@code page} query parameter)
+     *
+     * @return Response rendered history page
+     */
+    public function pageHistory(string $spaceSlug, string $pageSlug, ?Request $request = null): Response
     {
         $this->denyUnlessFeature('history');
-        $user      = $this->requireUser();
-        $space     = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page      = $this->requirePage($space, $pageSlug);
-        $revisions = $this->revisionRepository->findByPage($page);
+        $user    = $this->requireUser();
+        $space   = $this->requireAccessibleSpace($user, $spaceSlug);
+        $page    = $this->requirePage($space, $pageSlug);
+        $perPage = max(1, $this->pagination['revisions_per_page']);
+        $current = max(1, $request?->query->getInt('page', 1) ?? 1);
+        // One extra row: tells whether an older page exists and gives the last row its "compare" target.
+        $fetched = $this->revisionRepository->findByPage($page, $perPage + 1, ($current - 1) * $perPage);
 
         return $this->render($this->templates['page_history'], [
             'layout'          => $this->templates['layout'],
             'space'           => $space,
             'page'            => $page,
-            'revisions'       => $revisions,
+            'revisions'       => array_slice($fetched, 0, $perPage),
+            'older_revision'  => $fetched[$perPage] ?? null,
+            'pagination'      => ['page' => $current, 'has_previous' => $current > 1, 'has_next' => isset($fetched[$perPage]), 'per_page' => $perPage],
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
         ]);
     }
 
+    /**
+     * Renders the diff between two revisions of a page selected by the {@code from} / {@code to} query numbers.
+     *
+     * @param Request $request current request (reads the {@code from} and {@code to} query parameters)
+     * @param string $spaceSlug space slug from the route
+     * @param string $pageSlug page slug from the route
+     *
+     * @throws NotFoundHttpException when either revision does not exist
+     *
+     * @return Response rendered diff page
+     */
     public function pageDiff(Request $request, string $spaceSlug, string $pageSlug): Response
     {
         $this->denyUnlessFeature('history');
@@ -286,6 +379,17 @@ final class WikiManageController extends AbstractController
         ]);
     }
 
+    /**
+     * Archives a page after validating its CSRF token, then redirects to the space.
+     *
+     * @param Request $request current request (carries the CSRF token)
+     * @param string $spaceSlug space slug from the route
+     * @param string $pageSlug page slug from the route
+     *
+     * @throws AccessDeniedHttpException when the CSRF token is invalid
+     *
+     * @return RedirectResponse redirect to the space page
+     */
     public function archivePage(Request $request, string $spaceSlug, string $pageSlug): RedirectResponse
     {
         $this->denyUnlessFeature('archive');
@@ -302,6 +406,13 @@ final class WikiManageController extends AbstractController
         return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
     }
 
+    /**
+     * Searches pages within one space ({@code ?space=}) or across all accessible spaces ({@code ?q=} only).
+     *
+     * @param Request $request current request (reads the {@code q} and {@code space} query parameters)
+     *
+     * @return Response rendered search results page
+     */
     public function search(Request $request): Response
     {
         $this->denyUnlessFeature('list');
@@ -338,6 +449,16 @@ final class WikiManageController extends AbstractController
         ]);
     }
 
+    /**
+     * Exports a space to Outline or Notion Markdown and streams it as a ZIP download (deleted after send).
+     *
+     * @param Request $request current request (reads the {@code format} query parameter)
+     * @param string $spaceSlug space slug from the route
+     *
+     * @throws NotFoundHttpException when import/export is disabled
+     *
+     * @return BinaryFileResponse ZIP attachment response
+     */
     public function exportSpace(Request $request, string $spaceSlug): BinaryFileResponse
     {
         $this->denyUnlessFeature('export');
@@ -389,6 +510,19 @@ final class WikiManageController extends AbstractController
         return $response;
     }
 
+    /**
+     * Imports an uploaded Outline/Notion ZIP export into a space and flashes the import report.
+     *
+     * Missing, oversized or non-ZIP uploads and importer validation errors are reported as error flashes.
+     *
+     * @param Request $request current request (import form submission with the uploaded archive)
+     * @param string $spaceSlug space slug from the route
+     *
+     * @throws NotFoundHttpException when import/export is disabled
+     * @throws AccessDeniedHttpException when the form or its CSRF token is invalid
+     *
+     * @return RedirectResponse redirect to the space page
+     */
     public function importSpace(Request $request, string $spaceSlug): RedirectResponse
     {
         $this->denyUnlessFeature('import');
@@ -467,6 +601,17 @@ final class WikiManageController extends AbstractController
         return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
     }
 
+    /**
+     * Shows the AI question form and, on a valid POST, asks the AI assistant and renders its answer and sources.
+     *
+     * Assistant failures are rendered as an error message instead of being rethrown.
+     *
+     * @param Request $request current request (reads {@code q} and {@code space} from the body or query)
+     *
+     * @throws AccessDeniedHttpException when a POST carries an invalid CSRF token
+     *
+     * @return Response rendered AI question page
+     */
     public function askAi(Request $request): Response
     {
         $this->denyUnlessFeature('ai');
@@ -641,6 +786,19 @@ final class WikiManageController extends AbstractController
         }
 
         throw new NotFoundHttpException('Space not found.');
+    }
+
+    /**
+     * Builds the page tree of a space from at most {@code pagination.max_tree_pages} active pages.
+     *
+     * @return array{0: list<array{page: WikiPage, children: list<mixed>}>, 1: bool} tree and whether pages were left out
+     */
+    private function buildTree(WikiSpace $space): array
+    {
+        $max   = max(1, $this->pagination['max_tree_pages']);
+        $pages = $this->pageRepository->findActiveBySpace($space, $max + 1);
+
+        return [$this->pageTreeBuilder->build(array_slice($pages, 0, $max)), count($pages) > $max];
     }
 
     private function requirePage(WikiSpace $space, string $pageSlug): WikiPage

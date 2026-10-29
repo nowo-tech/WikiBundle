@@ -15,6 +15,13 @@ use Symfony\Component\Security\Core\User\UserInterface;
  */
 final readonly class WikiSpaceAccessResolver implements WikiSpaceAccessResolverInterface
 {
+    /**
+     * Wires the space repository, team membership resolver and default owner scope.
+     *
+     * @param WikiSpaceRepositoryInterface $spaceRepository space persistence
+     * @param WikiTeamMembershipResolverInterface $teamMembershipResolver resolves the team ids of a user
+     * @param string $defaultOwnerScope configured space scope ({@code team} or {@code user})
+     */
     public function __construct(
         private WikiSpaceRepositoryInterface $spaceRepository,
         private WikiTeamMembershipResolverInterface $teamMembershipResolver,
@@ -23,6 +30,10 @@ final readonly class WikiSpaceAccessResolver implements WikiSpaceAccessResolverI
     }
 
     /**
+     * Lists the spaces owned by the user's teams or by the user, depending on the configured owner scope.
+     *
+     * @param UserInterface $user current user
+     *
      * @return list<WikiSpace>
      */
     public function listSpacesForUser(UserInterface $user): array
@@ -41,6 +52,14 @@ final readonly class WikiSpaceAccessResolver implements WikiSpaceAccessResolverI
         };
     }
 
+    /**
+     * Tells whether the space is among the spaces listed for the user.
+     *
+     * @param UserInterface $user current user
+     * @param WikiSpace $space space to check
+     *
+     * @return bool true when the space is visible to the user
+     */
     public function canAccessSpace(UserInterface $user, WikiSpace $space): bool
     {
         foreach ($this->listSpacesForUser($user) as $accessible) {

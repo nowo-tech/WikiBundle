@@ -21,11 +21,14 @@ use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use ZipArchive;
+
+use const JSON_THROW_ON_ERROR;
 
 final class WikiDocumentImporterTest extends TestCase
 {
@@ -142,6 +145,50 @@ MD);
         } finally {
             rmdir($root);
         }
+    }
+
+    public function testLogsStartAndFinishWithCounters(): void
+    {
+        $root = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/intro.md', "# Intro\n\nSecret body text.");
+        $logger = new RecordingLogger();
+
+        try {
+            $this->importer($this->pageRepository(), logger: $logger)->import(
+                new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1'),
+                $root,
+                WikiInterchangeFormat::Outline,
+                new TestUser(),
+            );
+        } finally {
+            unlink($root . '/intro.md');
+            rmdir($root);
+        }
+
+        self::assertSame(['info: Wiki import started.', 'info: Wiki import finished.'], $logger->lines());
+        self::assertSame('docs', $logger->records[1]['context']['space']);
+        self::assertSame(1, $logger->records[1]['context']['created']);
+        self::assertStringNotContainsString('Secret body', json_encode($logger->records, JSON_THROW_ON_ERROR));
+    }
+
+    public function testLogsFailureAndRethrows(): void
+    {
+        $logger = new RecordingLogger();
+
+        try {
+            $this->importer($this->pageRepository(), logger: $logger)->import(
+                new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1'),
+                '/tmp/missing-' . bin2hex(random_bytes(4)),
+                WikiInterchangeFormat::Outline,
+                new TestUser(),
+            );
+            self::fail('Expected InvalidArgumentException.');
+        } catch (InvalidArgumentException) {
+        }
+
+        self::assertSame(['info: Wiki import started.', 'error: Wiki import failed.'], $logger->lines());
+        self::assertSame(InvalidArgumentException::class, $logger->records[1]['context']['exception_class']);
     }
 
     public function testRejectsMissingSource(): void
@@ -481,6 +528,7 @@ MD);
     private function importer(
         WikiPageRepositoryInterface $pageRepository,
         ?WikiPageRevisionRepositoryInterface $revisionRepository = null,
+        ?RecordingLogger $logger = null,
     ): WikiDocumentImporter {
         $revisionRepository ??= $this->createConfiguredMock(
             WikiPageRevisionRepositoryInterface::class,
@@ -506,6 +554,7 @@ MD);
             $pageRepository,
             $pageService,
             new WikiSlugger(),
+            $logger,
         );
     }
 }

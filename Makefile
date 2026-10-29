@@ -1,6 +1,6 @@
 # Wiki Bundle - Development
 SHELL := /bin/bash
-.PHONY: help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
+.PHONY: help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
 
 COMPOSE_FILE ?= docker-compose.yml
 # Prefer Compose V2; absolute docker path avoids shadowing by local docker/ (REQ-MAKE-010).
@@ -16,21 +16,51 @@ SERVICE_PHP ?= php
 help:
 	@echo "Wiki Bundle - Development Commands"
 	@echo ""
-	@echo "  up              Start Docker container"
-	@echo "  down            Stop Docker container"
-	@echo "  build           Build Docker image"
-	@echo "  clean           Stop containers and remove coverage artifacts"
+	@echo "Container:"
+	@echo "  up              Build + start the bundle container (composer + pnpm install)"
+	@echo "  down            Stop the bundle container"
+	@echo "  build           Rebuild the Docker image"
+	@echo "  shell           Open a shell in the PHP container"
+	@echo "Dependencies:"
 	@echo "  install         Install Composer + pnpm dependencies"
-	@echo "  assets          Build TypeScript (pnpm install + pnpm run build)"
-	@echo "  test-ts         Run TypeScript (Vitest) unit tests"
+	@echo "Assets:"
+	@echo "  assets          Build TypeScript/CSS (pnpm install + pnpm run build)"
+	@echo "Tests:"
 	@echo "  test            Run PHPUnit tests"
-	@echo "  test-coverage   Run tests with code coverage"
-	@echo "  release-check   Pre-release: check-open-prs, phpstan, coverage, demos"
-	@echo "  demo-smoke      REQ-TEST-011: boot demo and assert HTTP 200"
-	@echo "  check-open-prs  REQ-REL-003: fail if unresolved open PRs"
-	@echo "  check-no-raw-html-form  Fail on raw <form>/<input>/<textarea>/<select> in Twig (REQ-TWIG-005)"
+	@echo "  test-coverage   Run PHPUnit with coverage (text + clover + html)"
+	@echo "  test-coverage-100  Coverage + fail below 100% (REQ-TEST-003)"
+	@echo "  test-ts         Vitest with coverage (fails below the vitest.config.ts thresholds)"
+	@echo "Quality:"
+	@echo "  cs-check        PHP-CS-Fixer dry run"
+	@echo "  cs-fix          Apply PHP-CS-Fixer"
+	@echo "  rector          Apply Rector"
+	@echo "  rector-dry      Rector dry run"
+	@echo "  phpstan         PHPStan (level 8, ignoreErrors: [])"
+	@echo "  igor            Igor worker-state audit"
+	@echo "  qa              cs-check + test"
+	@echo "Release:"
+	@echo "  release-check   Full pre-release pipeline (REQ-MAKE-002)"
+	@echo "  composer-sync   composer validate --strict + install"
+	@echo "Cleanup:"
+	@echo "  clean           Stop containers and remove coverage artifacts"
+	@echo "Composer:"
+	@echo "  update          composer update in the bundle container"
+	@echo "  update-deps     composer update in the bundle and every demo (monorepo helper)"
+	@echo "  validate        composer validate --strict"
 	@echo ""
-	@echo "Demos: make -C demo up"
+	@echo "Bundle-specific:"
+	@echo "  validate-translations  YAML syntax + 7-locale key parity (REQ-MAKE-004 / REQ-I18N-002)"
+	@echo "  twig-lint       Twig CS fixer lint"
+	@echo "  check-twig-extra       Twig Extra usage check (REQ-TWIG-004)"
+	@echo "  check-no-raw-html-form Fail on raw <form>/<input>/<textarea>/<select> in Twig (REQ-TWIG-005)"
+	@echo "  check-open-prs  REQ-REL-003: fail if unresolved open PRs"
+	@echo "  check-no-cursor-coauthor  REQ-GIT-001 commit trailer check"
+	@echo "  setup-hooks     Install .githooks (commit-msg)"
+	@echo "  demo-smoke      REQ-TEST-011: boot demo and assert HTTP 200"
+	@echo ""
+	@echo "Demos:"
+	@echo "  make -C demo up | down | update-bundle | release-check"
+	@echo "  release-check-demos  Run release-check in every demo"
 
 build: ensure-up
 	$(COMPOSE) build
@@ -71,7 +101,7 @@ assets: ensure-up
 
 test-ts: ensure-up
 	$(COMPOSE) exec -T -e CI=true $(SERVICE_PHP) pnpm install --no-frozen-lockfile 2>/dev/null || true
-	$(COMPOSE) exec -T $(SERVICE_PHP) pnpm run test:coverage | tee coverage-ts.txt
+	set -o pipefail; $(COMPOSE) exec -T $(SERVICE_PHP) pnpm run test:coverage | tee coverage-ts.txt
 	sh .scripts/ts-coverage-percent.sh coverage-ts.txt
 
 test: ensure-up
@@ -103,8 +133,9 @@ rector-dry: ensure-up
 phpstan: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer phpstan
 
+# REQ-MAKE-004 / REQ-I18N-002: YAML syntax + required locales + key parity against en.
 validate-translations: ensure-up
-	$(COMPOSE) exec -T $(SERVICE_PHP) sh -c 'for f in src/Resources/translations/*.yaml; do php -r "require \"vendor/autoload.php\"; Symfony\\Component\\Yaml\\Yaml::parseFile(\$$argv[1]);" "$$f" || exit 1; done'
+	$(COMPOSE) exec -T $(SERVICE_PHP) php scripts/check-translation-parity.php
 
 qa: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer qa

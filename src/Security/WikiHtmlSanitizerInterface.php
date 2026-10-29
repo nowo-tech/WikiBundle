@@ -9,5 +9,12 @@ namespace Nowo\WikiBundle\Security;
  */
 interface WikiHtmlSanitizerInterface
 {
+    /**
+     * Sanitizes rich-text HTML, keeping only allowlisted elements, attributes and URLs.
+     *
+     * @param string $html untrusted HTML
+     *
+     * @return string sanitized HTML
+     */
     public function sanitize(string $html): string;
 }

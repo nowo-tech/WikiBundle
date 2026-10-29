@@ -22,6 +22,25 @@ services:
         arguments:
             $userClass: '%nowo_wiki.user_class%'
 
+    # REQ-OBS-001: import / export / archive log start, success and failure on the nowo_wiki channel.
+    Nowo\WikiBundle\Interchange\WikiDocumentImporter:
+        arguments:
+            $logger: '@?logger'
+        tags:
+            - { name: monolog.logger, channel: nowo_wiki }
+
+    Nowo\WikiBundle\Interchange\WikiDocumentExporter:
+        arguments:
+            $logger: '@?logger'
+        tags:
+            - { name: monolog.logger, channel: nowo_wiki }
+
+    Nowo\WikiBundle\Service\WikiPageService:
+        arguments:
+            $logger: '@?logger'
+        tags:
+            - { name: monolog.logger, channel: nowo_wiki }
+
     Nowo\WikiBundle\Command\:
         resource: '../../Command/'
         tags: ['console.command']
@@ -48,6 +67,7 @@ services:
             $editor: '%nowo_wiki.editor%'
             $importExport: '%nowo_wiki.import_export%'
             $allowUnauthenticated: '%nowo_wiki.security.allow_unauthenticated%'
+            $pagination: '%nowo_wiki.pagination%'
 
     # Form Kit injects FormOptionsMerger into tagged form types (FormOptionsMergerInjectorCompilerPass).
     Nowo\WikiBundle\Form\:

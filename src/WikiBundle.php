@@ -17,11 +17,21 @@ final class WikiBundle extends Bundle
 {
     public const TRANSLATION_DOMAIN = 'NowoWikiBundle';
 
+    /**
+     * Registers the bundle compiler passes (Twig template paths).
+     *
+     * @param ContainerBuilder $container container being compiled
+     */
     public function build(ContainerBuilder $container): void
     {
         $container->addCompilerPass(new TwigPathsPass());
     }
 
+    /**
+     * Returns the bundle DI extension, lazily creating and caching a WikiExtension instance.
+     *
+     * @return ExtensionInterface the `nowo_wiki` configuration extension
+     */
     public function getContainerExtension(): ExtensionInterface
     {
         if (!$this->extension instanceof ExtensionInterface) {

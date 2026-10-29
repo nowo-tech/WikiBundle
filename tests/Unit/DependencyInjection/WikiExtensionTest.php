@@ -27,8 +27,12 @@ use Symfony\Bundle\SecurityBundle\DependencyInjection\SecurityExtension;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 use function is_array;
 
@@ -191,6 +195,56 @@ final class WikiExtensionTest extends TestCase
         self::assertSame('http_client', (string) $factory[0]);
         self::assertSame('withOptions', $factory[1]);
         self::assertSame([['timeout' => 12.0, 'max_duration' => 12.0]], $container->getDefinition('nowo_wiki.ai.http_client')->getArguments());
+    }
+
+    /**
+     * REQ-RUNTIME-001: a provider that stops sending data must fail with a transport timeout instead of
+     * pinning the PHP (FrankenPHP worker) thread.
+     */
+    public function testAiHttpClientTimesOutOnStalledProvider(): void
+    {
+        if (!interface_exists(AgentInterface::class)) {
+            self::markTestSkipped('symfony/ai-bundle is not installed in this environment.');
+        }
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'ai'         => ['enabled' => true, 'http_timeout' => 1],
+        ]], $container);
+
+        // Same factory call as the service definition, on a mock transport whose body stalls ('' chunk = idle).
+        $options = $container->getDefinition('nowo_wiki.ai.http_client')->getArgument(0);
+        self::assertIsArray($options);
+        $client = (new MockHttpClient(static fn (): MockResponse => new MockResponse((static function (): iterable {
+            yield '';
+        })())))->withOptions($options);
+
+        $started = microtime(true);
+        try {
+            $client->request('POST', 'https://llm.example.test/v1/chat')->getContent();
+            self::fail('Expected a transport timeout.');
+        } catch (TransportExceptionInterface $exception) {
+            self::assertStringContainsString('timeout', strtolower($exception->getMessage()));
+        }
+        self::assertLessThan(5.0, microtime(true) - $started);
+    }
+
+    public function testAiAssistantLogsOnTheWikiChannel(): void
+    {
+        if (!interface_exists(AgentInterface::class)) {
+            self::markTestSkipped('symfony/ai-bundle is not installed in this environment.');
+        }
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'ai' => ['enabled' => true]]], $container);
+
+        $definition = $container->getDefinition(SymfonyAiWikiAssistant::class);
+        self::assertEquals(new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE), $definition->getArgument('$logger'));
+        self::assertSame([['channel' => 'nowo_wiki']], $definition->getTag('monolog.logger'));
+        self::assertSame(['spaces_per_page' => 24, 'revisions_per_page' => 25, 'max_tree_pages' => 500], $container->getParameter('nowo_wiki.pagination'));
     }
 
     public function testRepositoriesAndSearchResolveEntityManagerPerCall(): void

@@ -17,27 +17,27 @@ Others are **N/A** (or already covered by Symfony) so the decision stays auditab
 | PSR | Decision | How |
 | --- | -------- | --- |
 | PSR-12 (coding style) | **Adopted** | `@PSR12` in `.php-cs-fixer.dist.php` (Nowo REQ-CS-001). |
-| PSR-4 (autoloading) | **Adopted** | `composer.json` `autoload` / `autoload-dev` PSR-4 map for package sources and tests. |
+| PSR-4 (autoloading) | **Adopted** | `composer.json` `autoload` / `autoload-dev` PSR-4 map for `src/` and `tests/`. |
 
 ## Interface / contract PSRs
 
 | PSR | Decision | Notes |
 | --- | -------- | ----- |
-| PSR-3 Logger | **N/A** | Logging calls exist but there is no public/injectable logger SPI yet; do not add `psr/log` without type-hints. |
+| PSR-3 Logger | **Adopted** | `psr/log` in `require`. `WikiDocumentImporter`, `WikiDocumentExporter`, `WikiPageService` and `SymfonyAiWikiAssistant` accept an optional `Psr\Log\LoggerInterface` (wired `@?logger`, Monolog channel `nowo_wiki`, `NullLogger` fallback). Tests use a PSR-3 `AbstractLogger` recorder. |
 | PSR-6 / PSR-16 Cache | **N/A** | No package-owned cache layer. |
-| PSR-7 / PSR-17 HTTP messages | **N/A** | Symfony HttpFoundation (or no HTTP messages API) is the correct surface; a PSR-7 bridge would not help consumers. |
-| PSR-18 HTTP client | **N/A** | No outbound HTTP client. |
+| PSR-7 / PSR-17 HTTP messages | **N/A** | The manage UI is plain Symfony HttpFoundation controllers; no HTTP-message API for consumers. |
+| PSR-18 HTTP client | **N/A — Symfony HttpClient SPI** | The only outbound HTTP is the LLM call made by `symfony/ai-platform`, which requires a Symfony `HttpClientInterface`; the bundle exposes `nowo_wiki.ai.http_client` (`http_client->withOptions(timeout, max_duration)`) as that client. A PSR-18 type would not fit the platform API. Timeouts per REQ-RUNTIME-001 ([CONFIGURATION.md](CONFIGURATION.md#timeout-hierarchy-req-runtime-001)). |
 | PSR-11 Container | **N/A** | No container locator in the public API; constructor injection only. |
-| PSR-14 Event dispatcher | **Already satisfied via Symfony** | Uses Symfony `EventDispatcherInterface` / subscribers (PSR-14 compatible). No separate FIG dependency required. |
-| PSR-15 HTTP middleware | **N/A** | Uses Symfony kernel listeners/subscribers (or has no HTTP middleware pipeline). |
-| PSR-20 Clock | **N/A** | Uses `DateTimeImmutable` / system time internally; no injectable clock SPI yet. Re-evaluate if tests need time freezing at the boundary. |
+| PSR-14 Event dispatcher | **Already satisfied via Symfony** | `WikiPageService` dispatches `WikiPageSavedEvent` / `WikiPageArchivedEvent` through Symfony `EventDispatcherInterface` (PSR-14 compatible). |
+| PSR-15 HTTP middleware | **N/A** | No middleware pipeline. |
+| PSR-20 Clock | **N/A** | Timestamps (`createdAt`, `updatedAt`, `archivedAt`) are plain `DateTimeImmutable` set by entities; no time-dependent logic (TTL, tokens, scheduling) that would need an injectable clock. |
 
 ## Summary
 
-- **Adopted beyond baseline:** none (baseline PSR-12 + PSR-4 only).
+- **Adopted beyond baseline:** PSR-3 (logging of imports, exports, archiving and AI calls).
 - **Rule:** do not add `psr/*` Composer dependencies without matching type-hints and DI wiring.
-- **Re-evaluate** when the package gains logging, HTTP, cache, clock, or event SPIs.
+- **Re-evaluate** when the package gains cache, clock or HTTP-message SPIs.
 
 ---
 
-_REQ-CS-007 evaluation date: 2026-08-21._
+_REQ-CS-007 evaluation date: 2026-10-29._
