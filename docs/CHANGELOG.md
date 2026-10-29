@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.8.0] - 2026-10-29](#180---2026-10-29)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
@@ -37,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-29
+
+Wiki: pagination, PSR-3 logging, PHPStan level 8, tree export keeps grandchildren, AI timeout hierarchy See [UPGRADING](UPGRADING.md#to-180).
+
 ### Added
 
 - `nowo_wiki.pagination` (`spaces_per_page` 24, `revisions_per_page` 25, `max_tree_pages` 500): the wiki index and the page history are paginated (`?page=N`, new `manage/_pagination.html.twig`), and the sidebar tree loads at most `max_tree_pages` pages with a notice linking to search (REQ-PERF-001).
@@ -62,6 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - The legacy array-mapping branch of `WikiMetadataListener` (doctrine/orm ^3 only produces `AssociationMapping` objects) and coverage-ignored dead branches in the interchange iterators.
+
+[1.8.0]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.8.0
 
 ## [1.7.2] - 2026-10-28
 
@@ -440,7 +447,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.7.2...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.8.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

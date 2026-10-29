@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.8.0](#to-180)
 - [To 1.7.2](#to-172)
 - [To 1.7.1](#to-171)
 - [To 1.7.0](#to-170)
@@ -40,6 +41,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.8.0
+
+From **1.7.2**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 No configuration change is required.
 
