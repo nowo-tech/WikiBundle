@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.8.1](#to-181)
 - [To 1.8.0](#to-180)
 - [To 1.7.2](#to-172)
 - [To 1.7.1](#to-171)
@@ -41,6 +42,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.8.1
+
+From **1.8.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 - Keep importing the routes with `type: nowo_wiki`. Do not add an `attribute` import of the bundle controllers: it would bypass the configured paths, names and `route_prefix`.
 

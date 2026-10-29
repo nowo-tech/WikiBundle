@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.8.1] - 2026-10-29](#181---2026-10-29)
 - [[1.8.0] - 2026-10-29](#180---2026-10-29)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
@@ -38,9 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-29
+
+Wiki: routes declared with #[Route] attributes (configurable paths/names kept) See [UPGRADING](UPGRADING.md#to-181).
+
 ### Changed
 
 - Routes are declared with `#[Route]` on `WikiManageController` (REQ-SF-004); `WikiRouteLoader` reads them and still applies the configured `nowo_wiki.routes.<key>` path / name and `route_prefix`. Methods and requirements are unchanged.
+
+[1.8.1]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.8.1
 
 ## [1.8.0] - 2026-10-29
 
@@ -451,7 +458,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.8.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
