@@ -42,6 +42,8 @@
 
 ## Unreleased
 
+- Keep importing the routes with `type: nowo_wiki`. Do not add an `attribute` import of the bundle controllers: it would bypass the configured paths, names and `route_prefix`.
+
 ## To 1.8.0
 
 From **1.7.2**:

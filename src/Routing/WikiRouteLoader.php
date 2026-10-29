@@ -5,20 +5,34 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Routing;
 
 use Nowo\WikiBundle\Controller\WikiManageController;
+use ReflectionClass;
+use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\Config\Loader\Loader;
+use Symfony\Component\Routing\Attribute\Route as RouteAttribute;
 use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
 
 /**
- * Route loader for the {@code nowo_wiki} resource type: builds the wiki management routes from configuration.
+ * Route loader for the {@code nowo_wiki} resource type (REQ-SF-004).
+ *
+ * The routes are declared with #[Route] on {@see WikiManageController} (methods, requirements, default path / name)
+ * and carry their configuration key in {@see self::ROUTE_KEY_OPTION}. The loader keeps the public configuration
+ * contract: path and name come from `nowo_wiki.routes.<key>` and `route_prefix` is prepended. Do not import the
+ * controller with `type: attribute`: that would bypass the configured paths, names and prefix.
  */
 final class WikiRouteLoader extends Loader
 {
     private bool $loaded = false;
 
+    /** Route option carrying the `routes.<key>` configuration key of an action. */
+    public const ROUTE_KEY_OPTION = 'nowo_wiki_route';
+
+    /** Space slug pattern. */
+    public const SPACE_SLUG = '[a-z0-9]+(?:-[a-z0-9]+)*';
+
     /** Slug pattern excluding reserved segment "new" (create-page route). */
-    private const PAGE_SLUG = '(?!new$)[a-z0-9]+(?:-[a-z0-9]+)*';
+    public const PAGE_SLUG = '(?!new$)[a-z0-9]+(?:-[a-z0-9]+)*';
 
     /**
      * Stores the configured routes and the prefix prepended to every path.
@@ -55,36 +69,24 @@ final class WikiRouteLoader extends Loader
         $collection   = new RouteCollection();
         $controller   = WikiManageController::class;
 
-        /** @var array<string, array{0: string, 1: list<string>, 2: array<string, string>}> $map */
-        $map = [
-            'index'        => ['index', ['GET'], []],
-            'space'        => ['space', ['GET'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*']],
-            'page_new'     => ['newPage', ['GET', 'POST'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*']],
-            'page_view'    => ['viewPage', ['GET'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*', 'pageSlug' => self::PAGE_SLUG]],
-            'page_edit'    => ['editPage', ['GET', 'POST'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*', 'pageSlug' => self::PAGE_SLUG]],
-            'page_history' => ['pageHistory', ['GET'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*', 'pageSlug' => self::PAGE_SLUG]],
-            'page_diff'    => ['pageDiff', ['GET'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*', 'pageSlug' => self::PAGE_SLUG]],
-            'page_archive' => ['archivePage', ['POST'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*', 'pageSlug' => self::PAGE_SLUG]],
-            'search'       => ['search', ['GET'], []],
-            'ai_ask'       => ['askAi', ['GET', 'POST'], []],
-            'space_export' => ['exportSpace', ['GET'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*']],
-            'space_import' => ['importSpace', ['POST'], ['spaceSlug' => '[a-z0-9]+(?:-[a-z0-9]+)*']],
-        ];
+        foreach ((new ReflectionClass($controller))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+            foreach ($method->getAttributes(RouteAttribute::class) as $attribute) {
+                $declared = $attribute->newInstance();
+                $key      = (string) ($declared->options[self::ROUTE_KEY_OPTION] ?? '');
+                if (!isset($this->routes[$key])) {
+                    continue;
+                }
 
-        foreach ($map as $key => [$action, $methods, $requirements]) {
-            if (!isset($this->routes[$key])) {
-                continue;
+                $collection->add(
+                    $this->routes[$key]['name'],
+                    $this->createRoute(
+                        $this->routes[$key]['path'],
+                        ['_controller' => $controller . '::' . $method->getName()],
+                        $declared->methods,
+                        $declared->requirements,
+                    ),
+                );
             }
-
-            $collection->add(
-                $this->routes[$key]['name'],
-                $this->createRoute(
-                    $this->routes[$key]['path'],
-                    ['_controller' => $controller . '::' . $action],
-                    $methods,
-                    $requirements,
-                ),
-            );
         }
 
         return $collection;
@@ -105,8 +107,8 @@ final class WikiRouteLoader extends Loader
 
     /**
      * @param array<string, mixed> $defaults
-     * @param list<string> $methods
-     * @param array<string, string> $requirements
+     * @param array<string> $methods
+     * @param array<string, mixed> $requirements
      */
     private function createRoute(string $path, array $defaults, array $methods, array $requirements): Route
     {

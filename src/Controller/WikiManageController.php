@@ -20,6 +20,7 @@ use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
+use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
@@ -37,8 +38,10 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
@@ -56,6 +59,7 @@ use function sprintf;
  * Soft-gated via {@see WikiAccessCheckerInterface}; set security.allow_unauthenticated
  * for trusted demos only (never in production).
  */
+#[AsController]
 final class WikiManageController extends AbstractController
 {
     use WikiCsrfTrait;
@@ -107,6 +111,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered index page
      */
+    #[Route(path: '/tools/wiki', name: 'nowo_wiki_index', options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'index'], methods: ['GET'])]
     public function index(?Request $request = null): Response
     {
         $this->denyUnlessFeature('list');
@@ -138,6 +143,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered space page
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}', name: 'nowo_wiki_space', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'space'], methods: ['GET'])]
     public function space(string $spaceSlug): Response
     {
         $this->denyUnlessFeature('list');
@@ -169,6 +175,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered page view
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}', name: 'nowo_wiki_page_view', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_view'], methods: ['GET'])]
     public function viewPage(string $spaceSlug, string $pageSlug): Response
     {
         $this->denyUnlessFeature('list');
@@ -204,6 +211,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered edit form or redirect to the page view
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/edit', name: 'nowo_wiki_page_edit', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_edit'], methods: ['GET', 'POST'])]
     public function editPage(Request $request, string $spaceSlug, string $pageSlug): Response
     {
         $this->denyUnlessFeature('edit');
@@ -255,6 +263,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered create form or redirect to the new page
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/new', name: 'nowo_wiki_page_new', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_new'], methods: ['GET', 'POST'])]
     public function newPage(Request $request, string $spaceSlug): Response
     {
         $this->denyUnlessFeature('create');
@@ -315,6 +324,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered history page
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/history', name: 'nowo_wiki_page_history', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_history'], methods: ['GET'])]
     public function pageHistory(string $spaceSlug, string $pageSlug, ?Request $request = null): Response
     {
         $this->denyUnlessFeature('history');
@@ -349,6 +359,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered diff page
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/diff', name: 'nowo_wiki_page_diff', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_diff'], methods: ['GET'])]
     public function pageDiff(Request $request, string $spaceSlug, string $pageSlug): Response
     {
         $this->denyUnlessFeature('history');
@@ -390,6 +401,7 @@ final class WikiManageController extends AbstractController
      *
      * @return RedirectResponse redirect to the space page
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/archive', name: 'nowo_wiki_page_archive', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_archive'], methods: ['POST'])]
     public function archivePage(Request $request, string $spaceSlug, string $pageSlug): RedirectResponse
     {
         $this->denyUnlessFeature('archive');
@@ -413,6 +425,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered search results page
      */
+    #[Route(path: '/tools/wiki/search', name: 'nowo_wiki_search', options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'search'], methods: ['GET'])]
     public function search(Request $request): Response
     {
         $this->denyUnlessFeature('list');
@@ -459,6 +472,7 @@ final class WikiManageController extends AbstractController
      *
      * @return BinaryFileResponse ZIP attachment response
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/export', name: 'nowo_wiki_space_export', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'space_export'], methods: ['GET'])]
     public function exportSpace(Request $request, string $spaceSlug): BinaryFileResponse
     {
         $this->denyUnlessFeature('export');
@@ -523,6 +537,7 @@ final class WikiManageController extends AbstractController
      *
      * @return RedirectResponse redirect to the space page
      */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/import', name: 'nowo_wiki_space_import', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'space_import'], methods: ['POST'])]
     public function importSpace(Request $request, string $spaceSlug): RedirectResponse
     {
         $this->denyUnlessFeature('import');
@@ -612,6 +627,7 @@ final class WikiManageController extends AbstractController
      *
      * @return Response rendered AI question page
      */
+    #[Route(path: '/tools/wiki/ask', name: 'nowo_wiki_ai_ask', options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'ai_ask'], methods: ['GET', 'POST'])]
     public function askAi(Request $request): Response
     {
         $this->denyUnlessFeature('ai');
