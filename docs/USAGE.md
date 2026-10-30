@@ -9,6 +9,7 @@
 - [Application integration](#application-integration)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
+- [Theming: classes, tokens and blocks (FR-006)](#theming-classes-tokens-and-blocks-fr-006)
 - [Translations (REQ-I18N-001)](#translations-req-i18n-001)
 - [Events](#events)
 - [Links to host objects (1.9)](#links-to-host-objects-19)
@@ -124,7 +125,9 @@ Paths are relative to `src/Resources/views` (`@NowoWikiBundle/<subpath>`):
 | `manage/search.html.twig` | Search form and results (per space or across spaces) |
 | `manage/ai_ask.html.twig` | Full-page AI question / answer with sources |
 | `manage/_page_header.html.twig` | Page title, subtitle, dashboard / wiki links, search and AI buttons |
-| `manage/_page_tree.html.twig` | Recursive sidebar tree plus the "tree truncated" notice |
+| `manage/_page_tree.html.twig` | Sidebar tree (nested lists) plus the "tree truncated" notice |
+| `manage/_page_tree_list.html.twig` | One level of the tree (`<ul class="nowo-wiki-tree">`) |
+| `manage/_page_tree_item.html.twig` | One page of the tree: link, depth class, `aria-current`, its children |
 | `manage/_pagination.html.twig` | Previous / next pager used by the index and the history |
 | `manage/_flashes.html.twig` | Flash messages |
 | `manage/_ai_ask_modal.html.twig` | AI modal opened from the index |
@@ -163,6 +166,90 @@ Render custom children first, then the canonical loop so remaining children (CSR
 ```
 
 Template overrides and demos **must not** reintroduce raw `<form>`, `<input>`, `<textarea>` or `<select>` markup; `make check-no-raw-html-form` (part of `release-check`) fails when they do.
+
+## Theming: classes, tokens and blocks (FR-006)
+
+The manage templates keep their Tabler / Bootstrap classes (the demo and Bootstrap hosts look the same) and add
+semantic BEM hooks, so a host with its own design can style them without copying templates.
+
+**Root.** Each page body is `<div class="nowo-wiki nowo-wiki--<view>" data-nowo-wiki-skin="framework|tokens">` with
+`<view>` one of `index`, `space`, `page`, `edit`, `history`, `diff`, `search`, `ai`. `tokens` is set when
+`web_ui.css_framework` is not `tabler` / `bootstrap*` (see [CONFIGURATION](CONFIGURATION.md#web-ui-req-ui-001)).
+
+**Classes** (block → elements / modifiers):
+
+| Block | Elements and modifiers |
+|-------|------------------------|
+| `nowo-wiki-header` | `__row`, `__text`, `__breadcrumb`, `__home`, `__title`, `__subtitle`, `__actions` |
+| `nowo-wiki-layout` | `__sidebar`, `__main` |
+| `nowo-wiki-sidebar` | `__header`, `__title`, `__back`, `__body`, `__nav` |
+| `nowo-wiki-tree` | `--nested`, `__item`, `__item--depth-0` … `__item--depth-6` (capped; `data-wiki-depth` has the real depth), `__item--parent`, `__link`, `__link--current`, `__truncated` |
+| `nowo-wiki-panel` | `__header`, `__title`, `__body`, `__body--flush`, `__footer` (every card) |
+| `nowo-wiki-page` | `__header`, `__title`, `__actions`; body in `nowo-wiki-content` |
+| `nowo-wiki-actions` | button rows; `nowo-wiki-btn` with `--primary`, `--secondary`, `--ai`, `--sm`; icons `nowo-wiki-icon`; `nowo-wiki-avatar` (`--ai`) |
+| `nowo-wiki-history` | `__table`, `__row`, `__number`, `__date`, `__actions`, `__restore`; `nowo-wiki-table`, `nowo-wiki-table-scroll` |
+| `nowo-wiki-diff` | `__lines`, `__line`, `__line--add`, `__line--remove`, `__line--same` |
+| `nowo-wiki-form` | `__row`, `__field` (`--space`, `--query`, `--title`, `--content`, `--format`, `--archive`), `__check`, `__help`, `__actions`; `nowo-wiki-search-form`, `nowo-wiki-editor` / `__form` |
+| `nowo-wiki-search`, `nowo-wiki-results` | `__count`, `__item`, `__card`, `__heading`, `__title`, `__space`, `__excerpt` |
+| `nowo-wiki-spaces` | `__item`, `__card`, `__heading`, `__name`, `__slug` |
+| `nowo-wiki-highlight` | `--search`, `--ai`, `__heading`, `__title` |
+| `nowo-wiki-ai`, `nowo-wiki-ai-modal` | `__question`, `__answer`, `__sources`, `__follow-up`, `__ask`, `__form`; modal `__dialog`, `__content`, `__header`, `__heading`, `__title`, `__close`, `__body`, `__footer` |
+| `nowo-wiki-import-export` | `__export`, `__import` |
+| `nowo-wiki-used-in`, `nowo-wiki-archived` | `__list`, `__item`, `__link` / `__title`, `__badge`, `__form` |
+| `nowo-wiki-pagination` | `__link`, `__link--prev`, `__link--next`, `__status`, `__spacer` |
+| `nowo-wiki-flash` | `--danger`, `--warning`, `--info`, `--success` |
+| `nowo-wiki-attachments` | `__item`, `__meta` (styled for host or editor lists; the bundle pages render none) |
+| others | `nowo-wiki-empty`, `nowo-wiki-muted`, `nowo-wiki-container` (`--narrow`) |
+
+The 1.x hooks `wiki-tree`, `wiki-tree-item`, `wiki-page-content`, `wiki-diff-<kind>`, `wiki-pagination`, `wiki-form`,
+`data-wiki-sidebar` and `#wikiAiAskModal` stay in the markup.
+
+**Tokens** (`:root`, neutral light defaults; a dark set under `@media (prefers-color-scheme: dark)` unless
+`[data-theme="light"]`, and under `[data-theme="dark"]`): `--nowo-wiki-surface`, `--nowo-wiki-surface-muted`,
+`--nowo-wiki-border`, `--nowo-wiki-ink`, `--nowo-wiki-muted`, `--nowo-wiki-accent`, `--nowo-wiki-accent-ink`,
+`--nowo-wiki-accent-soft`, `--nowo-wiki-ai`, `--nowo-wiki-radius`, `--nowo-wiki-radius-sm`, `--nowo-wiki-gap`,
+`--nowo-wiki-gap-sm`, `--nowo-wiki-sidebar-width`, `--nowo-wiki-container-width`, `--nowo-wiki-container-narrow-width`,
+`--nowo-wiki-tree-indent`, `--nowo-wiki-font-mono`, `--nowo-wiki-line-height`, `--nowo-wiki-code-bg`,
+`--nowo-wiki-diff-add-ink` / `-bg`, `--nowo-wiki-diff-remove-ink` / `-bg`, `--nowo-wiki-diff-same-ink`,
+`--nowo-wiki-danger` / `-soft`, `--nowo-wiki-warning` / `-soft`, `--nowo-wiki-success` / `-soft`, `--nowo-wiki-info-soft`.
+
+Always on (any framework): tree indentation by nesting, page body typography (images and video `max-width: 100%`,
+scrollable tables and code blocks), diff colours, scrollable history table. Only with `data-nowo-wiki-skin="tokens"`:
+sidebar + content grid (one column under 992 px), panels, buttons, forms, lists, flashes, pagination. Every skin rule is
+wrapped in `:where()` (zero specificity), so a host selector always wins.
+
+**Blocks.** Extend a page and override one block instead of copying the page (the copy freezes, see above):
+
+| Template | Blocks |
+|----------|--------|
+| every manage page | `wiki_header` (the `_page_header` include) |
+| `manage/page_view.html.twig` | `wiki_flashes`, `space_sidebar` → `space_sidebar_header`, `page_tree`; `page_main` → `page_header`, `page_actions`, `page_body`; `page_aside` |
+| `manage/space.html.twig` | `space_sidebar` → `space_sidebar_header`, `page_tree`; `space_main` → `space_search`, `space_import_export`, `space_archived` |
+| `manage/page_history.html.twig` | `history_list`, `history_pagination`, `history_footer` |
+| `manage/page_diff.html.twig` | `diff_body`, `diff_footer` |
+| `manage/search.html.twig` | `search_form`, `search_results` |
+| `manage/page_edit.html.twig` | `page_form` → `page_form_fields`, `page_form_actions`; `wiki_editor_scripts` |
+| `manage/index.html.twig` | `wiki_search_highlight`, `wiki_ai_highlight`, `wiki_ai_modal`, `space_list` |
+| `manage/ai_ask.html.twig` | `ai_error`, `ai_answer`, `ai_sources`, `ai_follow_up`, `ai_form` |
+
+```twig
+{# templates/wiki/page_view.html.twig, set as nowo_wiki.templates.page_view #}
+{% extends '@NowoWikiBundle/manage/page_view.html.twig' %}
+
+{% block page_actions %}
+    {{ parent() }}
+    <a href="{{ path('app_wiki_share', {pageSlug: page.slug}) }}" class="nowo-wiki-btn nowo-wiki-btn--sm">Share</a>
+{% endblock %}
+
+{% block page_aside %}
+    {{ parent() }}
+    {{ include('wiki/_linked_issues.html.twig') }}
+{% endblock %}
+```
+
+Templates carry no `style="…"`, no `on*="…"` handlers and no `<style>` block; every `<script>` prints the request
+attribute `csp_nonce` as `nonce="…"` when the host sets it (see [SECURITY](SECURITY.md#content-safety)). Overrides
+should keep it that way: `tests/Unit/Resources/ManageTemplatesTest.php` enforces it for the bundle views.
 
 ## Translations (REQ-I18N-001)
 

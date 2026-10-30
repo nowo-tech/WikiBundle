@@ -92,6 +92,21 @@ nowo_wiki:
 
 Semantic hooks: `nowo-ui-body`, `nowo-ui-page`, `nowo-ui-container`, `data-nowo-ui-framework`. Manage pages extend `@NowoWikiBundle/base.html.twig` (stacks package CSS/JS with `parent()`). Prefer `web_ui.layout_template` over copying every page; override under `templates/bundles/NowoWikiBundle/` only when needed (see [USAGE](USAGE.md#twig-overrides-req-twig-001)).
 
+`css_framework` also picks how `wiki.css` draws the manage pages (FR-006): `tabler`, `bootstrap`, `bootstrap4` and `bootstrap5` leave the look to the framework (`data-nowo-wiki-skin="framework"`); any other value (`custom`, `none`, `tailwind`, `foundation`) sets `data-nowo-wiki-skin="tokens"` on the page root and `wiki.css` draws layout, panels, buttons, forms and lists from the `--nowo-wiki-*` tokens. Override the tokens in the host stylesheet:
+
+```css
+:root {
+    --nowo-wiki-accent: #7c3aed;
+    --nowo-wiki-radius: 0.25rem;
+    --nowo-wiki-sidebar-width: 16rem;
+}
+[data-theme="dark"] {
+    --nowo-wiki-surface: #18181b;
+}
+```
+
+The token list, the semantic classes and the blocks are in [USAGE](USAGE.md#theming-classes-tokens-and-blocks-fr-006).
+
 ## Pagination (REQ-PERF-001)
 
 ```yaml
