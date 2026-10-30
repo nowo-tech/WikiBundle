@@ -37,14 +37,19 @@ use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryLinkRepository;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Throwable;
 
 /**
  * 1.9: the space- and page-aware checks, restore, unarchive, "Used in" and the editor options event.
@@ -145,6 +150,80 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
         self::assertTrue(true);
     }
 
+    /**
+     * Every manage route with the action it asks, and whether it works on a page.
+     *
+     * @return iterable<string, array{0: string, 1: WikiAction, 2: bool}>
+     */
+    public static function routes(): iterable
+    {
+        yield 'space' => ['space', WikiAction::View, false];
+        yield 'page view' => ['viewPage', WikiAction::View, true];
+        yield 'page edit' => ['editPage', WikiAction::Edit, true];
+        yield 'page new' => ['newPage', WikiAction::Create, false];
+        yield 'page history' => ['pageHistory', WikiAction::History, true];
+        yield 'page diff' => ['pageDiff', WikiAction::History, true];
+        yield 'page archive' => ['archivePage', WikiAction::Archive, true];
+        yield 'page unarchive' => ['unarchivePage', WikiAction::Archive, true];
+        yield 'page restore' => ['restoreRevision', WikiAction::Restore, true];
+        yield 'space export' => ['exportSpace', WikiAction::Export, false];
+        yield 'space import' => ['importSpace', WikiAction::Import, false];
+        yield 'ask ai' => ['askAi', WikiAction::AskAi, false];
+    }
+
+    #[DataProvider('routes')]
+    public function testAHiddenSpaceIsNotFoundOnEveryRoute(string $route, WikiAction $action, bool $onPage): void
+    {
+        $asked        = [];
+        [$controller] = $this->controller(new CallbackSpaceAccessChecker(static function (WikiAction $a, WikiSpace $s, ?WikiPage $p) use (&$asked): bool {
+            $asked[] = $a;
+
+            return false;
+        }));
+
+        $this->assertThrows(NotFoundHttpException::class, $this->call($controller, $route));
+        self::assertSame([WikiAction::View], $asked, 'Nothing else is asked (or done) before the space is known to be readable.');
+    }
+
+    #[DataProvider('routes')]
+    public function testADeniedActionOnAReadableSpaceIsForbiddenOrNotFoundForView(string $route, WikiAction $action, bool $onPage): void
+    {
+        $context      = [];
+        [$controller] = $this->controller(new CallbackSpaceAccessChecker(static function (WikiAction $a, WikiSpace $s, ?WikiPage $p) use ($action, $onPage, &$context): bool {
+            if ($a === $action) {
+                $context[] = $p?->getSlug();
+            }
+
+            // The space stays readable; only the route's own action is denied (on the page for a page view).
+            return $a !== $action || ($onPage && !$p instanceof WikiPage);
+        }));
+
+        $expected = $action === WikiAction::View ? NotFoundHttpException::class : AccessDeniedHttpException::class;
+        $this->assertThrows($expected, $this->call($controller, $route));
+        self::assertNotSame([], $context);
+        self::assertSame($onPage ? ($route === 'unarchivePage' ? 'old' : 'runbook') : null, end($context), 'The action is asked with the page of the route.');
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: WikiAction, 2: bool}>
+     */
+    public static function pageRoutes(): iterable
+    {
+        foreach (self::routes() as $name => $route) {
+            if ($route[2]) {
+                yield $name => $route;
+            }
+        }
+    }
+
+    #[DataProvider('pageRoutes')]
+    public function testAHiddenPageIsNotFoundOnEveryPageRoute(string $route): void
+    {
+        [$controller] = $this->controller(new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $a !== WikiAction::View || !$p instanceof WikiPage));
+
+        $this->assertThrows(NotFoundHttpException::class, $this->call($controller, $route));
+    }
+
     public function testHistoryOffersRestoreForOlderRevisionsOnly(): void
     {
         [$controller] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::History, WikiAction::Restore));
@@ -221,6 +300,44 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
         [$controller] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Create), dispatcher: false);
 
         self::assertSame(200, $controller->newPage(Request::create('/n'), 'eng')->getStatusCode());
+    }
+
+    /**
+     * @return callable(): mixed
+     */
+    private function call(WikiManageController $controller, string $route): callable
+    {
+        return match ($route) {
+            'space'           => static fn (): Response => $controller->space('eng'),
+            'viewPage'        => static fn (): Response => $controller->viewPage('eng', 'runbook'),
+            'editPage'        => static fn (): Response => $controller->editPage(Request::create('/e'), 'eng', 'runbook'),
+            'newPage'         => static fn (): Response => $controller->newPage(Request::create('/n'), 'eng'),
+            'pageHistory'     => static fn (): Response => $controller->pageHistory('eng', 'runbook'),
+            'pageDiff'        => static fn (): Response => $controller->pageDiff(Request::create('/d'), 'eng', 'runbook'),
+            'archivePage'     => static fn (): RedirectResponse => $controller->archivePage(Request::create('/a', 'POST'), 'eng', 'runbook'),
+            'unarchivePage'   => static fn (): RedirectResponse => $controller->unarchivePage(Request::create('/u', 'POST'), 'eng', 'old'),
+            'restoreRevision' => static fn (): RedirectResponse => $controller->restoreRevision(Request::create('/r', 'POST'), 'eng', 'runbook', 1),
+            'exportSpace'     => static fn (): BinaryFileResponse => $controller->exportSpace(Request::create('/x'), 'eng'),
+            'importSpace'     => static fn (): RedirectResponse => $controller->importSpace(Request::create('/i', 'POST'), 'eng'),
+            default           => static fn (): Response => $controller->askAi(Request::create('/ask', 'GET', ['space' => 'eng'])),
+        };
+    }
+
+    /**
+     * @param class-string<Throwable> $expected
+     * @param callable(): mixed $call
+     */
+    private function assertThrows(string $expected, callable $call): void
+    {
+        try {
+            $call();
+        } catch (Throwable $e) {
+            self::assertInstanceOf($expected, $e);
+
+            return;
+        }
+
+        self::fail('Expected ' . $expected . '.');
     }
 
     /**

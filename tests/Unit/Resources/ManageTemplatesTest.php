@@ -78,7 +78,7 @@ final class ManageTemplatesTest extends TestCase
      *
      * @return array<string, array{rendered: bool}>
      */
-    private static function form(array $fields): array
+    private function form(array $fields): array
     {
         $form = [];
         foreach ($fields as $field) {
@@ -91,7 +91,7 @@ final class ManageTemplatesTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private static function context(string $framework = 'custom', ?string $nonce = null): array
+    private function context(string $framework = 'custom', ?string $nonce = null): array
     {
         $routeNames = ['index', 'space', 'page_view', 'page_new', 'page_edit', 'page_history', 'page_diff', 'search', 'space_export', 'ai_ask'];
         $routes     = [];
@@ -128,10 +128,10 @@ final class ManageTemplatesTest extends TestCase
             'archived_pages'   => [['id' => 7, 'title' => 'Old page']],
             'unarchive_forms'  => [],
             'restore_forms'    => [],
-            'search_form'      => self::form(['space', 'q']),
-            'import_form'      => self::form(['format', 'archive', 'update_existing']),
-            'ai_form'          => self::form(['space', 'q']),
-            'form'             => self::form(['title', 'content']),
+            'search_form'      => $this->form(['space', 'q']),
+            'import_form'      => $this->form(['format', 'archive', 'update_existing']),
+            'ai_form'          => $this->form(['space', 'q']),
+            'form'             => $this->form(['title', 'content']),
             'revisions'        => [
                 ['revisionNumber' => 2, 'createdAt' => new DateTimeImmutable('2026-10-30 10:00')],
                 ['revisionNumber' => 1, 'createdAt' => new DateTimeImmutable('2026-10-29 10:00')],
@@ -170,7 +170,7 @@ final class ManageTemplatesTest extends TestCase
     #[DataProvider('pages')]
     public function testEveryPageRendersSemanticClassesNextToTheFrameworkOnes(string $template, array $expected): void
     {
-        $html = $this->twig()->render('@NowoWikiBundle/manage/' . $template . '.html.twig', self::context());
+        $html = $this->twig()->render('@NowoWikiBundle/manage/' . $template . '.html.twig', $this->context());
 
         self::assertStringContainsString('class="nowo-wiki nowo-wiki--', $html);
         self::assertStringContainsString('data-nowo-wiki-skin="tokens"', $html);
@@ -186,10 +186,10 @@ final class ManageTemplatesTest extends TestCase
         $twig = $this->twig();
 
         foreach (['tabler', 'bootstrap', 'bootstrap4', 'bootstrap5'] as $framework) {
-            self::assertStringContainsString('data-nowo-wiki-skin="framework"', $twig->render('@NowoWikiBundle/manage/page_view.html.twig', self::context($framework)), $framework);
+            self::assertStringContainsString('data-nowo-wiki-skin="framework"', $twig->render('@NowoWikiBundle/manage/page_view.html.twig', $this->context($framework)), $framework);
         }
         foreach (['custom', 'none', 'tailwind', 'foundation'] as $framework) {
-            self::assertStringContainsString('data-nowo-wiki-skin="tokens"', $twig->render('@NowoWikiBundle/manage/page_view.html.twig', self::context($framework)), $framework);
+            self::assertStringContainsString('data-nowo-wiki-skin="tokens"', $twig->render('@NowoWikiBundle/manage/page_view.html.twig', $this->context($framework)), $framework);
         }
     }
 
@@ -197,22 +197,22 @@ final class ManageTemplatesTest extends TestCase
     {
         $twig = $this->twig();
 
-        $html = $twig->render('@NowoWikiBundle/manage/page_edit.html.twig', self::context('custom', 'n0nce'));
+        $html = $twig->render('@NowoWikiBundle/manage/page_edit.html.twig', $this->context('custom', 'n0nce'));
         self::assertSame(2, substr_count($html, 'nonce="n0nce"'));
         self::assertStringContainsString('<script src="/assets/wiki.js" defer nonce="n0nce">', $html);
         self::assertStringContainsString('<script src="/assets/tiptap-editor.js" nonce="n0nce">', $html);
 
-        $demo = $twig->render('@NowoWikiBundle/manage/index.html.twig', ['layout' => '@NowoWikiBundle/layout.html.twig'] + self::context('tabler', 'n0nce'));
+        $demo = $twig->render('@NowoWikiBundle/manage/index.html.twig', ['layout' => '@NowoWikiBundle/layout.html.twig'] + $this->context('tabler', 'n0nce'));
         self::assertStringContainsString('bootstrap.bundle.min.js" defer nonce="n0nce"', $demo);
         self::assertStringContainsString('class="container container-wiki nowo-ui-container nowo-wiki-container py-4"', $demo);
 
-        $without = $twig->render('@NowoWikiBundle/manage/page_edit.html.twig', self::context());
+        $without = $twig->render('@NowoWikiBundle/manage/page_edit.html.twig', $this->context());
         self::assertStringNotContainsString('nonce=', $without);
     }
 
     public function testPageTreeNestsListsWithCappedDepthClassesAndMarksTheCurrentPage(): void
     {
-        $html = $this->twig()->render('@NowoWikiBundle/manage/page_view.html.twig', self::context());
+        $html = $this->twig()->render('@NowoWikiBundle/manage/page_view.html.twig', $this->context());
 
         self::assertSame(3, substr_count($html, '<ul class="list-unstyled mb-0 wiki-tree nowo-wiki-tree'));
         self::assertSame(2, substr_count($html, 'nowo-wiki-tree--nested'));
@@ -247,7 +247,7 @@ final class ManageTemplatesTest extends TestCase
                 . '{% block page_tree %}<p class="host-tree"></p>{% endblock %}',
         ]);
 
-        $html = $twig->render('host/page_view.html.twig', self::context());
+        $html = $twig->render('host/page_view.html.twig', $this->context());
 
         self::assertMatchesRegularExpression('/<div class="host-actions">\s*<div class="btn-list nowo-wiki-actions nowo-wiki-page__actions">/', $html);
         self::assertStringContainsString('<aside class="host-aside">Linked issues</aside>', $html);
@@ -265,17 +265,17 @@ final class ManageTemplatesTest extends TestCase
             'host/search.html.twig'  => "{% extends '@NowoWikiBundle/manage/search.html.twig' %}{% block search_results %}<p class=\"host-results\"></p>{% endblock %}",
         ]);
 
-        $space = $twig->render('host/space.html.twig', self::context());
+        $space = $twig->render('host/space.html.twig', $this->context());
         self::assertStringContainsString('<p class="host-io"></p>', $space);
         self::assertStringNotContainsString('nowo-wiki-import-export', $space);
         self::assertStringContainsString('<h1 class="host-header">Docs</h1>', $space);
         self::assertStringNotContainsString('nowo-wiki-header__title', $space);
 
-        $history = $twig->render('host/history.html.twig', self::context());
+        $history = $twig->render('host/history.html.twig', $this->context());
         self::assertStringContainsString('<p class="host-footer"></p>', $history);
         self::assertStringContainsString('nowo-wiki-history__table', $history);
 
-        $search = $twig->render('host/search.html.twig', self::context());
+        $search = $twig->render('host/search.html.twig', $this->context());
         self::assertStringContainsString('<p class="host-results"></p>', $search);
         self::assertStringNotContainsString('nowo-wiki-results__item', $search);
     }

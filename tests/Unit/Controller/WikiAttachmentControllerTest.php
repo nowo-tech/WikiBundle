@@ -33,6 +33,8 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
+use function strlen;
+
 final class WikiAttachmentControllerTest extends TestCase
 {
     private const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -133,8 +135,13 @@ final class WikiAttachmentControllerTest extends TestCase
         self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
         self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
         self::assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
+        self::assertSame("default-src 'none'; img-src 'self'; sandbox", $response->headers->get('Content-Security-Policy'));
+        self::assertSame((string) strlen((string) base64_decode(self::PNG, true)), $response->headers->get('Content-Length'));
 
         $download = $controller->download('eng', $pdf->getId());
+        self::assertSame('application/pdf', $download->headers->get('Content-Type'));
+        self::assertSame("default-src 'none'; img-src 'self'; sandbox", $download->headers->get('Content-Security-Policy'));
+        self::assertSame('nosniff', $download->headers->get('X-Content-Type-Options'));
         self::assertStringStartsWith('attachment; filename="Informe a', (string) $download->headers->get('Content-Disposition'));
         self::assertStringContainsString("filename*=utf-8''Informe%20a%C3%B1o.pdf", (string) $download->headers->get('Content-Disposition'));
     }

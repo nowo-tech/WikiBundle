@@ -116,6 +116,7 @@ final class WikiAttachmentServiceTest extends TestCase
         }
 
         self::assertSame([], $this->repo->rows);
+        self::assertSame([], iterator_to_array((new LocalWikiAttachmentStorage($this->dir))->keys(), false), 'A refused file leaves no bytes behind.');
     }
 
     public function testAFailedSaveRemovesTheStoredFile(): void
