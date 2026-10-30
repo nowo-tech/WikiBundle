@@ -24,6 +24,7 @@ services:
             - '../../Ui/'
             - '../../Interchange/HtmlToMarkdown/'
             - '../../Markdown/WikiTaskListNormalizer.php'
+            - '../../Controller/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
@@ -55,9 +56,15 @@ services:
         bind:
             $enabled: '%nowo_wiki.import_export.enabled%'
 
+    # REQ-SF-004 rule 7: controllers are registered explicitly, NOT autoconfigured (no #[AsController]). On
+    # Symfony >= 7.3 a #[Route] class is autoconfigured with the routing.controller tag and the host's
+    # `routing.controllers` resource would expose /tools/wiki/... without the nowo_wiki route loader (bypassing
+    # nowo_wiki.routes, route_prefix and web_ui.enabled: false).
     Nowo\WikiBundle\Controller\:
         resource: '../../Controller/'
         public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
 
     Nowo\WikiBundle\Routing\WikiRouteLoader:
         arguments:
@@ -70,6 +77,8 @@ services:
 
     Nowo\WikiBundle\Controller\WikiManageController:
         public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
         arguments:
             $routes: '%nowo_wiki.routes%'
             $templates: '%nowo_wiki.templates%'
@@ -84,6 +93,8 @@ services:
 
     Nowo\WikiBundle\Controller\WikiAttachmentController:
         public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
         arguments:
             $routes: '%nowo_wiki.routes%'
             $attachments: '%nowo_wiki.attachments%'

@@ -51,7 +51,6 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
-use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
@@ -76,7 +75,6 @@ use function sprintf;
  * Soft-gated via {@see WikiAccessCheckerInterface}; set security.allow_unauthenticated
  * for trusted demos only (never in production).
  */
-#[AsController]
 final class WikiManageController extends AbstractController
 {
     use WikiCsrfTrait;
