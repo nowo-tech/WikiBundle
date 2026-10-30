@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.10.0] - 2026-10-30](#1100---2026-10-30)
 - [[1.9.0] - 2026-10-30](#190---2026-10-30)
 - [[1.8.1] - 2026-10-29](#181---2026-10-29)
 - [[1.8.0] - 2026-10-29](#180---2026-10-29)
@@ -39,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.10.0] - 2026-10-30
+
+Wiki: UiKit page contract (scaffolds, value-free view models, dialogs); SEC-004 BR: hidden pages never listed, searched, exported or sent to AI, access_roles enforced, attachment downloads gated, allow_unauthenticated debug-only. See [UPGRADING](UPGRADING.md#to-1100).
 
 Wiki: pages on the UiKit page contract (scaffolds, value-free view models, `<dialog>` confirm), canonical web_ui / security.roles keys, hidden pages filtered from lists and AI, CSRF and roles fail closed. See [UPGRADING](UPGRADING.md#unreleased).
 
@@ -76,6 +81,8 @@ Wiki: pages on the UiKit page contract (scaffolds, value-free view models, `<dia
 ### Removed
 
 - `layout.html.twig`, `base.html.twig`, `manage/_page_header.html.twig`, `manage/_pagination.html.twig`, `manage/_flashes.html.twig`, `manage/_ai_ask_modal.html.twig`, `manage/_ai_ask_form_fields.html.twig`, `manage/_page_tree_list.html.twig`, the 1.9 page blocks and the `--nowo-wiki-*` tokens (Template contract in UPGRADING).
+
+[1.10.0]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.10.0
 
 ## [1.9.0] - 2026-10-30
 
@@ -521,7 +528,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.10.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

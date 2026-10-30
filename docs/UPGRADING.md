@@ -3,6 +3,9 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.10.0](#to-1100)
+  - [Configuration (deprecated keys, removed in 2.0)](#configuration-deprecated-keys-removed-in-20)
+  - [Template contract](#template-contract)
 - [To 1.9.0](#to-190)
 - [To 1.8.1](#to-181)
 - [To 1.8.0](#to-180)
@@ -43,6 +46,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.10.0
+
+From **1.9.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 From **1.9.0**:
 
