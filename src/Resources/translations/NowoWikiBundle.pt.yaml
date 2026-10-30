@@ -34,6 +34,7 @@ wiki:
     save: Guardar
   editor:
     help: 'Selecione texto para a barra flutuante. Ctrl+K (Cmd+K) para ligações. Duplo clique em imagens ou embeds para alterar o URL. Colar funciona normalmente.'
+    markdown_help: "Markdown: # títulos, **negrito**, *itálico*, ~~riscado~~, listas, - [ ] listas de tarefas, tabelas, `código` e [ligações](https://example.com). O HTML é mostrado como texto."
   action:
     cancel: Cancelar
     back: "Voltar"

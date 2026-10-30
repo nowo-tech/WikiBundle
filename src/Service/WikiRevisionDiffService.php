@@ -40,6 +40,11 @@ final readonly class WikiRevisionDiffService
      */
     public function diff(WikiPageRevision $from, WikiPageRevision $to): array
     {
+        // 1.11: two Markdown revisions are compared on their source lines.
+        if ($from->isMarkdown() && $to->isMarkdown()) {
+            return $this->lineDiff($this->markdownToLines((string) $from->getContentMarkdown()), $this->markdownToLines((string) $to->getContentMarkdown()));
+        }
+
         $fromLines = $this->htmlToLines($from->getContentHtml());
         $toLines   = $this->htmlToLines($to->getContentHtml());
 
@@ -63,6 +68,16 @@ final readonly class WikiRevisionDiffService
         }
 
         return $revision;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function markdownToLines(string $markdown): array
+    {
+        $lines = preg_split("/\r\n|\r|\n/", $markdown) ?: [];
+
+        return array_values(array_filter(array_map(rtrim(...), $lines), static fn (string $line): bool => trim($line) !== ''));
     }
 
     /**

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Interchange;
 
 use InvalidArgumentException;
+use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\Dto\WikiImportReport;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
@@ -36,6 +38,8 @@ final readonly class WikiDocumentImporter
      * @param WikiPageService $pageService creates pages and appends revisions
      * @param WikiSlugger $slugger derives and validates page slugs
      * @param LoggerInterface|null $logger logger (defaults to a NullLogger)
+     * @param string $editorType `nowo_wiki.editor.type` (1.11): with `markdown` the Markdown bodies are stored as
+     *                           Markdown revisions, otherwise they are converted to HTML
      */
     public function __construct(
         private WikiArchiveHelper $archiveHelper,
@@ -46,6 +50,7 @@ final readonly class WikiDocumentImporter
         private WikiPageService $pageService,
         private WikiSlugger $slugger,
         ?LoggerInterface $logger = null,
+        private string $editorType = Configuration::EDITOR_TIPTAP,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -193,7 +198,9 @@ final readonly class WikiDocumentImporter
             $parent = $slugMap[$node->parentSlug];
         }
 
-        $html = $this->markdownConverter->markdownToHtml($node->markdownBody);
+        [$content, $format] = $this->editorType === Configuration::EDITOR_MARKDOWN
+            ? [$node->markdownBody, WikiPageRevision::FORMAT_MARKDOWN]
+            : [$this->markdownConverter->markdownToHtml($node->markdownBody), WikiPageRevision::FORMAT_HTML];
 
         if (isset($slugMap[$slug])) {
             if (!$updateExisting) {
@@ -212,7 +219,7 @@ final readonly class WikiDocumentImporter
             }
 
             $page = $slugMap[$slug];
-            $this->pageService->saveRevision($page, $title, $html, $author);
+            $this->pageService->saveRevision($page, $title, $content, $author, $format);
             ++$report->updated;
             $pathMap[$node->relativePath] = $page;
 
@@ -226,7 +233,7 @@ final readonly class WikiDocumentImporter
             return;
         }
 
-        $page                         = $this->pageService->create($space, $title, $html, $author, $parent, $slug);
+        $page                         = $this->pageService->create($space, $title, $content, $author, $parent, $slug, $format);
         $slugMap[$slug]               = $page;
         $pathMap[$node->relativePath] = $page;
         ++$report->created;

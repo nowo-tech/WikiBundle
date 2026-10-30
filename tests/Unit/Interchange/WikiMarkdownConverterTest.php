@@ -36,4 +36,37 @@ final class WikiMarkdownConverterTest extends TestCase
     {
         self::assertSame('', (new WikiMarkdownConverter())->htmlToMarkdown('   '));
     }
+
+    public function testMarkdownToHtmlUsesGithubFlavouredMarkdown(): void
+    {
+        $html = (new WikiMarkdownConverter())->markdownToHtml(<<<'MD'
+| Name | Role |
+|------|------|
+| Ada  | Lead |
+
+- [x] Done
+- [ ] Todo
+
+~~Old~~ www.example.com
+MD);
+
+        self::assertStringContainsString('<table>', $html);
+        self::assertStringContainsString('<th>Name</th>', $html);
+        self::assertStringContainsString('<td>Ada</td>', $html);
+        self::assertStringContainsString('<li data-type="taskItem" data-checked="true">Done</li>', $html);
+        self::assertStringContainsString('<li data-type="taskItem" data-checked="false">Todo</li>', $html);
+        self::assertStringContainsString('<del>Old</del>', $html);
+        self::assertStringContainsString('<a href="http://www.example.com">www.example.com</a>', $html);
+    }
+
+    public function testHtmlToMarkdownWritesTablesTaskListsAndStrikethrough(): void
+    {
+        $markdown = (new WikiMarkdownConverter())->htmlToMarkdown(
+            '<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>'
+            . '<ul data-type="taskList"><li data-type="taskItem" data-checked="true"><p>yes</p></li><li data-type="taskItem" data-checked="false"><p>no</p></li></ul>'
+            . '<ol><li>first</li></ol><p><s>gone</s> <del>old</del> <strike>x</strike><s> </s>kept</p>',
+        );
+
+        self::assertSame("| A | B |\n|---|---|\n| 1 | 2 |\n\n- [x] yes\n- [ ] no\n\n1. first\n\n~~gone~~ ~~old~~ ~~x~~kept", $markdown);
+    }
 }

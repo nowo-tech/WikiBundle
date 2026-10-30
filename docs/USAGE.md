@@ -14,6 +14,7 @@
 - [Events](#events)
 - [Links to host objects (1.9)](#links-to-host-objects-19)
 - [Attachments (1.9)](#attachments-19)
+- [Markdown pages (1.11)](#markdown-pages-111)
 
 ## Manage UI routes (defaults)
 
@@ -52,7 +53,7 @@ When `nowo_wiki.ai.enabled` is `true` and `symfony/ai-bundle` is installed, the 
 The manage UI includes a **full-text search** over:
 
 - Page **titles**
-- **Current revision** HTML (tags stripped for excerpts)
+- **Current revision** body: the Markdown source of a Markdown revision, else its HTML (tags stripped for excerpts)
 
 Search respects ACL: only spaces returned by `WikiSpaceAccessResolver` are queried. Leave `space` empty to search **across all spaces** you can access.
 
@@ -273,3 +274,53 @@ Nightly cleanup (attachments never referenced by a revision 24 h after upload, f
 $attachments->purgeOrphans(new DateTimeImmutable('-24 hours'));
 $attachments->purgeStrayFiles();
 ```
+
+## Markdown pages (1.11)
+
+With `nowo_wiki.editor.type: markdown` ([CONFIGURATION](CONFIGURATION.md#markdown-pages-111)) pages are written in Markdown (GFM: tables, task lists, strikethrough, autolinks). Raw HTML is shown as text and `javascript:` / `data:` links are dropped.
+
+**Convert existing HTML pages** (one new revision per page, archived pages included, history untouched; pages already in Markdown are skipped, so it can run again):
+
+```bash
+bin/console wiki:convert-markdown {spaceSlug} [{spaceSlug}...] --author-id={user id or email} [--dry-run] [-v]
+```
+
+**Add Markdown syntax** (an editor bundle's dialect: page links, mentions, icons, directives) with a league/commonmark extension:
+
+```php
+final class WikiDialectExtension implements WikiMarkdownExtensionInterface   // autoconfigured
+{
+    public function register(EnvironmentBuilderInterface $environment): void
+    {
+        $environment->addInlineParser(new PageLinkParser());   // [[wiki:<uuid>]] → link
+    }
+}
+```
+
+The output still goes through `WikiHtmlSanitizerInterface` before it is stored: declare the extra markup the extension emits in `nowo_wiki.sanitizer` ([CONFIGURATION](CONFIGURATION.md#sanitizer-allowlist-111)).
+
+**Per-viewer rendering stays on the host:** the stored `content_html` is the same for every reader. Resolve page links, mentions and live blocks when the page is shown (current title and URL for a page the viewer may read, a neutral "not visible" placeholder otherwise).
+
+**Conversion events:** `wiki:convert-markdown` dispatches `nowo_wiki.page.saved` with `$event->conversion === true`. Keep indexing (search, backlinks) on it, but do not notify watchers or log it as an edit:
+
+```php
+if ($event->conversion) {
+    return;   // bulk HTML → Markdown conversion, not an edit
+}
+```
+
+**Page references and backlinks:** the bundle's `<prefix>_page_links` table holds host objects linked by hand, so page-to-page references are not written there. A host keeping a backlink index reads them on save:
+
+```php
+#[AsEventListener(WikiEvents::PAGE_SAVED)]
+public function onSaved(WikiPageSavedEvent $event): void
+{
+    $ids = $this->extractor->pageIds($event->revision->getContentMarkdown());   // WikiMarkdownReferenceExtractor
+    $this->backlinks->replace($event->page, $event->revision, $ids);
+}
+```
+
+`[[wiki:<uuid>]]` and `[[wiki:<uuid>#anchor]]` are found outside code spans and code blocks; `pageReferences()` also returns the anchors.
+
+**Search, export and import** use the Markdown when a revision has it: search matches the source, export writes it unchanged, and imports store the Markdown bodies as Markdown revisions when `editor.type` is `markdown`.
+

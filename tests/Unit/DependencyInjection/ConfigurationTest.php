@@ -9,6 +9,7 @@ use Nowo\WikiBundle\DependencyInjection\Configuration;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 
 use function implode;
 use function json_encode;
@@ -25,6 +26,8 @@ final class ConfigurationTest extends TestCase
 
         self::assertSame('wiki_', $config['table_prefix']);
         self::assertSame('notion', $config['editor']['tiptap_config']);
+        self::assertSame(Configuration::EDITOR_TIPTAP, $config['editor']['type']);
+        self::assertNull($config['editor']['markdown_form_type']);
         self::assertSame('nowo_wiki_index', $config['routes']['index']['name']);
         self::assertFalse($config['ai']['enabled']);
         self::assertSame('wiki_assistant', $config['ai']['agent']);
@@ -226,5 +229,53 @@ final class ConfigurationTest extends TestCase
             'user_class' => 'App\\Entity\\User',
             'ai'         => ['http_timeout' => 0],
         ]]);
+    }
+
+    public function testMarkdownEditorWithAHostFormType(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'editor'     => ['type' => 'markdown', 'markdown_form_type' => TextareaType::class],
+        ]]);
+
+        self::assertSame(Configuration::EDITOR_MARKDOWN, $config['editor']['type']);
+        self::assertSame(TextareaType::class, $config['editor']['markdown_form_type']);
+    }
+
+    public function testEditorTypeAndMarkdownFormTypeAreValidated(): void
+    {
+        foreach ([['type' => 'wysiwyg'], ['markdown_form_type' => 'App\\Form\\Missing'], ['markdown_form_type' => ['x']]] as $editor) {
+            try {
+                (new Processor())->processConfiguration(new Configuration(), [[
+                    'user_class' => 'App\\Entity\\User',
+                    'editor'     => $editor,
+                ]]);
+                self::fail('Invalid editor configuration accepted.');
+            } catch (InvalidConfigurationException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testSanitizerAllowlistIsConfigurableButNeverUnsafe(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'sanitizer'  => ['extra_allowed_elements' => ['details' => ['open'], 'summary' => []], 'extra_allowed_attributes' => ['data-callout']],
+        ]]);
+        self::assertSame(['details' => ['open'], 'summary' => []], $config['sanitizer']['extra_allowed_elements']);
+        self::assertSame(['data-callout'], $config['sanitizer']['extra_allowed_attributes']);
+
+        $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
+        self::assertSame(['extra_allowed_elements' => [], 'extra_allowed_attributes' => []], $defaults['sanitizer']);
+
+        foreach ([['extra_allowed_elements' => ['script' => []]], ['extra_allowed_elements' => ['iframe' => []]], ['extra_allowed_attributes' => ['style']], ['extra_allowed_attributes' => ['onmouseover']]] as $sanitizer) {
+            try {
+                (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'sanitizer' => $sanitizer]]);
+                self::fail('Unsafe sanitizer allowlist accepted.');
+            } catch (InvalidConfigurationException) {
+                $this->addToAssertionCount(1);
+            }
+        }
     }
 }

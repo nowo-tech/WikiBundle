@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Controller;
 use InvalidArgumentException;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
+use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\Dto\WikiPageFormData;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -23,6 +24,7 @@ use Nowo\WikiBundle\Form\WikiSearchType;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
+use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -91,7 +93,7 @@ final class WikiManageController extends AbstractController
      *
      * @param array<string, array{path: string, name: string}> $routes route name/path per action
      * @param array<string, string> $templates Twig template per page
-     * @param array{tiptap_config: string} $editor editor options
+     * @param array{type?: string, tiptap_config: string, markdown_form_type?: string|null} $editor editor options
      * @param array{enabled: bool, max_upload_bytes: int} $importExport import/export options
      * @param array{spaces_per_page: int, revisions_per_page: int, max_tree_pages: int} $pagination list size limits
      * @param WikiSpaceGuard|null $spaceGuard space- and page-aware access (1.9; null = the 1.x behaviour)
@@ -100,6 +102,7 @@ final class WikiManageController extends AbstractController
      * @param array{enabled: bool} $attachments attachment options (1.9)
      * @param WikiPageFactory|null $pageFactory UiKit view models of the pages (1.10; null = built from the router)
      * @param TranslatorInterface|null $translator translates flash messages in the NowoWikiBundle domain when they are added (1.10)
+     * @param WikiMarkdownConverter|null $markdownConverter turns an HTML revision into the Markdown of the editor (1.11)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -128,14 +131,18 @@ final class WikiManageController extends AbstractController
         private readonly array $attachments = ['enabled' => false],
         private readonly ?WikiPageFactory $pageFactory = null,
         private readonly ?TranslatorInterface $translator = null,
+        ?WikiMarkdownConverter $markdownConverter = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
             new LegacyWikiSpaceAccessChecker($this->accessChecker, $this->spaceAccessResolver),
         );
+        $this->markdownConverter = $markdownConverter ?? new WikiMarkdownConverter();
     }
 
     private readonly WikiSpaceGuard $spaceGuard;
+
+    private readonly WikiMarkdownConverter $markdownConverter;
 
     /**
      * Lists the spaces the user can access, paginated by {@code pagination.spaces_per_page} ({@code ?page=N}).
@@ -287,21 +294,20 @@ final class WikiManageController extends AbstractController
 
         $data = new WikiPageFormData(
             $page->getTitle(),
-            $page->getCurrentRevision()?->getContentHtml() ?? '',
+            $this->editorBody($page->getCurrentRevision()),
         );
 
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_edit_<page id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
-            'tiptap_config'  => $this->editor['tiptap_config'],
             'csrf_token_id'  => 'wiki_edit_' . $page->getId(),
             'editor_options' => $this->editorOptions($user, $space, $page),
-        ]);
+        ] + $this->pageFormOptions());
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
-            $this->pageService->saveRevision($page, $payload->title, $payload->content, $user);
+            $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
 
             return $this->redirectToRoute($this->routes['page_view']['name'], [
                 'spaceSlug' => $space->getSlug(),
@@ -338,10 +344,9 @@ final class WikiManageController extends AbstractController
 
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_new_<space id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
-            'tiptap_config'  => $this->editor['tiptap_config'],
             'csrf_token_id'  => 'wiki_new_' . $space->getId(),
             'editor_options' => $this->editorOptions($user, $space, null),
-        ]);
+        ] + $this->pageFormOptions());
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -349,7 +354,7 @@ final class WikiManageController extends AbstractController
             $payload = $form->getData();
 
             try {
-                $page = $this->pageService->create($space, $payload->title, $payload->content, $user);
+                $page = $this->pageService->create($space, $payload->title, $payload->content, $user, null, null, $this->editorFormat());
             } catch (InvalidArgumentException $exception) {
                 $this->flash('error', $exception->getMessage());
 
@@ -995,6 +1000,47 @@ final class WikiManageController extends AbstractController
         }
 
         return $forms;
+    }
+
+    /**
+     * Revision format written by the page form: Markdown with `editor.type: markdown` (1.11), HTML otherwise.
+     */
+    private function editorFormat(): string
+    {
+        return ($this->editor['type'] ?? Configuration::EDITOR_TIPTAP) === Configuration::EDITOR_MARKDOWN
+            ? WikiPageRevision::FORMAT_MARKDOWN
+            : WikiPageRevision::FORMAT_HTML;
+    }
+
+    /**
+     * Body shown in the page form: the HTML for the Tiptap editor (the render cache of a Markdown revision), the
+     * Markdown for a Markdown editor (an HTML revision converted, saved as Markdown on the next save) (1.11).
+     */
+    private function editorBody(?WikiPageRevision $revision): string
+    {
+        if (!$revision instanceof WikiPageRevision) {
+            return '';
+        }
+
+        if ($this->editorFormat() === WikiPageRevision::FORMAT_HTML) {
+            return $revision->getContentHtml();
+        }
+
+        return $revision->getContentMarkdown() ?? $this->markdownConverter->htmlToMarkdown($revision->getContentHtml());
+    }
+
+    /**
+     * Editor options of {@see WikiPageFormType} from `nowo_wiki.editor`.
+     *
+     * @return array{tiptap_config: string, editor_type: string, markdown_form_type: string|null}
+     */
+    private function pageFormOptions(): array
+    {
+        return [
+            'tiptap_config'      => $this->editor['tiptap_config'],
+            'editor_type'        => $this->editor['type'] ?? Configuration::EDITOR_TIPTAP,
+            'markdown_form_type' => $this->editor['markdown_form_type'] ?? null,
+        ];
     }
 
     /**

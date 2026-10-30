@@ -277,6 +277,45 @@ MD);
         }
     }
 
+    public function testMarkdownEditorStoresTheMarkdownOfCreatedAndUpdatedPages(): void
+    {
+        $root = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/intro.md', "---\ntitle: Intro\nwiki_slug: intro\n---\n| A | B |\n|---|---|\n| 1 | 2 |\n");
+        file_put_contents($root . '/new.md', "---\ntitle: New\nwiki_slug: new\n---\n- [ ] todo\n");
+
+        $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $page  = new WikiPage($space, 'intro', 'Intro');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Old</p>', new TestUser()));
+
+        $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepository->method('findActiveBySpace')->willReturn([$page]);
+        $pageRepository->method('countBySpaceAndSlug')->willReturnCallback(static fn (WikiSpace $space, string $slug): int => $slug === 'intro' ? 1 : 0);
+
+        $saved              = [];
+        $revisionRepository = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepository->method('getNextRevisionNumber')->willReturn(2);
+        $revisionRepository->method('save')->willReturnCallback(static function (WikiPageRevision $revision) use (&$saved): void {
+            $saved[$revision->getPage()->getSlug()] = $revision;
+        });
+
+        try {
+            $report = $this->importer($pageRepository, $revisionRepository, null, 'markdown')
+                ->import($space, $root, WikiInterchangeFormat::Outline, new TestUser(), true);
+
+            self::assertSame(1, $report->updated);
+            self::assertSame(1, $report->created);
+            self::assertSame("| A | B |\n|---|---|\n| 1 | 2 |", $saved['intro']->getContentMarkdown());
+            self::assertStringContainsString('<table>', $saved['intro']->getContentHtml());
+            self::assertTrue($saved['new']->isMarkdown());
+            self::assertSame('- [ ] todo', $saved['new']->getContentMarkdown());
+        } finally {
+            unlink($root . '/intro.md');
+            unlink($root . '/new.md');
+            rmdir($root);
+        }
+    }
+
     public function testDryRunUpdateCountsWithoutSaving(): void
     {
         $root = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(4));
@@ -529,6 +568,7 @@ MD);
         WikiPageRepositoryInterface $pageRepository,
         ?WikiPageRevisionRepositoryInterface $revisionRepository = null,
         ?RecordingLogger $logger = null,
+        string $editorType = 'tiptap',
     ): WikiDocumentImporter {
         $revisionRepository ??= $this->createConfiguredMock(
             WikiPageRevisionRepositoryInterface::class,
@@ -555,6 +595,7 @@ MD);
             $pageService,
             new WikiSlugger(),
             $logger,
+            $editorType,
         );
     }
 }

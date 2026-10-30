@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\DependencyInjection;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimits;
+use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\Builder\VariableNodeDefinition;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 use function array_filter;
 use function array_values;
+use function class_exists;
 use function implode;
 use function is_array;
 use function is_string;
@@ -25,6 +28,12 @@ final class Configuration implements ConfigurationInterface
 
     /** Composer package (deprecation notices). */
     public const PACKAGE = 'nowo-tech/wiki-bundle';
+
+    /** editor.type: HTML pages edited with TiptapEditorType (default). */
+    public const EDITOR_TIPTAP = 'tiptap';
+
+    /** editor.type: Markdown pages (1.11). */
+    public const EDITOR_MARKDOWN = 'markdown';
 
     /** Default of security.access_roles. */
     public const DEFAULT_ACCESS_ROLES = ['ROLE_USER'];
@@ -133,10 +142,52 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
+                ->arrayNode('sanitizer')
+                    ->info('1.11: extra HTML allowed in page bodies (e.g. the <details> / <summary> or data-* attributes of a Markdown dialect). script, style, iframe, forms, embeds, style= and on* handlers are always refused.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->arrayNode('extra_allowed_elements')
+                            ->info('Element => extra attributes of that element, e.g. {details: [open], summary: []}.')
+                            ->useAttributeAsKey('element')
+                            ->arrayPrototype()->scalarPrototype()->end()->end()
+                            ->defaultValue([])
+                        ->end()
+                        ->arrayNode('extra_allowed_attributes')
+                            ->info('Attributes allowed on every allowed element, e.g. [data-callout].')
+                            ->scalarPrototype()->end()
+                            ->defaultValue([])
+                        ->end()
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static function (mixed $sanitizer): bool {
+                            try {
+                                WikiHtmlSanitizer::assertSafeAllowlist($sanitizer['extra_allowed_elements'] ?? [], $sanitizer['extra_allowed_attributes'] ?? []);
+                            } catch (InvalidArgumentException) {
+                                return true;
+                            }
+
+                            return false;
+                        })
+                        ->thenInvalid('nowo_wiki.sanitizer: an extra element or attribute is not allowed (script, style, iframe, forms, embeds, URL attributes, style= and on* handlers are always refused), got %s.')
+                    ->end()
+                ->end()
                 ->arrayNode('editor')
                     ->addDefaultsIfNotSet()
                     ->children()
+                        ->enumNode('type')
+                            ->info('1.11: tiptap = pages are HTML edited with TiptapEditorType; markdown = pages are stored as Markdown (content_markdown, the source) with content_html as its sanitized render cache, edited in a textarea or in markdown_form_type.')
+                            ->values([self::EDITOR_TIPTAP, self::EDITOR_MARKDOWN])
+                            ->defaultValue(self::EDITOR_TIPTAP)
+                        ->end()
                         ->scalarNode('tiptap_config')->defaultValue('notion')->end()
+                        ->scalarNode('markdown_form_type')
+                            ->info('1.11: FQCN of the form type of the page body when type is markdown (e.g. a Markdown editor bundle type); null = a plain textarea. It receives the editor options (WikiEvents::EDITOR_OPTIONS).')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && (!is_string($value) || !class_exists($value)))
+                                ->thenInvalid('nowo_wiki.editor.markdown_form_type must be the class name of a form type, got %s.')
+                            ->end()
+                        ->end()
                     ->end()
                 ->end()
                 ->arrayNode('security')

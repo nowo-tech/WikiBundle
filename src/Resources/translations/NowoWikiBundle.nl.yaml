@@ -34,6 +34,7 @@ wiki:
     save: Opslaan
   editor:
     help: 'Selecteer tekst voor de zwevende werkbalk. Ctrl+K (Cmd+K) voor links. Dubbelklik op afbeeldingen of embeds om de URL te wijzigen. Plakken werkt zoals gewoonlijk.'
+    markdown_help: "Markdown: # koppen, **vet**, *cursief*, ~~doorgehaald~~, lijsten, - [ ] takenlijsten, tabellen, `code` en [links](https://example.com). HTML wordt als tekst getoond."
   action:
     cancel: Annuleren
     back: "Terug"

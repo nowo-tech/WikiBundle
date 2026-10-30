@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.11.0](#to-1110)
 - [To 1.10.0](#to-1100)
   - [Configuration (deprecated keys, removed in 2.0)](#configuration-deprecated-keys-removed-in-20)
   - [Template contract](#template-contract)
@@ -46,6 +47,36 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.11.0
+
+From **1.10.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+- **Schema (required, even if you keep Tiptap):** `<prefix>_page_revisions` gains two columns. The bundle ships the mapping only: generate a migration (`bin/console doctrine:migrations:diff`, then `doctrine:migrations:migrate`) or apply the SQL by hand (MySQL / MariaDB; the demo ships `Version20261031090000`):
+
+  ```sql
+  ALTER TABLE wiki_page_revisions
+      ADD content_markdown LONGTEXT DEFAULT NULL,
+      ADD format VARCHAR(16) DEFAULT 'html' NOT NULL;
+  ```
+
+  PostgreSQL: `ALTER TABLE wiki_page_revisions ADD content_markdown TEXT DEFAULT NULL, ADD format VARCHAR(16) DEFAULT 'html' NOT NULL;`. Existing rows become `format = 'html'` with no Markdown: nothing changes for them.
+- **Nothing else changes with the default `editor.type: tiptap`.** `WikiMarkdownConverter::markdownToHtml()` now reads GFM (Outline / Notion imports keep their tables, task lists and strikethrough).
+- **Moving to Markdown:** set `nowo_wiki.editor.type: markdown` (optionally `editor.markdown_form_type` with your Markdown editor's form type), then convert the existing pages — each gets one new revision, history untouched, safe to run again:
+
+  ```bash
+  bin/console wiki:convert-markdown docs handbook --author-id=admin@example.com --dry-run
+  bin/console wiki:convert-markdown docs handbook --author-id=admin@example.com
+  ```
+
+  The conversion dispatches `nowo_wiki.page.saved` for every converted page with `WikiPageSavedEvent::$conversion = true`: update indexes from it, but skip notifications, activity feeds and "page edited" e-mails (nobody edited the page). Pages you do not convert are converted when they are next edited.
+- **Rendering:** a Markdown revision's `content_html` is rendered by `WikiMarkdownRendererInterface` (raw HTML escaped, unsafe links dropped) and then sanitized by `WikiHtmlSanitizerInterface`: markup your extensions emit must be allowed by the sanitizer — declare it in `nowo_wiki.sanitizer` ([CONFIGURATION](CONFIGURATION.md#sanitizer-allowlist-111)); `script`, `style`, `iframe`, forms, embeds, URL attributes, `style=` and `on*` stay refused.
+- **Per-viewer content is the host's job:** `content_html` is one cache for every reader. Page links (`[[wiki:<uuid>]]`), mentions and live blocks must be resolved at read time for the viewer (current title and URL, or a neutral "not visible" placeholder) by the host or the editor bundle, never baked into the cache.
+- **Code calling the page service:** `WikiPageService::create()` / `saveRevision()` keep their signatures with a new optional last `$format` argument (HTML by default); `WikiPageRevision` has a new optional last constructor argument `$contentMarkdown`.
 
 ## To 1.10.0
 
