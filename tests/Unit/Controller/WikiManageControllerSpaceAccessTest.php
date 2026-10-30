@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Controller;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
+use Doctrine\ORM\QueryBuilder;
+use Nowo\UiKitBundle\View\ListPage;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -18,6 +21,8 @@ use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
+use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
+use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
@@ -42,18 +47,25 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Form\ChoiceList\View\ChoiceView;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
+use ZipArchive;
 
-/**
+/*
  * 1.9: the space- and page-aware checks, restore, unarchive, "Used in" and the editor options event.
  */
+use function array_column;
+
 final class WikiManageControllerSpaceAccessTest extends TestCase
 {
     private WikiSpace $space;
@@ -104,14 +116,15 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
     {
         [$archiver] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Archive));
         $archiver->space('eng');
-        self::assertSame([$this->archived], $this->twig->context['archived_pages']);
-        self::assertArrayHasKey($this->archived->getId(), $this->twig->context['unarchive_forms']);
+        self::assertSame('Old', $this->twig->context['archived'][0]['title']);
+        self::assertSame('restore', $this->twig->context['archived'][0]['action']?->kind);
+        self::assertSame('POST', $this->twig->context['archived'][0]['action']->method);
         self::assertFalse($this->twig->context['can_create']);
         self::assertTrue($this->twig->context['permissions']['archive']);
 
         [$reader] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View));
         $reader->space('eng');
-        self::assertSame([], $this->twig->context['archived_pages']);
+        self::assertSame([], $this->twig->context['archived']);
     }
 
     public function testPageViewCarriesPermissionsAndUsedIn(): void
@@ -121,7 +134,8 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
 
         self::assertFalse($this->twig->context['can_edit']);
         self::assertTrue($this->twig->context['can_history']);
-        self::assertSame('BEACON-1', $this->twig->context['used_in']['issue'][0]->label);
+        self::assertSame('BEACON-1', $this->twig->context['used_in'][0]['label']);
+        self::assertSame('issue', $this->twig->context['used_in'][0]['type']);
     }
 
     public function testWriteRoutesAnswer403ToReaders(): void
@@ -228,11 +242,53 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
     {
         [$controller] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::History, WikiAction::Restore));
         $controller->pageHistory('eng', 'runbook');
-        self::assertSame([2, 1], array_keys($this->twig->context['restore_forms']));
+        self::assertSame([2, 1], $this->restorable($this->twig->context['page']));
 
         [$historian] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::History));
         $historian->pageHistory('eng', 'runbook');
-        self::assertSame([], $this->twig->context['restore_forms']);
+        self::assertSame([], $this->restorable($this->twig->context['page']));
+    }
+
+    /**
+     * Search service whose query returns the given rows.
+     *
+     * @param list<array<int|string, mixed>> $rows
+     */
+    private function searchService(array $rows): WikiSearchService
+    {
+        $query = $this->createStub(Query::class);
+        $query->method('setHint')->willReturnSelf();
+        $query->method('getResult')->willReturn($rows);
+
+        $qb = $this->createStub(QueryBuilder::class);
+        foreach (['select', 'from', 'innerJoin', 'leftJoin', 'where', 'andWhere', 'setParameter', 'setMaxResults'] as $method) {
+            $qb->method($method)->willReturnSelf();
+        }
+        $qb->method('getQuery')->willReturn($query);
+
+        $em = $this->createStub(EntityManagerInterface::class);
+        $em->method('createQueryBuilder')->willReturn($qb);
+
+        return new WikiSearchService($em);
+    }
+
+    /**
+     * Revision numbers of the history rows that offer Restore.
+     *
+     * @return list<int>
+     */
+    private function restorable(ListPage $history): array
+    {
+        $numbers = [];
+        foreach ($history->rows as $row) {
+            foreach ($history->rowActions($row) as $action) {
+                if ($action->kind === 'restore') {
+                    $numbers[] = (int) $row['id'];
+                }
+            }
+        }
+
+        return $numbers;
     }
 
     public function testRestoreAppendsARevision(): void
@@ -244,9 +300,95 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
 
         self::assertSame('/generated/nowo_wiki_page_view', $response->getTargetUrl());
         self::assertSame('<p>v1</p>', $this->page->getCurrentRevision()?->getContentHtml());
+        /** @var RequestStack $stack */
+        $stack = $container->get('request_stack');
+        /** @var FlashBagAwareSessionInterface $session */
+        $session = $stack->getSession();
+        self::assertSame(['[NowoWikiBundle] wiki.history.restored'], $session->getFlashBag()->get('success'));
 
         $this->expectException(NotFoundHttpException::class);
         $controller->restoreRevision(Request::create('/r', 'POST', ['_token' => $token]), 'eng', 'runbook', 99);
+    }
+
+    public function testHiddenPagesStayOutOfTheTreeTheArchivedListAndSearch(): void
+    {
+        $hidden  = static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => !$p instanceof WikiPage || ($p->getSlug() !== 'runbook' && $p->getSlug() !== 'old');
+        $checker = new CallbackSpaceAccessChecker($hidden);
+
+        [$controller] = $this->controller($checker);
+        $controller->space('eng');
+        self::assertSame([], $this->twig->context['tree']);
+        self::assertSame([], $this->twig->context['archived']);
+
+        $controller->search(Request::create('/q', 'GET', ['q' => 'run', 'space' => 'eng']));
+        self::assertSame([], $this->twig->context['page']->rows);
+
+        [$reader] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View));
+        $reader->search(Request::create('/q', 'GET', ['q' => 'run', 'space' => 'eng']));
+        self::assertSame(['Runbook'], array_column($this->twig->context['page']->rows, 'title'));
+    }
+
+    public function testASubPageOfAHiddenPageIsLeftOutOfTheTree(): void
+    {
+        $child   = new WikiPage($this->space, 'child', 'Child', $this->page);
+        $checker = new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => !$p instanceof WikiPage || $p->getSlug() !== 'runbook');
+
+        [$controller] = $this->controller($checker, tree: [$this->page, $child]);
+        $controller->space('eng');
+
+        self::assertSame([], $this->twig->context['tree']);
+    }
+
+    public function testSpaceExportLeavesHiddenPagesAndTheirSubPagesOut(): void
+    {
+        $secret = new WikiPage($this->space, 'secret', 'Secret plan');
+        $child  = new WikiPage($this->space, 'secret-child', 'Secret child', $secret);
+        $pages  = $this->createStub(WikiPageRepositoryInterface::class);
+        $pages->method('findActiveBySpace')->willReturn([$this->page, $secret, $child]);
+        $exporter = new WikiDocumentExporter($pages, new WikiPageTreeBuilder(), new WikiMarkdownConverter(), new WikiFrontMatterParser());
+        $checker  = new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p?->getSlug() !== 'secret');
+
+        [$controller] = $this->controller($checker, exporter: $exporter);
+        $zip          = new ZipArchive();
+        $path         = $controller->exportSpace(Request::create('/x?format=outline'), 'eng')->getFile()->getPathname();
+        self::assertTrue($zip->open($path));
+        $names = [];
+        for ($i = 0; $i < $zip->numFiles; ++$i) {
+            $names[] = (string) $zip->getNameIndex($i);
+        }
+        $zip->close();
+        @unlink($path);
+
+        self::assertSame([], array_values(array_filter($names, static fn (string $name): bool => str_contains(strtolower($name), 'secret'))));
+        self::assertNotSame([], array_values(array_filter($names, static fn (string $name): bool => str_contains(strtolower($name), 'runbook'))));
+    }
+
+    public function testSpaceListsAndTheGlobalAiQuestionFollowThePerSpaceChecker(): void
+    {
+        $hiddenSpace = new WikiSpace('hr', 'HR', WikiSpaceOwnerScope::Team, 't');
+        $checker     = new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s): bool => $s->getSlug() === 'eng' && $a !== WikiAction::AskAi);
+
+        [$controller] = $this->controller($checker, spaces: [$this->space, $hiddenSpace]);
+        $controller->search(Request::create('/q'));
+        self::assertSame(['eng'], array_map(static fn (ChoiceView $choice): string => $choice->value, $this->twig->context['page']->filters?->children['space']->vars['choices'] ?? []));
+
+        $controller->askAi(Request::create('/ask'));
+        self::assertSame([], $this->twig->context['page']->form?->children['space']->vars['choices']);
+    }
+
+    public function testATreeOfHiddenPagesIsNotFlaggedAsTruncated(): void
+    {
+        $hidden = [];
+        for ($i = 0; $i < 3; ++$i) {
+            $hidden[] = new WikiPage($this->space, 'secret-' . $i, 'Secret ' . $i);
+        }
+        $checker = new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => !str_starts_with((string) $p?->getSlug(), 'secret'));
+
+        [$controller] = $this->controller($checker, tree: [$this->page, ...$hidden], pagination: 1);
+        $controller->space('eng');
+
+        self::assertFalse($this->twig->context['tree_truncated']);
+        self::assertCount(1, $this->twig->context['tree']);
     }
 
     public function testRestoreWithAForgedTokenIsForbidden(): void
@@ -342,14 +484,19 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
 
     /**
      * @param (callable(WikiEditorOptionsEvent): void)|null $onEditorOptions
+     * @param list<WikiPage>|null $tree active pages of the space (default: the runbook)
+     * @param list<WikiSpace>|null $spaces spaces of the user's resolver (default: none)
      *
      * @return array{0: WikiManageController, 1: Container}
      */
-    private function controller(CallbackSpaceAccessChecker $checker, ?callable $onEditorOptions = null, bool $dispatcher = true): array
+    private function controller(CallbackSpaceAccessChecker $checker, ?callable $onEditorOptions = null, bool $dispatcher = true, ?array $tree = null, ?WikiDocumentExporter $exporter = null, ?array $spaces = null, int $pagination = 500): array
     {
+        $spaceResolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
+        $spaceResolver->method('listSpacesForUser')->willReturn($spaces ?? []);
+
         $pages = $this->createStub(WikiPageRepositoryInterface::class);
         $pages->method('findBySlug')->willReturnCallback(fn (WikiSpace $s, string $slug): ?WikiPage => ['runbook' => $this->page, 'old' => $this->archived][$slug] ?? null);
-        $pages->method('findActiveBySpace')->willReturn([$this->page]);
+        $pages->method('findActiveBySpace')->willReturn($tree ?? [$this->page]);
         $pages->method('findArchivedBySpace')->willReturn([$this->archived]);
 
         $revisions = $this->createStub(WikiPageRevisionRepositoryInterface::class);
@@ -385,22 +532,23 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
 
         $controller = new WikiManageController(
             accessChecker: $legacy,
-            spaceAccessResolver: $this->createStub(WikiSpaceAccessResolverInterface::class),
+            spaceAccessResolver: $spaceResolver,
             pageRepository: $pages,
             revisionRepository: $revisions,
             pageService: new WikiPageService($pages, $revisions, new WikiSlugger(), new WikiHtmlSanitizer(), new EventDispatcher()),
             pageTreeBuilder: new WikiPageTreeBuilder(),
             revisionDiffService: new WikiRevisionDiffService($revisions),
-            searchService: new WikiSearchService($this->createStub(EntityManagerInterface::class)),
+            searchService: $this->searchService([[$this->page, 'contentHtml' => '<p>run it</p>']]),
             aiAssistant: new NullWikiAiAssistant(),
             documentImporter: $noConstructor(WikiDocumentImporter::class),
-            documentExporter: $noConstructor(WikiDocumentExporter::class),
+            documentExporter: $exporter ?? $noConstructor(WikiDocumentExporter::class),
             archiveHelper: new WikiArchiveHelper(),
             routes: [
                 'space'             => ['path' => '/s', 'name' => 'nowo_wiki_space'],
                 'page_view'         => ['path' => '/v', 'name' => 'nowo_wiki_page_view'],
                 'page_unarchive'    => ['path' => '/u', 'name' => 'nowo_wiki_page_unarchive'],
                 'page_restore'      => ['path' => '/r', 'name' => 'nowo_wiki_page_restore'],
+                'page_history'      => ['path' => '/h', 'name' => 'nowo_wiki_page_history'],
                 'attachment_upload' => ['path' => '/a', 'name' => 'nowo_wiki_attachment_upload'],
                 'search'            => ['path' => '/q', 'name' => 'nowo_wiki_search'],
                 'space_import'      => ['path' => '/i', 'name' => 'nowo_wiki_space_import'],
@@ -410,10 +558,22 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
             dashboardRoute: null,
             editor: ['tiptap_config' => 'notion'],
             importExport: ['enabled' => true, 'max_upload_bytes' => 1048576],
+            pagination: ['spaces_per_page' => 24, 'revisions_per_page' => 25, 'max_tree_pages' => $pagination],
             spaceGuard: new WikiSpaceGuard(new FixedSpaceLocator($this->space), $checker),
             linkService: new WikiPageLinkService($links, [$resolver], new EventDispatcher()),
             eventDispatcher: $dispatcher ? $events : null,
             attachments: ['enabled' => true],
+            translator: new class implements TranslatorInterface {
+                public function trans(string $id, array $parameters = [], ?string $domain = null, ?string $locale = null): string
+                {
+                    return '[' . $domain . '] ' . $id;
+                }
+
+                public function getLocale(): string
+                {
+                    return 'en';
+                }
+            },
         );
         $container = WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $this->twig]);
 

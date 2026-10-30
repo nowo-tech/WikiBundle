@@ -1,6 +1,0 @@
-{# One level of the page tree. Variables: nodes, space, routes, depth, current_slug. #}
-<ul class="list-unstyled mb-0 wiki-tree nowo-wiki-tree{{ depth > 0 ? ' nowo-wiki-tree--nested' : '' }}">
-    {% for node in nodes %}
-        {{ include('@NowoWikiBundle/manage/_page_tree_item.html.twig', {node: node, space: space, routes: routes, depth: depth, current_slug: current_slug}, false) }}
-    {% endfor %}
-</ul>

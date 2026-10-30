@@ -8,7 +8,9 @@ use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * Role-based default implementation of {@see WikiAccessCheckerInterface}.
+ * Role-based default implementation of {@see WikiAccessCheckerInterface}: the admin roles grant everything; any other
+ * permission needs one of the access roles (the general gate, 1.10) and one of the roles of that action. An empty list
+ * grants nothing.
  */
 final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerInterface
 {
@@ -45,7 +47,7 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
     }
 
     /**
-     * Tells whether the user may enter the wiki manage area: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may enter the wiki manage area: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -58,7 +60,7 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
     }
 
     /**
-     * Tells whether the user may list wiki spaces and pages: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may list wiki spaces and pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -67,11 +69,11 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     public function canList(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->listRoles);
+        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->listRoles));
     }
 
     /**
-     * Tells whether the user may create wiki spaces and pages: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may create wiki spaces and pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -80,11 +82,11 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     public function canCreate(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->createRoles);
+        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->createRoles));
     }
 
     /**
-     * Tells whether the user may edit wiki pages: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may edit wiki pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -93,11 +95,11 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     public function canEdit(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->editRoles);
+        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->editRoles));
     }
 
     /**
-     * Tells whether the user may view the revision history of wiki pages: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may view the revision history of wiki pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -106,11 +108,11 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     public function canViewHistory(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->historyRoles);
+        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->historyRoles));
     }
 
     /**
-     * Tells whether the user may archive wiki pages: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may archive wiki pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -119,11 +121,11 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     public function canArchive(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->archiveRoles);
+        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->archiveRoles));
     }
 
     /**
-     * Tells whether the user may ask the wiki AI assistant: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may ask the wiki AI assistant: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -132,11 +134,11 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     public function canAskAi(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->aiRoles);
+        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->aiRoles));
     }
 
     /**
-     * Tells whether the user may import documents into the wiki: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may import documents into the wiki: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -145,11 +147,11 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     public function canImport(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->importRoles);
+        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->importRoles));
     }
 
     /**
-     * Tells whether the user may export wiki content: granted to admin roles or any configured role for this permission.
+     * Tells whether the user may export wiki content: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
      * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
@@ -158,7 +160,7 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      */
     public function canExport(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->exportRoles);
+        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->exportRoles));
     }
 
     private function isAdmin(): bool

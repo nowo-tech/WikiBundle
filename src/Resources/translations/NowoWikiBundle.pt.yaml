@@ -5,18 +5,29 @@ wiki:
     title: Espaços wiki
     intro: Espaços de documentação com páginas versionadas.
     empty: Ainda não há espaços wiki disponíveis.
+    name: "Nome"
+    slug: "Slug"
+    open: "Abrir"
+    actions: "Ações"
   space:
     new_page: Nova página
     pick_page: Selecione uma página na barra lateral ou crie uma.
     pages: Páginas
     tree_truncated: "Apenas as primeiras %count% páginas são mostradas."
     archived: 'Páginas arquivadas'
+    no_pages: "Ainda não há páginas."
   page:
     new: Nova página
     edit: Editar
     history: Histórico
     unarchive: 'Recuperar página'
     used_in: 'Usada em'
+    edit_title: "Editar %title%"
+    archive: "Arquivar"
+    archive_confirm_title: "Arquivar esta página?"
+    archive_confirm_message: "\"%title%\" sai da árvore de páginas e da pesquisa. Quem pode arquivar pode restaurá-la a partir do espaço."
+    revision: "Revisão"
+    updated: "Atualizada"
   form:
     title: Título
     content: Conteúdo
@@ -25,14 +36,25 @@ wiki:
     help: 'Selecione texto para a barra flutuante. Ctrl+K (Cmd+K) para ligações. Duplo clique em imagens ou embeds para alterar o URL. Colar funciona normalmente.'
   action:
     cancel: Cancelar
+    back: "Voltar"
+    back_to_page: "Voltar à página"
   history:
     title: Histórico de versões
     created: Criado
     diff: Comparar
     restore: 'Restaurar esta revisão'
     restored: 'A revisão foi restaurada como uma nova revisão.'
+    revision: "Revisão"
+    current: "Atual"
+    empty: "Ainda não há revisões."
+    restore_confirm_title: "Restaurar esta revisão?"
+    restore_confirm_message: "A revisão v%number% passa a ser o conteúdo atual como uma nova revisão; o histórico mantém todas as versões."
   diff:
     title: Diferenças
+    range: "%title%: v%from% → v%to%"
+    empty: "As duas revisões têm o mesmo conteúdo."
+    added: "Adicionado:"
+    removed: "Removido:"
   search:
     title: Pesquisar
     intro: Pesquisa de texto completo num espaço.
@@ -46,6 +68,9 @@ wiki:
     submit: Pesquisar
     pick_space: Escolher um espaço
     empty: Sem resultados.
+    result_title: "Página"
+    result_space: "Espaço"
+    result_excerpt: "Excerto"
   ai:
     title: Perguntar à wiki
     intro: Perguntas sobre a documentação com Symfony AI.
@@ -85,3 +110,9 @@ wiki:
     previous: "Anterior"
     next: "Seguinte"
     page_of: "Página %page% de %pages%"
+wiki_page_form:
+  title:
+    placeholder: "Título da página"
+    help: "Mostrado na árvore de páginas, no caminho de navegação e nos resultados da pesquisa."
+  content:
+    placeholder: "Comece a escrever…"

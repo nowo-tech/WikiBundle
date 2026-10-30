@@ -5,18 +5,29 @@ wiki:
     title: Wiki-Bereiche
     intro: Dokumentationsbereiche mit versionierten Seiten.
     empty: Noch keine Wiki-Bereiche verfügbar.
+    name: "Name"
+    slug: "Slug"
+    open: "Öffnen"
+    actions: "Aktionen"
   space:
     new_page: Neue Seite
     pick_page: Wählen Sie eine Seite in der Seitenleiste oder erstellen Sie eine.
     pages: Seiten
     tree_truncated: "Es werden nur die ersten %count% Seiten angezeigt."
     archived: 'Archivierte Seiten'
+    no_pages: "Noch keine Seiten."
   page:
     new: Neue Seite
     edit: Bearbeiten
     history: Verlauf
     unarchive: 'Seite wiederherstellen'
     used_in: 'Verwendet in'
+    edit_title: "%title% bearbeiten"
+    archive: "Archivieren"
+    archive_confirm_title: "Diese Seite archivieren?"
+    archive_confirm_message: "„%title%“ verschwindet aus dem Seitenbaum und der Suche. Wer archivieren darf, kann sie im Bereich wiederherstellen."
+    revision: "Revision"
+    updated: "Aktualisiert"
   form:
     title: Titel
     content: Inhalt
@@ -25,14 +36,25 @@ wiki:
     help: 'Text markieren für die schwebende Toolbar. Strg+K (Cmd+K) für Links. Doppelklick auf Bilder oder Embeds ändert die URL. Einfügen funktioniert wie gewohnt.'
   action:
     cancel: Abbrechen
+    back: "Zurück"
+    back_to_page: "Zurück zur Seite"
   history:
     title: Versionsverlauf
     created: Erstellt
     diff: Vergleichen
     restore: 'Diese Version wiederherstellen'
     restored: 'Die Version wurde als neue Version wiederhergestellt.'
+    revision: "Revision"
+    current: "Aktuell"
+    empty: "Noch keine Revisionen."
+    restore_confirm_title: "Diese Revision wiederherstellen?"
+    restore_confirm_message: "Revision v%number% wird als neue Revision zum aktuellen Inhalt; der Verlauf behält alle Versionen."
   diff:
     title: Unterschiede
+    range: "%title%: v%from% → v%to%"
+    empty: "Beide Revisionen haben denselben Inhalt."
+    added: "Hinzugefügt:"
+    removed: "Entfernt:"
   search:
     title: Suchen
     intro: Volltextsuche innerhalb eines Bereichs.
@@ -46,6 +68,9 @@ wiki:
     submit: Suchen
     pick_space: Bereich wählen
     empty: Keine Ergebnisse.
+    result_title: "Seite"
+    result_space: "Bereich"
+    result_excerpt: "Auszug"
   ai:
     title: Wiki fragen
     intro: Fragen Sie Ihre Dokumentation mit Symfony AI.
@@ -85,3 +110,9 @@ wiki:
     previous: "Zurück"
     next: "Weiter"
     page_of: "Seite %page% von %pages%"
+wiki_page_form:
+  title:
+    placeholder: "Seitentitel"
+    help: "Wird im Seitenbaum, in der Brotkrumennavigation und in den Suchergebnissen angezeigt."
+  content:
+    placeholder: "Schreiben Sie los…"

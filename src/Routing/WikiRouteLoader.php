@@ -42,11 +42,13 @@ final class WikiRouteLoader extends Loader
      * @param array<string, array{path: string, name: string}> $routes route name/path per action key
      * @param string $routePrefix path prefix for all wiki routes
      * @param WikiTenantPaths|null $tenantPaths tenant copies of the space-scoped routes (1.9)
+     * @param bool $enabled web_ui.enabled: false registers no route (1.10)
      */
     public function __construct(
         private readonly array $routes,
         private readonly string $routePrefix,
         private readonly ?WikiTenantPaths $tenantPaths = null,
+        private readonly bool $enabled = true,
     ) {
     }
 
@@ -71,6 +73,9 @@ final class WikiRouteLoader extends Loader
         // @igor-ignore - Route loader builds routes at compile/cache warm; not per-request mutation.
         $this->loaded = true;
         $collection   = new RouteCollection();
+        if (!$this->enabled) {
+            return $collection;
+        }
 
         foreach ([WikiManageController::class, WikiAttachmentController::class] as $controller) {
             foreach ((new ReflectionClass($controller))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {

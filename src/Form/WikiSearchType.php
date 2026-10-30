@@ -50,20 +50,17 @@ final class WikiSearchType extends AbstractType
             $builder->add('space', ChoiceType::class, [
                 'required'                  => false,
                 'label'                     => 'wiki.search.pick_space',
-                'label_attr'                => ['class' => 'form-label'],
                 'placeholder'               => 'wiki.search.all_spaces',
                 'choices'                   => array_keys($spaces),
                 'choice_label'              => static fn (string $slug): string => $spaces[$slug] ?? $slug,
                 'choice_translation_domain' => false,
-                'attr'                      => ['class' => 'form-select'],
             ]);
         }
 
         $builder->add('q', SearchType::class, [
-            'required'   => $options['query_required'],
-            'label'      => 'wiki.search.placeholder',
-            'label_attr' => ['class' => 'form-label'],
-            'attr'       => ['class' => 'form-control', 'placeholder' => 'wiki.search.placeholder'],
+            'required' => $options['query_required'],
+            'label'    => 'wiki.search.placeholder',
+            'attr'     => ['placeholder' => 'wiki.search.placeholder'],
         ]);
     }
 

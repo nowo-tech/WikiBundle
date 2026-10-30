@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b9dffe1038e9049d5f49c0159d1257d8",
+    "content-hash": "05b181131ef198ba73cfeb0b5362cc22",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -1900,16 +1900,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.17.2",
+            "version": "v2.17.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "d70caefb15c160e6417a3dec938e2e2399797ed9"
+                "reference": "0c56507b492d159ac8310d2d0fb42bff7d4c935e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/d70caefb15c160e6417a3dec938e2e2399797ed9",
-                "reference": "d70caefb15c160e6417a3dec938e2e2399797ed9",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/0c56507b492d159ac8310d2d0fb42bff7d4c935e",
+                "reference": "0c56507b492d159ac8310d2d0fb42bff7d4c935e",
                 "shasum": ""
             },
             "require": {
@@ -1990,7 +1990,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-10-28T13:23:13+00:00"
+            "time": "2026-10-29T07:27:14+00:00"
         },
         {
             "name": "psr/cache",
@@ -5394,16 +5394,16 @@
         },
         {
             "name": "symfony/security-core",
-            "version": "v7.4.21",
+            "version": "v7.4.22",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/security-core.git",
-                "reference": "02ef0f2d923f903725fabc15b480aafd030b6a12"
+                "reference": "4efce2a1e6c3d686bf0ec9a098e425d53dc3e674"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/security-core/zipball/02ef0f2d923f903725fabc15b480aafd030b6a12",
-                "reference": "02ef0f2d923f903725fabc15b480aafd030b6a12",
+                "url": "https://api.github.com/repos/symfony/security-core/zipball/4efce2a1e6c3d686bf0ec9a098e425d53dc3e674",
+                "reference": "4efce2a1e6c3d686bf0ec9a098e425d53dc3e674",
                 "shasum": ""
             },
             "require": {
@@ -5462,7 +5462,7 @@
             "description": "Symfony Security Component - Core Library",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/security-core/tree/v7.4.21"
+                "source": "https://github.com/symfony/security-core/tree/v7.4.22"
             },
             "funding": [
                 {
@@ -5482,7 +5482,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-10-05T09:12:11+00:00"
+            "time": "2026-10-25T14:40:16+00:00"
         },
         {
             "name": "symfony/security-csrf",

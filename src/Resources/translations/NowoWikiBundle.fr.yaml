@@ -5,18 +5,29 @@ wiki:
     title: Espaces wiki
     intro: Espaces de documentation avec pages versionnées.
     empty: Aucun espace wiki disponible pour le moment.
+    name: "Nom"
+    slug: "Slug"
+    open: "Ouvrir"
+    actions: "Actions"
   space:
     new_page: Nouvelle page
     pick_page: Sélectionnez une page dans la barre latérale ou créez-en une.
     pages: Pages
     tree_truncated: "Seules les %count% premières pages sont affichées."
     archived: 'Pages archivées'
+    no_pages: "Aucune page pour le moment."
   page:
     new: Nouvelle page
     edit: Modifier
     history: Historique
     unarchive: 'Rétablir la page'
     used_in: 'Utilisée dans'
+    edit_title: "Modifier %title%"
+    archive: "Archiver"
+    archive_confirm_title: "Archiver cette page ?"
+    archive_confirm_message: "« %title% » quitte l’arborescence et la recherche. Les personnes autorisées à archiver peuvent la restaurer depuis l’espace."
+    revision: "Révision"
+    updated: "Mise à jour"
   form:
     title: Titre
     content: Contenu
@@ -25,14 +36,25 @@ wiki:
     help: 'Sélectionnez du texte pour la barre flottante. Ctrl+K (Cmd+K) pour les liens. Double-cliquez sur les images ou embeds pour changer l''URL. Le collage fonctionne normalement.'
   action:
     cancel: Annuler
+    back: "Retour"
+    back_to_page: "Retour à la page"
   history:
     title: Historique des versions
     created: Créé
     diff: Comparer
     restore: 'Restaurer cette révision'
     restored: 'La révision a été restaurée comme nouvelle révision.'
+    revision: "Révision"
+    current: "Actuelle"
+    empty: "Aucune révision pour le moment."
+    restore_confirm_title: "Restaurer cette révision ?"
+    restore_confirm_message: "La révision v%number% devient le contenu actuel sous forme de nouvelle révision ; l’historique conserve toutes les versions."
   diff:
     title: Différences
+    range: "%title% : v%from% → v%to%"
+    empty: "Les deux révisions ont le même contenu."
+    added: "Ajouté :"
+    removed: "Supprimé :"
   search:
     title: Rechercher
     intro: Recherche plein texte dans un espace.
@@ -46,6 +68,9 @@ wiki:
     submit: Rechercher
     pick_space: Choisir un espace
     empty: Aucun résultat.
+    result_title: "Page"
+    result_space: "Espace"
+    result_excerpt: "Extrait"
   ai:
     title: Interroger la wiki
     intro: Posez des questions sur votre documentation via Symfony AI.
@@ -85,3 +110,9 @@ wiki:
     previous: "Précédent"
     next: "Suivant"
     page_of: "Page %page% sur %pages%"
+wiki_page_form:
+  title:
+    placeholder: "Titre de la page"
+    help: "Affiché dans l’arborescence, le fil d’Ariane et les résultats de recherche."
+  content:
+    placeholder: "Commencez à écrire…"

@@ -54,18 +54,15 @@ final class WikiAiAskType extends AbstractType
         $builder->add('space', ChoiceType::class, [
             'required'                  => false,
             'label'                     => 'wiki.search.pick_space',
-            'label_attr'                => ['class' => 'form-label'],
             'placeholder'               => 'wiki.search.all_spaces',
             'choices'                   => array_keys($spaces),
             'choice_label'              => static fn (string $slug): string => $spaces[$slug] ?? $slug,
             'choice_translation_domain' => false,
-            'attr'                      => ['class' => 'form-select'],
         ]);
         $builder->add('q', SearchType::class, [
-            'required'   => true,
-            'label'      => 'wiki.ai.placeholder',
-            'label_attr' => ['class' => 'form-label'],
-            'attr'       => ['class' => 'form-control', 'placeholder' => 'wiki.ai.placeholder'] + $options['question_attr'],
+            'required' => true,
+            'label'    => 'wiki.ai.placeholder',
+            'attr'     => ['placeholder' => 'wiki.ai.placeholder'] + $options['question_attr'],
         ]);
 
         $builder->addEventListener(FormEvents::PRE_SUBMIT, static function (FormEvent $event) use ($spaces): void {

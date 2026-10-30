@@ -40,6 +40,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Wiki: pages on the UiKit page contract (scaffolds, value-free view models, `<dialog>` confirm), canonical web_ui / security.roles keys, hidden pages filtered from lists and AI, CSRF and roles fail closed. See [UPGRADING](UPGRADING.md#unreleased).
+
+### Added
+
+- **UiKit page contract (REQ-UI-003):** every wiki page extends a UiKit scaffold — index, history and search the list scaffold; space, page view and diff the show scaffold; page edit and AI question the form scaffold. `Ui\WikiPageFactory` builds the view models (page headers with actions, breadcrumbs and back links, columns, value-free rows, row actions, `Pagination`, empty states) and `Ui\WikiPages` resolves the layout and the per-page templates. `docs/TEMPLATES.md` lists every page, view model and data block; `tests/Integration/Contract/PageContractTest.php` extends UiKit `PageContractTestCase` (17 fixtures × none / bootstrap5 / tailwind, strict missing-translation rule).
+- Canonical configuration: `web_ui.path_prefix`, `web_ui.templates.<page>` and `security.roles.<action>` (`admin`, `list`, `create`, `edit`, `history`, `archive`, `ai`, `import`, `export`); `web_ui.enabled: false` now registers no route.
+- **Archive** action on the page view (POST + CSRF behind the UiKit confirm dialog); Restore of a revision also asks for confirmation.
+- `CsrfProtectionPass`: with the Web UI enabled the container refuses to compile without form CSRF protection or the CSRF token manager (fail closed); `symfony/security-csrf` is a direct requirement.
+- Demo: UiKit host layout (`templates/layouts/admin.html.twig` + masthead), Bootstrap 5 form theme, migration for the 1.9 tables (`<prefix>_page_links`, `<prefix>_attachments`; the 1.9.0 demo answered 500 on page views without it), seeded revisions and an archived page; Playwright e2e for the space page, Archive and Restore confirmations; README screenshots of the page view, the space home and the history.
+- Translation keys for the new labels and the FormKit convention keys of the page form (`wiki_page_form.*`), in the seven locales.
+
+### Changed
+
+- **`security.access_roles` is enforced as the general gate** of the default checker: every permission needs an access role and a role of that action (admin roles excepted). The container refuses to compile when `access_roles` and every action list are empty without an `access_checker`.
+- Pages the user may not view (`WikiAction::View` per page) are left out of the sidebar tree (with their sub-pages), the archived list, search results, AI sources and the AI context (`WikiContextRetriever`, `WikiKnowledgeSearchTool`).
+- Templates: no layout, CDN, framework class, local page header / pagination / flashes / modal partial or inline JS of their own; the AI question of the index is a UiKit `<dialog>`. `wiki.css` only lays out the tree, the two columns, the page body and the diff with the UiKit `--nowo-ui-*` tokens; `wiki.js` scrolls the current page of the tree into view.
+- Form types carry no framework classes; flash messages are translated when they are added.
+- `nowo-tech/ui-kit-bundle` ^2.17.
+- CI: the coverage job runs `composer test-coverage-100` (fails below 100%).
+
+### Security
+
+- **Hidden pages no longer leak** (1.9.0 regression of the per-page `view` rule of a host `WikiSpaceAccessCheckerInterface`): they are left out of the sidebar tree (with their sub-pages; the truncation notice counts readable pages only), the archived list, search, **the space export ZIP**, AI sources, the AI context and `wiki_knowledge_search`. Space lists and the global AI question follow the per-space `view` / `ask_ai` decision.
+- **`security.access_roles` is enforced** (it was inert in 1.0.0–1.9.0); attachment downloads need `canList()` and uploads `canEdit()` of the role checker.
+- An explicit `~` on `security.roles.<action>` or a deprecated `<action>_roles` key means no role (it fell back to the default in the 1.10 development line).
+- `security.allow_unauthenticated` and `web_ui.enabled` must be literal booleans; `allow_unauthenticated` is refused in the `prod` environment and in non-debug kernels. With the Web UI enabled the container refuses to compile without form CSRF protection.
+- Restore checks the CSRF token before looking the revision up; `.gitattributes` keeps demo, tests and tooling out of the dist archives.
+- REQ-SEC-004 re-audit 2026-10-30 (Appendix BR): see [SECURITY](SECURITY.md#req-sec-004).
+
+### Deprecated
+
+- `route_prefix`, `templates.*`, `web_ui.css_framework` and `security.<action>_roles` (see UPGRADING); a pre-1.10 layout without the UiKit canonical blocks is wrapped in a deprecated bridge.
+
+### Removed
+
+- `layout.html.twig`, `base.html.twig`, `manage/_page_header.html.twig`, `manage/_pagination.html.twig`, `manage/_flashes.html.twig`, `manage/_ai_ask_modal.html.twig`, `manage/_ai_ask_form_fields.html.twig`, `manage/_page_tree_list.html.twig`, the 1.9 page blocks and the `--nowo-wiki-*` tokens (Template contract in UPGRADING).
+
 ## [1.9.0] - 2026-10-30
 
 Wiki: space-aware access (404 / 403), tenant paths, restore / unarchive, events, page links to host objects, attachments and image upload, themable templates See [UPGRADING](UPGRADING.md#to-190).

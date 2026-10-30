@@ -62,17 +62,13 @@ nowo_tiptap_editor:
             form_theme: form_div_layout.html.twig
 ```
 
-Publish bundle assets (wiki + Tiptap) and load the editor script on edit pages (included automatically when using `@NowoWikiBundle/layout.html.twig` and `page_edit.html.twig`):
+Publish bundle assets (wiki + Tiptap + UiKit); the page editor (`page_edit.html.twig`) adds the Tiptap script to the UiKit `nowo_ui_scripts` block itself:
 
 ```bash
 php bin/console assets:install public
 ```
 
-If you override the wiki layout, keep `{% block wiki_editor_scripts %}` or add:
-
-```twig
-<script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js')) }}"></script>
-```
+The wiki pages render inside `nowo_ui_kit.layouts.admin` (your layout or a one-file bridge rendering the UiKit canonical blocks, including `nowo_ui_scripts`); see [CONFIGURATION](CONFIGURATION.md#web-ui-req-ui-001--req-ui-003) and [TEMPLATES](TEMPLATES.md). Give the host a form theme (`twig.form_themes`, e.g. `bootstrap_5_layout.html.twig`) or a FormKit profile: the wiki form types carry no framework class.
 
 ## Twig Extra Bundle (REQ-TWIG-004)
 

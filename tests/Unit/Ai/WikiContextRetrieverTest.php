@@ -13,9 +13,11 @@ use Nowo\WikiBundle\Ai\WikiContextRetriever;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 
@@ -117,6 +119,40 @@ final class WikiContextRetrieverTest extends TestCase
         $result = (new WikiContextRetriever($search, $resolver))->retrieve($user, 'draft page', null, 5, 5000);
 
         self::assertStringContainsString('Draft', $result['context']);
+    }
+
+    public function testPagesTheUserMayNotViewStayOutOfTheContext(): void
+    {
+        $user   = new TestUser();
+        $space  = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $public = new WikiPage($space, 'public', 'Public runbook');
+        $secret = new WikiPage($space, 'secret', 'Secret runbook');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $checker = new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p?->getSlug() !== 'secret');
+
+        $result = (new WikiContextRetriever($this->createSearchService([[$public, 'contentHtml' => ''], [$secret, 'contentHtml' => '']]), $resolver, $checker))
+            ->retrieve($user, 'runbook', null, 5, 5000);
+
+        self::assertSame(['public'], array_map(static fn (array $hit): string => $hit['page']->getSlug(), $result['sources']));
+        self::assertStringNotContainsString('Secret', $result['context']);
+    }
+
+    public function testSpacesWithoutAskAiDoNotFeedTheContext(): void
+    {
+        $user  = new TestUser();
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'runbook', 'Runbook');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $noAi   = CallbackSpaceAccessChecker::allowing(WikiAction::View);
+        $search = $this->createSearchService([[$page, 'contentHtml' => '']]);
+
+        self::assertSame(['context' => '', 'sources' => []], (new WikiContextRetriever($search, $resolver, $noAi))->retrieve($user, 'runbook', null, 5, 5000));
+        self::assertSame(['context' => '', 'sources' => []], (new WikiContextRetriever($search, $resolver, $noAi))->retrieve($user, 'runbook', $space, 5, 5000));
+        self::assertCount(1, (new WikiContextRetriever($search, $resolver, CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::AskAi)))->retrieve($user, 'runbook', $space, 5, 5000)['sources']);
     }
 
     /**

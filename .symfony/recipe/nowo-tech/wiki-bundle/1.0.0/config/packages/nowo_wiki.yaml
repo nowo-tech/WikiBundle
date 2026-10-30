@@ -1,6 +1,12 @@
 nowo_wiki:
     user_class: App\Entity\User
+    # web_ui:
+    #     enabled: true
+    #     path_prefix: null              # e.g. /admin
+    #     layout_template: null          # null = nowo_ui_kit.layouts.admin (set it once for every UiKit bundle)
     # security:
-    #     access_roles: [ROLE_USER]
+    #     access_roles: [ROLE_USER]      # general gate
+    #     roles:
+    #         import: [ROLE_ADMIN]       # per action: admin, list, create, edit, history, archive, ai, import, export
     #     access_checker: null
     #     allow_unauthenticated: false  # never true in production

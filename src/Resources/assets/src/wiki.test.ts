@@ -1,45 +1,35 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { initWikiAiModal, initWikiSidebars } from './wiki';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { initWikiTrees } from './wiki';
 
-describe('wiki sidebar', () => {
-    beforeEach(() => {
-        document.body.innerHTML = '<aside data-wiki-sidebar></aside><aside data-wiki-sidebar></aside>';
-    });
-
+describe('wiki page tree', () => {
     afterEach(() => {
         document.body.innerHTML = '';
     });
 
-    it('sets navigation role on wiki sidebars', () => {
-        initWikiSidebars(document);
-
-        document.querySelectorAll('[data-wiki-sidebar]').forEach((sidebar) => {
-            expect(sidebar.getAttribute('role')).toBe('navigation');
-        });
-    });
-});
-
-describe('wiki ai modal', () => {
-    beforeEach(() => {
+    it('scrolls the current page of each tree into view', () => {
         document.body.innerHTML = `
-            <div id="wikiAiAskModal">
-                <input id="wiki-ai-modal-question" type="search" />
-            </div>
+            <ul data-wiki-tree><li><a href="/a">A</a></li><li><a href="/b" aria-current="page">B</a></li></ul>
+            <ul data-wiki-tree><li><a href="/c">C</a></li></ul>
         `;
+        const current = document.querySelector('[aria-current="page"]') as HTMLElement;
+        const scroll = vi.fn();
+        current.scrollIntoView = scroll;
+
+        initWikiTrees(document);
+
+        expect(scroll).toHaveBeenCalledTimes(1);
+        expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
     });
 
-    afterEach(() => {
-        document.body.innerHTML = '';
+    it('ignores trees without a current page and elements without scrollIntoView', () => {
+        document.body.innerHTML = '<ul data-wiki-tree><li><a href="/a" aria-current="page">A</a></li></ul>';
+        const current = document.querySelector('[aria-current="page"]') as HTMLElement & { scrollIntoView?: unknown };
+        current.scrollIntoView = undefined;
+
+        expect(() => initWikiTrees()).not.toThrow();
     });
 
-    it('focuses the question field when modal opens', () => {
-        const modal = document.getElementById('wikiAiAskModal');
-        const input = document.getElementById('wiki-ai-modal-question') as HTMLInputElement;
-        const focus = vi.spyOn(input, 'focus');
-
-        initWikiAiModal(document);
-        modal?.dispatchEvent(new Event('shown.bs.modal'));
-
-        expect(focus).toHaveBeenCalled();
+    it('marks the document as ready on load', () => {
+        expect(document.documentElement.classList.contains('wiki-ready')).toBe(true);
     });
 });

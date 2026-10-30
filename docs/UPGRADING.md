@@ -44,7 +44,60 @@
 
 ## Unreleased
 
-Nothing yet.
+From **1.9.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/ui-kit-bundle
+```
+
+- **Requirements:** `nowo-tech/ui-kit-bundle` **^2.17** (was `^1.4 || ^2.2`) and `symfony/security-csrf` (now a direct requirement).
+- **CSRF fails closed:** with `web_ui.enabled: true` the container no longer compiles without `framework.csrf_protection` and `framework.form.csrf_protection`. Enable them (Symfony's default) or set `nowo_wiki.web_ui.enabled: false`, which now also registers no wiki route.
+- **`security.access_roles` is a real gate:** every permission of the default checker now needs one of the access roles **and** one of the roles of that action (the admin roles still grant everything). With the defaults (`access_roles: [ROLE_USER]`) nothing changes for users holding `ROLE_USER`; a host with `access_roles: [ROLE_ADMIN]` and per-action lists of `ROLE_USER` now really restricts the wiki to admins, as documented. When `access_roles` and every action list are empty (no `access_checker`, `allow_unauthenticated: false`) the container refuses to compile.
+- **Hidden pages stay hidden everywhere (security fix for 1.9.0):** pages the user may not view (`WikiAction::View` on the page) are no longer listed in the sidebar tree (with their sub-pages), the archived list, search results, the space export ZIP, AI sources or the AI context. Space lists (index, search and AI choices) only show spaces with `view`; a question across spaces only uses spaces with `ask_ai`. `WikiContextRetriever` and `WikiKnowledgeSearchTool` take an optional `WikiSpaceAccessCheckerInterface` (autowired), `WikiDocumentExporter::export()` an optional page filter (the CLI export stays complete). A host checker that hides a whole space should keep denying `view` on it.
+- **Attachments:** downloads need `canList()` and uploads `canEdit()` of `WikiAccessCheckerInterface` (so `access_roles` applies to them); `WikiAttachmentController` takes it as a new optional last argument.
+- **`~` on a role list means no role:** `security.roles.<action>: ~` and a deprecated `<action>_roles: ~` grant nothing (as `[]`); leave the key out to keep the default.
+- **`allow_unauthenticated`:** must be a literal `true` / `false` (no env placeholder) and is refused in the `prod` environment and in non-debug kernels (`test*` environments excepted). The same literal rule applies to `web_ui.enabled`.
+
+### Configuration (deprecated keys, removed in 2.0)
+
+| Deprecated | Use | Notes |
+| --- | --- | --- |
+| `route_prefix` | `web_ui.path_prefix` | `web_ui.path_prefix` wins when both are set |
+| `templates.layout` | `web_ui.layout_template` | default `null` = `nowo_ui_kit.layouts.admin`; the old default `@NowoWikiBundle/layout.html.twig` is read as `null` |
+| `templates.<page>` | `web_ui.templates.<page>` | pages: `index`, `space`, `page_view`, `page_edit`, `page_history`, `page_diff`, `search`, `ai_ask` |
+| `web_ui.css_framework` | `nowo_ui_kit.css_framework` | default `null` now; when set it only seeds `nowo_ui_kit.css_framework` / `icon_set` if the host left them unset (1.9 seeded `tabler` by default) |
+| `security.admin_roles`, `list_roles`, `create_roles`, `edit_roles`, `history_roles`, `archive_roles`, `ai_roles`, `import_roles`, `export_roles` | `security.roles.{admin,list,create,edit,history,archive,ai,import,export}` | same defaults; `security.roles.<action>` wins |
+
+```yaml
+nowo_ui_kit:
+    css_framework: bootstrap5
+    layouts:
+        admin: 'layouts/admin.html.twig'     # your layout or a bridge that renders the UiKit canonical blocks
+
+nowo_wiki:
+    web_ui:
+        path_prefix: null
+        layout_template: null
+        templates: {}
+    security:
+        access_roles: [ROLE_USER]
+        roles:
+            import: [ROLE_ADMIN]
+```
+
+### Template contract
+
+Every wiki page now extends a UiKit page scaffold (REQ-UI-003); see [TEMPLATES.md](TEMPLATES.md) for the page → scaffold map, the view models and the data blocks.
+
+- **Removed templates:** `layout.html.twig` (Tabler / Bootstrap CDN shell), `base.html.twig`, `manage/_page_header.html.twig`, `manage/_pagination.html.twig`, `manage/_flashes.html.twig`, `manage/_ai_ask_modal.html.twig`, `manage/_ai_ask_form_fields.html.twig`, `manage/_page_tree_list.html.twig`. The UiKit page header, pagination, flashes, empty state, confirm and `<dialog>` partials replace them (theme them in UiKit, once). New: `manage/_sidebar.html.twig`, `manage/_ai_dialog.html.twig`, `manage/_legacy_layout.html.twig` (deprecated bridge).
+- **Removed blocks:** `title`, `body`, `container_class`, `wiki_editor_scripts`, `wiki_header`, `wiki_flashes`, `space_sidebar`, `space_sidebar_header`, `page_tree`, `page_main`, `page_header`, `page_actions`, `page_body`, `page_aside`, `space_main`, `space_search`, `space_import_export`, `space_archived`, `history_list`, `history_pagination`, `history_footer`, `diff_body`, `diff_footer`, `search_form`, `search_results`, `page_form`, `page_form_fields`, `page_form_actions`, `wiki_search_highlight`, `wiki_ai_highlight`, `wiki_ai_modal`, `space_list`, `ai_error`, `ai_answer`, `ai_sources`, `ai_follow_up`, `ai_form`. Pages fill the UiKit blocks (`nowo_ui_styles`, `nowo_ui_scripts`, `nowo_ui_list_row`, `nowo_ui_show_sections`, `nowo_ui_form_body`, `nowo_ui_form_aside`, `nowo_ui_modals`).
+- **Page variables:** `page` is now the UiKit view model (`ListPage`, `ShowPage`, `FormPage`); the `WikiPage` / `WikiSpace` / `WikiPageRevision` entities and the 1.9 variables `layout`, `space`, `spaces`, `space_page`, `pagination` (array), `revision`, `revisions`, `older_revision`, `restore_forms`, `archived_pages`, `unarchive_forms`, `results`, `from_revision`, `to_revision`, `form` (page edit), `search_form` (index, search), `ai_form` (AI page) are gone. Tree nodes, archived pages, search hits, AI sources and "Used in" entries are value-free arrays (TEMPLATES.md, "View models"); the page body is `content_html`.
+- **Markup:** no Tabler / Bootstrap classes in the bundle markup any more (only `nowo-ui-*` / theme slots and the `nowo-wiki-*` hooks listed in USAGE); the 1.x hooks `wiki-tree`, `wiki-page-content`, `wiki-diff-*`, `#wikiAiAskModal` and the `data-nowo-wiki-skin` attribute are gone. `wiki.css` dropped the `--nowo-wiki-*` token tree: remap the UiKit `--nowo-ui-*` tokens (`nowo_ui_kit.theme.tokens`) instead. The AI modal is a native `<dialog>` (`#nowo-wiki-ai-dialog`); Archive (new header action on the page view) and Restore ask for confirmation in the UiKit confirm `<dialog>`.
+- **Form fields:** `WikiSearchType`, `WikiAiAskType` and `WikiImportType` no longer set `form-control` / `form-select` / `form-label` / `form-check-*`: style fields with your form theme (`twig.form_themes`) or the FormKit `wiki` profile. `WikiPageFormType` shows the editor help as the `content` field help.
+- **Flashes** are translated (domain `NowoWikiBundle`) when they are added, so any layout prints them as given.
+- **Layouts:** a 1.9 layout (`web_ui.layout_template` / `templates.layout` rendering `{% block body %}`, `stylesheets`, `javascripts`) still works through the deprecated bridge, with a deprecation notice; move it to the UiKit canonical blocks (one-file bridge: `{% use '@NowoUiKit/layout/_bridge.html.twig' %}`, see the demo `templates/layouts/admin.html.twig`).
+- **Overrides** under `templates/bundles/NowoWikiBundle/` written for 1.9 must be redone: prefer theming UiKit, else `web_ui.templates.<page>` with a thin `{% extends '@NowoWikiBundle/manage/<page>.html.twig' %}` that overrides one UiKit data block.
+- **Schema reminder:** 1.9 added `<prefix>_page_links` and `<prefix>_attachments`; the demo now ships the matching migration.
 
 ## To 1.9.0
 

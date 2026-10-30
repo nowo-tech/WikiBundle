@@ -5,18 +5,29 @@ wiki:
     title: Wiki-ruimtes
     intro: Documentatieruimtes met versioneerde pagina's.
     empty: Nog geen wiki-ruimtes beschikbaar.
+    name: "Naam"
+    slug: "Slug"
+    open: "Openen"
+    actions: "Acties"
   space:
     new_page: Nieuwe pagina
     pick_page: Kies een pagina in de zijbalk of maak er een aan.
     pages: Pagina's
     tree_truncated: "Alleen de eerste %count% pagina's worden getoond."
     archived: 'Gearchiveerde pagina''s'
+    no_pages: "Nog geen pagina’s."
   page:
     new: Nieuwe pagina
     edit: Bewerken
     history: Geschiedenis
     unarchive: 'Pagina terugzetten'
     used_in: 'Gebruikt in'
+    edit_title: "%title% bewerken"
+    archive: "Archiveren"
+    archive_confirm_title: "Deze pagina archiveren?"
+    archive_confirm_message: "\"%title%\" verdwijnt uit de paginaboom en de zoekresultaten. Wie mag archiveren, kan de pagina vanuit de ruimte herstellen."
+    revision: "Revisie"
+    updated: "Bijgewerkt"
   form:
     title: Titel
     content: Inhoud
@@ -25,14 +36,25 @@ wiki:
     help: 'Selecteer tekst voor de zwevende werkbalk. Ctrl+K (Cmd+K) voor links. Dubbelklik op afbeeldingen of embeds om de URL te wijzigen. Plakken werkt zoals gewoonlijk.'
   action:
     cancel: Annuleren
+    back: "Terug"
+    back_to_page: "Terug naar de pagina"
   history:
     title: Versiegeschiedenis
     created: Aangemaakt
     diff: Vergelijken
     restore: 'Deze revisie terugzetten'
     restored: 'De revisie is teruggezet als nieuwe revisie.'
+    revision: "Revisie"
+    current: "Huidig"
+    empty: "Nog geen revisies."
+    restore_confirm_title: "Deze revisie herstellen?"
+    restore_confirm_message: "Revisie v%number% wordt de huidige inhoud als nieuwe revisie; de geschiedenis bewaart alle versies."
   diff:
     title: Verschillen
+    range: "%title%: v%from% → v%to%"
+    empty: "Beide revisies hebben dezelfde inhoud."
+    added: "Toegevoegd:"
+    removed: "Verwijderd:"
   search:
     title: Zoeken
     intro: Volledige tekstzoekopdracht binnen een ruimte.
@@ -46,6 +68,9 @@ wiki:
     submit: Zoeken
     pick_space: Kies een ruimte
     empty: Geen resultaten.
+    result_title: "Pagina"
+    result_space: "Ruimte"
+    result_excerpt: "Fragment"
   ai:
     title: Vraag de wiki
     intro: Stel vragen over uw documentatie met Symfony AI.
@@ -85,3 +110,9 @@ wiki:
     previous: "Vorige"
     next: "Volgende"
     page_of: "Pagina %page% van %pages%"
+wiki_page_form:
+  title:
+    placeholder: "Paginatitel"
+    help: "Getoond in de paginaboom, het kruimelpad en de zoekresultaten."
+  content:
+    placeholder: "Begin met schrijven…"

@@ -1,52 +1,20 @@
-{% extends '@NowoWikiBundle/base.html.twig' %}
+{#
+  Page create / edit (REQ-UI-003): UiKit form scaffold. Variable: page (View\FormPage from WikiPageFactory::pageForm():
+  header wiki.page.new or wiki.page.edit_title (intro = space name) with a back link; form = WikiPageFormType (title +
+  Tiptap content with the editor help; CSRF token wiki_new_<space id> / wiki_edit_<page id>); Save; Cancel back to the
+  page or the space).
+  Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the TiptapEditorBundle script, with
+  the request attribute csp_nonce when set); nowo_ui_form_body keeps the default REQ-TWIG-003 child loop.
+#}
+{% extends '@NowoUiKit/page/form.html.twig' %}
 
-{% block title %}{% if page %}{{ page.title }}{% else %}{{ 'wiki.page.new'|trans({}, 'NowoWikiBundle') }}{% endif %}{% endblock %}
-
-{% block wiki_editor_scripts %}
-    <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if nowo_wiki_csp_nonce|default('') %} nonce="{{ nowo_wiki_csp_nonce }}"{% endif %}></script>
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
 {% endblock %}
 
-{% block body %}
-    <div class="nowo-wiki nowo-wiki--edit" data-nowo-wiki-skin="{{ nowo_wiki_skin|default('framework') }}">
-        {% block wiki_header %}
-            {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
-                page_title: page ? ('wiki.page.edit'|trans({}, 'NowoWikiBundle') ~ ': ' ~ page.title) : ('wiki.page.new'|trans({}, 'NowoWikiBundle')),
-                page_subtitle: space.name,
-            }) }}
-        {% endblock %}
-
-        <section class="card nowo-wiki-panel nowo-wiki-editor">
-            <div class="card-body nowo-wiki-panel__body">
-                {% block page_form %}
-                    {{ form_start(form, {attr: {class: 'wiki-form nowo-wiki-form nowo-wiki-editor__form'}}) }}
-                        {% block page_form_fields %}
-                            <div class="mb-3 nowo-wiki-form__field nowo-wiki-form__field--title">
-                                {{ form_label(form.title, null, {label_attr: {class: 'form-label'}}) }}
-                                {{ form_widget(form.title, {attr: {class: 'form-control'}}) }}
-                                {{ form_errors(form.title) }}
-                            </div>
-                            <div class="mb-3 nowo-wiki-form__field nowo-wiki-form__field--content">
-                                {{ form_label(form.content, 'wiki.form.content'|trans({}, 'NowoWikiBundle'), {label_attr: {class: 'form-label'}}) }}
-                                <p class="text-secondary small mb-2 nowo-wiki-form__help">{{ 'wiki.editor.help'|trans({}, 'NowoWikiBundle') }}</p>
-                                {{ form_widget(form.content) }}
-                                {{ form_errors(form.content) }}
-                            </div>
-                        {% endblock %}
-                        {# REQ-TWIG-003 rule 3: title and content use custom markup above; the loop renders any remaining child (incl. the Form's CSRF token, REQ-TWIG-005). #}
-                        {% for child in form %}
-                            {% if not child.rendered %}
-                                {{ form_row(child) }}
-                            {% endif %}
-                        {% endfor %}
-                        {% block page_form_actions %}
-                            <div class="nowo-wiki-form__actions nowo-wiki-actions">
-                                <button type="submit" class="btn btn-primary nowo-wiki-btn nowo-wiki-btn--primary">{{ 'wiki.form.save'|trans({}, 'NowoWikiBundle') }}</button>
-                                <a href="{{ path(routes.space.name, {spaceSlug: space.slug}) }}" class="btn btn-outline-secondary ms-2 nowo-wiki-btn nowo-wiki-btn--secondary">{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}</a>
-                            </div>
-                        {% endblock %}
-                    {{ form_end(form) }}
-                {% endblock %}
-            </div>
-        </section>
-    </div>
+{% block nowo_ui_scripts %}
+    {{ parent() }}
+    {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+    <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
 {% endblock %}
