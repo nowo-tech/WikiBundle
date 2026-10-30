@@ -215,7 +215,7 @@ final class WikiManageController extends AbstractController
         $this->denyUnlessFeature('list');
         $user                   = $this->requireUser();
         $space                  = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page                   = $this->requirePage($space, $pageSlug);
+        $page                   = $this->requirePage($user, $space, $pageSlug);
         $revision               = $page->getCurrentRevision();
         [$tree, $treeTruncated] = $this->buildTree($space);
         $permissions            = $this->spaceGuard->grants($user, $space, $page);
@@ -254,7 +254,7 @@ final class WikiManageController extends AbstractController
         $this->denyUnlessFeature('edit');
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page  = $this->requirePage($space, $pageSlug);
+        $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::Edit, $space, $page);
 
         $data = new WikiPageFormData(
@@ -371,7 +371,7 @@ final class WikiManageController extends AbstractController
         $this->denyUnlessFeature('history');
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page  = $this->requirePage($space, $pageSlug);
+        $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::History, $space, $page);
         $perPage = max(1, $this->pagination['revisions_per_page']);
         $current = max(1, $request?->query->getInt('page', 1) ?? 1);
@@ -408,7 +408,7 @@ final class WikiManageController extends AbstractController
         $this->denyUnlessFeature('history');
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page  = $this->requirePage($space, $pageSlug);
+        $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::History, $space, $page);
 
         $fromNumber = $request->query->getInt('from');
@@ -451,7 +451,7 @@ final class WikiManageController extends AbstractController
         $this->denyUnlessFeature('archive');
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page  = $this->requirePage($space, $pageSlug);
+        $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::Archive, $space, $page);
 
         if (!$this->isValidCsrf($request, 'wiki_archive_' . $page->getId())) {
@@ -486,6 +486,7 @@ final class WikiManageController extends AbstractController
             throw new NotFoundHttpException('Page not found.');
         }
 
+        $this->spaceGuard->requireGranted($user, WikiAction::View, $space, $page);
         $this->spaceGuard->requireGranted($user, WikiAction::Archive, $space, $page);
         if (!$this->isValidCsrf($request, 'wiki_unarchive_' . $page->getId())) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
@@ -515,7 +516,7 @@ final class WikiManageController extends AbstractController
         $this->denyUnlessFeature('edit');
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page  = $this->requirePage($space, $pageSlug);
+        $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::Restore, $space, $page);
 
         $revision = $this->revisionRepository->findByPageAndNumber($page, $revisionNumber);
@@ -1007,12 +1008,19 @@ final class WikiManageController extends AbstractController
         return [$this->pageTreeBuilder->build(array_slice($pages, 0, $max)), count($pages) > $max];
     }
 
-    private function requirePage(WikiSpace $space, string $pageSlug): WikiPage
+    /**
+     * Returns the active page of the slug the user may read; a missing, archived or hidden page answers 404 alike.
+     *
+     * @throws NotFoundHttpException when the page is missing, archived or {@see WikiAction::View} is denied on it
+     */
+    private function requirePage(UserInterface $user, WikiSpace $space, string $pageSlug): WikiPage
     {
         $page = $this->pageRepository->findBySlug($space, $pageSlug);
         if (!$page instanceof WikiPage || $page->isArchived()) {
             throw new NotFoundHttpException('Page not found.');
         }
+
+        $this->spaceGuard->requireGranted($user, WikiAction::View, $space, $page);
 
         return $page;
     }
