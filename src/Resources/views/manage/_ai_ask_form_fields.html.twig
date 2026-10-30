@@ -1,15 +1,15 @@
 {# REQ-TWIG-005: fields of WikiAiAskType (ai_form); the caller wraps them in form_start(ai_form) / form_end(ai_form). #}
-<div class="row g-2 align-items-end">
-    <div class="col-md-4">
+<div class="row g-2 align-items-end nowo-wiki-form__row">
+    <div class="col-md-4 nowo-wiki-form__field nowo-wiki-form__field--space">
         {{ form_label(ai_form.space) }}
         {{ form_widget(ai_form.space) }}
     </div>
-    <div class="col-md-6">
+    <div class="col-md-6 nowo-wiki-form__field nowo-wiki-form__field--query">
         {{ form_label(ai_form.q) }}
         {{ form_widget(ai_form.q) }}
     </div>
-    <div class="col-md-2">
-        <button type="submit" class="btn btn-azure w-100">{{ 'wiki.ai.submit'|trans({}, 'NowoWikiBundle') }}</button>
+    <div class="col-md-2 nowo-wiki-form__actions">
+        <button type="submit" class="btn btn-azure w-100 nowo-wiki-btn nowo-wiki-btn--ai">{{ 'wiki.ai.submit'|trans({}, 'NowoWikiBundle') }}</button>
     </div>
 </div>
 {% for child in ai_form %}

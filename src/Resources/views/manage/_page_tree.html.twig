@@ -1,19 +1,10 @@
-{% macro render_tree(nodes, space, routes, depth) %}
-    <ul class="list-unstyled mb-0 wiki-tree">
-        {% for node in nodes %}
-            <li class="wiki-tree-item" style="--depth: {{ depth }}">
-                <a href="{{ path(routes.page_view.name, {spaceSlug: space.slug, pageSlug: node.page.slug}) }}" class="text-reset">{{ node.page.title }}</a>
-                {% if node.children is not empty %}
-                    {{ _self.render_tree(node.children, space, routes, depth + 1) }}
-                {% endif %}
-            </li>
-        {% endfor %}
-    </ul>
-{% endmacro %}
-
-{{ _self.render_tree(tree, space, routes, 0) }}
+{#
+    Space page tree (FR-006): nested lists, one `_page_tree_item.html.twig` per page (override that partial to change an item).
+    Variables: tree, space, routes, current_slug (optional), tree_truncated, max_tree_pages.
+#}
+{{ include('@NowoWikiBundle/manage/_page_tree_list.html.twig', {nodes: tree, space: space, routes: routes, depth: 0, current_slug: current_slug|default(null)}, false) }}
 {% if tree_truncated|default(false) %}
-    <p class="text-secondary small mt-2 mb-0 wiki-tree-truncated">
+    <p class="text-secondary small mt-2 mb-0 wiki-tree-truncated nowo-wiki-tree__truncated">
         {{ 'wiki.space.tree_truncated'|trans({'%count%': max_tree_pages|default(0)}, 'NowoWikiBundle') }}
         {% if routes.search is defined %}
             <a href="{{ path(routes.search.name, {space: space.slug}) }}">{{ 'wiki.search.title'|trans({}, 'NowoWikiBundle') }}</a>
