@@ -49,6 +49,16 @@ interface WikiPageRepositoryInterface
     public function findActiveBySpace(WikiSpace $space, ?int $limit = null): array;
 
     /**
+     * Returns the archived pages of a space, most recently archived first (1.9).
+     *
+     * @param WikiSpace $space space whose archived pages are listed
+     * @param int $limit maximum number of pages
+     *
+     * @return list<WikiPage>
+     */
+    public function findArchivedBySpace(WikiSpace $space, int $limit = 100): array;
+
+    /**
      * Counts the pages of a space using the given slug, optionally ignoring one page (slug uniqueness checks).
      *
      * @param WikiSpace $space space to search

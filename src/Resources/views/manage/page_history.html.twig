@@ -3,56 +3,72 @@
 {% block title %}{{ 'wiki.history.title'|trans({}, 'NowoWikiBundle') }} — {{ page.title }}{% endblock %}
 
 {% block body %}
-    {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
-        page_title: 'wiki.history.title'|trans({}, 'NowoWikiBundle'),
-        page_subtitle: page.title,
-    }) }}
+    <div class="nowo-wiki nowo-wiki--history" data-nowo-wiki-skin="{{ nowo_wiki_skin|default('framework') }}">
+        {% block wiki_header %}
+            {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
+                page_title: 'wiki.history.title'|trans({}, 'NowoWikiBundle'),
+                page_subtitle: page.title,
+            }) }}
+        {% endblock %}
 
-    <div class="card">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-vcenter card-table mb-0">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>{{ 'wiki.history.created'|trans({}, 'NowoWikiBundle') }}</th>
-                            <th class="w-1"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for revision in revisions %}
-                            <tr>
-                                <td>{{ revision.revisionNumber }}</td>
-                                <td>{{ revision.createdAt|date('Y-m-d H:i') }}</td>
-                                <td class="text-end">
-                                    {% set older = loop.last ? older_revision|default(null) : revisions[loop.index] %}
-                                    {% if older is not null %}
-                                        <a href="{{ path(routes.page_diff.name, {spaceSlug: space.slug, pageSlug: page.slug, from: older.revisionNumber, to: revision.revisionNumber}) }}" class="btn btn-sm btn-outline-primary">
-                                            {{ 'wiki.history.diff'|trans({}, 'NowoWikiBundle') }}
-                                        </a>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        {% if pagination is defined %}
-            <div class="card-body pt-0">
-                {{ include('@NowoWikiBundle/manage/_pagination.html.twig', {
-                    route: routes.page_history.name,
-                    route_params: {spaceSlug: space.slug, pageSlug: page.slug},
-                    page: pagination.page,
-                    has_previous: pagination.has_previous,
-                    has_next: pagination.has_next,
-                }, false) }}
-            </div>
-        {% endif %}
-        <div class="card-footer">
-            <a href="{{ path(routes.page_view.name, {spaceSlug: space.slug, pageSlug: page.slug}) }}" class="btn btn-outline-secondary">
-                <i class="ti ti-arrow-left me-1" aria-hidden="true"></i>{{ page.title }}
-            </a>
-        </div>
+        <section class="card nowo-wiki-panel nowo-wiki-history">
+            {% block history_list %}
+                <div class="card-body p-0 nowo-wiki-panel__body nowo-wiki-panel__body--flush">
+                    <div class="table-responsive nowo-wiki-table-scroll">
+                        <table class="table table-vcenter card-table mb-0 nowo-wiki-table nowo-wiki-history__table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">{{ 'wiki.history.created'|trans({}, 'NowoWikiBundle') }}</th>
+                                    <th scope="col" class="w-1"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for revision in revisions %}
+                                    <tr class="nowo-wiki-history__row" data-wiki-revision="{{ revision.revisionNumber }}">
+                                        <td class="nowo-wiki-history__number">{{ revision.revisionNumber }}</td>
+                                        <td class="nowo-wiki-history__date">{{ revision.createdAt|date('Y-m-d H:i') }}</td>
+                                        <td class="text-end nowo-wiki-history__actions">
+                                            {% set older = loop.last ? older_revision|default(null) : revisions[loop.index] %}
+                                            {% if older is not null %}
+                                                <a href="{{ path(routes.page_diff.name, {spaceSlug: space.slug, pageSlug: page.slug, from: older.revisionNumber, to: revision.revisionNumber}) }}" class="btn btn-sm btn-outline-primary nowo-wiki-btn nowo-wiki-btn--sm nowo-wiki-btn--primary">
+                                                    {{ 'wiki.history.diff'|trans({}, 'NowoWikiBundle') }}
+                                                </a>
+                                            {% endif %}
+                                            {% if restore_forms[revision.revisionNumber] is defined %}
+                                                {{ form_start(restore_forms[revision.revisionNumber], {attr: {class: 'd-inline nowo-wiki-history__restore'}}) }}
+                                                    {{ form_rest(restore_forms[revision.revisionNumber]) }}
+                                                    <button type="submit" class="btn btn-sm btn-outline-secondary nowo-wiki-btn nowo-wiki-btn--sm nowo-wiki-btn--secondary">{{ 'wiki.history.restore'|trans({}, 'NowoWikiBundle') }}</button>
+                                                {{ form_end(restore_forms[revision.revisionNumber]) }}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endblock %}
+            {% block history_pagination %}
+                {% if pagination is defined %}
+                    <div class="card-body pt-0 nowo-wiki-panel__body">
+                        {{ include('@NowoWikiBundle/manage/_pagination.html.twig', {
+                            route: routes.page_history.name,
+                            route_params: {spaceSlug: space.slug, pageSlug: page.slug},
+                            page: pagination.page,
+                            has_previous: pagination.has_previous,
+                            has_next: pagination.has_next,
+                        }, false) }}
+                    </div>
+                {% endif %}
+            {% endblock %}
+            {% block history_footer %}
+                <div class="card-footer nowo-wiki-panel__footer nowo-wiki-actions">
+                    <a href="{{ path(routes.page_view.name, {spaceSlug: space.slug, pageSlug: page.slug}) }}" class="btn btn-outline-secondary nowo-wiki-btn nowo-wiki-btn--secondary">
+                        <i class="ti ti-arrow-left me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ page.title }}
+                    </a>
+                </div>
+            {% endblock %}
+        </section>
     </div>
 {% endblock %}

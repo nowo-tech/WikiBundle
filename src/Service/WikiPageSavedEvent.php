@@ -17,10 +17,14 @@ final readonly class WikiPageSavedEvent
      *
      * @param WikiPage $page page that was saved
      * @param WikiPageRevision $revision revision that was created
+     * @param WikiPageRevision|null $previousRevision revision that was current before (null for a new page; 1.9)
+     * @param object|null $actor user who saved it (1.9)
      */
     public function __construct(
         public WikiPage $page,
         public WikiPageRevision $revision,
+        public ?WikiPageRevision $previousRevision = null,
+        public ?object $actor = null,
     ) {
     }
 }

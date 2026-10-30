@@ -61,12 +61,26 @@ security:
 
 See [docs/examples/AccessControl.md](examples/AccessControl.md) and [USAGE.md](USAGE.md).
 
+### Space- and page-aware access (1.9)
+
+`WikiSpaceAccessCheckerInterface` is asked on every route with the resolved space and page. A space or page the user
+may not view answers 404 (never 403), so its existence does not leak; a denied write on a readable space answers 403.
+Attachment downloads ask `view` on the attachment's **own** page and answer 404 to every denial (missing, other space,
+forbidden, archived page without `manage`).
+
 ## Content safety
+
+- Attachments (1.9): stored under server-generated keys (`<space id>/<32 hex>`, no user input) in a private
+  directory; uploads are checked against the size, the space quota and an extension + `finfo` MIME allowlist (no SVG,
+  HTML, XML or scripts) and a scanner hook before anything is stored; downloads send `X-Content-Type-Options: nosniff`,
+  `Cache-Control: private, no-store`, `Content-Security-Policy: default-src 'none'; img-src 'self'; sandbox` and
+  `Content-Disposition: attachment` except for PNG / JPEG / GIF / WebP. `WikiAttachmentReferenceFilter` removes
+  attachment URLs of other spaces from page bodies on save.
 
 - Sanitize **on write** in `WikiPageService` and **again on read**: `manage/page_view.html.twig` renders the body with the `nowo_wiki_safe_html` filter (not `|raw`), so revisions stored before a sanitizer fix are cleaned too. If you override that template, keep the filter.
 - `WikiHtmlSanitizer` is built on `symfony/html-sanitizer`: allowlisted elements only, per-element attributes, links http/https/mailto (or relative), media http/https (or relative), `style` only `text-align`, iframes only with an `https` `src` on `WikiHtmlSanitizer::DEFAULT_EMBED_HOSTS` (YouTube, youtube-nocookie, Vimeo). To allow other embed hosts, register `WikiHtmlSanitizer` with a custom `$allowedEmbedHosts` argument (or alias `WikiHtmlSanitizerInterface` to your own service).
 - Tiptap variant `notion` is layout only; it does not replace server-side sanitization.
-- For high-security deployments, add a Content-Security-Policy header in the application layout override.
+- For high-security deployments, add a Content-Security-Policy header in the application layout override. The bundle templates are CSP-friendly (FR-006): no inline `style="…"` attributes, no `on*="…"` event handlers and no `<style>` blocks, and every `<script>` (`wiki.js`, the Tiptap editor, the demo Bootstrap bundle) carries `nonce="…"` from the request attribute **`csp_nonce`** when it is present (nothing is printed otherwise). Set it in your CSP listener before rendering (`$request->attributes->set('csp_nonce', $nonce)`) with the same value as `script-src 'nonce-…'`. `tests/Unit/Resources/ManageTemplatesTest.php` fails on any inline style, handler, `<style>` or un-nonced `<script>` in the bundle views. Page bodies may keep `style="text-align: …"` from the sanitizer allowlist: allow `style-src-attr 'unsafe-inline'` or drop `style` from the sanitizer if your policy forbids inline style attributes.
 
 ## Secrets and cryptography
 

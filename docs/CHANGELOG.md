@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.9.0] - 2026-10-30](#190---2026-10-30)
 - [[1.8.1] - 2026-10-29](#181---2026-10-29)
 - [[1.8.0] - 2026-10-29](#180---2026-10-29)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
@@ -38,6 +39,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.9.0] - 2026-10-30
+
+Wiki: space-aware access (404 / 403), tenant paths, restore / unarchive, events, page links to host objects, attachments and image upload, themable templates See [UPGRADING](UPGRADING.md#to-190).
+
+### Added
+
+- **Space- and page-aware access** (`WikiSpaceAccessCheckerInterface::isGranted(user, WikiAction, space, ?page)`, `WikiAction` enum: `view`, `create`, `edit`, `archive`, `history`, `restore`, `import`, `export`, `manage`, `ask_ai`). Every manage route asks it with the resolved space and page: a space or page the user may not view answers **404** (indistinguishable from a missing one), a denied write on a readable space answers **403**. Templates receive `permissions` (every action's decision). The default `LegacyWikiSpaceAccessChecker` keeps the 1.x user-level decision; override the alias to decide per tenant.
+- **`WikiSpaceLocatorInterface`**: finds (or provisions on the first visit) the space a route slug names; the default keeps the 1.x lookup among the user's spaces.
+- **Tenant paths** (`nowo_wiki.tenant_paths`, `tenant_only`): copies of every space-scoped route under host paths such as `/projects/{spaceSlug}/wiki`, each with a name prefix and a slug requirement, and a router decorator (`WikiTenantUrlGenerator`) that generates the tenant copy for a matching `spaceSlug`, so templates and redirects keep the bundle route names.
+- **Restore a revision** (POST `page_restore`, CSRF `wiki_restore_<page id>`): appends a new revision with the old body; history stays append-only. **Unarchive** (POST `page_unarchive`) and an *Archived pages* list on the space page for users allowed to archive.
+- **Events** `nowo_wiki.page.created`, `.unarchived`, `.restored`, `.linked`, `.unlinked`, `nowo_wiki.attachment.uploaded` / `.deleted` and `nowo_wiki.editor.options` (add TiptapEditorType options per space / page); `WikiPageSavedEvent` carries the previous revision and the actor, `WikiPageArchivedEvent` the actor.
+- **Links from pages to host objects** (`WikiPageLink`: page, object type, object id, created by / at, unique triple; table `<prefix>_page_links`), `WikiPageLinkRepositoryInterface` (`findByHostObject`, batch `findByHostObjects`, `findByPage`), `WikiObjectLinkResolverInterface` (tag `nowo_wiki.object_link_resolver`, autoconfigured: one `resolveVisible()` call per type with every id) and `WikiPageLinkService` (`link`, `unlink`, `usedIn`). The page view shows **Used in** (only the objects the viewer may open) in a new `page_aside` block.
+- **Attachments and image upload** (`nowo_wiki.attachments`, off by default): `WikiAttachment` (table `<prefix>_attachments`), `WikiAttachmentStorageInterface` (default: a private local directory), `WikiAttachmentScannerInterface` (default: accepts every file), `WikiAttachmentLimitsProviderInterface` (10 MiB per file, 500 MiB per space, an extension + sniffed MIME allowlist without SVG / HTML / XML / scripts), `WikiAttachmentService` (upload, delete, orphan and stray-file cleanup) and `WikiAttachmentController`: upload (POST, CSRF header `X-CSRF-Token`, asks `edit` on the page, 422 with a reason and nothing stored on refusal) and download (asks `view` on the attachment's own page, 404 for every denial, `Cache-Control: private, no-store`, `nosniff`, a sandboxing CSP, inline only for raster images). The page editor gets the TiptapEditorBundle upload hook when attachments are enabled.
+- **`WikiAttachmentReferenceFilter`**: on save, an image of another space's (or an unknown) attachment is removed and a link to one loses its `href`, so a page never embeds a file its readers may not open.
+- **Themeable manage templates** (FR-006): every structural element carries a semantic BEM class next to its Tabler / Bootstrap ones (`nowo-wiki`, `nowo-wiki--<view>`, `nowo-wiki-header`, `nowo-wiki-layout`, `nowo-wiki-sidebar`, `nowo-wiki-tree`, `nowo-wiki-page`, `nowo-wiki-content`, `nowo-wiki-actions`, `nowo-wiki-btn`, `nowo-wiki-panel`, `nowo-wiki-history`, `nowo-wiki-diff`, `nowo-wiki-search-form`, `nowo-wiki-results`, `nowo-wiki-form`, `nowo-wiki-pagination`, `nowo-wiki-flash`, `nowo-wiki-ai-modal`, `nowo-wiki-used-in`, `nowo-wiki-archived`, …). New overridable blocks: `wiki_header` (every page), `wiki_flashes`, `space_sidebar`, `space_sidebar_header`, `page_tree`, `page_main`, `page_header`, `page_actions`, `page_body` (page view), `space_main`, `space_search`, `space_import_export`, `space_archived` (space), `history_list`, `history_pagination`, `history_footer`, `diff_body`, `diff_footer`, `search_form`, `search_results`, `page_form`, `page_form_fields`, `page_form_actions`, `wiki_search_highlight`, `wiki_ai_highlight`, `wiki_ai_modal`, `space_list`, `ai_error`, `ai_answer`, `ai_sources`, `ai_follow_up`, `ai_form`; one tree item is the partial `manage/_page_tree_item.html.twig`.
+- **Design tokens** in `wiki.css` (`--nowo-wiki-surface`, `-surface-muted`, `-border`, `-ink`, `-muted`, `-accent`, `-accent-ink`, `-accent-soft`, `-ai`, `-radius`, `-radius-sm`, `-gap`, `-gap-sm`, `-sidebar-width`, `-tree-indent`, `-font-mono`, `-line-height`, `-code-bg`, `-diff-*`, `-danger*`, `-warning*`, `-success*`, `-info-soft`, container widths) with a dark variant (`prefers-color-scheme: dark` unless `[data-theme="light"]`, and `[data-theme="dark"]`). When `web_ui.css_framework` is not `tabler` / `bootstrap*` the page root gets `data-nowo-wiki-skin="tokens"` and `wiki.css` draws the layout (sidebar + content, one column on phones), panels, buttons, forms and lists from the tokens; skin rules use `:where()`, so any host rule wins.
+- **CSP nonce**: every `<script>` of the bundle templates (`wiki.js`, the Tiptap editor, the demo Bootstrap bundle) carries `nonce="…"` from the request attribute `csp_nonce` when the host sets it.
+
+### Changed
+
+- `WikiPageFormType` has an `editor_options` option (extra TiptapEditorType options); requires `nowo-tech/tiptap-editor-bundle` ^1.6 (upload and suggestion hooks).
+- **Templates without inline styles or handlers**: `base.html.twig` no longer prints an inline `<style>` block (its rules moved to `wiki.css`; the body background now applies only to the bundle's own `layout.html.twig`), and the page tree indents with nested lists and capped depth classes (`nowo-wiki-tree__item--depth-0` … `-6`, `data-wiki-depth`) instead of `style="--depth: N"`. The current page is marked `aria-current="page"` in the tree. The index space cards and the search results are lists (`<ul>` / `<li>`), the page header is a `<header>`, the sidebars `<aside>` and the page an `<article>`. A test fails on any `style=` / `on*=` attribute, `<style>` tag or `<script>` without the nonce in the bundle views.
+
+[1.9.0]: https://github.com/nowo-tech/WikiBundle/releases/tag/v1.9.0
 
 ## [1.8.1] - 2026-10-29
 
@@ -458,7 +484,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.9.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

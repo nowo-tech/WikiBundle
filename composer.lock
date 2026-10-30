@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "79ac127cde0f6c75a5c546eba6b96660",
+    "content-hash": "b9dffe1038e9049d5f49c0159d1257d8",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -1814,16 +1814,16 @@
         },
         {
             "name": "nowo-tech/tiptap-editor-bundle",
-            "version": "v1.5.2",
+            "version": "v1.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/TiptapEditorBundle.git",
-                "reference": "553f417b014c6bec3a1b9d51ed86963d26f9b13e"
+                "reference": "aa95da6b7ab7665a39d77dbdec7e8b6db840843e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/TiptapEditorBundle/zipball/553f417b014c6bec3a1b9d51ed86963d26f9b13e",
-                "reference": "553f417b014c6bec3a1b9d51ed86963d26f9b13e",
+                "url": "https://api.github.com/repos/nowo-tech/TiptapEditorBundle/zipball/aa95da6b7ab7665a39d77dbdec7e8b6db840843e",
+                "reference": "aa95da6b7ab7665a39d77dbdec7e8b6db840843e",
                 "shasum": ""
             },
             "require": {
@@ -1896,7 +1896,7 @@
                 "issues": "https://github.com/nowo-tech/TiptapEditorBundle/issues",
                 "source": "https://github.com/nowo-tech/TiptapEditorBundle"
             },
-            "time": "2026-10-25T10:47:38+00:00"
+            "time": "2026-10-29T20:51:54+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",

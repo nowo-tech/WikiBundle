@@ -1,0 +1,11 @@
+{#
+    One page of the tree (override point). Variables: node ({page, children}), space, routes, depth (0-based), current_slug.
+    The depth class is capped at 6 (`nowo-wiki-tree__item--depth-0` … `--depth-6`); nesting gives the indentation.
+#}
+{% set is_current = current_slug is not null and node.page.slug == current_slug %}
+<li class="wiki-tree-item nowo-wiki-tree__item nowo-wiki-tree__item--depth-{{ min(depth, 6) }}{{ node.children is not empty ? ' nowo-wiki-tree__item--parent' : '' }}" data-wiki-depth="{{ depth }}">
+    <a href="{{ path(routes.page_view.name, {spaceSlug: space.slug, pageSlug: node.page.slug}) }}" class="text-reset nowo-wiki-tree__link{{ is_current ? ' nowo-wiki-tree__link--current' : '' }}"{% if is_current %} aria-current="page"{% endif %}>{{ node.page.title }}</a>
+    {% if node.children is not empty %}
+        {{ include('@NowoWikiBundle/manage/_page_tree_list.html.twig', {nodes: node.children, space: space, routes: routes, depth: depth + 1, current_slug: current_slug}, false) }}
+    {% endif %}
+</li>

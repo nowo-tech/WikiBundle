@@ -38,12 +38,13 @@ final class WikiPageFormType extends AbstractType
             $this->addTypedField('content', TiptapEditorType::class, [
                 'label'  => 'wiki.form.content',
                 'config' => $options['tiptap_config'],
-            ]);
+            ] + $options['editor_options']);
         });
     }
 
     /**
-     * Binds the form to WikiPageFormData and defines the `tiptap_config` option (default `notion`).
+     * Binds the form to WikiPageFormData and defines the `tiptap_config` option (default `notion`)
+     * and `editor_options` (extra TiptapEditorType options, 1.9).
      *
      * @param OptionsResolver $resolver options resolver
      */
@@ -53,8 +54,11 @@ final class WikiPageFormType extends AbstractType
             'data_class'         => WikiPageFormData::class,
             'translation_domain' => WikiBundle::TRANSLATION_DOMAIN,
             'tiptap_config'      => 'notion',
+            // 1.9: extra TiptapEditorType options (upload / suggestion hooks), see WikiEvents::EDITOR_OPTIONS.
+            'editor_options' => [],
         ]);
 
         $resolver->setAllowedTypes('tiptap_config', 'string');
+        $resolver->setAllowedTypes('editor_options', 'array');
     }
 }

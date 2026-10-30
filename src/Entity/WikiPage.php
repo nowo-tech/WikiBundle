@@ -203,6 +203,17 @@ class WikiPage
      *
      * @return DateTimeImmutable creation date
      */
+    /**
+     * Brings an archived page back (1.9).
+     */
+    public function unarchive(): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->archivedAt = null;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->updatedAt = new DateTimeImmutable();
+    }
+
     public function getCreatedAt(): DateTimeImmutable
     {
         return $this->createdAt;

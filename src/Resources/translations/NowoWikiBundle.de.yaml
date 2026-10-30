@@ -10,10 +10,13 @@ wiki:
     pick_page: Wählen Sie eine Seite in der Seitenleiste oder erstellen Sie eine.
     pages: Seiten
     tree_truncated: "Es werden nur die ersten %count% Seiten angezeigt."
+    archived: 'Archivierte Seiten'
   page:
     new: Neue Seite
     edit: Bearbeiten
     history: Verlauf
+    unarchive: 'Seite wiederherstellen'
+    used_in: 'Verwendet in'
   form:
     title: Titel
     content: Inhalt
@@ -26,6 +29,8 @@ wiki:
     title: Versionsverlauf
     created: Erstellt
     diff: Vergleichen
+    restore: 'Diese Version wiederherstellen'
+    restored: 'Die Version wurde als neue Version wiederhergestellt.'
   diff:
     title: Unterschiede
   search:

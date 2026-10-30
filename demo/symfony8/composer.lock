@@ -2106,16 +2106,16 @@
         },
         {
             "name": "nowo-tech/tiptap-editor-bundle",
-            "version": "v1.5.2",
+            "version": "v1.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/TiptapEditorBundle.git",
-                "reference": "553f417b014c6bec3a1b9d51ed86963d26f9b13e"
+                "reference": "aa95da6b7ab7665a39d77dbdec7e8b6db840843e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/TiptapEditorBundle/zipball/553f417b014c6bec3a1b9d51ed86963d26f9b13e",
-                "reference": "553f417b014c6bec3a1b9d51ed86963d26f9b13e",
+                "url": "https://api.github.com/repos/nowo-tech/TiptapEditorBundle/zipball/aa95da6b7ab7665a39d77dbdec7e8b6db840843e",
+                "reference": "aa95da6b7ab7665a39d77dbdec7e8b6db840843e",
                 "shasum": ""
             },
             "require": {
@@ -2188,7 +2188,7 @@
                 "issues": "https://github.com/nowo-tech/TiptapEditorBundle/issues",
                 "source": "https://github.com/nowo-tech/TiptapEditorBundle"
             },
-            "time": "2026-10-25T10:47:38+00:00"
+            "time": "2026-10-29T20:51:54+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
@@ -2290,7 +2290,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "1c569fbc02775aea93436bd8be7b924aaa427633"
+                "reference": "2e95f3ea3ed91de0f3919857c6815f865c30f497"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -2299,7 +2299,7 @@
                 "league/commonmark": "^2.7",
                 "league/html-to-markdown": "^5.1",
                 "nowo-tech/form-kit-bundle": "^2.0",
-                "nowo-tech/tiptap-editor-bundle": "^1.0",
+                "nowo-tech/tiptap-editor-bundle": "^1.6",
                 "nowo-tech/ui-kit-bundle": "^1.4 || ^2.2",
                 "php": ">=8.2 <8.6",
                 "psr/log": "^1.1 || ^2.0 || ^3.0",

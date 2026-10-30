@@ -1330,6 +1330,21 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     },
  *     route_prefix?: scalar|Param|null, // Default: ""
  *     dashboard_route?: scalar|Param|null, // Default: null
+ *     tenant_paths?: list<array{ // Default: []
+ *         path?: scalar|Param|null,
+ *         name_prefix?: scalar|Param|null,
+ *         slug_requirement?: scalar|Param|null, // Default: "[a-z0-9]+(?:-[a-z0-9]+)*"
+ *     }>,
+ *     tenant_only?: bool|Param, // 1.9: when tenant_paths is set, leave out the tenant-less copies of the space-scoped routes. // Default: false
+ *     attachments?: array{ // 1.9: page attachments and image upload (private storage, authorized on the page).
+ *         enabled?: bool|Param, // Default: false
+ *         storage_dir?: scalar|Param|null, // Directory of the default local storage (keep it outside public/). // Default: "%kernel.project_dir%/var/wiki-attachments"
+ *         storage?: scalar|Param|null, // Service id of a WikiAttachmentStorageInterface replacing the local directory. // Default: null
+ *         scanner?: scalar|Param|null, // Service id of a WikiAttachmentScannerInterface (default: accepts every file). // Default: null
+ *         max_file_bytes?: int|Param, // Default: 10485760
+ *         max_space_bytes?: int|Param, // Default: 524288000
+ *         allowed_types?: array<string, list<scalar|Param|null>>,
+ *     },
  *     editor?: array{
  *         tiptap_config?: scalar|Param|null, // Default: "notion"
  *     },
@@ -1413,6 +1428,22 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         space_import?: array{
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/import"
  *             name?: scalar|Param|null, // Default: "nowo_wiki_space_import"
+ *         },
+ *         page_unarchive?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/unarchive"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_unarchive"
+ *         },
+ *         page_restore?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/restore"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_restore"
+ *         },
+ *         attachment_upload?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/attachments"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_attachment_upload"
+ *         },
+ *         attachment_download?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/attachments/{attachmentId}"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_attachment_download"
  *         },
  *     },
  *     templates?: array{

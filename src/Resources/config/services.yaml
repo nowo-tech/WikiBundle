@@ -17,6 +17,10 @@ services:
             - '../../Command/'
             - '../../Service/WikiSpaceAccessResolver.php'
             - '../../Service/WikiAuthorResolver.php'
+            - '../../Attachment/LocalWikiAttachmentStorage.php'
+            - '../../Attachment/ConfiguredWikiAttachmentLimitsProvider.php'
+            - '../../Routing/WikiTenantPaths.php'
+            - '../../Routing/WikiTenantUrlGenerator.php'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
@@ -55,6 +59,7 @@ services:
         arguments:
             $routes: '%nowo_wiki.routes%'
             $routePrefix: '%nowo_wiki.route_prefix%'
+            $tenantPaths: '@Nowo\WikiBundle\Routing\WikiTenantPaths'
         tags:
             - { name: routing.loader }
 
@@ -68,6 +73,20 @@ services:
             $importExport: '%nowo_wiki.import_export%'
             $allowUnauthenticated: '%nowo_wiki.security.allow_unauthenticated%'
             $pagination: '%nowo_wiki.pagination%'
+            $attachments: '%nowo_wiki.attachments%'
+
+    Nowo\WikiBundle\Controller\WikiAttachmentController:
+        public: true
+        arguments:
+            $routes: '%nowo_wiki.routes%'
+            $attachments: '%nowo_wiki.attachments%'
+
+    # 1.9: the attachment service logs on the nowo_wiki channel.
+    Nowo\WikiBundle\Attachment\WikiAttachmentService:
+        arguments:
+            $logger: '@?logger'
+        tags:
+            - { name: monolog.logger, channel: nowo_wiki }
 
     # Form Kit injects FormOptionsMerger into tagged form types (FormOptionsMergerInjectorCompilerPass).
     Nowo\WikiBundle\Form\:

@@ -108,6 +108,21 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->getResult();
     }
 
+    public function findArchivedBySpace(WikiSpace $space, int $limit = 100): array
+    {
+        /* @var list<WikiPage> */
+        return $this->entityManager()->createQueryBuilder()
+            ->select('p')
+            ->from(WikiPage::class, 'p')
+            ->where('p.space = :space')
+            ->andWhere('p.archivedAt IS NOT NULL')
+            ->setParameter('space', $space)
+            ->orderBy('p.archivedAt', SortDirection::Descending)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
     /**
      * Counts the pages of a space using the given slug, optionally ignoring one page (slug uniqueness checks).
      *

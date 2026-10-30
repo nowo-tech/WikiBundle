@@ -10,24 +10,41 @@ use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Ai\WikiContextRetriever;
+use Nowo\WikiBundle\Attachment\ConfiguredWikiAttachmentLimitsProvider;
+use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
+use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
+use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
+use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
+use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
+use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
+use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\Routing\WikiTenantPaths;
+use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
+use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
+use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -40,6 +57,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 use function array_key_exists;
+use function array_values;
 use function is_array;
 use function is_string;
 use function rtrim;
@@ -95,6 +113,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.ai', $config['ai']);
         $container->setParameter('nowo_wiki.import_export', $config['import_export']);
         $container->setParameter('nowo_wiki.pagination', $config['pagination']);
+        $container->setParameter('nowo_wiki.attachments', $config['attachments']);
+        $container->setParameter('nowo_wiki.tenant_paths', $config['tenant_paths']);
         $container->setParameter('nowo_wiki.import_export.enabled', (bool) $config['import_export']['enabled']);
         $container->setParameter('nowo_wiki.web_ui', $config['web_ui']);
         $container->setParameter('nowo_wiki.web_ui.css_framework', $config['web_ui']['css_framework']);
@@ -150,6 +170,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             DoctrineOrmWikiSpaceRepository::class        => WikiSpaceRepositoryInterface::class,
             DoctrineOrmWikiPageRepository::class         => WikiPageRepositoryInterface::class,
             DoctrineOrmWikiPageRevisionRepository::class => WikiPageRevisionRepositoryInterface::class,
+            DoctrineOrmWikiPageLinkRepository::class     => WikiPageLinkRepositoryInterface::class,
+            DoctrineOrmWikiAttachmentRepository::class   => WikiAttachmentRepositoryInterface::class,
         ] as $repoClass => $interface) {
             $container->setDefinition($repoClass, (new Definition($repoClass))
                 ->setAutowired(false)
@@ -162,6 +184,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$pagesTableName', $pagesTable)
             ->setArgument('$revisionsTableName', $revisionsTable)
             ->setArgument('$userClass', $config['user_class'])
+            ->setArgument('$linksTableName', $prefix . '_page_links')
+            ->setArgument('$attachmentsTableName', $prefix . '_attachments')
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata']));
 
         $container->setDefinition(WikiSpaceAccessResolver::class, (new Definition(WikiSpaceAccessResolver::class))
@@ -169,9 +193,59 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$defaultOwnerScope', $config['space_scope']));
         $container->setAlias(WikiSpaceAccessResolverInterface::class, WikiSpaceAccessResolver::class);
 
+        $this->registerSpaceAccess($container, $config);
+        $this->registerAttachments($container, $config['attachments']);
+
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
 
         $this->registerAiServices($container, $config['ai']);
+    }
+
+    /**
+     * 1.9: space-aware access (host overrides the aliases), link resolvers and tenant routes.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerSpaceAccess(ContainerBuilder $container, array $config): void
+    {
+        $container->setDefinition(LegacyWikiSpaceAccessChecker::class, (new Definition(LegacyWikiSpaceAccessChecker::class))->setAutowired(true));
+        $container->setAlias(WikiSpaceAccessCheckerInterface::class, LegacyWikiSpaceAccessChecker::class);
+        $container->setDefinition(AccessibleWikiSpaceLocator::class, (new Definition(AccessibleWikiSpaceLocator::class))->setAutowired(true));
+        $container->setAlias(WikiSpaceLocatorInterface::class, AccessibleWikiSpaceLocator::class);
+        $container->registerForAutoconfiguration(WikiObjectLinkResolverInterface::class)->addTag('nowo_wiki.object_link_resolver');
+
+        $container->setDefinition(WikiTenantPaths::class, (new Definition(WikiTenantPaths::class))
+            ->setArgument('$tenants', array_values($config['tenant_paths']))
+            ->setArgument('$routes', $config['routes'])
+            ->setArgument('$tenantOnly', (bool) $config['tenant_only']));
+
+        if ($config['tenant_paths'] !== []) {
+            $container->setDefinition(WikiTenantUrlGenerator::class, (new Definition(WikiTenantUrlGenerator::class))
+                ->setDecoratedService('router')
+                ->setArgument('$inner', new Reference(WikiTenantUrlGenerator::class . '.inner'))
+                ->setArgument('$tenantPaths', new Reference(WikiTenantPaths::class)));
+        }
+    }
+
+    /**
+     * 1.9: attachment storage, scanner and limits (each replaceable by a service id or an alias override).
+     *
+     * @param array{enabled: bool, storage_dir: string, storage: ?string, scanner: ?string, max_file_bytes: int, max_space_bytes: int, allowed_types: array<string, list<string>>} $attachments
+     */
+    private function registerAttachments(ContainerBuilder $container, array $attachments): void
+    {
+        $container->setDefinition(LocalWikiAttachmentStorage::class, (new Definition(LocalWikiAttachmentStorage::class))
+            ->setArgument('$directory', $attachments['storage_dir']));
+        $container->setAlias(WikiAttachmentStorageInterface::class, $attachments['storage'] ?? LocalWikiAttachmentStorage::class);
+
+        $container->setDefinition(NullWikiAttachmentScanner::class, new Definition(NullWikiAttachmentScanner::class));
+        $container->setAlias(WikiAttachmentScannerInterface::class, $attachments['scanner'] ?? NullWikiAttachmentScanner::class);
+
+        $container->setDefinition(ConfiguredWikiAttachmentLimitsProvider::class, (new Definition(ConfiguredWikiAttachmentLimitsProvider::class))
+            ->setArgument('$maxFileBytes', $attachments['max_file_bytes'])
+            ->setArgument('$maxSpaceBytes', $attachments['max_space_bytes'])
+            ->setArgument('$allowedTypes', $attachments['allowed_types']));
+        $container->setAlias(WikiAttachmentLimitsProviderInterface::class, ConfiguredWikiAttachmentLimitsProvider::class);
     }
 
     /**

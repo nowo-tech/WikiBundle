@@ -2,43 +2,84 @@
 
 {% block title %}{{ page.title }}{% endblock %}
 
+{#
+    Page view (FR-006). Override points: space_sidebar (space_sidebar_header, page_tree), page_main (page_header,
+    page_actions, page_body) and page_aside (host panels; "Used in" by default).
+#}
 {% block body %}
-    {{ include('@NowoWikiBundle/manage/_flashes.html.twig') }}
-    <div class="row g-3">
-        <div class="col-lg-4">
-            <div class="card" data-wiki-sidebar>
-                <div class="card-header">
-                    <a href="{{ path(routes.space.name, {spaceSlug: space.slug}) }}" class="text-reset">
-                        <i class="ti ti-arrow-left me-1" aria-hidden="true"></i>{{ space.name }}
-                    </a>
-                </div>
-                <div class="card-body py-2">
-                    <nav aria-label="{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}">
-                        {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {tree: tree|default([]), space: space, routes: routes, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(null)}, false) }}
-                    </nav>
-                </div>
+    <div class="nowo-wiki nowo-wiki--page" data-nowo-wiki-skin="{{ nowo_wiki_skin|default('framework') }}">
+        {% block wiki_flashes %}
+            {{ include('@NowoWikiBundle/manage/_flashes.html.twig') }}
+        {% endblock %}
+        <div class="row g-3 nowo-wiki-layout">
+            <div class="col-lg-4 nowo-wiki-layout__sidebar">
+                {% block space_sidebar %}
+                    <aside class="card nowo-wiki-panel nowo-wiki-sidebar" data-wiki-sidebar>
+                        <div class="card-header nowo-wiki-panel__header nowo-wiki-sidebar__header">
+                            {% block space_sidebar_header %}
+                                <a href="{{ path(routes.space.name, {spaceSlug: space.slug}) }}" class="text-reset nowo-wiki-sidebar__back">
+                                    <i class="ti ti-arrow-left me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ space.name }}
+                                </a>
+                            {% endblock %}
+                        </div>
+                        <div class="card-body py-2 nowo-wiki-panel__body nowo-wiki-sidebar__body">
+                            <nav class="nowo-wiki-sidebar__nav" aria-label="{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}">
+                                {% block page_tree %}
+                                    {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {tree: tree|default([]), space: space, routes: routes, current_slug: page.slug, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(null)}, false) }}
+                                {% endblock %}
+                            </nav>
+                        </div>
+                    </aside>
+                {% endblock %}
             </div>
-        </div>
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-                    <h2 class="card-title mb-0">{{ page.title }}</h2>
-                    <div class="btn-list">
-                        {% if can_edit %}
-                            <a href="{{ path(routes.page_edit.name, {spaceSlug: space.slug, pageSlug: page.slug}) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="ti ti-pencil me-1" aria-hidden="true"></i>{{ 'wiki.page.edit'|trans({}, 'NowoWikiBundle') }}
-                            </a>
-                        {% endif %}
-                        {% if can_history %}
-                            <a href="{{ path(routes.page_history.name, {spaceSlug: space.slug, pageSlug: page.slug}) }}" class="btn btn-sm btn-outline-secondary">
-                                <i class="ti ti-history me-1" aria-hidden="true"></i>{{ 'wiki.page.history'|trans({}, 'NowoWikiBundle') }}
-                            </a>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="card-body wiki-page-content">
-                    {{ revision ? revision.contentHtml|nowo_wiki_safe_html : '' }}
-                </div>
+            <div class="col-lg-8 nowo-wiki-layout__main">
+                {% block page_main %}
+                    <article class="card nowo-wiki-panel nowo-wiki-page">
+                        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2 nowo-wiki-panel__header nowo-wiki-page__header">
+                            {% block page_header %}
+                                <h2 class="card-title mb-0 nowo-wiki-page__title">{{ page.title }}</h2>
+                            {% endblock %}
+                            {% block page_actions %}
+                                <div class="btn-list nowo-wiki-actions nowo-wiki-page__actions">
+                                    {% if can_edit %}
+                                        <a href="{{ path(routes.page_edit.name, {spaceSlug: space.slug, pageSlug: page.slug}) }}" class="btn btn-sm btn-outline-primary nowo-wiki-btn nowo-wiki-btn--sm nowo-wiki-btn--primary" data-wiki-action="edit">
+                                            <i class="ti ti-pencil me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ 'wiki.page.edit'|trans({}, 'NowoWikiBundle') }}
+                                        </a>
+                                    {% endif %}
+                                    {% if can_history %}
+                                        <a href="{{ path(routes.page_history.name, {spaceSlug: space.slug, pageSlug: page.slug}) }}" class="btn btn-sm btn-outline-secondary nowo-wiki-btn nowo-wiki-btn--sm nowo-wiki-btn--secondary" data-wiki-action="history">
+                                            <i class="ti ti-history me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ 'wiki.page.history'|trans({}, 'NowoWikiBundle') }}
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            {% endblock %}
+                        </div>
+                        <div class="card-body wiki-page-content nowo-wiki-panel__body nowo-wiki-content">
+                            {% block page_body %}
+                                {{ revision ? revision.contentHtml|nowo_wiki_safe_html : '' }}
+                            {% endblock %}
+                        </div>
+                    </article>
+                {% endblock %}
+                {% block page_aside %}
+                    {% if used_in|default([]) is not empty %}
+                        <section class="card mt-3 nowo-wiki-panel nowo-wiki-used-in" aria-labelledby="nowo-wiki-used-in-title">
+                            <div class="card-header nowo-wiki-panel__header">
+                                <h3 class="card-title mb-0 nowo-wiki-panel__title" id="nowo-wiki-used-in-title">{{ 'wiki.page.used_in'|trans({}, 'NowoWikiBundle') }}</h3>
+                            </div>
+                            <ul class="list-group list-group-flush nowo-wiki-used-in__list">
+                                {% for objects in used_in %}
+                                    {% for object in objects %}
+                                        <li class="list-group-item nowo-wiki-used-in__item" data-object-type="{{ object.type }}">
+                                            <a href="{{ object.url }}" class="nowo-wiki-used-in__link">{{ object.label }}</a>
+                                            {% if object.badge %}<span class="badge nowo-wiki-used-in__badge">{{ object.badge }}</span>{% endif %}
+                                        </li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                        </section>
+                    {% endif %}
+                {% endblock %}
             </div>
         </div>
     </div>

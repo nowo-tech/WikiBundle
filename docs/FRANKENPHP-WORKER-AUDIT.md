@@ -7,6 +7,7 @@
 | Audit date | 2026-09-23 |
 | Method | Manual review of every PHP file under `src/` (DI extension, compiler pass, `services.yaml`, controller, services, repositories, Doctrine listener, security, AI services, interchange, form type, route loader, commands); entities, DTOs and enums skimmed |
 | Remediation (2026-09-23) | W-01, W-02, W-03 and W-04 fixed (uncommitted, `[Unreleased]`); W-05 unchanged (Info). Regression tests simulate consecutive requests on one container without `reset()` |
+| Re-audit (2026-10-30, 1.9.0) | Every class added or changed for 1.9.0 (space-aware access, tenant paths, page links, attachments, restore / unarchive, events, editor options event, `WikiPostActionType`) re-read: all new services are `final readonly` or hold only `readonly` constructor arguments; no memo cache, static property or `ResetInterface` needed. Host hooks (`WikiSpaceAccessCheckerInterface`, `WikiSpaceLocatorInterface`, `WikiObjectLinkResolverInterface`, `WikiAttachmentStorageInterface`, `WikiAttachmentScannerInterface`, `WikiAttachmentLimitsProviderInterface`) must stay stateless or implement `ResetInterface` (see usage recommendations) |
 | **Verdict** | ✅ **Viable under scenario B** — repositories and search resolve the EntityManager per call (closed manager recovered, reads refreshed from the database), access decisions ignore a token left by a previous request, failed exports leave no ZIP, and AI calls can use a bundle HTTP client with timeout. Hosts still own the identity-map lifetime and firewall layout (see usage recommendations). |
 
 ## Table of contents
@@ -72,6 +73,11 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 | `Interchange\WikiMarkdownConverter` | yes | `readonly` CommonMark + HtmlConverter built in constructor, reused per call | ✅ | ✅ |
 | `Form\WikiPageFormType` | yes | FormKit trait: `$formKitBoundBuilder` set and restored in `finally`; config name memoised (constant per class) | ✅ | ✅ |
 | `Routing\WikiRouteLoader` | yes | `$loaded` flag (W-05) | ✅ | ✅ |
+| `Routing\WikiTenantUrlGenerator`, `WikiTenantPaths` (1.9) | yes | none (`final readonly`; the slug → route mapping is computed per call from the compiled config) | ✅ | ✅ |
+| `Security\WikiSpaceGuard`, `LegacyWikiSpaceAccessChecker`, `Service\AccessibleWikiSpaceLocator` (1.9) | yes | none (`final readonly`) | ✅ | ✅ |
+| `Controller\WikiAttachmentController` (1.9) | yes (public) | none; the download stream is opened per request and closed by the response callback | ✅ | ✅ |
+| `Attachment\WikiAttachmentService`, `LocalWikiAttachmentStorage`, `WikiAttachmentReferenceFilter`, `ConfiguredWikiAttachmentLimitsProvider`, `NullWikiAttachmentScanner` (1.9) | yes | none (`final readonly`); streams opened and closed in the same call | ✅ | ✅ |
+| `Link\WikiPageLinkService`, `DoctrineOrmWikiPageLinkRepository`, `DoctrineOrmWikiAttachmentRepository` (1.9) | yes | none (`final readonly`, `WikiEntityManagerProvider`) | ✅ | ✅ |
 | `Util\WikiSlugger` | yes | none | ✅ | ✅ |
 | 2 console commands | yes | `readonly` deps; CLI only | ✅ N/A | ✅ N/A |
 
@@ -123,6 +129,8 @@ Good patterns observed: all services are `final readonly` or have no properties;
 - The bundle works without `services_resetter` (scenario B). Keeping it enabled is still recommended for the rest of the application (Doctrine identity map, token storage).
 - Put all wiki routes behind a secured firewall: outside one the bundle now treats the user as anonymous. Use a real `security.access_checker` or the default role-based checker; `security.allow_unauthenticated: true` intentionally allows everything.
 - Custom `WikiTeamMembershipResolverInterface`, `WikiAccessCheckerInterface` or `WikiSpaceAccessResolverInterface` implementations must stay stateless (no per-user cache in properties) or implement `ResetInterface`; otherwise team/space membership of one user can leak to the next request.
+- The same applies to the 1.9 host hooks: a `WikiSpaceAccessCheckerInterface` that memoises permission decisions per user / space (a common optimisation, since templates ask every `WikiAction` per page), a `WikiSpaceLocatorInterface` that caches provisioned spaces, a `WikiObjectLinkResolverInterface` that caches visible objects, or a `WikiAttachmentLimitsProviderInterface` that caches per-space settings must implement `ResetInterface` (autoconfigured as `kernel.reset`) **and** be safe under scenario B — key the cache by user identifier and clear it at the start of each request — or not cache at all.
+- `LocalWikiAttachmentStorage` writes under `attachments.storage_dir`; in a worker that directory must be on a persistent volume shared by every worker / replica (the bundle keeps no file handle open between requests).
 - Set `http_client: 'nowo_wiki.ai.http_client'` on the AI platform (tune `nowo_wiki.ai.http_timeout`) and set FrankenPHP `max_wait_time`.
 - Large imports run inside the request: keep `import_export.max_upload_bytes` reasonable and prefer `nowo:wiki:import` (CLI) for big archives.
 - If you cannot keep the Doctrine reset, set a low worker `max_requests` (or `FRANKENPHP_LOOP_MAX`) to bound identity-map growth; closed managers are already recovered by the bundle.
@@ -130,4 +138,4 @@ Good patterns observed: all services are `final readonly` or have no properties;
 
 ## Re-audit triggers
 
-Re-run this audit when a change adds: properties or caches to any service (especially the access resolver, access checker, search service or AI retriever), an event listener/subscriber, a Twig extension with state, a repository or service that injects `EntityManagerInterface` directly instead of `WikiEntityManagerProvider`, a new access decision that reads the token without `WikiTokenGuard`, `ResetInterface` implementations, or any use of `$_SERVER` / `$_ENV` at runtime.
+Re-run this audit when a change adds: a new host hook interface, an attachment storage / scanner with a connection or client held in a property, properties or caches to any service (especially the access resolver, access checker, search service or AI retriever), an event listener/subscriber, a Twig extension with state, a repository or service that injects `EntityManagerInterface` directly instead of `WikiEntityManagerProvider`, a new access decision that reads the token without `WikiTokenGuard`, `ResetInterface` implementations, or any use of `$_SERVER` / `$_ENV` at runtime.
