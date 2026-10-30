@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.9.0](#to-190)
 - [To 1.8.1](#to-181)
 - [To 1.8.0](#to-180)
 - [To 1.7.2](#to-172)
@@ -43,13 +44,40 @@
 
 ## Unreleased
 
+Nothing yet.
+
+## To 1.9.0
+
 From **1.8.1**:
 
 ```bash
 composer update nowo-tech/wiki-bundle nowo-tech/tiptap-editor-bundle
 ```
 
-- **Schema:** two new tables, `<prefix>_page_links` and `<prefix>_attachments` (`bin/console doctrine:migrations:diff` then migrate). Nothing else changes in the existing tables.
+- **Requirement:** `nowo-tech/tiptap-editor-bundle` **^1.6** (upload and suggestion hooks of the editor).
+- **Schema:** two new tables, `<prefix>_page_links` and `<prefix>_attachments` (`bin/console doctrine:migrations:diff` then `doctrine:migrations:migrate`, or `doctrine:schema:update --force` without migrations). Nothing else changes in the existing tables.
+- **New configuration keys** (all optional, defaults keep 1.8 behaviour):
+
+  ```yaml
+  nowo_wiki:
+      tenant_paths: []           # e.g. [{ path: '/projects/{spaceSlug}/wiki', name_prefix: 'app_project_', slug_requirement: '[0-9a-f-]{36}' }]
+      tenant_only: false         # true drops the tenant-less copies of the space-scoped routes
+      attachments:
+          enabled: false
+          storage_dir: '%kernel.project_dir%/var/wiki-attachments'
+          storage: null          # service id of a WikiAttachmentStorageInterface
+          scanner: null          # service id of a WikiAttachmentScannerInterface
+          max_file_bytes: 10485760
+          max_space_bytes: 524288000
+          allowed_types: { … }   # extension => sniffed MIME types (no SVG / HTML / XML / scripts)
+      routes:
+          page_unarchive:      { path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/unarchive', name: nowo_wiki_page_unarchive }
+          page_restore:        { path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/restore', name: nowo_wiki_page_restore }
+          attachment_upload:   { path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/attachments', name: nowo_wiki_attachment_upload }
+          attachment_download: { path: '/tools/wiki/spaces/{spaceSlug}/attachments/{attachmentId}', name: nowo_wiki_attachment_download }
+  ```
+
+  Hosts that list routes in a firewall / `access_control` or a breadcrumb map should add the four new route names (and their tenant copies, `<name_prefix><route name>`).
 - **No behaviour change by default:** without a space checker the 1.x user-level checks still apply (`LegacyWikiSpaceAccessChecker`), no tenant path is registered and attachments stay off.
 - **Per-tenant access:** alias `Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface` (and, to create spaces on the first visit, `Nowo\WikiBundle\Service\WikiSpaceLocatorInterface`) to your services. A denied `view` answers 404, any other denied action 403.
 - **Template overrides:** `manage/page_view.html.twig` has a `page_aside` block (*Used in*); `manage/page_history.html.twig` renders `restore_forms`; `manage/space.html.twig` renders `archived_pages` / `unarchive_forms`. New translation keys: `wiki.space.archived`, `wiki.page.unarchive`, `wiki.page.used_in`, `wiki.history.restore`, `wiki.history.restored`.
