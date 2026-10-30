@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.11.1](#to-1111)
 - [To 1.11.0](#to-1110)
 - [To 1.10.0](#to-1100)
   - [Configuration (deprecated keys, removed in 2.0)](#configuration-deprecated-keys-removed-in-20)
@@ -47,6 +48,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.11.1
+
+From **1.11.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 No action needed when you import the `nowo_wiki` route loader (`resource: .`, `type: nowo_wiki`, the documented setup). If on Symfony >= 7.3 the wiki pages answered on `/tools/wiki/...` without that import (through the default `controllers: { resource: routing.controllers }` of `config/routes.yaml`), they are gone now: import the loader (see [INSTALLATION](INSTALLATION.md)).
 
