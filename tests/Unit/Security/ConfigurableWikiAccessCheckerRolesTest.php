@@ -11,6 +11,8 @@ use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 
+use function in_array;
+
 final class ConfigurableWikiAccessCheckerRolesTest extends TestCase
 {
     public function testRoleBasedAccess(): void
@@ -34,9 +36,39 @@ final class ConfigurableWikiAccessCheckerRolesTest extends TestCase
             [],
         );
 
-        self::assertTrue($checker->canEdit());
-        self::assertTrue($checker->canCreate());
+        // 1.10: an action role alone is not enough, the access roles are the general gate.
+        self::assertFalse($checker->canEdit());
+        self::assertFalse($checker->canCreate());
         self::assertFalse($checker->canAccess());
+    }
+
+    public function testAnActionNeedsAnAccessRoleAndARoleOfThatAction(): void
+    {
+        $security = $this->createMock(Security::class);
+        $security->method('isGranted')->willReturnCallback(
+            static fn (string $role): bool => in_array($role, ['ROLE_WIKI_VIEW', 'ROLE_WIKI_EDITOR'], true),
+        );
+
+        $checker = new ConfigurableWikiAccessChecker(
+            $security,
+            ['ROLE_ADMIN'],
+            ['ROLE_WIKI_VIEW'],
+            ['ROLE_WIKI_VIEW'],
+            ['ROLE_WIKI_EDITOR'],
+            ['ROLE_WIKI_EDITOR'],
+            ['ROLE_WIKI_VIEW'],
+            ['ROLE_WIKI_EDITOR'],
+            ['ROLE_WIKI_VIEW'],
+            [],
+            [],
+        );
+
+        self::assertTrue($checker->canAccess());
+        self::assertTrue($checker->canList());
+        self::assertTrue($checker->canEdit());
+        self::assertTrue($checker->canArchive());
+        self::assertFalse($checker->canImport(), 'an empty list grants nothing');
+        self::assertFalse($checker->canExport());
     }
 
     public function testRolesFromTokenLeftByPreviousRequestAreIgnoredOutsideSecuredFirewall(): void

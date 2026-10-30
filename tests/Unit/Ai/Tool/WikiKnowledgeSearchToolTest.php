@@ -11,10 +11,12 @@ use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -138,11 +140,24 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         self::assertTrue(true);
     }
 
+    public function testHitsTheUserMayNotViewAreLeftOut(): void
+    {
+        $space   = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $public  = new WikiPage($space, 'public', 'Public deploy');
+        $secret  = new WikiPage($space, 'secret', 'Secret deploy');
+        $checker = new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p?->getSlug() !== 'secret');
+
+        $json = $this->tool([$space], [[$public, 'contentHtml' => ''], [$secret, 'contentHtml' => '']], $checker)('deploy');
+
+        self::assertStringContainsString('public', $json);
+        self::assertStringNotContainsString('secret', $json);
+    }
+
     /**
      * @param list<WikiSpace> $spaces
      * @param list<array{0: WikiPage, contentHtml: string}> $rows
      */
-    private function tool(array $spaces, array $rows = []): WikiKnowledgeSearchTool
+    private function tool(array $spaces, array $rows = [], ?CallbackSpaceAccessChecker $checker = null): WikiKnowledgeSearchTool
     {
         $user = new TestUser();
 
@@ -170,6 +185,6 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->method('listSpacesForUser')->willReturn($spaces);
 
-        return new WikiKnowledgeSearchTool($security, new WikiSearchService($em), $resolver);
+        return new WikiKnowledgeSearchTool($security, new WikiSearchService($em), $resolver, null, $checker);
     }
 }

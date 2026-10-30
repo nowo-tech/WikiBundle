@@ -1,0 +1,48 @@
+{#
+  BC bridge (deprecated since 1.10, removed in 2.0): wraps a pre-1.10 host layout (web_ui.layout_template or the
+  deprecated templates.layout) that renders `{% block body %}` (and `title`, `stylesheets`, `javascripts`) instead of the
+  UiKit canonical blocks. WikiPages::layout() selects it when the configured layout does not define
+  nowo_ui_page_header. Canonical blocks the pre-1.10 layout already renders (nowo_wiki_legacy_blocks) are not printed a
+  second time; when it renders nowo_ui_flashes itself, the page header is printed there (right before the content).
+  Variables: nowo_wiki_legacy_layout, nowo_wiki_legacy_blocks.
+#}
+{% extends nowo_wiki_legacy_layout %}
+{% set _host_blocks = nowo_wiki_legacy_blocks|default([]) %}
+
+{% block title %}{{ block('nowo_ui_document_title') }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    {% if 'nowo_ui_styles' not in _host_blocks %}{{ block('nowo_ui_styles') }}{% endif %}
+    {{ block('nowo_ui_head') }}
+{% endblock %}
+
+{% block body %}
+    {% set _bundle = nowo_ui_bundle|default(null) %}
+    <div class="{{ nowo_ui_class('content', _bundle) }}"{% if _bundle %} data-nowo-ui-bundle="{{ _bundle }}"{% endif %}>
+        {% if 'nowo_ui_flashes' not in _host_blocks %}
+            {{ block('nowo_ui_page_header') }}
+            {{ block('nowo_ui_flashes') }}
+        {% endif %}
+        {{ block('nowo_ui_content') }}
+    </div>
+    {{ block('nowo_ui_modals') }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {% if 'nowo_ui_scripts' not in _host_blocks %}{{ block('nowo_ui_scripts') }}{% endif %}
+{% endblock %}
+
+{#- Canonical block defaults (the page / scaffold overrides them; a pre-1.10 layout that renders one of them gets these) -#}
+{% block nowo_ui_document_title %}{% endblock %}
+{% block nowo_ui_head %}{% endblock %}
+{% block nowo_ui_styles %}<link rel="stylesheet" href="{{ asset('css/nowo-ui.css', 'nowo_ui_kit') }}">{{ nowo_ui_tokens() }}{% endblock %}
+{% block nowo_ui_page_header %}{% endblock %}
+{% block nowo_ui_flashes %}
+    {% if 'nowo_ui_flashes' in _host_blocks %}{{ block('nowo_ui_page_header') }}{% endif %}
+    {{ include(nowo_ui_partial('flashes', nowo_ui_bundle|default(null)), {bundle: nowo_ui_bundle|default(null)}) }}
+{% endblock %}
+{% block nowo_ui_content %}{% endblock %}
+{% block nowo_ui_modals %}{% endblock %}
+{% block nowo_ui_scripts %}{{ include(nowo_ui_partial('scripts', nowo_ui_bundle|default(null))) }}{% endblock %}

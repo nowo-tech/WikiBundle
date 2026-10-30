@@ -1,2 +1,4 @@
 twig:
     file_name_pattern: '*.twig'
+    # The host owns the form theme (REQ-UI-003): the wiki forms render through it, like every UiKit page.
+    form_themes: ['bootstrap_5_layout.html.twig']

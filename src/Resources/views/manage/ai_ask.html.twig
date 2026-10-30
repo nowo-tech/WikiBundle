@@ -1,83 +1,55 @@
-{% extends '@NowoWikiBundle/base.html.twig' %}
+{#
+  AI question (REQ-UI-003): UiKit form scaffold. Variable: page (View\FormPage from WikiPageFactory::aiAsk(): header
+  wiki.ai.title / intro, breadcrumbs; form = WikiAiAskType (space, question, CSRF token wiki_ai_ask); submit
+  wiki.ai.submit, or wiki.ai.follow_up once answered).
+  Also: error (translation key or null), question, answer (string or null), sources (WikiPageFactory::hits(): pages
+  the user may read only).
+  Blocks filled: nowo_ui_styles, nowo_ui_form_body (the error, then the REQ-TWIG-003 child loop and
+  the help), nowo_ui_form_aside (the answer and its sources).
+#}
+{% extends '@NowoUiKit/page/form.html.twig' %}
+{% trans_default_domain 'NowoWikiBundle' %}
 
-{% block title %}{{ 'wiki.ai.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+{% endblock %}
 
-{% block body %}
-    <div class="nowo-wiki nowo-wiki--ai" data-nowo-wiki-skin="{{ nowo_wiki_skin|default('framework') }}">
-        {% block wiki_header %}
-            {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
-                page_title: 'wiki.ai.title'|trans({}, 'NowoWikiBundle'),
-                page_subtitle: 'wiki.ai.intro'|trans({}, 'NowoWikiBundle'),
-                show_search: true,
-            }) }}
-        {% endblock %}
+{% block nowo_ui_form_body %}
+    {% if error|default(null) %}
+        <div class="{{ nowo_ui_class('flash_warning', page.bundle) }}" role="alert" data-testid="wiki-ai-error">{{ error|trans }}</div>
+    {% endif %}
+    {{ parent() }}
+    <p class="{{ nowo_ui_class('muted', page.bundle) }}">{{ 'wiki.ai.help'|trans }}</p>
+{% endblock %}
 
-        {% block ai_error %}
-            {% if error %}
-                <div class="alert alert-warning mb-4 nowo-wiki-flash nowo-wiki-flash--warning" role="alert">{{ error|trans({}, 'NowoWikiBundle') }}</div>
+{% block nowo_ui_form_aside %}
+    {% if answer|default(null) %}
+        {% set _b = page.bundle %}
+        <aside class="nowo-wiki-ai">
+            <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-ai__answer" data-testid="wiki-ai-answer"{{ nowo_ui_attrs('card', _b) }}>
+                <header class="{{ nowo_ui_class('card_header', _b) }}">
+                    <h2 class="{{ nowo_ui_class('card_title', _b) }} nowo-wiki-region-title">{{ 'wiki.ai.answer_title'|trans }}</h2>
+                    <p class="{{ nowo_ui_class('card_intro', _b) }}">{{ question }}</p>
+                </header>
+                <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-ai__text">{{ answer|nl2br }}</div>
+            </section>
+            {% if sources|default([]) is not empty %}
+                <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-ai__sources"{{ nowo_ui_attrs('card', _b) }}>
+                    <header class="{{ nowo_ui_class('card_header', _b) }}">
+                        <h2 class="{{ nowo_ui_class('card_title', _b) }} nowo-wiki-region-title">{{ 'wiki.ai.sources_title'|trans }}</h2>
+                    </header>
+                    <ul class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-sources">
+                        {% for hit in sources %}
+                            <li class="nowo-wiki-sources__item">
+                                <a href="{{ hit.href }}" class="nowo-wiki-link">{{ hit.title }}</a>
+                                <span class="{{ nowo_ui_class('muted', _b) }}">{{ hit.space }}</span>
+                                <p class="{{ nowo_ui_class('muted', _b) }}">{{ hit.excerpt }}</p>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </section>
             {% endif %}
-        {% endblock %}
-
-        {% if answer %}
-            {% block ai_answer %}
-                <section class="card mb-4 nowo-wiki-panel nowo-wiki-ai">
-                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2 nowo-wiki-panel__header">
-                        <h2 class="card-title mb-0 nowo-wiki-panel__title">{{ 'wiki.ai.answer_title'|trans({}, 'NowoWikiBundle') }}</h2>
-                        <a href="{{ path(routes.index.name) }}" class="btn btn-sm btn-outline-azure nowo-wiki-btn nowo-wiki-btn--sm nowo-wiki-btn--ai">
-                            <i class="ti ti-sparkles me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ 'wiki.ai.open'|trans({}, 'NowoWikiBundle') }}
-                        </a>
-                    </div>
-                    <div class="card-body nowo-wiki-panel__body">
-                        <p class="text-secondary small mb-2 nowo-wiki-ai__question"><strong>{{ question }}</strong></p>
-                        <div class="wiki-ai-answer nowo-wiki-ai__answer">{{ answer|nl2br }}</div>
-                    </div>
-                </section>
-            {% endblock %}
-
-            {% block ai_sources %}
-                {% if sources is not empty %}
-                    <section class="card mb-4 nowo-wiki-panel nowo-wiki-ai__sources">
-                        <div class="card-header nowo-wiki-panel__header">
-                            <h3 class="card-title mb-0 nowo-wiki-panel__title">{{ 'wiki.ai.sources_title'|trans({}, 'NowoWikiBundle') }}</h3>
-                        </div>
-                        <div class="list-group list-group-flush nowo-wiki-results">
-                            {% for hit in sources %}
-                                <a href="{{ path(routes.page_view.name, {spaceSlug: hit.space.slug, pageSlug: hit.page.slug}) }}" class="list-group-item list-group-item-action nowo-wiki-results__item">
-                                    <div class="d-flex w-100 justify-content-between nowo-wiki-results__heading">
-                                        <strong class="nowo-wiki-results__title">{{ hit.page.title }}</strong>
-                                        <span class="text-secondary small nowo-wiki-results__space">{{ hit.space.name }}</span>
-                                    </div>
-                                    <p class="mb-0 text-secondary small nowo-wiki-results__excerpt">{{ hit.excerpt }}</p>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    </section>
-                {% endif %}
-            {% endblock %}
-
-            {% block ai_follow_up %}
-                <section class="card border-azure nowo-wiki-panel nowo-wiki-ai__follow-up">
-                    <div class="card-header nowo-wiki-panel__header">
-                        <h3 class="card-title mb-0 nowo-wiki-panel__title">{{ 'wiki.ai.follow_up'|trans({}, 'NowoWikiBundle') }}</h3>
-                    </div>
-                    <div class="card-body nowo-wiki-panel__body">
-                        {{ form_start(ai_form, {attr: {class: 'mb-0 nowo-wiki-form nowo-wiki-ai__form'}}) }}
-                            {{ include('@NowoWikiBundle/manage/_ai_ask_form_fields.html.twig') }}
-                        {{ form_end(ai_form) }}
-                    </div>
-                </section>
-            {% endblock %}
-        {% else %}
-            {% block ai_form %}
-                <section class="card border-azure nowo-wiki-panel nowo-wiki-ai__ask">
-                    <div class="card-body nowo-wiki-panel__body">
-                        {{ form_start(ai_form, {attr: {class: 'mb-0 nowo-wiki-form nowo-wiki-ai__form'}}) }}
-                            {{ include('@NowoWikiBundle/manage/_ai_ask_form_fields.html.twig') }}
-                        {{ form_end(ai_form) }}
-                        <p class="text-secondary small mt-3 mb-0 nowo-wiki-form__help">{{ 'wiki.ai.help'|trans({}, 'NowoWikiBundle') }}</p>
-                    </div>
-                </section>
-            {% endblock %}
-        {% endif %}
-    </div>
+        </aside>
+    {% endif %}
 {% endblock %}

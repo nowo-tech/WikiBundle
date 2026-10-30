@@ -1,110 +1,32 @@
-{% extends '@NowoWikiBundle/base.html.twig' %}
+{#
+  Wiki index (REQ-UI-003): UiKit list scaffold. Variable: page (View\ListPage from WikiPageFactory::index(): header
+  wiki.index.title / intro with "Ask the wiki" (opens the AI dialog, when the AI is available) and "Back to dashboard"
+  (dashboard_route); filters = the global search form (GET to the search route); columns name, slug; rows
+  {id, name, slug, href}; row action Open; Pagination (pagination.spaces_per_page); EmptyState wiki.index.empty).
+  Also: ai_form (WikiAiAskType view or null).
+  Blocks filled: nowo_ui_styles (parent() + wiki.css), nowo_ui_list_row (the name
+  links to the space), nowo_ui_modals (AI question dialog).
+#}
+{% extends '@NowoUiKit/page/list.html.twig' %}
+{% trans_default_domain 'NowoWikiBundle' %}
 
-{% block title %}{{ 'wiki.index.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+{% endblock %}
 
-{% block body %}
-    <div class="nowo-wiki nowo-wiki--index" data-nowo-wiki-skin="{{ nowo_wiki_skin|default('framework') }}">
-        {% block wiki_header %}
-            {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
-                page_title: 'wiki.index.title'|trans({}, 'NowoWikiBundle'),
-                page_subtitle: 'wiki.index.intro'|trans({}, 'NowoWikiBundle'),
-                wiki_home_link: false,
-                show_search: true,
-                show_ai: can_ask_ai|default(false),
-                wiki_ai_modal: can_ask_ai|default(false),
-            }) }}
-        {% endblock %}
+{% block nowo_ui_list_row %}
+    {% set _cell = nowo_ui_class('table_cell', page.bundle) %}
+    <td class="{{ _cell }}" data-label="{{ 'wiki.index.name'|trans }}" data-required="1">
+        <a href="{{ row.href }}" class="nowo-wiki-link">{{ row.name }}</a>
+    </td>
+    <td class="{{ _cell }}" data-label="{{ 'wiki.index.slug'|trans }}" data-nowo-ui-priority="2">
+        <code class="{{ nowo_ui_class('code', page.bundle) }}">{{ row.slug }}</code>
+    </td>
+{% endblock %}
 
-        {% block wiki_search_highlight %}
-            <section class="card mb-4 border-primary nowo-wiki-panel nowo-wiki-highlight nowo-wiki-highlight--search">
-                <div class="card-body nowo-wiki-panel__body">
-                    <div class="d-flex flex-wrap align-items-center gap-3 mb-3 nowo-wiki-highlight__heading">
-                        <span class="avatar bg-primary-lt nowo-wiki-avatar"><i class="ti ti-search nowo-wiki-icon" aria-hidden="true"></i></span>
-                        <div>
-                            <h2 class="card-title mb-1 nowo-wiki-highlight__title">{{ 'wiki.search.highlight_title'|trans({}, 'NowoWikiBundle') }}</h2>
-                            <p class="text-secondary mb-0 nowo-wiki-muted">{{ 'wiki.search.highlight_intro'|trans({}, 'NowoWikiBundle') }}</p>
-                        </div>
-                    </div>
-                    {# REQ-TWIG-005: WikiSearchType (GET, flat space / q). #}
-                    {{ form_start(search_form, {attr: {class: 'row g-2 align-items-end nowo-wiki-form nowo-wiki-search-form'}}) }}
-                        <div class="col-md-4 nowo-wiki-form__field nowo-wiki-form__field--space">
-                            {{ form_label(search_form.space) }}
-                            {{ form_widget(search_form.space) }}
-                        </div>
-                        <div class="col-md-6 nowo-wiki-form__field nowo-wiki-form__field--query">
-                            {{ form_label(search_form.q) }}
-                            {{ form_widget(search_form.q) }}
-                        </div>
-                        {% for child in search_form %}
-                            {% if not child.rendered %}
-                                {{ form_row(child) }}
-                            {% endif %}
-                        {% endfor %}
-                        <div class="col-md-2 nowo-wiki-form__actions">
-                            <button type="submit" class="btn btn-primary w-100 nowo-wiki-btn nowo-wiki-btn--primary">{{ 'wiki.search.submit'|trans({}, 'NowoWikiBundle') }}</button>
-                        </div>
-                    {{ form_end(search_form) }}
-                </div>
-            </section>
-        {% endblock %}
-
-        {% if can_ask_ai|default(false) and routes.ai_ask is defined %}
-            {% block wiki_ai_highlight %}
-                <section class="card mb-4 border-azure nowo-wiki-panel nowo-wiki-highlight nowo-wiki-highlight--ai">
-                    <div class="card-body nowo-wiki-panel__body">
-                        <div class="d-flex flex-wrap align-items-center gap-3 mb-3 nowo-wiki-highlight__heading">
-                            <span class="avatar bg-azure-lt nowo-wiki-avatar nowo-wiki-avatar--ai"><i class="ti ti-sparkles nowo-wiki-icon" aria-hidden="true"></i></span>
-                            <div>
-                                <h2 class="card-title mb-1 nowo-wiki-highlight__title">{{ 'wiki.ai.highlight_title'|trans({}, 'NowoWikiBundle') }}</h2>
-                                <p class="text-secondary mb-0 nowo-wiki-muted">{{ 'wiki.ai.highlight_intro'|trans({}, 'NowoWikiBundle') }}</p>
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-azure nowo-wiki-btn nowo-wiki-btn--ai" data-bs-toggle="modal" data-bs-target="#wikiAiAskModal">
-                            <i class="ti ti-sparkles me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ 'wiki.ai.open'|trans({}, 'NowoWikiBundle') }}
-                        </button>
-                    </div>
-                </section>
-            {% endblock %}
-
-            {% block wiki_ai_modal %}
-                {{ include('@NowoWikiBundle/manage/_ai_ask_modal.html.twig', {spaces: spaces, routes: routes, ai_form: ai_form}, false) }}
-            {% endblock %}
-        {% endif %}
-
-        {% block space_list %}
-            {% if spaces is empty %}
-                <div class="card nowo-wiki-panel nowo-wiki-empty">
-                    <div class="card-body nowo-wiki-panel__body">
-                        <p class="text-secondary mb-0 nowo-wiki-muted">{{ 'wiki.index.empty'|trans({}, 'NowoWikiBundle') }}</p>
-                    </div>
-                </div>
-            {% else %}
-                <ul class="row row-cards list-unstyled nowo-wiki-spaces">
-                    {% for space in space_page|default(spaces) %}
-                        <li class="col-md-6 col-lg-4 nowo-wiki-spaces__item">
-                            <a href="{{ path(routes.space.name, {spaceSlug: space.slug}) }}" class="card card-link nowo-wiki-panel nowo-wiki-spaces__card">
-                                <div class="card-body nowo-wiki-panel__body">
-                                    <div class="d-flex align-items-center mb-2 nowo-wiki-spaces__heading">
-                                        <span class="avatar bg-primary-lt me-3 nowo-wiki-avatar"><i class="ti ti-notebook nowo-wiki-icon" aria-hidden="true"></i></span>
-                                        <h2 class="card-title mb-0 nowo-wiki-spaces__name">{{ space.name }}</h2>
-                                    </div>
-                                    <p class="text-secondary mb-0 nowo-wiki-spaces__slug"><code>{{ space.slug }}</code></p>
-                                </div>
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-                {% if pagination is defined %}
-                    {{ include('@NowoWikiBundle/manage/_pagination.html.twig', {
-                        route: routes.index.name,
-                        route_params: {},
-                        page: pagination.page,
-                        pages: pagination.pages,
-                        has_previous: pagination.page > 1,
-                        has_next: pagination.page < pagination.pages,
-                    }, false) }}
-                {% endif %}
-            {% endif %}
-        {% endblock %}
-    </div>
+{% block nowo_ui_modals %}
+    {% if ai_form|default(null) %}
+        {{ include('@NowoWikiBundle/manage/_ai_dialog.html.twig', {ai_form: ai_form, bundle: page.bundle}, false) }}
+    {% endif %}
 {% endblock %}

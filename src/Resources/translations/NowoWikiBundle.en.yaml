@@ -5,18 +5,29 @@ wiki:
     title: Wiki spaces
     intro: Team and personal documentation spaces with versioned pages.
     empty: No wiki spaces available yet.
+    name: "Name"
+    slug: "Slug"
+    open: "Open"
+    actions: "Actions"
   space:
     new_page: New page
     pick_page: Select a page from the sidebar or create one.
     pages: Pages
     tree_truncated: "Showing the first %count% pages only."
     archived: 'Archived pages'
+    no_pages: "No pages yet."
   page:
     new: New page
     edit: Edit
     history: History
     unarchive: 'Restore page'
     used_in: 'Used in'
+    edit_title: "Edit %title%"
+    archive: "Archive"
+    archive_confirm_title: "Archive this page?"
+    archive_confirm_message: "\"%title%\" leaves the page tree and search. Users allowed to archive can restore it from the space."
+    revision: "Revision"
+    updated: "Updated"
   form:
     title: Title
     content: Content
@@ -25,14 +36,25 @@ wiki:
     help: 'Select text for the floating toolbar. Ctrl+K (Cmd+K) for links. Double-click images or embeds to change their URL. Paste works as usual.'
   action:
     cancel: Cancel
+    back: "Back"
+    back_to_page: "Back to the page"
   history:
     title: Version history
     created: Created
     diff: Compare
     restore: 'Restore this revision'
     restored: 'The revision was restored as a new revision.'
+    revision: "Revision"
+    current: "Current"
+    empty: "No revisions yet."
+    restore_confirm_title: "Restore this revision?"
+    restore_confirm_message: "Revision v%number% becomes the current content as a new revision; the history keeps every version."
   diff:
     title: Diff
+    range: "%title%: v%from% → v%to%"
+    empty: "Both revisions have the same content."
+    added: "Added:"
+    removed: "Removed:"
   search:
     title: Search
     intro: Full-text search within a space.
@@ -46,6 +68,9 @@ wiki:
     submit: Search
     pick_space: Choose a space
     empty: No results.
+    result_title: "Page"
+    result_space: "Space"
+    result_excerpt: "Excerpt"
   ai:
     title: Ask the wiki
     intro: Ask questions about your documentation. Answers use Symfony AI and wiki search context.
@@ -85,3 +110,9 @@ wiki:
     previous: "Previous"
     next: "Next"
     page_of: "Page %page% of %pages%"
+wiki_page_form:
+  title:
+    placeholder: "Page title"
+    help: "Shown in the page tree, the breadcrumbs and the search results."
+  content:
+    placeholder: "Start writing…"

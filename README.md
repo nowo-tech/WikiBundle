@@ -12,7 +12,9 @@ Symfony bundle for a **versionable team wiki**: spaces, page trees, immutable re
 
 This bundle is **FrankenPHP worker mode friendly**.
 
-![Wiki page view: nested page tree of a space next to the rendered page with internal links, edit and history actions](docs/images/demo/wiki-page.webp)
+| Page view | Space home | Version history |
+| --- | --- | --- |
+| ![Wiki page view: UiKit page header with Edit, History and Archive, the nested page tree of the space next to the rendered page](docs/images/demo/wiki-page.webp) | ![Space home: New page and exports in the header, page tree, in-space search and the archived pages with Restore](docs/images/demo/wiki-space.webp) | ![Version history: revisions with Compare and Restore, the restore confirmation open as a native dialog](docs/images/demo/wiki-history.webp) |
 
 ## Features
 
@@ -24,9 +26,10 @@ This bundle is **FrankenPHP worker mode friendly**.
 - **Import / export** — Outline and Notion Markdown trees (UI + `wiki:import` / `wiki:export` commands)
 - **Symfony AI (optional)** — ask questions about wiki content with RAG context (`symfony/ai-bundle`)
 - `WikiAccessCheckerInterface` + `WikiTeamMembershipResolverInterface` for app ACL
-- Twig layout overrides + CSRF on POST actions
+- Pages on the **[UiKitBundle](https://github.com/nowo-tech/UiKitBundle) page contract** (list / show / form scaffolds, value-free view models, `<dialog>` confirm for Archive / Restore): the host themes them once with `nowo_ui_kit` — see [Templates](docs/TEMPLATES.md)
+- CSRF on every POST action (the container refuses to compile without form CSRF protection)
 - Integrates **[TiptapEditorBundle](https://github.com/nowo-tech/TiptapEditorBundle)** (`variant: notion` by default)
-- Manage UI look-and-feel via `nowo_wiki.web_ui` (`css_framework`, optional host `layout_template`)
+- Web UI options under `nowo_wiki.web_ui` (`enabled`, `path_prefix`, `layout_template`, `templates.<page>`) and roles per action under `nowo_wiki.security.roles`
 
 ## Installation
 
@@ -50,13 +53,14 @@ make -C demo/symfony8 up
 make demo-smoke
 ```
 
-The screenshot at the top of this README comes from this demo; refresh it with `make -C demo/symfony8 demo-screenshots` (`make -C demo/symfony8 test-e2e` runs the Playwright happy path).
+The screenshots at the top of this README come from this demo; refresh them with `make -C demo/symfony8 demo-screenshots` (`make -C demo/symfony8 test-e2e` runs the Playwright happy path).
 
 ## Documentation
 
 - [Installation](docs/INSTALLATION.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Usage](docs/USAGE.md)
+- [Templates (UiKit page contract)](docs/TEMPLATES.md)
 - [Contributing](docs/CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](docs/CHANGELOG.md)

@@ -1,13 +1,11 @@
 {#
-    Space page tree (FR-006): nested lists, one `_page_tree_item.html.twig` per page (override that partial to change an item).
-    Variables: tree, space, routes, current_slug (optional), tree_truncated, max_tree_pages.
+  Page tree of a space (one level per include; override `_page_tree_item.html.twig` to change one item). Value-free nodes
+  from WikiPageFactory::tree(): {title, href, current, children}. Variables: nodes, depth (0-based, default 0).
+  Indentation comes from the nesting (wiki.css); `nowo-wiki-tree__item--depth-N` is capped at 6.
 #}
-{{ include('@NowoWikiBundle/manage/_page_tree_list.html.twig', {nodes: tree, space: space, routes: routes, depth: 0, current_slug: current_slug|default(null)}, false) }}
-{% if tree_truncated|default(false) %}
-    <p class="text-secondary small mt-2 mb-0 wiki-tree-truncated nowo-wiki-tree__truncated">
-        {{ 'wiki.space.tree_truncated'|trans({'%count%': max_tree_pages|default(0)}, 'NowoWikiBundle') }}
-        {% if routes.search is defined %}
-            <a href="{{ path(routes.search.name, {space: space.slug}) }}">{{ 'wiki.search.title'|trans({}, 'NowoWikiBundle') }}</a>
-        {% endif %}
-    </p>
-{% endif %}
+{% set depth = depth|default(0) %}
+<ul class="nowo-wiki-tree{{ depth > 0 ? ' nowo-wiki-tree--nested' }}"{% if depth == 0 %} data-wiki-tree{% endif %}>
+    {% for node in nodes %}
+        {{ include('@NowoWikiBundle/manage/_page_tree_item.html.twig', {node: node, depth: depth}, false) }}
+    {% endfor %}
+</ul>

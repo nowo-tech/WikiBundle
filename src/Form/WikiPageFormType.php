@@ -37,6 +37,7 @@ final class WikiPageFormType extends AbstractType
             ]);
             $this->addTypedField('content', TiptapEditorType::class, [
                 'label'  => 'wiki.form.content',
+                'help'   => 'wiki.editor.help',
                 'config' => $options['tiptap_config'],
             ] + $options['editor_options']);
         });

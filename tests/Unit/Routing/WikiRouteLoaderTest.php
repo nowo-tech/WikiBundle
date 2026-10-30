@@ -23,6 +23,13 @@ final class WikiRouteLoaderTest extends TestCase
         self::assertTrue($collection->get('nowo_wiki_space') instanceof Route);
     }
 
+    public function testRegistersNoRouteWhenTheWebUiIsDisabled(): void
+    {
+        $loader = new WikiRouteLoader(['index' => ['path' => '/tools/wiki', 'name' => 'nowo_wiki_index']], '', null, false);
+
+        self::assertCount(0, $loader->load('nowo_wiki', 'nowo_wiki'));
+    }
+
     public function testSupportsNowoWikiType(): void
     {
         $loader = new WikiRouteLoader([], '');

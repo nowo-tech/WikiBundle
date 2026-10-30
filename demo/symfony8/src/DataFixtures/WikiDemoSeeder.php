@@ -44,7 +44,13 @@ final class WikiDemoSeeder
 
         $this->create($space, 'Resources', 'resources', $this->resourcesContent($space), $user);
 
-        unset($welcome, $gettingStarted, $installation, $configuration, $architecture, $frontend, $tiptap, $backend, $runbooks, $deploy, $rollback);
+        // A short history on Deploy (Compare / Restore on the history page) and one archived page (space page).
+        $this->pageService->saveRevision($deploy, 'Deploy', $this->deployContent($space) . '<p><strong>Checklist:</strong> announce the window in #deploys first.</p>', $user);
+        $this->pageService->saveRevision($deploy, 'Deploy', $this->deployContent($space) . '<p><strong>Checklist:</strong> announce the window in #deploys and tag the release.</p>', $user);
+        $legacy = $this->create($space, 'Legacy deploy (Capistrano)', 'legacy-deploy', '<p>Superseded by the container pipeline in 2025.</p>', $user, $runbooks);
+        $this->pageService->archive($legacy, $user);
+
+        unset($legacy, $welcome, $gettingStarted, $installation, $configuration, $architecture, $frontend, $tiptap, $backend, $runbooks, $deploy, $rollback);
     }
 
     public function seedProductSpace(WikiSpace $space, User $user): void

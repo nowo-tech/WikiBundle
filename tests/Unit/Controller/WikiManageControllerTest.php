@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Controller;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
+use Nowo\UiKitBundle\View\ListPage;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\WikiAiAnswer;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
@@ -50,6 +51,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use ZipArchive;
 
+use function array_column;
 use function array_slice;
 
 final class WikiManageControllerTest extends TestCase
@@ -124,19 +126,21 @@ final class WikiManageControllerTest extends TestCase
         WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $twig]);
 
         $controller->index(new Request(['page' => '2']));
-        self::assertSame(['page' => 2, 'pages' => 3, 'total' => 5, 'per_page' => 2], $twig->context['pagination']);
-        self::assertSame([$spaces[2], $spaces[3]], $twig->context['space_page']);
-        self::assertSame($spaces, $twig->context['spaces']);
+        $page = $twig->context['page'];
+        self::assertInstanceOf(ListPage::class, $page);
+        self::assertNotNull($page->pagination);
+        self::assertSame([2, 3, 5, 2], [$page->pagination->page, $page->pagination->totalPages, $page->pagination->total, $page->pagination->perPage]);
+        self::assertSame(['space-3', 'space-4'], array_column($page->rows, 'slug'));
 
         $controller->index(new Request(['page' => '99']));
-        self::assertSame(3, $twig->context['pagination']['page']);
-        self::assertSame([$spaces[4]], $twig->context['space_page']);
+        self::assertSame(3, $twig->context['page']->pagination->page);
+        self::assertSame(['space-5'], array_column($twig->context['page']->rows, 'slug'));
 
         $controller->index(new Request(['page' => '-4']));
-        self::assertSame(1, $twig->context['pagination']['page']);
+        self::assertSame(1, $twig->context['page']->pagination->page);
 
         $controller->index();
-        self::assertSame(1, $twig->context['pagination']['page']);
+        self::assertSame(1, $twig->context['page']->pagination->page);
     }
 
     public function testSpaceTreeIsCappedAndFlagged(): void
@@ -204,18 +208,23 @@ final class WikiManageControllerTest extends TestCase
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
 
         $controller->pageHistory('eng', 'welcome', new Request(['page' => '2']));
-        self::assertSame([$revisions[2], $revisions[3]], $twig->context['revisions']);
-        self::assertSame($revisions[4], $twig->context['older_revision']);
-        self::assertSame(['page' => 2, 'has_previous' => true, 'has_next' => true, 'per_page' => 2], $twig->context['pagination']);
+        $history = $twig->context['page'];
+        self::assertInstanceOf(ListPage::class, $history);
+        self::assertSame([4, 3], array_column($history->rows, 'id'));
+        // the last row compares with the first revision of the next page (v2)
+        self::assertStringContainsString('nowo_wiki_page_diff', (string) $history->rowActions($history->rows[1])[0]->href);
+        self::assertNotNull($history->pagination);
+        self::assertSame([2, 2], [$history->pagination->page, $history->pagination->perPage]);
+        self::assertGreaterThanOrEqual(3, $history->pagination->totalPages);
 
         $controller->pageHistory('eng', 'welcome', new Request(['page' => '3']));
-        self::assertSame([$revisions[4], $revisions[5]], $twig->context['revisions']);
-        self::assertNull($twig->context['older_revision']);
-        self::assertFalse($twig->context['pagination']['has_next']);
+        $history = $twig->context['page'];
+        self::assertSame([2, 1], array_column($history->rows, 'id'));
+        self::assertSame([], $history->rowActions($history->rows[1]));
+        self::assertSame(3, $history->pagination?->totalPages);
 
         $controller->pageHistory('eng', 'welcome');
-        self::assertSame(1, $twig->context['pagination']['page']);
-        self::assertFalse($twig->context['pagination']['has_previous']);
+        self::assertSame(1, $twig->context['page']->pagination?->page);
     }
 
     public function testDenyWhenCannotList(): void

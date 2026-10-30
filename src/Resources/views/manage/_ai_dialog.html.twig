@@ -1,0 +1,23 @@
+{#
+  AI question dialog of the wiki index: UiKit `_dialog` (native <dialog> with header, body and footer; opened by the
+  page-header action through data-nowo-ui-dialog-open, closed by Escape / the close button). The question field has
+  autofocus, so showModal() focuses it. Variables: ai_form (WikiAiAskType view, POST to the ai_ask route), bundle.
+#}
+{% set _form_id = 'nowo-wiki-ai-dialog-form' %}
+{% set _footer %}
+    <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}</button>
+    <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="{{ _form_id }}" data-testid="wiki-ai-submit">{{ 'wiki.ai.submit'|trans({}, 'NowoWikiBundle') }}</button>
+{% endset %}
+{% embed '@NowoUiKitBundle/partials/_dialog.html.twig' with {id: 'nowo-wiki-ai-dialog', title: 'wiki.ai.highlight_title'|trans({}, 'NowoWikiBundle'), footer: _footer, size: 'lg', bundle: bundle, attr: {'data-testid': 'wiki-ai-dialog'}} %}
+    {% block nowo_ui_dialog_body %}
+        <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.ai.highlight_intro'|trans({}, 'NowoWikiBundle') }}</p>
+        {{ form_start(ai_form, {attr: {id: 'nowo-wiki-ai-dialog-form', class: nowo_ui_class('form', bundle)}}) }}
+            {% for child in ai_form %}
+                {% if not child.rendered %}
+                    {{ form_row(child) }}
+                {% endif %}
+            {% endfor %}
+        {{ form_end(ai_form) }}
+        <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.ai.help'|trans({}, 'NowoWikiBundle') }}</p>
+    {% endblock %}
+{% endembed %}

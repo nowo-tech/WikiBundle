@@ -21,6 +21,7 @@ services:
             - '../../Attachment/ConfiguredWikiAttachmentLimitsProvider.php'
             - '../../Routing/WikiTenantPaths.php'
             - '../../Routing/WikiTenantUrlGenerator.php'
+            - '../../Ui/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
@@ -60,6 +61,7 @@ services:
             $routes: '%nowo_wiki.routes%'
             $routePrefix: '%nowo_wiki.route_prefix%'
             $tenantPaths: '@Nowo\WikiBundle\Routing\WikiTenantPaths'
+            $enabled: '%nowo_wiki.web_ui.enabled%'
         tags:
             - { name: routing.loader }
 
@@ -74,6 +76,8 @@ services:
             $allowUnauthenticated: '%nowo_wiki.security.allow_unauthenticated%'
             $pagination: '%nowo_wiki.pagination%'
             $attachments: '%nowo_wiki.attachments%'
+            $pageFactory: '@Nowo\WikiBundle\Ui\WikiPageFactory'
+            $translator: '@?translator'
 
     Nowo\WikiBundle\Controller\WikiAttachmentController:
         public: true

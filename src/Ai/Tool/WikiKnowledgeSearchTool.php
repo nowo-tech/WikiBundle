@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Ai\Tool;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
@@ -32,12 +34,14 @@ final readonly class WikiKnowledgeSearchTool
      * @param WikiSearchService $searchService page search service
      * @param WikiSpaceAccessResolverInterface $spaceAccessResolver lists the spaces the user can access
      * @param WikiTokenGuard|null $tokenGuard optional guard rejecting untrusted tokens
+     * @param WikiSpaceAccessCheckerInterface|null $accessChecker drops hits the user may not view (1.10; null = every hit of an accessible space)
      */
     public function __construct(
         private Security $security,
         private WikiSearchService $searchService,
         private WikiSpaceAccessResolverInterface $spaceAccessResolver,
         private ?WikiTokenGuard $tokenGuard = null,
+        private ?WikiSpaceAccessCheckerInterface $accessChecker = null,
     ) {
     }
 
@@ -74,6 +78,9 @@ final readonly class WikiKnowledgeSearchTool
 
         $results = [];
         foreach ($hits as $hit) {
+            if ($this->accessChecker instanceof WikiSpaceAccessCheckerInterface && !$this->accessChecker->isGranted($user, WikiAction::View, $hit['space'], $hit['page'])) {
+                continue;
+            }
             $results[] = [
                 'space'   => $hit['space']->getSlug(),
                 'page'    => $hit['page']->getSlug(),

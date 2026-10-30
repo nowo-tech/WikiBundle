@@ -1,30 +1,17 @@
 /**
- * Wiki sidebar toggle for narrow viewports.
+ * Wiki page tree: brings the current page (`aria-current="page"`) into view inside each scrollable tree
+ * (`[data-wiki-tree]`), so long trees open at the page being read. No-op without a current page.
  *
- * @param root - Document subtree to scan for `[data-wiki-sidebar]` nodes.
+ * @param root - Document subtree to scan for page trees.
  */
-export function initWikiSidebars(root: ParentNode = document): void {
-    root.querySelectorAll('[data-wiki-sidebar]').forEach((sidebar) => {
-        sidebar.setAttribute('role', 'navigation');
-    });
-}
-
-/** Focus question field when the AI ask modal opens.
- *
- * @param root - Document subtree that contains `#wikiAiAskModal`.
- */
-export function initWikiAiModal(root: ParentNode = document): void {
-    const modal = root.querySelector('#wikiAiAskModal');
-    if (!(modal instanceof HTMLElement)) {
-        return;
-    }
-
-    modal.addEventListener('shown.bs.modal', () => {
-        const input = modal.querySelector<HTMLInputElement>('#wiki-ai-modal-question');
-        input?.focus();
+export function initWikiTrees(root: ParentNode = document): void {
+    root.querySelectorAll('[data-wiki-tree]').forEach((tree) => {
+        const current = tree.querySelector('[aria-current="page"]');
+        if (current instanceof HTMLElement && typeof current.scrollIntoView === 'function') {
+            current.scrollIntoView({ block: 'nearest' });
+        }
     });
 }
 
 document.documentElement.classList.add('wiki-ready');
-initWikiSidebars();
-initWikiAiModal();
+initWikiTrees();

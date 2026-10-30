@@ -9,7 +9,7 @@
 - [Application integration](#application-integration)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
-- [Theming: classes, tokens and blocks (FR-006)](#theming-classes-tokens-and-blocks-fr-006)
+- [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
 - [Translations (REQ-I18N-001)](#translations-req-i18n-001)
 - [Events](#events)
 - [Links to host objects (1.9)](#links-to-host-objects-19)
@@ -41,7 +41,7 @@ bin/console wiki:import {spaceSlug} /path/to/export [--format=auto|outline|notio
 bin/console wiki:export {spaceSlug} /path/to/output [--format=outline|notion] [--zip]
 ```
 
-Configure limits and ACL in `nowo_wiki.import_export` and `nowo_wiki.security.{import,export}_roles`.
+Configure limits and ACL in `nowo_wiki.import_export` and `nowo_wiki.security.roles.{import,export}`.
 
 ## Symfony AI
 
@@ -64,7 +64,7 @@ Example: `/tools/wiki/search?q=deploy&space=engineering`
 
 1. Implement `WikiAccessCheckerInterface` (or use role-based defaults).
 2. For team spaces, register `WikiTeamMembershipResolverInterface`.
-3. Prefer **`nowo_wiki.web_ui.layout_template`** (or `templates.layout`) pointing at your host layout — manage pages extend `@NowoWikiBundle/base.html.twig`, which stacks `wiki.css` / `wiki.js` with **`{{ parent() }}`** (REQ-UI-001). Avoid forking every manage page.
+3. Set **`nowo_ui_kit.layouts.admin`** (once for every UiKit bundle) to your project layout or a one-file bridge that renders the UiKit canonical blocks — every wiki page extends a UiKit scaffold that extends it and stacks `wiki.css` with **`{{ parent() }}`** (REQ-UI-001 / REQ-UI-003). `nowo_wiki.web_ui.layout_template` overrides it for the wiki only. Do not fork wiki pages; see [TEMPLATES.md](TEMPLATES.md).
 4. Seed `WikiSpace` rows per team (or expose a create UI in your app).
 
 ## Pagination and list limits (REQ-PERF-001)
@@ -73,8 +73,8 @@ List pages of the manage UI are bounded by default (`nowo_wiki.pagination`, see 
 
 | Page | Limit | Navigation |
 | ---- | ----- | ---------- |
-| Wiki index (space cards) | `spaces_per_page` (24) | `?page=N`, previous / next + "Page N of M" |
-| Page history (revisions) | `revisions_per_page` (25), one extra row is read to link the last "Compare" button and detect an older page | `?page=N`, previous / next |
+| Wiki index (spaces) | `spaces_per_page` (24) | `?page=N`, UiKit pagination |
+| Page history (revisions) | `revisions_per_page` (25), one extra row is read to link the last "Compare" button; the total is the current revision number (history is append-only) | `?page=N`, UiKit pagination |
 | Sidebar page tree (space + page view) | `max_tree_pages` (500) pages loaded with one query | a notice links to search when more pages exist |
 | Search results | 25 hits | — |
 
@@ -82,9 +82,9 @@ Each list is one query (no N+1): spaces through `WikiSpaceRepositoryInterface::f
 
 ## Twig overrides (REQ-TWIG-001)
 
-The bundle registers **`@NowoWikiBundle/`**. Application files under **`templates/bundles/NowoWikiBundle/`** always win over vendor: `TwigPathsPass` prepends that directory (when it exists) and appends the bundle views after it. Registration is unconditional (the manage UI is always available; see [CONFIGURATION.md](CONFIGURATION.md)). Controllers render logical names taken from `nowo_wiki.templates.*`, so you can also point a page at another template from configuration.
+The bundle registers **`@NowoWikiBundle/`**. Application files under **`templates/bundles/NowoWikiBundle/`** always win over vendor: `TwigPathsPass` prepends that directory (when it exists) and appends the bundle views after it. Registration is unconditional; the routes follow `web_ui.enabled` (see [CONFIGURATION.md](CONFIGURATION.md)). Controllers render the logical names of `nowo_wiki.web_ui.templates.<page>` (default: the bundle page), so you can also point one page at another template from configuration.
 
-**Freeze rule:** an application file at an override path always wins and will **not** pick up vendor changes for that path until you remove or merge it. Prefer `web_ui.layout_template` / `web_ui.css_framework` / one partial over copying manage pages, so `composer update` keeps shipping UI fixes.
+**Freeze rule:** an application file at an override path always wins and will **not** pick up vendor changes for that path until you remove or merge it. Prefer the UiKit theme (`nowo_ui_kit.layouts`, `nowo_ui_kit.theme`, UiKit scaffold overrides) and `web_ui.templates.<page>` with a thin `{% extends '@NowoWikiBundle/…' %}` over copying wiki pages, so `composer update` keeps shipping UI fixes.
 
 **Procedure:**
 
@@ -93,19 +93,20 @@ The bundle registers **`@NowoWikiBundle/`**. Application files under **`template
 3. Clear the cache in dev if needed: `php bin/console cache:clear`.
 4. Treat the file as a fork: it no longer follows bundle upgrades for that `<subpath>`.
 
-Example: `templates/bundles/NowoWikiBundle/manage/_page_tree.html.twig` replaces the sidebar tree only.
+Example: `templates/bundles/NowoWikiBundle/manage/_page_tree_item.html.twig` replaces one item of the sidebar tree only.
 
 | Prefer | Notes |
 |--------|--------|
-| `web_ui.layout_template` | Host chrome; pages keep package assets via `base.html.twig` |
-| `web_ui.css_framework` | Stack hint (`tabler` default); demo CDN gated for Tabler/Bootstrap |
-| Override `base.html.twig` / one manage page | Surgical freeze when config is not enough |
+| `nowo_ui_kit.layouts.admin` | Host chrome for every UiKit bundle (wiki pages included) |
+| `nowo_ui_kit.css_framework` / `nowo_ui_kit.theme` | CSS stack, class / attribute / partial maps and `--nowo-ui-*` tokens, once |
+| `nowo_wiki.web_ui.templates.<page>` | One wiki page: a thin template that extends `@NowoWikiBundle/manage/<page>.html.twig` and overrides one data block |
+| Override one wiki partial | Surgical freeze when config is not enough |
 
 ```yaml
-nowo_wiki:
-    web_ui:
-        css_framework: bootstrap5
-        layout_template: 'layouts/app.html.twig'
+nowo_ui_kit:
+    css_framework: bootstrap5
+    layouts:
+        admin: 'layouts/admin.html.twig'
 ```
 
 ### Overridable templates
@@ -114,24 +115,21 @@ Paths are relative to `src/Resources/views` (`@NowoWikiBundle/<subpath>`):
 
 | `<subpath>` | Purpose |
 | ----------- | ------- |
-| `layout.html.twig` | Outer HTML shell of the manage UI (replaced by `web_ui.layout_template` when set) |
-| `base.html.twig` | Page frame: flashes, package CSS/JS, `title` / `body` / `javascripts` blocks |
-| `manage/index.html.twig` | Wiki index: search highlight, AI entry point, paginated space cards |
-| `manage/space.html.twig` | Space page: page tree, in-space search, import / export card |
-| `manage/page_view.html.twig` | Page view: sanitized body (`nowo_wiki_safe_html`), tree, edit / history actions |
-| `manage/page_edit.html.twig` | Create / edit form (`WikiPageFormType`, Tiptap editor) |
-| `manage/page_history.html.twig` | Paginated revision list with compare links |
-| `manage/page_diff.html.twig` | Side-by-side diff of two revisions |
-| `manage/search.html.twig` | Search form and results (per space or across spaces) |
-| `manage/ai_ask.html.twig` | Full-page AI question / answer with sources |
-| `manage/_page_header.html.twig` | Page title, subtitle, dashboard / wiki links, search and AI buttons |
-| `manage/_page_tree.html.twig` | Sidebar tree (nested lists) plus the "tree truncated" notice |
-| `manage/_page_tree_list.html.twig` | One level of the tree (`<ul class="nowo-wiki-tree">`) |
+| `manage/index.html.twig` | Wiki index (UiKit list scaffold): spaces, global search filters, AI dialog |
+| `manage/space.html.twig` | Space page (UiKit show scaffold): page tree, in-space search, import, archived pages |
+| `manage/page_view.html.twig` | Page view (UiKit show scaffold): sanitized body (`nowo_wiki_safe_html`), tree, "Used in" |
+| `manage/page_edit.html.twig` | Create / edit (UiKit form scaffold, `WikiPageFormType`, Tiptap editor script) |
+| `manage/page_history.html.twig` | Paginated revisions (UiKit list scaffold) with Compare / Restore |
+| `manage/page_diff.html.twig` | Diff of two revisions (UiKit show scaffold) |
+| `manage/search.html.twig` | Search (UiKit list scaffold: filters + results) |
+| `manage/ai_ask.html.twig` | AI question (UiKit form scaffold) with the answer and sources |
+| `manage/_sidebar.html.twig` | Sidebar card with the page tree and the "tree truncated" notice |
+| `manage/_page_tree.html.twig` | One level of the tree (`<ul class="nowo-wiki-tree">`) |
 | `manage/_page_tree_item.html.twig` | One page of the tree: link, depth class, `aria-current`, its children |
-| `manage/_pagination.html.twig` | Previous / next pager used by the index and the history |
-| `manage/_flashes.html.twig` | Flash messages |
-| `manage/_ai_ask_modal.html.twig` | AI modal opened from the index |
-| `manage/_ai_ask_form_fields.html.twig` | AI form fields shared by the modal and the AI page |
+| `manage/_ai_dialog.html.twig` | AI question `<dialog>` of the index (UiKit `_dialog`) |
+| `manage/_legacy_layout.html.twig` | Deprecated bridge around a pre-1.10 layout (removed in 2.0) |
+
+Page header, pagination, flashes, empty states, confirm dialogs and row actions are UiKit partials: re-skin them in UiKit (`templates/bundles/NowoUiKitBundle/…` or `nowo_ui_kit.theme.partials`), once for every bundle.
 
 Renaming or removing one of these `<subpath>` values (or a stable `{% block %}`) is a breaking change and is announced in [UPGRADING.md](UPGRADING.md).
 
@@ -145,111 +143,64 @@ Every form in the manage views is a PHP Symfony Form Type (Form Kit `wiki` profi
 
 | View | Variable | Form Type |
 | ---- | -------- | --------- |
-| `manage/page_edit.html.twig` | `form` | `WikiPageFormType` — its own CSRF field (token id `wiki_edit_<page id>` / `wiki_new_<space id>`) replaces the former top-level `_token` |
-| `manage/index.html.twig`, `manage/space.html.twig`, `manage/search.html.twig` | `search_form` | `WikiSearchType` (GET, flat `space` / `q`) |
+| `manage/page_edit.html.twig` | `page.form` | `WikiPageFormType` — its own CSRF field (token id `wiki_edit_<page id>` / `wiki_new_<space id>`) replaces the former top-level `_token` |
+| `manage/index.html.twig`, `manage/search.html.twig` (`page.filters`), `manage/space.html.twig` (`search_form`) | `page.filters` / `search_form` | `WikiSearchType` (GET, flat `space` / `q`) |
 | `manage/space.html.twig` | `import_form` | `WikiImportType` (multipart, flat `format` / `archive` / `update_existing` / `_token`) |
-| `manage/ai_ask.html.twig`, `manage/_ai_ask_modal.html.twig`, `manage/_ai_ask_form_fields.html.twig` | `ai_form` | `WikiAiAskType` (flat `space` / `q` / `_token`, token id `wiki_ai_ask`) |
+| `manage/ai_ask.html.twig` (`page.form`), `manage/_ai_dialog.html.twig` (`ai_form`) | `page.form` / `ai_form` | `WikiAiAskType` (flat `space` / `q` / `_token`, token id `wiki_ai_ask`) |
 
 Render custom children first, then the canonical loop so remaining children (CSRF, hidden fields) still appear:
 
 ```twig
-{{ form_start(search_form, {attr: {class: 'row g-2 align-items-end'}}) }}
-    {{ form_label(search_form.q) }}
-    {{ form_widget(search_form.q) }}
+{{ form_start(search_form, {attr: {class: nowo_ui_class('form')}}) }}
     {% for child in search_form %}
         {% if not child.rendered %}
             {{ form_row(child) }}
         {% endif %}
     {% endfor %}
-    <button type="submit" class="btn btn-primary">…</button>
+    <button type="submit" class="{{ nowo_ui_class('btn_primary') }}">…</button>
 {{ form_end(search_form) }}
 ```
 
 Template overrides and demos **must not** reintroduce raw `<form>`, `<input>`, `<textarea>` or `<select>` markup; `make check-no-raw-html-form` (part of `release-check`) fails when they do.
 
-## Theming: classes, tokens and blocks (FR-006)
+## Theming: classes, tokens and blocks (REQ-UI-003)
 
-The manage templates keep their Tabler / Bootstrap classes (the demo and Bootstrap hosts look the same) and add
-semantic BEM hooks, so a host with its own design can style them without copying templates.
+Since 1.10 the wiki pages are UiKit pages: the host themes them through UiKit (`nowo_ui_kit.css_framework`,
+`nowo_ui_kit.theme` classes / attributes / partials / `--nowo-ui-*` tokens, scaffold overrides) once for every bundle.
+The page → scaffold map, the view models, the data blocks and the value-free page data are in
+[TEMPLATES.md](TEMPLATES.md).
 
-**Root.** Each page body is `<div class="nowo-wiki nowo-wiki--<view>" data-nowo-wiki-skin="framework|tokens">` with
-`<view>` one of `index`, `space`, `page`, `edit`, `history`, `diff`, `search`, `ai`. `tokens` is set when
-`web_ui.css_framework` is not `tabler` / `bootstrap*` (see [CONFIGURATION](CONFIGURATION.md#web-ui-req-ui-001)).
-
-**Classes** (block → elements / modifiers):
+The wiki-specific regions carry semantic hooks styled by `wiki.css` with the UiKit tokens (no `--nowo-wiki-*` token
+tree any more):
 
 | Block | Elements and modifiers |
 |-------|------------------------|
-| `nowo-wiki-header` | `__row`, `__text`, `__breadcrumb`, `__home`, `__title`, `__subtitle`, `__actions` |
-| `nowo-wiki-layout` | `__sidebar`, `__main` |
-| `nowo-wiki-sidebar` | `__header`, `__title`, `__back`, `__body`, `__nav` |
-| `nowo-wiki-tree` | `--nested`, `__item`, `__item--depth-0` … `__item--depth-6` (capped; `data-wiki-depth` has the real depth), `__item--parent`, `__link`, `__link--current`, `__truncated` |
-| `nowo-wiki-panel` | `__header`, `__title`, `__body`, `__body--flush`, `__footer` (every card) |
-| `nowo-wiki-page` | `__header`, `__title`, `__actions`; body in `nowo-wiki-content` |
-| `nowo-wiki-actions` | button rows; `nowo-wiki-btn` with `--primary`, `--secondary`, `--ai`, `--sm`; icons `nowo-wiki-icon`; `nowo-wiki-avatar` (`--ai`) |
-| `nowo-wiki-history` | `__table`, `__row`, `__number`, `__date`, `__actions`, `__restore`; `nowo-wiki-table`, `nowo-wiki-table-scroll` |
-| `nowo-wiki-diff` | `__lines`, `__line`, `__line--add`, `__line--remove`, `__line--same` |
-| `nowo-wiki-form` | `__row`, `__field` (`--space`, `--query`, `--title`, `--content`, `--format`, `--archive`), `__check`, `__help`, `__actions`; `nowo-wiki-search-form`, `nowo-wiki-editor` / `__form` |
-| `nowo-wiki-search`, `nowo-wiki-results` | `__count`, `__item`, `__card`, `__heading`, `__title`, `__space`, `__excerpt` |
-| `nowo-wiki-spaces` | `__item`, `__card`, `__heading`, `__name`, `__slug` |
-| `nowo-wiki-highlight` | `--search`, `--ai`, `__heading`, `__title` |
-| `nowo-wiki-ai`, `nowo-wiki-ai-modal` | `__question`, `__answer`, `__sources`, `__follow-up`, `__ask`, `__form`; modal `__dialog`, `__content`, `__header`, `__heading`, `__title`, `__close`, `__body`, `__footer` |
-| `nowo-wiki-import-export` | `__export`, `__import` |
-| `nowo-wiki-used-in`, `nowo-wiki-archived` | `__list`, `__item`, `__link` / `__title`, `__badge`, `__form` |
-| `nowo-wiki-pagination` | `__link`, `__link--prev`, `__link--next`, `__status`, `__spacer` |
-| `nowo-wiki-flash` | `--danger`, `--warning`, `--info`, `--success` |
-| `nowo-wiki-attachments` | `__item`, `__meta` (styled for host or editor lists; the bundle pages render none) |
-| others | `nowo-wiki-empty`, `nowo-wiki-muted`, `nowo-wiki-container` (`--narrow`) |
+| `nowo-wiki-layout` | `__aside`, `__main` (sidebar + content grid, one column under 62 rem) |
+| `nowo-wiki-sidebar` | `__header`, `__body` (`data-wiki-sidebar`) |
+| `nowo-wiki-tree` | `--nested`, `__item`, `__item--depth-0` … `__item--depth-6` (capped; `data-wiki-depth` has the real depth), `__item--parent`, `__link`, `__link--current` (`aria-current="page"`), `__truncated`; root `data-wiki-tree` |
+| `nowo-wiki-content` | the sanitized page body (`data-testid="wiki-content"`) |
+| `nowo-wiki-diff` | `__lines`, `__line`, `__line--add`, `__line--remove`, `__line--same` (`data-wiki-diff`) |
+| `nowo-wiki-archived`, `nowo-wiki-used-in` | `__list`, `__item`, `__title` / `__link` |
+| `nowo-wiki-ai` | `__answer`, `__text`, `__sources`; `nowo-wiki-sources`, `__item` |
+| others | `nowo-wiki-region-title` (card titles of these regions), `nowo-wiki-link`, `nowo-wiki-results__excerpt` |
 
-The 1.x hooks `wiki-tree`, `wiki-tree-item`, `wiki-page-content`, `wiki-diff-<kind>`, `wiki-pagination`, `wiki-form`,
-`data-wiki-sidebar` and `#wikiAiAskModal` stay in the markup.
-
-**Tokens** (`:root`, neutral light defaults; a dark set under `@media (prefers-color-scheme: dark)` unless
-`[data-theme="light"]`, and under `[data-theme="dark"]`): `--nowo-wiki-surface`, `--nowo-wiki-surface-muted`,
-`--nowo-wiki-border`, `--nowo-wiki-ink`, `--nowo-wiki-muted`, `--nowo-wiki-accent`, `--nowo-wiki-accent-ink`,
-`--nowo-wiki-accent-soft`, `--nowo-wiki-ai`, `--nowo-wiki-radius`, `--nowo-wiki-radius-sm`, `--nowo-wiki-gap`,
-`--nowo-wiki-gap-sm`, `--nowo-wiki-sidebar-width`, `--nowo-wiki-container-width`, `--nowo-wiki-container-narrow-width`,
-`--nowo-wiki-tree-indent`, `--nowo-wiki-font-mono`, `--nowo-wiki-line-height`, `--nowo-wiki-code-bg`,
-`--nowo-wiki-diff-add-ink` / `-bg`, `--nowo-wiki-diff-remove-ink` / `-bg`, `--nowo-wiki-diff-same-ink`,
-`--nowo-wiki-danger` / `-soft`, `--nowo-wiki-warning` / `-soft`, `--nowo-wiki-success` / `-soft`, `--nowo-wiki-info-soft`.
-
-Always on (any framework): tree indentation by nesting, page body typography (images and video `max-width: 100%`,
-scrollable tables and code blocks), diff colours, scrollable history table. Only with `data-nowo-wiki-skin="tokens"`:
-sidebar + content grid (one column under 992 px), panels, buttons, forms, lists, flashes, pagination. Every skin rule is
-wrapped in `:where()` (zero specificity), so a host selector always wins.
-
-**Blocks.** Extend a page and override one block instead of copying the page (the copy freezes, see above):
-
-| Template | Blocks |
-|----------|--------|
-| every manage page | `wiki_header` (the `_page_header` include) |
-| `manage/page_view.html.twig` | `wiki_flashes`, `space_sidebar` → `space_sidebar_header`, `page_tree`; `page_main` → `page_header`, `page_actions`, `page_body`; `page_aside` |
-| `manage/space.html.twig` | `space_sidebar` → `space_sidebar_header`, `page_tree`; `space_main` → `space_search`, `space_import_export`, `space_archived` |
-| `manage/page_history.html.twig` | `history_list`, `history_pagination`, `history_footer` |
-| `manage/page_diff.html.twig` | `diff_body`, `diff_footer` |
-| `manage/search.html.twig` | `search_form`, `search_results` |
-| `manage/page_edit.html.twig` | `page_form` → `page_form_fields`, `page_form_actions`; `wiki_editor_scripts` |
-| `manage/index.html.twig` | `wiki_search_highlight`, `wiki_ai_highlight`, `wiki_ai_modal`, `space_list` |
-| `manage/ai_ask.html.twig` | `ai_error`, `ai_answer`, `ai_sources`, `ai_follow_up`, `ai_form` |
+**Blocks.** Use `nowo_wiki.web_ui.templates.<page>` with a template that extends the bundle page and overrides one
+UiKit data block (`nowo_ui_list_row`, `nowo_ui_show_sections`, `nowo_ui_show_after`, `nowo_ui_form_body`,
+`nowo_ui_form_aside`, `nowo_ui_modals`, …):
 
 ```twig
-{# templates/wiki/page_view.html.twig, set as nowo_wiki.templates.page_view #}
+{# templates/wiki/page_view.html.twig, set as nowo_wiki.web_ui.templates.page_view #}
 {% extends '@NowoWikiBundle/manage/page_view.html.twig' %}
 
-{% block page_actions %}
-    {{ parent() }}
-    <a href="{{ path('app_wiki_share', {pageSlug: page.slug}) }}" class="nowo-wiki-btn nowo-wiki-btn--sm">Share</a>
-{% endblock %}
-
-{% block page_aside %}
-    {{ parent() }}
+{% block nowo_ui_show_after %}
     {{ include('wiki/_linked_issues.html.twig') }}
 {% endblock %}
 ```
 
-Templates carry no `style="…"`, no `on*="…"` handlers and no `<style>` block; every `<script>` prints the request
-attribute `csp_nonce` as `nonce="…"` when the host sets it (see [SECURITY](SECURITY.md#content-safety)). Overrides
-should keep it that way: `tests/Unit/Resources/ManageTemplatesTest.php` enforces it for the bundle views.
+Templates carry no `style="…"`, no `on*="…"` handlers, no `<style>` block, no CDN asset and no `confirm()`; the editor
+`<script>` prints the request attribute `csp_nonce` as `nonce="…"` when the host sets it (see
+[SECURITY](SECURITY.md#content-safety)). `tests/Integration/Contract/PageContractTest.php` (UiKit `PageContractTestCase`)
+enforces it for every bundle page.
 
 ## Translations (REQ-I18N-001)
 

@@ -122,6 +122,8 @@ Entities (`WikiSpace`, `WikiPage`, `WikiPageRevision`), DTOs, events and `Uuid` 
 - **Recommendation:** none required.
 - **Status:** Accepted — no change.
 
+1.10 (UiKit page contract): `Ui\WikiPages` and `Ui\WikiPageFactory` are `final readonly` (configuration, the router and Twig only; the legacy-layout probe asks Twig on every call and keeps nothing), the view models are immutable UiKit value objects built per request, and `CsrfProtectionPass` runs at compile time. The controller builds a new `Response` per render (no mutation of a shared object).
+
 Good patterns observed: all services are `final readonly` or have no properties; no in-process caches; space access is re-evaluated on every request; the FormKit builder binding is restored in `finally`; imports clean their extracted directory in `finally`.
 
 ## Usage recommendations in worker mode

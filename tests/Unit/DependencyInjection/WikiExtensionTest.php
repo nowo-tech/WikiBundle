@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
+use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
@@ -20,6 +21,8 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiSearchService;
+use Nowo\WikiBundle\Ui\WikiPageFactory;
+use Nowo\WikiBundle\Ui\WikiPages;
 use PHPUnit\Framework\TestCase;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension;
@@ -34,7 +37,12 @@ use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
+use function array_diff_key;
+use function array_fill_keys;
+use function array_keys;
 use function is_array;
+
+use const E_USER_DEPRECATED;
 
 final class WikiExtensionTest extends TestCase
 {
@@ -275,6 +283,103 @@ final class WikiExtensionTest extends TestCase
         /** @var array{layout: string} $templates */
         $templates = $container->getParameter('nowo_wiki.templates');
         self::assertSame('layouts/app.html.twig', $templates['layout']);
+    }
+
+    public function testCanonicalWebUiKeysWinOverTheDeprecatedOnes(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        set_error_handler(static fn (): bool => true, E_USER_DEPRECATED);
+
+        try {
+            (new WikiExtension())->load([[
+                'user_class'   => 'App\\Entity\\User',
+                'route_prefix' => '/legacy',
+                'templates'    => ['layout' => 'old.html.twig', 'index' => 'old/index.html.twig', 'search' => 'old/search.html.twig'],
+                'web_ui'       => ['path_prefix' => '/admin', 'layout_template' => 'layouts/admin.html.twig', 'templates' => ['index' => 'new/index.html.twig']],
+            ]], $container);
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame('/admin', $container->getParameter('nowo_wiki.route_prefix'));
+        /** @var array<string, string|null> $templates */
+        $templates = $container->getParameter('nowo_wiki.templates');
+        self::assertSame('layouts/admin.html.twig', $templates['layout']);
+        self::assertSame('new/index.html.twig', $templates['index']);
+        self::assertSame('old/search.html.twig', $templates['search']);
+        self::assertSame(WikiPages::TEMPLATES['space'], $templates['space']);
+        self::assertSame('layouts/admin.html.twig', $container->getDefinition(WikiPages::class)->getArgument('$layoutTemplate'));
+        self::assertArrayNotHasKey('layout', $container->getDefinition(WikiPages::class)->getArgument('$templates'));
+        self::assertEquals(new Reference(WikiPages::class), $container->getDefinition(WikiPageFactory::class)->getArgument('$pages'));
+    }
+
+    public function testDeprecatedKeysStillApplyAndTheOldDefaultLayoutMeansUiKit(): void
+    {
+        self::assertSame('/legacy', WikiExtension::pathPrefix(['route_prefix' => '/legacy', 'web_ui' => ['path_prefix' => null]]));
+        self::assertSame('', WikiExtension::pathPrefix([]));
+        self::assertNull(WikiExtension::templates(['templates' => ['layout' => WikiPages::LEGACY_DEFAULT_LAYOUT]])['layout']);
+        self::assertSame('base.html.twig', WikiExtension::templates(['templates' => ['layout' => 'base.html.twig']])['layout']);
+        self::assertSame(WikiPages::TEMPLATES, array_diff_key(WikiExtension::templates([]), ['layout' => true]));
+    }
+
+    public function testRolesReachTheDefaultAccessChecker(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'security'   => ['roles' => ['edit' => ['ROLE_EDITOR'], 'admin' => []]],
+        ]], $container);
+
+        $checker = $container->getDefinition('nowo_wiki.access_checker.default');
+        self::assertSame(['ROLE_EDITOR'], $checker->getArgument('$editRoles'));
+        self::assertSame([], $checker->getArgument('$adminRoles'));
+        self::assertSame(['ROLE_USER'], $checker->getArgument('$listRoles'));
+        self::assertSame(['ROLE_USER'], $checker->getArgument('$accessRoles'));
+    }
+
+    public function testEveryEmptyRoleListFailsTheCompile(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $roles = array_fill_keys(array_keys(Configuration::DEFAULT_ROLES), []);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('nobody can use the wiki');
+
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'security'   => ['access_roles' => [], 'roles' => $roles],
+        ]], $container);
+    }
+
+    public function testEmptyRoleListsAreFineWithAnAccessCheckerOrADisabledUi(): void
+    {
+        $roles = array_fill_keys(array_keys(Configuration::DEFAULT_ROLES), []);
+        foreach ([['access_checker' => 'app.wiki_checker'], []] as $index => $security) {
+            $container = new ContainerBuilder();
+            $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+            (new WikiExtension())->load([[
+                'user_class' => 'App\\Entity\\User',
+                'security'   => $security + ['access_roles' => [], 'roles' => $roles],
+                'web_ui'     => ['enabled' => $index === 0],
+            ]], $container);
+            self::assertSame($index === 0, $container->getParameter('nowo_wiki.web_ui.enabled'));
+        }
+    }
+
+    public function testPrependDoesNotSeedUiKitWithoutTheDeprecatedFramework(): void
+    {
+        $container = new ContainerBuilder();
+        $this->registerStubExtension($container, 'nowo_ui_kit');
+        $extension = new WikiExtension();
+        $container->registerExtension($extension);
+        $container->prependExtensionConfig('nowo_wiki', ['user_class' => 'App\\Entity\\User']);
+
+        $extension->prepend($container);
+
+        self::assertSame([], $container->getExtensionConfig('nowo_ui_kit'));
     }
 
     public function testPrependsTwigGlobalsWhenExtensionPresent(): void

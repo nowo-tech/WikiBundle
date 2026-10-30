@@ -6,9 +6,15 @@ namespace Nowo\WikiBundle\DependencyInjection;
 
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimits;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
+use Symfony\Component\Config\Definition\Builder\VariableNodeDefinition;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
+use function array_filter;
+use function array_values;
+use function implode;
+use function is_array;
 use function is_string;
+use function sprintf;
 
 /**
  * Configuration tree for WikiBundle.
@@ -16,6 +22,25 @@ use function is_string;
 final class Configuration implements ConfigurationInterface
 {
     public const ALIAS = 'nowo_wiki';
+
+    /** Composer package (deprecation notices). */
+    public const PACKAGE = 'nowo-tech/wiki-bundle';
+
+    /** Default of security.access_roles. */
+    public const DEFAULT_ACCESS_ROLES = ['ROLE_USER'];
+
+    /** Default roles per action (security.roles.<action>) when neither the key nor its deprecated alias is set. */
+    public const DEFAULT_ROLES = [
+        'admin'   => ['ROLE_ADMIN'],
+        'list'    => ['ROLE_USER'],
+        'create'  => ['ROLE_USER'],
+        'edit'    => ['ROLE_USER'],
+        'history' => ['ROLE_USER'],
+        'archive' => ['ROLE_USER'],
+        'ai'      => ['ROLE_USER'],
+        'import'  => ['ROLE_ADMIN'],
+        'export'  => ['ROLE_USER'],
+    ];
 
     /**
      * Builds the {@code nowo_wiki} configuration tree (user class, tables, routes, templates, security, AI, import/export, pagination, web UI).
@@ -61,7 +86,9 @@ final class Configuration implements ConfigurationInterface
                     ->end()
                 ->end()
                 ->scalarNode('route_prefix')
-                    ->defaultValue('')
+                    ->info('Deprecated since 1.10: use web_ui.path_prefix.')
+                    ->defaultNull()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.path_prefix" instead.')
                 ->end()
                 ->scalarNode('dashboard_route')
                     ->defaultNull()
@@ -116,16 +143,107 @@ final class Configuration implements ConfigurationInterface
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->scalarNode('access_checker')->defaultNull()->end()
-                        ->arrayNode('admin_roles')->scalarPrototype()->end()->defaultValue(['ROLE_ADMIN'])->end()
-                        ->arrayNode('access_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
-                        ->arrayNode('list_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
-                        ->arrayNode('create_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
-                        ->arrayNode('edit_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
-                        ->arrayNode('history_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
-                        ->arrayNode('archive_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
-                        ->arrayNode('ai_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
-                        ->arrayNode('import_roles')->scalarPrototype()->end()->defaultValue(['ROLE_ADMIN'])->end()
-                        ->arrayNode('export_roles')->scalarPrototype()->end()->defaultValue(['ROLE_USER'])->end()
+                        ->arrayNode('access_roles')
+                            ->info('General gate of the wiki (REQ-UI-002). An empty list grants nothing through this gate.')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(self::DEFAULT_ACCESS_ROLES)
+                        ->end()
+                        ->arrayNode('roles')
+                            ->info('Roles per action (REQ-UI-003 security.roles.<action>; replace the deprecated <action>_roles keys). null = the deprecated key, else the default. admin = every action; an empty list grants that action to nobody but the admin roles.')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->append($this->rolesNode('admin'))
+                                ->append($this->rolesNode('list'))
+                                ->append($this->rolesNode('create'))
+                                ->append($this->rolesNode('edit'))
+                                ->append($this->rolesNode('history'))
+                                ->append($this->rolesNode('archive'))
+                                ->append($this->rolesNode('ai'))
+                                ->append($this->rolesNode('import'))
+                                ->append($this->rolesNode('export'))
+                            ->end()
+                        ->end()
+                        ->variableNode('admin_roles')
+                            ->info('Deprecated since 1.10: use security.roles.admin.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.admin" instead.')
+                        ->end()
+                        ->variableNode('list_roles')
+                            ->info('Deprecated since 1.10: use security.roles.list.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.list" instead.')
+                        ->end()
+                        ->variableNode('create_roles')
+                            ->info('Deprecated since 1.10: use security.roles.create.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.create" instead.')
+                        ->end()
+                        ->variableNode('edit_roles')
+                            ->info('Deprecated since 1.10: use security.roles.edit.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.edit" instead.')
+                        ->end()
+                        ->variableNode('history_roles')
+                            ->info('Deprecated since 1.10: use security.roles.history.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.history" instead.')
+                        ->end()
+                        ->variableNode('archive_roles')
+                            ->info('Deprecated since 1.10: use security.roles.archive.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.archive" instead.')
+                        ->end()
+                        ->variableNode('ai_roles')
+                            ->info('Deprecated since 1.10: use security.roles.ai.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.ai" instead.')
+                        ->end()
+                        ->variableNode('import_roles')
+                            ->info('Deprecated since 1.10: use security.roles.import.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.import" instead.')
+                        ->end()
+                        ->variableNode('export_roles')
+                            ->info('Deprecated since 1.10: use security.roles.export.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                                ->thenInvalid('Expected a list of role names, got %s.')
+                            ->end()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.export" instead.')
+                        ->end()
                         ->booleanNode('allow_unauthenticated')->defaultFalse()->end()
                     ->end()
                 ->end()
@@ -227,32 +345,82 @@ final class Configuration implements ConfigurationInterface
                     ->end()
                 ->end()
                 ->arrayNode('templates')
+                    ->info('Deprecated since 1.10: use web_ui.layout_template and web_ui.templates.<page>.')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->scalarNode('layout')->defaultValue('@NowoWikiBundle/layout.html.twig')->end()
-                        ->scalarNode('index')->defaultValue('@NowoWikiBundle/manage/index.html.twig')->end()
-                        ->scalarNode('space')->defaultValue('@NowoWikiBundle/manage/space.html.twig')->end()
-                        ->scalarNode('page_view')->defaultValue('@NowoWikiBundle/manage/page_view.html.twig')->end()
-                        ->scalarNode('page_edit')->defaultValue('@NowoWikiBundle/manage/page_edit.html.twig')->end()
-                        ->scalarNode('page_history')->defaultValue('@NowoWikiBundle/manage/page_history.html.twig')->end()
-                        ->scalarNode('page_diff')->defaultValue('@NowoWikiBundle/manage/page_diff.html.twig')->end()
-                        ->scalarNode('search')->defaultValue('@NowoWikiBundle/manage/search.html.twig')->end()
-                        ->scalarNode('ai_ask')->defaultValue('@NowoWikiBundle/manage/ai_ask.html.twig')->end()
+                        ->scalarNode('layout')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.layout_template" instead.')
+                        ->end()
+                        ->scalarNode('index')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.templates.index" instead.')
+                        ->end()
+                        ->scalarNode('space')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.templates.space" instead.')
+                        ->end()
+                        ->scalarNode('page_view')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.templates.page_view" instead.')
+                        ->end()
+                        ->scalarNode('page_edit')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.templates.page_edit" instead.')
+                        ->end()
+                        ->scalarNode('page_history')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.templates.page_history" instead.')
+                        ->end()
+                        ->scalarNode('page_diff')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.templates.page_diff" instead.')
+                        ->end()
+                        ->scalarNode('search')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.templates.search" instead.')
+                        ->end()
+                        ->scalarNode('ai_ask')
+                            ->defaultNull()
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.web_ui.templates.ai_ask" instead.')
+                        ->end()
                     ->end()
                 ->end()
                 ->arrayNode('web_ui')
-                    ->info('Admin / manage Web UI look-and-feel (REQ-UI-001).')
+                    ->info('Wiki Web UI (REQ-UI-001 / REQ-UI-003): the pages extend the UiKit page scaffolds; the CSS stack, icons and row actions come from nowo_ui_kit.')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->booleanNode('enabled')->defaultTrue()->end()
-                        ->enumNode('css_framework')
-                            ->values(['bootstrap', 'bootstrap4', 'bootstrap5', 'tabler', 'tailwind', 'foundation', 'custom', 'none'])
-                            ->defaultValue('tabler')
-                            ->info('Host-chosen CSS stack. Default tabler matches the bundled layout CDN.')
+                        ->booleanNode('enabled')
+                            ->info('false: the nowo_wiki route loader registers no route.')
+                            ->defaultTrue()
+                        ->end()
+                        ->scalarNode('path_prefix')
+                            ->info('Prefix of every wiki route path (e.g. /admin). null = the deprecated route_prefix, else none.')
+                            ->defaultNull()
                         ->end()
                         ->scalarNode('layout_template')
+                            ->info('Layout the pages extend. null = nowo_ui_kit.layouts.admin. A pre-1.10 layout without the UiKit canonical blocks is wrapped in a deprecated bridge.')
                             ->defaultNull()
-                            ->info('Optional host layout Twig path; when set, overrides templates.layout for integration.')
+                        ->end()
+                        ->arrayNode('templates')
+                            ->info('Per-page template overrides (page id => template); null = the bundle template.')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->scalarNode('index')->defaultNull()->end()
+                                ->scalarNode('space')->defaultNull()->end()
+                                ->scalarNode('page_view')->defaultNull()->end()
+                                ->scalarNode('page_edit')->defaultNull()->end()
+                                ->scalarNode('page_history')->defaultNull()->end()
+                                ->scalarNode('page_diff')->defaultNull()->end()
+                                ->scalarNode('search')->defaultNull()->end()
+                                ->scalarNode('ai_ask')->defaultNull()->end()
+                            ->end()
+                        ->end()
+                        ->enumNode('css_framework')
+                            ->values([null, 'bootstrap', 'bootstrap4', 'bootstrap5', 'tabler', 'tailwind', 'foundation', 'custom', 'none'])
+                            ->defaultNull()
+                            ->info('Deprecated since 1.10: set nowo_ui_kit.css_framework once for every bundle. Only seeds nowo_ui_kit.css_framework (and icon_set) when the host leaves them unset.')
+                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated: set nowo_ui_kit.css_framework once for every bundle. It only seeds nowo_ui_kit.css_framework when the host leaves it unset.')
                         ->end()
                     ->end()
                 ->end()
@@ -263,5 +431,59 @@ final class Configuration implements ConfigurationInterface
             ->end();
 
         return $treeBuilder;
+    }
+
+    /**
+     * Resolved roles per action: security.roles.<action>, else the deprecated security.<action>_roles, else the
+     * default ({@see self::DEFAULT_ROLES}).
+     *
+     * @param array<string, mixed> $security processed `security` node
+     *
+     * @return array<string, list<string>> action => roles
+     */
+    public static function resolveRoles(array $security): array
+    {
+        $roles = [];
+        foreach (self::DEFAULT_ROLES as $action => $default) {
+            $value          = $security['roles'][$action] ?? $security[$action . '_roles'] ?? $default;
+            $roles[$action] = array_values(array_filter(is_array($value) ? $value : [$value], static fn (mixed $role): bool => is_string($role) && $role !== ''));
+        }
+
+        return $roles;
+    }
+
+    /**
+     * `security.roles.<action>`: list of roles, null = the deprecated key / the default.
+     */
+    private function rolesNode(string $action): VariableNodeDefinition
+    {
+        $node = new VariableNodeDefinition($action);
+        $node
+            ->info(sprintf('Roles granted the "%s" action (default %s).', $action, implode(', ', self::DEFAULT_ROLES[$action])))
+            ->defaultNull()
+            ->validate()
+                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                ->thenInvalid('Expected a list of role names, got %s.')
+            ->end();
+
+        return $node;
+    }
+
+    /**
+     * Whether a value is a list of role names (strings).
+     */
+    public static function isRoleList(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $role) {
+            if (!is_string($role)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

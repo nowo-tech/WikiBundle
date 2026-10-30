@@ -49,7 +49,7 @@ make -C demo/symfony8 test            # lint YAML/Twig + schema validate
 
 ## Styling
 
-The demo overrides `@NowoWikiBundle/layout.html.twig` with Tabler CSS and `public/css/demo.css`. Wiki UI styles live in the bundle asset `wiki.css`.
+The demo is a UiKit host (REQ-UI-003): `templates/base.html.twig` is the demo shell (masthead, Bootstrap 5 + Bootstrap Icons, `public/css/demo.css`), `templates/layouts/admin.html.twig` bridges it to the UiKit canonical blocks and is set as `nowo_ui_kit.layouts.admin`, and `twig.form_themes` uses `bootstrap_5_layout.html.twig`. The bundle loads only `wiki.css` / `wiki.js` (asset package `nowo_wiki`).
 
 ## Production note
 

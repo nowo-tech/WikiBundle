@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Controller;
 
 use InvalidArgumentException;
+use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Dto\WikiPageFormData;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -36,6 +37,8 @@ use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Ui\WikiPageFactory;
+use Nowo\WikiBundle\Ui\WikiPages;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormInterface;
@@ -52,6 +55,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
 
 use function array_filter;
@@ -59,6 +63,7 @@ use function array_slice;
 use function array_values;
 use function ceil;
 use function count;
+use function in_array;
 use function is_string;
 use function max;
 use function min;
@@ -94,6 +99,8 @@ final class WikiManageController extends AbstractController
      * @param WikiPageLinkService|null $linkService host-object links for "Used in" (1.9)
      * @param EventDispatcherInterface|null $eventDispatcher dispatches {@see WikiEvents::EDITOR_OPTIONS} (1.9)
      * @param array{enabled: bool} $attachments attachment options (1.9)
+     * @param WikiPageFactory|null $pageFactory UiKit view models of the pages (1.10; null = built from the router)
+     * @param TranslatorInterface|null $translator translates flash messages in the NowoWikiBundle domain when they are added (1.10)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -120,6 +127,8 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiPageLinkService $linkService = null,
         private readonly ?EventDispatcherInterface $eventDispatcher = null,
         private readonly array $attachments = ['enabled' => false],
+        private readonly ?WikiPageFactory $pageFactory = null,
+        private readonly ?TranslatorInterface $translator = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -146,18 +155,21 @@ final class WikiManageController extends AbstractController
         $total     = count($spaces);
         $pageCount = max(1, (int) ceil($total / $perPage));
         $current   = min($pageCount, max(1, $request?->query->getInt('page', 1) ?? 1));
+        $canAskAi  = $this->accessChecker->canAskAi($user) && $this->aiAssistant->isAvailable() && isset($this->routes['ai_ask']);
+        $pages     = $this->pages();
 
-        return $this->render($this->templates['index'], [
-            'layout'          => $this->templates['layout'],
-            'spaces'          => $spaces,
-            'space_page'      => array_slice($spaces, ($current - 1) * $perPage, $perPage),
-            'pagination'      => ['page' => $current, 'pages' => $pageCount, 'total' => $total, 'per_page' => $perPage],
+        return $this->renderPage('index', [
+            'page' => $pages->index(
+                array_slice($spaces, ($current - 1) * $perPage, $perPage),
+                Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $this->routes['index']['name']),
+                $this->createSearchForm($spaces, [], ['space' => 'wiki-index-search-space', 'q' => 'wiki-index-search-q']),
+                $canAskAi,
+            ),
+            'ai_form'         => $canAskAi ? $this->createAiAskForm($spaces, [], ['space' => 'wiki-ai-modal-space', 'q' => 'wiki-ai-modal-question'], ['autofocus' => true])->createView() : null,
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'can_create'      => $this->accessChecker->canCreate($user),
-            'can_ask_ai'      => $this->accessChecker->canAskAi($user) && $this->aiAssistant->isAvailable(),
-            'search_form'     => $this->createSearchForm($spaces, [], ['space' => 'wiki-index-search-space', 'q' => 'wiki-index-search-q']),
-            'ai_form'         => $this->createAiAskForm($spaces, [], ['space' => 'wiki-ai-modal-space', 'q' => 'wiki-ai-modal-question'], ['autofocus' => true])->createView(),
+            'can_ask_ai'      => $canAskAi,
         ]);
     }
 
@@ -174,30 +186,37 @@ final class WikiManageController extends AbstractController
         $this->denyUnlessFeature('list');
         $user                   = $this->requireUser();
         $space                  = $this->requireAccessibleSpace($user, $spaceSlug);
-        [$tree, $treeTruncated] = $this->buildTree($space);
+        [$tree, $treeTruncated] = $this->buildTree($user, $space);
         $permissions            = $this->spaceGuard->grants($user, $space);
-        $archived               = $permissions['archive'] && isset($this->routes['page_unarchive']) ? $this->pageRepository->findArchivedBySpace($space) : [];
+        $archived               = $permissions['archive'] && isset($this->routes['page_unarchive'])
+            ? $this->readable($user, $space, $this->pageRepository->findArchivedBySpace($space))
+            : [];
+        $can = [
+            'create' => $this->accessChecker->canCreate($user) && $permissions['create'],
+            'import' => $this->importExport['enabled'] && $this->accessChecker->canImport($user) && $permissions['import'],
+            'export' => $this->importExport['enabled'] && $this->accessChecker->canExport($user) && $permissions['export'],
+        ];
+        $pages = $this->pages();
 
-        return $this->render($this->templates['space'], [
-            'layout'          => $this->templates['layout'],
-            'space'           => $space,
-            'tree'            => $tree,
-            'tree_truncated'  => $treeTruncated,
-            'max_tree_pages'  => $this->pagination['max_tree_pages'],
-            'routes'          => $this->routes,
-            'dashboard_route' => $this->dashboardRoute,
-            'can_create'      => $this->accessChecker->canCreate($user) && $permissions['create'],
-            'can_import'      => $this->importExport['enabled'] && $this->accessChecker->canImport($user) && $permissions['import'],
-            'can_export'      => $this->importExport['enabled'] && $this->accessChecker->canExport($user) && $permissions['export'],
-            'permissions'     => $permissions,
-            'archived_pages'  => $archived,
-            'unarchive_forms' => $this->postActionForms($archived, fn (WikiPage $item): array => [
+        return $this->renderPage('space', [
+            'page'             => $pages->space($space, $can),
+            'tree'             => $pages->tree($space, $tree),
+            'tree_truncated'   => $treeTruncated,
+            'max_tree_pages'   => $this->pagination['max_tree_pages'],
+            'tree_search_href' => $this->treeSearchHref($space),
+            'archived'         => $pages->archived($space, $archived, $this->postActionForms($archived, fn (WikiPage $item): array => [
                 $item->getId(),
                 $this->generateUrl($this->routes['page_unarchive']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug()]),
                 'wiki_unarchive_' . $item->getId(),
-            ]),
-            'search_form' => $this->createSearchForm(null, ['space' => $space->getSlug()], ['q' => 'wiki-space-search'], false),
-            'import_form' => $this->createImportForm($space),
+            ])),
+            'search_form'     => $this->createSearchForm(null, ['space' => $space->getSlug()], ['q' => 'wiki-space-search'], false),
+            'import_form'     => $can['import'] ? $this->createImportForm($space)->createView() : null,
+            'routes'          => $this->routes,
+            'dashboard_route' => $this->dashboardRoute,
+            'can_create'      => $can['create'],
+            'can_import'      => $can['import'],
+            'can_export'      => $can['export'],
+            'permissions'     => $permissions,
         ]);
     }
 
@@ -216,24 +235,34 @@ final class WikiManageController extends AbstractController
         $user                   = $this->requireUser();
         $space                  = $this->requireAccessibleSpace($user, $spaceSlug);
         $page                   = $this->requirePage($user, $space, $pageSlug);
-        $revision               = $page->getCurrentRevision();
-        [$tree, $treeTruncated] = $this->buildTree($space);
+        [$tree, $treeTruncated] = $this->buildTree($user, $space);
         $permissions            = $this->spaceGuard->grants($user, $space, $page);
+        $can                    = [
+            'edit'    => $this->accessChecker->canEdit($user) && $permissions['edit'],
+            'history' => $this->accessChecker->canViewHistory($user) && $permissions['history'],
+            'archive' => $this->accessChecker->canArchive($user) && $permissions['archive'] && isset($this->routes['page_archive']),
+        ];
+        $archiveForm = $can['archive'] ? $this->postActionForms([$page], fn (WikiPage $item): array => [
+            0,
+            $this->generateUrl($this->routes['page_archive']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug()]),
+            'wiki_archive_' . $item->getId(),
+        ])[0] : null;
+        $pages = $this->pages();
 
-        return $this->render($this->templates['page_view'], [
-            'layout'          => $this->templates['layout'],
-            'space'           => $space,
-            'page'            => $page,
-            'revision'        => $revision,
-            'tree'            => $tree,
-            'tree_truncated'  => $treeTruncated,
-            'max_tree_pages'  => $this->pagination['max_tree_pages'],
-            'routes'          => $this->routes,
-            'dashboard_route' => $this->dashboardRoute,
-            'can_edit'        => $this->accessChecker->canEdit($user) && $permissions['edit'],
-            'can_history'     => $this->accessChecker->canViewHistory($user) && $permissions['history'],
-            'permissions'     => $permissions,
-            'used_in'         => $this->linkService?->usedIn($page, $user) ?? [],
+        return $this->renderPage('page_view', [
+            'page'             => $pages->pageView($space, $page, $can, $archiveForm),
+            'content_html'     => $page->getCurrentRevision()?->getContentHtml() ?? '',
+            'tree'             => $pages->tree($space, $tree, $page->getSlug()),
+            'tree_truncated'   => $treeTruncated,
+            'max_tree_pages'   => $this->pagination['max_tree_pages'],
+            'tree_search_href' => $this->treeSearchHref($space),
+            'used_in'          => $pages->usedIn($this->linkService?->usedIn($page, $user) ?? []),
+            'routes'           => $this->routes,
+            'dashboard_route'  => $this->dashboardRoute,
+            'can_edit'         => $can['edit'],
+            'can_history'      => $can['history'],
+            'can_archive'      => $can['archive'],
+            'permissions'      => $permissions,
         ]);
     }
 
@@ -281,15 +310,12 @@ final class WikiManageController extends AbstractController
             ]);
         }
 
-        return $this->render($this->templates['page_edit'], [
-            'layout'          => $this->templates['layout'],
-            'space'           => $space,
-            'page'            => $page,
-            'form'            => $form,
+        return $this->renderPage('page_edit', [
+            'page'            => $this->pages()->pageForm($space, $page, $form->createView()),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
-        ]);
+        ], $form);
     }
 
     /**
@@ -326,17 +352,9 @@ final class WikiManageController extends AbstractController
             try {
                 $page = $this->pageService->create($space, $payload->title, $payload->content, $user);
             } catch (InvalidArgumentException $exception) {
-                $this->addFlash('error', $exception->getMessage());
+                $this->flash('error', $exception->getMessage());
 
-                return $this->render($this->templates['page_edit'], [
-                    'layout'          => $this->templates['layout'],
-                    'space'           => $space,
-                    'page'            => null,
-                    'form'            => $form,
-                    'routes'          => $this->routes,
-                    'dashboard_route' => $this->dashboardRoute,
-                    'csrf_token_id'   => 'wiki_new_' . $space->getId(),
-                ]);
+                return $this->renderNewPage($space, $form);
             }
 
             return $this->redirectToRoute($this->routes['page_view']['name'], [
@@ -345,15 +363,20 @@ final class WikiManageController extends AbstractController
             ]);
         }
 
-        return $this->render($this->templates['page_edit'], [
-            'layout'          => $this->templates['layout'],
-            'space'           => $space,
-            'page'            => null,
-            'form'            => $form,
+        return $this->renderNewPage($space, $form);
+    }
+
+    /**
+     * @param FormInterface<mixed> $form
+     */
+    private function renderNewPage(WikiSpace $space, FormInterface $form): Response
+    {
+        return $this->renderPage('page_edit', [
+            'page'            => $this->pages()->pageForm($space, null, $form->createView()),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_new_' . $space->getId(),
-        ]);
+        ], $form);
     }
 
     /**
@@ -376,18 +399,23 @@ final class WikiManageController extends AbstractController
         $perPage = max(1, $this->pagination['revisions_per_page']);
         $current = max(1, $request?->query->getInt('page', 1) ?? 1);
         // One extra row: tells whether an older page exists and gives the last row its "compare" target.
-        $fetched = $this->revisionRepository->findByPage($page, $perPage + 1, ($current - 1) * $perPage);
+        $fetched   = $this->revisionRepository->findByPage($page, $perPage + 1, ($current - 1) * $perPage);
+        $revisions = array_slice($fetched, 0, $perPage);
+        // Revisions are append-only and numbered 1..N: the current number is the total (at least what was fetched).
+        $total = max($page->getCurrentRevision()?->getRevisionNumber() ?? 0, ($current - 1) * $perPage + count($fetched));
+        $route = $this->routes['page_history']['name'];
 
-        return $this->render($this->templates['page_history'], [
-            'layout'          => $this->templates['layout'],
-            'space'           => $space,
-            'page'            => $page,
-            'revisions'       => array_slice($fetched, 0, $perPage),
-            'older_revision'  => $fetched[$perPage] ?? null,
-            'pagination'      => ['page' => $current, 'has_previous' => $current > 1, 'has_next' => isset($fetched[$perPage]), 'per_page' => $perPage],
+        return $this->renderPage('page_history', [
+            'page' => $this->pages()->history(
+                $space,
+                $page,
+                $revisions,
+                $fetched[$perPage] ?? null,
+                $this->restoreForms($user, $space, $page, $revisions),
+                Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $route, [], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]),
+            ),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
-            'restore_forms'   => $this->restoreForms($user, $space, $page, array_slice($fetched, 0, $perPage)),
         ]);
     }
 
@@ -422,12 +450,8 @@ final class WikiManageController extends AbstractController
 
         $diff = $this->revisionDiffService->diff($from, $to);
 
-        return $this->render($this->templates['page_diff'], [
-            'layout'          => $this->templates['layout'],
-            'space'           => $space,
-            'page'            => $page,
-            'from_revision'   => $from,
-            'to_revision'     => $to,
+        return $this->renderPage('page_diff', [
+            'page'            => $this->pages()->diff($space, $page, $from->getRevisionNumber(), $to->getRevisionNumber()),
             'diff'            => $diff,
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
@@ -529,7 +553,7 @@ final class WikiManageController extends AbstractController
         }
 
         $this->pageService->restore($page, $revision, $user);
-        $this->addFlash('success', 'wiki.history.restored');
+        $this->flash('success', 'wiki.history.restored');
 
         return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
     }
@@ -561,20 +585,18 @@ final class WikiManageController extends AbstractController
             $global  = true;
         }
 
-        return $this->render($this->templates['search'], [
-            'layout'          => $this->templates['layout'],
+        $form = $this->createSearchForm(
+            $spaces,
+            ['space' => $space?->getSlug(), 'q' => $query],
+            ['space' => 'wiki-search-space', 'q' => 'wiki-search-q'],
+        );
+
+        return $this->renderPage('search', [
+            'page'            => $this->pages()->search($form, $this->readableHits($user, $results), $query, $global),
             'query'           => $query,
-            'space'           => $space,
-            'results'         => $results,
-            'spaces'          => $spaces,
             'global_search'   => $global,
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
-            'search_form'     => $this->createSearchForm(
-                $spaces,
-                ['space' => $space?->getSlug(), 'q' => $query],
-                ['space' => 'wiki-search-space', 'q' => 'wiki-search-q'],
-            ),
         ]);
     }
 
@@ -673,13 +695,13 @@ final class WikiManageController extends AbstractController
 
         $upload = $form->get('archive')->getData();
         if (!$upload instanceof UploadedFile) {
-            $this->addFlash('error', 'wiki.import.missing_file');
+            $this->flash('error', 'wiki.import.missing_file');
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
 
         if ($upload->getSize() > $this->importExport['max_upload_bytes']) {
-            $this->addFlash('error', 'wiki.import.file_too_large');
+            $this->flash('error', 'wiki.import.file_too_large');
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
@@ -688,14 +710,14 @@ final class WikiManageController extends AbstractController
         $format      = WikiInterchangeFormat::tryFrom(is_string($formatValue) ? $formatValue : '') ?? WikiInterchangeFormat::Auto;
 
         if (strtolower($upload->getClientOriginalExtension()) !== 'zip') {
-            $this->addFlash('error', 'wiki.import.invalid_archive');
+            $this->flash('error', 'wiki.import.invalid_archive');
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
 
         $zipTempPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(8)) . '.zip';
         if (!copy($upload->getPathname(), $zipTempPath)) {
-            $this->addFlash('error', 'wiki.import.invalid_archive');
+            $this->flash('error', 'wiki.import.invalid_archive');
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
@@ -709,7 +731,7 @@ final class WikiManageController extends AbstractController
                 $form->get('update_existing')->getData() === true,
             );
         } catch (InvalidArgumentException $exception) {
-            $this->addFlash('error', $exception->getMessage());
+            $this->flash('error', $exception->getMessage());
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         } finally {
@@ -718,8 +740,8 @@ final class WikiManageController extends AbstractController
             }
         }
 
-        $this->addFlash('success', 'wiki.import.success');
-        $this->addFlash('info', sprintf(
+        $this->flash('success', 'wiki.import.success');
+        $this->flash('info', sprintf(
             '%d created, %d updated, %d skipped, %d failed.',
             $report->created,
             $report->updated,
@@ -728,7 +750,7 @@ final class WikiManageController extends AbstractController
         ));
 
         foreach ($report->messages as $message) {
-            $this->addFlash('warning', $message);
+            $this->flash('warning', $message);
         }
 
         return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
@@ -783,22 +805,21 @@ final class WikiManageController extends AbstractController
             }
         }
 
-        return $this->render($this->templates['ai_ask'], [
-            'layout'          => $this->templates['layout'],
+        $pages = $this->pages();
+
+        return $this->renderPage('ai_ask', [
+            'page' => $pages->aiAsk($this->createAiAskForm(
+                $spaces,
+                ['space' => $space?->getSlug(), 'q' => $question],
+                ['space' => 'wiki-ai-space', 'q' => 'wiki-ai-question'],
+            )->createView(), $answer !== null),
             'question'        => $question,
-            'space'           => $space,
-            'spaces'          => $spaces,
             'answer'          => $answer,
-            'sources'         => $sources,
+            'sources'         => $pages->hits($this->readableHits($user, $sources)),
             'error'           => $error,
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => WikiAiAskType::CSRF_TOKEN_ID,
-            'ai_form'         => $this->createAiAskForm(
-                $spaces,
-                ['space' => $space?->getSlug(), 'q' => $question],
-                ['space' => 'wiki-ai-space', 'q' => 'wiki-ai-question'],
-            )->createView(),
         ]);
     }
 
@@ -863,6 +884,15 @@ final class WikiManageController extends AbstractController
         }
 
         return $choices;
+    }
+
+    /**
+     * Adds a flash message translated in the bundle domain (a key, or a text that is printed as given when the
+     * catalogue has no entry for it), so any host layout prints it without knowing the domain.
+     */
+    private function flash(string $type, string $message): void
+    {
+        $this->addFlash($type, $this->translator?->trans($message, [], WikiPages::DOMAIN) ?? $message);
     }
 
     private function denyUnlessFeature(string $feature): void
@@ -996,16 +1026,95 @@ final class WikiManageController extends AbstractController
     }
 
     /**
-     * Builds the page tree of a space from at most {@code pagination.max_tree_pages} active pages.
+     * Builds the page tree of a space from at most {@code pagination.max_tree_pages} active pages the user may read
+     * ({@see WikiAction::View} per page: a hidden page and the pages under it stay out of the tree).
      *
      * @return array{0: list<array{page: WikiPage, children: list<mixed>}>, 1: bool} tree and whether pages were left out
      */
-    private function buildTree(WikiSpace $space): array
+    private function buildTree(UserInterface $user, WikiSpace $space): array
     {
-        $max   = max(1, $this->pagination['max_tree_pages']);
-        $pages = $this->pageRepository->findActiveBySpace($space, $max + 1);
+        $max      = max(1, $this->pagination['max_tree_pages']);
+        $pages    = $this->pageRepository->findActiveBySpace($space, $max + 1);
+        $readable = $this->readable($user, $space, array_slice($pages, 0, $max));
+        $hidden   = [];
+        foreach (array_slice($pages, 0, $max) as $page) {
+            if (!in_array($page, $readable, true)) {
+                $hidden[$page->getId()] = true;
+            }
+        }
 
-        return [$this->pageTreeBuilder->build(array_slice($pages, 0, $max)), count($pages) > $max];
+        $visible = array_values(array_filter($readable, static function (WikiPage $page) use ($hidden): bool {
+            for ($parent = $page->getParent(); $parent instanceof WikiPage; $parent = $parent->getParent()) {
+                if (isset($hidden[$parent->getId()])) {
+                    return false;
+                }
+            }
+
+            return true;
+        }));
+
+        return [$this->pageTreeBuilder->build($visible), count($pages) > $max];
+    }
+
+    /**
+     * Pages of a space the user may read ({@see WikiAction::View} on each page), input order kept.
+     *
+     * @param list<WikiPage> $pages
+     *
+     * @return list<WikiPage>
+     */
+    private function readable(UserInterface $user, WikiSpace $space, array $pages): array
+    {
+        return array_values(array_filter($pages, fn (WikiPage $page): bool => $this->spaceGuard->isGranted($user, WikiAction::View, $space, $page)));
+    }
+
+    /**
+     * Search hits / AI sources the user may read ({@see WikiAction::View} on the hit's own space and page).
+     *
+     * @param list<array{page: WikiPage, space: WikiSpace, excerpt: string}> $hits
+     *
+     * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
+     */
+    private function readableHits(UserInterface $user, array $hits): array
+    {
+        return array_values(array_filter($hits, fn (array $hit): bool => $this->spaceGuard->isGranted($user, WikiAction::View, $hit['space'], $hit['page'])));
+    }
+
+    private function treeSearchHref(WikiSpace $space): ?string
+    {
+        return isset($this->routes['search']) ? $this->generateUrl($this->routes['search']['name'], ['space' => $space->getSlug()]) : null;
+    }
+
+    /**
+     * View models of the pages: the injected factory, else one built from the router and the configured templates.
+     */
+    private function pages(): WikiPageFactory
+    {
+        return $this->pageFactory ?? new WikiPageFactory(
+            $this->container->get('router'),
+            $this->routes,
+            new WikiPages($this->templates['layout'] ?? null, $this->templates),
+            $this->dashboardRoute,
+        );
+    }
+
+    /**
+     * Renders a page template (`web_ui.templates.<page>` override, else the bundle one) with the shared variables.
+     *
+     * A submitted, invalid form answers 422 (as AbstractController::render() does for a FormInterface variable).
+     *
+     * @param array<string, mixed> $vars
+     * @param FormInterface<mixed>|null $form form of the page
+     */
+    private function renderPage(string $page, array $vars, ?FormInterface $form = null): Response
+    {
+        $pages   = $this->pages();
+        $invalid = $form instanceof FormInterface && $form->isSubmitted() && !$form->isValid();
+
+        return new Response(
+            $this->renderView($pages->template($page), $pages->context($vars)),
+            $invalid ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK,
+        );
     }
 
     /**

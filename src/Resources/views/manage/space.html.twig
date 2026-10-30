@@ -1,143 +1,87 @@
-{% extends '@NowoWikiBundle/base.html.twig' %}
-
-{% block title %}{{ space.name }}{% endblock %}
-
 {#
-    Space home (FR-006). Override points: wiki_header, space_sidebar (space_sidebar_header, page_tree), space_main
-    (space_search, space_import_export, space_archived).
+  Space home (REQ-UI-003): UiKit show scaffold. Variable: page (View\ShowPage from WikiPageFactory::space(): header =
+  space name / wiki.space.pick_page with New page and the Outline / Notion exports, breadcrumbs Wiki > space).
+  Also (value-free): tree (WikiPageFactory::tree()), tree_truncated, max_tree_pages, tree_search_href, search_form
+  (GET, space hidden), import_form (WikiImportType view or null when the user may not import), archived
+  (WikiPageFactory::archived(): {title, action}).
+  Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + wiki.js: scrolls the current page of the tree into view), nowo_ui_show_sections (sidebar tree + search, import, archived
+  pages). The bundle-specific regions use the UiKit theme slots (card, card_header, card_title, card_body,
+  form, form_actions, btn_primary, muted).
 #}
-{% block body %}
-    <div class="nowo-wiki nowo-wiki--space" data-nowo-wiki-skin="{{ nowo_wiki_skin|default('framework') }}">
-        {% block wiki_header %}
-            {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
-                page_title: space.name,
-                page_subtitle: 'wiki.space.pick_page'|trans({}, 'NowoWikiBundle'),
-                show_search: true,
-            }) }}
-        {% endblock %}
+{% extends '@NowoUiKit/page/show.html.twig' %}
+{% trans_default_domain 'NowoWikiBundle' %}
 
-        <div class="row g-3 nowo-wiki-layout">
-            <div class="col-lg-4 nowo-wiki-layout__sidebar">
-                {% block space_sidebar %}
-                    <aside class="card nowo-wiki-panel nowo-wiki-sidebar" data-wiki-sidebar>
-                        <div class="card-header d-flex align-items-center justify-content-between nowo-wiki-panel__header nowo-wiki-sidebar__header">
-                            {% block space_sidebar_header %}
-                                <h3 class="card-title mb-0 nowo-wiki-panel__title nowo-wiki-sidebar__title">{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}</h3>
-                                {% if can_create %}
-                                    <a href="{{ path(routes.page_new.name, {spaceSlug: space.slug}) }}" class="btn btn-sm btn-primary nowo-wiki-btn nowo-wiki-btn--sm nowo-wiki-btn--primary" data-wiki-action="new-page">
-                                        <i class="ti ti-plus me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ 'wiki.space.new_page'|trans({}, 'NowoWikiBundle') }}
-                                    </a>
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+{% endblock %}
+
+{% block nowo_ui_scripts %}
+    {{ parent() }}
+    {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+    <script src="{{ asset('wiki.js', 'nowo_wiki') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+{% endblock %}
+
+{% block nowo_ui_show_sections %}
+    {% set _b = page.bundle %}
+    <div class="nowo-wiki-layout">
+        <div class="nowo-wiki-layout__aside">
+            {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), bundle: _b}, false) }}
+        </div>
+        <div class="nowo-wiki-layout__main">
+            <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-search" data-testid="wiki-space-search"{{ nowo_ui_attrs('card', _b) }}>
+                <div class="{{ nowo_ui_class('card_body', _b) }}">
+                    {{ form_start(search_form, {attr: {class: nowo_ui_class('form', _b), role: 'search'}}) }}
+                        {% for child in search_form %}
+                            {% if not child.rendered %}
+                                {{ form_row(child) }}
+                            {% endif %}
+                        {% endfor %}
+                        <div class="{{ nowo_ui_class('form_actions', _b) }}">
+                            <button type="submit" class="{{ nowo_ui_class('btn_primary', _b) }}">{{ 'wiki.search.submit'|trans }}</button>
+                        </div>
+                    {{ form_end(search_form) }}
+                </div>
+            </section>
+
+            {% if import_form|default(null) %}
+                <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-import" data-testid="wiki-import"{{ nowo_ui_attrs('card', _b) }}>
+                    <header class="{{ nowo_ui_class('card_header', _b) }}">
+                        <h2 class="{{ nowo_ui_class('card_title', _b) }} nowo-wiki-region-title">{{ 'wiki.import_export.title'|trans }}</h2>
+                        <p class="{{ nowo_ui_class('card_intro', _b) }}">{{ 'wiki.import.help'|trans }}</p>
+                    </header>
+                    <div class="{{ nowo_ui_class('card_body', _b) }}">
+                        {{ form_start(import_form, {attr: {class: nowo_ui_class('form', _b)}}) }}
+                            {% for child in import_form %}
+                                {% if not child.rendered %}
+                                    {{ form_row(child) }}
                                 {% endif %}
-                            {% endblock %}
-                        </div>
-                        <div class="card-body nowo-wiki-panel__body nowo-wiki-sidebar__body">
-                            <nav class="nowo-wiki-sidebar__nav" aria-label="{{ 'wiki.space.pages'|trans({}, 'NowoWikiBundle') }}">
-                                {% block page_tree %}
-                                    {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {tree: tree, space: space, routes: routes, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(null)}) }}
-                                {% endblock %}
-                            </nav>
-                        </div>
-                    </aside>
-                {% endblock %}
-            </div>
-            <div class="col-lg-8 nowo-wiki-layout__main">
-                {% block space_main %}
-                    {% block space_search %}
-                        <section class="card mb-3 nowo-wiki-panel nowo-wiki-search">
-                            <div class="card-body nowo-wiki-panel__body">
-                                <p class="text-secondary nowo-wiki-muted">{{ 'wiki.space.pick_page'|trans({}, 'NowoWikiBundle') }}</p>
-                                {# REQ-TWIG-005: WikiSearchType (GET, flat space / q). #}
-                                {{ form_start(search_form, {attr: {class: 'row g-2 align-items-end nowo-wiki-form nowo-wiki-search-form'}}) }}
-                                    <div class="col nowo-wiki-form__field nowo-wiki-form__field--query">
-                                        {{ form_label(search_form.q) }}
-                                        {{ form_widget(search_form.q) }}
-                                    </div>
-                                    {% for child in search_form %}
-                                        {% if not child.rendered %}
-                                            {{ form_row(child) }}
-                                        {% endif %}
-                                    {% endfor %}
-                                    <div class="col-auto nowo-wiki-form__actions">
-                                        <button type="submit" class="btn btn-primary nowo-wiki-btn nowo-wiki-btn--primary">{{ 'wiki.search.submit'|trans({}, 'NowoWikiBundle') }}</button>
-                                    </div>
-                                {{ form_end(search_form) }}
+                            {% endfor %}
+                            <div class="{{ nowo_ui_class('form_actions', _b) }}">
+                                <button type="submit" class="{{ nowo_ui_class('btn_primary', _b) }}">{{ 'wiki.import.submit'|trans }}</button>
                             </div>
-                        </section>
-                    {% endblock %}
+                        {{ form_end(import_form) }}
+                    </div>
+                </section>
+            {% endif %}
 
-                    {% block space_import_export %}
-                        {% if can_export or can_import %}
-                            <section class="card nowo-wiki-panel nowo-wiki-import-export">
-                                <div class="card-header nowo-wiki-panel__header">
-                                    <h3 class="card-title mb-0 nowo-wiki-panel__title">{{ 'wiki.import_export.title'|trans({}, 'NowoWikiBundle') }}</h3>
-                                </div>
-                                <div class="card-body nowo-wiki-panel__body">
-                                    <p class="text-secondary nowo-wiki-muted">{{ 'wiki.import_export.intro'|trans({}, 'NowoWikiBundle') }}</p>
-                                    {% if can_export %}
-                                        <div class="d-flex flex-wrap gap-2 mb-3 nowo-wiki-actions nowo-wiki-import-export__export">
-                                            <a href="{{ path(routes.space_export.name, {spaceSlug: space.slug, format: 'outline'}) }}" class="btn btn-outline-primary nowo-wiki-btn nowo-wiki-btn--primary">
-                                                <i class="ti ti-download me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ 'wiki.export.outline'|trans({}, 'NowoWikiBundle') }}
-                                            </a>
-                                            <a href="{{ path(routes.space_export.name, {spaceSlug: space.slug, format: 'notion'}) }}" class="btn btn-outline-primary nowo-wiki-btn nowo-wiki-btn--primary">
-                                                <i class="ti ti-download me-1 nowo-wiki-icon" aria-hidden="true"></i>{{ 'wiki.export.notion'|trans({}, 'NowoWikiBundle') }}
-                                            </a>
-                                        </div>
-                                    {% endif %}
-                                    {% if can_import %}
-                                        {# REQ-TWIG-005: WikiImportType (multipart, flat format / archive / update_existing / _token). #}
-                                        {{ form_start(import_form, {attr: {class: 'row g-2 align-items-end nowo-wiki-form nowo-wiki-import-export__import'}}) }}
-                                            <div class="col-md-4 nowo-wiki-form__field nowo-wiki-form__field--format">
-                                                {{ form_label(import_form.format) }}
-                                                {{ form_widget(import_form.format) }}
-                                            </div>
-                                            <div class="col-md-5 nowo-wiki-form__field nowo-wiki-form__field--archive">
-                                                {{ form_label(import_form.archive) }}
-                                                {{ form_widget(import_form.archive) }}
-                                            </div>
-                                            <div class="col-md-3 nowo-wiki-form__actions">
-                                                <div class="form-check mb-2 nowo-wiki-form__check">
-                                                    {{ form_widget(import_form.update_existing) }}
-                                                    {{ form_label(import_form.update_existing) }}
-                                                </div>
-                                                {% for child in import_form %}
-                                                    {% if not child.rendered %}
-                                                        {{ form_row(child) }}
-                                                    {% endif %}
-                                                {% endfor %}
-                                                <button type="submit" class="btn btn-primary w-100 nowo-wiki-btn nowo-wiki-btn--primary">{{ 'wiki.import.submit'|trans({}, 'NowoWikiBundle') }}</button>
-                                            </div>
-                                        {{ form_end(import_form) }}
-                                        <p class="small text-secondary mt-2 mb-0 nowo-wiki-form__help">{{ 'wiki.import.help'|trans({}, 'NowoWikiBundle') }}</p>
-                                    {% endif %}
-                                </div>
-                            </section>
-                        {% endif %}
-                    {% endblock %}
-
-                    {% block space_archived %}
-                        {% if archived_pages|default([]) is not empty %}
-                            <section class="card mt-3 nowo-wiki-panel nowo-wiki-archived">
-                                <div class="card-header nowo-wiki-panel__header">
-                                    <h3 class="card-title mb-0 nowo-wiki-panel__title">{{ 'wiki.space.archived'|trans({}, 'NowoWikiBundle') }}</h3>
-                                </div>
-                                <ul class="list-group list-group-flush nowo-wiki-archived__list">
-                                    {% for archived in archived_pages %}
-                                        <li class="list-group-item d-flex align-items-center justify-content-between gap-2 nowo-wiki-archived__item">
-                                            <span class="nowo-wiki-archived__title">{{ archived.title }}</span>
-                                            {% if unarchive_forms[archived.id] is defined %}
-                                                {{ form_start(unarchive_forms[archived.id], {attr: {class: 'nowo-wiki-archived__form'}}) }}
-                                                    {{ form_rest(unarchive_forms[archived.id]) }}
-                                                    <button type="submit" class="btn btn-sm btn-outline-secondary nowo-wiki-btn nowo-wiki-btn--sm nowo-wiki-btn--secondary">{{ 'wiki.page.unarchive'|trans({}, 'NowoWikiBundle') }}</button>
-                                                {{ form_end(unarchive_forms[archived.id]) }}
-                                            {% endif %}
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            </section>
-                        {% endif %}
-                    {% endblock %}
-                {% endblock %}
-            </div>
+            {% if archived|default([]) is not empty %}
+                <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-archived" data-testid="wiki-archived"{{ nowo_ui_attrs('card', _b) }}>
+                    <header class="{{ nowo_ui_class('card_header', _b) }}">
+                        <h2 class="{{ nowo_ui_class('card_title', _b) }} nowo-wiki-region-title">{{ 'wiki.space.archived'|trans }}</h2>
+                    </header>
+                    <ul class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-archived__list">
+                        {% for item in archived %}
+                            <li class="nowo-wiki-archived__item">
+                                <span class="nowo-wiki-archived__title">{{ item.title }}</span>
+                                {% if item.action %}
+                                    {{ include(nowo_ui_partial('action', _b), {action: item.action, context: 'row', bundle: _b, nowo_ui_page_type: nowo_ui_page_type}, false) }}
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+            {% endif %}
         </div>
     </div>
 {% endblock %}

@@ -45,6 +45,8 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Ui\WikiPageFactory;
+use Nowo\WikiBundle\Ui\WikiPages;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -56,6 +58,8 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
+use function array_diff_key;
+use function array_filter;
 use function array_key_exists;
 use function array_values;
 use function is_array;
@@ -81,6 +85,18 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     {
         $configuration = new Configuration();
         $config        = $this->processConfiguration($configuration, $configs);
+        $roles         = Configuration::resolveRoles($config['security']);
+
+        // P1: with every role list empty and no access checker, the wiki would deny everyone silently.
+        if (
+            ($config['web_ui']['enabled'] ?? true)
+            && !$config['security']['allow_unauthenticated']
+            && !is_string($config['security']['access_checker'] ?? null)
+            && $config['security']['access_roles'] === []
+            && array_filter($roles) === []
+        ) {
+            throw new LogicException('nowo_wiki.security: access_roles and every security.roles.<action> list are empty, so nobody can use the wiki. Configure at least one role, an access_checker or (trusted demos only) allow_unauthenticated.');
+        }
 
         if (
             ($config['web_ui']['enabled'] ?? true)
@@ -103,10 +119,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.revisions_table', $revisionsTable);
         $container->setParameter('nowo_wiki.database', $database);
         $container->setParameter('nowo_wiki.space_scope', $config['space_scope']);
-        $container->setParameter('nowo_wiki.route_prefix', $config['route_prefix']);
+        $container->setParameter('nowo_wiki.route_prefix', self::pathPrefix($config));
         $container->setParameter('nowo_wiki.dashboard_route', $config['dashboard_route']);
         $container->setParameter('nowo_wiki.routes', $config['routes']);
-        $container->setParameter('nowo_wiki.templates', $config['templates']);
+        $container->setParameter('nowo_wiki.templates', self::templates($config));
         $container->setParameter('nowo_wiki.firewall', $config['firewall']);
         $container->setParameter('nowo_wiki.security.allow_unauthenticated', $config['security']['allow_unauthenticated']);
         $container->setParameter('nowo_wiki.editor', $config['editor']);
@@ -116,14 +132,17 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.attachments', $config['attachments']);
         $container->setParameter('nowo_wiki.tenant_paths', $config['tenant_paths']);
         $container->setParameter('nowo_wiki.import_export.enabled', (bool) $config['import_export']['enabled']);
-        $container->setParameter('nowo_wiki.web_ui', $config['web_ui']);
+        $templates = self::templates($config);
+        $container->setParameter('nowo_wiki.web_ui', [
+            'enabled'         => (bool) $config['web_ui']['enabled'],
+            'css_framework'   => $config['web_ui']['css_framework'],
+            'layout_template' => $templates['layout'],
+            'path_prefix'     => self::pathPrefix($config),
+            'templates'       => array_diff_key($templates, ['layout' => true]),
+        ]);
+        $container->setParameter('nowo_wiki.web_ui.enabled', (bool) $config['web_ui']['enabled']);
         $container->setParameter('nowo_wiki.web_ui.css_framework', $config['web_ui']['css_framework']);
-
-        $layoutTemplate = $config['web_ui']['layout_template'] ?? null;
-        if (is_string($layoutTemplate) && $layoutTemplate !== '') {
-            $config['templates']['layout'] = $layoutTemplate;
-            $container->setParameter('nowo_wiki.templates', $config['templates']);
-        }
+        $container->setParameter('nowo_wiki.security.roles', $roles);
 
         // Load the resource scan first: every explicit definition below must win over the
         // autowired one that services.yaml registers for the same class (e.g. Security/).
@@ -146,16 +165,16 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             $security        = $config['security'];
             $container->setDefinition($accessCheckerId, (new Definition(ConfigurableWikiAccessChecker::class))
                 ->setAutowired(true)
-                ->setArgument('$adminRoles', $security['admin_roles'])
-                ->setArgument('$accessRoles', $security['access_roles'])
-                ->setArgument('$listRoles', $security['list_roles'])
-                ->setArgument('$createRoles', $security['create_roles'])
-                ->setArgument('$editRoles', $security['edit_roles'])
-                ->setArgument('$historyRoles', $security['history_roles'])
-                ->setArgument('$archiveRoles', $security['archive_roles'])
-                ->setArgument('$aiRoles', $security['ai_roles'])
-                ->setArgument('$importRoles', $security['import_roles'])
-                ->setArgument('$exportRoles', $security['export_roles']));
+                ->setArgument('$adminRoles', $roles['admin'])
+                ->setArgument('$accessRoles', array_values($security['access_roles']))
+                ->setArgument('$listRoles', $roles['list'])
+                ->setArgument('$createRoles', $roles['create'])
+                ->setArgument('$editRoles', $roles['edit'])
+                ->setArgument('$historyRoles', $roles['history'])
+                ->setArgument('$archiveRoles', $roles['archive'])
+                ->setArgument('$aiRoles', $roles['ai'])
+                ->setArgument('$importRoles', $roles['import'])
+                ->setArgument('$exportRoles', $roles['export']));
         }
         $container->setAlias(WikiAccessCheckerInterface::class, $accessCheckerId);
         $container->setAlias(WikiHtmlSanitizerInterface::class, WikiHtmlSanitizer::class);
@@ -194,6 +213,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setAlias(WikiSpaceAccessResolverInterface::class, WikiSpaceAccessResolver::class);
 
         $this->registerSpaceAccess($container, $config);
+        $this->registerPages($container, $config);
         $this->registerAttachments($container, $config['attachments']);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
@@ -225,6 +245,61 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 ->setArgument('$inner', new Reference(WikiTenantUrlGenerator::class . '.inner'))
                 ->setArgument('$tenantPaths', new Reference(WikiTenantPaths::class)));
         }
+    }
+
+    /**
+     * 1.10: UiKit page contract (REQ-UI-003): page plumbing (layout, per-page templates) and the view-model factory.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerPages(ContainerBuilder $container, array $config): void
+    {
+        $templates = self::templates($config);
+        $container->setDefinition(WikiPages::class, (new Definition(WikiPages::class))
+            ->setArgument('$layoutTemplate', $templates['layout'])
+            ->setArgument('$templates', array_diff_key($templates, ['layout' => true]))
+            ->setArgument('$twig', new Reference('twig', ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+        $container->setDefinition(WikiPageFactory::class, (new Definition(WikiPageFactory::class))
+            ->setArgument('$urlGenerator', new Reference('router'))
+            ->setArgument('$routes', $config['routes'])
+            ->setArgument('$pages', new Reference(WikiPages::class))
+            ->setArgument('$dashboardRoute', $config['dashboard_route']));
+    }
+
+    /**
+     * Route path prefix: web_ui.path_prefix, else the deprecated route_prefix, else none.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    public static function pathPrefix(array $config): string
+    {
+        $prefix = $config['web_ui']['path_prefix'] ?? $config['route_prefix'] ?? '';
+
+        return is_string($prefix) ? $prefix : '';
+    }
+
+    /**
+     * Layout and page templates: web_ui.layout_template / web_ui.templates.<page>, else the deprecated
+     * templates.layout / templates.<page>, else null (UiKit admin layout) / the bundle template.
+     *
+     * @param array<string, mixed> $config processed configuration
+     *
+     * @return array<string, string|null> `layout` + page id => template
+     */
+    public static function templates(array $config): array
+    {
+        $webUi     = is_array($config['web_ui'] ?? null) ? $config['web_ui'] : [];
+        $legacy    = is_array($config['templates'] ?? null) ? $config['templates'] : [];
+        $overrides = is_array($webUi['templates'] ?? null) ? $webUi['templates'] : [];
+        $layout    = $webUi['layout_template'] ?? $legacy['layout'] ?? null;
+
+        $templates = ['layout' => is_string($layout) && $layout !== '' && $layout !== WikiPages::LEGACY_DEFAULT_LAYOUT ? $layout : null];
+        foreach (WikiPages::TEMPLATES as $page => $default) {
+            $template         = $overrides[$page] ?? $legacy[$page] ?? null;
+            $templates[$page] = is_string($template) && $template !== '' ? $template : $default;
+        }
+
+        return $templates;
     }
 
     /**
@@ -333,8 +408,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if (!$container->hasParameter('nowo_wiki.web_ui')) {
             $container->setParameter('nowo_wiki.web_ui', [
                 'enabled'         => true,
-                'css_framework'   => 'tabler',
+                'css_framework'   => null,
                 'layout_template' => null,
+                'path_prefix'     => '',
+                'templates'       => [],
             ]);
         }
 
@@ -374,11 +451,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->prependFormKitDefaults($container);
         $this->prependUiKitDefaults($container);
     }
-
-    /**
-     * When UiKit is installed, seed nowo_ui_kit.css_framework / icon_set from web_ui
-     * so kit macros resolve the same stack. Does not override keys the host already set.
-     */
 
     /**
      * When FormKit is installed, register the wiki profile. Forms select it via #[FormKitConfig].
@@ -444,6 +516,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
     }
 
+    /**
+     * When UiKit is installed and the host still sets the deprecated web_ui.css_framework, seed
+     * nowo_ui_kit.css_framework / icon_set from it. Does not override keys the host already set.
+     */
     private function prependUiKitDefaults(ContainerBuilder $container): void
     {
         if (!$container->hasExtension('nowo_ui_kit')) {
@@ -468,17 +544,23 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             return;
         }
 
-        $config   = $this->processConfiguration(new Configuration(), $container->getExtensionConfig(Configuration::ALIAS));
-        $webUi    = is_array($config['web_ui'] ?? null) ? $config['web_ui'] : [];
-        $defaults = [];
+        // Deprecated web_ui.css_framework (1.10): seeds UiKit only when the host set it and left UiKit unset.
+        $framework = null;
+        foreach ($container->getExtensionConfig(Configuration::ALIAS) as $cfg) {
+            if (is_array($cfg) && is_array($cfg['web_ui'] ?? null) && is_string($cfg['web_ui']['css_framework'] ?? null)) {
+                $framework = $cfg['web_ui']['css_framework'];
+            }
+        }
+        if ($framework === null) {
+            return;
+        }
 
+        $defaults = [];
         if (!$hostHasCssFramework) {
-            $fw                        = (string) ($webUi['css_framework'] ?? 'tabler');
-            $defaults['css_framework'] = $fw === 'bootstrap' ? 'bootstrap5' : $fw;
+            $defaults['css_framework'] = $framework === 'bootstrap' ? 'bootstrap5' : $framework;
         }
         if (!$hostHasIconSet) {
-            $fwForIcons           = (string) ($defaults['css_framework'] ?? $webUi['css_framework'] ?? 'tabler');
-            $defaults['icon_set'] = $fwForIcons === 'tabler' ? 'tabler-icons' : 'bootstrap-icons';
+            $defaults['icon_set'] = $framework === 'tabler' ? 'tabler-icons' : 'bootstrap-icons';
         }
 
         if ($defaults !== []) {

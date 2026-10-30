@@ -1,71 +1,26 @@
-{% extends '@NowoWikiBundle/base.html.twig' %}
+{#
+  Search (REQ-UI-003): UiKit list scaffold. Variable: page (View\ListPage from WikiPageFactory::search(): header
+  wiki.search.title / intro (global results when no space was chosen), breadcrumbs; filters = the search form (GET
+  space / q, bookmarks unchanged) with the Search button; columns title, space, excerpt; rows {id, title, space,
+  excerpt, href} (hits the user may read only); row action Open; caption = the pluralised result count; EmptyState
+  wiki.search.empty after a query, else wiki.search.help).
+  Blocks filled: nowo_ui_styles, nowo_ui_list_row (the title links to the page).
+#}
+{% extends '@NowoUiKit/page/list.html.twig' %}
+{% trans_default_domain 'NowoWikiBundle' %}
 
-{% block title %}{{ 'wiki.search.title'|trans({}, 'NowoWikiBundle') }}{% endblock %}
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+{% endblock %}
 
-{% block body %}
-    <div class="nowo-wiki nowo-wiki--search" data-nowo-wiki-skin="{{ nowo_wiki_skin|default('framework') }}">
-        {% block wiki_header %}
-            {{ include('@NowoWikiBundle/manage/_page_header.html.twig', {
-                page_title: 'wiki.search.title'|trans({}, 'NowoWikiBundle'),
-                page_subtitle: global_search|default(false) and query ? ('wiki.search.global_results'|trans({}, 'NowoWikiBundle')) : ('wiki.search.intro'|trans({}, 'NowoWikiBundle')),
-                wiki_home_link: false,
-            }) }}
-        {% endblock %}
-
-        {% block search_form %}
-            <section class="card mb-4 nowo-wiki-panel nowo-wiki-search">
-                <div class="card-body nowo-wiki-panel__body">
-                    {# REQ-TWIG-005: WikiSearchType (GET, flat space / q; bookmarks unchanged). #}
-                    {{ form_start(search_form, {attr: {class: 'row g-3 align-items-end nowo-wiki-form nowo-wiki-search-form'}}) }}
-                        <div class="col-md-4 nowo-wiki-form__field nowo-wiki-form__field--space">
-                            {{ form_label(search_form.space) }}
-                            {{ form_widget(search_form.space) }}
-                        </div>
-                        <div class="col-md-6 nowo-wiki-form__field nowo-wiki-form__field--query">
-                            {{ form_label(search_form.q) }}
-                            {{ form_widget(search_form.q) }}
-                        </div>
-                        {% for child in search_form %}
-                            {% if not child.rendered %}
-                                {{ form_row(child) }}
-                            {% endif %}
-                        {% endfor %}
-                        <div class="col-md-2 nowo-wiki-form__actions">
-                            <button type="submit" class="btn btn-primary w-100 nowo-wiki-btn nowo-wiki-btn--primary">{{ 'wiki.search.submit'|trans({}, 'NowoWikiBundle') }}</button>
-                        </div>
-                    {{ form_end(search_form) }}
-                    <p class="text-secondary small mb-0 mt-3 nowo-wiki-form__help">{{ 'wiki.search.help'|trans({}, 'NowoWikiBundle') }}</p>
-                </div>
-            </section>
-        {% endblock %}
-
-        {% block search_results %}
-            {% if results is not empty %}
-                <p class="text-secondary mb-3 nowo-wiki-results__count">{{ 'wiki.search.results_count'|trans({'%count%': results|length}, 'NowoWikiBundle') }}</p>
-                <ul class="row row-cards list-unstyled nowo-wiki-results">
-                    {% for row in results %}
-                        <li class="col-12 nowo-wiki-results__item">
-                            <a href="{{ path(routes.page_view.name, {spaceSlug: row.space.slug, pageSlug: row.page.slug}) }}" class="card card-link nowo-wiki-panel nowo-wiki-results__card">
-                                <div class="card-body nowo-wiki-panel__body">
-                                    <div class="d-flex flex-wrap align-items-center gap-2 mb-1 nowo-wiki-results__heading">
-                                        <h3 class="card-title mb-0 nowo-wiki-results__title">{{ row.page.title }}</h3>
-                                        {% if global_search|default(false) or not space %}
-                                            <span class="badge bg-blue-lt nowo-wiki-results__space">{{ row.space.name }}</span>
-                                        {% endif %}
-                                    </div>
-                                    <p class="text-secondary mb-0 nowo-wiki-results__excerpt">{{ row.excerpt }}</p>
-                                </div>
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% elseif query %}
-                <div class="card nowo-wiki-panel nowo-wiki-empty">
-                    <div class="card-body nowo-wiki-panel__body">
-                        <p class="text-secondary mb-0 nowo-wiki-muted">{{ 'wiki.search.empty'|trans({}, 'NowoWikiBundle') }}</p>
-                    </div>
-                </div>
-            {% endif %}
-        {% endblock %}
-    </div>
+{% block nowo_ui_list_row %}
+    {% set _cell = nowo_ui_class('table_cell', page.bundle) %}
+    <td class="{{ _cell }}" data-label="{{ 'wiki.search.result_title'|trans }}" data-required="1">
+        <a href="{{ row.href }}" class="nowo-wiki-link nowo-wiki-results__title">{{ row.title }}</a>
+    </td>
+    <td class="{{ _cell }}" data-label="{{ 'wiki.search.result_space'|trans }}" data-nowo-ui-priority="2">
+        <span class="{{ nowo_ui_class('badge_info', page.bundle) }}">{{ row.space }}</span>
+    </td>
+    <td class="{{ _cell }} nowo-wiki-results__excerpt" data-label="{{ 'wiki.search.result_excerpt'|trans }}" data-nowo-ui-priority="2">{{ row.excerpt }}</td>
 {% endblock %}

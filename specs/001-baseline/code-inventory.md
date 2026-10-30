@@ -165,23 +165,22 @@ This file proves that **every production source artifact** under `src/` is refer
 
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
-| `Resources/views/layout.html.twig` | Layout template | FR-VIEW-001 |
-| `Resources/views/manage/_ai_ask_form_fields.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/_ai_ask_modal.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/_page_header.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/_page_tree.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/ai_ask.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/index.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/page_diff.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/page_edit.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/page_history.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/page_view.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/search.html.twig` | Manage UI template | FR-VIEW-005 |
-| `Resources/views/manage/space.html.twig` | Manage UI template | FR-VIEW-005 |
+| `Resources/views/manage/_legacy_layout.html.twig` | Deprecated bridge around a pre-1.10 host layout | FR-VIEW-001 |
+| `Resources/views/manage/_ai_dialog.html.twig` | AI question dialog (UiKit `_dialog`) | FR-VIEW-005 |
+| `Resources/views/manage/_sidebar.html.twig` | Space sidebar card with the page tree | FR-VIEW-005 |
+| `Resources/views/manage/_page_tree.html.twig` | Page tree level | FR-VIEW-005 |
+| `Resources/views/manage/_page_tree_item.html.twig` | Page tree item (override point) | FR-VIEW-005 |
+| `Resources/views/manage/ai_ask.html.twig` | Manage page on the UiKit form scaffold | FR-VIEW-005 |
+| `Resources/views/manage/index.html.twig` | Manage page on the UiKit list scaffold | FR-VIEW-005 |
+| `Resources/views/manage/page_diff.html.twig` | Manage page on the UiKit show scaffold | FR-VIEW-005 |
+| `Resources/views/manage/page_edit.html.twig` | Manage page on the UiKit form scaffold | FR-VIEW-005 |
+| `Resources/views/manage/page_history.html.twig` | Manage page on the UiKit list scaffold | FR-VIEW-005 |
+| `Resources/views/manage/page_view.html.twig` | Manage page on the UiKit show scaffold | FR-VIEW-005 |
+| `Resources/views/manage/search.html.twig` | Manage page on the UiKit list scaffold | FR-VIEW-005 |
+| `Resources/views/manage/space.html.twig` | Manage page on the UiKit show scaffold | FR-VIEW-005 |
 | `Twig/WikiHtmlTwigExtension.php` | Render-time HTML re-sanitizing | FR-SEC-008 |
-| `Resources/views/base.html.twig` | Page shell (UiKit CSS/JS stack) | FR-VIEW-001 |
-| `Resources/views/manage/_flashes.html.twig` | Flash messages partial | FR-VIEW-005 |
-| `Resources/views/manage/_pagination.html.twig` | Previous / next pager (index, history; REQ-PERF-001) | FR-VIEW-005 |
+| `Ui/WikiPages.php` | UiKit page plumbing (layout, per-page templates, legacy bridge) | FR-VIEW-001 |
+| `Ui/WikiPageFactory.php` | UiKit view models of the pages (value-free rows) | FR-VIEW-005 |
 
 ## Coverage summary
 

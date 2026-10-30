@@ -45,27 +45,22 @@ final class WikiImportType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder->add('format', ChoiceType::class, [
-            'label'      => 'wiki.import.format',
-            'label_attr' => ['class' => 'form-label'],
-            'data'       => WikiInterchangeFormat::Auto->value,
-            'choices'    => [
+            'label'   => 'wiki.import.format',
+            'data'    => WikiInterchangeFormat::Auto->value,
+            'choices' => [
                 'wiki.import.format_auto'    => WikiInterchangeFormat::Auto->value,
                 'wiki.import.format_outline' => WikiInterchangeFormat::Outline->value,
                 'wiki.import.format_notion'  => WikiInterchangeFormat::Notion->value,
             ],
-            'attr' => ['class' => 'form-select'],
         ]);
         $builder->add('archive', FileType::class, [
-            'required'   => true,
-            'label'      => 'wiki.import.file',
-            'label_attr' => ['class' => 'form-label'],
-            'attr'       => ['class' => 'form-control', 'accept' => '.zip,application/zip'],
+            'required' => true,
+            'label'    => 'wiki.import.file',
+            'attr'     => ['accept' => '.zip,application/zip'],
         ]);
         $builder->add('update_existing', CheckboxType::class, [
-            'required'   => false,
-            'label'      => 'wiki.import.update_existing',
-            'label_attr' => ['class' => 'form-check-label'],
-            'attr'       => ['class' => 'form-check-input'],
+            'required' => false,
+            'label'    => 'wiki.import.update_existing',
         ]);
 
         $builder->addEventListener(FormEvents::PRE_SUBMIT, static function (FormEvent $event): void {

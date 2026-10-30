@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle;
 
+use Nowo\WikiBundle\DependencyInjection\Compiler\CsrfProtectionPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\TwigPathsPass;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -18,13 +19,14 @@ final class WikiBundle extends Bundle
     public const TRANSLATION_DOMAIN = 'NowoWikiBundle';
 
     /**
-     * Registers the bundle compiler passes (Twig template paths).
+     * Registers the bundle compiler passes (Twig template paths, fail-closed CSRF check of the Web UI).
      *
      * @param ContainerBuilder $container container being compiled
      */
     public function build(ContainerBuilder $container): void
     {
         $container->addCompilerPass(new TwigPathsPass());
+        $container->addCompilerPass(new CsrfProtectionPass());
     }
 
     /**

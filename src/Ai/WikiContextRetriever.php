@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\Ai;
 
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -27,10 +29,12 @@ final readonly class WikiContextRetriever
      *
      * @param WikiSearchService $searchService page search service
      * @param WikiSpaceAccessResolverInterface $spaceAccessResolver lists the spaces the user can access
+     * @param WikiSpaceAccessCheckerInterface|null $accessChecker keeps pages the user may not view out of the context (1.10; null = every hit of an accessible space)
      */
     public function __construct(
         private WikiSearchService $searchService,
         private WikiSpaceAccessResolverInterface $spaceAccessResolver,
+        private ?WikiSpaceAccessCheckerInterface $accessChecker = null,
     ) {
     }
 
@@ -63,7 +67,7 @@ final readonly class WikiContextRetriever
             ? [$space]
             : $this->spaceAccessResolver->listSpacesForUser($user);
 
-        $sources = $this->collectSources($spaces, $question, $space, $maxPages);
+        $sources = $this->collectSources($user, $spaces, $question, $space, $maxPages);
         $context = $this->buildContext($sources, $maxChars);
 
         return ['context' => $context, 'sources' => $sources];
@@ -74,7 +78,7 @@ final readonly class WikiContextRetriever
      *
      * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
      */
-    private function collectSources(array $spaces, string $question, ?WikiSpace $scopedSpace, int $maxPages): array
+    private function collectSources(UserInterface $user, array $spaces, string $question, ?WikiSpace $scopedSpace, int $maxPages): array
     {
         if ($spaces === []) {
             return [];
@@ -96,6 +100,9 @@ final readonly class WikiContextRetriever
                 : $this->searchService->searchAcrossSpaces($spaces, $query, $maxPages);
 
             foreach ($batch as $hit) {
+                if ($this->accessChecker instanceof WikiSpaceAccessCheckerInterface && !$this->accessChecker->isGranted($user, WikiAction::View, $hit['space'], $hit['page'])) {
+                    continue;
+                }
                 $indexed[$hit['page']->getId()] = $hit;
                 if (count($indexed) >= $maxPages) {
                     break 2;
