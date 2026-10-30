@@ -10,19 +10,27 @@ use Nowo\WikiBundle\Dto\WikiPageFormData;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
+use Nowo\WikiBundle\Event\WikiEditorOptionsEvent;
+use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Form\WikiAiAskType;
 use Nowo\WikiBundle\Form\WikiImportType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
+use Nowo\WikiBundle\Form\WikiPostActionType;
 use Nowo\WikiBundle\Form\WikiSearchType;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
+use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
+use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
@@ -43,9 +51,12 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
+use function array_filter;
 use function array_slice;
+use function array_values;
 use function ceil;
 use function count;
 use function is_string;
@@ -79,6 +90,10 @@ final class WikiManageController extends AbstractController
      * @param array{tiptap_config: string} $editor editor options
      * @param array{enabled: bool, max_upload_bytes: int} $importExport import/export options
      * @param array{spaces_per_page: int, revisions_per_page: int, max_tree_pages: int} $pagination list size limits
+     * @param WikiSpaceGuard|null $spaceGuard space- and page-aware access (1.9; null = the 1.x behaviour)
+     * @param WikiPageLinkService|null $linkService host-object links for "Used in" (1.9)
+     * @param EventDispatcherInterface|null $eventDispatcher dispatches {@see WikiEvents::EDITOR_OPTIONS} (1.9)
+     * @param array{enabled: bool} $attachments attachment options (1.9)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -101,8 +116,18 @@ final class WikiManageController extends AbstractController
         private readonly bool $allowUnauthenticated = false,
         private readonly ?WikiTokenGuard $tokenGuard = null,
         private readonly array $pagination = self::DEFAULT_PAGINATION,
+        ?WikiSpaceGuard $spaceGuard = null,
+        private readonly ?WikiPageLinkService $linkService = null,
+        private readonly ?EventDispatcherInterface $eventDispatcher = null,
+        private readonly array $attachments = ['enabled' => false],
     ) {
+        $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
+            new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
+            new LegacyWikiSpaceAccessChecker($this->accessChecker, $this->spaceAccessResolver),
+        );
     }
+
+    private readonly WikiSpaceGuard $spaceGuard;
 
     /**
      * Lists the spaces the user can access, paginated by {@code pagination.spaces_per_page} ({@code ?page=N}).
@@ -150,6 +175,8 @@ final class WikiManageController extends AbstractController
         $user                   = $this->requireUser();
         $space                  = $this->requireAccessibleSpace($user, $spaceSlug);
         [$tree, $treeTruncated] = $this->buildTree($space);
+        $permissions            = $this->spaceGuard->grants($user, $space);
+        $archived               = $permissions['archive'] && isset($this->routes['page_unarchive']) ? $this->pageRepository->findArchivedBySpace($space) : [];
 
         return $this->render($this->templates['space'], [
             'layout'          => $this->templates['layout'],
@@ -159,11 +186,18 @@ final class WikiManageController extends AbstractController
             'max_tree_pages'  => $this->pagination['max_tree_pages'],
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
-            'can_create'      => $this->accessChecker->canCreate($user),
-            'can_import'      => $this->importExport['enabled'] && $this->accessChecker->canImport($user),
-            'can_export'      => $this->importExport['enabled'] && $this->accessChecker->canExport($user),
-            'search_form'     => $this->createSearchForm(null, ['space' => $space->getSlug()], ['q' => 'wiki-space-search'], false),
-            'import_form'     => $this->createImportForm($space),
+            'can_create'      => $this->accessChecker->canCreate($user) && $permissions['create'],
+            'can_import'      => $this->importExport['enabled'] && $this->accessChecker->canImport($user) && $permissions['import'],
+            'can_export'      => $this->importExport['enabled'] && $this->accessChecker->canExport($user) && $permissions['export'],
+            'permissions'     => $permissions,
+            'archived_pages'  => $archived,
+            'unarchive_forms' => $this->postActionForms($archived, fn (WikiPage $item): array => [
+                $item->getId(),
+                $this->generateUrl($this->routes['page_unarchive']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug()]),
+                'wiki_unarchive_' . $item->getId(),
+            ]),
+            'search_form' => $this->createSearchForm(null, ['space' => $space->getSlug()], ['q' => 'wiki-space-search'], false),
+            'import_form' => $this->createImportForm($space),
         ]);
     }
 
@@ -184,6 +218,7 @@ final class WikiManageController extends AbstractController
         $page                   = $this->requirePage($space, $pageSlug);
         $revision               = $page->getCurrentRevision();
         [$tree, $treeTruncated] = $this->buildTree($space);
+        $permissions            = $this->spaceGuard->grants($user, $space, $page);
 
         return $this->render($this->templates['page_view'], [
             'layout'          => $this->templates['layout'],
@@ -195,8 +230,10 @@ final class WikiManageController extends AbstractController
             'max_tree_pages'  => $this->pagination['max_tree_pages'],
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
-            'can_edit'        => $this->accessChecker->canEdit($user),
-            'can_history'     => $this->accessChecker->canViewHistory($user),
+            'can_edit'        => $this->accessChecker->canEdit($user) && $permissions['edit'],
+            'can_history'     => $this->accessChecker->canViewHistory($user) && $permissions['history'],
+            'permissions'     => $permissions,
+            'used_in'         => $this->linkService?->usedIn($page, $user) ?? [],
         ]);
     }
 
@@ -218,6 +255,7 @@ final class WikiManageController extends AbstractController
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->requirePage($space, $pageSlug);
+        $this->spaceGuard->requireGranted($user, WikiAction::Edit, $space, $page);
 
         $data = new WikiPageFormData(
             $page->getTitle(),
@@ -226,8 +264,9 @@ final class WikiManageController extends AbstractController
 
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_edit_<page id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
-            'tiptap_config' => $this->editor['tiptap_config'],
-            'csrf_token_id' => 'wiki_edit_' . $page->getId(),
+            'tiptap_config'  => $this->editor['tiptap_config'],
+            'csrf_token_id'  => 'wiki_edit_' . $page->getId(),
+            'editor_options' => $this->editorOptions($user, $space, $page),
         ]);
         $form->handleRequest($request);
 
@@ -269,12 +308,14 @@ final class WikiManageController extends AbstractController
         $this->denyUnlessFeature('create');
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
-        $data  = new WikiPageFormData();
+        $this->spaceGuard->requireGranted($user, WikiAction::Create, $space);
+        $data = new WikiPageFormData();
 
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_new_<space id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
-            'tiptap_config' => $this->editor['tiptap_config'],
-            'csrf_token_id' => 'wiki_new_' . $space->getId(),
+            'tiptap_config'  => $this->editor['tiptap_config'],
+            'csrf_token_id'  => 'wiki_new_' . $space->getId(),
+            'editor_options' => $this->editorOptions($user, $space, null),
         ]);
         $form->handleRequest($request);
 
@@ -328,9 +369,10 @@ final class WikiManageController extends AbstractController
     public function pageHistory(string $spaceSlug, string $pageSlug, ?Request $request = null): Response
     {
         $this->denyUnlessFeature('history');
-        $user    = $this->requireUser();
-        $space   = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page    = $this->requirePage($space, $pageSlug);
+        $user  = $this->requireUser();
+        $space = $this->requireAccessibleSpace($user, $spaceSlug);
+        $page  = $this->requirePage($space, $pageSlug);
+        $this->spaceGuard->requireGranted($user, WikiAction::History, $space, $page);
         $perPage = max(1, $this->pagination['revisions_per_page']);
         $current = max(1, $request?->query->getInt('page', 1) ?? 1);
         // One extra row: tells whether an older page exists and gives the last row its "compare" target.
@@ -345,6 +387,7 @@ final class WikiManageController extends AbstractController
             'pagination'      => ['page' => $current, 'has_previous' => $current > 1, 'has_next' => isset($fetched[$perPage]), 'per_page' => $perPage],
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
+            'restore_forms'   => $this->restoreForms($user, $space, $page, array_slice($fetched, 0, $perPage)),
         ]);
     }
 
@@ -366,6 +409,7 @@ final class WikiManageController extends AbstractController
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->requirePage($space, $pageSlug);
+        $this->spaceGuard->requireGranted($user, WikiAction::History, $space, $page);
 
         $fromNumber = $request->query->getInt('from');
         $toNumber   = $request->query->getInt('to');
@@ -408,14 +452,85 @@ final class WikiManageController extends AbstractController
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->requirePage($space, $pageSlug);
+        $this->spaceGuard->requireGranted($user, WikiAction::Archive, $space, $page);
 
         if (!$this->isValidCsrf($request, 'wiki_archive_' . $page->getId())) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
         }
 
-        $this->pageService->archive($page);
+        $this->pageService->archive($page, $user);
 
         return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+    }
+
+    /**
+     * Brings an archived page back after validating its CSRF token, then redirects to the page (1.9).
+     *
+     * @param Request $request current request (carries the CSRF token)
+     * @param string $spaceSlug space slug from the route
+     * @param string $pageSlug page slug from the route
+     *
+     * @throws NotFoundHttpException when the page is missing or not archived
+     * @throws AccessDeniedHttpException when the action is denied or the CSRF token is invalid
+     *
+     * @return RedirectResponse redirect to the page
+     */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/unarchive', name: 'nowo_wiki_page_unarchive', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_unarchive'], methods: ['POST'])]
+    public function unarchivePage(Request $request, string $spaceSlug, string $pageSlug): RedirectResponse
+    {
+        $this->denyUnlessFeature('archive');
+        $user  = $this->requireUser();
+        $space = $this->requireAccessibleSpace($user, $spaceSlug);
+        $page  = $this->pageRepository->findBySlug($space, $pageSlug);
+        if (!$page instanceof WikiPage || !$page->isArchived()) {
+            throw new NotFoundHttpException('Page not found.');
+        }
+
+        $this->spaceGuard->requireGranted($user, WikiAction::Archive, $space, $page);
+        if (!$this->isValidCsrf($request, 'wiki_unarchive_' . $page->getId())) {
+            throw new AccessDeniedHttpException('Invalid CSRF token.');
+        }
+
+        $this->pageService->unarchive($page, $user);
+
+        return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+    }
+
+    /**
+     * Restores an old revision as a new revision (history stays append-only) after validating the CSRF token (1.9).
+     *
+     * @param Request $request current request (carries the CSRF token)
+     * @param string $spaceSlug space slug from the route
+     * @param string $pageSlug page slug from the route
+     * @param int $revisionNumber number of the revision to restore
+     *
+     * @throws NotFoundHttpException when the page or the revision is missing
+     * @throws AccessDeniedHttpException when the action is denied or the CSRF token is invalid
+     *
+     * @return RedirectResponse redirect to the page
+     */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/restore', name: 'nowo_wiki_page_restore', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG, 'revisionNumber' => '\d+'], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_restore'], methods: ['POST'])]
+    public function restoreRevision(Request $request, string $spaceSlug, string $pageSlug, int $revisionNumber): RedirectResponse
+    {
+        $this->denyUnlessFeature('edit');
+        $user  = $this->requireUser();
+        $space = $this->requireAccessibleSpace($user, $spaceSlug);
+        $page  = $this->requirePage($space, $pageSlug);
+        $this->spaceGuard->requireGranted($user, WikiAction::Restore, $space, $page);
+
+        $revision = $this->revisionRepository->findByPageAndNumber($page, $revisionNumber);
+        if (!$revision instanceof WikiPageRevision) {
+            throw new NotFoundHttpException('Revision not found.');
+        }
+
+        if (!$this->isValidCsrf($request, 'wiki_restore_' . $page->getId())) {
+            throw new AccessDeniedHttpException('Invalid CSRF token.');
+        }
+
+        $this->pageService->restore($page, $revision, $user);
+        $this->addFlash('success', 'wiki.history.restored');
+
+        return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
     }
 
     /**
@@ -480,8 +595,9 @@ final class WikiManageController extends AbstractController
             throw new NotFoundHttpException('Import/export is disabled.');
         }
 
-        $user   = $this->requireUser();
-        $space  = $this->requireAccessibleSpace($user, $spaceSlug);
+        $user  = $this->requireUser();
+        $space = $this->requireAccessibleSpace($user, $spaceSlug);
+        $this->spaceGuard->requireGranted($user, WikiAction::Export, $space);
         $format = WikiInterchangeFormat::tryFrom($request->query->getString('format', WikiInterchangeFormat::Outline->value))
             ?? WikiInterchangeFormat::Outline;
         if ($format === WikiInterchangeFormat::Auto) {
@@ -547,6 +663,7 @@ final class WikiManageController extends AbstractController
 
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
+        $this->spaceGuard->requireGranted($user, WikiAction::Import, $space);
 
         $form = $this->createImportForm($space);
         if (!$this->isValidSubmittedForm($form, $request)) {
@@ -642,6 +759,7 @@ final class WikiManageController extends AbstractController
 
         if ($spaceSlug !== '') {
             $space = $this->requireAccessibleSpace($user, $spaceSlug);
+            $this->spaceGuard->requireGranted($user, WikiAction::AskAi, $space);
         }
 
         if (!$this->aiAssistant->isAvailable()) {
@@ -794,14 +912,86 @@ final class WikiManageController extends AbstractController
 
     private function requireAccessibleSpace(UserInterface $user, string $spaceSlug): WikiSpace
     {
-        $spaces = $this->spaceAccessResolver->listSpacesForUser($user);
-        foreach ($spaces as $space) {
-            if ($space->getSlug() === $spaceSlug) {
-                return $space;
-            }
+        return $this->spaceGuard->requireSpace($user, $spaceSlug);
+    }
+
+    /**
+     * Restore buttons of the listed revisions, keyed by revision number (none for the current one, none without
+     * {@see WikiAction::Restore}).
+     *
+     * @param list<WikiPageRevision> $revisions
+     *
+     * @return array<int|string, FormView>
+     */
+    private function restoreForms(UserInterface $user, WikiSpace $space, WikiPage $page, array $revisions): array
+    {
+        if (!isset($this->routes['page_restore']) || !$this->spaceGuard->isGranted($user, WikiAction::Restore, $space, $page)) {
+            return [];
         }
 
-        throw new NotFoundHttpException('Space not found.');
+        $currentId = $page->getCurrentRevision()?->getId();
+        $older     = array_filter($revisions, static fn (WikiPageRevision $revision): bool => $revision->getId() !== $currentId);
+
+        return $this->postActionForms(array_values($older), fn (WikiPageRevision $revision): array => [
+            $revision->getRevisionNumber(),
+            $this->generateUrl($this->routes['page_restore']['name'], [
+                'spaceSlug'      => $space->getSlug(),
+                'pageSlug'       => $page->getSlug(),
+                'revisionNumber' => $revision->getRevisionNumber(),
+            ]),
+            'wiki_restore_' . $page->getId(),
+        ]);
+    }
+
+    /**
+     * One {@see WikiPostActionType} view per item.
+     *
+     * @template T of object
+     *
+     * @param list<T> $items
+     * @param callable(T): array{0: int|string, 1: string, 2: string} $describe key, action URL and CSRF token id
+     *
+     * @return array<int|string, FormView>
+     */
+    private function postActionForms(array $items, callable $describe): array
+    {
+        $forms = [];
+        foreach ($items as $item) {
+            [$key, $action, $tokenId] = $describe($item);
+            $forms[$key]              = $this->container->get('form.factory')
+                ->createNamed('', WikiPostActionType::class, null, ['action' => $action, 'csrf_token_id' => $tokenId])
+                ->createView();
+        }
+
+        return $forms;
+    }
+
+    /**
+     * TiptapEditorType options of the page editor: the upload hook when attachments are enabled, then whatever the
+     * host adds through {@see WikiEvents::EDITOR_OPTIONS}.
+     *
+     * @return array<string, mixed>
+     */
+    private function editorOptions(UserInterface $user, WikiSpace $space, ?WikiPage $page): array
+    {
+        $options = [];
+        if ($page instanceof WikiPage && $this->attachments['enabled'] && isset($this->routes['attachment_upload'])) {
+            $options['upload_url'] = $this->generateUrl($this->routes['attachment_upload']['name'], [
+                'spaceSlug' => $space->getSlug(),
+                'pageSlug'  => $page->getSlug(),
+            ]);
+            $options['upload_csrf_token'] = $this->container->get('security.csrf.token_manager')
+                ->getToken(WikiAttachmentController::csrfTokenId($page))->getValue();
+        }
+
+        if (!$this->eventDispatcher instanceof EventDispatcherInterface) {
+            return $options;
+        }
+
+        $event = new WikiEditorOptionsEvent($space, $page, $user, $options);
+        $this->eventDispatcher->dispatch($event, WikiEvents::EDITOR_OPTIONS);
+
+        return $event->options;
     }
 
     /**

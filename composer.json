@@ -39,7 +39,7 @@
         "league/commonmark": "^2.7",
         "league/html-to-markdown": "^5.1",
         "nowo-tech/form-kit-bundle": "^2.0",
-        "nowo-tech/tiptap-editor-bundle": "^1.0",
+        "nowo-tech/tiptap-editor-bundle": "^1.6",
         "nowo-tech/ui-kit-bundle": "^1.4 || ^2.2",
         "psr/log": "^1.1 || ^2.0 || ^3.0",
         "symfony/config": "^7.4 || ^8.0",

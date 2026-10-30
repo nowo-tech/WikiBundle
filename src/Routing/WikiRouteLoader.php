@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Routing;
 
+use Nowo\WikiBundle\Controller\WikiAttachmentController;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use ReflectionClass;
 use ReflectionMethod;
@@ -16,7 +17,8 @@ use Symfony\Component\Routing\RouteCollection;
 /**
  * Route loader for the {@code nowo_wiki} resource type (REQ-SF-004).
  *
- * The routes are declared with #[Route] on {@see WikiManageController} (methods, requirements, default path / name)
+ * The routes are declared with #[Route] on {@see WikiManageController} and {@see WikiAttachmentController} (methods,
+ * requirements, default path / name)
  * and carry their configuration key in {@see self::ROUTE_KEY_OPTION}. The loader keeps the public configuration
  * contract: path and name come from `nowo_wiki.routes.<key>` and `route_prefix` is prepended. Do not import the
  * controller with `type: attribute`: that would bypass the configured paths, names and prefix.
@@ -39,10 +41,12 @@ final class WikiRouteLoader extends Loader
      *
      * @param array<string, array{path: string, name: string}> $routes route name/path per action key
      * @param string $routePrefix path prefix for all wiki routes
+     * @param WikiTenantPaths|null $tenantPaths tenant copies of the space-scoped routes (1.9)
      */
     public function __construct(
         private readonly array $routes,
         private readonly string $routePrefix,
+        private readonly ?WikiTenantPaths $tenantPaths = null,
     ) {
     }
 
@@ -67,25 +71,18 @@ final class WikiRouteLoader extends Loader
         // @igor-ignore - Route loader builds routes at compile/cache warm; not per-request mutation.
         $this->loaded = true;
         $collection   = new RouteCollection();
-        $controller   = WikiManageController::class;
 
-        foreach ((new ReflectionClass($controller))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            foreach ($method->getAttributes(RouteAttribute::class) as $attribute) {
-                $declared = $attribute->newInstance();
-                $key      = (string) ($declared->options[self::ROUTE_KEY_OPTION] ?? '');
-                if (!isset($this->routes[$key])) {
-                    continue;
+        foreach ([WikiManageController::class, WikiAttachmentController::class] as $controller) {
+            foreach ((new ReflectionClass($controller))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+                foreach ($method->getAttributes(RouteAttribute::class) as $attribute) {
+                    $declared = $attribute->newInstance();
+                    $key      = (string) ($declared->options[self::ROUTE_KEY_OPTION] ?? '');
+                    if (!isset($this->routes[$key])) {
+                        continue;
+                    }
+
+                    $this->addRoutes($collection, $this->routes[$key], $controller . '::' . $method->getName(), $declared->methods, $declared->requirements);
                 }
-
-                $collection->add(
-                    $this->routes[$key]['name'],
-                    $this->createRoute(
-                        $this->routes[$key]['path'],
-                        ['_controller' => $controller . '::' . $method->getName()],
-                        $declared->methods,
-                        $declared->requirements,
-                    ),
-                );
             }
         }
 
@@ -103,6 +100,44 @@ final class WikiRouteLoader extends Loader
     public function supports(mixed $resource, ?string $type = null): bool
     {
         return $type === 'nowo_wiki';
+    }
+
+    /**
+     * Adds the tenant-less route (unless disabled) and one copy per tenant path for space-scoped routes.
+     *
+     * @param array{path: string, name: string} $route configured path and name
+     * @param array<string> $methods
+     * @param array<string, mixed> $requirements
+     */
+    private function addRoutes(RouteCollection $collection, array $route, string $controller, array $methods, array $requirements): void
+    {
+        $defaults    = ['_controller' => $controller];
+        $spaceScoped = WikiTenantPaths::isSpaceScoped($route['path']);
+
+        foreach ($this->tenantPaths?->tenants() ?? [] as $tenant) {
+            if (!$spaceScoped) {
+                continue;
+            }
+
+            $collection->add(
+                $tenant['name_prefix'] . $route['name'],
+                new Route(
+                    WikiTenantPaths::tenantPath($tenant['path'], $route['path']),
+                    $defaults,
+                    ['spaceSlug' => $tenant['slug_requirement']] + $requirements,
+                    [],
+                    '',
+                    [],
+                    $methods,
+                ),
+            );
+        }
+
+        if ($spaceScoped && $this->tenantPaths?->isTenantOnly() === true) {
+            return;
+        }
+
+        $collection->add($route['name'], $this->createRoute($route['path'], $defaults, $methods, $requirements));
     }
 
     /**

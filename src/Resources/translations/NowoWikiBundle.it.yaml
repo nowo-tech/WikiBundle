@@ -10,10 +10,13 @@ wiki:
     pick_page: Seleziona una pagina dalla barra laterale o creane una.
     pages: Pagine
     tree_truncated: "Vengono mostrate solo le prime %count% pagine."
+    archived: 'Pagine archiviate'
   page:
     new: Nuova pagina
     edit: Modifica
     history: Cronologia
+    unarchive: 'Ripristina pagina'
+    used_in: 'Usata in'
   form:
     title: Titolo
     content: Contenuto
@@ -26,6 +29,8 @@ wiki:
     title: Cronologia versioni
     created: Creato
     diff: Confronta
+    restore: 'Ripristina questa revisione'
+    restored: 'La revisione è stata ripristinata come nuova revisione.'
   diff:
     title: Differenze
   search:

@@ -72,6 +72,11 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 | `Interchange\WikiMarkdownConverter` | yes | `readonly` CommonMark + HtmlConverter built in constructor, reused per call | ✅ | ✅ |
 | `Form\WikiPageFormType` | yes | FormKit trait: `$formKitBoundBuilder` set and restored in `finally`; config name memoised (constant per class) | ✅ | ✅ |
 | `Routing\WikiRouteLoader` | yes | `$loaded` flag (W-05) | ✅ | ✅ |
+| `Routing\WikiTenantUrlGenerator`, `WikiTenantPaths` (1.9) | yes | none (`final readonly`; the slug → route mapping is computed per call from the compiled config) | ✅ | ✅ |
+| `Security\WikiSpaceGuard`, `LegacyWikiSpaceAccessChecker`, `Service\AccessibleWikiSpaceLocator` (1.9) | yes | none (`final readonly`) | ✅ | ✅ |
+| `Controller\WikiAttachmentController` (1.9) | yes (public) | none; the download stream is opened per request and closed by the response callback | ✅ | ✅ |
+| `Attachment\WikiAttachmentService`, `LocalWikiAttachmentStorage`, `WikiAttachmentReferenceFilter`, `ConfiguredWikiAttachmentLimitsProvider`, `NullWikiAttachmentScanner` (1.9) | yes | none (`final readonly`); streams opened and closed in the same call | ✅ | ✅ |
+| `Link\WikiPageLinkService`, `DoctrineOrmWikiPageLinkRepository`, `DoctrineOrmWikiAttachmentRepository` (1.9) | yes | none (`final readonly`, `WikiEntityManagerProvider`) | ✅ | ✅ |
 | `Util\WikiSlugger` | yes | none | ✅ | ✅ |
 | 2 console commands | yes | `readonly` deps; CLI only | ✅ N/A | ✅ N/A |
 

@@ -10,10 +10,13 @@ wiki:
     pick_page: Kies een pagina in de zijbalk of maak er een aan.
     pages: Pagina's
     tree_truncated: "Alleen de eerste %count% pagina's worden getoond."
+    archived: 'Gearchiveerde pagina''s'
   page:
     new: Nieuwe pagina
     edit: Bewerken
     history: Geschiedenis
+    unarchive: 'Pagina terugzetten'
+    used_in: 'Gebruikt in'
   form:
     title: Titel
     content: Inhoud
@@ -26,6 +29,8 @@ wiki:
     title: Versiegeschiedenis
     created: Aangemaakt
     diff: Vergelijken
+    restore: 'Deze revisie terugzetten'
+    restored: 'De revisie is teruggezet als nieuwe revisie.'
   diff:
     title: Verschillen
   search:

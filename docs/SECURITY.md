@@ -61,7 +61,21 @@ security:
 
 See [docs/examples/AccessControl.md](examples/AccessControl.md) and [USAGE.md](USAGE.md).
 
+### Space- and page-aware access (1.9)
+
+`WikiSpaceAccessCheckerInterface` is asked on every route with the resolved space and page. A space or page the user
+may not view answers 404 (never 403), so its existence does not leak; a denied write on a readable space answers 403.
+Attachment downloads ask `view` on the attachment's **own** page and answer 404 to every denial (missing, other space,
+forbidden, archived page without `manage`).
+
 ## Content safety
+
+- Attachments (1.9): stored under server-generated keys (`<space id>/<32 hex>`, no user input) in a private
+  directory; uploads are checked against the size, the space quota and an extension + `finfo` MIME allowlist (no SVG,
+  HTML, XML or scripts) and a scanner hook before anything is stored; downloads send `X-Content-Type-Options: nosniff`,
+  `Cache-Control: private, no-store`, `Content-Security-Policy: default-src 'none'; img-src 'self'; sandbox` and
+  `Content-Disposition: attachment` except for PNG / JPEG / GIF / WebP. `WikiAttachmentReferenceFilter` removes
+  attachment URLs of other spaces from page bodies on save.
 
 - Sanitize **on write** in `WikiPageService` and **again on read**: `manage/page_view.html.twig` renders the body with the `nowo_wiki_safe_html` filter (not `|raw`), so revisions stored before a sanitizer fix are cleaned too. If you override that template, keep the filter.
 - `WikiHtmlSanitizer` is built on `symfony/html-sanitizer`: allowlisted elements only, per-element attributes, links http/https/mailto (or relative), media http/https (or relative), `style` only `text-align`, iframes only with an `https` `src` on `WikiHtmlSanitizer::DEFAULT_EMBED_HOSTS` (YouTube, youtube-nocookie, Vimeo). To allow other embed hosts, register `WikiHtmlSanitizer` with a custom `$allowedEmbedHosts` argument (or alias `WikiHtmlSanitizerInterface` to your own service).

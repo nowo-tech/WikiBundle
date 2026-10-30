@@ -31,6 +31,12 @@
                                             {{ 'wiki.history.diff'|trans({}, 'NowoWikiBundle') }}
                                         </a>
                                     {% endif %}
+                                    {% if restore_forms[revision.revisionNumber] is defined %}
+                                        {{ form_start(restore_forms[revision.revisionNumber], {attr: {class: 'd-inline nowo-wiki-history__restore'}}) }}
+                                            {{ form_rest(restore_forms[revision.revisionNumber]) }}
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary">{{ 'wiki.history.restore'|trans({}, 'NowoWikiBundle') }}</button>
+                                        {{ form_end(restore_forms[revision.revisionNumber]) }}
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}

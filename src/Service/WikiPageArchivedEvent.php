@@ -12,12 +12,14 @@ use Nowo\WikiBundle\Entity\WikiPage;
 final readonly class WikiPageArchivedEvent
 {
     /**
-     * Creates the event for the archived page.
+     * Creates the event for an archived page.
      *
-     * @param WikiPage $page archived page
+     * @param WikiPage $page page that was archived
+     * @param object|null $actor user who archived it (1.9)
      */
     public function __construct(
         public WikiPage $page,
+        public ?object $actor = null,
     ) {
     }
 }

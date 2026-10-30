@@ -95,6 +95,27 @@
                     </div>
                 </div>
             {% endif %}
+
+            {% if archived_pages|default([]) is not empty %}
+                <div class="card mt-3 nowo-wiki-archived">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">{{ 'wiki.space.archived'|trans({}, 'NowoWikiBundle') }}</h3>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        {% for archived in archived_pages %}
+                            <li class="list-group-item d-flex align-items-center justify-content-between gap-2 nowo-wiki-archived__item">
+                                <span class="nowo-wiki-archived__title">{{ archived.title }}</span>
+                                {% if unarchive_forms[archived.id] is defined %}
+                                    {{ form_start(unarchive_forms[archived.id], {attr: {class: 'nowo-wiki-archived__form'}}) }}
+                                        {{ form_rest(unarchive_forms[archived.id]) }}
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">{{ 'wiki.page.unarchive'|trans({}, 'NowoWikiBundle') }}</button>
+                                    {{ form_end(unarchive_forms[archived.id]) }}
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
         </div>
     </div>
 {% endblock %}

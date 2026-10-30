@@ -10,10 +10,13 @@ wiki:
     pick_page: Select a page from the sidebar or create one.
     pages: Pages
     tree_truncated: "Showing the first %count% pages only."
+    archived: 'Archived pages'
   page:
     new: New page
     edit: Edit
     history: History
+    unarchive: 'Restore page'
+    used_in: 'Used in'
   form:
     title: Title
     content: Content
@@ -26,6 +29,8 @@ wiki:
     title: Version history
     created: Created
     diff: Compare
+    restore: 'Restore this revision'
+    restored: 'The revision was restored as a new revision.'
   diff:
     title: Diff
   search:

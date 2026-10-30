@@ -36,15 +36,49 @@ Root key: `nowo_wiki`.
 | `pagination.revisions_per_page` | `25` | Revisions per page history page (`?page=N`, 1–500) |
 | `pagination.max_tree_pages` | `500` | Pages loaded into the sidebar tree (10–10000); a notice links to search when more exist |
 
-
 ## Table of contents
 
+- [Space access and tenant paths (1.9)](#space-access-and-tenant-paths-19)
+- [Attachments (1.9)](#attachments-19)
 - [Web UI (REQ-UI-001)](#web-ui-req-ui-001)
 - [Pagination (REQ-PERF-001)](#pagination-req-perf-001)
 - [Import / export](#import--export)
 - [Symfony AI integration](#symfony-ai-integration)
-  - [Timeout hierarchy (REQ-RUNTIME-001)](#timeout-hierarchy-req-runtime-001)
 - [Logging (REQ-OBS-001)](#logging-req-obs-001)
+
+## Space access and tenant paths (1.9)
+
+```yaml
+nowo_wiki:
+    # Copies of every space-scoped route; the first tenant whose slug_requirement matches a space slug owns its URLs.
+    tenant_paths:
+        - { path: '/projects/{spaceSlug}/wiki', name_prefix: 'app_project_', slug_requirement: '[0-9a-f-]{36}' }
+        - { path: '/wiki/{spaceSlug}', name_prefix: 'app_', slug_requirement: 'general|user-[0-9a-f-]{36}' }
+    tenant_only: true   # leave out /tools/wiki/spaces/{spaceSlug}/… (index, search and ask stay)
+```
+
+```yaml
+# config/services.yaml — decide per space / page and create spaces on the first visit
+services:
+    Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface: '@App\Wiki\Security\MyWikiAccessChecker'
+    Nowo\WikiBundle\Service\WikiSpaceLocatorInterface: '@App\Wiki\Tenancy\MySpaceLocator'
+```
+
+## Attachments (1.9)
+
+```yaml
+nowo_wiki:
+    attachments:
+        enabled: true
+        storage_dir: '%kernel.project_dir%/var/wiki-attachments'   # private; never under public/
+        # storage: App\Storage\MyWikiStorage          # a WikiAttachmentStorageInterface service
+        # scanner: App\Security\MyAntivirusScanner     # a WikiAttachmentScannerInterface service
+        max_file_bytes: 10485760
+        max_space_bytes: 524288000
+        # allowed_types: { png: [image/png], pdf: [application/pdf], … }   # extension => sniffed MIME types
+```
+
+Limits per space can come from host settings: alias `WikiAttachmentLimitsProviderInterface` to your service.
 
 ## Web UI (REQ-UI-001)
 

@@ -40,6 +40,25 @@
                     {{ revision ? revision.contentHtml|nowo_wiki_safe_html : '' }}
                 </div>
             </div>
+            {% block page_aside %}
+                {% if used_in|default([]) is not empty %}
+                    <section class="card mt-3 nowo-wiki-used-in" aria-labelledby="nowo-wiki-used-in-title">
+                        <div class="card-header">
+                            <h3 class="card-title mb-0" id="nowo-wiki-used-in-title">{{ 'wiki.page.used_in'|trans({}, 'NowoWikiBundle') }}</h3>
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            {% for objects in used_in %}
+                                {% for object in objects %}
+                                    <li class="list-group-item nowo-wiki-used-in__item" data-object-type="{{ object.type }}">
+                                        <a href="{{ object.url }}">{{ object.label }}</a>
+                                        {% if object.badge %}<span class="badge nowo-wiki-used-in__badge">{{ object.badge }}</span>{% endif %}
+                                    </li>
+                                {% endfor %}
+                            {% endfor %}
+                        </ul>
+                    </section>
+                {% endif %}
+            {% endblock %}
         </div>
     </div>
 {% endblock %}

@@ -43,6 +43,19 @@
 
 ## Unreleased
 
+From **1.8.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/tiptap-editor-bundle
+```
+
+- **Schema:** two new tables, `<prefix>_page_links` and `<prefix>_attachments` (`bin/console doctrine:migrations:diff` then migrate). Nothing else changes in the existing tables.
+- **No behaviour change by default:** without a space checker the 1.x user-level checks still apply (`LegacyWikiSpaceAccessChecker`), no tenant path is registered and attachments stay off.
+- **Per-tenant access:** alias `Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface` (and, to create spaces on the first visit, `Nowo\WikiBundle\Service\WikiSpaceLocatorInterface`) to your services. A denied `view` answers 404, any other denied action 403.
+- **Template overrides:** `manage/page_view.html.twig` has a `page_aside` block (*Used in*); `manage/page_history.html.twig` renders `restore_forms`; `manage/space.html.twig` renders `archived_pages` / `unarchive_forms`. New translation keys: `wiki.space.archived`, `wiki.page.unarchive`, `wiki.page.used_in`, `wiki.history.restore`, `wiki.history.restored`.
+- **Custom repositories:** `WikiPageRepositoryInterface` gains `findArchivedBySpace()`.
+- **Attachments:** enable with `attachments.enabled: true`, keep `storage_dir` outside `public/`, on a persistent volume and in your backups; run `WikiAttachmentService::purgeOrphans()` / `purgeStrayFiles()` from a nightly job.
+
 ## To 1.8.1
 
 From **1.8.0**:

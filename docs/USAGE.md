@@ -9,11 +9,10 @@
 - [Application integration](#application-integration)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
-  - [Overridable templates](#overridable-templates)
-  - [Recovering upstream after a freeze](#recovering-upstream-after-a-freeze)
-  - [Forms in templates (REQ-TWIG-005)](#forms-in-templates-req-twig-005)
 - [Translations (REQ-I18N-001)](#translations-req-i18n-001)
 - [Events](#events)
+- [Links to host objects (1.9)](#links-to-host-objects-19)
+- [Attachments (1.9)](#attachments-19)
 
 ## Manage UI routes (defaults)
 
@@ -190,5 +189,49 @@ To add a locale the bundle does not ship (e.g. `ca`), create `translations/NowoW
 
 ## Events
 
-- `nowo_wiki.page.saved` — `WikiPageSavedEvent`
-- `nowo_wiki.page.archived` — `WikiPageArchivedEvent`
+Dispatched after the change is flushed.
+
+- `nowo_wiki.page.saved` — `WikiPageSavedEvent` (`page`, `revision`, `previousRevision`, `actor`; also after create and restore)
+- `nowo_wiki.page.archived` — `WikiPageArchivedEvent` (`page`, `actor`)
+- `nowo_wiki.page.created` / `.unarchived` — `WikiPageCreatedEvent` / `WikiPageUnarchivedEvent` (1.9)
+- `nowo_wiki.page.restored` — `WikiPageRestoredEvent` (`restoredFrom`, `revision`, 1.9)
+- `nowo_wiki.page.linked` / `.unlinked` — `WikiPageLinkEvent` (`objectType`, `objectId`, 1.9)
+- `nowo_wiki.attachment.uploaded` / `.deleted` — `WikiAttachmentEvent` (1.9)
+- `nowo_wiki.editor.options` — `WikiEditorOptionsEvent`: add TiptapEditorType options (e.g. the suggestion hook's candidate URLs) for the space and page being edited (1.9)
+
+## Links to host objects (1.9)
+
+```php
+final class IssueLinkResolver implements WikiObjectLinkResolverInterface   // autoconfigured
+{
+    public function supports(string $objectType): bool { return $objectType === 'issue'; }
+
+    // One query for every id; leave out what the viewer may not open.
+    public function resolveVisible(UserInterface $user, string $objectType, array $objectIds): array
+    {
+        $objects = [];
+        foreach ($this->issues->findVisible($user, $objectIds) as $issue) {
+            $objects[(string) $issue->getId()] = new WikiLinkedObject('issue', (string) $issue->getId(), $issue->getTitle(), $this->url($issue), $issue->getKey());
+        }
+
+        return $objects;
+    }
+}
+
+$linkService->link($page, 'issue', '42', $user);   // authorize first: the bundle does not know who may link
+$linkService->usedIn($page, $viewer);              // ['issue' => [WikiLinkedObject, …]]
+```
+
+## Attachments (1.9)
+
+With `attachments.enabled`, the editor uploads dropped / pasted files to `attachment_upload` (POST multipart `file`,
+header `X-CSRF-Token`, token id `WikiAttachmentController::csrfTokenId($page)`); the answer is
+`{"id", "url", "name", "mime", "size", "image"}` (201) or `{"error": "too_large|quota_exceeded|type_not_allowed|type_mismatch|scanner_rejected|empty"}` (422).
+Downloads (`attachment_download`) stream the file to users who may view its page and answer 404 otherwise.
+
+Nightly cleanup (attachments never referenced by a revision 24 h after upload, files without a row):
+
+```php
+$attachments->purgeOrphans(new DateTimeImmutable('-24 hours'));
+$attachments->purgeStrayFiles();
+```
