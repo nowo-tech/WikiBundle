@@ -256,4 +256,26 @@ final class ConfigurationTest extends TestCase
             }
         }
     }
+
+    public function testSanitizerAllowlistIsConfigurableButNeverUnsafe(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'sanitizer'  => ['extra_allowed_elements' => ['details' => ['open'], 'summary' => []], 'extra_allowed_attributes' => ['data-callout']],
+        ]]);
+        self::assertSame(['details' => ['open'], 'summary' => []], $config['sanitizer']['extra_allowed_elements']);
+        self::assertSame(['data-callout'], $config['sanitizer']['extra_allowed_attributes']);
+
+        $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
+        self::assertSame(['extra_allowed_elements' => [], 'extra_allowed_attributes' => []], $defaults['sanitizer']);
+
+        foreach ([['extra_allowed_elements' => ['script' => []]], ['extra_allowed_elements' => ['iframe' => []]], ['extra_allowed_attributes' => ['style']], ['extra_allowed_attributes' => ['onmouseover']]] as $sanitizer) {
+            try {
+                (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'sanitizer' => $sanitizer]]);
+                self::fail('Unsafe sanitizer allowlist accepted.');
+            } catch (InvalidConfigurationException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
 }

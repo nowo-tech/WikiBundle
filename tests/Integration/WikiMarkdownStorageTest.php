@@ -132,6 +132,11 @@ final class WikiMarkdownStorageTest extends TestCase
 
     public function testSaveDiffAndRestoreMarkdownRevisions(): void
     {
+        $conversions = [];
+        $this->dispatcher->addListener(WikiEvents::PAGE_SAVED, static function (WikiPageSavedEvent $event) use (&$conversions): void {
+            $conversions[] = $event->conversion;
+        });
+
         $page   = $this->service->create($this->space, 'Guide', "Intro\n\n- one", $this->user, null, null, WikiPageRevision::FORMAT_MARKDOWN);
         $first  = $page->getCurrentRevision();
         $second = $this->service->saveRevision($page, 'Guide', "Intro\n\n- one\n- two", $this->user, WikiPageRevision::FORMAT_MARKDOWN);
@@ -149,6 +154,7 @@ final class WikiMarkdownStorageTest extends TestCase
         self::assertTrue($restored->isMarkdown());
         self::assertSame("Intro\n\n- one", $restored->getContentMarkdown());
         self::assertStringContainsString('<li>one</li>', $restored->getContentHtml());
+        self::assertSame([false, false, false], $conversions, 'Edits and restores are not conversions.');
     }
 
     public function testConvertCommandAppendsOneMarkdownRevisionPerHtmlPageAndIsIdempotent(): void
@@ -162,6 +168,7 @@ final class WikiMarkdownStorageTest extends TestCase
 
         $saved = [];
         $this->dispatcher->addListener(WikiEvents::PAGE_SAVED, static function (WikiPageSavedEvent $event) use (&$saved): void {
+            self::assertTrue($event->conversion);
             $saved[] = $event->page->getSlug();
         });
 

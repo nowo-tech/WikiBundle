@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Security;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -132,5 +133,61 @@ final class WikiHtmlSanitizerTest extends TestCase
         );
 
         self::assertSame('<ul data-type="taskList"><li data-type="taskItem" data-checked="true">done</li></ul>text', $result);
+    }
+
+    public function testExtraElementsAndAttributesAreAllowedWhenConfigured(): void
+    {
+        $html = '<details open data-kind="tip"><summary>More</summary><p data-callout="info">Body</p></details><section>Kept</section>';
+
+        $default = (new WikiHtmlSanitizer())->sanitize($html);
+        self::assertStringNotContainsString('<details', $default);
+        self::assertStringNotContainsString('data-callout', $default);
+
+        $sanitizer = new WikiHtmlSanitizer(WikiHtmlSanitizer::DEFAULT_EMBED_HOSTS, ['details' => ['open'], 'Summary' => [], 'section' => []], ['data-callout']);
+        $result    = $sanitizer->sanitize($html . '<p onclick="x()" style="color:red">Safe</p>');
+
+        self::assertStringContainsString('<details open><summary>More</summary><p data-callout="info">Body</p></details>', $result);
+        self::assertStringContainsString('<section>Kept</section>', $result);
+        self::assertStringNotContainsString('data-kind', $result);
+        self::assertStringNotContainsString('onclick', $result);
+        self::assertStringNotContainsString('color:red', $result);
+    }
+
+    /**
+     * @return iterable<string, array{mixed, mixed}>
+     */
+    public static function unsafeAllowlists(): iterable
+    {
+        yield 'script' => [['script' => []], []];
+        yield 'style element' => [['STYLE' => []], []];
+        yield 'iframe' => [['iframe' => []], []];
+        yield 'form' => [['form' => []], []];
+        yield 'invalid element name' => [['x y' => []], []];
+        yield 'numeric element' => [[0 => []], []];
+        yield 'style attribute' => [[], ['style']];
+        yield 'event handler' => [[], ['onclick']];
+        yield 'event handler upper case' => [[], ['OnLoad']];
+        yield 'url attribute on element' => [['details' => ['href']], []];
+        yield 'scalar element attribute' => [['details' => 'srcdoc'], []];
+        yield 'not a name' => [[], ['data x']];
+        yield 'not a string' => [[], [['a']]];
+        yield 'not maps' => ['details', []];
+        yield 'attributes not a list' => [[], 'data-x'];
+    }
+
+    #[DataProvider('unsafeAllowlists')]
+    public function testUnsafeExtraAllowlistsAreRefused(mixed $elements, mixed $attributes): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        WikiHtmlSanitizer::assertSafeAllowlist($elements, $attributes);
+    }
+
+    public function testTheConstructorRefusesAnUnsafeAllowlist(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The attribute "onerror" cannot be allowed by the wiki sanitizer.');
+
+        new WikiHtmlSanitizer(WikiHtmlSanitizer::DEFAULT_EMBED_HOSTS, ['details' => ['onerror']]);
     }
 }

@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.11.0](#to-1110)
 - [To 1.10.0](#to-1100)
   - [Configuration (deprecated keys, removed in 2.0)](#configuration-deprecated-keys-removed-in-20)
   - [Template contract](#template-contract)
@@ -47,6 +48,8 @@
 
 ## Unreleased
 
+## To 1.11.0
+
 From **1.10.0**:
 
 ```bash
@@ -70,8 +73,9 @@ composer update nowo-tech/wiki-bundle
   bin/console wiki:convert-markdown docs handbook --author-id=admin@example.com
   ```
 
-  The conversion dispatches `nowo_wiki.page.saved` for every converted page. Pages you do not convert are converted when they are next edited.
-- **Rendering:** a Markdown revision's `content_html` is rendered by `WikiMarkdownRendererInterface` (raw HTML escaped, unsafe links dropped) and then sanitized by `WikiHtmlSanitizerInterface`: markup your extensions emit must be allowed by the sanitizer (replace its alias to widen it).
+  The conversion dispatches `nowo_wiki.page.saved` for every converted page with `WikiPageSavedEvent::$conversion = true`: update indexes from it, but skip notifications, activity feeds and "page edited" e-mails (nobody edited the page). Pages you do not convert are converted when they are next edited.
+- **Rendering:** a Markdown revision's `content_html` is rendered by `WikiMarkdownRendererInterface` (raw HTML escaped, unsafe links dropped) and then sanitized by `WikiHtmlSanitizerInterface`: markup your extensions emit must be allowed by the sanitizer — declare it in `nowo_wiki.sanitizer` ([CONFIGURATION](CONFIGURATION.md#sanitizer-allowlist-111)); `script`, `style`, `iframe`, forms, embeds, URL attributes, `style=` and `on*` stay refused.
+- **Per-viewer content is the host's job:** `content_html` is one cache for every reader. Page links (`[[wiki:<uuid>]]`), mentions and live blocks must be resolved at read time for the viewer (current title and URL, or a neutral "not visible" placeholder) by the host or the editor bundle, never baked into the cache.
 - **Code calling the page service:** `WikiPageService::create()` / `saveRevision()` keep their signatures with a new optional last `$format` argument (HTML by default); `WikiPageRevision` has a new optional last constructor argument `$contentMarkdown`.
 
 ## To 1.10.0

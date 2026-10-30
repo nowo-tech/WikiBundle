@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.11.0] - 2026-10-30](#1110---2026-10-30)
 - [[1.10.0] - 2026-10-30](#1100---2026-10-30)
 - [[1.9.0] - 2026-10-30](#190---2026-10-30)
 - [[1.8.1] - 2026-10-29](#181---2026-10-29)
@@ -41,7 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Wiki: Markdown storage (`editor.type: markdown`) — revisions keep their Markdown source with a sanitized HTML render cache, an extensible league/commonmark renderer, GFM everywhere, and `wiki:convert-markdown` to move existing pages. See [UPGRADING](UPGRADING.md#unreleased).
+## [1.11.0] - 2026-10-30
+
+Wiki: Markdown storage (`editor.type: markdown`) — revisions keep their Markdown source with a sanitized HTML render cache, an extensible league/commonmark renderer, GFM everywhere, a configurable sanitizer allowlist and `wiki:convert-markdown` to move existing pages. **Schema change:** two columns on `<prefix>_page_revisions`. See [UPGRADING](UPGRADING.md#to-1110).
 
 ### Added
 
@@ -50,6 +53,8 @@ Wiki: Markdown storage (`editor.type: markdown`) — revisions keep their Markdo
 - `Markdown\WikiMarkdownReferenceExtractor`: the `[[wiki:<uuid>]]` / `[[wiki:<uuid>#anchor]]` page references of a Markdown revision (outside code), for host backlink indexes (listen to `nowo_wiki.page.saved`).
 - `bin/console wiki:convert-markdown <space>... --author-id=<id> [--dry-run]`: appends one Markdown revision per page whose current revision is HTML (`WikiMarkdownConverter::htmlToMarkdown()`, archived pages included, older revisions untouched); idempotent. `WikiPageService::convertToMarkdown()`.
 - `WikiPageService::create()` / `saveRevision()` take an optional `$format` (`WikiPageRevision::FORMAT_HTML` default, `FORMAT_MARKDOWN`); `restore()` keeps the format of the restored revision.
+- `nowo_wiki.sanitizer.extra_allowed_elements` (element => its extra attributes) and `extra_allowed_attributes` (on every element): extra HTML an editor dialect emits (e.g. `<details>` / `<summary>`, `data-*`). Script-capable, embedding and form elements, `style`, URL attributes and `on*` handlers are refused at configuration time and by `WikiHtmlSanitizer::assertSafeAllowlist()` in the constructor.
+- `WikiPageSavedEvent::$conversion`: `true` on the events dispatched by `wiki:convert-markdown`, so hosts index the new revision without notifying anyone.
 - Translation key `wiki.editor.markdown_help` in the seven locales; demo migration for the two new columns.
 
 ### Changed

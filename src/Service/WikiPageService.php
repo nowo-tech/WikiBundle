@@ -198,7 +198,8 @@ final readonly class WikiPageService
 
     /**
      * Appends a Markdown revision converted from the page's HTML (1.11, `wiki:convert-markdown`): the title is kept,
-     * archived pages are converted too and {@see WikiEvents::PAGE_SAVED} is dispatched as for any save.
+     * archived pages are converted too and {@see WikiEvents::PAGE_SAVED} is dispatched with
+     * {@see WikiPageSavedEvent::$conversion} set (index it, do not notify).
      *
      * @param WikiPage $page page to convert
      * @param string $markdown Markdown of the current HTML revision
@@ -220,7 +221,7 @@ final readonly class WikiPageService
             'revision' => $revision->getRevisionNumber(),
         ]);
 
-        $this->eventDispatcher->dispatch(new WikiPageSavedEvent($page, $revision, $previous, $actor), WikiEvents::PAGE_SAVED);
+        $this->eventDispatcher->dispatch(new WikiPageSavedEvent($page, $revision, $previous, $actor, true), WikiEvents::PAGE_SAVED);
 
         return $revision;
     }

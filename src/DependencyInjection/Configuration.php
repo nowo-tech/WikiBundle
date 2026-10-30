@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\DependencyInjection;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimits;
+use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\Builder\VariableNodeDefinition;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
@@ -138,6 +140,35 @@ final class Configuration implements ConfigurationInterface
                             ->arrayPrototype()->scalarPrototype()->end()->end()
                             ->defaultValue(WikiAttachmentLimits::DEFAULT_ALLOWED_TYPES)
                         ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('sanitizer')
+                    ->info('1.11: extra HTML allowed in page bodies (e.g. the <details> / <summary> or data-* attributes of a Markdown dialect). script, style, iframe, forms, embeds, style= and on* handlers are always refused.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->arrayNode('extra_allowed_elements')
+                            ->info('Element => extra attributes of that element, e.g. {details: [open], summary: []}.')
+                            ->useAttributeAsKey('element')
+                            ->arrayPrototype()->scalarPrototype()->end()->end()
+                            ->defaultValue([])
+                        ->end()
+                        ->arrayNode('extra_allowed_attributes')
+                            ->info('Attributes allowed on every allowed element, e.g. [data-callout].')
+                            ->scalarPrototype()->end()
+                            ->defaultValue([])
+                        ->end()
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static function (mixed $sanitizer): bool {
+                            try {
+                                WikiHtmlSanitizer::assertSafeAllowlist($sanitizer['extra_allowed_elements'] ?? [], $sanitizer['extra_allowed_attributes'] ?? []);
+                            } catch (InvalidArgumentException) {
+                                return true;
+                            }
+
+                            return false;
+                        })
+                        ->thenInvalid('nowo_wiki.sanitizer: an extra element or attribute is not allowed (script, style, iframe, forms, embeds, URL attributes, style= and on* handlers are always refused), got %s.')
                     ->end()
                 ->end()
                 ->arrayNode('editor')

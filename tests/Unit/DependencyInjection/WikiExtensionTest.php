@@ -62,6 +62,17 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->hasDefinition(WikiHtmlSanitizer::class));
     }
 
+    public function testSanitizerAllowlistReachesTheSanitizer(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'sanitizer' => ['extra_allowed_elements' => ['details' => ['open']], 'extra_allowed_attributes' => ['data-callout']]]], $container);
+
+        $definition = $container->getDefinition(WikiHtmlSanitizer::class);
+        self::assertSame(['details' => ['open']], $definition->getArgument('$extraAllowedElements'));
+        self::assertSame(['data-callout'], $definition->getArgument('$extraAllowedAttributes'));
+    }
+
     public function testRegistersTheMarkdownRendererAndItsExtensionTag(): void
     {
         $container = new ContainerBuilder();
@@ -97,7 +108,7 @@ final class WikiExtensionTest extends TestCase
 
         $sanitizer = $container->getDefinition(WikiHtmlSanitizer::class);
         self::assertSame(WikiHtmlSanitizer::class, $sanitizer->getClass());
-        self::assertSame([], $sanitizer->getArguments());
+        self::assertSame(['$extraAllowedElements' => [], '$extraAllowedAttributes' => []], $sanitizer->getArguments());
         self::assertFalse($sanitizer->isAutowired());
         self::assertFalse($sanitizer->isAutoconfigured());
         self::assertSame(

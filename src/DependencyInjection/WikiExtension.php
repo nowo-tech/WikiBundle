@@ -196,7 +196,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         // 1.11: Markdown revisions — the default renderer takes every nowo_wiki.markdown_extension (none by default).
         $container->registerForAutoconfiguration(WikiMarkdownExtensionInterface::class)->addTag('nowo_wiki.markdown_extension');
         $container->setAlias(WikiMarkdownRendererInterface::class, WikiMarkdownRenderer::class);
-        $container->setDefinition(WikiHtmlSanitizer::class, new Definition(WikiHtmlSanitizer::class));
+        $container->setDefinition(WikiHtmlSanitizer::class, (new Definition(WikiHtmlSanitizer::class))
+            ->setArgument('$extraAllowedElements', $config['sanitizer']['extra_allowed_elements'])
+            ->setArgument('$extraAllowedAttributes', array_values($config['sanitizer']['extra_allowed_attributes'])));
 
         $container->setDefinition(WikiEntityManagerProvider::class, (new Definition(WikiEntityManagerProvider::class))
             ->setArgument('$registry', new Reference('doctrine'))

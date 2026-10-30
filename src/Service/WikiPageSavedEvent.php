@@ -19,12 +19,15 @@ final readonly class WikiPageSavedEvent
      * @param WikiPageRevision $revision revision that was created
      * @param WikiPageRevision|null $previousRevision revision that was current before (null for a new page; 1.9)
      * @param object|null $actor user who saved it (1.9)
+     * @param bool $conversion true when the revision comes from the bulk HTML → Markdown conversion
+     *                         (`wiki:convert-markdown`, 1.11): nobody edited the page, so hosts should not notify
      */
     public function __construct(
         public WikiPage $page,
         public WikiPageRevision $revision,
         public ?WikiPageRevision $previousRevision = null,
         public ?object $actor = null,
+        public bool $conversion = false,
     ) {
     }
 }

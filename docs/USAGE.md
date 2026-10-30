@@ -297,7 +297,17 @@ final class WikiDialectExtension implements WikiMarkdownExtensionInterface   // 
 }
 ```
 
-The output still goes through `WikiHtmlSanitizerInterface` before it is stored.
+The output still goes through `WikiHtmlSanitizerInterface` before it is stored: declare the extra markup the extension emits in `nowo_wiki.sanitizer` ([CONFIGURATION](CONFIGURATION.md#sanitizer-allowlist-111)).
+
+**Per-viewer rendering stays on the host:** the stored `content_html` is the same for every reader. Resolve page links, mentions and live blocks when the page is shown (current title and URL for a page the viewer may read, a neutral "not visible" placeholder otherwise).
+
+**Conversion events:** `wiki:convert-markdown` dispatches `nowo_wiki.page.saved` with `$event->conversion === true`. Keep indexing (search, backlinks) on it, but do not notify watchers or log it as an edit:
+
+```php
+if ($event->conversion) {
+    return;   // bulk HTML → Markdown conversion, not an edit
+}
+```
 
 **Page references and backlinks:** the bundle's `<prefix>_page_links` table holds host objects linked by hand, so page-to-page references are not written there. A host keeping a backlink index reads them on save:
 

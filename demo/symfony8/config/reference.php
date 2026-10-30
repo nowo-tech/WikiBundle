@@ -1345,6 +1345,10 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         max_space_bytes?: int|Param, // Default: 524288000
  *         allowed_types?: array<string, list<scalar|Param|null>>,
  *     },
+ *     sanitizer?: array{ // 1.11: extra HTML allowed in page bodies (e.g. the <details> / <summary> or data-* attributes of a Markdown dialect). script, style, iframe, forms, embeds, style= and on* handlers are always refused.
+ *         extra_allowed_elements?: array<string, list<scalar|Param|null>>,
+ *         extra_allowed_attributes?: list<scalar|Param|null>,
+ *     },
  *     editor?: array{
  *         type?: "tiptap"|"markdown"|Param, // 1.11: tiptap = pages are HTML edited with TiptapEditorType; markdown = pages are stored as Markdown (content_markdown, the source) with content_html as its sanitized render cache, edited in a textarea or in markdown_form_type. // Default: "tiptap"
  *         tiptap_config?: scalar|Param|null, // Default: "notion"
