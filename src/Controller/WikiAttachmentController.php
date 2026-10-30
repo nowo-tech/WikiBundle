@@ -23,7 +23,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Symfony\Component\HttpKernel\Attribute\AsController;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
@@ -39,7 +38,6 @@ use function preg_replace;
  * canEdit(); downloads ask the role gate canList() (1.10) and {@see WikiAction::View} on the attachment's own page and answer 404 to every denial (missing, other space,
  * forbidden, archived page for a non-manager), so an attachment URL reveals nothing.
  */
-#[AsController]
 final class WikiAttachmentController extends AbstractController
 {
     /**

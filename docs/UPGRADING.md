@@ -48,6 +48,8 @@
 
 ## Unreleased
 
+No action needed when you import the `nowo_wiki` route loader (`resource: .`, `type: nowo_wiki`, the documented setup). If on Symfony >= 7.3 the wiki pages answered on `/tools/wiki/...` without that import (through the default `controllers: { resource: routing.controllers }` of `config/routes.yaml`), they are gone now: import the loader (see [INSTALLATION](INSTALLATION.md)).
+
 ## To 1.11.0
 
 From **1.10.0**:
