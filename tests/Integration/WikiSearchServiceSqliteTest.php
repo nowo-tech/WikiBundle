@@ -52,7 +52,7 @@ final class WikiSearchServiceSqliteTest extends TestCase
             $this->em->getClassMetadata(WikiPage::class),
         ]);
         $this->em->getConnection()->executeStatement(
-            'CREATE TABLE wiki_page_revisions (id VARCHAR(36) NOT NULL PRIMARY KEY, page_id VARCHAR(36) NOT NULL, revision_number INTEGER NOT NULL, content_html CLOB NOT NULL, author_id VARCHAR(36) NOT NULL, created_at DATETIME NOT NULL)',
+            'CREATE TABLE wiki_page_revisions (id VARCHAR(36) NOT NULL PRIMARY KEY, page_id VARCHAR(36) NOT NULL, revision_number INTEGER NOT NULL, content_html CLOB NOT NULL, content_markdown CLOB DEFAULT NULL, format VARCHAR(16) DEFAULT \'html\' NOT NULL, author_id VARCHAR(36) NOT NULL, created_at DATETIME NOT NULL)',
         );
 
         $this->space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1');

@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Controller;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
+use Nowo\UiKitBundle\View\FormPage;
 use Nowo\UiKitBundle\View\ListPage;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\WikiAiAnswer;
@@ -37,6 +38,7 @@ use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 use RuntimeException;
@@ -580,6 +582,85 @@ final class WikiManageControllerTest extends TestCase
         );
 
         self::assertTrue($response->isRedirect('/generated/nowo_wiki_page_view'));
+    }
+
+    /**
+     * @return iterable<string, array{WikiPageRevision|null, string, string}>
+     */
+    public static function editorBodies(): iterable
+    {
+        $user = new TestUser('user-1');
+        $page = new WikiPage(new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1'), 'welcome', 'Welcome');
+
+        yield 'html revision in the markdown editor' => [new WikiPageRevision($page, 1, '<h2>Hi</h2><p><s>old</s></p>', $user), 'markdown', "## Hi\n\n~~old~~"];
+        yield 'markdown revision in the markdown editor' => [new WikiPageRevision($page, 1, '<p>cache</p>', $user, '*source*'), 'markdown', '*source*'];
+        yield 'markdown revision in the tiptap editor' => [new WikiPageRevision($page, 1, '<p><em>source</em></p>', $user, '*source*'), 'tiptap', '<p><em>source</em></p>'];
+        yield 'page without revision' => [null, 'markdown', ''];
+    }
+
+    #[DataProvider('editorBodies')]
+    public function testEditFormShowsTheBodyOfTheConfiguredEditor(?WikiPageRevision $revision, string $editorType, string $expected): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        if ($revision instanceof WikiPageRevision) {
+            $page->setCurrentRevision($revision);
+        }
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => $editorType, 'tiptap_config' => 'notion', 'markdown_form_type' => null]);
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+
+        $controller->editPage(Request::create('/edit'), 'eng', 'welcome');
+
+        $form = $twig->context['page'];
+        self::assertInstanceOf(FormPage::class, $form);
+        self::assertNotNull($form->form);
+        self::assertSame($expected, $form->form->children['content']->vars['value']);
+    }
+
+    public function testMarkdownEditorSavesAndCreatesMarkdownRevisions(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hi</p>', $user));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $pageRepo->method('countBySpaceAndSlug')->willReturn(0);
+
+        $saved        = [];
+        $revisionRepo = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepo->method('getNextRevisionNumber')->willReturn(2);
+        $revisionRepo->method('save')->willReturnCallback(static function (WikiPageRevision $revision) use (&$saved): void {
+            $saved[] = $revision;
+        });
+
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            pageRepository: $pageRepo,
+            revisionRepository: $revisionRepo,
+            editor: ['type' => 'markdown', 'tiptap_config' => 'notion', 'markdown_form_type' => null],
+        );
+        $container = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $controller->editPage($this->createWikiPageFormRequest($container, 'wiki_edit_' . $page->getId(), ['content' => "| A |\r\n|---|\r\n| 1 |"]), 'eng', 'welcome');
+        $controller->newPage($this->createWikiPageFormRequest($container, 'wiki_new_' . $space->getId(), ['title' => 'Fresh', 'content' => '- [x] done']), 'eng');
+
+        self::assertCount(2, $saved);
+        self::assertSame("| A |\n|---|\n| 1 |", $saved[0]->getContentMarkdown());
+        self::assertStringContainsString('<td>1</td>', $saved[0]->getContentHtml());
+        self::assertTrue($saved[1]->isMarkdown());
+        self::assertSame('fresh', $saved[1]->getPage()->getSlug());
     }
 
     public function testNewPageGetRendersCreateForm(): void
@@ -1521,6 +1602,7 @@ MD);
         bool $allowUnauthenticated = false,
         ?WikiTokenGuard $tokenGuard = null,
         array $pagination = WikiManageController::DEFAULT_PAGINATION,
+        array $editor = ['tiptap_config' => 'notion'],
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1560,7 +1642,7 @@ MD);
             $this->routes,
             $this->templates,
             null,
-            ['tiptap_config' => 'notion'],
+            $editor,
             ['enabled' => $importExportEnabled, 'max_upload_bytes' => $maxUploadBytes],
             $allowUnauthenticated,
             $tokenGuard,

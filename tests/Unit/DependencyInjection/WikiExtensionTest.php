@@ -13,6 +13,10 @@ use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
+use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -56,6 +60,19 @@ final class WikiExtensionTest extends TestCase
 
         self::assertTrue($container->hasAlias(WikiHtmlSanitizerInterface::class));
         self::assertTrue($container->hasDefinition(WikiHtmlSanitizer::class));
+    }
+
+    public function testRegistersTheMarkdownRendererAndItsExtensionTag(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'markdown']]], $container);
+
+        self::assertSame(WikiMarkdownRenderer::class, (string) $container->getAlias(WikiMarkdownRendererInterface::class));
+        self::assertTrue($container->hasDefinition(WikiMarkdownRenderer::class));
+        self::assertSame('markdown', $container->getParameter('nowo_wiki.editor.type'));
+        self::assertSame('%nowo_wiki.editor.type%', $container->getDefinition(WikiDocumentImporter::class)->getArgument('$editorType'));
+        self::assertArrayHasKey('nowo_wiki.markdown_extension', $container->getAutoconfiguredInstanceof()[WikiMarkdownExtensionInterface::class]->getTags());
     }
 
     /**

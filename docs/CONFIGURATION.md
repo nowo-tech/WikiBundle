@@ -12,7 +12,9 @@ Root key: `nowo_wiki`.
 | `database.driver` | `doctrine_orm` | **Deprecated since 1.6, no effect** (only Doctrine ORM is supported); remove it from your config |
 | `database.platform` | `mysql` | **Deprecated since 1.6, no effect** (the platform comes from the Doctrine connection); remove it from your config |
 | `firewall` | `main` | **Deprecated since 1.6, no effect** (the bundle trusts any secured firewall that handles the wiki routes); remove it from your config |
+| `editor.type` | `tiptap` | `tiptap`: HTML pages edited with TiptapEditorType; `markdown` (1.11): Markdown pages (`content_markdown` is the source, `content_html` its sanitized render cache), see [Markdown pages](#markdown-pages-111) |
 | `editor.tiptap_config` | `notion` | TiptapEditorBundle config profile name |
+| `editor.markdown_form_type` | null | 1.11: form type FQCN of the page body when `editor.type` is `markdown` (e.g. a Markdown editor bundle); null = a plain textarea |
 | `security.access_checker` | null | Custom `WikiAccessCheckerInterface` service id |
 | `security.access_roles` | `[ROLE_USER]` | General gate of the wiki (REQ-UI-002); an empty list grants nothing through it |
 | `security.roles.<action>` | see [Roles per action](#roles-per-action-req-ui-003) | Roles per action (`admin`, `list`, `create`, `edit`, `history`, `archive`, `ai`, `import`, `export`); `null` = the deprecated `<action>_roles` key, else the default |
@@ -41,6 +43,7 @@ Root key: `nowo_wiki`.
 
 ## Table of contents
 
+- [Markdown pages (1.11)](#markdown-pages-111)
 - [Space access and tenant paths (1.9)](#space-access-and-tenant-paths-19)
 - [Attachments (1.9)](#attachments-19)
 - [Web UI (REQ-UI-001 / REQ-UI-003)](#web-ui-req-ui-001--req-ui-003)
@@ -49,6 +52,20 @@ Root key: `nowo_wiki`.
 - [Import / export](#import--export)
 - [Symfony AI integration](#symfony-ai-integration)
 - [Logging (REQ-OBS-001)](#logging-req-obs-001)
+
+## Markdown pages (1.11)
+
+```yaml
+nowo_wiki:
+    editor:
+        type: markdown                       # default: tiptap
+        markdown_form_type: null             # e.g. App\Form\MarkdownEditorType; null = textarea
+```
+
+- Revisions store `format` (`html` | `markdown`); with `markdown` the Markdown (`content_markdown`) is the source and `content_html` the render cache (sanitized). HTML revisions stay readable and are converted when edited, or in bulk with `bin/console wiki:convert-markdown` ([USAGE](USAGE.md#markdown-pages-111)).
+- The renderer is `Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface` (default `WikiMarkdownRenderer`: CommonMark + GFM, raw HTML escaped, unsafe links dropped). Add syntax with services implementing `WikiMarkdownExtensionInterface` (autoconfigured, tag `nowo_wiki.markdown_extension`), or replace the alias.
+- A host `markdown_form_type` receives the editor options (`upload_url`, `upload_csrf_token` when attachments are enabled, plus whatever `WikiEvents::EDITOR_OPTIONS` listeners add): it must accept them, or a listener removes them.
+- Schema: see [UPGRADING](UPGRADING.md#unreleased) (two columns on `<prefix>_page_revisions`).
 
 ## Space access and tenant paths (1.9)
 

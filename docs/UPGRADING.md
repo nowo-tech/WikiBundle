@@ -47,6 +47,33 @@
 
 ## Unreleased
 
+From **1.10.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+- **Schema (required, even if you keep Tiptap):** `<prefix>_page_revisions` gains two columns. The bundle ships the mapping only: generate a migration (`bin/console doctrine:migrations:diff`, then `doctrine:migrations:migrate`) or apply the SQL by hand (MySQL / MariaDB; the demo ships `Version20261031090000`):
+
+  ```sql
+  ALTER TABLE wiki_page_revisions
+      ADD content_markdown LONGTEXT DEFAULT NULL,
+      ADD format VARCHAR(16) DEFAULT 'html' NOT NULL;
+  ```
+
+  PostgreSQL: `ALTER TABLE wiki_page_revisions ADD content_markdown TEXT DEFAULT NULL, ADD format VARCHAR(16) DEFAULT 'html' NOT NULL;`. Existing rows become `format = 'html'` with no Markdown: nothing changes for them.
+- **Nothing else changes with the default `editor.type: tiptap`.** `WikiMarkdownConverter::markdownToHtml()` now reads GFM (Outline / Notion imports keep their tables, task lists and strikethrough).
+- **Moving to Markdown:** set `nowo_wiki.editor.type: markdown` (optionally `editor.markdown_form_type` with your Markdown editor's form type), then convert the existing pages — each gets one new revision, history untouched, safe to run again:
+
+  ```bash
+  bin/console wiki:convert-markdown docs handbook --author-id=admin@example.com --dry-run
+  bin/console wiki:convert-markdown docs handbook --author-id=admin@example.com
+  ```
+
+  The conversion dispatches `nowo_wiki.page.saved` for every converted page. Pages you do not convert are converted when they are next edited.
+- **Rendering:** a Markdown revision's `content_html` is rendered by `WikiMarkdownRendererInterface` (raw HTML escaped, unsafe links dropped) and then sanitized by `WikiHtmlSanitizerInterface`: markup your extensions emit must be allowed by the sanitizer (replace its alias to widen it).
+- **Code calling the page service:** `WikiPageService::create()` / `saveRevision()` keep their signatures with a new optional last `$format` argument (HTML by default); `WikiPageRevision` has a new optional last constructor argument `$contentMarkdown`.
+
 ## To 1.10.0
 
 From **1.9.0**:

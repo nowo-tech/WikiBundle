@@ -81,7 +81,8 @@ final readonly class WikiSearchService
             ->leftJoin('p.currentRevision', 'r')
             ->where('p.space IN (:spaces)')
             ->andWhere('p.archivedAt IS NULL')
-            ->andWhere("p.title LIKE :q ESCAPE '!' OR r.contentHtml LIKE :q ESCAPE '!'")
+            // 1.11: a Markdown revision is searched in its source, an HTML revision in its HTML.
+            ->andWhere("p.title LIKE :q ESCAPE '!' OR r.contentMarkdown LIKE :q ESCAPE '!' OR (r.contentMarkdown IS NULL AND r.contentHtml LIKE :q ESCAPE '!')")
             ->setParameter('spaces', $spaces)
             ->setParameter('q', $like)
             ->setMaxResults($limit)

@@ -34,6 +34,7 @@ wiki:
     save: Speichern
   editor:
     help: 'Text markieren für die schwebende Toolbar. Strg+K (Cmd+K) für Links. Doppelklick auf Bilder oder Embeds ändert die URL. Einfügen funktioniert wie gewohnt.'
+    markdown_help: "Markdown: # Überschriften, **fett**, *kursiv*, ~~durchgestrichen~~, Listen, - [ ] Aufgabenlisten, Tabellen, `Code` und [Links](https://example.com). HTML wird als Text angezeigt."
   action:
     cancel: Abbrechen
     back: "Zurück"

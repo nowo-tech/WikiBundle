@@ -19,6 +19,9 @@ use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
@@ -137,6 +140,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.firewall', $config['firewall']);
         $container->setParameter('nowo_wiki.security.allow_unauthenticated', $config['security']['allow_unauthenticated']);
         $container->setParameter('nowo_wiki.editor', $config['editor']);
+        $container->setParameter('nowo_wiki.editor.type', $config['editor']['type']);
         $container->setParameter('nowo_wiki.ai', $config['ai']);
         $container->setParameter('nowo_wiki.import_export', $config['import_export']);
         $container->setParameter('nowo_wiki.pagination', $config['pagination']);
@@ -189,6 +193,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
         $container->setAlias(WikiAccessCheckerInterface::class, $accessCheckerId);
         $container->setAlias(WikiHtmlSanitizerInterface::class, WikiHtmlSanitizer::class);
+        // 1.11: Markdown revisions — the default renderer takes every nowo_wiki.markdown_extension (none by default).
+        $container->registerForAutoconfiguration(WikiMarkdownExtensionInterface::class)->addTag('nowo_wiki.markdown_extension');
+        $container->setAlias(WikiMarkdownRendererInterface::class, WikiMarkdownRenderer::class);
         $container->setDefinition(WikiHtmlSanitizer::class, new Definition(WikiHtmlSanitizer::class));
 
         $container->setDefinition(WikiEntityManagerProvider::class, (new Definition(WikiEntityManagerProvider::class))

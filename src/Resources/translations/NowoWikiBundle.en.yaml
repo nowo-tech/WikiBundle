@@ -34,6 +34,7 @@ wiki:
     save: Save
   editor:
     help: 'Select text for the floating toolbar. Ctrl+K (Cmd+K) for links. Double-click images or embeds to change their URL. Paste works as usual.'
+    markdown_help: "Markdown: # headings, **bold**, *italic*, ~~strike~~, lists, - [ ] task lists, tables, `code` and [links](https://example.com). Raw HTML is shown as text."
   action:
     cancel: Cancel
     back: "Back"

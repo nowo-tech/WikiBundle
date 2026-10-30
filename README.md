@@ -29,6 +29,7 @@ This bundle is **FrankenPHP worker mode friendly**.
 - Pages on the **[UiKitBundle](https://github.com/nowo-tech/UiKitBundle) page contract** (list / show / form scaffolds, value-free view models, `<dialog>` confirm for Archive / Restore): the host themes them once with `nowo_ui_kit` — see [Templates](docs/TEMPLATES.md)
 - CSRF on every POST action (the container refuses to compile without form CSRF protection)
 - Integrates **[TiptapEditorBundle](https://github.com/nowo-tech/TiptapEditorBundle)** (`variant: notion` by default)
+- **Markdown pages (optional)** — `editor.type: markdown` stores the Markdown source with a sanitized HTML cache, an extensible league/commonmark + GFM renderer and `wiki:convert-markdown` for existing pages ([Usage](docs/USAGE.md#markdown-pages-111))
 - Web UI options under `nowo_wiki.web_ui` (`enabled`, `path_prefix`, `layout_template`, `templates.<page>`) and roles per action under `nowo_wiki.security.roles`
 
 ## Installation

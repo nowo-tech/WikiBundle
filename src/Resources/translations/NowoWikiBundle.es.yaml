@@ -34,6 +34,7 @@ wiki:
     save: Guardar
   editor:
     help: 'Selecciona texto para la barra flotante. Ctrl+K (Cmd+K) para enlaces. Doble clic en imágenes o embeds para cambiar la URL. Pegar funciona con normalidad.'
+    markdown_help: "Markdown: # títulos, **negrita**, *cursiva*, ~~tachado~~, listas, - [ ] listas de tareas, tablas, `código` y [enlaces](https://example.com). El HTML se muestra como texto."
   action:
     cancel: Cancelar
     back: "Volver"

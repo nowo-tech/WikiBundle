@@ -22,6 +22,8 @@ services:
             - '../../Routing/WikiTenantPaths.php'
             - '../../Routing/WikiTenantUrlGenerator.php'
             - '../../Ui/'
+            - '../../Interchange/HtmlToMarkdown/'
+            - '../../Markdown/WikiTaskListNormalizer.php'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
@@ -31,6 +33,7 @@ services:
     Nowo\WikiBundle\Interchange\WikiDocumentImporter:
         arguments:
             $logger: '@?logger'
+            $editorType: '%nowo_wiki.editor.type%'
         tags:
             - { name: monolog.logger, channel: nowo_wiki }
 

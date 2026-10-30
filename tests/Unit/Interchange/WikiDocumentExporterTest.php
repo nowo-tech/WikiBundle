@@ -55,6 +55,35 @@ final class WikiDocumentExporterTest extends TestCase
         }
     }
 
+    public function testMarkdownRevisionsExportTheirSource(): void
+    {
+        $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $page  = new WikiPage($space, 'runbook', 'Runbook');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>cache</p>', new TestUser(), "Source with [[wiki:0a1b2c3d-1111-2222-3333-444455556666]]\n\n| A |\n|---|\n| 1 |"));
+
+        $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepository->method('findActiveBySpace')->willReturn([$page]);
+
+        $target = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(4));
+        mkdir($target);
+
+        try {
+            (new WikiDocumentExporter(
+                $pageRepository,
+                new WikiPageTreeBuilder(),
+                new WikiMarkdownConverter(),
+                new WikiFrontMatterParser(),
+            ))->export($space, $target, WikiInterchangeFormat::Outline);
+
+            $content = (string) file_get_contents($target . '/runbook.md');
+            self::assertStringContainsString("Source with [[wiki:0a1b2c3d-1111-2222-3333-444455556666]]\n\n| A |\n|---|\n| 1 |", $content);
+            self::assertStringNotContainsString('cache', $content);
+        } finally {
+            unlink($target . '/runbook.md');
+            rmdir($target);
+        }
+    }
+
     public function testExportsNotionNestedFolders(): void
     {
         $space  = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');

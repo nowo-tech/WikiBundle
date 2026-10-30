@@ -11,6 +11,7 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 use function array_filter;
 use function array_values;
+use function class_exists;
 use function implode;
 use function is_array;
 use function is_string;
@@ -25,6 +26,12 @@ final class Configuration implements ConfigurationInterface
 
     /** Composer package (deprecation notices). */
     public const PACKAGE = 'nowo-tech/wiki-bundle';
+
+    /** editor.type: HTML pages edited with TiptapEditorType (default). */
+    public const EDITOR_TIPTAP = 'tiptap';
+
+    /** editor.type: Markdown pages (1.11). */
+    public const EDITOR_MARKDOWN = 'markdown';
 
     /** Default of security.access_roles. */
     public const DEFAULT_ACCESS_ROLES = ['ROLE_USER'];
@@ -136,7 +143,20 @@ final class Configuration implements ConfigurationInterface
                 ->arrayNode('editor')
                     ->addDefaultsIfNotSet()
                     ->children()
+                        ->enumNode('type')
+                            ->info('1.11: tiptap = pages are HTML edited with TiptapEditorType; markdown = pages are stored as Markdown (content_markdown, the source) with content_html as its sanitized render cache, edited in a textarea or in markdown_form_type.')
+                            ->values([self::EDITOR_TIPTAP, self::EDITOR_MARKDOWN])
+                            ->defaultValue(self::EDITOR_TIPTAP)
+                        ->end()
                         ->scalarNode('tiptap_config')->defaultValue('notion')->end()
+                        ->scalarNode('markdown_form_type')
+                            ->info('1.11: FQCN of the form type of the page body when type is markdown (e.g. a Markdown editor bundle type); null = a plain textarea. It receives the editor options (WikiEvents::EDITOR_OPTIONS).')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && (!is_string($value) || !class_exists($value)))
+                                ->thenInvalid('nowo_wiki.editor.markdown_form_type must be the class name of a form type, got %s.')
+                            ->end()
+                        ->end()
                     ->end()
                 ->end()
                 ->arrayNode('security')

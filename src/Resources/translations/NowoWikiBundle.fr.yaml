@@ -34,6 +34,7 @@ wiki:
     save: Enregistrer
   editor:
     help: 'Sélectionnez du texte pour la barre flottante. Ctrl+K (Cmd+K) pour les liens. Double-cliquez sur les images ou embeds pour changer l''URL. Le collage fonctionne normalement.'
+    markdown_help: "Markdown : # titres, **gras**, *italique*, ~~barré~~, listes, - [ ] listes de tâches, tableaux, `code` et [liens](https://example.com). Le HTML s'affiche comme du texte."
   action:
     cancel: Annuler
     back: "Retour"

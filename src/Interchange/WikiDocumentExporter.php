@@ -167,8 +167,11 @@ final readonly class WikiDocumentExporter
     private function writeMarkdownFile(string $path, WikiPage $page, ?WikiPage $parent): void
     {
         $revision = $page->getCurrentRevision();
-        $markdown = $revision instanceof WikiPageRevision ? $this->markdownConverter->htmlToMarkdown($revision->getContentHtml()) : '';
-        $meta     = [
+        // 1.11: a Markdown revision exports its source as is.
+        $markdown = $revision instanceof WikiPageRevision
+            ? $revision->getContentMarkdown() ?? $this->markdownConverter->htmlToMarkdown($revision->getContentHtml())
+            : '';
+        $meta = [
             'title'       => $page->getTitle(),
             'wiki_slug'   => $page->getSlug(),
             'wiki_parent' => $parent?->getSlug() ?? '',

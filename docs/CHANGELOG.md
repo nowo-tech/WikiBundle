@@ -41,6 +41,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Wiki: Markdown storage (`editor.type: markdown`) — revisions keep their Markdown source with a sanitized HTML render cache, an extensible league/commonmark renderer, GFM everywhere, and `wiki:convert-markdown` to move existing pages. See [UPGRADING](UPGRADING.md#unreleased).
+
+### Added
+
+- **Markdown storage:** `nowo_wiki.editor.type` (`tiptap` default | `markdown`). Revisions gain `content_markdown` (nullable) and `format` (`html` | `markdown`); with `markdown` the page form writes Markdown, the Markdown is the source and `content_html` is its sanitized render cache (page view, AI context, attachment references keep reading it). The page body is a plain textarea, or the host form type of `editor.markdown_form_type` (e.g. a Markdown editor bundle) with the editor options of `WikiEvents::EDITOR_OPTIONS`; an HTML page opened in the Markdown editor is converted for the form and saved as Markdown.
+- `Markdown\WikiMarkdownRendererInterface` (alias) and `Markdown\WikiMarkdownRenderer`: league/commonmark + GitHub-flavoured Markdown, raw HTML escaped, unsafe links dropped, plus every `WikiMarkdownExtensionInterface` service (autoconfigured tag `nowo_wiki.markdown_extension`; none by default) — the extension point for the page-link / mention / icon / directive dialect of an editor bundle.
+- `Markdown\WikiMarkdownReferenceExtractor`: the `[[wiki:<uuid>]]` / `[[wiki:<uuid>#anchor]]` page references of a Markdown revision (outside code), for host backlink indexes (listen to `nowo_wiki.page.saved`).
+- `bin/console wiki:convert-markdown <space>... --author-id=<id> [--dry-run]`: appends one Markdown revision per page whose current revision is HTML (`WikiMarkdownConverter::htmlToMarkdown()`, archived pages included, older revisions untouched); idempotent. `WikiPageService::convertToMarkdown()`.
+- `WikiPageService::create()` / `saveRevision()` take an optional `$format` (`WikiPageRevision::FORMAT_HTML` default, `FORMAT_MARKDOWN`); `restore()` keeps the format of the restored revision.
+- Translation key `wiki.editor.markdown_help` in the seven locales; demo migration for the two new columns.
+
+### Changed
+
+- `WikiMarkdownConverter::markdownToHtml()` reads GitHub-flavoured Markdown (tables, task lists, strikethrough, autolinks); task lists come out in the Tiptap markup (`data-type="taskList"` / `taskItem`, `data-checked`) instead of `<input>` checkboxes. `htmlToMarkdown()` writes GFM tables, task lists (`- [x]`) and strikethrough (`~~`).
+- Markdown revisions: search matches the Markdown source, export writes it as is, diffs compare Markdown lines, and imports keep the Markdown when `editor.type` is `markdown`.
+
 ## [1.10.0] - 2026-10-30
 
 Wiki: UiKit page contract (scaffolds, value-free view models, dialogs); SEC-004 BR: hidden pages never listed, searched, exported or sent to AI, access_roles enforced, attachment downloads gated, allow_unauthenticated debug-only. See [UPGRADING](UPGRADING.md#to-1100).
