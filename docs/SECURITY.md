@@ -48,8 +48,10 @@ Replace defaults via `nowo_wiki.security.access_checker` and `nowo_wiki.team_mem
 
 - **Team scope:** spaces visible when `owner_scope_id` is in resolver team ids.
 - **User scope:** spaces owned by the current user id.
-- **Roles:** `ConfigurableWikiAccessChecker` supports admin bypass and per-action role lists.
-- **Demo bypass:** `security.allow_unauthenticated: true` wires `AllowAllWikiAccessChecker` (never in production).
+- **Roles:** `ConfigurableWikiAccessChecker` grants everything to the admin roles (`security.roles.admin`); every other permission needs one of `security.access_roles` (the general gate, enforced since 1.10) **and** one of `security.roles.<action>`. An empty list grants nothing, an explicit `~` too; when every list is empty without an `access_checker` the container refuses to compile.
+- **Attachments:** downloads also need `canList()` and uploads `canEdit()` of the role checker (1.10), on top of the space / page checker.
+- **Demo bypass:** `security.allow_unauthenticated: true` wires `AllowAllWikiAccessChecker`. It must be a literal boolean (an env placeholder is refused) and the container refuses it in the `prod` environment and in non-debug kernels (`test*` environments excepted), since 1.10.
+- **CSRF fails closed:** with the Web UI enabled, the container refuses to compile without form CSRF protection or the CSRF token manager (`CsrfProtectionPass`, 1.10).
 
 Host firewall example:
 
@@ -67,6 +69,14 @@ See [docs/examples/AccessControl.md](examples/AccessControl.md) and [USAGE.md](U
 may not view answers 404 (never 403), so its existence does not leak; a denied write on a readable space answers 403.
 Attachment downloads ask `view` on the attachment's **own** page and answer 404 to every denial (missing, other space,
 forbidden, archived page without `manage`).
+
+Since 1.10 a page the checker hides is hidden **everywhere**, not only on its own routes: the sidebar tree (with its
+sub-pages, and the "tree truncated" notice counts readable pages only), the archived list, search results, the space
+export ZIP, the AI sources, the AI context and the `wiki_knowledge_search` tool. Space lists (index, search and AI space
+choices) only show spaces the checker lets the user `view`; a question across spaces only uses the spaces where `ask_ai`
+is granted too. In **1.9.0** these lists, the export and the AI context ignored the per-page `view` decision of a host
+checker (titles, excerpts and bodies of hidden pages were disclosed; the default checker is not affected) — upgrade to
+1.10.0.
 
 ## Content safety
 
@@ -113,7 +123,28 @@ Channel `nowo_wiki` (PSR-3, see [CONFIGURATION.md](CONFIGURATION.md#logging-req-
 
 ## REQ-SEC-004
 
-AI audit + remedia **2026-07-29** — grade **Pass (conditional)** / residual risk **Medium** (stored HTML depends on sanitizer allowlist; AI prompt-injection; ZIP import within size cap; host must keep ACL roles tight).
+| Date | Version | Grade / residual risk | Record |
+| --- | --- | --- | --- |
+| 2026-10-30 | PR #71 → 1.10.0 | Pass (conditional) / Medium at `4fad654`; M1, L1, L2, L3 and the cheap info items fixed in this PR (Pass (good) / Low once confirmed) | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix BR |
+| 2026-10-29 | 1.8.0 | Pass (good) / Low | Appendix BB |
+| 2026-07-29 | 1.x | Pass (conditional) / Medium | AI audit + remedia |
+
+Appendix BR (2026-10-30) findings and their status in 1.10.0:
+
+| Id | Finding | Status |
+| --- | --- | --- |
+| M1 | The space export shipped pages hidden by a per-page `view` rule (also in 1.9.0) | Fixed: the web export keeps the readable pages and their readable ancestors only (`WikiDocumentExporter::export()` page filter); the CLI export (no user) stays complete |
+| L1 | Attachment download ignored `access_roles` / the list roles | Fixed: `canList()` (404) on download, `canEdit()` on upload |
+| L2 | Deprecated `<action>_roles: ~` / `roles.<action>: ~` widened to the default | Fixed: an explicit `~` means no role (`treatNullLike([])`), as in 1.9 |
+| L3 | Space lists and the global AI question ignored per-space `view` / `ask_ai` of a custom checker | Fixed in the controller, `WikiContextRetriever` and `WikiKnowledgeSearchTool` |
+| I1 | "Tree truncated" counted hidden pages | Fixed |
+| I2 | Restore looked up the revision before the CSRF check | Fixed: CSRF first |
+| I3 | Dist archives shipped demo, tests and tooling | Fixed: `.gitattributes` `export-ignore` |
+| I4 | Demo loads Bootstrap from a CDN without SRI | Accepted (demo only) |
+| I5 | Attachment quota is read-then-write | Accepted residual: concurrent uploads can exceed `max_space_bytes` by at most one file per concurrent request |
+| BB L1 | `allow_unauthenticated` accepted in production | Fixed: literal booleans only, refused in `prod` / non-debug kernels |
+
+Fixed in 1.10.0 for released versions: the 1.9.0 hidden-page disclosure (tree, archived list, search, export, AI context / sources / tool) and `security.access_roles` not being enforced in 1.0.0–1.9.0 (it was documented as a gate). Open residuals (BB): unbounded AI question length, wiki context in the system prompt (prompt injection), `class` allowed on sanitized elements.
 
 ## Reporting
 

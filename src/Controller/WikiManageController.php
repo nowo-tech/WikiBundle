@@ -63,7 +63,6 @@ use function array_slice;
 use function array_values;
 use function ceil;
 use function count;
-use function in_array;
 use function is_string;
 use function max;
 use function min;
@@ -150,7 +149,7 @@ final class WikiManageController extends AbstractController
     {
         $this->denyUnlessFeature('list');
         $user      = $this->requireUser();
-        $spaces    = $this->spaceAccessResolver->listSpacesForUser($user);
+        $spaces    = $this->readableSpaces($user);
         $perPage   = max(1, $this->pagination['spaces_per_page']);
         $total     = count($spaces);
         $pageCount = max(1, (int) ceil($total / $perPage));
@@ -189,7 +188,7 @@ final class WikiManageController extends AbstractController
         [$tree, $treeTruncated] = $this->buildTree($user, $space);
         $permissions            = $this->spaceGuard->grants($user, $space);
         $archived               = $permissions['archive'] && isset($this->routes['page_unarchive'])
-            ? $this->readable($user, $space, $this->pageRepository->findArchivedBySpace($space))
+            ? $this->visiblePages($user, $space, $this->pageRepository->findArchivedBySpace($space))
             : [];
         $can = [
             'create' => $this->accessChecker->canCreate($user) && $permissions['create'],
@@ -543,13 +542,14 @@ final class WikiManageController extends AbstractController
         $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::Restore, $space, $page);
 
+        // CSRF first: the revision lookup must not tell a forged request which revision numbers exist.
+        if (!$this->isValidCsrf($request, 'wiki_restore_' . $page->getId())) {
+            throw new AccessDeniedHttpException('Invalid CSRF token.');
+        }
+
         $revision = $this->revisionRepository->findByPageAndNumber($page, $revisionNumber);
         if (!$revision instanceof WikiPageRevision) {
             throw new NotFoundHttpException('Revision not found.');
-        }
-
-        if (!$this->isValidCsrf($request, 'wiki_restore_' . $page->getId())) {
-            throw new AccessDeniedHttpException('Invalid CSRF token.');
         }
 
         $this->pageService->restore($page, $revision, $user);
@@ -574,7 +574,7 @@ final class WikiManageController extends AbstractController
         $spaceSlug = $request->query->getString('space');
         $results   = [];
         $space     = null;
-        $spaces    = $this->spaceAccessResolver->listSpacesForUser($user);
+        $spaces    = $this->readableSpaces($user);
         $global    = false;
 
         if ($spaceSlug !== '') {
@@ -636,7 +636,7 @@ final class WikiManageController extends AbstractController
 
         $zipPath = sys_get_temp_dir() . '/wiki-export-' . $space->getSlug() . '-' . bin2hex(random_bytes(4)) . '.zip';
         try {
-            $this->documentExporter->export($space, $workingDir, $format);
+            $this->documentExporter->export($space, $workingDir, $format, fn (array $pages): array => $this->visiblePages($user, $space, $pages));
             $this->archiveHelper->createZipFromDirectory($workingDir, $zipPath);
         } catch (Throwable $exception) {
             // @codeCoverageIgnoreStart
@@ -772,7 +772,7 @@ final class WikiManageController extends AbstractController
     {
         $this->denyUnlessFeature('ai');
         $user      = $this->requireUser();
-        $spaces    = $this->spaceAccessResolver->listSpacesForUser($user);
+        $spaces    = $this->readableSpaces($user, WikiAction::AskAi);
         $question  = trim($request->request->getString('q', $request->query->getString('q')));
         $spaceSlug = $request->request->getString('space', $request->query->getString('space'));
         $space     = null;
@@ -1033,39 +1033,53 @@ final class WikiManageController extends AbstractController
      */
     private function buildTree(UserInterface $user, WikiSpace $space): array
     {
-        $max      = max(1, $this->pagination['max_tree_pages']);
-        $pages    = $this->pageRepository->findActiveBySpace($space, $max + 1);
-        $readable = $this->readable($user, $space, array_slice($pages, 0, $max));
-        $hidden   = [];
-        foreach (array_slice($pages, 0, $max) as $page) {
-            if (!in_array($page, $readable, true)) {
-                $hidden[$page->getId()] = true;
-            }
-        }
+        $max     = max(1, $this->pagination['max_tree_pages']);
+        $visible = $this->visiblePages($user, $space, $this->pageRepository->findActiveBySpace($space, $max + 1));
 
-        $visible = array_values(array_filter($readable, static function (WikiPage $page) use ($hidden): bool {
-            for ($parent = $page->getParent(); $parent instanceof WikiPage; $parent = $parent->getParent()) {
-                if (isset($hidden[$parent->getId()])) {
-                    return false;
-                }
-            }
-
-            return true;
-        }));
-
-        return [$this->pageTreeBuilder->build($visible), count($pages) > $max];
+        // The truncation flag counts readable pages only, so it does not reveal that hidden pages exist.
+        return [$this->pageTreeBuilder->build(array_slice($visible, 0, $max)), count($visible) > $max];
     }
 
     /**
-     * Pages of a space the user may read ({@see WikiAction::View} on each page), input order kept.
+     * Pages the user may read with all their ancestors ({@see WikiAction::View} on each page and each parent): a
+     * hidden page hides its whole sub-tree. Shared by the sidebar tree and the space export. Input order kept.
      *
      * @param list<WikiPage> $pages
      *
      * @return list<WikiPage>
      */
-    private function readable(UserInterface $user, WikiSpace $space, array $pages): array
+    private function visiblePages(UserInterface $user, WikiSpace $space, array $pages): array
     {
-        return array_values(array_filter($pages, fn (WikiPage $page): bool => $this->spaceGuard->isGranted($user, WikiAction::View, $space, $page)));
+        /** @var array<string, bool> $decisions page id => readable with its ancestors */
+        $decisions = [];
+        $visible   = function (WikiPage $page) use (&$visible, &$decisions, $user, $space): bool {
+            $id = $page->getId();
+            if (!isset($decisions[$id])) {
+                $decisions[$id] = false; // a parent cycle resolves to hidden
+                $parent         = $page->getParent();
+                $decisions[$id] = $this->spaceGuard->isGranted($user, WikiAction::View, $space, $page)
+                    && (!$parent instanceof WikiPage || $visible($parent));
+            }
+
+            return $decisions[$id];
+        };
+
+        return array_values(array_filter($pages, $visible));
+    }
+
+    /**
+     * Spaces of the user that the space checker lets them view ({@see WikiAction::View} per space), and optionally
+     * also the given action (e.g. {@see WikiAction::AskAi} for a question across spaces).
+     *
+     * @return list<WikiSpace>
+     */
+    private function readableSpaces(UserInterface $user, ?WikiAction $action = null): array
+    {
+        return array_values(array_filter(
+            $this->spaceAccessResolver->listSpacesForUser($user),
+            fn (WikiSpace $space): bool => $this->spaceGuard->isGranted($user, WikiAction::View, $space)
+                && (!$action instanceof WikiAction || $this->spaceGuard->isGranted($user, $action, $space)),
+        ));
     }
 
     /**

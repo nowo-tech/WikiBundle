@@ -14,6 +14,8 @@ use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+use function array_filter;
+use function array_values;
 use function json_encode;
 
 use const JSON_THROW_ON_ERROR;
@@ -68,9 +70,17 @@ final readonly class WikiKnowledgeSearchTool
             return json_encode(['results' => []], JSON_THROW_ON_ERROR);
         }
 
-        $limit  = max(1, min($limit, 25));
-        $space  = $this->resolveSpace($user, $space_slug);
-        $spaces = $this->spaceAccessResolver->listSpacesForUser($user);
+        $limit = max(1, min($limit, 25));
+        $space = $this->resolveSpace($user, $space_slug);
+        // 1.10: only spaces the checker lets the user view and ask the AI about are searched.
+        $spaces = array_values(array_filter(
+            $this->spaceAccessResolver->listSpacesForUser($user),
+            fn (WikiSpace $candidate): bool => $this->mayAsk($user, $candidate),
+        ));
+        if ($space instanceof WikiSpace && !$this->mayAsk($user, $space)) {
+            $space  = null;
+            $spaces = [];
+        }
 
         $hits = $space instanceof WikiSpace
             ? $this->searchService->search($space, $query, $limit)
@@ -90,6 +100,16 @@ final readonly class WikiKnowledgeSearchTool
         }
 
         return json_encode(['results' => $results], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Whether the space may be searched for the assistant: {@see WikiAction::View} and {@see WikiAction::AskAi} on it
+     * (no checker = every space of the resolver).
+     */
+    private function mayAsk(UserInterface $user, WikiSpace $space): bool
+    {
+        return !$this->accessChecker instanceof WikiSpaceAccessCheckerInterface
+            || ($this->accessChecker->isGranted($user, WikiAction::View, $space) && $this->accessChecker->isGranted($user, WikiAction::AskAi, $space));
     }
 
     private function resolveSpace(UserInterface $user, ?string $spaceSlug): ?WikiSpace

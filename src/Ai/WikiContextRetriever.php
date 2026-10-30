@@ -12,6 +12,8 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+use function array_filter;
+use function array_values;
 use function count;
 use function in_array;
 use function preg_split;
@@ -29,7 +31,7 @@ final readonly class WikiContextRetriever
      *
      * @param WikiSearchService $searchService page search service
      * @param WikiSpaceAccessResolverInterface $spaceAccessResolver lists the spaces the user can access
-     * @param WikiSpaceAccessCheckerInterface|null $accessChecker keeps pages the user may not view out of the context (1.10; null = every hit of an accessible space)
+     * @param WikiSpaceAccessCheckerInterface|null $accessChecker keeps spaces without View + AskAi and pages without View out of the context (1.10; null = every hit of an accessible space)
      */
     public function __construct(
         private WikiSearchService $searchService,
@@ -63,9 +65,14 @@ final readonly class WikiContextRetriever
             return ['context' => '', 'sources' => []];
         }
 
-        $spaces = $space instanceof WikiSpace
-            ? [$space]
-            : $this->spaceAccessResolver->listSpacesForUser($user);
+        // 1.10: only spaces the checker lets the user view and ask the AI about feed the context.
+        $spaces = array_values(array_filter(
+            $space instanceof WikiSpace ? [$space] : $this->spaceAccessResolver->listSpacesForUser($user),
+            fn (WikiSpace $candidate): bool => $this->mayAsk($user, $candidate),
+        ));
+        if ($space instanceof WikiSpace && $spaces === []) {
+            return ['context' => '', 'sources' => []];
+        }
 
         $sources = $this->collectSources($user, $spaces, $question, $space, $maxPages);
         $context = $this->buildContext($sources, $maxChars);
@@ -111,6 +118,16 @@ final readonly class WikiContextRetriever
         }
 
         return array_values($indexed);
+    }
+
+    /**
+     * Whether the space may feed the AI context: {@see WikiAction::View} and {@see WikiAction::AskAi} on it (no checker
+     * = every space of the resolver).
+     */
+    private function mayAsk(UserInterface $user, WikiSpace $space): bool
+    {
+        return !$this->accessChecker instanceof WikiSpaceAccessCheckerInterface
+            || ($this->accessChecker->isGranted($user, WikiAction::View, $space) && $this->accessChecker->isGranted($user, WikiAction::AskAi, $space));
     }
 
     /**

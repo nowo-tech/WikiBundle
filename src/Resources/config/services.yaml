@@ -84,6 +84,7 @@ services:
         arguments:
             $routes: '%nowo_wiki.routes%'
             $attachments: '%nowo_wiki.attachments%'
+            $accessChecker: '@Nowo\WikiBundle\Security\WikiAccessCheckerInterface'
 
     # 1.9: the attachment service logs on the nowo_wiki channel.
     Nowo\WikiBundle\Attachment\WikiAttachmentService:

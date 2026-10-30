@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
@@ -164,6 +165,26 @@ final class WikiAttachmentControllerTest extends TestCase
         self::assertSame(200, $manager->download('eng', $file->getId())->getStatusCode());
     }
 
+    public function testTheRoleGateAppliesToDownloadsAndUploads(): void
+    {
+        $file   = $this->stored('a.txt', 'hello');
+        $closed = $this->createStub(WikiAccessCheckerInterface::class);
+        $closed->method('canList')->willReturn(false);
+        $closed->method('canEdit')->willReturn(false);
+
+        // Space member and page reader, but outside access_roles / list roles: 404 like any other denial.
+        [$outsider, $container] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit), roles: $closed);
+        $this->assertThrows(NotFoundHttpException::class, static fn () => $outsider->download('eng', $file->getId()));
+        $this->assertThrows(AccessDeniedHttpException::class, fn () => $outsider->upload($this->uploadRequest($container, 'x', 'a.txt'), 'eng', 'runbook'));
+
+        $open = $this->createStub(WikiAccessCheckerInterface::class);
+        $open->method('canList')->willReturn(true);
+        $open->method('canEdit')->willReturn(true);
+        [$member, $memberContainer] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit), roles: $open);
+        self::assertSame(200, $member->download('eng', $file->getId())->getStatusCode());
+        self::assertSame(201, $member->upload($this->uploadRequest($memberContainer, base64_decode(self::PNG, true), 'b.png'), 'eng', 'runbook')->getStatusCode());
+    }
+
     /**
      * @param class-string<Throwable> $class
      */
@@ -209,7 +230,7 @@ final class WikiAttachmentControllerTest extends TestCase
     /**
      * @return array{0: WikiAttachmentController, 1: Container}
      */
-    private function controller(CallbackSpaceAccessChecker $checker, bool $enabled = true, bool $user = true, ?WikiTokenGuard $tokenGuard = null): array
+    private function controller(CallbackSpaceAccessChecker $checker, bool $enabled = true, bool $user = true, ?WikiTokenGuard $tokenGuard = null, ?WikiAccessCheckerInterface $roles = null): array
     {
         $pages = $this->createStub(WikiPageRepositoryInterface::class);
         $pages->method('findBySlug')->willReturnCallback(fn (WikiSpace $space, string $slug): ?WikiPage => $slug === 'runbook' ? $this->page : null);
@@ -222,6 +243,7 @@ final class WikiAttachmentControllerTest extends TestCase
             ['attachment_download' => ['path' => '/x', 'name' => 'nowo_wiki_attachment_download']],
             ['enabled' => $enabled],
             $tokenGuard,
+            $roles,
         );
         $container = WikiControllerContainerBuilder::bind($controller, $user ? new TestUser() : null);
 

@@ -47,11 +47,13 @@ final readonly class WikiDocumentExporter
     private LoggerInterface $logger;
 
     /**
-     * Writes every active page of the space as Markdown files under the target directory.
+     * Writes the active pages of the space (those the page filter keeps) as Markdown files under the target directory.
      *
      * @param WikiSpace $space space to export
      * @param string $targetDir output directory (created when missing)
      * @param WikiInterchangeFormat $format Outline or Notion layout (Auto means Outline)
+     * @param (callable(list<WikiPage>): list<WikiPage>)|null $pageFilter keeps the pages the requesting user may read
+     *                                                                    (1.10; the web export passes the per-page View rule, the CLI exports everything)
      *
      * @throws InvalidArgumentException when an output directory cannot be created
      *
@@ -61,6 +63,7 @@ final readonly class WikiDocumentExporter
         WikiSpace $space,
         string $targetDir,
         WikiInterchangeFormat $format,
+        ?callable $pageFilter = null,
     ): WikiExportReport {
         if ($format === WikiInterchangeFormat::Auto) {
             $format = WikiInterchangeFormat::Outline;
@@ -70,7 +73,7 @@ final readonly class WikiDocumentExporter
         $this->logger->info('Wiki export started.', $logContext);
 
         try {
-            $report = $this->doExport($space, $targetDir, $format);
+            $report = $this->doExport($space, $targetDir, $format, $pageFilter);
         } catch (Throwable $exception) {
             $this->logger->error('Wiki export failed.', $logContext + ['exception_class' => $exception::class]);
 
@@ -82,14 +85,20 @@ final readonly class WikiDocumentExporter
         return $report;
     }
 
-    private function doExport(WikiSpace $space, string $targetDir, WikiInterchangeFormat $format): WikiExportReport
+    /**
+     * @param (callable(list<WikiPage>): list<WikiPage>)|null $pageFilter
+     */
+    private function doExport(WikiSpace $space, string $targetDir, WikiInterchangeFormat $format, ?callable $pageFilter): WikiExportReport
     {
 
         if (!is_dir($targetDir) && !mkdir($targetDir, 0700, true) && !is_dir($targetDir)) {
             throw new InvalidArgumentException('Unable to create export directory.');
         }
 
-        $pages  = $this->pageRepository->findActiveBySpace($space);
+        $pages = $this->pageRepository->findActiveBySpace($space);
+        if ($pageFilter !== null) {
+            $pages = $pageFilter($pages);
+        }
         $tree   = $this->pageTreeBuilder->build($pages);
         $report = new WikiExportReport(outputPath: $targetDir);
 

@@ -139,6 +139,22 @@ final class WikiContextRetrieverTest extends TestCase
         self::assertStringNotContainsString('Secret', $result['context']);
     }
 
+    public function testSpacesWithoutAskAiDoNotFeedTheContext(): void
+    {
+        $user  = new TestUser();
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'runbook', 'Runbook');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $noAi   = CallbackSpaceAccessChecker::allowing(WikiAction::View);
+        $search = $this->createSearchService([[$page, 'contentHtml' => '']]);
+
+        self::assertSame(['context' => '', 'sources' => []], (new WikiContextRetriever($search, $resolver, $noAi))->retrieve($user, 'runbook', null, 5, 5000));
+        self::assertSame(['context' => '', 'sources' => []], (new WikiContextRetriever($search, $resolver, $noAi))->retrieve($user, 'runbook', $space, 5, 5000));
+        self::assertCount(1, (new WikiContextRetriever($search, $resolver, CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::AskAi)))->retrieve($user, 'runbook', $space, 5, 5000)['sources']);
+    }
+
     /**
      * @param list<array{0: WikiPage, contentHtml: string}> $rows
      */

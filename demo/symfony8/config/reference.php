@@ -1352,15 +1352,15 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         access_checker?: scalar|Param|null, // Default: null
  *         access_roles?: list<scalar|Param|null>,
  *         roles?: array{ // Roles per action (REQ-UI-003 security.roles.<action>; replace the deprecated <action>_roles keys). null = the deprecated key, else the default. admin = every action; an empty list grants that action to nobody but the admin roles.
- *             admin?: mixed, // Roles granted the "admin" action (default ROLE_ADMIN). // Default: null
- *             list?: mixed, // Roles granted the "list" action (default ROLE_USER). // Default: null
- *             create?: mixed, // Roles granted the "create" action (default ROLE_USER). // Default: null
- *             edit?: mixed, // Roles granted the "edit" action (default ROLE_USER). // Default: null
- *             history?: mixed, // Roles granted the "history" action (default ROLE_USER). // Default: null
- *             archive?: mixed, // Roles granted the "archive" action (default ROLE_USER). // Default: null
- *             ai?: mixed, // Roles granted the "ai" action (default ROLE_USER). // Default: null
- *             import?: mixed, // Roles granted the "import" action (default ROLE_ADMIN). // Default: null
- *             export?: mixed, // Roles granted the "export" action (default ROLE_USER). // Default: null
+ *             admin?: mixed, // Roles granted the "admin" action (default ROLE_ADMIN). An explicit null (`~`) means no role, like []. // Default: null
+ *             list?: mixed, // Roles granted the "list" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
+ *             create?: mixed, // Roles granted the "create" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
+ *             edit?: mixed, // Roles granted the "edit" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
+ *             history?: mixed, // Roles granted the "history" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
+ *             archive?: mixed, // Roles granted the "archive" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
+ *             ai?: mixed, // Roles granted the "ai" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
+ *             import?: mixed, // Roles granted the "import" action (default ROLE_ADMIN). An explicit null (`~`) means no role, like []. // Default: null
+ *             export?: mixed, // Roles granted the "export" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
  *         },
  *         admin_roles?: mixed, // Deprecated: The "nowo_wiki.security.admin_roles.admin_roles" option is deprecated, use "nowo_wiki.security.roles.admin" instead. // Deprecated since 1.10: use security.roles.admin. // Default: null
  *         list_roles?: mixed, // Deprecated: The "nowo_wiki.security.list_roles.list_roles" option is deprecated, use "nowo_wiki.security.roles.list" instead. // Deprecated since 1.10: use security.roles.list. // Default: null
@@ -1371,7 +1371,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         ai_roles?: mixed, // Deprecated: The "nowo_wiki.security.ai_roles.ai_roles" option is deprecated, use "nowo_wiki.security.roles.ai" instead. // Deprecated since 1.10: use security.roles.ai. // Default: null
  *         import_roles?: mixed, // Deprecated: The "nowo_wiki.security.import_roles.import_roles" option is deprecated, use "nowo_wiki.security.roles.import" instead. // Deprecated since 1.10: use security.roles.import. // Default: null
  *         export_roles?: mixed, // Deprecated: The "nowo_wiki.security.export_roles.export_roles" option is deprecated, use "nowo_wiki.security.roles.export" instead. // Deprecated since 1.10: use security.roles.export. // Default: null
- *         allow_unauthenticated?: bool|Param, // Default: false
+ *         allow_unauthenticated?: bool|Param, // DEV / DEMO ONLY: allow every wiki action without a role check. Literal boolean; refused in the prod environment and in non-debug kernels (test* environments excepted). // Default: false
  *     },
  *     import_export?: array{
  *         enabled?: bool|Param, // Default: true

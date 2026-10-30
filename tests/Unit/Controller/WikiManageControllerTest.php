@@ -1175,7 +1175,8 @@ MD);
     {
         $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
-        $resolver->expects(self::once())->method('listSpacesForUser')->willReturn([$space]);
+        // 1.10: the index also asks the space checker per space (the 1.x one reads the resolver again).
+        $resolver->expects(self::atLeastOnce())->method('listSpacesForUser')->willReturn([$space]);
 
         $requestStack = new RequestStack();
         $controller   = $this->controller(spaceAccessResolver: $resolver, tokenGuard: new WikiTokenGuard($requestStack));

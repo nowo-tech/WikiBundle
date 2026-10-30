@@ -24,11 +24,13 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Bundle\FrameworkBundle\DependencyInjection\FrameworkExtension;
 use Symfony\Bundle\SecurityBundle\DependencyInjection\SecurityExtension;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
@@ -380,6 +382,50 @@ final class WikiExtensionTest extends TestCase
         $extension->prepend($container);
 
         self::assertSame([], $container->getExtensionConfig('nowo_ui_kit'));
+    }
+
+    public function testSecuritySwitchesMustBeLiteralBooleans(): void
+    {
+        foreach ([['security' => ['allow_unauthenticated' => '%env(bool:WIKI_PUBLIC)%']], ['web_ui' => ['enabled' => '%env(bool:WIKI_UI)%']]] as $config) {
+            $container = new ContainerBuilder();
+            $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+
+            try {
+                (new WikiExtension())->load([['user_class' => 'App\\Entity\\User'] + $config], $container);
+                self::fail('A placeholder must be refused.');
+            } catch (InvalidConfigurationException $exception) {
+                // The tree refuses a plain string; an env placeholder that passes the tree is refused by load().
+                self::assertMatchesRegularExpression('/literal boolean|Expected "bool"/', $exception->getMessage());
+            }
+        }
+    }
+
+    public function testAnEnvPlaceholderThatPassesTheTreeIsRefused(): void
+    {
+        // In a real kernel an env placeholder passes the boolean node and reaches load() as a string.
+        $literalBool = new ReflectionMethod(WikiExtension::class, 'literalBool');
+        self::assertTrue($literalBool->invoke(new WikiExtension(), true, 'web_ui.enabled'));
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.security.allow_unauthenticated must be a literal boolean');
+        $literalBool->invoke(new WikiExtension(), 'env_0123456789abcdef_bool_WIKI_PUBLIC_0123456789abcdef', 'security.allow_unauthenticated');
+    }
+
+    public function testAllowUnauthenticatedIsRefusedInProduction(): void
+    {
+        foreach ([['prod', true, false], ['staging', false, false], ['test', false, true], ['dev', true, true]] as [$environment, $debug, $allowed]) {
+            $container = new ContainerBuilder();
+            $container->setParameter('kernel.environment', $environment);
+            $container->setParameter('kernel.debug', $debug);
+
+            try {
+                (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'security' => ['allow_unauthenticated' => true]]], $container);
+                self::assertTrue($allowed, $environment . ' must refuse allow_unauthenticated');
+            } catch (InvalidConfigurationException $exception) {
+                self::assertFalse($allowed, $environment . ': ' . $exception->getMessage());
+                self::assertStringContainsString('dev/demo switch', $exception->getMessage());
+            }
+        }
     }
 
     public function testPrependsTwigGlobalsWhenExtensionPresent(): void

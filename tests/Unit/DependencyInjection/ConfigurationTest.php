@@ -11,6 +11,7 @@ use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
 
 use function implode;
+use function json_encode;
 
 use const E_USER_DEPRECATED;
 
@@ -126,6 +127,33 @@ final class ConfigurationTest extends TestCase
         self::assertSame(['ROLE_ADMIN'], $roles['admin']);
         self::assertCount(2, $deprecations);
         self::assertStringContainsString('security.roles.list', $deprecations[0] . $deprecations[1]);
+    }
+
+    public function testAnExplicitNullRoleListGrantsNothingLikeAnEmptyOne(): void
+    {
+        set_error_handler(static fn (): bool => true, E_USER_DEPRECATED);
+
+        try {
+            foreach ([null, []] as $value) {
+                $config = (new Processor())->processConfiguration(new Configuration(), [[
+                    'user_class' => 'App\\Entity\\User',
+                    'security'   => [
+                        'create_roles' => $value,
+                        'admin_roles'  => $value,
+                        'roles'        => ['import' => $value, 'export' => $value],
+                    ],
+                ]]);
+                $roles = Configuration::resolveRoles($config['security']);
+
+                self::assertSame([], $roles['create'], 'deprecated create_roles: ' . json_encode($value));
+                self::assertSame([], $roles['admin']);
+                self::assertSame([], $roles['import'], 'roles.import: ' . json_encode($value));
+                self::assertSame([], $roles['export']);
+                self::assertSame(['ROLE_USER'], $roles['edit'], 'an absent key keeps the default');
+            }
+        } finally {
+            restore_error_handler();
+        }
     }
 
     public function testResolveRolesDropsBlankRoles(): void

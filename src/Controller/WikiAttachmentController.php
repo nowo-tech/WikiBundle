@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
+use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -34,8 +35,8 @@ use function iconv;
 use function preg_replace;
 
 /**
- * Upload and download of page attachments (1.9). Uploads ask {@see WikiAction::Edit} on the page; downloads ask
- * {@see WikiAction::View} on the attachment's own page and answer 404 to every denial (missing, other space,
+ * Upload and download of page attachments (1.9). Uploads ask {@see WikiAction::Edit} on the page and the role gate
+ * canEdit(); downloads ask the role gate canList() (1.10) and {@see WikiAction::View} on the attachment's own page and answer 404 to every denial (missing, other space,
  * forbidden, archived page for a non-manager), so an attachment URL reveals nothing.
  */
 #[AsController]
@@ -49,6 +50,7 @@ final class WikiAttachmentController extends AbstractController
      * @param array<string, array{path: string, name: string}> $routes route name/path per action
      * @param array{enabled: bool} $attachments attachment options
      * @param WikiTokenGuard|null $tokenGuard firewall-trust check of the security token
+     * @param WikiAccessCheckerInterface|null $accessChecker role gate of the wiki (1.10): uploads need canEdit(), downloads canList()
      */
     public function __construct(
         private readonly WikiSpaceGuard $spaceGuard,
@@ -58,6 +60,7 @@ final class WikiAttachmentController extends AbstractController
         private readonly array $routes,
         private readonly array $attachments = ['enabled' => false],
         private readonly ?WikiTokenGuard $tokenGuard = null,
+        private readonly ?WikiAccessCheckerInterface $accessChecker = null,
     ) {
     }
 
@@ -95,6 +98,9 @@ final class WikiAttachmentController extends AbstractController
 
         $this->spaceGuard->requireGranted($user, WikiAction::View, $space, $page);
         $this->spaceGuard->requireGranted($user, WikiAction::Edit, $space, $page);
+        if ($this->accessChecker instanceof WikiAccessCheckerInterface && !$this->accessChecker->canEdit($user)) {
+            throw new AccessDeniedHttpException('Access denied.');
+        }
 
         $token = $request->headers->get('X-CSRF-Token') ?? $request->request->getString('_token');
         if (!$this->isCsrfTokenValid(self::csrfTokenId($page), $token)) {
@@ -136,7 +142,12 @@ final class WikiAttachmentController extends AbstractController
     public function download(string $spaceSlug, string $attachmentId): StreamedResponse
     {
         $this->denyUnlessEnabled();
-        $user       = $this->requireUser();
+        $user = $this->requireUser();
+        // The role gate (access_roles + list roles) like every wiki page; 404 as for any other denial.
+        if ($this->accessChecker instanceof WikiAccessCheckerInterface && !$this->accessChecker->canList($user)) {
+            throw new NotFoundHttpException('Attachment not found.');
+        }
+
         $space      = $this->spaceGuard->requireSpace($user, $spaceSlug);
         $attachment = $this->attachmentRepository->findById($attachmentId);
         if (!$attachment instanceof WikiAttachment || $attachment->getSpace()->getId() !== $space->getId()) {

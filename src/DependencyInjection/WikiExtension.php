@@ -48,6 +48,7 @@ use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Symfony\AI\Agent\AgentInterface;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -63,8 +64,11 @@ use function array_filter;
 use function array_key_exists;
 use function array_values;
 use function is_array;
+use function is_bool;
 use function is_string;
 use function rtrim;
+use function sprintf;
+use function str_starts_with;
 
 /**
  * Loads bundle configuration and registers services.
@@ -86,6 +90,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $configuration = new Configuration();
         $config        = $this->processConfiguration($configuration, $configs);
         $roles         = Configuration::resolveRoles($config['security']);
+
+        // BB L1: the switches that open the wiki must be literal booleans (an env placeholder string would be truthy).
+        $config['web_ui']['enabled']                 = $this->literalBool($config['web_ui']['enabled'], 'web_ui.enabled');
+        $config['security']['allow_unauthenticated'] = $this->literalBool($config['security']['allow_unauthenticated'], 'security.allow_unauthenticated');
+        if ($config['security']['allow_unauthenticated']) {
+            $this->refuseAllowUnauthenticatedInProduction($container);
+        }
 
         // P1: with every role list empty and no access checker, the wiki would deny everyone silently.
         if (
@@ -264,6 +275,38 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$routes', $config['routes'])
             ->setArgument('$pages', new Reference(WikiPages::class))
             ->setArgument('$dashboardRoute', $config['dashboard_route']));
+    }
+
+    /**
+     * REQ-SEC-004: a security switch must be a literal boolean. An env placeholder (e.g. "%env(bool:WIKI_PUBLIC)%")
+     * reaches load() as a placeholder string, which a cast would turn into true whatever the env value.
+     *
+     * @throws InvalidConfigurationException when the value is not a boolean
+     */
+    private function literalBool(mixed $value, string $path): bool
+    {
+        if (!is_bool($value)) {
+            throw new InvalidConfigurationException(sprintf('nowo_wiki.%s must be a literal boolean (true / false); env placeholders and other values are not supported for this security-relevant switch.', $path));
+        }
+
+        return $value;
+    }
+
+    /**
+     * `allow_unauthenticated` lets every wiki action through without a role check: a dev / demo switch, refused in
+     * the prod environment and in any non-debug kernel outside the test environments (test*).
+     *
+     * @throws InvalidConfigurationException in production
+     */
+    private function refuseAllowUnauthenticatedInProduction(ContainerBuilder $container): void
+    {
+        $environment = $container->hasParameter('kernel.environment') ? $container->getParameter('kernel.environment') : '';
+        $environment = is_string($environment) ? $environment : '';
+        $debug       = !$container->hasParameter('kernel.debug') || (bool) $container->getParameter('kernel.debug');
+
+        if ($environment === 'prod' || (!$debug && !str_starts_with($environment, 'test'))) {
+            throw new InvalidConfigurationException('nowo_wiki.security.allow_unauthenticated is a dev/demo switch: it lets every wiki action through without a role check and is refused in the prod environment and in non-debug kernels (test* environments excepted).');
+        }
     }
 
     /**

@@ -153,6 +153,17 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         self::assertStringNotContainsString('secret', $json);
     }
 
+    public function testSpacesWithoutAskAiAreNotSearched(): void
+    {
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'deploy', 'Deploy');
+        $noAi  = CallbackSpaceAccessChecker::allowing(WikiAction::View);
+
+        self::assertStringNotContainsString('deploy', $this->tool([$space], [[$page, 'contentHtml' => '']], $noAi)('deploy'));
+        self::assertStringNotContainsString('"page":"deploy"', $this->tool([$space], [[$page, 'contentHtml' => '']], $noAi)('deploy', 'eng'));
+        self::assertStringContainsString('"page":"deploy"', $this->tool([$space], [[$page, 'contentHtml' => '']], CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::AskAi))('deploy', 'eng'));
+    }
+
     /**
      * @param list<WikiSpace> $spaces
      * @param list<array{0: WikiPage, contentHtml: string}> $rows
