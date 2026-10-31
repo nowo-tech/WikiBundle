@@ -94,7 +94,7 @@ nowo_wiki:
     tenant_paths:
         - { path: '/projects/{spaceSlug}/wiki', name_prefix: 'app_project_', slug_requirement: '[0-9a-f-]{36}' }
         - { path: '/wiki/{spaceSlug}', name_prefix: 'app_', slug_requirement: 'general|user-[0-9a-f-]{36}' }
-    tenant_only: true   # leave out /tools/wiki/spaces/{spaceSlug}/… (index, search and ask stay)
+    tenant_only: true   # leave out /tools/wiki/spaces/{spaceSlug}/… (index, search and ask stay; 1.12: the search keeps its space, no "All spaces" picker)
 ```
 
 ```yaml

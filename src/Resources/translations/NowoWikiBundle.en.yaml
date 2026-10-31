@@ -12,6 +12,7 @@ wiki:
   space:
     new_page: New page
     pick_page: Select a page from the sidebar or create one.
+    pick_page_read_only: "Select a page from the sidebar."
     pages: Pages
     tree_truncated: "Showing the first %count% pages only."
     archived: 'Archived pages'
@@ -28,6 +29,10 @@ wiki:
     archive_confirm_message: "\"%title%\" leaves the page tree and search. Users allowed to archive can restore it from the space."
     revision: "Revision"
     updated: "Updated"
+    error:
+      invalid_slug: "The page title gives an invalid address; use letters or numbers."
+      slug_exists: "A page with this title already exists in this space."
+      save_failed: "The page could not be saved: %reason%"
   form:
     title: Title
     content: Content
@@ -66,6 +71,7 @@ wiki:
     global_results: Results across all accessible spaces
     results_count: '{0} %count% results|{1} %count% result|]1,Inf[ %count% results'
     placeholder: Search pages…
+    query: "Search for"
     submit: Search
     pick_space: Choose a space
     empty: No results.
@@ -103,6 +109,8 @@ wiki:
     file_too_large: The uploaded file exceeds the configured size limit.
     invalid_archive: Only ZIP archives are supported for web import.
     success: Import completed.
+    failed: "The import failed: %reason%"
+    report: "%created% created, %updated% updated, %skipped% skipped, %failed% failed."
   export:
     outline: Export (Outline ZIP)
     notion: Export (Notion ZIP)

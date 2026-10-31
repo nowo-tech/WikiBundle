@@ -25,6 +25,37 @@ final class TwigPathsPassTest extends TestCase
         $calls = $loader->getMethodCalls();
         self::assertSame('addPath', $calls[0][0]);
         self::assertSame('NowoWikiBundle', $calls[0][1][1]);
+        self::assertSame(['addPath', '!NowoWikiBundle'], [$calls[1][0], $calls[1][1][1]]);
+        self::assertSame($calls[0][1][0], $calls[1][1][0]);
+    }
+
+    public function testOriginalNamespaceResolvesTheBundleViewWhenTheAppOverridesIt(): void
+    {
+        $projectDir   = sys_get_temp_dir() . '/wiki-twig-' . uniqid();
+        $overridePath = $projectDir . '/templates/bundles/NowoWikiBundle/manage';
+        mkdir($overridePath, 0777, true);
+        file_put_contents($overridePath . '/_page_tree.html.twig', 'app-override-marker');
+
+        $loader    = new Definition(FilesystemLoader::class);
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.project_dir', $projectDir);
+        $container->setDefinition('twig.loader.native', $loader);
+        (new TwigPathsPass())->process($container);
+
+        $twigLoader = new FilesystemLoader();
+        foreach ($loader->getMethodCalls() as [$method, $arguments]) {
+            $twigLoader->{$method}(...$arguments);
+        }
+
+        self::assertSame('app-override-marker', $twigLoader->getSourceContext('@NowoWikiBundle/manage/_page_tree.html.twig')->getCode());
+        self::assertStringNotContainsString('app-override-marker', $twigLoader->getSourceContext('@!NowoWikiBundle/manage/_page_tree.html.twig')->getCode());
+
+        unlink($overridePath . '/_page_tree.html.twig');
+        rmdir($overridePath);
+        rmdir(dirname($overridePath));
+        rmdir(dirname($overridePath, 2));
+        rmdir(dirname($overridePath, 3));
+        rmdir($projectDir);
     }
 
     public function testPrependsApplicationOverridePathWhenPresent(): void

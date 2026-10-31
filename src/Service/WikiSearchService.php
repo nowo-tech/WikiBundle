@@ -10,14 +10,24 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 
+use function html_entity_decode;
 use function is_array;
 use function is_string;
+use function preg_replace;
+use function strip_tags;
+use function trim;
+
+use const ENT_HTML5;
+use const ENT_QUOTES;
 
 /**
  * Full-text search across page titles and current revision HTML (per space or all accessible spaces).
  */
 final readonly class WikiSearchService
 {
+    /** Tags that start or end a block of text (a space is inserted before each one when the excerpt is built). */
+    private const BLOCK_BOUNDARY = '~</?(?:address|article|aside|blockquote|br|dd|div|dl|dt|figcaption|figure|footer|h[1-6]|header|hr|img|li|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>~i';
+
     /**
      * Stores the entity manager (or the provider resolving it on each call).
      *
@@ -114,7 +124,7 @@ final readonly class WikiSearchService
 
     private function excerpt(string $title, string $contentHtml, string $query): string
     {
-        $text = trim(strip_tags($contentHtml));
+        $text = $this->plainText($contentHtml);
         if ($text === '') {
             return $title;
         }
@@ -128,5 +138,19 @@ final readonly class WikiSearchService
         $snippet = mb_substr($text, $start, 120);
 
         return ($start > 0 ? '…' : '') . $snippet . (mb_strlen($text) > $start + 120 ? '…' : '');
+    }
+
+    /**
+     * The text of a revision body with one space between blocks (1.12): a line break, a block element boundary
+     * (paragraph, heading, list item, table cell, …) or an image becomes a space before the tags are stripped, so
+     * "<h2>Overview</h2><p>This runbook…" reads "Overview This runbook…"; entities are decoded and runs of
+     * whitespace (no-break spaces included) collapse to one space.
+     */
+    private function plainText(string $html): string
+    {
+        $spaced = preg_replace(self::BLOCK_BOUNDARY, ' $0', $html) ?? $html;
+        $text   = html_entity_decode(strip_tags($spaced), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return trim(preg_replace('/[\s\x{00A0}]+/u', ' ', $text) ?? $text);
     }
 }

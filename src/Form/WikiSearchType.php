@@ -59,7 +59,7 @@ final class WikiSearchType extends AbstractType
 
         $builder->add('q', SearchType::class, [
             'required' => $options['query_required'],
-            'label'    => 'wiki.search.placeholder',
+            'label'    => 'wiki.search.query',
             'attr'     => ['placeholder' => 'wiki.search.placeholder'],
         ]);
     }

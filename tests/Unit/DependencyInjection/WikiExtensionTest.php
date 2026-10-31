@@ -526,6 +526,8 @@ final class WikiExtensionTest extends TestCase
             ) {
                 $found = true;
                 self::assertSame('NowoWikiBundle', $cfg['profiles']['wiki']['translation_domain']);
+                // 1.12: no Bootstrap field classes; the host form theme decides.
+                self::assertSame(['alias', 'translation_domain'], array_keys($cfg['profiles']['wiki']));
                 break;
             }
         }

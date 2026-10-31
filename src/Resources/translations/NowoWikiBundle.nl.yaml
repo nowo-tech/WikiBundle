@@ -12,6 +12,7 @@ wiki:
   space:
     new_page: Nieuwe pagina
     pick_page: Kies een pagina in de zijbalk of maak er een aan.
+    pick_page_read_only: "Kies een pagina in de zijbalk."
     pages: Pagina's
     tree_truncated: "Alleen de eerste %count% pagina's worden getoond."
     archived: 'Gearchiveerde pagina''s'
@@ -28,6 +29,10 @@ wiki:
     archive_confirm_message: "\"%title%\" verdwijnt uit de paginaboom en de zoekresultaten. Wie mag archiveren, kan de pagina vanuit de ruimte herstellen."
     revision: "Revisie"
     updated: "Bijgewerkt"
+    error:
+      invalid_slug: "De paginatitel levert een ongeldig adres op; gebruik letters of cijfers."
+      slug_exists: "Er bestaat al een pagina met deze titel in deze ruimte."
+      save_failed: "De pagina kon niet worden opgeslagen: %reason%"
   form:
     title: Titel
     content: Inhoud
@@ -66,6 +71,7 @@ wiki:
     global_results: Resultaten in alle toegankelijke ruimtes
     results_count: '{0} %count% resultaten|{1} %count% resultaat|]1,Inf[ %count% resultaten'
     placeholder: Pagina's zoeken…
+    query: "Zoeken naar"
     submit: Zoeken
     pick_space: Kies een ruimte
     empty: Geen resultaten.
@@ -103,6 +109,8 @@ wiki:
     file_too_large: Het bestand overschrijdt de geconfigureerde limiet.
     invalid_archive: Alleen ZIP-archieven worden ondersteund voor webimport.
     success: Import voltooid.
+    failed: "De import is mislukt: %reason%"
+    report: "%created% aangemaakt, %updated% bijgewerkt, %skipped% overgeslagen, %failed% mislukt."
   export:
     outline: Exporteren (Outline ZIP)
     notion: Exporteren (Notion ZIP)

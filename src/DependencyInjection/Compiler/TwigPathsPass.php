@@ -14,13 +14,21 @@ use function rtrim;
 
 /**
  * REQ-TWIG-001: application overrides win over bundle templates.
+ *
+ * Registers {@code @NowoWikiBundle} (app override directory first, then the bundle views) and, since 1.12, the
+ * conventional {@code @!NowoWikiBundle} namespace (bundle views only), so an override can extend the original page
+ * ({@code {% extends '@!NowoWikiBundle/manage/page_view.html.twig' %}}) like any Symfony bundle template.
  */
 final class TwigPathsPass implements CompilerPassInterface
 {
     private const TWIG_NAMESPACE = 'NowoWikiBundle';
 
+    /** The "original templates" namespace: the bundle views without the app overrides (1.12). */
+    private const TWIG_ORIGINAL_NAMESPACE = '!' . self::TWIG_NAMESPACE;
+
     /**
-     * Registers the bundle views under the {@code NowoWikiBundle} Twig namespace, prepending the app override directory when it exists.
+     * Registers the bundle views under the {@code NowoWikiBundle} Twig namespace, prepending the app override directory
+     * when it exists, and under {@code !NowoWikiBundle} (the bundle views only).
      *
      * Does nothing when no native Twig filesystem loader is defined.
      *
@@ -50,6 +58,8 @@ final class TwigPathsPass implements CompilerPassInterface
 
         // @igor-ignore - Container compile-time DI mutation; not runtime worker state.
         $definition->addMethodCall('addPath', [$viewsPath, self::TWIG_NAMESPACE]);
+        // @igor-ignore - Container compile-time DI mutation; not runtime worker state.
+        $definition->addMethodCall('addPath', [$viewsPath, self::TWIG_ORIGINAL_NAMESPACE]);
     }
 
     private function getNativeLoaderServiceId(ContainerBuilder $container): ?string

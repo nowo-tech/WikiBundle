@@ -12,6 +12,7 @@ wiki:
   space:
     new_page: Neue Seite
     pick_page: Wählen Sie eine Seite in der Seitenleiste oder erstellen Sie eine.
+    pick_page_read_only: "Wählen Sie eine Seite in der Seitenleiste."
     pages: Seiten
     tree_truncated: "Es werden nur die ersten %count% Seiten angezeigt."
     archived: 'Archivierte Seiten'
@@ -28,6 +29,10 @@ wiki:
     archive_confirm_message: "„%title%“ verschwindet aus dem Seitenbaum und der Suche. Wer archivieren darf, kann sie im Bereich wiederherstellen."
     revision: "Revision"
     updated: "Aktualisiert"
+    error:
+      invalid_slug: "Der Seitentitel ergibt keine gültige Adresse; verwenden Sie Buchstaben oder Ziffern."
+      slug_exists: "In diesem Bereich gibt es bereits eine Seite mit diesem Titel."
+      save_failed: "Die Seite konnte nicht gespeichert werden: %reason%"
   form:
     title: Titel
     content: Inhalt
@@ -66,6 +71,7 @@ wiki:
     global_results: Ergebnisse in allen zugänglichen Bereichen
     results_count: '{0} %count% Ergebnisse|{1} %count% Ergebnis|]1,Inf[ %count% Ergebnisse'
     placeholder: Seiten suchen…
+    query: "Suchbegriff"
     submit: Suchen
     pick_space: Bereich wählen
     empty: Keine Ergebnisse.
@@ -103,6 +109,8 @@ wiki:
     file_too_large: Die Datei überschreitet das Größenlimit.
     invalid_archive: Für den Web-Import werden nur ZIP-Archive unterstützt.
     success: Import abgeschlossen.
+    failed: "Der Import ist fehlgeschlagen: %reason%"
+    report: "%created% erstellt, %updated% aktualisiert, %skipped% übersprungen, %failed% fehlgeschlagen."
   export:
     outline: Export (Outline ZIP)
     notion: Export (Notion ZIP)

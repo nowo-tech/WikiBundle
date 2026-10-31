@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Controller;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
+use InvalidArgumentException;
 use Nowo\UiKitBundle\View\FormPage;
 use Nowo\UiKitBundle\View\ListPage;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
@@ -27,6 +28,7 @@ use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
+use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
@@ -44,17 +46,22 @@ use ReflectionMethod;
 use RuntimeException;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Translation\TranslatableMessage;
 use ZipArchive;
 
 use function array_column;
+use function array_keys;
 use function array_slice;
+use function array_values;
 
 final class WikiManageControllerTest extends TestCase
 {
@@ -108,6 +115,43 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('@NowoWikiBundle/manage/index.html.twig', (string) $response->getContent());
+    }
+
+    public function testIndexHasNoPaginationWhenEverySpaceFitsOnOnePage(): void
+    {
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1')]);
+
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $twig]);
+
+        $controller->index();
+        self::assertInstanceOf(ListPage::class, $twig->context['page']);
+        self::assertNull($twig->context['page']->pagination);
+    }
+
+    public function testSearchSpaceIsHiddenWhenTenantOnly(): void
+    {
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $tenants = [['path' => '/projects/{spaceSlug}/wiki', 'name_prefix' => 'app_', 'slug_requirement' => '[a-z]+']];
+
+        foreach ([[false, 'choice'], [true, 'hidden']] as [$tenantOnly, $prefix]) {
+            $twig       = $this->capturingTwig();
+            $controller = $this->controller(spaceAccessResolver: $resolver, tenantPaths: new WikiTenantPaths($tenants, [], $tenantOnly));
+            WikiControllerContainerBuilder::bind($controller, new TestUser('user-1'), ['twig' => $twig]);
+
+            $controller->search(Request::create('/search?space=eng&q=deploy'));
+            $filters = $twig->context['page']->filters;
+            self::assertInstanceOf(FormView::class, $filters);
+            self::assertContains($prefix, $filters->children['space']->vars['block_prefixes']);
+            self::assertSame('eng', $filters->children['space']->vars['value']);
+            // 1.12: the query field has its own label; the placeholder text stays the placeholder.
+            self::assertSame('wiki.search.query', $filters->children['q']->vars['label']);
+            self::assertSame('wiki.search.placeholder', $filters->children['q']->vars['attr']['placeholder']);
+        }
     }
 
     public function testIndexPaginatesSpaces(): void
@@ -227,6 +271,18 @@ final class WikiManageControllerTest extends TestCase
 
         $controller->pageHistory('eng', 'welcome');
         self::assertSame(1, $twig->context['page']->pagination?->page);
+
+        // 1.12: no pagination region when every revision fits on one page.
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            pageRepository: $pageRepo,
+            revisionRepository: $revisionRepo,
+            pagination: ['spaces_per_page' => 24, 'revisions_per_page' => 10, 'max_tree_pages' => 500],
+        );
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->pageHistory('eng', 'welcome');
+        self::assertCount(6, $twig->context['page']->rows);
+        self::assertNull($twig->context['page']->pagination);
     }
 
     public function testDenyWhenCannotList(): void
@@ -837,6 +893,31 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('page_edit', (string) $response->getContent());
+        // 1.12: a catalogue key (TranslatableMessage without a translator), not the service's English message.
+        $errors = $this->flashes($container, 'error');
+        self::assertCount(1, $errors);
+        $this->assertTranslatable($errors[0], 'wiki.page.error.slug_exists');
+    }
+
+    public function testNewPagePostFlashesInvalidSlugAndOtherErrorsAsCatalogueMessages(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+        $controller->newPage($this->createWikiPageFormRequest($container, 'wiki_new_' . $space->getId(), ['title' => '!!!', 'content' => '<p>Body</p>']), 'eng');
+        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.page.error.invalid_slug');
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('countBySpaceAndSlug')->willThrowException(new InvalidArgumentException('Storage refused the page.'));
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+        $controller->newPage($this->createWikiPageFormRequest($container, 'wiki_new_' . $space->getId(), ['title' => 'Fine', 'content' => '<p>Body</p>']), 'eng');
+        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.page.error.save_failed', ['%reason%' => 'Storage refused the page.']);
     }
 
     public function testImportSpaceNotFoundWhenImportExportDisabled(): void
@@ -931,6 +1012,7 @@ final class WikiManageControllerTest extends TestCase
         $response = $controller->importSpace($request, 'eng');
 
         self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.import.failed', ['%reason%' => 'Unable to open ZIP archive.']);
         @unlink($zipPath);
     }
 
@@ -975,6 +1057,12 @@ MD);
         $response = $controller->importSpace($request, 'eng');
 
         self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        $this->assertTranslatable($this->flashes($container, 'success')[0], 'wiki.import.success');
+        $report = $this->flashes($container, 'info')[0];
+        self::assertInstanceOf(TranslatableMessage::class, $report);
+        self::assertSame('wiki.import.report', $report->getMessage());
+        self::assertSame(['%created%', '%updated%', '%skipped%', '%failed%'], array_keys($report->getParameters()));
+        self::assertNotEmpty($this->flashes($container, 'warning'));
         unlink($sourceDir . '/intro.md');
         rmdir($sourceDir);
         @unlink($zipPath);
@@ -1603,6 +1691,7 @@ MD);
         ?WikiTokenGuard $tokenGuard = null,
         array $pagination = WikiManageController::DEFAULT_PAGINATION,
         array $editor = ['tiptap_config' => 'notion'],
+        ?WikiTenantPaths $tenantPaths = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1647,7 +1736,32 @@ MD);
             $allowUnauthenticated,
             $tokenGuard,
             $pagination,
+            tenantPaths: $tenantPaths,
         );
+    }
+
+    /**
+     * Flash messages of one type stored in the session of the bound container.
+     *
+     * @return list<mixed>
+     */
+    private function flashes(Container $container, string $type): array
+    {
+        /** @var RequestStack $stack */
+        $stack = $container->get('request_stack');
+        /** @var FlashBagAwareSessionInterface $session */
+        $session = $stack->getSession();
+
+        return array_values($session->getFlashBag()->get($type));
+    }
+
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    private function assertTranslatable(mixed $message, string $key, array $parameters = []): void
+    {
+        self::assertInstanceOf(TranslatableMessage::class, $message);
+        self::assertSame([$key, $parameters, 'NowoWikiBundle'], [$message->getMessage(), $message->getParameters(), $message->getDomain()]);
     }
 
     /**

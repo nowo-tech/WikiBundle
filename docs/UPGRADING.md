@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.12.0](#to-1120)
 - [To 1.11.1](#to-1111)
 - [To 1.11.0](#to-1110)
 - [To 1.10.0](#to-1100)
@@ -48,6 +49,37 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.12.0
+
+From **1.11.x**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+No schema change. Check these if your app customises the wiki:
+
+- **Overrides that extend the original page** can use `{% extends '@!NowoWikiBundle/manage/<page>.html.twig' %}` (new); `@!Wiki/…` keeps working.
+- **FormKit `wiki` profile:** when your app does not define `nowo_form_kit.profiles.wiki`, the seeded profile no longer adds `form-control` / `form-select` / `form-check-input` / `form-check` / `mb-2` to the wiki fields: your form theme styles them (`bootstrap_5_layout.html.twig` adds the Bootstrap classes itself). To keep the old classes, define the profile:
+
+  ```yaml
+  nowo_form_kit:
+      profiles:
+          wiki:
+              alias: wiki
+              translation_domain: NowoWikiBundle
+              defaults: { attr: { class: 'nowo-ui-input form-control' }, row_attr: { class: 'mb-2' } }
+              field_types:
+                  checkbox: { attr: { class: form-check-input }, row_attr: { class: 'form-check mb-2' } }
+                  choice: { attr: { class: form-select } }
+  ```
+
+- **Flashes:** with the translator (the usual setup) flashes are still translated strings. Without it they are `TranslatableMessage` objects: print them with `{{ message|trans }}`. The page-create errors and the import failure / report are now catalogue keys (`wiki.page.error.*`, `wiki.import.failed`, `wiki.import.report`): override them in `translations/NowoWikiBundle.<locale>.yaml` instead of matching the English texts.
+- **Search form:** the `q` label is `wiki.search.query` (was `wiki.search.placeholder`). With `tenant_only: true` the `space` field is hidden (no `wiki.search.all_spaces` option).
+- **Space home intro:** `wiki.space.pick_page` is shown only to users who may create pages; others get `wiki.space.pick_page_read_only`.
+- **Pagination:** `WikiPageFactory::index()` / `history()` accept `?Pagination`; the controller passes `null` when everything fits on one page. A `page_history` / `index` override that reads `page.pagination` must allow `null` (the UiKit list scaffold does).
+- **Diff:** the screen-reader prefix of an added / removed line carries `nowo-wiki-sr-only` (styled by `wiki.css`) and the `+` / `-` is wrapped in `nowo-wiki-diff__marker` (`aria-hidden`).
 
 ## To 1.11.1
 
