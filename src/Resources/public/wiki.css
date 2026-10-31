@@ -189,6 +189,25 @@
   color: var(--nowo-ui-danger-text, #991b1b);
 }
 
+/* The +/- marker is shown; its meaning ("Added:" / "Removed:") is for screen readers only (1.12: own class, so the
+   text stays hidden on hosts without Bootstrap / UiKit's .visually-hidden). */
+.nowo-wiki-diff__marker {
+  font-weight: 600;
+  user-select: none;
+}
+
+.nowo-wiki-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 /* Search excerpt and AI answer. */
 .nowo-wiki-results__excerpt {
   color: var(--nowo-ui-muted, #64748b);

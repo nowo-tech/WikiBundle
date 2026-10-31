@@ -29,6 +29,7 @@ use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
+use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
@@ -55,6 +56,7 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Translation\TranslatableMessage;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
@@ -67,7 +69,6 @@ use function count;
 use function is_string;
 use function max;
 use function min;
-use function sprintf;
 
 /**
  * Authenticated wiki management (spaces, pages, revisions, search).
@@ -78,6 +79,13 @@ use function sprintf;
 final class WikiManageController extends AbstractController
 {
     use WikiCsrfTrait;
+
+    /** Catalogue keys of the {@see WikiPageService} errors a page form can hit (1.12). */
+    private const PAGE_ERROR_KEYS = [
+        'Slug cannot be empty.'                   => 'wiki.page.error.invalid_slug',
+        'Invalid page slug.'                      => 'wiki.page.error.invalid_slug',
+        'Page slug already exists in this space.' => 'wiki.page.error.slug_exists',
+    ];
 
     /** Defaults of the nowo_wiki.pagination config node (REQ-PERF-001). */
     public const DEFAULT_PAGINATION = [
@@ -101,6 +109,7 @@ final class WikiManageController extends AbstractController
      * @param WikiPageFactory|null $pageFactory UiKit view models of the pages (1.10; null = built from the router)
      * @param TranslatorInterface|null $translator translates flash messages in the NowoWikiBundle domain when they are added (1.10)
      * @param WikiMarkdownConverter|null $markdownConverter turns an HTML revision into the Markdown of the editor (1.11)
+     * @param WikiTenantPaths|null $tenantPaths tenant paths (1.12: with {@code tenant_only} the search keeps its space)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -130,6 +139,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiPageFactory $pageFactory = null,
         private readonly ?TranslatorInterface $translator = null,
         ?WikiMarkdownConverter $markdownConverter = null,
+        private readonly ?WikiTenantPaths $tenantPaths = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -165,7 +175,8 @@ final class WikiManageController extends AbstractController
         return $this->renderPage('index', [
             'page' => $pages->index(
                 array_slice($spaces, ($current - 1) * $perPage, $perPage),
-                Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $this->routes['index']['name']),
+                // 1.12: no pagination region (empty card / "1 of 1") when everything fits on one page.
+                $total > $perPage ? Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $this->routes['index']['name']) : null,
                 $this->createSearchForm($spaces, [], ['space' => 'wiki-index-search-space', 'q' => 'wiki-index-search-q']),
                 $canAskAi,
             ),
@@ -354,7 +365,7 @@ final class WikiManageController extends AbstractController
             try {
                 $page = $this->pageService->create($space, $payload->title, $payload->content, $user, null, null, $this->editorFormat());
             } catch (InvalidArgumentException $exception) {
-                $this->flash('error', $exception->getMessage());
+                $this->flash('error', $this->pageErrorMessage($exception));
 
                 return $this->renderNewPage($space, $form);
             }
@@ -414,7 +425,8 @@ final class WikiManageController extends AbstractController
                 $revisions,
                 $fetched[$perPage] ?? null,
                 $this->restoreForms($user, $space, $page, $revisions),
-                Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $route, [], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]),
+                // 1.12: no pagination region (empty card / "1 of 1") when every revision fits on one page.
+                $total > $perPage ? Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $route, [], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]) : null,
             ),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
@@ -588,8 +600,10 @@ final class WikiManageController extends AbstractController
             $global  = true;
         }
 
+        // 1.12: with tenant_only every page lives under a tenant path, so there is no "all spaces" to pick: the space
+        // stays a hidden field (the searched space).
         $form = $this->createSearchForm(
-            $spaces,
+            $this->tenantPaths?->isTenantOnly() === true ? null : $spaces,
             ['space' => $space?->getSlug(), 'q' => $query],
             ['space' => 'wiki-search-space', 'q' => 'wiki-search-q'],
         );
@@ -734,7 +748,7 @@ final class WikiManageController extends AbstractController
                 $form->get('update_existing')->getData() === true,
             );
         } catch (InvalidArgumentException $exception) {
-            $this->flash('error', $exception->getMessage());
+            $this->flash('error', new TranslatableMessage('wiki.import.failed', ['%reason%' => $exception->getMessage()], WikiPages::DOMAIN));
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         } finally {
@@ -744,13 +758,12 @@ final class WikiManageController extends AbstractController
         }
 
         $this->flash('success', 'wiki.import.success');
-        $this->flash('info', sprintf(
-            '%d created, %d updated, %d skipped, %d failed.',
-            $report->created,
-            $report->updated,
-            $report->skipped,
-            $report->failed,
-        ));
+        $this->flash('info', new TranslatableMessage('wiki.import.report', [
+            '%created%' => $report->created,
+            '%updated%' => $report->updated,
+            '%skipped%' => $report->skipped,
+            '%failed%'  => $report->failed,
+        ], WikiPages::DOMAIN));
 
         foreach ($report->messages as $message) {
             $this->flash('warning', $message);
@@ -890,12 +903,28 @@ final class WikiManageController extends AbstractController
     }
 
     /**
-     * Adds a flash message translated in the bundle domain (a key, or a text that is printed as given when the
-     * catalogue has no entry for it), so any host layout prints it without knowing the domain.
+     * Adds a flash message in the bundle domain: a key (or a text printed as given when the catalogue has no entry for
+     * it) or a {@see TranslatableMessage} with parameters (1.12). With the translator it is stored translated, so any
+     * host layout prints it without knowing the domain; without one the {@see TranslatableMessage} itself is stored, so
+     * a layout that prints flashes through the {@code trans} filter still translates it (never a bare key string).
      */
-    private function flash(string $type, string $message): void
+    private function flash(string $type, string|TranslatableMessage $message): void
     {
-        $this->addFlash($type, $this->translator?->trans($message, [], WikiPages::DOMAIN) ?? $message);
+        $message = is_string($message) ? new TranslatableMessage($message, [], WikiPages::DOMAIN) : $message;
+        $this->addFlash($type, $this->translator instanceof TranslatorInterface ? $message->trans($this->translator) : $message);
+    }
+
+    /**
+     * The catalogue message of a page create error ({@see WikiPageService} refuses an empty, invalid or duplicate slug); any
+     * other reason is wrapped in {@code wiki.page.error.save_failed} (1.12).
+     */
+    private function pageErrorMessage(InvalidArgumentException $exception): TranslatableMessage
+    {
+        $key = self::PAGE_ERROR_KEYS[$exception->getMessage()] ?? null;
+
+        return $key !== null
+            ? new TranslatableMessage($key, [], WikiPages::DOMAIN)
+            : new TranslatableMessage('wiki.page.error.save_failed', ['%reason%' => $exception->getMessage()], WikiPages::DOMAIN);
     }
 
     private function denyUnlessFeature(string $feature): void

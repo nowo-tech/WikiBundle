@@ -505,7 +505,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
-     * When FormKit is installed, register the wiki profile. Forms select it via #[FormKitConfig].
+     * When FormKit is installed, register the wiki profile (alias + translation domain; the host form theme styles the
+     * fields). Forms select it via #[FormKitConfig].
      */
     private function prependFormKitDefaults(ContainerBuilder $container): void
     {
@@ -533,32 +534,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         if (!$hostHasProfile) {
+            // 1.12: alias and translation domain only. The field classes come from the host form theme
+            // (twig.form_themes / FormKit css_framework): the profile no longer forces Bootstrap classes
+            // (form-control, form-select, form-check-*, mb-2) on Tailwind / custom hosts.
             $seed['profiles'] = [
                 'wiki' => [
                     'alias'              => 'wiki',
                     'translation_domain' => 'NowoWikiBundle',
-                    'defaults'           => [
-                        'attr'     => ['class' => 'nowo-ui-input form-control'],
-                        'row_attr' => ['class' => 'mb-2'],
-                    ],
-                    'field_types' => [
-                        'checkbox' => [
-                            'attr'     => ['class' => 'form-check-input'],
-                            'row_attr' => ['class' => 'form-check mb-2'],
-                        ],
-                        'choice' => [
-                            'attr' => ['class' => 'form-select'],
-                        ],
-                        'entity' => [
-                            'attr' => ['class' => 'form-select'],
-                        ],
-                        'file' => [
-                            'attr' => ['class' => 'nowo-ui-input form-control'],
-                        ],
-                        'textarea' => [
-                            'attr' => ['class' => 'nowo-ui-input form-control'],
-                        ],
-                    ],
                 ],
             ];
         }

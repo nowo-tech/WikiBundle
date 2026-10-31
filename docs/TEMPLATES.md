@@ -75,6 +75,8 @@ Bundle-specific markup uses UiKit theme slots only (`card`, `card_header`, `card
 
 The page tree is the one bundle partial meant for overriding: override `templates/bundles/NowoWikiBundle/manage/_page_tree_item.html.twig` to change one item (variables `node` = `{title, href, current, children}`, `depth`).
 
+An override under `templates/bundles/NowoWikiBundle/` can extend the original template through the `@!NowoWikiBundle` namespace (1.12; the bundle views without the app overrides), e.g. `{% extends '@!NowoWikiBundle/manage/_page_tree_item.html.twig' %}`. The Symfony bundle-name alias `@!Wiki` points at the same files.
+
 ## Layout
 
 The scaffolds extend `page.layout ?? nowo_ui_layout.admin`:

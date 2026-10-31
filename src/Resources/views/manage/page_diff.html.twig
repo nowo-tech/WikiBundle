@@ -1,7 +1,8 @@
 {#
   Revision diff (REQ-UI-003): UiKit show scaffold. Variable: page (View\ShowPage from WikiPageFactory::diff(): header
   wiki.diff.title / wiki.diff.range with a back link to the history, breadcrumbs). Also: diff (list of {kind: same |
-  add | remove, line}).
+  add | remove, line}). Each added / removed line starts with a +/- marker (aria-hidden) and its meaning for screen
+  readers ("Added:" / "Removed:", class nowo-wiki-sr-only, hidden by wiki.css).
   Blocks filled: nowo_ui_styles, nowo_ui_show_sections (one card with the diff lines).
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
@@ -22,7 +23,7 @@
                 <pre class="{{ nowo_ui_class('code_block', _b) }} nowo-wiki-diff__lines">
                     {%- for line in diff -%}
                         <span class="nowo-wiki-diff__line nowo-wiki-diff__line--{{ line.kind }}" data-wiki-diff="{{ line.kind }}">
-                            {%- if line.kind == 'add' %}<span class="visually-hidden">{{ 'wiki.diff.added'|trans }}</span>+ {% elseif line.kind == 'remove' %}<span class="visually-hidden">{{ 'wiki.diff.removed'|trans }}</span>- {% else %}  {% endif -%}
+                            {%- if line.kind == 'add' %}<span class="nowo-wiki-sr-only visually-hidden">{{ 'wiki.diff.added'|trans }}</span><span class="nowo-wiki-diff__marker" aria-hidden="true">+ </span>{% elseif line.kind == 'remove' %}<span class="nowo-wiki-sr-only visually-hidden">{{ 'wiki.diff.removed'|trans }}</span><span class="nowo-wiki-diff__marker" aria-hidden="true">- </span>{% else %}<span class="nowo-wiki-diff__marker" aria-hidden="true">  </span>{% endif -%}
                             {{ line.line }}</span>
                     {%- endfor -%}
                 </pre>

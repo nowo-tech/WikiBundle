@@ -84,7 +84,7 @@ final readonly class WikiPageFactory
      *
      * @param list<WikiSpace> $spaces spaces of the current page
      */
-    public function index(array $spaces, Pagination $pagination, FormView $searchForm, bool $canAskAi): ListPage
+    public function index(array $spaces, ?Pagination $pagination, FormView $searchForm, bool $canAskAi): ListPage
     {
         $actions = [];
         if ($canAskAi && $this->has('ai_ask')) {
@@ -142,7 +142,8 @@ final readonly class WikiPageFactory
         return new ShowPage(
             header: new PageHeader(
                 $space->getName(),
-                WikiPages::label('wiki.space.pick_page'),
+                // 1.12: "or create one" only for users who may create pages.
+                WikiPages::label($can['create'] ? 'wiki.space.pick_page' : 'wiki.space.pick_page_read_only'),
                 [...$actions, ...$this->dashboardActions()],
                 $this->crumbs($space),
             ),
@@ -235,7 +236,7 @@ final readonly class WikiPageFactory
      * @param WikiPageRevision|null $older first revision of the next page (compare target of the last row)
      * @param array<int|string, FormView> $restoreForms revision number => CSRF restore form
      */
-    public function history(WikiSpace $space, WikiPage $page, array $revisions, ?WikiPageRevision $older, array $restoreForms, Pagination $pagination): ListPage
+    public function history(WikiSpace $space, WikiPage $page, array $revisions, ?WikiPageRevision $older, array $restoreForms, ?Pagination $pagination): ListPage
     {
         $params  = ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()];
         $rows    = [];

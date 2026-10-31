@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.12.0] - 2026-10-31](#1120---2026-10-31)
 - [[1.11.1] - 2026-10-30](#1111---2026-10-30)
 - [[1.11.0] - 2026-10-30](#1110---2026-10-30)
 - [[1.10.0] - 2026-10-30](#1100---2026-10-30)
@@ -42,6 +43,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.12.0] - 2026-10-31
+
+Host polish found while integrating the wiki in a Tailwind host (symfony-beacon): the original-templates Twig namespace, a search form that fits `tenant_only`, catalogue flashes, spaced search excerpts and no empty pagination. No schema change. See [UPGRADING](UPGRADING.md#to-1120).
+
+### Added
+
+- **`@!NowoWikiBundle` Twig namespace:** `TwigPathsPass` also registers the bundle views under `!NowoWikiBundle` (the bundle templates without the `templates/bundles/NowoWikiBundle/` overrides), so an app override can extend the original page with the conventional `{% extends '@!NowoWikiBundle/manage/page_view.html.twig' %}` instead of the Symfony bundle-name alias `@!Wiki`.
+- **Catalogue keys** (7 locales): `wiki.search.query` (label of the search field), `wiki.space.pick_page_read_only`, `wiki.page.error.invalid_slug` / `slug_exists` / `save_failed`, `wiki.import.failed`, `wiki.import.report`.
+
+### Changed
+
+- **Flashes are catalogue messages:** the controller builds every flash as a `TranslatableMessage` in the `NowoWikiBundle` domain (stored translated when the translator is available, as before; the `TranslatableMessage` itself otherwise, so a layout printing flashes with `|trans` still translates them). The page-create errors (empty, invalid or duplicate slug) and the import failure / report are catalogue keys with parameters instead of the services' English sentences (`Page slug already exists in this space.`, `2 created, 0 updated, …`).
+- **Search form:** the `q` field is labelled `wiki.search.query` ("Search for") instead of repeating the placeholder text. With `tenant_only: true` (and tenant paths) the space stays a hidden field: there is no "All spaces" choice where every page lives under a tenant path.
+- **Space home:** the header intro says "Select a page from the sidebar or create one." only to users who may create pages; the others read `wiki.space.pick_page_read_only`.
+- **FormKit `wiki` profile:** the seeded profile (when the host defines none) keeps the alias and the `NowoWikiBundle` translation domain only; it no longer forces Bootstrap classes (`form-control`, `form-select`, `form-check-*`, `mb-2`) on every wiki field, so the host form theme decides (Tailwind / custom hosts).
+- **Pagination:** the space index and the version history pass no `Pagination` when everything fits on one page (no empty pagination region / "1 of 1").
+
+### Fixed
+
+- **Search excerpts glued blocks together** ("OverviewThis runbook…"): block boundaries (paragraphs, headings, list items, table cells, line breaks, …) become spaces before the tags are stripped; entities are decoded and whitespace (no-break spaces included) collapses to one space.
+- **Diff markers:** the "Added:" / "Removed:" screen-reader text uses the bundle's own `nowo-wiki-sr-only` class (still with `visually-hidden`), so hosts without Bootstrap / UiKit CSS no longer print it; the `+` / `-` marker is `aria-hidden`.
 
 ## [1.11.1] - 2026-10-30
 

@@ -68,6 +68,18 @@ final class WikiSearchServiceTest extends TestCase
         self::assertStringStartsWith('…' . str_repeat('é', 39) . ' Needle', $results[0]['excerpt']);
     }
 
+    public function testExcerptSeparatesBlocksWithSpaces(): void
+    {
+        $space   = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't1');
+        $page    = new WikiPage($space, 'runbook', 'Runbook');
+        $content = '<h2>Overview</h2><p>This runbook&nbsp;covers <strong>deploys</strong>.</p><ul><li>One</li><li>Two<br>lines</li></ul><table><tr><td>A</td><td>B</td></tr></table>';
+
+        $service = new WikiSearchService($this->entityManager([[$page, 'contentHtml' => $content]]));
+        $results = $service->search($space, 'runbook');
+
+        self::assertSame('Overview This runbook covers deploys. One Two lines A B', $results[0]['excerpt']);
+    }
+
     public function testSearchIgnoresInvalidRows(): void
     {
         $space   = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't1');

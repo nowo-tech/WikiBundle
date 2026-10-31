@@ -34,6 +34,9 @@ final class WikiPageFactoryTest extends TestCase
         self::assertSame('/app_dashboard', $full->header->actions[3]->href);
 
         self::assertSame(['prev'], $this->kinds($factory->space($space, ['create' => false, 'import' => false, 'export' => false])->header->actions));
+        // 1.12: "or create one" only for users who may create pages.
+        self::assertSame('wiki.space.pick_page', $this->label($full->header->intro)->key);
+        self::assertSame('wiki.space.pick_page_read_only', $this->label($factory->space($space, ['create' => false, 'import' => true, 'export' => true])->header->intro)->key);
         self::assertSame([], $this->kinds($factory->pageView($space, $page, ['edit' => false, 'history' => false])->header->actions));
         self::assertSame(['edit', 'view', 'delete'], $this->kinds($factory->pageView($space, $page, ['edit' => true, 'history' => true], PageFixtures::postForm('t'))->header->actions));
         self::assertSame([], $this->kinds((new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), ''))->search(PageFixtures::searchForm(null), [], '', false)->header->actions));
@@ -103,5 +106,12 @@ final class WikiPageFactoryTest extends TestCase
     private function kinds(iterable $actions): array
     {
         return array_map(static fn (Action $action): string => $action->kind, [...$actions]);
+    }
+
+    private function label(mixed $label): Label
+    {
+        self::assertInstanceOf(Label::class, $label);
+
+        return $label;
     }
 }
