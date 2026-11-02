@@ -33,9 +33,10 @@ interface WikiCollabStateStoreInterface
 
     /**
      * Replaces every entry up to `$upToSeq` — older snapshots included — with the base64 full-state snapshot, which
-     * becomes the only snapshot of the page.
+     * becomes the only snapshot of the page. Compactions of one page are serialised: one that covers less than the
+     * snapshot already stored changes nothing and answers false.
      */
-    public function compact(string $pageId, string $snapshot, int $upToSeq): void;
+    public function compact(string $pageId, string $snapshot, int $upToSeq): bool;
 
     /**
      * Marks the log as being seeded by `$claimant`; true for one caller only — the first after a reset, or the first
@@ -54,8 +55,13 @@ interface WikiCollabStateStoreInterface
     public function markSaved(string $pageId, string $revisionId): void;
 
     /**
-     * Counts a reset after a client reported a corrupt log: true when it is allowed — fewer than `$cap` such resets
-     * since `$windowStart` (atomic: concurrent reports cannot exceed the cap).
+     * Counts a reset requested by a client (corrupt report) or an editor (manual reset): true when it is allowed —
+     * fewer than `$cap` such resets since `$windowStart` (atomic: concurrent requests cannot exceed the cap).
      */
-    public function noteCorruptReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool;
+    public function noteReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool;
+
+    /**
+     * Deletes the logs of pages untouched since `$before` (documents and entries) and returns how many pages.
+     */
+    public function purge(DateTimeImmutable $before): int;
 }

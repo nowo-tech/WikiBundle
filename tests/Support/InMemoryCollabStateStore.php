@@ -15,7 +15,7 @@ use function strlen;
 /**
  * In-memory Yjs log store for unit tests (counts the data reads in {@see self::$loads}).
  */
-final class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
+class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
 {
     /** @var array<string, array{snapshot: string|null, covers: int, updates: array<int, string>, base: string|null, seededAt: DateTimeImmutable|null, seededBy: string|null, updated: DateTimeImmutable|null}> */
     public array $pages = [];
@@ -53,9 +53,13 @@ final class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
         return $this->seq;
     }
 
-    public function compact(string $pageId, string $snapshot, int $upToSeq): void
+    public function compact(string $pageId, string $snapshot, int $upToSeq): bool
     {
         $this->page($pageId);
+        if ($upToSeq < $this->pages[$pageId]['covers']) {
+            return false;
+        }
+
         $this->pages[$pageId]['snapshot'] = $snapshot;
         $this->pages[$pageId]['covers']   = $upToSeq;
         foreach ($this->pages[$pageId]['updates'] as $seq => $update) {
@@ -63,6 +67,21 @@ final class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
                 unset($this->pages[$pageId]['updates'][$seq]);
             }
         }
+
+        return true;
+    }
+
+    public function purge(DateTimeImmutable $before): int
+    {
+        $purged = 0;
+        foreach ($this->pages as $id => $page) {
+            if ($page['updated'] instanceof DateTimeImmutable && $page['updated'] < $before) {
+                unset($this->pages[$id]);
+                ++$purged;
+            }
+        }
+
+        return $purged;
     }
 
     public function claimSeed(string $pageId, DateTimeImmutable $staleBefore, string $claimant): bool
@@ -94,7 +113,7 @@ final class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
     /** @var array<string, array{0: int, 1: DateTimeImmutable}> page id => recent corrupt resets, last one */
     public array $corruptResets = [];
 
-    public function noteCorruptReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool
+    public function noteReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool
     {
         [$count, $last] = $this->corruptResets[$pageId] ?? [0, null];
         $count          = $last instanceof DateTimeImmutable && $last >= $windowStart ? $count : 0;

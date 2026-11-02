@@ -100,12 +100,28 @@ final class WikiCollabControllerTest extends TestCase
         self::assertSame(302, $response->getStatusCode());
         self::assertSame('{"t":"r","c":0,"d":""}', $this->published[1]);
 
+        $again = Request::create('http://localhost/', 'POST', ['_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_collab_reset_' . $this->page->getId())], [], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        self::assertSame(302, $controller->collab($again, 'eng', 'runbook', 'reset')->getStatusCode());
+        self::assertCount(2, $this->published, 'an empty log is not broadcast again');
+
         [$bare, $bareContainer] = $this->controllerWithContainer();
         $request                = Request::create('http://localhost/', 'POST', ['_token' => WikiControllerContainerBuilder::csrfToken($bareContainer, 'wiki_collab_reset_' . $this->page->getId())], [], [], ['HTTP_ORIGIN' => 'http://localhost']);
         self::assertSame(204, $bare->collab($request, 'eng', 'runbook', 'reset')->getStatusCode());
 
         $this->expectException(AccessDeniedHttpException::class);
         $controller->collab(Request::create('http://localhost/', 'POST', ['_token' => 'forged'], [], [], ['HTTP_ORIGIN' => 'http://localhost']), 'eng', 'runbook', 'reset');
+    }
+
+    public function testCappedManualResetsStillGoBackToTheEditor(): void
+    {
+        [$controller, $container] = $this->controllerWithContainer(['page_edit' => ['path' => '/e', 'name' => 'nowo_wiki_page_edit']]);
+        for ($i = 0; $i < 4; ++$i) {
+            $controller->collab($this->post('{"c":1,"d":"AQ=="}'), 'eng', 'runbook', 'update');
+            $request = Request::create('http://localhost/', 'POST', ['_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_collab_reset_' . $this->page->getId())], [], [], ['HTTP_ORIGIN' => 'http://localhost']);
+            self::assertSame(302, $controller->collab($request, 'eng', 'runbook', 'reset')->getStatusCode());
+        }
+
+        self::assertCount(3, array_filter($this->published, static fn (string $m): bool => $m === '{"t":"r","c":0,"d":""}'), 'CW-L3: capped at corrupt_resets');
     }
 
     public function testReadersCannotResetTheSession(): void

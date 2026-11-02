@@ -381,8 +381,10 @@ Every request checks a firewall-trusted user, `canEdit()` and `WikiAction::View`
 - a save outside the live session (no session field, e.g. an editor whose collaboration is off or offline) or with a stale base;
 - a restore, an import, a conversion or any other save (console, host API);
 - a client that cannot apply the log: it posts `POST …/collab/corrupt` `{c, s}` with the sequence number it got; idempotent (a report about a log already reset or grown since changes nothing) and capped at `corrupt_resets` per page per `corrupt_window` seconds (429 `reset_capped` beyond);
-- an editor's **Reset collaboration** button on the edit form (POST + CSRF behind a confirmation, edit permission);
+- an editor's **Reset collaboration** button on the edit form (POST + CSRF behind a confirmation, edit permission; rate-limited and counted in the same `corrupt_resets` cap; a log that is already empty is not broadcast again);
 - a log over `max_log_bytes` (409 `log_reset`).
+
+**Footprint and purge:** per page the log holds at most `max_log_entries` updates (each ≤ `max_update_bytes` decoded) and `max_log_bytes` in total (default 16 MiB), plus one snapshot (≤ `max_snapshot_bytes`); one editor typing produces small updates (tens of bytes each), presence is never stored. Logs of idle pages are deleted by `bin/console wiki:collab:purge --older-than=7` (days; schedule it daily) — nothing is lost, the next editor seeds a new log from the saved Markdown.
 
 As a safety net, a log whose base revision is not the current one is dropped on the next token when it is empty or idle for `reset_after_idle` seconds. **Names:** co-editors see each other's display name (`getDisplayName()` / `getName()` of your user class) or an opaque "Editor xxxx" label — never the login or e-mail.
 

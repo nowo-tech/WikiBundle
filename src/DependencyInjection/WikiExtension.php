@@ -25,6 +25,7 @@ use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
 use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
@@ -388,6 +389,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             $container->setDefinition($store, (new Definition(DoctrineWikiCollabStateStore::class))
                 ->setArgument('$entityManager', new Reference(WikiEntityManagerProvider::class)));
         }
+
+        $container->setAlias(WikiCollabStateStoreInterface::class, $store);
 
         $publisher = $collab['publisher'];
         if (!is_string($publisher) || $publisher === '') {

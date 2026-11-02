@@ -209,6 +209,13 @@ final readonly class WikiCollabService
 
         // @igor-ignore - Persists the update through the store (database write); the service keeps no state
         $this->store->append($page->getId(), $data);
+        // CW-I8: concurrent appends may pass the check above together; the budget is checked again after the write.
+        if ($this->store->info($page->getId())->bytes > $this->options['max_log_bytes']) {
+            $this->drop($page, $page->getCurrentRevision()?->getId());
+
+            throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
+        }
+
         $this->publisher->publish($this->topic($page), json_encode(['t' => 'u', 'c' => $client, 'd' => $data], JSON_THROW_ON_ERROR));
     }
 
@@ -278,19 +285,25 @@ final readonly class WikiCollabService
             return;
         }
 
-        if (!$this->store->noteCorruptReset($page->getId(), new DateTimeImmutable(sprintf('-%d seconds', $this->options['corrupt_window'])), $this->options['corrupt_resets'])) {
-            throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'reset_capped');
-        }
-
+        $this->capReset($page);
         $this->drop($page, $page->getCurrentRevision()?->getId());
     }
 
     /**
      * An editor's explicit "Reset collaboration" (the caller checked the edit right and the CSRF token): drops the log
-     * and reloads the live editors, who then start again from the saved Markdown.
+     * and reloads the live editors, who then start again from the saved Markdown. Rate-limited and capped like
+     * {@see self::corrupt()} (audit CW-L3); a log that is already empty is not broadcast again.
+     *
+     * @throws WikiCollabException when rate-limited (429 `rate_limited`) or over the cap (429 `reset_capped`)
      */
-    public function reset(WikiPage $page): void
+    public function reset(WikiPage $page, UserInterface $user): void
     {
+        $this->limit($page, $user);
+        if ($this->store->info($page->getId())->isEmpty()) {
+            return;
+        }
+
+        $this->capReset($page);
         $this->drop($page, $page->getCurrentRevision()?->getId());
     }
 
@@ -303,6 +316,16 @@ final readonly class WikiCollabService
     {
         if ($this->store->info($page->getId())->updatedAt instanceof DateTimeImmutable) {
             $this->drop($page, $revision->getId());
+        }
+    }
+
+    /**
+     * @throws WikiCollabException over `corrupt_resets` client / editor resets of the page per `corrupt_window`
+     */
+    private function capReset(WikiPage $page): void
+    {
+        if (!$this->store->noteReset($page->getId(), new DateTimeImmutable(sprintf('-%d seconds', $this->options['corrupt_window'])), $this->options['corrupt_resets'])) {
+            throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'reset_capped');
         }
     }
 

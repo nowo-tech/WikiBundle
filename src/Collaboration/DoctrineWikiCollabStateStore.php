@@ -6,13 +6,16 @@ namespace Nowo\WikiBundle\Collaboration;
 
 use DateTimeImmutable;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\DBAL\LockMode;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Entity\WikiCollabUpdate;
+use Throwable;
 
+use function count;
 use function is_numeric;
 use function max;
 
@@ -118,24 +121,63 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
         return (int) $row->getId();
     }
 
-    public function compact(string $pageId, string $snapshot, int $upToSeq): void
+    public function compact(string $pageId, string $snapshot, int $upToSeq): bool
     {
-        $em  = $this->em();
-        $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_SNAPSHOT, $snapshot, $upToSeq);
-        $em->persist($row);
-        $em->flush();
-        $em->detach($row);
+        $this->ensureDocument($pageId);
+        $em = $this->em();
 
-        // CW-M1: the new snapshot is the only one; the updates it covers go.
-        $em->createQueryBuilder()
-            ->delete(WikiCollabUpdate::class, 'u')
-            ->where('u.pageId = :page')
-            ->andWhere("(u.kind = 'update' AND u.id <= :upTo) OR (u.kind = 'snapshot' AND u.id <> :snapshot)")
-            ->setParameter('page', $pageId)
-            ->setParameter('upTo', $upToSeq)
-            ->setParameter('snapshot', $row->getId())
-            ->getQuery()->execute();
-        $this->touch($pageId);
+        // CW-L4: one compaction of a page at a time (row lock on the page's document; a database lock on SQLite).
+        $connection = $em->getConnection();
+        $connection->beginTransaction();
+        try {
+            $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+            $compacted = $upToSeq >= $this->info($pageId)->snapshotSeq;
+            if ($compacted) {
+                $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_SNAPSHOT, $snapshot, $upToSeq);
+                $em->persist($row);
+                $em->flush();
+                $em->detach($row);
+                $em->createQueryBuilder()
+                    ->delete(WikiCollabUpdate::class, 'u')
+                    ->where('u.pageId = :page')
+                    ->andWhere("(u.kind = 'update' AND u.id <= :upTo) OR (u.kind = 'snapshot' AND u.id < :snapshot)")
+                    ->setParameter('page', $pageId)
+                    ->setParameter('upTo', $upToSeq)
+                    ->setParameter('snapshot', $row->getId())
+                    ->getQuery()->execute();
+                $this->touch($pageId);
+            }
+
+            $connection->commit();
+        } catch (Throwable $exception) { // @codeCoverageIgnore
+            $connection->rollBack(); // @codeCoverageIgnore
+
+            throw $exception; // @codeCoverageIgnore
+        }
+
+        return $compacted;
+    }
+
+    public function purge(DateTimeImmutable $before): int
+    {
+        $em = $this->em();
+        /** @var list<string> $pages */
+        $pages = $em->createQueryBuilder()
+            ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+            ->where('d.updatedAt < :before')
+            ->setParameter('before', $before, Types::DATETIME_IMMUTABLE)
+            ->getQuery()->getSingleColumnResult();
+        if ($pages === []) {
+            return 0;
+        }
+
+        $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')->where('u.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
+        $em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
+
+        return count($pages);
     }
 
     public function claimSeed(string $pageId, DateTimeImmutable $staleBefore, string $claimant): bool
@@ -190,7 +232,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
             ->getQuery()->execute();
     }
 
-    public function noteCorruptReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool
+    public function noteReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool
     {
         $this->ensureDocument($pageId);
         $now = new DateTimeImmutable();

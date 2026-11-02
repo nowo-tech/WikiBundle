@@ -105,10 +105,39 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertSame('rev-7', $this->store->info('p1')->baseRevisionId);
 
         $window = new DateTimeImmutable('-10 minutes');
-        self::assertTrue($this->store->noteCorruptReset('p1', $window, 2));
-        self::assertTrue($this->store->noteCorruptReset('p1', $window, 2));
-        self::assertFalse($this->store->noteCorruptReset('p1', $window, 2));
-        self::assertTrue($this->store->noteCorruptReset('p1', new DateTimeImmutable('+1 minute'), 2), 'a new window');
+        self::assertTrue($this->store->noteReset('p1', $window, 2));
+        self::assertTrue($this->store->noteReset('p1', $window, 2));
+        self::assertFalse($this->store->noteReset('p1', $window, 2));
+        self::assertTrue($this->store->noteReset('p1', new DateTimeImmutable('+1 minute'), 2), 'a new window');
+    }
+
+    public function testInterleavedCompactionsKeepTheWidestSnapshot(): void
+    {
+        $seqs = [];
+        for ($i = 0; $i < 4; ++$i) {
+            $seqs[] = $this->store->append('p1', 'AQ==');
+        }
+
+        // CW-L4: the compaction covering more lands first; the one covering less must not delete it.
+        self::assertTrue($this->store->compact('p1', 'V2lkZQ==', $seqs[3]));
+        self::assertFalse($this->store->compact('p1', 'TmFycm93', $seqs[1]));
+
+        $state = $this->store->load('p1');
+        self::assertSame('V2lkZQ==', $state->snapshot);
+        self::assertSame($seqs[3], $state->snapshotSeq);
+        self::assertFalse($state->isEmpty());
+        self::assertSame([], $state->updates);
+    }
+
+    public function testStaleLogsArePurged(): void
+    {
+        $this->store->append('old', 'AQ==');
+        $this->store->append('new', 'AQ==');
+
+        self::assertSame(0, $this->store->purge(new DateTimeImmutable('-1 day')));
+        self::assertSame(2, $this->store->purge(new DateTimeImmutable('+1 minute')));
+        self::assertTrue($this->store->info('old')->isEmpty());
+        self::assertNull($this->store->info('new')->updatedAt);
     }
 
     public function testWorksThroughTheEntityManagerProvider(): void

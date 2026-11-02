@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Collaboration\WikiCollabState;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -260,10 +261,61 @@ final class WikiCollabServiceTest extends TestCase
         self::assertSame($next->getId(), $this->store->info($id)->baseRevisionId);
         self::assertSame([], $this->published);
 
-        $service->reset($this->page);
+        $service->reset($this->page, $this->user);
         self::assertTrue($this->store->info($id)->isEmpty());
         self::assertSame('{"t":"r","c":0,"d":""}', $this->published[0][1]);
+        $service->reset($this->page, $this->user);
+        self::assertCount(1, $this->published, 'CW-L3: an empty log is not broadcast again');
         self::assertSame('wiki_collab_reset_' . $id, WikiCollabService::resetTokenId($this->page));
+    }
+
+    public function testManualResetsAreCappedLikeCorruptReports(): void
+    {
+        $service = $this->service(['corrupt_resets' => 2]);
+        for ($i = 0; $i < 2; ++$i) {
+            $this->store->append($this->page->getId(), 'AQ==');
+            $service->reset($this->page, $this->user);
+        }
+
+        $this->store->append($this->page->getId(), 'AQ==');
+        try {
+            $service->reset($this->page, $this->user);
+            self::fail('no cap');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([429, 'reset_capped'], [$exception->status, $exception->reason]);
+        }
+
+        self::assertCount(2, $this->published, 'CW-L3: no reload loop');
+    }
+
+    public function testTheBudgetIsCheckedAgainAfterTheAppend(): void
+    {
+        $store = new class extends InMemoryCollabStateStore {
+            public bool $stale = true;
+
+            public function info(string $pageId): WikiCollabState
+            {
+                if ($this->stale) {
+                    $this->stale = false;
+
+                    return new WikiCollabState();
+                }
+
+                return parent::info($pageId);
+            }
+        };
+        $store->append($this->page->getId(), str_repeat('A', 12));
+        $this->store = $store;
+
+        try {
+            $this->service(['max_log_bytes' => 16])->update($this->json(['c' => 1, 'd' => 'AQIDBA==']), $this->page, $this->user);
+            self::fail('accepted');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([409, 'log_reset'], [$exception->status, $exception->reason]);
+        }
+
+        self::assertTrue($store->info($this->page->getId())->isEmpty());
+        self::assertSame(['{"t":"r","c":0,"d":""}'], array_column($this->published, 1), 'CW-I8: the update is not relayed');
     }
 
     public function testAStaleLogIsResetOnTheNextTokenOnlyWhenIdle(): void

@@ -113,7 +113,12 @@ final class WikiCollabController extends AbstractController
             throw new AccessDeniedHttpException('Invalid CSRF token.');
         }
 
-        $this->collab?->reset($page);
+        try {
+            $this->collab?->reset($page, $this->requireUser());
+        } catch (WikiCollabException) {
+            // Rate-limited or capped (CW-L3): nothing is reset, back to the editor.
+        }
+
         $edit = $this->routes['page_edit']['name'] ?? null;
 
         return $edit !== null
