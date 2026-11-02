@@ -69,7 +69,7 @@ From **1.12.x**: nothing to do while `nowo_wiki.editor.type` stays `tiptap` (the
 
 **Behaviour with `milkdown`:** the page view renders Markdown for each viewer (one render per view instead of the stored cache); `content_html` is viewer-neutral, so page links read *Content not visible* in search excerpts and AI context. Exports write links to exported pages as relative `.md` links.
 
-**Co-editing (optional):** `composer require symfony/mercure-bundle symfony/rate-limiter` (or provide `collaboration.publisher` / `subscriber_authorizer`), then `nowo_wiki.collaboration.enabled: true` with `collaboration.rate_limiter` (required: the container refuses to compile without it) and a short `mercure.cookie_lifetime`. Schema: two new tables — generate the migration (`doctrine:migrations:diff`) or create them:
+**Co-editing (optional):** `composer require symfony/mercure-bundle:^0.6.1 symfony/rate-limiter` (symfony/mercure ^0.8 / ^0.9: with the Mercure protocol 1.0 configure the hub's default JWT claims `iss`, `aud`, `sub`, `client_id`) (or provide `collaboration.publisher` / `subscriber_authorizer`), then `nowo_wiki.collaboration.enabled: true` with `collaboration.rate_limiter` (required: the container refuses to compile without it) and a short `mercure.cookie_lifetime`. Schema: two new tables — generate the migration (`doctrine:migrations:diff`) or create them:
 
 ```sql
 CREATE TABLE wiki_page_collab_documents (page_id VARCHAR(36) NOT NULL, base_revision_id VARCHAR(36) DEFAULT NULL, seeded_at DATETIME DEFAULT NULL, seeded_by VARCHAR(180) DEFAULT NULL, recent_resets INT DEFAULT 0 NOT NULL, last_reset_at DATETIME DEFAULT NULL, updated_at DATETIME NOT NULL, PRIMARY KEY(page_id));

@@ -8,13 +8,17 @@ use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Mercure\HubRegistry;
 use Symfony\Component\Mercure\Jwt\LcobucciFactory;
 use Symfony\Component\Mercure\Jwt\StaticTokenProvider;
 use Symfony\Component\Mercure\MockHub;
+use Symfony\Component\Mercure\ProtocolVersion;
 use Symfony\Component\Mercure\Update;
+
+use const JSON_THROW_ON_ERROR;
 
 final class MercureWikiCollabTest extends TestCase
 {
@@ -37,14 +41,19 @@ final class MercureWikiCollabTest extends TestCase
 
     public function testTheCookieAllowsSubscribingToTheTopicOnly(): void
     {
-        $hub     = new MockHub('https://wiki.test/.well-known/mercure', new StaticTokenProvider('t'), static fn (): string => 'id', new LcobucciFactory(str_repeat('k', 32)), 'https://wiki.test/.well-known/mercure');
+        $factory = new LcobucciFactory(str_repeat('k', 32), protocolVersion: ProtocolVersion::Legacy);
+        $hub     = new MockHub('https://wiki.test/.well-known/mercure', new StaticTokenProvider('t'), static fn (): string => 'id', $factory, 'https://wiki.test/.well-known/mercure', protocolVersion: ProtocolVersion::Legacy);
         $request = Request::create('https://wiki.test/page');
 
         (new MercureWikiCollabSubscriberAuthorizer(new Authorization(new HubRegistry($hub))))->authorize($request, 'urn:page:1');
 
-        $cookie = $request->attributes->get('_mercure_authorization_cookies');
-        self::assertIsArray($cookie);
-        self::assertNotEmpty($cookie);
+        $cookies = $request->attributes->get('_mercure_authorization_cookies');
+        self::assertIsArray($cookies);
+        $cookie = reset($cookies);
+        self::assertInstanceOf(Cookie::class, $cookie);
+        $claims = json_decode(base64_decode(strtr(explode('.', (string) $cookie->getValue())[1], '-_', '+/')), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($claims);
+        self::assertSame(['subscribe' => ['urn:page:1']], $claims['mercure'], 'subscribe to this topic only, no publish');
     }
 
     public function testStateIsEmptyWithoutSnapshotAndUpdates(): void
