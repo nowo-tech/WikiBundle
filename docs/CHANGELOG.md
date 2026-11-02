@@ -61,6 +61,7 @@ Wiki: Milkdown editor (`editor.type: milkdown`) — the Milkdown ↔ wiki bridge
 
 ### Changed
 
+- `LegacyWikiSpaceAccessChecker` (the default space checker) reads a user's spaces once per request (memo keyed by user identifier, cleared on `kernel.reset`): a page with many links costs one `listSpacesForUser()` instead of one per link (audit CV-L1).
 - With `milkdown` the sanitizer also keeps `details` (`open`) / `summary` and `role`, `aria-label`, `data-math`, `data-directive`, `data-icon` (`WikiExtension::MILKDOWN_SANITIZER_ELEMENTS` / `MILKDOWN_SANITIZER_ATTRIBUTES`).
 - `nowo_wiki_safe_html` draws dialect icons after sanitizing when `milkdown` is on; the page view passes `rich_content` and marks its body `nowo-md` / `data-wiki-rich-content`.
 

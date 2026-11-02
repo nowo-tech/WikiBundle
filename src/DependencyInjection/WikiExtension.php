@@ -347,7 +347,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     private function registerSpaceAccess(ContainerBuilder $container, array $config): void
     {
-        $container->setDefinition(LegacyWikiSpaceAccessChecker::class, (new Definition(LegacyWikiSpaceAccessChecker::class))->setAutowired(true));
+        $container->setDefinition(LegacyWikiSpaceAccessChecker::class, (new Definition(LegacyWikiSpaceAccessChecker::class))
+            ->setAutowired(true)
+            ->addTag('kernel.reset', ['method' => 'reset']));
         $container->setAlias(WikiSpaceAccessCheckerInterface::class, LegacyWikiSpaceAccessChecker::class);
         $container->setDefinition(AccessibleWikiSpaceLocator::class, (new Definition(AccessibleWikiSpaceLocator::class))->setAutowired(true));
         $container->setAlias(WikiSpaceLocatorInterface::class, AccessibleWikiSpaceLocator::class);

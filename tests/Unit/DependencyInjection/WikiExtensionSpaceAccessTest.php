@@ -28,6 +28,7 @@ final class WikiExtensionSpaceAccessTest extends TestCase
         $container = $this->load([]);
 
         self::assertSame(LegacyWikiSpaceAccessChecker::class, (string) $container->getAlias(WikiSpaceAccessCheckerInterface::class));
+        self::assertSame([['method' => 'reset']], $container->getDefinition(LegacyWikiSpaceAccessChecker::class)->getTag('kernel.reset'), 'CV-L1: the membership memo is cleared between requests');
         self::assertSame(AccessibleWikiSpaceLocator::class, (string) $container->getAlias(WikiSpaceLocatorInterface::class));
         self::assertSame(LocalWikiAttachmentStorage::class, (string) $container->getAlias(WikiAttachmentStorageInterface::class));
         self::assertSame(NullWikiAttachmentScanner::class, (string) $container->getAlias(WikiAttachmentScannerInterface::class));
