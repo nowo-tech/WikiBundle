@@ -9,22 +9,39 @@ use Nowo\WikiBundle\Collaboration\WikiCollabState;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
 
 use function array_values;
+use function count;
+use function strlen;
 
 /**
- * In-memory Yjs log store for unit tests.
+ * In-memory Yjs log store for unit tests (counts the data reads in {@see self::$loads}).
  */
 final class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
 {
-    /** @var array<string, array{snapshot: string|null, updates: array<int, string>, base: string|null, seeded: DateTimeImmutable|null, updated: DateTimeImmutable|null}> */
+    /** @var array<string, array{snapshot: string|null, covers: int, updates: array<int, string>, base: string|null, seededAt: DateTimeImmutable|null, seededBy: string|null, updated: DateTimeImmutable|null}> */
     public array $pages = [];
+
+    public int $loads = 0;
 
     private int $seq = 0;
 
     public function load(string $pageId): WikiCollabState
     {
+        ++$this->loads;
         $page = $this->page($pageId);
+        $info = $this->info($pageId);
 
-        return new WikiCollabState($page['snapshot'], array_values($page['updates']), $this->seq, $page['base'], $page['seeded'] instanceof DateTimeImmutable, $page['updated']);
+        return new WikiCollabState($page['snapshot'], array_values($page['updates']), $info->seq, $info->baseRevisionId, $info->seededAt, $info->seededBy, $info->updatedAt, $info->updateCount, $info->bytes, $info->snapshotSeq);
+    }
+
+    public function info(string $pageId): WikiCollabState
+    {
+        $page  = $this->page($pageId);
+        $bytes = strlen((string) $page['snapshot']);
+        foreach ($page['updates'] as $update) {
+            $bytes += strlen($update);
+        }
+
+        return new WikiCollabState(null, [], $this->seq, $page['base'], $page['seededAt'], $page['seededBy'], $page['updated'], count($page['updates']), $bytes, $page['covers']);
     }
 
     public function append(string $pageId, string $update): int
@@ -40,6 +57,7 @@ final class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
     {
         $this->page($pageId);
         $this->pages[$pageId]['snapshot'] = $snapshot;
+        $this->pages[$pageId]['covers']   = $upToSeq;
         foreach ($this->pages[$pageId]['updates'] as $seq => $update) {
             if ($seq <= $upToSeq) {
                 unset($this->pages[$pageId]['updates'][$seq]);
@@ -47,35 +65,31 @@ final class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
         }
     }
 
-    public function claimSeed(string $pageId, DateTimeImmutable $staleBefore): bool
+    public function claimSeed(string $pageId, DateTimeImmutable $staleBefore, string $claimant): bool
     {
         $this->page($pageId);
-        $seeded = $this->pages[$pageId]['seeded'];
+        $seeded = $this->pages[$pageId]['seededAt'];
         if ($seeded instanceof DateTimeImmutable && $seeded >= $staleBefore) {
             return false;
         }
 
-        $this->pages[$pageId]['seeded'] = new DateTimeImmutable();
+        $this->pages[$pageId]['seededAt'] = new DateTimeImmutable();
+        $this->pages[$pageId]['seededBy'] = $claimant;
+        $this->pages[$pageId]['updated']  = new DateTimeImmutable();
 
         return true;
     }
 
     public function reset(string $pageId, ?string $baseRevisionId): void
     {
-        $this->pages[$pageId] = ['snapshot' => null, 'updates' => [], 'base' => $baseRevisionId, 'seeded' => null, 'updated' => new DateTimeImmutable()];
-    }
-
-    public function markSaved(string $pageId, string $revisionId): void
-    {
-        $this->page($pageId);
-        $this->pages[$pageId]['base'] = $revisionId;
+        $this->pages[$pageId] = ['snapshot' => null, 'covers' => 0, 'updates' => [], 'base' => $baseRevisionId, 'seededAt' => null, 'seededBy' => null, 'updated' => new DateTimeImmutable()];
     }
 
     /**
-     * @return array{snapshot: string|null, updates: array<int, string>, base: string|null, seeded: DateTimeImmutable|null, updated: DateTimeImmutable|null}
+     * @return array{snapshot: string|null, covers: int, updates: array<int, string>, base: string|null, seededAt: DateTimeImmutable|null, seededBy: string|null, updated: DateTimeImmutable|null}
      */
     private function page(string $pageId): array
     {
-        return $this->pages[$pageId] ??= ['snapshot' => null, 'updates' => [], 'base' => null, 'seeded' => null, 'updated' => null];
+        return $this->pages[$pageId] ??= ['snapshot' => null, 'covers' => 0, 'updates' => [], 'base' => null, 'seededAt' => null, 'seededBy' => null, 'updated' => null];
     }
 }

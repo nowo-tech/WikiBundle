@@ -22,6 +22,7 @@ class WikiCollabDocument
      * @param string $pageId id of the page (one document per page)
      * @param string|null $baseRevisionId revision the log started from or was last saved as
      * @param DateTimeImmutable|null $seededAt when a client was asked to seed the log
+     * @param string|null $seededBy identifier of the user whose client seeds the log
      */
     public function __construct(
         #[ORM\Id]
@@ -31,6 +32,8 @@ class WikiCollabDocument
         private ?string $baseRevisionId = null,
         #[ORM\Column(name: 'seeded_at', type: 'datetime_immutable', nullable: true)]
         private ?DateTimeImmutable $seededAt = null,
+        #[ORM\Column(name: 'seeded_by', type: 'string', length: 180, nullable: true)]
+        private ?string $seededBy = null,
     ) {
         $this->updatedAt = new DateTimeImmutable();
     }
@@ -48,6 +51,11 @@ class WikiCollabDocument
     public function getSeededAt(): ?DateTimeImmutable
     {
         return $this->seededAt;
+    }
+
+    public function getSeededBy(): ?string
+    {
+        return $this->seededBy;
     }
 
     public function getUpdatedAt(): DateTimeImmutable

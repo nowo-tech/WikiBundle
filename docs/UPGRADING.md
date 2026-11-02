@@ -69,10 +69,10 @@ From **1.12.x**: no schema change and nothing to do while `nowo_wiki.editor.type
 
 **Behaviour with `milkdown`:** the page view renders Markdown for each viewer (one render per view instead of the stored cache); `content_html` is viewer-neutral, so page links read *Content not visible* in search excerpts and AI context. Exports write links to exported pages as relative `.md` links.
 
-**Co-editing (optional):** `composer require symfony/mercure-bundle` (or provide `collaboration.publisher` / `subscriber_authorizer`), Milkdown ≥ 1.2, then `nowo_wiki.collaboration.enabled: true` and a rate limiter. Schema: two new tables — generate the migration (`doctrine:migrations:diff`) or create them:
+**Co-editing (optional):** `composer require symfony/mercure-bundle symfony/rate-limiter` (or provide `collaboration.publisher` / `subscriber_authorizer`), Milkdown ≥ 1.2, then `nowo_wiki.collaboration.enabled: true` with `collaboration.rate_limiter` (required: the container refuses to compile without it) and a short `mercure.cookie_lifetime`. Schema: two new tables — generate the migration (`doctrine:migrations:diff`) or create them:
 
 ```sql
-CREATE TABLE wiki_page_collab_documents (page_id VARCHAR(36) NOT NULL, base_revision_id VARCHAR(36) DEFAULT NULL, seeded_at DATETIME DEFAULT NULL, updated_at DATETIME NOT NULL, PRIMARY KEY(page_id));
+CREATE TABLE wiki_page_collab_documents (page_id VARCHAR(36) NOT NULL, base_revision_id VARCHAR(36) DEFAULT NULL, seeded_at DATETIME DEFAULT NULL, seeded_by VARCHAR(180) DEFAULT NULL, updated_at DATETIME NOT NULL, PRIMARY KEY(page_id));
 CREATE TABLE wiki_page_collab_updates (id INT AUTO_INCREMENT NOT NULL, page_id VARCHAR(36) NOT NULL, kind VARCHAR(16) NOT NULL, data LONGTEXT NOT NULL, covers_seq INT DEFAULT NULL, created_at DATETIME NOT NULL, INDEX wiki_collab_update_page (page_id, id), PRIMARY KEY(id));
 ```
 

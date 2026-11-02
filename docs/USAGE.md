@@ -357,22 +357,22 @@ nowo_wiki:
         enabled: true
         hub_url: '%env(MERCURE_PUBLIC_URL)%'      # the browser subscribes here
         topic_prefix: 'https://wiki.example.com/pages/'
-        rate_limiter: limiter.wiki_collab         # framework.rate_limiter.wiki_collab (recommended)
+        rate_limiter: limiter.wiki_collab         # framework.rate_limiter.wiki_collab (required)
 ```
 
 The page edit form passes MilkdownEditorType the `collaboration` option (base URL, hub URL, topic, user name and colour) — only on the edit form, so readers never get it. The browser then calls, all under `routes.page_collab` (`…/pages/{pageSlug}/collab/{action}`):
 
 | Request | Answer |
 |---------|--------|
-| `POST …/collab/token` | 204; sets the `mercureAuthorization` cookie: subscriber JWT for this page's topic only |
-| `GET …/collab/state` | `{"state": "<base64 snapshot>", "updates": ["<base64>", …], "seq": 12, "compact": false, "seed": true}` |
+| `POST …/collab/token` | 204; sets the `mercureAuthorization` cookie (subscriber JWT for this page's topic only); drops a stale log and claims the seeding of an empty one for this user |
+| `GET …/collab/state` | `{"state": "<base64 snapshot>", "updates": ["<base64>", …], "seq": 12, "compact": false, "seed": true}` — read only |
 | `POST …/collab/update` `{c, d}` | 204; the update is appended to the log and published (`{"t":"u","c":…,"d":…}`, private) |
 | `POST …/collab/awareness` `{c, d}` | 204; presence published (`{"t":"a",…}`), never stored |
 | `POST …/collab/compact` `{c, d, s}` | 204; the log up to `s` is replaced with the snapshot `d` |
 
-Every request checks a firewall-trusted user, `canEdit()` and `WikiAction::View` + `WikiAction::Edit` on the space and the page (404 when the page is not readable, 403 when not editable); POSTs must be same-origin and JSON. Errors answer `{"error": "<reason>"}`: 400 `invalid_payload`, 413 `too_large`, 415 `json_required`, 429 `rate_limited` / `log_full`.
+Every request checks a firewall-trusted user, `canEdit()` and `WikiAction::View` + `WikiAction::Edit` on the space and the page (404 when the page is not readable, 403 when not editable); POSTs must be same-origin and JSON. Every request is rate-limited per user and page. Errors answer `{"error": "<reason>"}`: 400 `invalid_payload`, 409 `log_reset` (the log went over `max_log_bytes` and was dropped; editors reload), 413 `too_large`, 415 `json_required`, 429 `rate_limited` / `log_full`.
 
-**Seeding:** an empty log answers `seed: true` to one client, which fills it from the field's Markdown; a claim not fulfilled within `seed_timeout` seconds may be taken again. **Saving** still submits the Markdown (the server never reads Yjs); the log then records the new revision. **Reset — the replacement wins:** any save that is not the collaborative save of the edit form (a restore, an import, a conversion, a host API save) drops the log and publishes `{"t": "r"}`: live editors stop, show a notice and reload with the new content (Milkdown ≥ 1.2). As a safety net, a log whose base revision is not the current one is also dropped when it is empty or idle for `reset_after_idle` seconds.
+**Seeding:** the token request of the first editor of an empty log claims the seeding for that user; `GET state` then answers `seed: true` to that user, whose client fills the document from the field's Markdown. A claim not fulfilled within `seed_timeout` seconds may be taken again. (Two tabs of the same user opened at the same instant may both seed.) **Every save drops the log** — the edit form, a restore, an import, a conversion, a host API save: the saved Markdown is the source of truth, the log is emptied and `{"t": "r"}` is published; live editors stop, show a notice and reload with the saved content (Milkdown ≥ 1.2). Edits typed by others after the save and before the reload are lost. As a safety net, a log whose base revision is not the current one is dropped on the next token when it is empty or idle for `reset_after_idle` seconds. **Names:** co-editors see each other's display name (`getDisplayName()` / `getName()` of your user class) or an opaque "Editor xxxx" label — never the login or e-mail.
 
 Your own endpoints (e.g. Beacon routes) can call `WikiCollabService` directly — check the edit permission first, as `WikiCollabController` does. Replace the storage, the publisher or the cookie with `collaboration.store`, `publisher`, `subscriber_authorizer` (`WikiCollabStateStoreInterface`, `WikiCollabPublisherInterface`, `WikiCollabSubscriberAuthorizerInterface`).
 

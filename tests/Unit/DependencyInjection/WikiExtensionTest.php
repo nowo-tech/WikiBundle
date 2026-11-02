@@ -186,12 +186,11 @@ final class WikiExtensionTest extends TestCase
         (new WikiExtension())->load([[
             'user_class'    => 'App\\Entity\\User',
             'editor'        => ['type' => 'milkdown'],
-            'collaboration' => ['enabled' => true, 'store' => 'app.store', 'mercure_hub' => 'wiki'],
+            'collaboration' => ['enabled' => true, 'store' => 'app.store', 'mercure_hub' => 'wiki', 'rate_limiter' => 'limiter.x'],
         ]], $container);
 
         $service = $container->getDefinition(WikiCollabService::class);
         self::assertSame('app.store', (string) $service->getArgument('$store'));
-        self::assertNull($service->getArgument('$rateLimiter'));
         self::assertSame('mercure.hub.wiki', (string) $container->getDefinition(MercureWikiCollabPublisher::class)->getArgument('$hub'));
         self::assertSame('wiki', $container->getDefinition(MercureWikiCollabSubscriberAuthorizer::class)->getArgument('$hub'));
     }
@@ -204,7 +203,14 @@ final class WikiExtensionTest extends TestCase
         self::assertFalse($container->hasDefinition(WikiCollabService::class));
 
         $method = new ReflectionMethod(WikiExtension::class, 'registerCollaboration');
-        $config = ['editor' => ['type' => 'milkdown'], 'collaboration' => ['enabled' => true, 'publisher' => null, 'subscriber_authorizer' => null]];
+        $config = ['editor' => ['type' => 'milkdown'], 'collaboration' => ['enabled' => true, 'publisher' => null, 'subscriber_authorizer' => null, 'rate_limiter' => 'limiter.x']];
+        try {
+            $method->invoke(new WikiExtension(), new ContainerBuilder(), ['collaboration' => ['rate_limiter' => null] + $config['collaboration']] + $config, HubInterface::class);
+            self::fail('accepted without a rate limiter');
+        } catch (LogicException $exception) {
+            self::assertStringContainsString('collaboration.rate_limiter', $exception->getMessage());
+        }
+
         try {
             $method->invoke(new WikiExtension(), new ContainerBuilder(), $config, 'Missing\\Hub');
             self::fail('accepted without mercure');
@@ -223,7 +229,7 @@ final class WikiExtensionTest extends TestCase
     {
         $container = new ContainerBuilder();
         $method    = new ReflectionMethod(WikiExtension::class, 'registerCollaboration');
-        $collab    = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'collaboration' => ['enabled' => true, 'publisher' => 'app.pub', 'subscriber_authorizer' => 'app.auth']]])['collaboration'];
+        $collab    = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'collaboration' => ['enabled' => true, 'publisher' => 'app.pub', 'subscriber_authorizer' => 'app.auth', 'rate_limiter' => 'limiter.x']]])['collaboration'];
         $method->invoke(new WikiExtension(), $container, ['editor' => ['type' => 'milkdown'], 'collaboration' => $collab], 'Missing\\Hub');
 
         self::assertSame('app.pub', (string) $container->getDefinition(WikiCollabService::class)->getArgument('$publisher'));

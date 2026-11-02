@@ -84,8 +84,8 @@ final class WikiCollabController extends AbstractController
 
         try {
             return match ($action) {
-                'state'     => new JsonResponse($this->collab->state($page), Response::HTTP_OK, self::NO_STORE),
-                'token'     => $this->noContent(fn () => $this->collab->token($request, $page)),
+                'state'     => new JsonResponse($this->collab->state($page, $user), Response::HTTP_OK, self::NO_STORE),
+                'token'     => $this->noContent(fn () => $this->collab->token($request, $page, $user)),
                 'update'    => $this->noContent(fn () => $this->collab->update($request, $page, $user)),
                 'awareness' => $this->noContent(fn () => $this->collab->awareness($request, $page, $user)),
                 default     => $this->noContent(fn () => $this->collab->compact($request, $page, $user)),

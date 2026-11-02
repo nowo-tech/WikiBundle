@@ -7,34 +7,42 @@ namespace Nowo\WikiBundle\Collaboration;
 use DateTimeImmutable;
 
 /**
- * The stored Yjs log of a page (1.13): an optional snapshot, the updates after it (base64, in order), the highest
- * sequence number, the revision the log started from and when it last changed.
+ * The stored Yjs log of a page (1.13). {@see WikiCollabStateStoreInterface::load()} fills the data (snapshot and
+ * updates); {@see WikiCollabStateStoreInterface::info()} only the counters, without reading any data.
  */
 final readonly class WikiCollabState
 {
     /**
-     * @param string|null $snapshot base64 full state covering every entry up to its sequence number
-     * @param list<string> $updates base64 updates after the snapshot, oldest first
+     * @param string|null $snapshot base64 full state covering every entry up to {@see self::$snapshotSeq} (load() only)
+     * @param list<string> $updates base64 updates after the snapshot, oldest first (load() only)
      * @param int $seq highest sequence number in the log (0 when empty)
      * @param string|null $baseRevisionId revision the log was seeded from (null: never seeded)
-     * @param bool $seeded whether a client was already asked to seed it
-     * @param DateTimeImmutable|null $updatedAt last append, compaction or reset
+     * @param DateTimeImmutable|null $seededAt when a client claimed the seeding
+     * @param string|null $seededBy identifier of the user who claimed it
+     * @param DateTimeImmutable|null $updatedAt last append, compaction, claim or reset (null: no document yet)
+     * @param int $updateCount number of updates after the snapshot
+     * @param int $bytes stored bytes (snapshot and updates, base64)
+     * @param int $snapshotSeq last sequence number the snapshot covers (0: no snapshot)
      */
     public function __construct(
         public ?string $snapshot = null,
         public array $updates = [],
         public int $seq = 0,
         public ?string $baseRevisionId = null,
-        public bool $seeded = false,
+        public ?DateTimeImmutable $seededAt = null,
+        public ?string $seededBy = null,
         public ?DateTimeImmutable $updatedAt = null,
+        public int $updateCount = 0,
+        public int $bytes = 0,
+        public int $snapshotSeq = 0,
     ) {
     }
 
     /**
-     * Whether the log holds nothing.
+     * Whether the log holds nothing (no snapshot, no update).
      */
     public function isEmpty(): bool
     {
-        return $this->snapshot === null && $this->updates === [];
+        return $this->snapshotSeq === 0 && $this->updateCount === 0;
     }
 }

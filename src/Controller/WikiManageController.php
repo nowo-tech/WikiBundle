@@ -325,8 +325,6 @@ final class WikiManageController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
-            // 1.13: this save is the collaborative document itself (WikiCollabSaveListener keeps the Yjs log).
-            $request->attributes->set(WikiCollabService::COLLAB_SAVE_ATTRIBUTE, $page->getId());
             $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
 
             return $this->redirectToRoute($this->routes['page_view']['name'], [

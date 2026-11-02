@@ -266,6 +266,7 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($defaults['collaboration']['enabled']);
         self::assertSame('/.well-known/mercure', $defaults['collaboration']['hub_url']);
         self::assertSame(200, $defaults['collaboration']['compact_after']);
+        self::assertSame(16777216, $defaults['collaboration']['max_log_bytes']);
         self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}', $defaults['routes']['page_collab']['path']);
 
         $this->expectException(InvalidConfigurationException::class);

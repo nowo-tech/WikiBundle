@@ -34,43 +34,75 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
 
     public function load(string $pageId): WikiCollabState
     {
-        $em       = $this->em();
-        $document = $em->createQueryBuilder()
-            ->select('d')->from(WikiCollabDocument::class, 'd')
-            ->where('d.pageId = :page')->setParameter('page', $pageId)
-            ->getQuery()->setHint(Query::HINT_REFRESH, true)->getOneOrNullResult();
+        $info = $this->info($pageId);
+        if ($info->isEmpty()) {
+            return $info;
+        }
+
         /** @var list<WikiCollabUpdate> $rows */
-        $rows = $em->createQueryBuilder()
+        $rows = $this->em()->createQueryBuilder()
             ->select('u')->from(WikiCollabUpdate::class, 'u')
             ->where('u.pageId = :page')->setParameter('page', $pageId)
             ->orderBy('u.id', 'ASC')
             ->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
 
         $snapshot = null;
-        $covers   = 0;
-        $seq      = 0;
+        $updates  = [];
         foreach ($rows as $row) {
-            $seq = max($seq, (int) $row->getId());
-            if ($row->getKind() === WikiCollabUpdate::KIND_SNAPSHOT && (int) $row->getCoversSeq() >= $covers) {
+            if ($row->getKind() === WikiCollabUpdate::KIND_SNAPSHOT) {
                 $snapshot = $row->getData();
-                $covers   = (int) $row->getCoversSeq();
-            }
-        }
-
-        $updates = [];
-        foreach ($rows as $row) {
-            if ($row->getKind() === WikiCollabUpdate::KIND_UPDATE && (int) $row->getId() > $covers) {
+            } elseif ((int) $row->getId() > $info->snapshotSeq) {
                 $updates[] = $row->getData();
             }
+
+            $this->em()->detach($row);
         }
 
+        return new WikiCollabState($snapshot, $updates, $info->seq, $info->baseRevisionId, $info->seededAt, $info->seededBy, $info->updatedAt, $info->updateCount, $info->bytes, $info->snapshotSeq);
+    }
+
+    public function info(string $pageId): WikiCollabState
+    {
+        $em       = $this->em();
+        $document = $em->createQueryBuilder()
+            ->select('d')->from(WikiCollabDocument::class, 'd')
+            ->where('d.pageId = :page')->setParameter('page', $pageId)
+            ->getQuery()->setHint(Query::HINT_REFRESH, true)->getOneOrNullResult();
+        /** @var list<array{kind: string, n: int|string, b: int|string|null, m: int|string|null, c: int|string|null}> $rows */
+        $rows = $em->createQueryBuilder()
+            ->select('u.kind AS kind', 'COUNT(u.id) AS n', 'SUM(LENGTH(u.data)) AS b', 'MAX(u.id) AS m', 'MAX(u.coversSeq) AS c')
+            ->from(WikiCollabUpdate::class, 'u')
+            ->where('u.pageId = :page')->setParameter('page', $pageId)
+            ->groupBy('u.kind')
+            ->getQuery()->getArrayResult();
+
+        $count = 0;
+        $bytes = 0;
+        $seq   = 0;
+        $cover = 0;
+        foreach ($rows as $row) {
+            $bytes += (int) $row['b'];
+            $seq = max($seq, (int) $row['m']);
+            if ($row['kind'] === WikiCollabUpdate::KIND_SNAPSHOT) {
+                $cover = (int) $row['c'];
+            } else {
+                $count = (int) $row['n'];
+            }
+        }
+
+        $document = $document instanceof WikiCollabDocument ? $document : null;
+
         return new WikiCollabState(
-            $snapshot,
-            $updates,
-            max($seq, $covers),
-            $document instanceof WikiCollabDocument ? $document->getBaseRevisionId() : null,
-            $document instanceof WikiCollabDocument && $document->getSeededAt() instanceof DateTimeImmutable,
-            $document instanceof WikiCollabDocument ? $document->getUpdatedAt() : null,
+            null,
+            [],
+            max($seq, $cover),
+            $document?->getBaseRevisionId(),
+            $document?->getSeededAt(),
+            $document?->getSeededBy(),
+            $document?->getUpdatedAt(),
+            $count,
+            $bytes,
+            $cover,
         );
     }
 
@@ -94,10 +126,11 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
         $em->flush();
         $em->detach($row);
 
+        // CW-M1: the new snapshot is the only one; the updates it covers go.
         $em->createQueryBuilder()
             ->delete(WikiCollabUpdate::class, 'u')
             ->where('u.pageId = :page')
-            ->andWhere("(u.kind = 'update' AND u.id <= :upTo) OR (u.kind = 'snapshot' AND u.coversSeq <= :upTo AND u.id <> :snapshot)")
+            ->andWhere("(u.kind = 'update' AND u.id <= :upTo) OR (u.kind = 'snapshot' AND u.id <> :snapshot)")
             ->setParameter('page', $pageId)
             ->setParameter('upTo', $upToSeq)
             ->setParameter('snapshot', $row->getId())
@@ -105,16 +138,18 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
         $this->touch($pageId);
     }
 
-    public function claimSeed(string $pageId, DateTimeImmutable $staleBefore): bool
+    public function claimSeed(string $pageId, DateTimeImmutable $staleBefore, string $claimant): bool
     {
         $this->ensureDocument($pageId);
         $claimed = $this->em()->createQueryBuilder()
             ->update(WikiCollabDocument::class, 'd')
             ->set('d.seededAt', ':now')
+            ->set('d.seededBy', ':claimant')
             ->set('d.updatedAt', ':now')
             ->where('d.pageId = :page')
             ->andWhere('d.seededAt IS NULL OR d.seededAt < :stale')
             ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
+            ->setParameter('claimant', $claimant)
             ->setParameter('stale', $staleBefore, Types::DATETIME_IMMUTABLE)
             ->setParameter('page', $pageId)
             ->getQuery()->execute();
@@ -134,22 +169,11 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
             ->update(WikiCollabDocument::class, 'd')
             ->set('d.baseRevisionId', ':base')
             ->set('d.seededAt', 'NULL')
+            ->set('d.seededBy', 'NULL')
             ->set('d.updatedAt', ':now')
             ->where('d.pageId = :page')
             ->setParameter('base', $baseRevisionId)
             ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
-            ->setParameter('page', $pageId)
-            ->getQuery()->execute();
-    }
-
-    public function markSaved(string $pageId, string $revisionId): void
-    {
-        $this->ensureDocument($pageId);
-        $this->em()->createQueryBuilder()
-            ->update(WikiCollabDocument::class, 'd')
-            ->set('d.baseRevisionId', ':base')
-            ->where('d.pageId = :page')
-            ->setParameter('base', $revisionId)
             ->setParameter('page', $pageId)
             ->getQuery()->execute();
     }

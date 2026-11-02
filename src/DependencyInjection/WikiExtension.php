@@ -372,6 +372,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             throw new LogicException('nowo_wiki.collaboration needs nowo_wiki.editor.type "milkdown".');
         }
 
+        if (!is_string($collab['rate_limiter']) || $collab['rate_limiter'] === '') {
+            throw new LogicException('nowo_wiki.collaboration needs a rate limiter: set collaboration.rate_limiter to the service id of a Symfony RateLimiterFactory (e.g. limiter.wiki_collab from framework.rate_limiter.wiki_collab: {policy: sliding_window, limit: 600, interval: "1 minute"}). It limits every collaboration request per user and page.');
+        }
+
         $needsMercure = !is_string($collab['publisher']) || !is_string($collab['subscriber_authorizer']);
         if ($needsMercure && !interface_exists($mercureHub)) {
             throw new LogicException('nowo_wiki.collaboration needs symfony/mercure-bundle (composer require symfony/mercure-bundle) or your own collaboration.publisher and collaboration.subscriber_authorizer services.');
@@ -405,10 +409,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$publisher', new Reference($publisher))
             ->setArgument('$authorizer', new Reference($authorizer))
             ->setArgument('$options', array_intersect_key($collab, WikiCollabService::DEFAULTS))
-            ->setArgument('$rateLimiter', is_string($collab['rate_limiter']) && $collab['rate_limiter'] !== '' ? new Reference($collab['rate_limiter']) : null));
+            ->setArgument('$rateLimiter', new Reference((string) $collab['rate_limiter'])));
         $container->setDefinition(WikiCollabSaveListener::class, (new Definition(WikiCollabSaveListener::class))
             ->setArgument('$collab', new Reference(WikiCollabService::class))
-            ->setArgument('$requestStack', new Reference('request_stack', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->addTag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED]));
     }
 

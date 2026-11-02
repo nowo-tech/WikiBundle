@@ -109,11 +109,12 @@ nowo_milkdown_editor:
 | `collaboration.topic_prefix` | `urn:nowo-wiki:page:` | Topic of a page = prefix + page id |
 | `collaboration.max_update_bytes` | 262144 | Largest decoded update / presence message (413 above) |
 | `collaboration.max_snapshot_bytes` | 4194304 | Largest decoded compaction snapshot |
+| `collaboration.max_log_bytes` | 16777216 | Byte budget of a page's stored log (snapshot + updates); over it the log is dropped and editors reload (409 `log_reset`) |
 | `collaboration.compact_after` | 200 | Ask clients to compact once the log holds this many updates |
 | `collaboration.max_log_entries` | 2000 | Refuse updates (429 `log_full`) above this until a client compacts |
 | `collaboration.seed_timeout` | 30 | Seconds after which an unfulfilled seed claim may be taken again |
 | `collaboration.reset_after_idle` | 300 | Idle seconds after which a log not matching the current revision is dropped |
-| `collaboration.rate_limiter` | null | Service id of a `RateLimiterFactory` per user and page (update / awareness / compact) |
+| `collaboration.rate_limiter` | null | **Required** with `enabled`: service id of a `RateLimiterFactory` per user and page, applied to every request (token, state, update, awareness, compact) |
 | `collaboration.store` / `publisher` / `subscriber_authorizer` | null | Your services instead of the Doctrine store and the Mercure defaults |
 | `collaboration.mercure_hub` | null | Mercure hub name of the defaults |
 | `routes.page_collab` | `…/pages/{pageSlug}/collab/{action}` | The collaboration endpoints (`action`: token, state, update, awareness, compact) |

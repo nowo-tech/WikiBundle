@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Stub\TestUserBase;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -33,6 +34,8 @@ final class WikiCollabServiceTest extends TestCase
 
     private InMemoryCollabStateStore $store;
 
+    private TestUser $user;
+
     /** @var list<array{0: string, 1: string}> */
     private array $published = [];
 
@@ -44,55 +47,91 @@ final class WikiCollabServiceTest extends TestCase
         $this->page = new WikiPage(new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't'), 'p', 'P');
         $this->page->setCurrentRevision(new WikiPageRevision($this->page, 1, '<p>x</p>', new TestUser(), 'x'));
         $this->store = new InMemoryCollabStateStore();
+        $this->user  = new TestUser('u1', 'ana@x.test');
     }
 
     public function testTopicTokenAndEditorOptions(): void
     {
         $service = $this->service(['topic_prefix' => 'https://wiki.test/pages/', 'hub_url' => '/hub']);
-        $service->token(new Request(), $this->page);
+        $service->token(new Request(), $this->page, $this->user);
 
         self::assertSame(['https://wiki.test/pages/' . $this->page->getId()], $this->authorized);
         $options = $service->editorOptions($this->page, new TestUser('u', 'ana@x.test'), '/collab/');
         self::assertSame('/collab', $options['url']);
         self::assertSame('/hub', $options['hub_url']);
         self::assertSame('https://wiki.test/pages/' . $this->page->getId(), $options['topic']);
-        self::assertSame('ana@x.test', $options['user']['name']);
+        self::assertMatchesRegularExpression('/^Editor [0-9a-f]{4}$/', $options['user']['name'], 'CW-I2: never the identifier');
+        self::assertStringNotContainsString('ana@', $options['user']['name']);
         self::assertMatchesRegularExpression('/^#[0-9a-f]{6}$/', $options['user']['color']);
+
+        $named = new class extends TestUserBase {
+            public function getDisplayName(): string
+            {
+                return ' Ana Lopez ';
+            }
+        };
+        self::assertSame('Ana Lopez', $service->editorOptions($this->page, $named, '/c')['user']['name']);
+        $blank = new class extends TestUserBase {
+            public function getName(): string
+            {
+                return ' ';
+            }
+        };
+        self::assertStringStartsWith('Editor ', $service->editorOptions($this->page, $blank, '/c')['user']['name']);
     }
 
-    public function testTheFirstClientSeedsAnEmptyLogAndOthersWait(): void
+    public function testTheTokenClaimsTheSeedAndTheStateOnlyReads(): void
     {
         $service = $this->service();
+        $other   = new TestUser('u2', 'bob@x.test');
 
-        $first = $service->state($this->page);
-        self::assertSame(['state' => WikiCollabService::EMPTY_STATE, 'updates' => [], 'seq' => 0, 'compact' => false, 'seed' => true], $first);
-        self::assertFalse($service->state($this->page)['seed']);
-        self::assertSame($this->page->getCurrentRevision()?->getId(), $this->store->load($this->page->getId())->baseRevisionId);
+        self::assertFalse($service->state($this->page, $this->user)['seed'], 'no claim before the token');
+        self::assertNull($this->store->info($this->page->getId())->updatedAt, 'GET state has no side effect');
+
+        $service->token(new Request(), $this->page, $this->user);
+        $service->token(new Request(), $this->page, $other);
+        self::assertSame(['state' => WikiCollabService::EMPTY_STATE, 'updates' => [], 'seq' => 0, 'compact' => false, 'seed' => true], $service->state($this->page, $this->user));
+        self::assertFalse($service->state($this->page, $other)['seed']);
+        self::assertSame($this->page->getCurrentRevision()?->getId(), $this->store->info($this->page->getId())->baseRevisionId);
+
+        $this->store->pages[$this->page->getId()]['seededAt'] = new DateTimeImmutable('-1 hour');
+        self::assertFalse($service->state($this->page, $this->user)['seed'], 'a stale claim does not seed');
+        $service->token(new Request(), $this->page, $other);
+        self::assertTrue($service->state($this->page, $other)['seed'], 'a stale claim is taken again');
     }
 
     public function testUpdatesAreStoredRelayedAndCompactedOnRequest(): void
     {
         $service = $this->service(['compact_after' => 10, 'max_log_entries' => 20]);
-        $service->state($this->page);
+        $service->token(new Request(), $this->page, $this->user);
         for ($i = 0; $i < 10; ++$i) {
-            $service->update($this->json(['c' => 7, 'd' => 'AQI=']), $this->page, new TestUser());
+            $service->update($this->json(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
         }
 
-        $service->awareness($this->json(['c' => 7, 'd' => 'Aw==']), $this->page, new TestUser());
+        $service->awareness($this->json(['c' => 7, 'd' => 'Aw==']), $this->page, $this->user);
         self::assertCount(11, $this->published);
         self::assertSame('{"t":"u","c":7,"d":"AQI="}', $this->published[0][1]);
         self::assertSame('{"t":"a","c":7,"d":"Aw=="}', $this->published[10][1]);
-        self::assertCount(10, $this->store->load($this->page->getId())->updates);
 
-        $state = $service->state($this->page);
+        $state = $service->state($this->page, $this->user);
         self::assertTrue($state['compact']);
         self::assertFalse($state['seed']);
         self::assertSame(10, $state['seq']);
 
-        $service->compact($this->json(['c' => 7, 'd' => 'BAU=', 's' => 10]), $this->page, new TestUser());
-        $state = $service->state($this->page);
+        $service->compact($this->json(['c' => 7, 'd' => 'BAU=', 's' => 6]), $this->page, $this->user);
+        $state = $service->state($this->page, $this->user);
         self::assertSame('BAU=', $state['state']);
-        self::assertSame([], $state['updates']);
+        self::assertCount(4, $state['updates']);
+
+        try {
+            $service->compact($this->json(['c' => 7, 'd' => 'BgY=', 's' => 5]), $this->page, $this->user);
+            self::fail('CW-M1: a snapshot covering less than the current one is refused');
+        } catch (WikiCollabException $exception) {
+            self::assertSame(400, $exception->status);
+        }
+
+        $service->compact($this->json(['c' => 7, 'd' => 'BwY=', 's' => 10]), $this->page, $this->user);
+        self::assertSame(['state' => 'BwY=', 'updates' => [], 'seq' => 10, 'compact' => false, 'seed' => false], $service->state($this->page, $this->user));
     }
 
     public function testAFullLogRefusesUpdatesUntilCompacted(): void
@@ -102,29 +141,64 @@ final class WikiCollabServiceTest extends TestCase
             $this->store->append($this->page->getId(), 'AQ==');
         }
 
-        $this->expectExceptionObject(new WikiCollabException(429, 'log_full'));
-        $service->update($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, new TestUser());
+        $loads = $this->store->loads;
+        try {
+            $service->update($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, $this->user);
+            self::fail('accepted');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([429, 'log_full'], [$exception->status, $exception->reason]);
+        }
+
+        self::assertSame($loads, $this->store->loads, 'CW-M1: budget checks never read the log data');
     }
 
-    public function testAStaleLogIsResetOnlyWhenIdle(): void
+    public function testALogOverItsByteBudgetIsDroppedAndEditorsReload(): void
+    {
+        $service = $this->service(['max_log_bytes' => 10]);
+        $service->update($this->json(['c' => 1, 'd' => 'AQIDBA==']), $this->page, $this->user);
+
+        try {
+            $service->update($this->json(['c' => 1, 'd' => 'AQIDBA==']), $this->page, $this->user);
+            self::fail('accepted');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([409, 'log_reset'], [$exception->status, $exception->reason]);
+        }
+
+        self::assertTrue($this->store->info($this->page->getId())->isEmpty());
+        self::assertSame('{"t":"r","c":0,"d":""}', $this->published[1][1]);
+    }
+
+    public function testEverySaveDropsTheLogWithoutReadingIt(): void
+    {
+        $service  = $this->service();
+        $revision = $this->page->getCurrentRevision() ?? self::fail('revision');
+        $service->replaced($this->page, $revision);
+        self::assertSame([], $this->published, 'no session yet: nothing to reset');
+
+        $this->store->append($this->page->getId(), 'AQ==');
+        $loads = $this->store->loads;
+        $service->replaced($this->page, $revision);
+        self::assertTrue($this->store->info($this->page->getId())->isEmpty());
+        self::assertSame($revision->getId(), $this->store->info($this->page->getId())->baseRevisionId);
+        self::assertSame([['urn:nowo-wiki:page:' . $this->page->getId(), '{"t":"r","c":0,"d":""}']], $this->published);
+        self::assertSame($loads, $this->store->loads);
+    }
+
+    public function testAStaleLogIsResetOnTheNextTokenOnlyWhenIdle(): void
     {
         $id = $this->page->getId();
+        $this->store->reset($id, 'old-revision');
         $this->store->append($id, 'AQ==');
-        $this->store->markSaved($id, 'old-revision');
 
-        $busy = $this->service(['reset_after_idle' => 300])->state($this->page);
-        self::assertSame(['AQ=='], $busy['updates']);
+        $service = $this->service(['reset_after_idle' => 300]);
+        $service->token(new Request(), $this->page, $this->user);
+        self::assertSame(['AQ=='], $service->state($this->page, $this->user)['updates']);
 
         $this->store->pages[$id]['updated'] = new DateTimeImmutable('-10 minutes');
-        $idle                               = $this->service(['reset_after_idle' => 300])->state($this->page);
-        self::assertSame([], $idle['updates']);
-        self::assertTrue($idle['seed']);
-
-        $service = $this->service();
-        $service->saved($this->page, $this->page->getCurrentRevision() ?? self::fail('revision'));
-        $this->store->append($id, 'Ag==');
-        $this->store->pages[$id]['updated'] = new DateTimeImmutable('-1 day');
-        self::assertSame(['Ag=='], $service->state($this->page)['updates']);
+        $service->token(new Request(), $this->page, $this->user);
+        $state = $service->state($this->page, $this->user);
+        self::assertSame([], $state['updates']);
+        self::assertTrue($state['seed']);
     }
 
     /**
@@ -150,7 +224,7 @@ final class WikiCollabServiceTest extends TestCase
     public function testInvalidRequestsAreRefused(Request $request, int $status, string $reason): void
     {
         try {
-            $this->service(['max_update_bytes' => 1024])->update($request, $this->page, new TestUser());
+            $this->service(['max_update_bytes' => 1024])->update($request, $this->page, $this->user);
             self::fail('accepted');
         } catch (WikiCollabException $exception) {
             self::assertSame([$status, $reason], [$exception->status, $exception->reason]);
@@ -166,7 +240,7 @@ final class WikiCollabServiceTest extends TestCase
 
         foreach ([['c' => 1, 'd' => 'AQ=='], ['c' => 1, 'd' => 'AQ==', 's' => 0], ['c' => 1, 'd' => 'AQ==', 's' => 2], ['c' => 1, 'd' => 'AQ==', 's' => '1']] as $body) {
             try {
-                $service->compact($this->json($body), $this->page, new TestUser());
+                $service->compact($this->json($body), $this->page, $this->user);
                 self::fail('accepted');
             } catch (WikiCollabException $exception) {
                 self::assertSame(400, $exception->status);
@@ -174,15 +248,24 @@ final class WikiCollabServiceTest extends TestCase
         }
     }
 
-    public function testRequestsAreRateLimitedPerUserAndPage(): void
+    public function testEveryRequestIsRateLimitedPerUserAndPage(): void
     {
-        $limiter = new RateLimiterFactory(['id' => 'wiki_collab', 'policy' => 'fixed_window', 'limit' => 2, 'interval' => '1 minute'], new InMemoryStorage());
+        $limiter = new RateLimiterFactory(['id' => 'wiki_collab', 'policy' => 'fixed_window', 'limit' => 4, 'interval' => '1 minute'], new InMemoryStorage());
         $service = $this->service([], $limiter);
-        $service->update($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, new TestUser());
-        $service->awareness($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, new TestUser());
+        $service->token(new Request(), $this->page, $this->user);
+        $service->state($this->page, $this->user);
+        $service->update($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, $this->user);
+        $service->awareness($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, $this->user);
+        $service->state($this->page, new TestUser('other', 'other@x.test'));
 
-        $this->expectExceptionObject(new WikiCollabException(429, 'rate_limited'));
-        $service->update($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, new TestUser());
+        foreach ([fn (): array => $service->state($this->page, $this->user), fn () => $service->token(new Request(), $this->page, $this->user)] as $call) {
+            try {
+                $call();
+                self::fail('not limited');
+            } catch (WikiCollabException $exception) {
+                self::assertSame([429, 'rate_limited'], [$exception->status, $exception->reason]);
+            }
+        }
     }
 
     /**

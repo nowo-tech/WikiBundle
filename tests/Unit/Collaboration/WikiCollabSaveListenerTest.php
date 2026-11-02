@@ -16,40 +16,29 @@ use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
- * User decision 2026-11-02: a replacement (restore, import, conversion) wins over a live session.
+ * User decision 2026-11-02 and audit CW-L1: every save makes the saved Markdown the source of truth.
  */
 final class WikiCollabSaveListenerTest extends TestCase
 {
     /** @var list<string> */
     private array $published = [];
 
-    public function testTheCollaborativeSaveKeepsTheLogAndAnyOtherSaveResetsIt(): void
+    public function testEverySaveDropsTheLogAndReloadsTheEditors(): void
     {
         $page     = new WikiPage(new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't'), 'p', 'P');
         $revision = new WikiPageRevision($page, 2, '<p>x</p>', new TestUser(), 'x');
         $store    = new InMemoryCollabStateStore();
-        $service  = $this->service($store);
-        $event    = new WikiPageSavedEvent($page, $revision);
+        $listener = new WikiCollabSaveListener($this->service($store));
 
-        (new WikiCollabSaveListener($service))($event);
+        $listener(new WikiPageSavedEvent($page, $revision));
         self::assertSame([], $this->published, 'no session yet: nothing to reset');
-        self::assertNull($store->load($page->getId())->updatedAt);
 
         $store->append($page->getId(), 'AQ==');
-        $collabRequest = new Request();
-        $collabRequest->attributes->set(WikiCollabService::COLLAB_SAVE_ATTRIBUTE, $page->getId());
-        $stack = new RequestStack([$collabRequest]);
-        (new WikiCollabSaveListener($service, $stack))($event);
-        self::assertSame(['AQ=='], $store->load($page->getId())->updates);
-        self::assertSame($revision->getId(), $store->load($page->getId())->baseRevisionId);
-        self::assertSame([], $this->published);
-
-        (new WikiCollabSaveListener($service, new RequestStack([new Request()])))($event);
-        self::assertSame([], $store->load($page->getId())->updates);
+        $listener(new WikiPageSavedEvent($page, $revision));
+        self::assertTrue($store->info($page->getId())->isEmpty());
+        self::assertSame($revision->getId(), $store->info($page->getId())->baseRevisionId);
         self::assertSame(['{"t":"r","c":0,"d":""}'], $this->published);
     }
 

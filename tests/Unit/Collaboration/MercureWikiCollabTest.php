@@ -50,7 +50,7 @@ final class MercureWikiCollabTest extends TestCase
     public function testStateIsEmptyWithoutSnapshotAndUpdates(): void
     {
         self::assertTrue((new WikiCollabState())->isEmpty());
-        self::assertFalse((new WikiCollabState('AAA='))->isEmpty());
-        self::assertFalse((new WikiCollabState(null, ['AQ==']))->isEmpty());
+        self::assertFalse((new WikiCollabState(snapshotSeq: 3))->isEmpty());
+        self::assertFalse((new WikiCollabState(updateCount: 1))->isEmpty());
     }
 }
