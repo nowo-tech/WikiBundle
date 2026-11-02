@@ -1,4 +1,8 @@
 wiki:
+  collab:
+    reset: "Reset collaboration"
+    reset_confirm_title: "Reset the shared session?"
+    reset_confirm_message: "Everyone editing this page reloads it from the last saved version; unsaved changes in the shared session are lost."
   title: Wiki
   back_dashboard: Back to dashboard
   index:

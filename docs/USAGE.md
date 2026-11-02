@@ -16,6 +16,7 @@
 - [Attachments (1.9)](#attachments-19)
 - [Markdown pages (1.11)](#markdown-pages-111)
 - [Milkdown editor (1.13)](#milkdown-editor-113)
+  - [Co-editing (1.13)](#co-editing-113)
   - [Conversion report (1.13)](#conversion-report-113)
 
 ## Manage UI routes (defaults)
@@ -344,6 +345,50 @@ With `nowo_wiki.editor.type: milkdown` ([CONFIGURATION](CONFIGURATION.md#milkdow
 **Limits** are Milkdown's (`nowo_milkdown_editor.markdown`, `%env()%` values are read at runtime): a document over `max_input_length` bytes or `max_inline_markers` inline delimiters is shown as escaped plain text, unparsed, and `MilkdownEditorType` refuses to save it; at most `max_references` distinct page ids and handles reach the resolvers.
 
 **Page links in wiki pages** are resolved by `WikiMilkdownPageResolver` (one query per document, each space decided once): not archived, the general list gate, and `WikiAction::View` on the space, the page and each ancestor. Point `editor.milkdown.page_resolver` at your own service to change it (e.g. Beacon's resolver that also links issues and tasks).
+
+### Co-editing (1.13)
+
+Several people edit one Milkdown page at once (FR-076): Yjs in the browser (`@milkdown/plugin-collab` in nowo-tech/milkdown-editor-bundle ^1.2), Mercure for the relay, the wiki for permissions and the stored Yjs log.
+
+```yaml
+nowo_wiki:
+    editor: { type: milkdown }
+    collaboration:
+        enabled: true
+        hub_url: '%env(MERCURE_PUBLIC_URL)%'      # the browser subscribes here
+        topic_prefix: 'https://wiki.example.com/pages/'
+        rate_limiter: limiter.wiki_collab         # framework.rate_limiter.wiki_collab (required)
+```
+
+The page edit form passes MilkdownEditorType the `collaboration` option (base URL, hub URL, topic, user name and colour) — only on the edit form, so readers never get it. The browser then calls, all under `routes.page_collab` (`…/pages/{pageSlug}/collab/{action}`):
+
+| Request | Answer |
+|---------|--------|
+| `POST …/collab/token` | 204; sets the `mercureAuthorization` cookie (subscriber JWT for this page's topic only); drops a stale log and claims the seeding of an empty one for this user |
+| `GET …/collab/state` | `{"state": "<base64 snapshot>", "updates": ["<base64>", …], "seq": 12, "compact": false, "seed": true}` — read only |
+| `POST …/collab/update` `{c, d}` | 204; the update is appended to the log and published (`{"t":"u","c":…,"d":…}`, private) |
+| `POST …/collab/awareness` `{c, d}` | 204; presence published (`{"t":"a",…}`), never stored |
+| `POST …/collab/compact` `{c, d, s}` | 204; the log up to `s` is replaced with the snapshot `d` |
+| `POST …/collab/corrupt` `{c, s}` | 204; the log `s` could not be applied: dropped (capped), editors reload |
+| `POST …/collab/reset` (form, `_token`) | 302 to the edit form; the editor's explicit reset |
+
+Every request checks a firewall-trusted user, `canEdit()` and `WikiAction::View` + `WikiAction::Edit` on the space and the page (404 when the page is not readable, 403 when not editable); POSTs must be same-origin and JSON. Every request is rate-limited per user and page. Errors answer `{"error": "<reason>"}`: 400 `invalid_payload`, 409 `log_reset` (the log went over `max_log_bytes` and was dropped; editors reload), 413 `too_large`, 415 `json_required`, 429 `rate_limited` / `log_full`.
+
+**Seeding:** the token request of the first editor of an empty log claims the seeding for that client (user + the tab's Yjs client id, header `X-Nowo-Collab-Client`: one tab seeds even when the same user opened two); `GET state` then answers `seed: true` to that client, which fills the document from the field's Markdown. A claim not fulfilled within `seed_timeout` seconds may be taken again.
+
+**Reset only when needed:** a save made from the live session — the Milkdown client adds `_nowo_milkdown_collab` (the page topic) to the form, and the log's base is the revision being replaced — keeps the log and records the new revision; nobody reloads. The log is dropped and `{"t": "r"}` published (live editors show a notice and reload the saved content) only for:
+
+- a save outside the live session (no session field, e.g. an editor whose collaboration is off or offline) or with a stale base;
+- a restore, an import, a conversion or any other save (console, host API);
+- a client that cannot apply the log: it posts `POST …/collab/corrupt` `{c, s}` with the sequence number it got; idempotent (a report about a log already reset or grown since changes nothing) and capped at `corrupt_resets` per page per `corrupt_window` seconds (429 `reset_capped` beyond);
+- an editor's **Reset collaboration** button on the edit form (POST + CSRF behind a confirmation, edit permission; rate-limited and counted in the same `corrupt_resets` cap; a log that is already empty is not broadcast again);
+- a log over `max_log_bytes` (409 `log_reset`).
+
+**Footprint and purge:** per page the log holds at most `max_log_entries` updates (each ≤ `max_update_bytes` decoded) and `max_log_bytes` in total (default 16 MiB), plus one snapshot (≤ `max_snapshot_bytes`); one editor typing produces small updates (tens of bytes each), presence is never stored. Logs of idle pages are deleted by `bin/console wiki:collab:purge --older-than=7` (days; schedule it daily) — nothing is lost, the next editor seeds a new log from the saved Markdown.
+
+As a safety net, a log whose base revision is not the current one is dropped on the next token when it is empty or idle for `reset_after_idle` seconds. **Names:** co-editors see each other's display name (`getDisplayName()` / `getName()` of your user class) or an opaque "Editor xxxx" label — never the login or e-mail.
+
+Your own endpoints (e.g. Beacon routes) can call `WikiCollabService` directly — check the edit permission first, as `WikiCollabController` does. Replace the storage, the publisher or the cookie with `collaboration.store`, `publisher`, `subscriber_authorizer` (`WikiCollabStateStoreInterface`, `WikiCollabPublisherInterface`, `WikiCollabSubscriberAuthorizerInterface`).
 
 ### Conversion report (1.13)
 

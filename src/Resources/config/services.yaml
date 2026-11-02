@@ -25,6 +25,7 @@ services:
             - '../../Interchange/HtmlToMarkdown/'
             - '../../Markdown/WikiTaskListNormalizer.php'
             - '../../Markdown/Milkdown/'
+            - '../../Collaboration/'
             - '../../Controller/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
@@ -91,6 +92,13 @@ services:
             $attachments: '%nowo_wiki.attachments%'
             $pageFactory: '@Nowo\WikiBundle\Ui\WikiPageFactory'
             $translator: '@?translator'
+
+    Nowo\WikiBundle\Controller\WikiCollabController:
+        public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
+        arguments:
+            $routes: '%nowo_wiki.routes%'
 
     Nowo\WikiBundle\Controller\WikiAttachmentController:
         public: true

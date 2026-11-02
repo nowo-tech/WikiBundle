@@ -1372,6 +1372,25 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         max_space_bytes?: int|Param, // Default: 524288000
  *         allowed_types?: array<string, list<scalar|Param|null>>,
  *     },
+ *     collaboration?: array{ // 1.13: real-time co-editing of Milkdown pages over Mercure (FR-076). Needs editor.type milkdown, nowo-tech/milkdown-editor-bundle >= 1.2 and symfony/mercure-bundle (or your own publisher / subscriber_authorizer services).
+ *         enabled?: bool|Param, // Default: false
+ *         hub_url?: scalar|Param|null, // Hub URL the browser subscribes to (same registrable domain as the app, for the cookie). // Default: "/.well-known/mercure"
+ *         topic_prefix?: scalar|Param|null, // Topic IRI prefix; the topic of a page is this prefix + the page id. // Default: "urn:nowo-wiki:page:"
+ *         max_update_bytes?: int|Param, // Largest decoded update / awareness message. // Default: 262144
+ *         max_snapshot_bytes?: int|Param, // Largest decoded compaction snapshot. // Default: 4194304
+ *         max_log_bytes?: int|Param, // Byte budget of the stored log of a page (snapshot + updates, base64); over it the log is dropped and editors reload. // Default: 16777216
+ *         compact_after?: int|Param, // Ask clients to compact the log once it holds this many updates. // Default: 200
+ *         max_log_entries?: int|Param, // Refuse updates (429) above this many until a client compacts. // Default: 2000
+ *         seed_timeout?: int|Param, // Seconds after which an unfulfilled seed claim may be taken again. // Default: 30
+ *         reset_after_idle?: int|Param, // Seconds of inactivity after which a log that does not match the current revision is dropped. // Default: 300
+ *         corrupt_resets?: int|Param, // Resets a client may trigger by reporting a log it cannot apply, per page and corrupt_window. // Default: 3
+ *         corrupt_window?: int|Param, // Window of corrupt_resets, in seconds. // Default: 600
+ *         rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user and page to every collaboration request (token, state, update, awareness, compact). Required when collaboration is enabled. // Default: null
+ *         store?: scalar|Param|null, // Service id of a WikiCollabStateStoreInterface (null: the Doctrine store, tables <prefix>_page_collab_*). // Default: null
+ *         publisher?: scalar|Param|null, // Service id of a WikiCollabPublisherInterface (null: symfony/mercure HubInterface). // Default: null
+ *         subscriber_authorizer?: scalar|Param|null, // Service id of a WikiCollabSubscriberAuthorizerInterface (null: symfony/mercure Authorization cookie). // Default: null
+ *         mercure_hub?: scalar|Param|null, // Mercure hub name for the default publisher / authorizer (null: the default hub). // Default: null
+ *     },
  *     sanitizer?: array{ // 1.11: extra HTML allowed in page bodies (e.g. the <details> / <summary> or data-* attributes of a Markdown dialect). script, style, iframe, forms, embeds, style= and on* handlers are always refused.
  *         extra_allowed_elements?: array<string, list<scalar|Param|null>>,
  *         extra_allowed_attributes?: list<scalar|Param|null>,
@@ -1491,6 +1510,10 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         attachment_download?: array{
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/attachments/{attachmentId}"
  *             name?: scalar|Param|null, // Default: "nowo_wiki_attachment_download"
+ *         },
+ *         page_collab?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_collab"
  *         },
  *     },
  *     templates?: array{ // Deprecated since 1.10: use web_ui.layout_template and web_ui.templates.<page>.

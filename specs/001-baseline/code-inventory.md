@@ -215,6 +215,24 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Markdown/WikiViewerMarkdownRendererInterface.php` | Viewer render contract | FR-MD-002 |
 | `Repository/WikiPageBatchFinderInterface.php` | Pages by ids in one query | FR-MD-002 |
 
+## Co-editing (1.13)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Collaboration/DoctrineWikiCollabStateStore.php` | Doctrine Yjs log | FR-MD-004 |
+| `Collaboration/MercureWikiCollabPublisher.php` | Private Mercure updates | FR-MD-004 |
+| `Collaboration/MercureWikiCollabSubscriberAuthorizer.php` | Subscriber cookie for one topic | FR-MD-004 |
+| `Collaboration/WikiCollabException.php` | Refused request with HTTP status | FR-MD-004 |
+| `Collaboration/WikiCollabPublisherInterface.php` | Publisher contract | FR-MD-004 |
+| `Collaboration/WikiCollabSaveListener.php` | Collaborative save vs replacement | FR-MD-004 |
+| `Collaboration/WikiCollabService.php` | Protocol, validation, seeding, reset | FR-MD-004 |
+| `Collaboration/WikiCollabState.php` | Stored log | FR-MD-004 |
+| `Collaboration/WikiCollabStateStoreInterface.php` | Store contract | FR-MD-004 |
+| `Collaboration/WikiCollabSubscriberAuthorizerInterface.php` | Subscriber contract | FR-MD-004 |
+| `Controller/WikiCollabController.php` | Collaboration endpoints | FR-MD-004 |
+| `Entity/WikiCollabDocument.php` | Log document per page | FR-MD-004 |
+| `Entity/WikiCollabUpdate.php` | Log entry | FR-MD-004 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |
@@ -234,6 +252,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | Frontend TypeScript | 3 | 3 |
 | Symfony config | 1 | 1 |
 | Markdown and the Milkdown bridge | 28 | 28 |
+| Co-editing | 13 | 13 |
 | Translations | 7 | 7 |
 | Twig views | 16 | 16 |
 | **Total production sources** | **92** | **92** |

@@ -50,11 +50,11 @@
 
 ## Unreleased
 
-From **1.12.x**: no schema change and nothing to do while `nowo_wiki.editor.type` stays `tiptap` (the default) or `markdown`.
+From **1.12.x**: nothing to do while `nowo_wiki.editor.type` stays `tiptap` (the default) or `markdown`. The only schema change is two tables for co-editing (below), needed only with `nowo_wiki.collaboration.enabled: true`.
 
 **Switching to the Milkdown editor:**
 
-1. `composer require nowo-tech/milkdown-editor-bundle` (^1.1.1) and register `Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle`; publish its assets (`assets:install`).
+1. `composer require nowo-tech/milkdown-editor-bundle` (^1.2; the bundle conflicts with older versions) and register `Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle`; publish its assets (`assets:install`).
 2. Set `nowo_wiki.editor.type: milkdown`; configure `nowo_milkdown_editor.markdown` (limits, `icon_sprite_url`, `icons`) and alias `Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface` to your mention resolver. Point `editor.milkdown.page_resolver` at your own page resolver if wiki page links must resolve differently.
 3. Allow the Milkdown read-side script in your CSP (`script-src 'self' 'nonce-…'`, `style-src-attr 'unsafe-inline'` for KaTeX / Mermaid) — see the Milkdown SECURITY.md.
 4. Convert existing HTML pages when you are ready (pages also convert one by one when edited):
@@ -68,6 +68,15 @@ From **1.12.x**: no schema change and nothing to do while `nowo_wiki.editor.type
 5. Re-index backlinks / search from `nowo_wiki.page.saved` (`$event->conversion === true` for converted pages) with `WikiMarkdownReferenceExtractor::pageReferences()` / `mentions()`.
 
 **Behaviour with `milkdown`:** the page view renders Markdown for each viewer (one render per view instead of the stored cache); `content_html` is viewer-neutral, so page links read *Content not visible* in search excerpts and AI context. Exports write links to exported pages as relative `.md` links.
+
+**Co-editing (optional):** `composer require symfony/mercure-bundle:^0.6.1 symfony/rate-limiter` (symfony/mercure ^0.8 / ^0.9: with the Mercure protocol 1.0 configure the hub's default JWT claims `iss`, `aud`, `sub`, `client_id`) (or provide `collaboration.publisher` / `subscriber_authorizer`), then `nowo_wiki.collaboration.enabled: true` with `collaboration.rate_limiter` (required: the container refuses to compile without it) and a short `mercure.cookie_lifetime`. Schema: two new tables — generate the migration (`doctrine:migrations:diff`) or create them:
+
+```sql
+CREATE TABLE wiki_page_collab_documents (page_id VARCHAR(36) NOT NULL, base_revision_id VARCHAR(36) DEFAULT NULL, seeded_at DATETIME DEFAULT NULL, seeded_by VARCHAR(180) DEFAULT NULL, recent_resets INT DEFAULT 0 NOT NULL, last_reset_at DATETIME DEFAULT NULL, updated_at DATETIME NOT NULL, PRIMARY KEY(page_id));
+CREATE TABLE wiki_page_collab_updates (id INT AUTO_INCREMENT NOT NULL, page_id VARCHAR(36) NOT NULL, kind VARCHAR(16) NOT NULL, data LONGTEXT NOT NULL, covers_seq INT DEFAULT NULL, created_at DATETIME NOT NULL, INDEX wiki_collab_update_page (page_id, id), PRIMARY KEY(id));
+```
+
+(`wiki` is your `table_prefix`.) The tables exist only for the log; without `collaboration.enabled` nothing reads them.
 
 **Host implementations:** `WikiPageRepositoryInterface` is unchanged; implement the new `WikiPageBatchFinderInterface` on a custom repository to resolve page links in one query.
 

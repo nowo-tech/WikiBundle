@@ -1,4 +1,8 @@
 wiki:
+  collab:
+    reset: "Zusammenarbeit zurücksetzen"
+    reset_confirm_title: "Gemeinsame Sitzung zurücksetzen?"
+    reset_confirm_message: "Alle, die diese Seite bearbeiten, laden sie aus der zuletzt gespeicherten Version neu; ungespeicherte Änderungen der gemeinsamen Sitzung gehen verloren."
   title: Wiki
   back_dashboard: Zurück zum Dashboard
   index:

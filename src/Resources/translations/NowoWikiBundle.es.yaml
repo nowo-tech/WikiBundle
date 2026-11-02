@@ -1,4 +1,8 @@
 wiki:
+  collab:
+    reset: "Reiniciar la colaboración"
+    reset_confirm_title: "¿Reiniciar la sesión compartida?"
+    reset_confirm_message: "Todas las personas que editan esta página la recargan desde la última versión guardada; se pierden los cambios no guardados de la sesión compartida."
   title: Wiki
   back_dashboard: Volver al panel
   index:

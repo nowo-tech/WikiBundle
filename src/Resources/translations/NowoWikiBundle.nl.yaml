@@ -1,4 +1,8 @@
 wiki:
+  collab:
+    reset: "Samenwerking opnieuw instellen"
+    reset_confirm_title: "Gedeelde sessie opnieuw instellen?"
+    reset_confirm_message: "Iedereen die deze pagina bewerkt, laadt hem opnieuw vanaf de laatst opgeslagen versie; niet-opgeslagen wijzigingen in de gedeelde sessie gaan verloren."
   title: Wiki
   back_dashboard: Terug naar dashboard
   index:

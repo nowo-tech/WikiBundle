@@ -44,11 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Wiki: Milkdown editor (`editor.type: milkdown`) — the Milkdown ↔ wiki bridge renders the nowo-tech/milkdown-editor-bundle dialect (page links, mentions, Tabler icons, directives, math, Mermaid) in every wiki surface under Milkdown's limits; `wiki:convert-markdown` gains page scope and a fidelity report. No schema change; Tiptap stays the default. See [UPGRADING](UPGRADING.md#unreleased).
+Wiki: Milkdown editor (`editor.type: milkdown`) and co-editing (`collaboration`, Mercure) — the Milkdown ↔ wiki bridge renders the nowo-tech/milkdown-editor-bundle dialect (page links, mentions, Tabler icons, directives, math, Mermaid) in every wiki surface under Milkdown's limits; `wiki:convert-markdown` gains page scope and a fidelity report. Schema change only when co-editing is used (two tables); Tiptap stays the default. See [UPGRADING](UPGRADING.md#unreleased).
 
 ### Added
 
-- **`nowo_wiki.editor.type: milkdown`** (requires `nowo-tech/milkdown-editor-bundle` ^1.1.1 with `NowoMilkdownEditorBundle` registered; the container refuses to compile otherwise): Markdown storage as with `markdown`, `MilkdownEditorType` as the page body unless `editor.markdown_form_type` says otherwise, and `editor.milkdown.page_resolver` (service id; default `WikiMilkdownPageResolver`).
+- **`nowo_wiki.editor.type: milkdown`** (requires `nowo-tech/milkdown-editor-bundle` ^1.2 (conflict `<1.2.0`) with `NowoMilkdownEditorBundle` registered; the container refuses to compile otherwise): Markdown storage as with `markdown`, `MilkdownEditorType` as the page body unless `editor.markdown_form_type` says otherwise, and `editor.milkdown.page_resolver` (service id; default `WikiMilkdownPageResolver`).
 - **`Markdown\Milkdown\MilkdownWikiMarkdownRenderer`** (alias of `WikiMarkdownRendererInterface` with `milkdown`): CommonMark + GFM + `MilkdownDialectExtension` + every `nowo_wiki.markdown_extension`, with the `nowo_milkdown_editor.markdown` options (`html_input`, `allow_remote_images`, `math`, `max_nesting_level`, `max_input_length`, `max_inline_markers`, `max_references`, `mark_colors`) handed over by `MilkdownBridgePass`. Two environments: a viewer-neutral one for the `content_html` cache, search excerpts and AI context (no page, user or host-block resolution) and a viewer one for the page view. Unsafe links are always dropped; input over the limits renders as escaped text.
 - `Markdown\WikiViewerMarkdownRendererInterface` (`renderForViewer()`), `Markdown\WikiMarkdownReferenceParserInterface` (`references()`: page links and mentions from the renderer's parser), `Markdown\WikiMarkdownLimitsInterface` (`exceedsLimits()`).
 - `Markdown\WikiRevisionBodyRenderer`: the page view renders Markdown revisions for the viewer (then sanitized and filtered for attachment URLs of other spaces) when the renderer is viewer-aware; the stored HTML otherwise.
@@ -58,6 +58,15 @@ Wiki: Milkdown editor (`editor.type: milkdown`) — the Milkdown ↔ wiki bridge
 - `wiki:convert-markdown`: `--page` (repeatable), `--report=<file>` (JSON fidelity report, format `nowo-wiki-conversion-report` v1), `--skip-lossy`, `--fail-on-loss` (every page is analysed first; nothing is written when a page is lossy), a console fidelity summary, and pages edited during the run are skipped (`skipped_changed`). `Interchange\Conversion\WikiConversionFidelityAnalyzer` / `WikiConversionFidelity`.
 - `WikiMarkdownConverter(dialect: true)` (registered so with `milkdown`): `[[wiki:…]]` and `@handle` text kept as tokens, `<mark>` → `:mark[…]`, centred / right-aligned paragraphs and headings → `::: {align=…}`, embeds → links.
 - Exports with `milkdown`: page links to exported pages become relative Markdown links to the exported files (`WikiMarkdownPortableLinks`).
+
+- **Co-editing (FR-076):** `nowo_wiki.collaboration` (off by default; needs `milkdown` and symfony/mercure-bundle ^0.6.1, or your own publisher / subscriber services).
+  - `WikiCollabController` (`routes.page_collab`): `token`, `state` (read only), `update`, `awareness`, `compact`, `corrupt` and the editor's `reset` form. Every request checks a trusted user, `canEdit()` and `View` + `Edit` on space and page, and goes through the **required** `collaboration.rate_limiter` (the container refuses to compile without it). POSTs must be same-origin JSON; bodies are size-limited.
+  - `Collaboration\WikiCollabService`, `WikiCollabStateStoreInterface` with the default `DoctrineWikiCollabStateStore` (tables `<prefix>_page_collab_documents` / `<prefix>_page_collab_updates`): a Yjs log the server never decodes, compacted by clients (one snapshot, compactions serialised per page), bounded by `max_log_entries` and `max_log_bytes` (checked by counters before and after each append).
+  - `WikiCollabPublisherInterface` / `WikiCollabSubscriberAuthorizerInterface`, defaults on symfony/mercure ^0.8 / ^0.9: private updates and a subscriber grant for the page topic only.
+  - Seeding: one tab seeds an empty log (claimed by `POST token`, per user and `X-Nowo-Collab-Client`).
+  - **Reset only when needed:** saves from the live session (form field `_nowo_milkdown_collab`, current base) keep the log; saves outside it or with a stale base, restores, imports, conversions, `corrupt` reports and the editor's *Reset collaboration* button (CSRF + confirmation) drop it and publish a reset — client / editor resets are capped per page (`corrupt_resets` per `corrupt_window`). Co-editors see a display name or an opaque label, never the login.
+  - `bin/console wiki:collab:purge --older-than=<days>` deletes idle logs.
+  - The page edit form passes MilkdownEditorType (^1.2) the `collaboration` option.
 
 ### Changed
 

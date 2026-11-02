@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Controller;
 use InvalidArgumentException;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\Dto\WikiPageFormData;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -70,6 +71,8 @@ use function count;
 use function is_string;
 use function max;
 use function min;
+use function strlen;
+use function substr;
 
 /**
  * Authenticated wiki management (spaces, pages, revisions, search).
@@ -112,6 +115,7 @@ final class WikiManageController extends AbstractController
      * @param WikiMarkdownConverter|null $markdownConverter turns an HTML revision into the Markdown of the editor (1.11)
      * @param WikiTenantPaths|null $tenantPaths tenant paths (1.12: with {@code tenant_only} the search keeps its space)
      * @param WikiRevisionBodyRenderer|null $bodyRenderer renders the page body for the viewer (1.13; null = stored HTML)
+     * @param WikiCollabService|null $collab co-editing of the page form (1.13; null = collaboration disabled)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -143,6 +147,7 @@ final class WikiManageController extends AbstractController
         ?WikiMarkdownConverter $markdownConverter = null,
         private readonly ?WikiTenantPaths $tenantPaths = null,
         private readonly ?WikiRevisionBodyRenderer $bodyRenderer = null,
+        private readonly ?WikiCollabService $collab = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -320,6 +325,11 @@ final class WikiManageController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
+            // 1.13: a save from the live collaborative session keeps the Yjs log (WikiCollabSaveListener).
+            if ($this->collab instanceof WikiCollabService && $request->request->get(WikiCollabService::SESSION_FIELD) === $this->collab->topic($page)) {
+                $request->attributes->set(WikiCollabService::SESSION_SAVE_ATTRIBUTE, $page->getId());
+            }
+
             $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
 
             return $this->redirectToRoute($this->routes['page_view']['name'], [
@@ -329,7 +339,7 @@ final class WikiManageController extends AbstractController
         }
 
         return $this->renderPage('page_edit', [
-            'page'            => $this->pages()->pageForm($space, $page, $form->createView()),
+            'page'            => $this->pages()->pageForm($space, $page, $form->createView(), $this->collabResetForm($space, $page)),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
@@ -1034,6 +1044,22 @@ final class WikiManageController extends AbstractController
     }
 
     /**
+     * The CSRF form of the editor's "Reset collaboration" action (1.13), when co-editing is on.
+     */
+    private function collabResetForm(WikiSpace $space, WikiPage $page): ?FormView
+    {
+        if (!$this->collab instanceof WikiCollabService || !isset($this->routes['page_collab'])) {
+            return null;
+        }
+
+        return $this->postActionForms([$page], fn (WikiPage $item): array => [
+            0,
+            $this->generateUrl($this->routes['page_collab']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug(), 'action' => 'reset']),
+            WikiCollabService::resetTokenId($item),
+        ])[0];
+    }
+
+    /**
      * Body of the page view: the revision rendered for the viewer (1.13, Milkdown dialect) or its stored HTML.
      */
     private function revisionBody(?WikiPageRevision $revision): string
@@ -1103,6 +1129,12 @@ final class WikiManageController extends AbstractController
             ]);
             $options['upload_csrf_token'] = $this->container->get('security.csrf.token_manager')
                 ->getToken(WikiAttachmentController::csrfTokenId($page))->getValue();
+        }
+
+        // 1.13: co-editing (only on the edit form of an existing page, which already required the edit permission).
+        if ($page instanceof WikiPage && $this->collab instanceof WikiCollabService && isset($this->routes['page_collab'])) {
+            $url                      = $this->generateUrl($this->routes['page_collab']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug(), 'action' => 'state']);
+            $options['collaboration'] = $this->collab->editorOptions($page, $user, substr($url, 0, -strlen('/state')));
         }
 
         if (!$this->eventDispatcher instanceof EventDispatcherInterface) {

@@ -11,6 +11,11 @@ use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
+use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
+use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
+use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
+use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
@@ -41,6 +46,7 @@ use Symfony\Bundle\SecurityBundle\DependencyInjection\SecurityExtension;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Config\Definition\Processor;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
@@ -48,6 +54,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Component\Mercure\HubInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 use function array_diff_key;
@@ -149,6 +156,84 @@ final class WikiExtensionTest extends TestCase
         self::assertFalse($container->hasDefinition(MilkdownWikiMarkdownRenderer::class));
         self::assertSame([], $container->getDefinition(WikiMarkdownConverter::class)->getArguments());
         self::assertNull($container->getParameter('nowo_wiki.editor')['markdown_form_type']);
+    }
+
+    public function testCollaborationWiresTheMercureDefaults(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class'    => 'App\\Entity\\User',
+            'editor'        => ['type' => 'milkdown'],
+            'collaboration' => ['enabled' => true, 'rate_limiter' => 'limiter.wiki_collab', 'max_update_bytes' => 4096],
+        ]], $container);
+
+        $service = $container->getDefinition(WikiCollabService::class);
+        self::assertSame(DoctrineWikiCollabStateStore::class, (string) $service->getArgument('$store'));
+        self::assertSame(MercureWikiCollabPublisher::class, (string) $service->getArgument('$publisher'));
+        self::assertSame(MercureWikiCollabSubscriberAuthorizer::class, (string) $service->getArgument('$authorizer'));
+        self::assertSame('limiter.wiki_collab', (string) $service->getArgument('$rateLimiter'));
+        self::assertSame(4096, $service->getArgument('$options')['max_update_bytes']);
+        self::assertSame(HubInterface::class, (string) $container->getDefinition(MercureWikiCollabPublisher::class)->getArgument('$hub'));
+        self::assertNull($container->getDefinition(MercureWikiCollabSubscriberAuthorizer::class)->getArgument('$hub'));
+        self::assertSame([['event' => 'nowo_wiki.page.saved']], $container->getDefinition(WikiCollabSaveListener::class)->getTag('kernel.event_listener'));
+    }
+
+    public function testCollaborationTakesHostServicesAndANamedHub(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class'    => 'App\\Entity\\User',
+            'editor'        => ['type' => 'milkdown'],
+            'collaboration' => ['enabled' => true, 'store' => 'app.store', 'mercure_hub' => 'wiki', 'rate_limiter' => 'limiter.x'],
+        ]], $container);
+
+        $service = $container->getDefinition(WikiCollabService::class);
+        self::assertSame('app.store', (string) $service->getArgument('$store'));
+        self::assertSame('mercure.hub.wiki', (string) $container->getDefinition(MercureWikiCollabPublisher::class)->getArgument('$hub'));
+        self::assertSame('wiki', $container->getDefinition(MercureWikiCollabSubscriberAuthorizer::class)->getArgument('$hub'));
+    }
+
+    public function testCollaborationIsOffByDefaultAndNeedsMilkdownAndMercure(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+        self::assertFalse($container->hasDefinition(WikiCollabService::class));
+
+        $method = new ReflectionMethod(WikiExtension::class, 'registerCollaboration');
+        $config = ['editor' => ['type' => 'milkdown'], 'collaboration' => ['enabled' => true, 'publisher' => null, 'subscriber_authorizer' => null, 'rate_limiter' => 'limiter.x']];
+        try {
+            $method->invoke(new WikiExtension(), new ContainerBuilder(), ['collaboration' => ['rate_limiter' => null] + $config['collaboration']] + $config, HubInterface::class);
+            self::fail('accepted without a rate limiter');
+        } catch (LogicException $exception) {
+            self::assertStringContainsString('collaboration.rate_limiter', $exception->getMessage());
+        }
+
+        try {
+            $method->invoke(new WikiExtension(), new ContainerBuilder(), $config, 'Missing\\Hub');
+            self::fail('accepted without mercure');
+        } catch (LogicException $exception) {
+            self::assertStringContainsString('symfony/mercure-bundle', $exception->getMessage());
+        }
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('editor.type "milkdown"');
+        $bare = new ContainerBuilder();
+        $bare->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'collaboration' => ['enabled' => true]]], $bare);
+    }
+
+    public function testCollaborationWithOwnPublisherAndAuthorizerNeedsNoMercure(): void
+    {
+        $container = new ContainerBuilder();
+        $method    = new ReflectionMethod(WikiExtension::class, 'registerCollaboration');
+        $collab    = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'collaboration' => ['enabled' => true, 'publisher' => 'app.pub', 'subscriber_authorizer' => 'app.auth', 'rate_limiter' => 'limiter.x']]])['collaboration'];
+        $method->invoke(new WikiExtension(), $container, ['editor' => ['type' => 'milkdown'], 'collaboration' => $collab], 'Missing\\Hub');
+
+        self::assertSame('app.pub', (string) $container->getDefinition(WikiCollabService::class)->getArgument('$publisher'));
+        self::assertSame('app.auth', (string) $container->getDefinition(WikiCollabService::class)->getArgument('$authorizer'));
     }
 
     /**
