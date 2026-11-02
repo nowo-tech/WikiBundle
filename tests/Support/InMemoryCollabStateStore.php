@@ -85,6 +85,28 @@ final class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
         $this->pages[$pageId] = ['snapshot' => null, 'covers' => 0, 'updates' => [], 'base' => $baseRevisionId, 'seededAt' => null, 'seededBy' => null, 'updated' => new DateTimeImmutable()];
     }
 
+    public function markSaved(string $pageId, string $revisionId): void
+    {
+        $this->page($pageId);
+        $this->pages[$pageId]['base'] = $revisionId;
+    }
+
+    /** @var array<string, array{0: int, 1: DateTimeImmutable}> page id => recent corrupt resets, last one */
+    public array $corruptResets = [];
+
+    public function noteCorruptReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool
+    {
+        [$count, $last] = $this->corruptResets[$pageId] ?? [0, null];
+        $count          = $last instanceof DateTimeImmutable && $last >= $windowStart ? $count : 0;
+        if ($count >= $cap) {
+            return false;
+        }
+
+        $this->corruptResets[$pageId] = [$count + 1, new DateTimeImmutable()];
+
+        return true;
+    }
+
     /**
      * @return array{snapshot: string|null, covers: int, updates: array<int, string>, base: string|null, seededAt: DateTimeImmutable|null, seededBy: string|null, updated: DateTimeImmutable|null}
      */

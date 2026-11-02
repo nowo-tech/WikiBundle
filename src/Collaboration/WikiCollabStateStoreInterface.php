@@ -47,4 +47,15 @@ interface WikiCollabStateStoreInterface
      * Drops the log (without reading it) and records the revision a new log starts from.
      */
     public function reset(string $pageId, ?string $baseRevisionId): void;
+
+    /**
+     * Records that the collaborative document was saved as this revision; the log stays.
+     */
+    public function markSaved(string $pageId, string $revisionId): void;
+
+    /**
+     * Counts a reset after a client reported a corrupt log: true when it is allowed — fewer than `$cap` such resets
+     * since `$windowStart` (atomic: concurrent reports cannot exceed the cap).
+     */
+    public function noteCorruptReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool;
 }

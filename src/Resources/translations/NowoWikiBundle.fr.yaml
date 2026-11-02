@@ -1,4 +1,8 @@
 wiki:
+  collab:
+    reset: "Réinitialiser la collaboration"
+    reset_confirm_title: "Réinitialiser la session partagée ?"
+    reset_confirm_message: "Toutes les personnes qui modifient cette page la rechargent depuis la dernière version enregistrée ; les modifications non enregistrées de la session partagée sont perdues."
   title: Wiki
   back_dashboard: Retour au tableau de bord
   index:

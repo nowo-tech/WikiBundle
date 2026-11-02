@@ -325,6 +325,11 @@ final class WikiManageController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
+            // 1.13: a save from the live collaborative session keeps the Yjs log (WikiCollabSaveListener).
+            if ($this->collab instanceof WikiCollabService && $request->request->get(WikiCollabService::SESSION_FIELD) === $this->collab->topic($page)) {
+                $request->attributes->set(WikiCollabService::SESSION_SAVE_ATTRIBUTE, $page->getId());
+            }
+
             $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
 
             return $this->redirectToRoute($this->routes['page_view']['name'], [
@@ -334,7 +339,7 @@ final class WikiManageController extends AbstractController
         }
 
         return $this->renderPage('page_edit', [
-            'page'            => $this->pages()->pageForm($space, $page, $form->createView()),
+            'page'            => $this->pages()->pageForm($space, $page, $form->createView(), $this->collabResetForm($space, $page)),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
@@ -1036,6 +1041,22 @@ final class WikiManageController extends AbstractController
         }
 
         return $forms;
+    }
+
+    /**
+     * The CSRF form of the editor's "Reset collaboration" action (1.13), when co-editing is on.
+     */
+    private function collabResetForm(WikiSpace $space, WikiPage $page): ?FormView
+    {
+        if (!$this->collab instanceof WikiCollabService || !isset($this->routes['page_collab'])) {
+            return null;
+        }
+
+        return $this->postActionForms([$page], fn (WikiPage $item): array => [
+            0,
+            $this->generateUrl($this->routes['page_collab']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug(), 'action' => 'reset']),
+            WikiCollabService::resetTokenId($item),
+        ])[0];
     }
 
     /**

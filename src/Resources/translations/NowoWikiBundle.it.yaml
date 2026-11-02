@@ -1,4 +1,8 @@
 wiki:
+  collab:
+    reset: "Reimposta la collaborazione"
+    reset_confirm_title: "Reimpostare la sessione condivisa?"
+    reset_confirm_message: "Chi modifica questa pagina la ricarica dall'ultima versione salvata; le modifiche non salvate della sessione condivisa vanno perse."
   title: Wiki
   back_dashboard: Torna alla dashboard
   index:

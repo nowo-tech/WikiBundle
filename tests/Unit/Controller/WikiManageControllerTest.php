@@ -592,6 +592,34 @@ final class WikiManageControllerTest extends TestCase
         self::assertSame(Response::HTTP_OK, $controller->editPage(Request::create('/edit'), 'eng', 'welcome')->getStatusCode());
     }
 
+    public function testAFormSaveFromTheLiveSessionIsMarked(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hi</p>', $user, 'Hi'));
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $collab = new WikiCollabService(new InMemoryCollabStateStore(), $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class));
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collab);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+        $post       = static fn (string $session): Request => Request::create('/edit', 'POST', [
+            'wiki_page_form'                 => ['title' => 'Welcome', 'content' => 'Hi there', '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_edit_' . $page->getId())],
+            WikiCollabService::SESSION_FIELD => $session,
+        ]);
+
+        $inSession = $post($collab->topic($page));
+        $controller->editPage($inSession, 'eng', 'welcome');
+        self::assertSame($page->getId(), $inSession->attributes->get(WikiCollabService::SESSION_SAVE_ATTRIBUTE));
+
+        $outside = $post('urn:other');
+        $controller->editPage($outside, 'eng', 'welcome');
+        self::assertFalse($outside->attributes->has(WikiCollabService::SESSION_SAVE_ATTRIBUTE));
+    }
+
     public function testDenyWhenCannotEdit(): void
     {
         $checker = $this->createMock(WikiAccessCheckerInterface::class);

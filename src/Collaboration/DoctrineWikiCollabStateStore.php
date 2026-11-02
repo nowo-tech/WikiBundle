@@ -178,6 +178,54 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
             ->getQuery()->execute();
     }
 
+    public function markSaved(string $pageId, string $revisionId): void
+    {
+        $this->ensureDocument($pageId);
+        $this->em()->createQueryBuilder()
+            ->update(WikiCollabDocument::class, 'd')
+            ->set('d.baseRevisionId', ':base')
+            ->where('d.pageId = :page')
+            ->setParameter('base', $revisionId)
+            ->setParameter('page', $pageId)
+            ->getQuery()->execute();
+    }
+
+    public function noteCorruptReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool
+    {
+        $this->ensureDocument($pageId);
+        $now = new DateTimeImmutable();
+        // A new window: the first reset of it.
+        $fresh = $this->em()->createQueryBuilder()
+            ->update(WikiCollabDocument::class, 'd')
+            ->set('d.recentResets', 1)
+            ->set('d.lastResetAt', ':now')
+            ->where('d.pageId = :page')
+            ->andWhere('d.lastResetAt IS NULL OR d.lastResetAt < :start')
+            ->setParameter('now', $now, Types::DATETIME_IMMUTABLE)
+            ->setParameter('start', $windowStart, Types::DATETIME_IMMUTABLE)
+            ->setParameter('page', $pageId)
+            ->getQuery()->execute();
+        if (is_numeric($fresh) && (int) $fresh === 1) {
+            return true;
+        }
+
+        // The same window: allowed while under the cap.
+        $counted = $this->em()->createQueryBuilder()
+            ->update(WikiCollabDocument::class, 'd')
+            ->set('d.recentResets', 'd.recentResets + 1')
+            ->set('d.lastResetAt', ':now')
+            ->where('d.pageId = :page')
+            ->andWhere('d.lastResetAt >= :start')
+            ->andWhere('d.recentResets < :cap')
+            ->setParameter('now', $now, Types::DATETIME_IMMUTABLE)
+            ->setParameter('start', $windowStart, Types::DATETIME_IMMUTABLE)
+            ->setParameter('cap', $cap)
+            ->setParameter('page', $pageId)
+            ->getQuery()->execute();
+
+        return is_numeric($counted) && (int) $counted === 1;
+    }
+
     private function touch(string $pageId): void
     {
         $this->ensureDocument($pageId);

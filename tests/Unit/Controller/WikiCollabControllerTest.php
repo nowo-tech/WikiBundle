@@ -22,6 +22,7 @@ use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
@@ -78,6 +79,39 @@ final class WikiCollabControllerTest extends TestCase
         $invalid = $controller->collab($this->post('{"c":1}'), 'eng', 'runbook', 'update');
         self::assertSame(400, $invalid->getStatusCode());
         self::assertSame('{"error":"invalid_payload"}', $invalid->getContent());
+    }
+
+    public function testCorruptReportsAreRelayedAsResets(): void
+    {
+        $controller = $this->controller();
+        $controller->collab($this->post('{"c":1,"d":"AQ=="}'), 'eng', 'runbook', 'update');
+
+        self::assertSame(204, $controller->collab($this->post('{"c":1,"s":1}'), 'eng', 'runbook', 'corrupt')->getStatusCode());
+        self::assertSame('{"t":"r","c":0,"d":""}', $this->published[1]);
+    }
+
+    public function testTheManualResetChecksTheCsrfTokenAndRedirectsToTheEditor(): void
+    {
+        [$controller, $container] = $this->controllerWithContainer(['page_edit' => ['path' => '/e', 'name' => 'nowo_wiki_page_edit']]);
+        $controller->collab($this->post('{"c":1,"d":"AQ=="}'), 'eng', 'runbook', 'update');
+
+        $request  = Request::create('http://localhost/', 'POST', ['_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_collab_reset_' . $this->page->getId())], [], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        $response = $controller->collab($request, 'eng', 'runbook', 'reset');
+        self::assertSame(302, $response->getStatusCode());
+        self::assertSame('{"t":"r","c":0,"d":""}', $this->published[1]);
+
+        [$bare, $bareContainer] = $this->controllerWithContainer();
+        $request                = Request::create('http://localhost/', 'POST', ['_token' => WikiControllerContainerBuilder::csrfToken($bareContainer, 'wiki_collab_reset_' . $this->page->getId())], [], [], ['HTTP_ORIGIN' => 'http://localhost']);
+        self::assertSame(204, $bare->collab($request, 'eng', 'runbook', 'reset')->getStatusCode());
+
+        $this->expectException(AccessDeniedHttpException::class);
+        $controller->collab(Request::create('http://localhost/', 'POST', ['_token' => 'forged'], [], [], ['HTTP_ORIGIN' => 'http://localhost']), 'eng', 'runbook', 'reset');
+    }
+
+    public function testReadersCannotResetTheSession(): void
+    {
+        $this->expectException(AccessDeniedHttpException::class);
+        $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View))->collab(Request::create('http://localhost/', 'POST', ['_token' => 'x'], [], [], ['HTTP_ORIGIN' => 'http://localhost']), 'eng', 'runbook', 'reset');
     }
 
     public function testRequestsWithoutAnOriginHeaderNeedASameOriginFetch(): void
@@ -159,12 +193,28 @@ final class WikiCollabControllerTest extends TestCase
         return Request::create('http://localhost/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ORIGIN' => 'http://localhost'], $content);
     }
 
+    /**
+     * @param array<string, array{path: string, name: string}> $routes
+     *
+     * @return array{0: WikiCollabController, 1: Container}
+     */
+    private function controllerWithContainer(array $routes = []): array
+    {
+        $controller = $this->controller(routes: $routes);
+
+        return [$controller, WikiControllerContainerBuilder::bind($controller, new TestUser())];
+    }
+
+    /**
+     * @param array<string, array{path: string, name: string}> $routes
+     */
     private function controller(
         ?CallbackSpaceAccessChecker $checker = null,
         bool $enabled = true,
         bool $user = true,
         ?WikiTokenGuard $guard = null,
         ?WikiAccessCheckerInterface $roles = null,
+        array $routes = [],
     ): WikiCollabController {
         $pages = $this->createStub(WikiPageRepositoryInterface::class);
         $pages->method('findBySlug')->willReturnCallback(fn (WikiSpace $space, string $slug): ?WikiPage => ['runbook' => $this->page, 'old' => $this->archived][$slug] ?? null);
@@ -202,6 +252,7 @@ final class WikiCollabControllerTest extends TestCase
             $roles,
             $enabled ? new WikiCollabService(new InMemoryCollabStateStore(), $publisher, $authorizer) : null,
             $guard,
+            $routes,
         );
         WikiControllerContainerBuilder::bind($controller, $user ? new TestUser() : null);
 

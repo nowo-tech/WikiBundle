@@ -25,7 +25,8 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * Collaboration endpoints of a page (1.13, Milkdown on Mercure, FR-076): `POST token`, `GET state`, `POST update`,
- * `POST awareness`, `POST compact` under one base URL (the `collaboration.url` of MilkdownEditorType).
+ * `POST awareness`, `POST compact`, `POST corrupt` under one base URL (the `collaboration.url` of MilkdownEditorType),
+ * and `POST reset`, the editor's CSRF-protected "Reset collaboration" form.
  *
  * Every request — the token, the state and each update — asks a firewall-trusted user, the role gate canEdit() and
  * {@see WikiAction::View} + {@see WikiAction::Edit} on the space and the page (the host's
@@ -40,7 +41,7 @@ final class WikiCollabController extends AbstractController
     private const NO_STORE = ['Cache-Control' => 'no-store, private'];
 
     /** Endpoint => HTTP method. */
-    public const ACTIONS = ['token' => 'POST', 'state' => 'GET', 'update' => 'POST', 'awareness' => 'POST', 'compact' => 'POST'];
+    public const ACTIONS = ['token' => 'POST', 'state' => 'GET', 'update' => 'POST', 'awareness' => 'POST', 'compact' => 'POST', 'corrupt' => 'POST', 'reset' => 'POST'];
 
     /**
      * @param WikiSpaceGuard $spaceGuard space resolution and access
@@ -48,6 +49,7 @@ final class WikiCollabController extends AbstractController
      * @param WikiAccessCheckerInterface $accessChecker role gate (canEdit)
      * @param WikiCollabService|null $collab the collaboration service (null: collaboration disabled, every endpoint 404)
      * @param WikiTokenGuard|null $tokenGuard firewall-trust check of the security token
+     * @param array<string, array{path: string, name: string}> $routes the nowo_wiki routes (redirect after a reset)
      */
     public function __construct(
         private readonly WikiSpaceGuard $spaceGuard,
@@ -55,6 +57,7 @@ final class WikiCollabController extends AbstractController
         private readonly WikiAccessCheckerInterface $accessChecker,
         private readonly ?WikiCollabService $collab = null,
         private readonly ?WikiTokenGuard $tokenGuard = null,
+        private readonly array $routes = [],
     ) {
     }
 
@@ -65,7 +68,7 @@ final class WikiCollabController extends AbstractController
      * @throws AccessDeniedHttpException without a trusted user, without the edit permission or from another origin
      * @throws MethodNotAllowedHttpException when the method does not match the endpoint
      */
-    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}', name: 'nowo_wiki_page_collab', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG, 'action' => 'token|state|update|awareness|compact'], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_collab'], methods: ['GET', 'POST'])]
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}', name: 'nowo_wiki_page_collab', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG, 'action' => 'token|state|update|awareness|compact|corrupt|reset'], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_collab'], methods: ['GET', 'POST'])]
     public function collab(Request $request, string $spaceSlug, string $pageSlug, string $action): Response
     {
         if (!$this->collab instanceof WikiCollabService || !isset(self::ACTIONS[$action])) {
@@ -82,9 +85,14 @@ final class WikiCollabController extends AbstractController
             $this->requireSameOrigin($request);
         }
 
+        if ($action === 'reset') {
+            return $this->manualReset($request, $page, $spaceSlug);
+        }
+
         try {
             return match ($action) {
-                'state'     => new JsonResponse($this->collab->state($page, $user), Response::HTTP_OK, self::NO_STORE),
+                'state'     => new JsonResponse($this->collab->state($page, $user, $request), Response::HTTP_OK, self::NO_STORE),
+                'corrupt'   => $this->noContent(fn () => $this->collab->corrupt($request, $page, $user)),
                 'token'     => $this->noContent(fn () => $this->collab->token($request, $page, $user)),
                 'update'    => $this->noContent(fn () => $this->collab->update($request, $page, $user)),
                 'awareness' => $this->noContent(fn () => $this->collab->awareness($request, $page, $user)),
@@ -93,6 +101,24 @@ final class WikiCollabController extends AbstractController
         } catch (WikiCollabException $exception) {
             return new JsonResponse(['error' => $exception->reason], $exception->status, self::NO_STORE);
         }
+    }
+
+    /**
+     * The editor's "Reset collaboration" form (CSRF token {@see WikiCollabService::resetTokenId()}): drops the log, the
+     * live editors reload; back to the edit form.
+     */
+    private function manualReset(Request $request, WikiPage $page, string $spaceSlug): Response
+    {
+        if (!$this->isCsrfTokenValid(WikiCollabService::resetTokenId($page), $request->request->getString('_token'))) {
+            throw new AccessDeniedHttpException('Invalid CSRF token.');
+        }
+
+        $this->collab?->reset($page);
+        $edit = $this->routes['page_edit']['name'] ?? null;
+
+        return $edit !== null
+            ? $this->redirectToRoute($edit, ['spaceSlug' => $spaceSlug, 'pageSlug' => $page->getSlug()])
+            : new Response(null, Response::HTTP_NO_CONTENT, self::NO_STORE);
     }
 
     /**

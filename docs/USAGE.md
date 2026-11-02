@@ -369,10 +369,22 @@ The page edit form passes MilkdownEditorType the `collaboration` option (base UR
 | `POST …/collab/update` `{c, d}` | 204; the update is appended to the log and published (`{"t":"u","c":…,"d":…}`, private) |
 | `POST …/collab/awareness` `{c, d}` | 204; presence published (`{"t":"a",…}`), never stored |
 | `POST …/collab/compact` `{c, d, s}` | 204; the log up to `s` is replaced with the snapshot `d` |
+| `POST …/collab/corrupt` `{c, s}` | 204; the log `s` could not be applied: dropped (capped), editors reload |
+| `POST …/collab/reset` (form, `_token`) | 302 to the edit form; the editor's explicit reset |
 
 Every request checks a firewall-trusted user, `canEdit()` and `WikiAction::View` + `WikiAction::Edit` on the space and the page (404 when the page is not readable, 403 when not editable); POSTs must be same-origin and JSON. Every request is rate-limited per user and page. Errors answer `{"error": "<reason>"}`: 400 `invalid_payload`, 409 `log_reset` (the log went over `max_log_bytes` and was dropped; editors reload), 413 `too_large`, 415 `json_required`, 429 `rate_limited` / `log_full`.
 
-**Seeding:** the token request of the first editor of an empty log claims the seeding for that user; `GET state` then answers `seed: true` to that user, whose client fills the document from the field's Markdown. A claim not fulfilled within `seed_timeout` seconds may be taken again. (Two tabs of the same user opened at the same instant may both seed.) **Every save drops the log** — the edit form, a restore, an import, a conversion, a host API save: the saved Markdown is the source of truth, the log is emptied and `{"t": "r"}` is published; live editors stop, show a notice and reload with the saved content (Milkdown ≥ 1.2). Edits typed by others after the save and before the reload are lost. As a safety net, a log whose base revision is not the current one is dropped on the next token when it is empty or idle for `reset_after_idle` seconds. **Names:** co-editors see each other's display name (`getDisplayName()` / `getName()` of your user class) or an opaque "Editor xxxx" label — never the login or e-mail.
+**Seeding:** the token request of the first editor of an empty log claims the seeding for that client (user + the tab's Yjs client id, header `X-Nowo-Collab-Client`, Milkdown ≥ 1.2: one tab seeds even when the same user opened two); `GET state` then answers `seed: true` to that client, which fills the document from the field's Markdown. A claim not fulfilled within `seed_timeout` seconds may be taken again.
+
+**Reset only when needed:** a save made from the live session — the Milkdown client adds `_nowo_milkdown_collab` (the page topic) to the form, and the log's base is the revision being replaced — keeps the log and records the new revision; nobody reloads. The log is dropped and `{"t": "r"}` published (live editors show a notice and reload the saved content) only for:
+
+- a save outside the live session (no session field, e.g. an editor whose collaboration is off or offline) or with a stale base;
+- a restore, an import, a conversion or any other save (console, host API);
+- a client that cannot apply the log: it posts `POST …/collab/corrupt` `{c, s}` with the sequence number it got; idempotent (a report about a log already reset or grown since changes nothing) and capped at `corrupt_resets` per page per `corrupt_window` seconds (429 `reset_capped` beyond);
+- an editor's **Reset collaboration** button on the edit form (POST + CSRF behind a confirmation, edit permission);
+- a log over `max_log_bytes` (409 `log_reset`).
+
+As a safety net, a log whose base revision is not the current one is dropped on the next token when it is empty or idle for `reset_after_idle` seconds. **Names:** co-editors see each other's display name (`getDisplayName()` / `getName()` of your user class) or an opaque "Editor xxxx" label — never the login or e-mail.
 
 Your own endpoints (e.g. Beacon routes) can call `WikiCollabService` directly — check the edit permission first, as `WikiCollabController` does. Replace the storage, the publisher or the cookie with `collaboration.store`, `publisher`, `subscriber_authorizer` (`WikiCollabStateStoreInterface`, `WikiCollabPublisherInterface`, `WikiCollabSubscriberAuthorizerInterface`).
 

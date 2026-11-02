@@ -93,6 +93,13 @@ services:
             $pageFactory: '@Nowo\WikiBundle\Ui\WikiPageFactory'
             $translator: '@?translator'
 
+    Nowo\WikiBundle\Controller\WikiCollabController:
+        public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
+        arguments:
+            $routes: '%nowo_wiki.routes%'
+
     Nowo\WikiBundle\Controller\WikiAttachmentController:
         public: true
         autoconfigure: false

@@ -41,14 +41,26 @@ use const PHP_INT_MAX;
  * submits the Markdown.
  *
  * - `POST token` (origin-checked) authorizes the subscription, drops a stale log and claims the seeding of an empty
- *   log for the requesting user; `GET state` only reads (CW-I3): it answers `seed: true` to the claimant while the
- *   claim is fresh (`seed_timeout`).
- * - Every save of the page — the edit form, a restore, an import, a conversion — drops the log and publishes
- *   `{t: "r"}` (user decision 2026-11-02 and audit CW-L1: the saved Markdown is the source of truth); live editors
- *   reload. A log over `max_log_bytes` is dropped the same way (CW-M1).
+ *   log for the requesting client (user + the tab's Yjs client id, header `X-Nowo-Collab-Client`); `GET state` only
+ *   reads (CW-I3): it answers `seed: true` to that client while the claim is fresh (`seed_timeout`).
+ * - "Reset only when needed" (user decision 2026-11-02 on CW-L1): a save made from the live session (the form posts
+ *   {@see self::SESSION_FIELD} = the page topic and the log's base is the revision being replaced) keeps the log and
+ *   records the new base ({@see self::saved()}). The log is dropped and `{t: "r"}` published — live editors reload —
+ *   for a save outside the session or with a stale base, a restore, an import, a conversion ({@see self::replaced()}),
+ *   a client report that the log cannot be applied ({@see self::corrupt()}, capped per page and window), an editor's
+ *   explicit reset ({@see self::reset()}) and a log over `max_log_bytes` (CW-M1).
  */
 final readonly class WikiCollabService
 {
+    /** Form field the Milkdown client (≥ 1.2) adds to the page form when it saves from a live session: the page topic. */
+    public const SESSION_FIELD = '_nowo_milkdown_collab';
+
+    /** Request attribute (the page id) of a save made from a live session; read by {@see WikiCollabSaveListener}. */
+    public const SESSION_SAVE_ATTRIBUTE = '_nowo_wiki_collab_session_save';
+
+    /** Header carrying the Yjs client id of the tab (one seed per tab, not per user). */
+    public const CLIENT_HEADER = 'X-Nowo-Collab-Client';
+
     /** An empty Yjs update (`Y.encodeStateAsUpdate(new Y.Doc())`), base64. */
     public const EMPTY_STATE = 'AAA=';
 
@@ -63,9 +75,11 @@ final readonly class WikiCollabService
         'max_log_entries'    => 2000,
         'seed_timeout'       => 30,
         'reset_after_idle'   => 300,
+        'corrupt_resets'     => 3,
+        'corrupt_window'     => 600,
     ];
 
-    /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int} */
+    /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int} */
     private array $options;
 
     /**
@@ -82,9 +96,17 @@ final readonly class WikiCollabService
         array $options = [],
         private ?RateLimiterFactory $rateLimiter = null,
     ) {
-        /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int} $merged */
+        /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int} $merged */
         $merged        = $options + self::DEFAULTS;
         $this->options = $merged;
+    }
+
+    /**
+     * CSRF token id of the editor's "Reset collaboration" form of a page.
+     */
+    public static function resetTokenId(WikiPage $page): string
+    {
+        return 'wiki_collab_reset_' . $page->getId();
     }
 
     /**
@@ -136,7 +158,7 @@ final readonly class WikiCollabService
         }
 
         if ($info->isEmpty()) {
-            $this->store->claimSeed($id, $this->staleBefore(), $user->getUserIdentifier());
+            $this->store->claimSeed($id, $this->staleBefore(), $this->claimant($request, $user));
         }
 
         $this->authorizer->authorize($request, $this->topic($page));
@@ -149,17 +171,18 @@ final readonly class WikiCollabService
      *
      * @return array{state: string, updates: list<string>, seq: int, compact: bool, seed: bool}
      */
-    public function state(WikiPage $page, UserInterface $user): array
+    public function state(WikiPage $page, UserInterface $user, ?Request $request = null): array
     {
         $this->limit($page, $user);
         $state = $this->store->load($page->getId());
+        $me    = $request instanceof Request ? $this->claimant($request, $user) : $user->getUserIdentifier();
 
         return [
             'state'   => $state->snapshot ?? self::EMPTY_STATE,
             'updates' => $state->updates,
             'seq'     => $state->seq,
             'compact' => $state->updateCount >= $this->options['compact_after'],
-            'seed'    => $state->isEmpty() && $state->seededBy === $user->getUserIdentifier()
+            'seed'    => $state->isEmpty() && $state->seededBy === $me
                 && $state->seededAt instanceof DateTimeImmutable && $state->seededAt >= $this->staleBefore(),
         ];
     }
@@ -219,8 +242,62 @@ final readonly class WikiCollabService
     }
 
     /**
-     * The page was saved — by the edit form, a restore, an import, a conversion…: drops its log (without reading it),
-     * records the saved revision and tells the live editors to reload. A page that never had a session is left alone.
+     * A save from the live session: when the log's base is the revision this save replaced, the log stays and records
+     * the new revision (no reload); otherwise the save is treated as a replacement.
+     */
+    public function saved(WikiPage $page, WikiPageRevision $revision, ?WikiPageRevision $previous): void
+    {
+        $info = $this->store->info($page->getId());
+        if ($info->updatedAt instanceof DateTimeImmutable && $previous instanceof WikiPageRevision && $info->baseRevisionId === $previous->getId()) {
+            $this->store->markSaved($page->getId(), $revision->getId());
+
+            return;
+        }
+
+        $this->replaced($page, $revision);
+    }
+
+    /**
+     * `POST <url>/corrupt` (Milkdown ≥ 1.2): a client could not apply the log answered with sequence number `s`.
+     * Idempotent — a report about another log (already reset, or grown since) changes nothing — and capped: at most
+     * `corrupt_resets` such resets per page in `corrupt_window` seconds (429 `reset_capped` beyond).
+     *
+     * @throws WikiCollabException on an invalid or rate-limited request, or over the cap
+     */
+    public function corrupt(Request $request, WikiPage $page, UserInterface $user): void
+    {
+        $this->limit($page, $user);
+        $body = $this->json($request, 1024);
+        $seq  = $body['s'] ?? null;
+        if (!is_int($body['c'] ?? null) || !is_int($seq) || $seq < 0) {
+            throw new WikiCollabException(Response::HTTP_BAD_REQUEST, 'invalid_payload');
+        }
+
+        $info = $this->store->info($page->getId());
+        if ($info->isEmpty() || $info->seq !== $seq) {
+            return;
+        }
+
+        if (!$this->store->noteCorruptReset($page->getId(), new DateTimeImmutable(sprintf('-%d seconds', $this->options['corrupt_window'])), $this->options['corrupt_resets'])) {
+            throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'reset_capped');
+        }
+
+        $this->drop($page, $page->getCurrentRevision()?->getId());
+    }
+
+    /**
+     * An editor's explicit "Reset collaboration" (the caller checked the edit right and the CSRF token): drops the log
+     * and reloads the live editors, who then start again from the saved Markdown.
+     */
+    public function reset(WikiPage $page): void
+    {
+        $this->drop($page, $page->getCurrentRevision()?->getId());
+    }
+
+    /**
+     * The page was replaced outside the live session — a save without a live session or with a stale base, a restore,
+     * an import, a conversion…: drops its log (without reading it), records the saved revision and tells the live
+     * editors to reload. A page that never had a session is left alone.
      */
     public function replaced(WikiPage $page, WikiPageRevision $revision): void
     {
@@ -252,23 +329,9 @@ final readonly class WikiCollabService
     private function payload(Request $request, WikiPage $page, UserInterface $user, int $maxBytes): array
     {
         $this->limit($page, $user);
-        if ($request->getContentTypeFormat() !== 'json') {
-            throw new WikiCollabException(Response::HTTP_UNSUPPORTED_MEDIA_TYPE, 'json_required');
-        }
-
-        $content = $request->getContent();
-        if (strlen($content) > (int) ($maxBytes * 4 / 3) + 64) {
-            throw new WikiCollabException(Response::HTTP_REQUEST_ENTITY_TOO_LARGE, 'too_large');
-        }
-
-        try {
-            $body = json_decode($content, true, 4, JSON_THROW_ON_ERROR);
-        } catch (JsonException) {
-            throw new WikiCollabException(Response::HTTP_BAD_REQUEST, 'invalid_payload');
-        }
-
-        $client = is_array($body) ? ($body['c'] ?? null) : null;
-        $data   = is_array($body) ? ($body['d'] ?? null) : null;
+        $body   = $this->json($request, (int) ($maxBytes * 4 / 3) + 64);
+        $client = $body['c'] ?? null;
+        $data   = $body['d'] ?? null;
         if (!is_int($client) || $client < 0 || !is_string($data) || $data === '' || preg_match('#^[A-Za-z0-9+/]+={0,2}$#', $data) !== 1) {
             throw new WikiCollabException(Response::HTTP_BAD_REQUEST, 'invalid_payload');
         }
@@ -282,8 +345,45 @@ final readonly class WikiCollabService
             throw new WikiCollabException(Response::HTTP_REQUEST_ENTITY_TOO_LARGE, 'too_large');
         }
 
-        /* @var array<string, mixed> $body */
         return [$client, $data, $body];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function json(Request $request, int $maxLength): array
+    {
+        if ($request->getContentTypeFormat() !== 'json') {
+            throw new WikiCollabException(Response::HTTP_UNSUPPORTED_MEDIA_TYPE, 'json_required');
+        }
+
+        $content = $request->getContent();
+        if (strlen($content) > $maxLength) {
+            throw new WikiCollabException(Response::HTTP_REQUEST_ENTITY_TOO_LARGE, 'too_large');
+        }
+
+        try {
+            $body = json_decode($content, true, 4, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            throw new WikiCollabException(Response::HTTP_BAD_REQUEST, 'invalid_payload');
+        }
+
+        if (!is_array($body)) {
+            throw new WikiCollabException(Response::HTTP_BAD_REQUEST, 'invalid_payload');
+        }
+
+        /* @var array<string, mixed> $body */
+        return $body;
+    }
+
+    /**
+     * Who claims the seed: the user, plus the tab's Yjs client id when the client sends it (one seed per tab).
+     */
+    private function claimant(Request $request, UserInterface $user): string
+    {
+        $client = (string) $request->headers->get(self::CLIENT_HEADER, '');
+
+        return $user->getUserIdentifier() . (preg_match('/^\d{1,16}$/', $client) === 1 ? '#' . $client : '');
     }
 
     private function staleBefore(): DateTimeImmutable

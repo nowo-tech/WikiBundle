@@ -177,6 +177,8 @@ final class Configuration implements ConfigurationInterface
                         ->integerNode('max_log_entries')->info('Refuse updates (429) above this many until a client compacts.')->min(20)->defaultValue(WikiCollabService::DEFAULTS['max_log_entries'])->end()
                         ->integerNode('seed_timeout')->info('Seconds after which an unfulfilled seed claim may be taken again.')->min(5)->defaultValue(WikiCollabService::DEFAULTS['seed_timeout'])->end()
                         ->integerNode('reset_after_idle')->info('Seconds of inactivity after which a log that does not match the current revision is dropped.')->min(0)->defaultValue(WikiCollabService::DEFAULTS['reset_after_idle'])->end()
+                        ->integerNode('corrupt_resets')->info('Resets a client may trigger by reporting a log it cannot apply, per page and corrupt_window.')->min(1)->defaultValue(WikiCollabService::DEFAULTS['corrupt_resets'])->end()
+                        ->integerNode('corrupt_window')->info('Window of corrupt_resets, in seconds.')->min(10)->defaultValue(WikiCollabService::DEFAULTS['corrupt_window'])->end()
                         ->scalarNode('rate_limiter')->info('Service id of a Symfony RateLimiterFactory applied per user and page to every collaboration request (token, state, update, awareness, compact). Required when collaboration is enabled.')->defaultNull()->end()
                         ->scalarNode('store')->info('Service id of a WikiCollabStateStoreInterface (null: the Doctrine store, tables <prefix>_page_collab_*).')->defaultNull()->end()
                         ->scalarNode('publisher')->info('Service id of a WikiCollabPublisherInterface (null: symfony/mercure HubInterface).')->defaultNull()->end()

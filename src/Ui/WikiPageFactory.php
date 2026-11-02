@@ -205,16 +205,35 @@ final readonly class WikiPageFactory
     /**
      * Page create (no page) / edit form: title + Tiptap content, Save, Cancel back to the page (or the space).
      */
-    public function pageForm(WikiSpace $space, ?WikiPage $page, FormView $form): FormPage
+    public function pageForm(WikiSpace $space, ?WikiPage $page, FormView $form, ?FormView $collabResetForm = null): FormPage
     {
         $back = $page instanceof WikiPage
             ? $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()])
             : $this->url('space', ['spaceSlug' => $space->getSlug()]);
+        $actions = [];
+        // 1.13: co-editing — the editor's explicit reset of the shared session (POST + CSRF behind a confirm).
+        if ($page instanceof WikiPage && $collabResetForm instanceof FormView) {
+            $actions[] = new Action(
+                'delete',
+                WikiPages::label('wiki.collab.reset'),
+                (string) ($collabResetForm->vars['action'] ?? ''),
+                method: 'POST',
+                confirm: new Confirm(
+                    WikiPages::label('wiki.collab.reset_confirm_title'),
+                    WikiPages::label('wiki.collab.reset_confirm_message'),
+                    WikiPages::label('wiki.collab.reset'),
+                    cancelLabel: WikiPages::label('wiki.action.cancel'),
+                ),
+                attributes: ['data-testid' => 'wiki-collab-reset'],
+                form: $collabResetForm,
+            );
+        }
 
         return new FormPage(
             header: new PageHeader(
                 $page instanceof WikiPage ? WikiPages::label('wiki.page.edit_title', ['%title%' => $page->getTitle()]) : WikiPages::label('wiki.page.new'),
                 $space->getName(),
+                $actions,
                 breadcrumbs: $this->crumbs($space, $page, WikiPages::label($page instanceof WikiPage ? 'wiki.page.edit' : 'wiki.page.new')),
                 back: new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
             ),

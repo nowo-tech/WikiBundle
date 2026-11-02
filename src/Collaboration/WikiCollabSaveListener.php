@@ -6,24 +6,36 @@ namespace Nowo\WikiBundle\Collaboration;
 
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
- * Listener of {@see WikiEvents::PAGE_SAVED} with collaboration on (1.13): every save of a page — the edit form, a
- * restore, an import, a conversion, a host API — makes the saved Markdown the source of truth, so the Yjs log is
- * dropped and the live editors reload (user decision 2026-11-02, audit CW-L1).
+ * Listener of {@see WikiEvents::PAGE_SAVED} with collaboration on (1.13, "reset only when needed"): a save the page
+ * form made from the live session (marked with {@see WikiCollabService::SESSION_SAVE_ATTRIBUTE}) keeps the Yjs log
+ * when its base is current ({@see WikiCollabService::saved()}); every other save — outside the session, restore,
+ * import, conversion, host API, console — replaces the document ({@see WikiCollabService::replaced()}).
  */
 final readonly class WikiCollabSaveListener
 {
     /**
      * @param WikiCollabService $collab the collaboration service
+     * @param RequestStack|null $requestStack the current request (none in the console: every save is a replacement)
      */
     public function __construct(
         private WikiCollabService $collab,
+        private ?RequestStack $requestStack = null,
     ) {
     }
 
     public function __invoke(WikiPageSavedEvent $event): void
     {
+        $request = $this->requestStack?->getCurrentRequest();
+        if ($request instanceof Request && $request->attributes->get(WikiCollabService::SESSION_SAVE_ATTRIBUTE) === $event->page->getId()) {
+            $this->collab->saved($event->page, $event->revision, $event->previousRevision);
+
+            return;
+        }
+
         $this->collab->replaced($event->page, $event->revision);
     }
 }

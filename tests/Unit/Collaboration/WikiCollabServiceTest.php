@@ -184,6 +184,88 @@ final class WikiCollabServiceTest extends TestCase
         self::assertSame($loads, $this->store->loads);
     }
 
+    public function testOneTabSeedsWhenTheClientSendsItsId(): void
+    {
+        $service = $this->service();
+        $tab     = static fn (string $id): Request => Request::create('/', 'POST', [], [], [], ['HTTP_X_NOWO_COLLAB_CLIENT' => $id]);
+
+        $service->token($tab('111'), $this->page, $this->user);
+        $service->token($tab('222'), $this->page, $this->user);
+
+        self::assertTrue($service->state($this->page, $this->user, $tab('111'))['seed']);
+        self::assertFalse($service->state($this->page, $this->user, $tab('222'))['seed'], 'same user, other tab');
+        self::assertFalse($service->state($this->page, $this->user, $tab('x1'))['seed'], 'an invalid id is ignored');
+        self::assertFalse($service->state($this->page, $this->user)['seed']);
+    }
+
+    public function testACorruptReportResetsOnceWithinTheCap(): void
+    {
+        $service = $this->service(['corrupt_resets' => 2, 'corrupt_window' => 600]);
+        $id      = $this->page->getId();
+        $report  = fn (int $seq): Request => $this->json(['c' => 1, 's' => $seq]);
+
+        $service->corrupt($report(0), $this->page, $this->user);
+        self::assertSame([], $this->published, 'an empty log: nothing to reset');
+
+        $seq = $this->store->append($id, 'AQ==');
+        $service->corrupt($report($seq + 5), $this->page, $this->user);
+        self::assertSame([], $this->published, 'a report about another log changes nothing');
+
+        $service->corrupt($report($seq), $this->page, $this->user);
+        self::assertTrue($this->store->info($id)->isEmpty());
+        self::assertSame('{"t":"r","c":0,"d":""}', $this->published[0][1]);
+        $service->corrupt($report($seq), $this->page, $this->user);
+        self::assertCount(1, $this->published, 'idempotent: the log is already gone');
+
+        $service->corrupt($report($this->store->append($id, 'AQ==')), $this->page, $this->user);
+        self::assertCount(2, $this->published);
+
+        try {
+            $service->corrupt($report($this->store->append($id, 'AQ==')), $this->page, $this->user);
+            self::fail('no cap');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([429, 'reset_capped'], [$exception->status, $exception->reason]);
+        }
+
+        self::assertFalse($this->store->info($id)->isEmpty());
+        self::assertCount(2, $this->published, 'no reset loop');
+    }
+
+    public function testACorruptReportNeedsAClientAndASequence(): void
+    {
+        foreach ([['s' => 1], ['c' => 1], ['c' => 1, 's' => -1], ['c' => '1', 's' => 1]] as $body) {
+            try {
+                $this->service()->corrupt($this->json($body), $this->page, $this->user);
+                self::fail('accepted');
+            } catch (WikiCollabException $exception) {
+                self::assertSame(400, $exception->status);
+            }
+        }
+
+        $this->expectExceptionObject(new WikiCollabException(400, 'invalid_payload'));
+        $this->service()->corrupt(self::request('"x"'), $this->page, $this->user);
+    }
+
+    public function testTheManualResetDropsTheLogAndSavesKeepItFromTheSession(): void
+    {
+        $service = $this->service();
+        $id      = $this->page->getId();
+        $current = $this->page->getCurrentRevision() ?? self::fail('revision');
+        $next    = new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y');
+        $this->store->reset($id, $current->getId());
+        $this->store->append($id, 'AQ==');
+
+        $service->saved($this->page, $next, $current);
+        self::assertSame(['AQ=='], $this->store->load($id)->updates);
+        self::assertSame($next->getId(), $this->store->info($id)->baseRevisionId);
+        self::assertSame([], $this->published);
+
+        $service->reset($this->page);
+        self::assertTrue($this->store->info($id)->isEmpty());
+        self::assertSame('{"t":"r","c":0,"d":""}', $this->published[0][1]);
+        self::assertSame('wiki_collab_reset_' . $id, WikiCollabService::resetTokenId($this->page));
+    }
+
     public function testAStaleLogIsResetOnTheNextTokenOnlyWhenIdle(): void
     {
         $id = $this->page->getId();

@@ -113,11 +113,12 @@ nowo_milkdown_editor:
 | `collaboration.compact_after` | 200 | Ask clients to compact once the log holds this many updates |
 | `collaboration.max_log_entries` | 2000 | Refuse updates (429 `log_full`) above this until a client compacts |
 | `collaboration.seed_timeout` | 30 | Seconds after which an unfulfilled seed claim may be taken again |
+| `collaboration.corrupt_resets` / `corrupt_window` | 3 / 600 | Resets clients may trigger by reporting a log they cannot apply, per page and window (seconds) |
 | `collaboration.reset_after_idle` | 300 | Idle seconds after which a log not matching the current revision is dropped |
 | `collaboration.rate_limiter` | null | **Required** with `enabled`: service id of a `RateLimiterFactory` per user and page, applied to every request (token, state, update, awareness, compact) |
 | `collaboration.store` / `publisher` / `subscriber_authorizer` | null | Your services instead of the Doctrine store and the Mercure defaults |
 | `collaboration.mercure_hub` | null | Mercure hub name of the defaults |
-| `routes.page_collab` | `…/pages/{pageSlug}/collab/{action}` | The collaboration endpoints (`action`: token, state, update, awareness, compact) |
+| `routes.page_collab` | `…/pages/{pageSlug}/collab/{action}` | The collaboration endpoints (`action`: token, state, update, awareness, compact, corrupt, reset) |
 
 Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates` (see [UPGRADING](UPGRADING.md#unreleased)).
 

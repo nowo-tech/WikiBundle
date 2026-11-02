@@ -412,6 +412,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$rateLimiter', new Reference((string) $collab['rate_limiter'])));
         $container->setDefinition(WikiCollabSaveListener::class, (new Definition(WikiCollabSaveListener::class))
             ->setArgument('$collab', new Reference(WikiCollabService::class))
+            ->setArgument('$requestStack', new Reference('request_stack', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->addTag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED]));
     }
 

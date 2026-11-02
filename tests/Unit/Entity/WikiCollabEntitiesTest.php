@@ -17,6 +17,8 @@ final class WikiCollabEntitiesTest extends TestCase
         self::assertSame('p1', $document->getPageId());
         self::assertNull($document->getBaseRevisionId());
         self::assertNull($document->getSeededAt());
+        self::assertSame(0, $document->getRecentResets());
+        self::assertNull($document->getLastResetAt());
         self::assertInstanceOf(DateTimeImmutable::class, $document->getUpdatedAt());
 
         self::assertSame('r1', (new WikiCollabDocument('p2', 'r1'))->getBaseRevisionId());

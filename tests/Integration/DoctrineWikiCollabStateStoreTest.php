@@ -99,6 +99,18 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertSame('rev-1', $this->store->info('p9')->baseRevisionId);
     }
 
+    public function testSavesMoveTheBaseAndCorruptResetsAreCapped(): void
+    {
+        $this->store->markSaved('p1', 'rev-7');
+        self::assertSame('rev-7', $this->store->info('p1')->baseRevisionId);
+
+        $window = new DateTimeImmutable('-10 minutes');
+        self::assertTrue($this->store->noteCorruptReset('p1', $window, 2));
+        self::assertTrue($this->store->noteCorruptReset('p1', $window, 2));
+        self::assertFalse($this->store->noteCorruptReset('p1', $window, 2));
+        self::assertTrue($this->store->noteCorruptReset('p1', new DateTimeImmutable('+1 minute'), 2), 'a new window');
+    }
+
     public function testWorksThroughTheEntityManagerProvider(): void
     {
         $em       = SqliteWikiEntityManager::create();
