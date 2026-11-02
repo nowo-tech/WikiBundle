@@ -23,6 +23,7 @@ use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Support\ConcurrentlyEditedPageRepository;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Util\WikiSlugger;
@@ -242,7 +243,7 @@ final class WikiMarkdownStorageTest extends TestCase
         self::assertSame(1, $json['version']);
         self::assertTrue($json['dry_run']);
         self::assertSame('gfm', $json['dialect']);
-        self::assertSame(['pages' => 2, 'converted' => 2, 'skipped_markdown' => 0, 'skipped_empty' => 0, 'skipped_lossy' => 0, 'lossless' => 1, 'with_approximations' => 0, 'with_losses' => 1], $json['totals']);
+        self::assertSame(['pages' => 2, 'converted' => 2, 'skipped_markdown' => 0, 'skipped_empty' => 0, 'skipped_lossy' => 0, 'skipped_changed' => 0, 'lossless' => 1, 'with_approximations' => 0, 'with_losses' => 1], $json['totals']);
         self::assertSame(['eng', 'lossy', $lossy->getId(), 'Lossy', 'would_convert', 1, null], [$json['pages'][0]['space'], $json['pages'][0]['page'], $json['pages'][0]['page_id'], $json['pages'][0]['title'], $json['pages'][0]['outcome'], $json['pages'][0]['from_revision'], $json['pages'][0]['to_revision']]);
         self::assertSame(['underline' => 1], $json['pages'][0]['lost']);
         self::assertSame(['table_cell_span' => 1, 'table_without_header' => 1], $json['pages'][0]['approximated']);
@@ -256,12 +257,18 @@ final class WikiMarkdownStorageTest extends TestCase
         self::assertFalse($lossy->getCurrentRevision()?->isMarkdown());
         self::assertFalse($other->getCurrentRevision()?->isMarkdown());
 
-        self::assertSame(Command::FAILURE, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['lossy'], '--fail-on-loss' => true, '--report' => $report]));
+        // CV-L2: --fail-on-loss analyses everything first and writes nothing when a page is lossy.
+        self::assertSame(Command::FAILURE, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['lossy', 'other'], '--fail-on-loss' => true, '--report' => $report]));
+        self::assertStringContainsString('Nothing written: 1 page(s) would lose something (--fail-on-loss).', $this->display($tester));
         $json = json_decode((string) file_get_contents($report), true, 512, JSON_THROW_ON_ERROR);
         unlink($report);
         self::assertIsArray($json);
-        self::assertSame('converted', $json['pages'][0]['outcome']);
-        self::assertSame(2, $json['pages'][0]['to_revision']);
+        self::assertTrue($json['dry_run']);
+        self::assertSame(['would_convert', 'would_convert'], [$json['pages'][0]['outcome'], $json['pages'][1]['outcome']]);
+        self::assertFalse($lossy->getCurrentRevision()?->isMarkdown());
+        self::assertFalse($other->getCurrentRevision()?->isMarkdown());
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['lossy']]));
         self::assertTrue($lossy->getCurrentRevision()?->isMarkdown());
 
         self::assertSame(Command::SUCCESS, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['lossy'], '--fail-on-loss' => true]));
@@ -291,7 +298,32 @@ final class WikiMarkdownStorageTest extends TestCase
 
         ksort($outcomes);
         self::assertSame(['approx' => 'converted', 'empty' => 'skipped_empty', 'lossy' => 'skipped_lossy', 'md' => 'skipped_markdown'], $outcomes);
-        self::assertSame(['pages' => 4, 'converted' => 1, 'skipped_markdown' => 1, 'skipped_empty' => 1, 'skipped_lossy' => 1, 'lossless' => 0, 'with_approximations' => 1, 'with_losses' => 1], $json['totals']);
+        self::assertSame(['pages' => 4, 'converted' => 1, 'skipped_markdown' => 1, 'skipped_empty' => 1, 'skipped_lossy' => 1, 'skipped_changed' => 0, 'lossless' => 0, 'with_approximations' => 1, 'with_losses' => 1], $json['totals']);
+    }
+
+    public function testAPageChangedAfterTheAnalysisIsSkipped(): void
+    {
+        $page    = $this->service->create($this->space, 'Moving', '<p>v1</p>', $this->user);
+        $pages   = new ConcurrentlyEditedPageRepository(new DoctrineOrmWikiPageRepository($this->em), $this->service, $this->user);
+        $command = new WikiConvertMarkdownCommand(
+            new DoctrineOrmWikiSpaceRepository($this->em),
+            $pages,
+            new WikiMarkdownConverter(),
+            $this->service,
+            new WikiAuthorResolver($this->em, TestUserEntity::class),
+        );
+        $tester = new CommandTester($command);
+
+        $report = sys_get_temp_dir() . '/wiki-conversion-' . bin2hex(random_bytes(4)) . '.json';
+        self::assertSame(Command::SUCCESS, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--report' => $report]));
+        self::assertStringContainsString('0 converted, 0 already in Markdown, 0 without revision. 1 changed during the run (skipped, run again).', $this->display($tester));
+        /** @var array{totals: array<string, int>, pages: list<array{outcome: string}>} $json */
+        $json = json_decode((string) file_get_contents($report), true, 512, JSON_THROW_ON_ERROR);
+        unlink($report);
+        self::assertSame('skipped_changed', $json['pages'][0]['outcome']);
+        self::assertSame(1, $json['totals']['skipped_changed']);
+        self::assertSame(2, $page->getCurrentRevision()?->getRevisionNumber());
+        self::assertFalse($page->getCurrentRevision()?->isMarkdown());
     }
 
     public function testConvertCommandRefusesUnknownPagesAndUnwritableReports(): void

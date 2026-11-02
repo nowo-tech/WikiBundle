@@ -37,6 +37,7 @@ final class MilkdownBridgePass implements CompilerPassInterface
             throw new LogicException('nowo_wiki.editor.type "milkdown" requires NowoMilkdownEditorBundle to be registered in the kernel (config/bundles.php).');
         }
 
-        $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->setArgument('$options', $options);
+        // CV-I8: a parameter reference, so %env()% limits are resolved at runtime (the renderer accepts numeric strings).
+        $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->setArgument('$options', '%' . self::OPTIONS_PARAMETER . '%');
     }
 }

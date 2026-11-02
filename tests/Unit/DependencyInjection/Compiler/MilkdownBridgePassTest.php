@@ -29,7 +29,7 @@ final class MilkdownBridgePassTest extends TestCase
 
         (new MilkdownBridgePass())->process($container);
 
-        self::assertSame(['max_input_length' => 5000], $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$options'));
+        self::assertSame('%nowo_milkdown_editor.markdown%', $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$options'));
     }
 
     public function testFailsClosedWithoutNowoMilkdownEditorBundle(): void

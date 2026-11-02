@@ -23,9 +23,11 @@ use function strtolower;
  */
 final class WikiMarkdownPortableLinks
 {
-    private const CODE = '/^( {0,3})(`{3,}|~{3,})[^\n]*\n.*?(?:^ {0,3}\2[`~]*[ \t]*$|\z)|(`+)(?!`).+?(?<!`)\3(?!`)/ms';
-
-    private const PAGE_LINK = '/\[\[wiki:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:#([a-z0-9][a-z0-9-]{0,80}))?\]\]/';
+    /**
+     * One pass over the document (CV-L3: no placeholder masking): fenced code (groups 1-2), a code span (group 3) or a
+     * page link (groups 4-5). Code is returned unchanged, so a link inside code is never rewritten.
+     */
+    private const TOKENS = '/^( {0,3})(`{3,}|~{3,})[^\n]*\n.*?(?:^ {0,3}\2[`~]*[ \t]*$|\z)|(`+)(?!`).+?(?<!`)\3(?!`)|\[\[wiki:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:#([a-z0-9][a-z0-9-]{0,80}))?\]\]/ms';
 
     /**
      * Rewrites the page links of the exported pages.
@@ -41,25 +43,16 @@ final class WikiMarkdownPortableLinks
             return $markdown;
         }
 
-        $protected = [];
-        $masked    = preg_replace_callback(self::CODE, static function (array $match) use (&$protected): string {
-            $protected[] = $match[0];
-
-            return "\x00" . (count($protected) - 1) . "\x00";
-        }, $markdown) ?? $markdown;
-
-        $linked = preg_replace_callback(self::PAGE_LINK, static function (array $match) use ($fromDirectory, $exported): string {
-            $target = $exported[strtolower($match[1])] ?? null;
+        return preg_replace_callback(self::TOKENS, static function (array $match) use ($fromDirectory, $exported): string {
+            $target = isset($match[4]) ? $exported[strtolower($match[4])] ?? null : null;
             if ($target === null) {
                 return $match[0];
             }
 
-            $anchor = isset($match[2]) ? '#' . $match[2] : '';
+            $anchor = isset($match[5]) ? '#' . $match[5] : '';
 
             return '[' . str_replace(['\\', '[', ']'], ['\\\\', '\\[', '\\]'], $target['title']) . '](' . self::relative($fromDirectory, $target['path']) . $anchor . ')';
-        }, $masked) ?? $masked;
-
-        return preg_replace_callback("/\x00(\\d+)\x00/", static fn (array $match): string => $protected[(int) $match[1]], $linked) ?? $linked;
+        }, $markdown) ?? $markdown;
     }
 
     /**

@@ -65,6 +65,33 @@ final class WikiMilkdownPageResolverTest extends TestCase
         self::assertEquals(new ResolvedPage('Install', '/wiki/eng/install'), $resolved[$this->child->getId()]);
     }
 
+    public function testTheSpaceIsDecidedOncePerDocument(): void
+    {
+        $pages = [];
+        for ($i = 0; $i < 50; ++$i) {
+            $pages[] = new WikiPage($this->space, 'p' . $i, 'P' . $i);
+        }
+
+        $repository = $this->createMockForIntersectionOfInterfaces([WikiPageRepositoryInterface::class, WikiPageBatchFinderInterface::class]);
+        $repository->method('findByIds')->willReturn($pages);
+        $calls  = ['space' => 0, 'page' => 0];
+        $access = $this->createStub(WikiSpaceAccessCheckerInterface::class);
+        $access->method('isGranted')->willReturnCallback(static function (UserInterface $user, WikiAction $action, WikiSpace $space, ?WikiPage $page = null) use (&$calls): bool {
+            ++$calls[$page instanceof WikiPage ? 'page' : 'space'];
+
+            return true;
+        });
+        $checker = $this->createStub(WikiAccessCheckerInterface::class);
+        $checker->method('canList')->willReturn(true);
+        $tokens = new TokenStorage();
+        $tokens->setToken(new UsernamePasswordToken(new TestUser(), 'main', ['ROLE_USER']));
+
+        $resolved = (new WikiMilkdownPageResolver($repository, $access, $checker, $tokens))->resolvePages(['x']);
+
+        self::assertCount(50, $resolved);
+        self::assertSame(['space' => 1, 'page' => 50], $calls);
+    }
+
     public function testReadsOneIdAtATimeWithoutABatchFinder(): void
     {
         $repository = $this->createMock(WikiPageRepositoryInterface::class);

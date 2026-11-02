@@ -288,7 +288,7 @@ bin/console wiki:convert-markdown {spaceSlug} [{spaceSlug}...] --author-id={user
     [--page={pageSlug}]... [--report=conversion.json] [--skip-lossy] [--fail-on-loss]
 ```
 
-1.13: `--page` limits the run to those pages of the given spaces (an unknown slug fails before anything is written). Every HTML page gets a fidelity entry, printed as a summary (pages with losses or approximations) and written with `--report` as JSON — see [Conversion report](#conversion-report-113). `--skip-lossy` leaves pages whose conversion loses something (a lost construct or a changed word) in HTML; `--fail-on-loss` exits with 1 when any page loses something (use it with `--dry-run` in CI).
+1.13: `--page` limits the run to those pages of the given spaces (an unknown slug fails before anything is written). Every HTML page gets a fidelity entry, printed as a summary (pages with losses or approximations) and written with `--report` as JSON — see [Conversion report](#conversion-report-113). **Without `--dry-run` the command writes.** Every page is analysed before anything is written. `--skip-lossy` leaves pages whose conversion loses something (a lost construct or a changed word) in HTML; `--fail-on-loss` exits with 1 when any page loses something and then **writes nothing**. A page whose current revision changed after the analysis is skipped (`skipped_changed`); run the command again for it.
 
 **Add Markdown syntax** (an editor bundle's dialect: page links, mentions, icons, directives) with a league/commonmark extension:
 
@@ -341,9 +341,9 @@ With `nowo_wiki.editor.type: milkdown` ([CONFIGURATION](CONFIGURATION.md#milkdow
 | Export | Page links to pages in the export become ordinary Markdown links to the exported files (`[Title](setup.md#step-1)`, Outline and Notion layouts); links to other pages stay `[[wiki:<uuid>]]` (no title of a page outside the export is written). Icons stay shortcodes, emoji stay Unicode. |
 | Editing an HTML page / `wiki:convert-markdown` | HTML is converted to the dialect: `[[wiki:…]]` and `@handle` typed in Tiptap stay tokens, `<mark>` → `:mark[…]`, centred / right-aligned blocks → `::: {align=…}`, embeds → links. |
 
-**Limits** are Milkdown's (`nowo_milkdown_editor.markdown`): a document over `max_input_length` bytes or `max_inline_markers` inline delimiters is shown as escaped plain text, unparsed, and `MilkdownEditorType` refuses to save it; at most `max_references` distinct page ids and handles reach the resolvers.
+**Limits** are Milkdown's (`nowo_milkdown_editor.markdown`, `%env()%` values are read at runtime): a document over `max_input_length` bytes or `max_inline_markers` inline delimiters is shown as escaped plain text, unparsed, and `MilkdownEditorType` refuses to save it; at most `max_references` distinct page ids and handles reach the resolvers.
 
-**Page links in wiki pages** are resolved by `WikiMilkdownPageResolver` (one query per document): not archived, the general list gate, and `WikiAction::View` on the space, the page and each ancestor. Point `editor.milkdown.page_resolver` at your own service to change it (e.g. Beacon's resolver that also links issues and tasks).
+**Page links in wiki pages** are resolved by `WikiMilkdownPageResolver` (one query per document, each space decided once): not archived, the general list gate, and `WikiAction::View` on the space, the page and each ancestor. Point `editor.milkdown.page_resolver` at your own service to change it (e.g. Beacon's resolver that also links issues and tasks).
 
 ### Conversion report (1.13)
 
@@ -356,7 +356,7 @@ With `nowo_wiki.editor.type: milkdown` ([CONFIGURATION](CONFIGURATION.md#milkdow
     "generated_at": "2026-11-02T20:00:00+00:00",
     "dry_run": true,
     "dialect": "milkdown",
-    "totals": {"pages": 3, "converted": 2, "skipped_markdown": 1, "skipped_empty": 0, "skipped_lossy": 0, "lossless": 1, "with_approximations": 0, "with_losses": 1},
+    "totals": {"pages": 3, "converted": 2, "skipped_markdown": 1, "skipped_empty": 0, "skipped_lossy": 0, "skipped_changed": 0, "lossless": 1, "with_approximations": 0, "with_losses": 1},
     "pages": [
         {
             "space": "eng", "page": "runbook", "page_id": "0b6f4f0e-…", "title": "Runbook",
@@ -368,7 +368,7 @@ With `nowo_wiki.editor.type: milkdown` ([CONFIGURATION](CONFIGURATION.md#milkdow
 }
 ```
 
-`outcome`: `converted` (`would_convert` in a dry run), `skipped_markdown`, `skipped_empty`, `skipped_lossy`. `lost` / `approximated` / `text` are present for HTML pages only. `text` compares the words of the HTML with the words of the converted Markdown once rendered (page links and icons left out on both sides).
+`outcome`: `converted` (`would_convert` in a dry run or when `--fail-on-loss` blocked the writes; then `dry_run` is true), `skipped_markdown`, `skipped_empty`, `skipped_lossy`, `skipped_changed` (edited during the run). `lost` / `approximated` / `text` are present for HTML pages only. `text` compares the words of the HTML with the words of the converted Markdown once rendered (page links and icons left out on both sides).
 
 | Lost | Meaning |
 |------|---------|

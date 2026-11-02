@@ -201,8 +201,8 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         $environment->addExtension(new GithubFlavoredMarkdownExtension());
         $environment->addExtension(new MilkdownDialectExtension(
             new DialectRenderer($icons, $directiveRenderers, is_array($markColors) ? array_values(array_filter($markColors, is_string(...))) : ['yellow'], $translator),
-            new DocumentProcessor($pages, $users, $directiveRenderers, ($options['allow_remote_images'] ?? false) === true, $logger, $this->maxReferences),
-            ($options['math'] ?? true) !== false,
+            new DocumentProcessor($pages, $users, $directiveRenderers, in_array($options['allow_remote_images'] ?? false, [true, 1, '1', 'true'], true), $logger, $this->maxReferences),
+            !in_array($options['math'] ?? true, [false, 0, '0', 'false', ''], true),
         ));
         foreach ($extensions as $extension) {
             $environment->addExtension($extension);
@@ -220,6 +220,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
     private function intOption(array $options, string $key, int $default): int
     {
         $value = $options[$key] ?? null;
+        $value = is_string($value) && ctype_digit($value) ? (int) $value : $value;
 
         return is_int($value) && $value > 0 ? $value : $default;
     }

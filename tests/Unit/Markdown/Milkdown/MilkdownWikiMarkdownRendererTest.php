@@ -130,6 +130,15 @@ final class MilkdownWikiMarkdownRendererTest extends TestCase
         self::assertTrue($defaults->exceedsLimits(str_repeat('a', 100001)));
     }
 
+    public function testEnvironmentValuesAsStringsAreRead(): void
+    {
+        self::assertTrue($this->renderer(['max_input_length' => '20'])->exceedsLimits(str_repeat('a', 21)));
+        $renderer = $this->renderer(['allow_remote_images' => '1', 'math' => '0']);
+
+        self::assertStringContainsString('<img src="https://cdn.example/p.png"', $renderer->render('![p](https://cdn.example/p.png)'));
+        self::assertStringContainsString('$x$', $renderer->render('$x$'));
+    }
+
     public function testEmptyInputRendersNothing(): void
     {
         self::assertSame('', $this->renderer()->render("  \r\n "));

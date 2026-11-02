@@ -99,11 +99,19 @@ final class WikiConvertMarkdownCommand extends Command
         $this
             ->addArgument('spaces', InputArgument::REQUIRED | InputArgument::IS_ARRAY, 'Wiki space slug(s)')
             ->addOption('author-id', null, InputOption::VALUE_REQUIRED, 'User id or email recorded as author of the new revisions')
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Report what would be converted without writing to the database')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Report what would be converted without writing to the database (without it the command WRITES one new revision per converted page)')
             ->addOption('page', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Only the page(s) with this slug in the given spaces (repeatable)')
             ->addOption('report', null, InputOption::VALUE_REQUIRED, 'Write the fidelity report (JSON) to this file')
             ->addOption('skip-lossy', null, InputOption::VALUE_NONE, 'Leave pages whose conversion loses something (constructs or words) in HTML')
-            ->addOption('fail-on-loss', null, InputOption::VALUE_NONE, 'Exit with 1 when the conversion of any page loses something');
+            ->addOption('fail-on-loss', null, InputOption::VALUE_NONE, 'Exit with 1 when the conversion of any page loses something; then nothing is written (every page is analysed first)')
+            ->setHelp(<<<'HELP'
+                Converts the HTML pages of the given spaces to Markdown. <comment>Without --dry-run the command writes</comment>: each
+                converted page gets one new revision (older revisions are never changed; pages already in Markdown are skipped).
+
+                Every page is analysed before anything is written. With --fail-on-loss nothing is written when any page would
+                lose something; with --skip-lossy those pages stay HTML. A page whose current revision changed after the
+                analysis is skipped (outcome skipped_changed) and can be converted by running the command again.
+                HELP);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -147,35 +155,58 @@ final class WikiConvertMarkdownCommand extends Command
             return Command::FAILURE;
         }
 
-        $author  = $this->authorResolver->resolveByIdentifier($authorId);
-        $totals  = ['converted' => 0, 'markdown' => 0, 'empty' => 0, 'lossy' => 0];
-        $entries = [];
-        foreach ($selected as [$space, $pages]) {
+        $author     = $this->authorResolver->resolveByIdentifier($authorId);
+        $failOnLoss = (bool) $input->getOption('fail-on-loss');
+        $entries    = [];
+        $pending    = [];
+        foreach ($selected as [, $pages]) {
             foreach ($pages as $page) {
-                $entry = $this->convert($page, $author, $dryRun, $skipLossy);
-                ++$totals[$entry['outcome']];
+                [$entry, $markdown] = $this->analyse($page, $skipLossy);
+                if ($markdown !== null) {
+                    $pending[count($entries)] = [$page, $markdown, $page->getCurrentRevision()?->getId()];
+                }
+
                 $entries[] = $entry;
-                if ($entry['outcome'] === 'converted' && $io->isVerbose()) {
-                    $io->writeln(sprintf(' - %s/%s', $space->getSlug(), $page->getSlug()));
+            }
+        }
+
+        // CV-L2: analyse everything first; with --fail-on-loss a lossy page means nothing is written.
+        $blocked = !$dryRun && $failOnLoss && $this->countLossy($entries) > 0;
+        if ($blocked) {
+            $io->warning(sprintf('Nothing written: %d page(s) would lose something (--fail-on-loss).', $this->countLossy($entries)));
+        }
+
+        $written = !$dryRun && !$blocked;
+        if ($written) {
+            foreach ($pending as $index => [$page, $markdown, $revisionId]) {
+                $entries[$index] = $this->write($entries[$index], $page, $markdown, $revisionId, $author);
+                if ($entries[$index]['outcome'] === 'converted' && $io->isVerbose()) {
+                    $io->writeln(sprintf(' - %s/%s', $entries[$index]['space'], $entries[$index]['page']));
                 }
             }
         }
 
+        $totals = ['converted' => 0, 'markdown' => 0, 'empty' => 0, 'lossy' => 0, 'changed' => 0];
+        foreach ($entries as $entry) {
+            ++$totals[$entry['outcome']];
+        }
+
         $io->success(sprintf(
-            '%s: %d converted, %d already in Markdown, %d without revision.%s',
-            $dryRun ? 'Dry run' : 'Conversion finished',
+            '%s: %d converted, %d already in Markdown, %d without revision.%s%s',
+            $written ? 'Conversion finished' : 'Dry run',
             $totals['converted'],
             $totals['markdown'],
             $totals['empty'],
             $totals['lossy'] > 0 ? sprintf(' %d left in HTML (--skip-lossy).', $totals['lossy']) : '',
+            $totals['changed'] > 0 ? sprintf(' %d changed during the run (skipped, run again).', $totals['changed']) : '',
         ));
         $this->summary($io, $entries);
 
-        if (is_string($report) && $report !== '' && !$this->writeReport($io, $report, $entries, $dryRun)) {
+        if (is_string($report) && $report !== '' && !$this->writeReport($io, $report, $entries, !$written)) {
             return Command::FAILURE;
         }
 
-        return (bool) $input->getOption('fail-on-loss') && $this->countLossy($entries) > 0 ? Command::FAILURE : Command::SUCCESS;
+        return $failOnLoss && $this->countLossy($entries) > 0 ? Command::FAILURE : Command::SUCCESS;
     }
 
     /**
@@ -229,9 +260,12 @@ final class WikiConvertMarkdownCommand extends Command
     }
 
     /**
-     * @return array{space: string, page: string, page_id: string, title: string, outcome: 'converted'|'empty'|'lossy'|'markdown', from_revision: int|null, to_revision: int|null, fidelity: WikiConversionFidelity|null}
+     * Analyses one page without writing.
+     *
+     * @return array{0: array{space: string, page: string, page_id: string, title: string, outcome: 'changed'|'converted'|'empty'|'lossy'|'markdown', from_revision: int|null, to_revision: int|null, fidelity: WikiConversionFidelity|null}, 1: string|null}
+     *                                                                                                                                                                                                                                                        the entry and the Markdown to write (null: nothing to write)
      */
-    private function convert(WikiPage $page, object $author, bool $dryRun, bool $skipLossy): array
+    private function analyse(WikiPage $page, bool $skipLossy): array
     {
         $revision = $page->getCurrentRevision();
         $entry    = [
@@ -245,24 +279,39 @@ final class WikiConvertMarkdownCommand extends Command
             'fidelity'      => null,
         ];
         if (!$revision instanceof WikiPageRevision) {
-            return $entry;
+            return [$entry, null];
         }
 
         if ($revision->isMarkdown()) {
-            return ['outcome' => 'markdown'] + $entry;
+            return [['outcome' => 'markdown'] + $entry, null];
         }
 
         $markdown          = $this->markdownConverter->htmlToMarkdown($revision->getContentHtml());
         $entry['fidelity'] = $this->analyzer->analyze($revision->getContentHtml(), $markdown, $this->markdownConverter->dialect);
         if ($skipLossy && !$entry['fidelity']->isLossless()) {
-            return ['outcome' => 'lossy'] + $entry;
+            return [['outcome' => 'lossy'] + $entry, null];
         }
 
-        if (!$dryRun) {
-            $entry['to_revision'] = $this->pageService->convertToMarkdown($page, $markdown, $author)->getRevisionNumber();
+        return [['outcome' => 'converted'] + $entry, $markdown];
+    }
+
+    /**
+     * Writes the analysed conversion unless the page's current revision changed since (CV-I7).
+     *
+     * @param array{space: string, page: string, page_id: string, title: string, outcome: 'changed'|'converted'|'empty'|'lossy'|'markdown', from_revision: int|null, to_revision: int|null, fidelity: WikiConversionFidelity|null} $entry
+     *
+     * @return array{space: string, page: string, page_id: string, title: string, outcome: 'changed'|'converted'|'empty'|'lossy'|'markdown', from_revision: int|null, to_revision: int|null, fidelity: WikiConversionFidelity|null}
+     */
+    private function write(array $entry, WikiPage $page, string $markdown, ?string $revisionId, object $author): array
+    {
+        $fresh = $this->pageRepository->findById($page->getId()) ?? $page;
+        if ($fresh->getCurrentRevision()?->getId() !== $revisionId) {
+            return ['outcome' => 'changed'] + $entry;
         }
 
-        return ['outcome' => 'converted'] + $entry;
+        $entry['to_revision'] = $this->pageService->convertToMarkdown($fresh, $markdown, $author)->getRevisionNumber();
+
+        return $entry;
     }
 
     /**
@@ -317,12 +366,13 @@ final class WikiConvertMarkdownCommand extends Command
     private function writeReport(SymfonyStyle $io, string $path, array $entries, bool $dryRun): bool
     {
         $pages  = [];
-        $totals = ['pages' => count($entries), 'converted' => 0, 'skipped_markdown' => 0, 'skipped_empty' => 0, 'skipped_lossy' => 0, 'lossless' => 0, 'with_approximations' => 0, 'with_losses' => 0];
+        $totals = ['pages' => count($entries), 'converted' => 0, 'skipped_markdown' => 0, 'skipped_empty' => 0, 'skipped_lossy' => 0, 'skipped_changed' => 0, 'lossless' => 0, 'with_approximations' => 0, 'with_losses' => 0];
         foreach ($entries as $entry) {
             $outcome = match ($entry['outcome']) {
                 'converted' => $dryRun ? 'would_convert' : 'converted',
                 'markdown'  => 'skipped_markdown',
                 'empty'     => 'skipped_empty',
+                'changed'   => 'skipped_changed',
                 default     => 'skipped_lossy',
             };
             ++$totals[$outcome === 'would_convert' ? 'converted' : $outcome];

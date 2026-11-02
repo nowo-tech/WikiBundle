@@ -130,6 +130,12 @@ final class WikiDocumentExporterTest extends TestCase
     {
         self::assertSame('no links', WikiMarkdownPortableLinks::rewrite('no links', '/x', ['a' => ['path' => '/x/a.md', 'title' => 'A']]));
         self::assertSame('[[wiki:x]]', WikiMarkdownPortableLinks::rewrite('[[wiki:x]]', '/x', []));
+        $id = '0b6f4f0e-3c55-4d0a-9a43-1f7a2c9e8d10';
+        self::assertSame(
+            "a\x000\x00 b\x009\x00 [A](a.md) `[[wiki:{$id}]]`",
+            WikiMarkdownPortableLinks::rewrite("a\x000\x00 b\x009\x00 [[wiki:{$id}]] `[[wiki:{$id}]]`", '/x', [$id => ['path' => '/x/a.md', 'title' => 'A']]),
+            'CV-L3: NUL bytes in stored Markdown are plain text',
+        );
         self::assertSame('../../b/c%20d.md', WikiMarkdownPortableLinks::relative('/r/a/e', '/r/b/c d.md'));
         self::assertSame('c.md', WikiMarkdownPortableLinks::relative('C:\\r', 'C:\\r\\c.md'));
     }

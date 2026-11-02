@@ -57,8 +57,10 @@ final readonly class WikiMilkdownPageResolver implements PageResolverInterface
         $resolved = [];
         /** @var array<string, bool> $decisions */
         $decisions = [];
+        /** @var array<string, bool> $spaces */
+        $spaces = [];
         foreach ($this->find($ids) as $page) {
-            if (!$page->isArchived() && $this->visible($user, $page, $decisions)) {
+            if (!$page->isArchived() && $this->visible($user, $page, $decisions, $spaces)) {
                 $resolved[$page->getId()] = new ResolvedPage($page->getTitle(), $this->url($page));
             }
         }
@@ -89,18 +91,23 @@ final readonly class WikiMilkdownPageResolver implements PageResolverInterface
     }
 
     /**
+     * Each page and each space is decided once per document (CV-L1: a document with many links to one space asks the
+     * space checker once).
+     *
      * @param array<string, bool> $decisions page id => readable with its ancestors (a parent cycle reads as hidden)
+     * @param array<string, bool> $spaces space id => the space itself is readable
      */
-    private function visible(UserInterface $user, WikiPage $page, array &$decisions): bool
+    private function visible(UserInterface $user, WikiPage $page, array &$decisions, array &$spaces): bool
     {
         $id = $page->getId();
         if (!isset($decisions[$id])) {
             $decisions[$id] = false;
             $space          = $page->getSpace();
             $parent         = $page->getParent();
-            $decisions[$id] = $this->spaceAccess->isGranted($user, WikiAction::View, $space)
+            $spaces[$space->getId()] ??= $this->spaceAccess->isGranted($user, WikiAction::View, $space);
+            $decisions[$id] = $spaces[$space->getId()]
                 && $this->spaceAccess->isGranted($user, WikiAction::View, $space, $page)
-                && (!$parent instanceof WikiPage || $this->visible($user, $parent, $decisions));
+                && (!$parent instanceof WikiPage || $this->visible($user, $parent, $decisions, $spaces));
         }
 
         return $decisions[$id];
