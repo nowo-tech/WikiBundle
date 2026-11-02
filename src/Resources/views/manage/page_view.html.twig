@@ -3,8 +3,10 @@
   page title / space name with Edit, History and Archive (POST + CSRF behind a UiKit confirm dialog), breadcrumbs
   Wiki > space > page; meta = revision number and date).
   Also (value-free): tree, tree_truncated, max_tree_pages, tree_search_href, content_html (current revision body,
-  printed through nowo_wiki_safe_html), used_in (WikiPageFactory::usedIn(): {type, label, href, badge}).
-  Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + wiki.js: scrolls the current page of the tree into view), nowo_ui_show_sections (sidebar tree + content + "Used in").
+  printed through nowo_wiki_safe_html), used_in (WikiPageFactory::usedIn(): {type, label, href, badge}), rich_content
+  (1.13, editor.type milkdown: the body is rendered for the viewer and wiki.js draws its Mermaid / math with the
+  Milkdown read-side script of nowo_wiki_rich_content_assets()).
+  Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the rich-content assets + wiki.js: scrolls the current page of the tree into view, draws rich content), nowo_ui_show_sections (sidebar tree + content + "Used in").
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
 {% trans_default_domain 'NowoWikiBundle' %}
@@ -17,6 +19,7 @@
 {% block nowo_ui_scripts %}
     {{ parent() }}
     {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+    {% if rich_content|default(false) %}{{ nowo_wiki_rich_content_assets() }}{% endif %}
     <script src="{{ asset('wiki.js', 'nowo_wiki') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
 {% endblock %}
 
@@ -28,7 +31,7 @@
         </div>
         <div class="nowo-wiki-layout__main">
             <article class="{{ nowo_ui_class('card', _b) }} nowo-wiki-page"{{ nowo_ui_attrs('card', _b) }}>
-                <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-content" data-testid="wiki-content">
+                <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-content{% if rich_content|default(false) %} nowo-md{% endif %}" data-testid="wiki-content"{% if rich_content|default(false) %} data-wiki-rich-content{% endif %}>
                     {{ content_html|default('')|nowo_wiki_safe_html }}
                 </div>
             </article>

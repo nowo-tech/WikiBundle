@@ -50,6 +50,27 @@
 
 ## Unreleased
 
+From **1.12.x**: no schema change and nothing to do while `nowo_wiki.editor.type` stays `tiptap` (the default) or `markdown`.
+
+**Switching to the Milkdown editor:**
+
+1. `composer require nowo-tech/milkdown-editor-bundle` (^1.1.1) and register `Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle`; publish its assets (`assets:install`).
+2. Set `nowo_wiki.editor.type: milkdown`; configure `nowo_milkdown_editor.markdown` (limits, `icon_sprite_url`, `icons`) and alias `Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface` to your mention resolver. Point `editor.milkdown.page_resolver` at your own page resolver if wiki page links must resolve differently.
+3. Allow the Milkdown read-side script in your CSP (`script-src 'self' 'nonce-…'`, `style-src-attr 'unsafe-inline'` for KaTeX / Mermaid) — see the Milkdown SECURITY.md.
+4. Convert existing HTML pages when you are ready (pages also convert one by one when edited):
+
+   ```bash
+   bin/console wiki:convert-markdown eng ops --author-id=admin@example.com --dry-run --report=var/conversion.json
+   bin/console wiki:convert-markdown eng ops --author-id=admin@example.com --skip-lossy --report=var/conversion.json
+   ```
+
+   Each converted page gets one new revision; history is never rewritten and pages already in Markdown are skipped. Review `lost` in the report before converting lossy pages (`--page=<slug>` converts them one at a time).
+5. Re-index backlinks / search from `nowo_wiki.page.saved` (`$event->conversion === true` for converted pages) with `WikiMarkdownReferenceExtractor::pageReferences()` / `mentions()`.
+
+**Behaviour with `milkdown`:** the page view renders Markdown for each viewer (one render per view instead of the stored cache); `content_html` is viewer-neutral, so page links read *Content not visible* in search excerpts and AI context. Exports write links to exported pages as relative `.md` links.
+
+**Host implementations:** `WikiPageRepositoryInterface` is unchanged; implement the new `WikiPageBatchFinderInterface` on a custom repository to resolve page links in one query.
+
 ## To 1.12.0
 
 From **1.11.x**:

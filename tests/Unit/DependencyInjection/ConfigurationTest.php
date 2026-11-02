@@ -242,6 +242,24 @@ final class ConfigurationTest extends TestCase
         self::assertSame(TextareaType::class, $config['editor']['markdown_form_type']);
     }
 
+    public function testMilkdownEditor(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'editor'     => ['type' => 'milkdown', 'milkdown' => ['page_resolver' => 'app.pages']],
+        ]]);
+
+        self::assertSame(Configuration::EDITOR_MILKDOWN, $config['editor']['type']);
+        self::assertSame('app.pages', $config['editor']['milkdown']['page_resolver']);
+        self::assertTrue(Configuration::storesMarkdown(Configuration::EDITOR_MILKDOWN));
+        self::assertTrue(Configuration::storesMarkdown(Configuration::EDITOR_MARKDOWN));
+        self::assertFalse(Configuration::storesMarkdown(Configuration::EDITOR_TIPTAP));
+
+        $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
+        self::assertSame(Configuration::EDITOR_TIPTAP, $defaults['editor']['type']);
+        self::assertSame(['page_resolver' => null], $defaults['editor']['milkdown']);
+    }
+
     public function testEditorTypeAndMarkdownFormTypeAreValidated(): void
     {
         foreach ([['type' => 'wysiwyg'], ['markdown_form_type' => 'App\\Form\\Missing'], ['markdown_form_type' => ['x']]] as $editor) {

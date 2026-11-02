@@ -77,6 +77,9 @@ As a user, I ask questions grounded in wiki content when Symfony AI is configure
 ### Interchange & AI
 
 - **FR-IX-001**: Archive import/export pipeline (front matter, markdown, format detection).
+- **FR-MD-001** (1.11): Markdown storage — `content_markdown` + `format`, the extensible league/commonmark renderer (`WikiMarkdownRenderer`, `WikiMarkdownExtensionInterface`), GFM task-list normalisation, page references (`WikiMarkdownReferenceExtractor`), `wiki:convert-markdown`.
+- **FR-MD-002** (1.13): Milkdown ↔ wiki bridge (`editor.type: milkdown`) — `MilkdownWikiMarkdownRenderer` (the Milkdown dialect under the `nowo_milkdown_editor.markdown` limits; viewer-neutral cache, per-viewer page view), `WikiMilkdownPageResolver`, icon placeholder + hydration after sanitizing, read-side rich content (`WikiMilkdownRichContent`, `nowo_wiki_rich_content_assets()`, `wiki.js`), references from the renderer's parser (pages, mentions), dialect HTML → Markdown converters, portable page links in exports, `MilkdownBridgePass` (fail closed).
+- **FR-MD-003** (1.13): `wiki:convert-markdown` scope (`--page`) and fidelity report (`WikiConversionFidelityAnalyzer`, JSON `nowo-wiki-conversion-report` v1, `--skip-lossy`, `--fail-on-loss`); history is never rewritten and the command is idempotent.
 - **FR-AI-001–005**: AI assistant interface, Symfony AI impl, knowledge tool, context retriever, unavailable handling.
 
 ### UI & CLI

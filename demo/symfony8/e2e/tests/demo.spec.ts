@@ -64,10 +64,10 @@ test.describe('Wiki demo', () => {
     await expect(page.getByText('The revision was restored as a new revision.')).toBeVisible();
   });
 
-  test('page editor loads the Tiptap script and mounts the editor', async ({ page }) => {
-    const script = page.waitForResponse((r) => r.url().includes('tiptap-editor.js'));
+  test('page editor loads the Milkdown script and mounts the editor (editor.type: milkdown)', async ({ page }) => {
+    const script = page.waitForResponse((r) => r.url().includes('milkdown-editor.js'));
     await page.goto(welcome + '/edit');
     expect((await script).ok()).toBeTruthy();
-    await expect(page.locator('nowo-tiptap-editor .ProseMirror, nowo-tiptap-editor [contenteditable="true"]').first()).toBeVisible();
+    await expect(page.locator('.nowo-milkdown .ProseMirror[contenteditable="true"]').first()).toBeVisible();
   });
 });

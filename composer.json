@@ -62,6 +62,7 @@
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
         "igor-php/igor-php": "^0.10.0",
+        "nowo-tech/milkdown-editor-bundle": "^1.1.1",
         "nowo-tech/phpstan-frankenphp": "^1.0",
         "phpstan/extension-installer": "^1.0",
         "phpstan/phpstan": "^2.0",
@@ -107,7 +108,11 @@
             "bundle": "Nowo\\WikiBundle\\WikiBundle"
         }
     },
+    "conflict": {
+        "nowo-tech/milkdown-editor-bundle": "<1.1.1"
+    },
     "suggest": {
+        "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.1.1): page links, mentions, icons, math and Mermaid.",
         "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
         "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
         "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales."

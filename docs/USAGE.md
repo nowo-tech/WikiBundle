@@ -15,6 +15,8 @@
 - [Links to host objects (1.9)](#links-to-host-objects-19)
 - [Attachments (1.9)](#attachments-19)
 - [Markdown pages (1.11)](#markdown-pages-111)
+- [Milkdown editor (1.13)](#milkdown-editor-113)
+  - [Conversion report (1.13)](#conversion-report-113)
 
 ## Manage UI routes (defaults)
 
@@ -283,7 +285,10 @@ With `nowo_wiki.editor.type: markdown` ([CONFIGURATION](CONFIGURATION.md#markdow
 
 ```bash
 bin/console wiki:convert-markdown {spaceSlug} [{spaceSlug}...] --author-id={user id or email} [--dry-run] [-v]
+    [--page={pageSlug}]... [--report=conversion.json] [--skip-lossy] [--fail-on-loss]
 ```
+
+1.13: `--page` limits the run to those pages of the given spaces (an unknown slug fails before anything is written). Every HTML page gets a fidelity entry, printed as a summary (pages with losses or approximations) and written with `--report` as JSON — see [Conversion report](#conversion-report-113). `--skip-lossy` leaves pages whose conversion loses something (a lost construct or a changed word) in HTML; `--fail-on-loss` exits with 1 when any page loses something (use it with `--dry-run` in CI).
 
 **Add Markdown syntax** (an editor bundle's dialect: page links, mentions, icons, directives) with a league/commonmark extension:
 
@@ -323,4 +328,65 @@ public function onSaved(WikiPageSavedEvent $event): void
 `[[wiki:<uuid>]]` and `[[wiki:<uuid>#anchor]]` are found outside code spans and code blocks; `pageReferences()` also returns the anchors.
 
 **Search, export and import** use the Markdown when a revision has it: search matches the source, export writes it unchanged, and imports store the Markdown bodies as Markdown revisions when `editor.type` is `markdown`.
+
+## Milkdown editor (1.13)
+
+With `nowo_wiki.editor.type: milkdown` ([CONFIGURATION](CONFIGURATION.md#milkdown-editor-113)) the page body is `MilkdownEditorType` and pages are written in the [Milkdown dialect](https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/USAGE.md#markdown-dialect): `[[wiki:<uuid>]]` / `[[wiki:<uuid>#anchor]]` page links, `@handle` mentions, `:tabler-<name>:` icons, `:::callout`, `:::details`, `::: {align=…}`, `:mark[…]`, `::name{…}` host blocks, `$…$` / `$$` math and Mermaid fences. Everything of [Markdown pages](#markdown-pages-111) applies, and the **bridge** makes every wiki surface understand the dialect — no raw token is ever shown:
+
+| Surface | What it gets |
+|---------|--------------|
+| Page view | The Markdown rendered **for the viewer** on each request (`WikiRevisionBodyRenderer`): page links show the current title and URL of pages the viewer may read and *Content not visible* otherwise, mentions link through your `UserResolverInterface`, host blocks render through your `DirectiveRendererInterface` services; then sanitized, foreign attachment URLs dropped, icons drawn from the allowlisted sprite. `nowo_wiki_rich_content_assets()` loads the Milkdown read-side script and `wiki.js` draws Mermaid (strict) and math (bounded KaTeX) in `[data-wiki-rich-content]`. |
+| `content_html` cache, search excerpts, AI context | A **viewer-neutral** render: no page, user or host-block resolution (page links read *Content not visible*, mentions stay `@handle`), so the cache shared by every reader never holds a title or a block of another viewer. |
+| Link index | `WikiMarkdownReferenceExtractor::pageReferences()` / `pageIds()` / `mentions()` read the document with the renderer's own parser: exactly the links and mentions a reader sees (never inside code, never an e-mail address), at most `max_references` of each. |
+| Export | Page links to pages in the export become ordinary Markdown links to the exported files (`[Title](setup.md#step-1)`, Outline and Notion layouts); links to other pages stay `[[wiki:<uuid>]]` (no title of a page outside the export is written). Icons stay shortcodes, emoji stay Unicode. |
+| Editing an HTML page / `wiki:convert-markdown` | HTML is converted to the dialect: `[[wiki:…]]` and `@handle` typed in Tiptap stay tokens, `<mark>` → `:mark[…]`, centred / right-aligned blocks → `::: {align=…}`, embeds → links. |
+
+**Limits** are Milkdown's (`nowo_milkdown_editor.markdown`): a document over `max_input_length` bytes or `max_inline_markers` inline delimiters is shown as escaped plain text, unparsed, and `MilkdownEditorType` refuses to save it; at most `max_references` distinct page ids and handles reach the resolvers.
+
+**Page links in wiki pages** are resolved by `WikiMilkdownPageResolver` (one query per document): not archived, the general list gate, and `WikiAction::View` on the space, the page and each ancestor. Point `editor.milkdown.page_resolver` at your own service to change it (e.g. Beacon's resolver that also links issues and tasks).
+
+### Conversion report (1.13)
+
+`--report=<file>` writes:
+
+```json
+{
+    "format": "nowo-wiki-conversion-report",
+    "version": 1,
+    "generated_at": "2026-11-02T20:00:00+00:00",
+    "dry_run": true,
+    "dialect": "milkdown",
+    "totals": {"pages": 3, "converted": 2, "skipped_markdown": 1, "skipped_empty": 0, "skipped_lossy": 0, "lossless": 1, "with_approximations": 0, "with_losses": 1},
+    "pages": [
+        {
+            "space": "eng", "page": "runbook", "page_id": "0b6f4f0e-…", "title": "Runbook",
+            "outcome": "would_convert", "from_revision": 3, "to_revision": null,
+            "lost": {"underline": 2}, "approximated": {"table_cell_span": 1},
+            "text": {"preserved": true, "similarity": 1.0, "words_missing": 0, "words_added": 0}
+        }
+    ]
+}
+```
+
+`outcome`: `converted` (`would_convert` in a dry run), `skipped_markdown`, `skipped_empty`, `skipped_lossy`. `lost` / `approximated` / `text` are present for HTML pages only. `text` compares the words of the HTML with the words of the converted Markdown once rendered (page links and icons left out on both sides).
+
+| Lost | Meaning |
+|------|---------|
+| `underline`, `subscript`, `superscript` | The text stays, the formatting is dropped |
+| `highlight` | `<mark>` without the dialect (`markdown` editor) |
+| `alignment` | Justified text; centred / right-aligned text without the dialect |
+| `image_size`, `column_width` | Image width / height, table column widths |
+| `list_style` | Letter or Roman numbering (`<ol type="a">`) |
+| `embed` | An embedded video without the dialect |
+| `element:<tag>` | An element the converter drops (its text is kept) |
+| `render_limit` | The Markdown is over the renderer's limits and would show as plain text |
+
+| Approximated | Meaning |
+|--------------|---------|
+| `table_cell_span` | `colspan` / `rowspan` (GFM cells do not span) |
+| `table_cell_blocks` | Paragraphs, lists or code inside a cell (flattened to one line) |
+| `table_without_header` | GFM tables need a header row: the first row becomes it |
+| `nested_table` | A table inside a table |
+| `table_caption`, `figure_caption` | The caption becomes text |
+| `embed_as_link` | An embedded video becomes a link to it (dialect) |
 

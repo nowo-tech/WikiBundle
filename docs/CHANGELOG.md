@@ -44,6 +44,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Wiki: Milkdown editor (`editor.type: milkdown`) — the Milkdown ↔ wiki bridge renders the nowo-tech/milkdown-editor-bundle dialect (page links, mentions, Tabler icons, directives, math, Mermaid) in every wiki surface under Milkdown's limits; `wiki:convert-markdown` gains page scope and a fidelity report. No schema change; Tiptap stays the default. See [UPGRADING](UPGRADING.md#unreleased).
+
+### Added
+
+- **`nowo_wiki.editor.type: milkdown`** (requires `nowo-tech/milkdown-editor-bundle` ^1.1.1 with `NowoMilkdownEditorBundle` registered; the container refuses to compile otherwise): Markdown storage as with `markdown`, `MilkdownEditorType` as the page body unless `editor.markdown_form_type` says otherwise, and `editor.milkdown.page_resolver` (service id; default `WikiMilkdownPageResolver`).
+- **`Markdown\Milkdown\MilkdownWikiMarkdownRenderer`** (alias of `WikiMarkdownRendererInterface` with `milkdown`): CommonMark + GFM + `MilkdownDialectExtension` + every `nowo_wiki.markdown_extension`, with the `nowo_milkdown_editor.markdown` options (`html_input`, `allow_remote_images`, `math`, `max_nesting_level`, `max_input_length`, `max_inline_markers`, `max_references`, `mark_colors`) handed over by `MilkdownBridgePass`. Two environments: a viewer-neutral one for the `content_html` cache, search excerpts and AI context (no page, user or host-block resolution) and a viewer one for the page view. Unsafe links are always dropped; input over the limits renders as escaped text.
+- `Markdown\WikiViewerMarkdownRendererInterface` (`renderForViewer()`), `Markdown\WikiMarkdownReferenceParserInterface` (`references()`: page links and mentions from the renderer's parser), `Markdown\WikiMarkdownLimitsInterface` (`exceedsLimits()`).
+- `Markdown\WikiRevisionBodyRenderer`: the page view renders Markdown revisions for the viewer (then sanitized and filtered for attachment URLs of other spaces) when the renderer is viewer-aware; the stored HTML otherwise.
+- `Markdown\Milkdown\WikiMilkdownPageResolver` (pages the viewer may read: not archived, list gate, `View` on the space, the page and its ancestors; one query through `WikiPageBatchFinderInterface`), `WikiTablerIconRenderer` + `WikiMilkdownIconHydrator` (allowlisted icons drawn from the sprite after sanitizing; the sanitizer never allows SVG), `WikiMilkdownRichContent` and the Twig function `nowo_wiki_rich_content_assets()`; `wiki.js` draws Mermaid and math in `[data-wiki-rich-content]` with the Milkdown read-side renderer and the script's CSP nonce.
+- `Repository\WikiPageBatchFinderInterface` (`findByIds()`), implemented by `DoctrineOrmWikiPageRepository`.
+- `WikiMarkdownReferenceExtractor::mentions()`; with `milkdown` every method reads the renderer's parser.
+- `wiki:convert-markdown`: `--page` (repeatable), `--report=<file>` (JSON fidelity report, format `nowo-wiki-conversion-report` v1), `--skip-lossy`, `--fail-on-loss`, and a console fidelity summary. `Interchange\Conversion\WikiConversionFidelityAnalyzer` / `WikiConversionFidelity`.
+- `WikiMarkdownConverter(dialect: true)` (registered so with `milkdown`): `[[wiki:…]]` and `@handle` text kept as tokens, `<mark>` → `:mark[…]`, centred / right-aligned paragraphs and headings → `::: {align=…}`, embeds → links.
+- Exports with `milkdown`: page links to exported pages become relative Markdown links to the exported files (`WikiMarkdownPortableLinks`).
+
+### Changed
+
+- With `milkdown` the sanitizer also keeps `details` (`open`) / `summary` and `role`, `aria-label`, `data-math`, `data-directive`, `data-icon` (`WikiExtension::MILKDOWN_SANITIZER_ELEMENTS` / `MILKDOWN_SANITIZER_ATTRIBUTES`).
+- `nowo_wiki_safe_html` draws dialect icons after sanitizing when `milkdown` is on; the page view passes `rich_content` and marks its body `nowo-md` / `data-wiki-rich-content`.
+
 ## [1.12.0] - 2026-10-31
 
 Host polish found while integrating the wiki in a Tailwind host (symfony-beacon): the original-templates Twig namespace, a search form that fits `tenant_only`, catalogue flashes, spaced search excerpts and no empty pagination. No schema change. See [UPGRADING](UPGRADING.md#to-1120).

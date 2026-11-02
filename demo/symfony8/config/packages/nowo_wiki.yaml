@@ -1,6 +1,10 @@
 nowo_wiki:
     user_class: App\Entity\User
     space_scope: user
+    # 1.13: pages are written in the Milkdown dialect (MilkdownEditorType, the Milkdown ↔ wiki bridge renderer).
+    # The seeded HTML pages stay HTML until edited or converted (bin/console wiki:convert-markdown).
+    editor:
+        type: milkdown
     ai:
         enabled: true
         agent: wiki_assistant

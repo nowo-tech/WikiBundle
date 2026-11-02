@@ -1,0 +1,19 @@
+{#
+  Demo override of the page view: the bundle page plus a "Linked from" panel (demo_wiki_backlinks(), App\Twig\DemoBacklinksExtension).
+#}
+{% extends '@!NowoWikiBundle/manage/page_view.html.twig' %}
+
+{% block nowo_ui_show_sections %}
+    {{ parent() }}
+    {% set _backlinks = demo_wiki_backlinks(app.request.attributes.get('spaceSlug'), app.request.attributes.get('pageSlug')) %}
+    {% if _backlinks is not empty %}
+        <section class="{{ nowo_ui_class('card', page.bundle) }} demo-wiki-backlinks" aria-labelledby="demo-wiki-backlinks-title" data-testid="demo-wiki-backlinks">
+            <h2 class="{{ nowo_ui_class('card_title', page.bundle) }}" id="demo-wiki-backlinks-title">Linked from</h2>
+            <ul>
+                {% for link in _backlinks %}
+                    <li><a href="{{ link.href }}">{{ link.title }}</a></li>
+                {% endfor %}
+            </ul>
+        </section>
+    {% endif %}
+{% endblock %}

@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Interchange\WikiMarkdownPortableLinks;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
@@ -82,6 +83,55 @@ final class WikiDocumentExporterTest extends TestCase
             unlink($target . '/runbook.md');
             rmdir($target);
         }
+    }
+
+    public function testDialectExportsLinkExportedPagesAsFiles(): void
+    {
+        $space  = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $guide  = new WikiPage($space, 'guide', 'Guide [v2]');
+        $setup  = new WikiPage($space, 'setup', 'Set up', $guide);
+        $hidden = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+        $guide->setCurrentRevision(new WikiPageRevision($guide, 1, '<p>c</p>', new TestUser(), 'Go to [[wiki:' . $setup->getId() . '#step-1]], not [[wiki:' . $hidden . ']]; `[[wiki:' . $setup->getId() . ']]`'));
+        $setup->setCurrentRevision(new WikiPageRevision($setup, 1, '<p>Back to [[wiki:' . $guide->getId() . ']]</p>', new TestUser()));
+
+        $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepository->method('findActiveBySpace')->willReturn([$guide, $setup]);
+        $exporter = new WikiDocumentExporter($pageRepository, new WikiPageTreeBuilder(), new WikiMarkdownConverter(dialect: true), new WikiFrontMatterParser());
+
+        $outline = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(4));
+        $notion  = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(4));
+        mkdir($outline);
+        mkdir($notion);
+
+        try {
+            $exporter->export($space, $outline, WikiInterchangeFormat::Outline);
+            $content = (string) file_get_contents($outline . '/guide.md');
+            self::assertStringContainsString('Go to [Set up](setup.md#step-1), not [[wiki:' . $hidden . ']]; `[[wiki:' . $setup->getId() . ']]`', $content);
+            self::assertStringContainsString('Back to [Guide \\[v2\\]](guide.md)', (string) file_get_contents($outline . '/setup.md'));
+
+            $exporter->export($space, $notion, WikiInterchangeFormat::Notion);
+            self::assertStringContainsString('Go to [Set up](Set%20up/Set%20up.md#step-1)', (string) file_get_contents($notion . '/Guide [v2]/Guide [v2].md'));
+            self::assertStringContainsString('Back to [Guide \\[v2\\]](../Guide%20%5Bv2%5D.md)', (string) file_get_contents($notion . '/Guide [v2]/Set up/Set up.md'));
+        } finally {
+            foreach (['/guide.md', '/setup.md'] as $file) {
+                unlink($outline . $file);
+            }
+
+            rmdir($outline);
+            unlink($notion . '/Guide [v2]/Set up/Set up.md');
+            rmdir($notion . '/Guide [v2]/Set up');
+            unlink($notion . '/Guide [v2]/Guide [v2].md');
+            rmdir($notion . '/Guide [v2]');
+            rmdir($notion);
+        }
+    }
+
+    public function testPortableLinksHelpers(): void
+    {
+        self::assertSame('no links', WikiMarkdownPortableLinks::rewrite('no links', '/x', ['a' => ['path' => '/x/a.md', 'title' => 'A']]));
+        self::assertSame('[[wiki:x]]', WikiMarkdownPortableLinks::rewrite('[[wiki:x]]', '/x', []));
+        self::assertSame('../../b/c%20d.md', WikiMarkdownPortableLinks::relative('/r/a/e', '/r/b/c d.md'));
+        self::assertSame('c.md', WikiMarkdownPortableLinks::relative('C:\\r', 'C:\\r\\c.md'));
     }
 
     public function testExportsNotionNestedFolders(): void

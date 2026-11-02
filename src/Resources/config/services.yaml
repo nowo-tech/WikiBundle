@@ -24,6 +24,7 @@ services:
             - '../../Ui/'
             - '../../Interchange/HtmlToMarkdown/'
             - '../../Markdown/WikiTaskListNormalizer.php'
+            - '../../Markdown/Milkdown/'
             - '../../Controller/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:

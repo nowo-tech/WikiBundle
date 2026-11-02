@@ -33,9 +33,18 @@ use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
 use function array_map;
+use function bin2hex;
 use function extension_loaded;
+use function file_get_contents;
+use function json_decode;
+use function ksort;
 use function preg_replace;
+use function random_bytes;
 use function sort;
+use function sys_get_temp_dir;
+use function unlink;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * 1.11 Markdown storage on a real schema: Markdown revisions, search on the source, Markdown diffs, restores and the
@@ -209,6 +218,106 @@ final class WikiMarkdownStorageTest extends TestCase
 
         self::assertSame(Command::FAILURE, $tester->execute(['spaces' => ['eng', 'missing'], '--author-id' => 'u-1']));
         self::assertStringContainsString('Space "missing" not found.', $this->display($tester));
+    }
+
+    public function testConvertCommandScopesPagesAndWritesTheFidelityReport(): void
+    {
+        $clean  = $this->service->create($this->space, 'Clean', '<p>All <strong>good</strong>.</p>', $this->user);
+        $lossy  = $this->service->create($this->space, 'Lossy', '<p><u>Under</u> text</p><table><tr><td colspan="2">a</td></tr></table>', $this->user);
+        $other  = $this->service->create($this->space, 'Other', '<p>Not in scope</p>', $this->user);
+        $report = sys_get_temp_dir() . '/wiki-conversion-' . bin2hex(random_bytes(4)) . '.json';
+
+        $tester = new CommandTester($this->command());
+        self::assertSame(Command::SUCCESS, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['lossy', 'clean', 'lossy'], '--dry-run' => true, '--report' => $report]));
+        $display = $this->display($tester);
+        self::assertStringContainsString('Dry run: 2 converted, 0 already in Markdown, 0 without revision.', $display);
+        self::assertStringContainsString('Fidelity: 1 lossless, 0 approximated, 1 with losses.', $display);
+        self::assertStringContainsString('eng/lossy underline table_cell_span, table_without_header same', $display);
+        self::assertStringContainsString('Report written to', $display);
+
+        /** @var array{format: string, version: int, dry_run: bool, dialect: string, totals: array<string, int>, pages: list<array<string, mixed>>} $json */
+        $json = json_decode((string) file_get_contents($report), true, 512, JSON_THROW_ON_ERROR);
+        unlink($report);
+        self::assertSame('nowo-wiki-conversion-report', $json['format']);
+        self::assertSame(1, $json['version']);
+        self::assertTrue($json['dry_run']);
+        self::assertSame('gfm', $json['dialect']);
+        self::assertSame(['pages' => 2, 'converted' => 2, 'skipped_markdown' => 0, 'skipped_empty' => 0, 'skipped_lossy' => 0, 'lossless' => 1, 'with_approximations' => 0, 'with_losses' => 1], $json['totals']);
+        self::assertSame(['eng', 'lossy', $lossy->getId(), 'Lossy', 'would_convert', 1, null], [$json['pages'][0]['space'], $json['pages'][0]['page'], $json['pages'][0]['page_id'], $json['pages'][0]['title'], $json['pages'][0]['outcome'], $json['pages'][0]['from_revision'], $json['pages'][0]['to_revision']]);
+        self::assertSame(['underline' => 1], $json['pages'][0]['lost']);
+        self::assertSame(['table_cell_span' => 1, 'table_without_header' => 1], $json['pages'][0]['approximated']);
+        self::assertSame(['preserved' => true, 'similarity' => 1.0, 'words_missing' => 0, 'words_added' => 0], $json['pages'][0]['text']);
+        self::assertSame([], $json['pages'][1]['lost']);
+        self::assertSame(1, $lossy->getCurrentRevision()?->getRevisionNumber());
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['lossy', 'clean'], '--skip-lossy' => true]));
+        self::assertStringContainsString('Conversion finished: 1 converted, 0 already in Markdown, 0 without revision. 1 left in HTML (--skip-lossy).', $this->display($tester));
+        self::assertTrue($clean->getCurrentRevision()?->isMarkdown());
+        self::assertFalse($lossy->getCurrentRevision()?->isMarkdown());
+        self::assertFalse($other->getCurrentRevision()?->isMarkdown());
+
+        self::assertSame(Command::FAILURE, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['lossy'], '--fail-on-loss' => true, '--report' => $report]));
+        $json = json_decode((string) file_get_contents($report), true, 512, JSON_THROW_ON_ERROR);
+        unlink($report);
+        self::assertIsArray($json);
+        self::assertSame('converted', $json['pages'][0]['outcome']);
+        self::assertSame(2, $json['pages'][0]['to_revision']);
+        self::assertTrue($lossy->getCurrentRevision()?->isMarkdown());
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['lossy'], '--fail-on-loss' => true]));
+        self::assertStringNotContainsString('Fidelity:', $this->display($tester));
+    }
+
+    public function testTheReportListsEveryOutcome(): void
+    {
+        $this->service->create($this->space, 'Approx', '<table><tr><td>cell</td></tr></table>', $this->user);
+        $this->service->create($this->space, 'Lossy', '<p><u>Under</u></p>', $this->user);
+        $this->service->create($this->space, 'Md', 'Already *Markdown*.', $this->user, null, null, WikiPageRevision::FORMAT_MARKDOWN);
+        $this->em->persist(new WikiPage($this->space, 'empty', 'Empty'));
+        $this->em->flush();
+        $report = sys_get_temp_dir() . '/wiki-conversion-' . bin2hex(random_bytes(4)) . '.json';
+
+        $tester = new CommandTester($this->command());
+        self::assertSame(Command::SUCCESS, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--skip-lossy' => true, '--report' => $report]));
+        self::assertStringContainsString('Fidelity: 0 lossless, 1 approximated, 1 with losses.', $this->display($tester));
+
+        /** @var array{totals: array<string, int>, pages: list<array{page: string, outcome: string}>} $json */
+        $json = json_decode((string) file_get_contents($report), true, 512, JSON_THROW_ON_ERROR);
+        unlink($report);
+        $outcomes = [];
+        foreach ($json['pages'] as $page) {
+            $outcomes[$page['page']] = $page['outcome'];
+        }
+
+        ksort($outcomes);
+        self::assertSame(['approx' => 'converted', 'empty' => 'skipped_empty', 'lossy' => 'skipped_lossy', 'md' => 'skipped_markdown'], $outcomes);
+        self::assertSame(['pages' => 4, 'converted' => 1, 'skipped_markdown' => 1, 'skipped_empty' => 1, 'skipped_lossy' => 1, 'lossless' => 0, 'with_approximations' => 1, 'with_losses' => 1], $json['totals']);
+    }
+
+    public function testConvertCommandRefusesUnknownPagesAndUnwritableReports(): void
+    {
+        $this->service->create($this->space, 'Clean', '<p>ok</p>', $this->user);
+        $tester = new CommandTester($this->command());
+
+        self::assertSame(Command::FAILURE, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--page' => ['clean', 'nope', 'nope']]));
+        self::assertStringContainsString('Page(s) not found in the given spaces: nope.', $this->display($tester));
+
+        self::assertSame(Command::FAILURE, $tester->execute(['spaces' => ['eng'], '--author-id' => 'u-1', '--dry-run' => true, '--report' => sys_get_temp_dir() . '/missing-dir-' . bin2hex(random_bytes(4)) . '/r.json']));
+        self::assertStringContainsString('The conversion report could not be written to', $this->display($tester));
+    }
+
+    public function testPagesAreFoundByIdsInOneQuery(): void
+    {
+        $a = $this->service->create($this->space, 'A', '<p>a</p>', $this->user);
+        $b = $this->service->create($this->space, 'B', '<p>b</p>', $this->user);
+        $this->service->archive($b);
+        $repository = new DoctrineOrmWikiPageRepository($this->em);
+
+        $found = array_map(static fn (WikiPage $page): string => $page->getSlug(), $repository->findByIds([$a->getId(), $b->getId(), 'missing']));
+        sort($found);
+
+        self::assertSame(['a', 'b'], $found);
+        self::assertSame([], $repository->findByIds([]));
     }
 
     private function display(CommandTester $tester): string

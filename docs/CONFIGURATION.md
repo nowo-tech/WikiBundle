@@ -14,9 +14,10 @@ Root key: `nowo_wiki`.
 | `firewall` | `main` | **Deprecated since 1.6, no effect** (the bundle trusts any secured firewall that handles the wiki routes); remove it from your config |
 | `sanitizer.extra_allowed_elements` | `{}` | 1.11: extra elements kept in page bodies, element => its extra attributes (e.g. `{details: [open], summary: []}`); see [Sanitizer allowlist](#sanitizer-allowlist-111) |
 | `sanitizer.extra_allowed_attributes` | `[]` | 1.11: attributes kept on every allowed element (e.g. `[data-callout]`) |
-| `editor.type` | `tiptap` | `tiptap`: HTML pages edited with TiptapEditorType; `markdown` (1.11): Markdown pages (`content_markdown` is the source, `content_html` its sanitized render cache), see [Markdown pages](#markdown-pages-111) |
+| `editor.type` | `tiptap` | `tiptap`: HTML pages edited with TiptapEditorType; `markdown` (1.11): Markdown pages (`content_markdown` is the source, `content_html` its sanitized render cache), see [Markdown pages](#markdown-pages-111); `milkdown` (1.13): Markdown pages in the nowo-tech/milkdown-editor-bundle dialect, see [Milkdown editor](#milkdown-editor-113) |
 | `editor.tiptap_config` | `notion` | TiptapEditorBundle config profile name |
-| `editor.markdown_form_type` | null | 1.11: form type FQCN of the page body when `editor.type` is `markdown` (e.g. a Markdown editor bundle); null = a plain textarea |
+| `editor.markdown_form_type` | null | 1.11: form type FQCN of the page body when `editor.type` is `markdown` (e.g. a Markdown editor bundle); null = a plain textarea (`MilkdownEditorType` with `milkdown`) |
+| `editor.milkdown.page_resolver` | null | 1.13: service id of the Milkdown `PageResolverInterface` that resolves `[[wiki:<uuid>]]` in wiki pages for the viewer; null = `WikiMilkdownPageResolver` (pages the viewer may read, `page_view` URLs) |
 | `security.access_checker` | null | Custom `WikiAccessCheckerInterface` service id |
 | `security.access_roles` | `[ROLE_USER]` | General gate of the wiki (REQ-UI-002); an empty list grants nothing through it |
 | `security.roles.<action>` | see [Roles per action](#roles-per-action-req-ui-003) | Roles per action (`admin`, `list`, `create`, `edit`, `history`, `archive`, `ai`, `import`, `export`); `null` = the deprecated `<action>_roles` key, else the default |
@@ -46,6 +47,7 @@ Root key: `nowo_wiki`.
 ## Table of contents
 
 - [Markdown pages (1.11)](#markdown-pages-111)
+- [Milkdown editor (1.13)](#milkdown-editor-113)
 - [Sanitizer allowlist (1.11)](#sanitizer-allowlist-111)
 - [Space access and tenant paths (1.9)](#space-access-and-tenant-paths-19)
 - [Attachments (1.9)](#attachments-19)
@@ -69,6 +71,34 @@ nowo_wiki:
 - The renderer is `Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface` (default `WikiMarkdownRenderer`: CommonMark + GFM, raw HTML escaped, unsafe links dropped). Add syntax with services implementing `WikiMarkdownExtensionInterface` (autoconfigured, tag `nowo_wiki.markdown_extension`), or replace the alias.
 - A host `markdown_form_type` receives the editor options (`upload_url`, `upload_csrf_token` when attachments are enabled, plus whatever `WikiEvents::EDITOR_OPTIONS` listeners add): it must accept them, or a listener removes them.
 - Schema: see [UPGRADING](UPGRADING.md#to-1110) (two columns on `<prefix>_page_revisions`).
+
+## Milkdown editor (1.13)
+
+```bash
+composer require nowo-tech/milkdown-editor-bundle   # ^1.1.1, register NowoMilkdownEditorBundle
+```
+
+```yaml
+nowo_wiki:
+    editor:
+        type: milkdown                       # default: tiptap
+        markdown_form_type: null             # null = Nowo\MilkdownEditorBundle\Form\MilkdownEditorType
+        milkdown:
+            page_resolver: null              # null = WikiMilkdownPageResolver
+
+nowo_milkdown_editor:
+    markdown:                                # the limits and safety settings wiki pages are rendered with
+        max_input_length: 100000
+        max_inline_markers: 10000
+        max_references: 500
+        icon_sprite_url: '/build/tabler.svg'
+        icons: [home, bell, alert-triangle]
+```
+
+- Everything of `markdown` applies (Markdown source, `content_html` render cache, `wiki:convert-markdown`), plus the **Milkdown ↔ wiki bridge**: `WikiMarkdownRendererInterface` is `MilkdownWikiMarkdownRenderer` (CommonMark + GFM + the Milkdown dialect + your `nowo_wiki.markdown_extension` services) with the `nowo_milkdown_editor.markdown` options: `html_input` (`escape` / `strip`), `allow_remote_images`, `math`, `max_nesting_level`, `max_input_length`, `max_inline_markers`, `max_references`, `mark_colors`. Unsafe links are always dropped. See [USAGE](USAGE.md#milkdown-editor-113).
+- The sanitizer keeps the dialect markup on top of your `sanitizer` lists: `details` (`open`) / `summary`, and `role`, `aria-label`, `data-math`, `data-directive`, `data-icon` on every allowed element (`WikiExtension::MILKDOWN_SANITIZER_ELEMENTS` / `MILKDOWN_SANITIZER_ATTRIBUTES`). SVG is never allowed: icons are drawn after sanitizing from the icon allowlist.
+- `nowo_milkdown_editor.markdown.icons` / `icon_sprite_url` decide which `:tabler-<name>:` icons are drawn; mentions are resolved by the Milkdown `UserResolverInterface` alias (yours) and host leaf directives by `DirectiveRendererInterface` services.
+- The container refuses to compile when the package is missing or `NowoMilkdownEditorBundle` is not registered.
 
 ## Sanitizer allowlist (1.11)
 
