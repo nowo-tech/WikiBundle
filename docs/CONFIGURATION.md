@@ -100,6 +100,26 @@ nowo_milkdown_editor:
 - `nowo_milkdown_editor.markdown.icons` / `icon_sprite_url` decide which `:tabler-<name>:` icons are drawn; mentions are resolved by the Milkdown `UserResolverInterface` alias (yours) and host leaf directives by `DirectiveRendererInterface` services.
 - The container refuses to compile when the package is missing or `NowoMilkdownEditorBundle` is not registered.
 
+### Collaboration (1.13)
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `collaboration.enabled` | `false` | Co-editing of Milkdown pages over Mercure (needs `editor.type: milkdown`, Milkdown ≥ 1.2, symfony/mercure-bundle unless `publisher` and `subscriber_authorizer` are yours) |
+| `collaboration.hub_url` | `/.well-known/mercure` | Hub URL the browser subscribes to (same registrable domain as the app, for the cookie) |
+| `collaboration.topic_prefix` | `urn:nowo-wiki:page:` | Topic of a page = prefix + page id |
+| `collaboration.max_update_bytes` | 262144 | Largest decoded update / presence message (413 above) |
+| `collaboration.max_snapshot_bytes` | 4194304 | Largest decoded compaction snapshot |
+| `collaboration.compact_after` | 200 | Ask clients to compact once the log holds this many updates |
+| `collaboration.max_log_entries` | 2000 | Refuse updates (429 `log_full`) above this until a client compacts |
+| `collaboration.seed_timeout` | 30 | Seconds after which an unfulfilled seed claim may be taken again |
+| `collaboration.reset_after_idle` | 300 | Idle seconds after which a log not matching the current revision is dropped |
+| `collaboration.rate_limiter` | null | Service id of a `RateLimiterFactory` per user and page (update / awareness / compact) |
+| `collaboration.store` / `publisher` / `subscriber_authorizer` | null | Your services instead of the Doctrine store and the Mercure defaults |
+| `collaboration.mercure_hub` | null | Mercure hub name of the defaults |
+| `routes.page_collab` | `…/pages/{pageSlug}/collab/{action}` | The collaboration endpoints (`action`: token, state, update, awareness, compact) |
+
+Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates` (see [UPGRADING](UPGRADING.md#unreleased)).
+
 ## Sanitizer allowlist (1.11)
 
 Page bodies (HTML revisions and the render cache of Markdown revisions) go through `WikiHtmlSanitizer`. An editor dialect that emits more markup declares it here:

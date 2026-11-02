@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\DependencyInjection;
 use InvalidArgumentException;
 use Nowo\MilkdownEditorBundle\Form\MilkdownEditorType;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimits;
+use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\Builder\VariableNodeDefinition;
@@ -160,6 +161,30 @@ final class Configuration implements ConfigurationInterface
                             ->arrayPrototype()->scalarPrototype()->end()->end()
                             ->defaultValue(WikiAttachmentLimits::DEFAULT_ALLOWED_TYPES)
                         ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('collaboration')
+                    ->info('1.13: real-time co-editing of Milkdown pages over Mercure (FR-076). Needs editor.type milkdown, nowo-tech/milkdown-editor-bundle >= 1.2 and symfony/mercure-bundle (or your own publisher / subscriber_authorizer services).')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultFalse()->end()
+                        ->scalarNode('hub_url')->info('Hub URL the browser subscribes to (same registrable domain as the app, for the cookie).')->defaultValue(WikiCollabService::DEFAULTS['hub_url'])->end()
+                        ->scalarNode('topic_prefix')->info('Topic IRI prefix; the topic of a page is this prefix + the page id.')->defaultValue(WikiCollabService::DEFAULTS['topic_prefix'])->end()
+                        ->integerNode('max_update_bytes')->info('Largest decoded update / awareness message.')->min(1024)->defaultValue(WikiCollabService::DEFAULTS['max_update_bytes'])->end()
+                        ->integerNode('max_snapshot_bytes')->info('Largest decoded compaction snapshot.')->min(1024)->defaultValue(WikiCollabService::DEFAULTS['max_snapshot_bytes'])->end()
+                        ->integerNode('compact_after')->info('Ask clients to compact the log once it holds this many updates.')->min(10)->defaultValue(WikiCollabService::DEFAULTS['compact_after'])->end()
+                        ->integerNode('max_log_entries')->info('Refuse updates (429) above this many until a client compacts.')->min(20)->defaultValue(WikiCollabService::DEFAULTS['max_log_entries'])->end()
+                        ->integerNode('seed_timeout')->info('Seconds after which an unfulfilled seed claim may be taken again.')->min(5)->defaultValue(WikiCollabService::DEFAULTS['seed_timeout'])->end()
+                        ->integerNode('reset_after_idle')->info('Seconds of inactivity after which a log that does not match the current revision is dropped.')->min(0)->defaultValue(WikiCollabService::DEFAULTS['reset_after_idle'])->end()
+                        ->scalarNode('rate_limiter')->info('Service id of a Symfony RateLimiterFactory applied per user and page to update / awareness / compact (null: none — configure one in production).')->defaultNull()->end()
+                        ->scalarNode('store')->info('Service id of a WikiCollabStateStoreInterface (null: the Doctrine store, tables <prefix>_page_collab_*).')->defaultNull()->end()
+                        ->scalarNode('publisher')->info('Service id of a WikiCollabPublisherInterface (null: symfony/mercure HubInterface).')->defaultNull()->end()
+                        ->scalarNode('subscriber_authorizer')->info('Service id of a WikiCollabSubscriberAuthorizerInterface (null: symfony/mercure Authorization cookie).')->defaultNull()->end()
+                        ->scalarNode('mercure_hub')->info('Mercure hub name for the default publisher / authorizer (null: the default hub).')->defaultNull()->end()
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static fn (array $collab): bool => $collab['compact_after'] >= $collab['max_log_entries'])
+                        ->thenInvalid('nowo_wiki.collaboration.compact_after must be lower than max_log_entries, got %s.')
                     ->end()
                 ->end()
                 ->arrayNode('sanitizer')
@@ -434,6 +459,10 @@ final class Configuration implements ConfigurationInterface
                         ->arrayNode('attachment_download')->addDefaultsIfNotSet()->children()
                             ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/attachments/{attachmentId}')->end()
                             ->scalarNode('name')->defaultValue('nowo_wiki_attachment_download')->end()
+                        ->end()->end()
+                        ->arrayNode('page_collab')->addDefaultsIfNotSet()->children()
+                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}')->end()
+                            ->scalarNode('name')->defaultValue('nowo_wiki_page_collab')->end()
                         ->end()->end()
                     ->end()
                 ->end()

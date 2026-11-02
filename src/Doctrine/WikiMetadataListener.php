@@ -7,6 +7,8 @@ namespace Nowo\WikiBundle\Doctrine;
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Nowo\WikiBundle\Entity\WikiAttachment;
+use Nowo\WikiBundle\Entity\WikiCollabDocument;
+use Nowo\WikiBundle\Entity\WikiCollabUpdate;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -29,6 +31,8 @@ final readonly class WikiMetadataListener
      * @param string $userClass entity class targeted by the revision author association
      * @param string $linksTableName table name for page links (1.9)
      * @param string $attachmentsTableName table name for attachments (1.9)
+     * @param string $collabDocumentsTableName table name for collaboration documents (1.13)
+     * @param string $collabUpdatesTableName table name for the collaboration Yjs log (1.13)
      */
     public function __construct(
         private string $spacesTableName,
@@ -37,6 +41,8 @@ final readonly class WikiMetadataListener
         private string $userClass,
         private string $linksTableName = 'wiki_page_links',
         private string $attachmentsTableName = 'wiki_attachments',
+        private string $collabDocumentsTableName = 'wiki_page_collab_documents',
+        private string $collabUpdatesTableName = 'wiki_page_collab_updates',
     ) {
     }
 
@@ -72,6 +78,12 @@ final readonly class WikiMetadataListener
         if ($class === WikiPageLink::class) {
             $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->linksTableName]));
             $this->remapAuthorAssociation($metadata, 'createdBy');
+
+            return;
+        }
+
+        if ($class === WikiCollabDocument::class || $class === WikiCollabUpdate::class) {
+            $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $class === WikiCollabDocument::class ? $this->collabDocumentsTableName : $this->collabUpdatesTableName]));
 
             return;
         }

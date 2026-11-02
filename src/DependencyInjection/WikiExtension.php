@@ -20,9 +20,15 @@ use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
+use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
+use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
+use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
+use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
+use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
+use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
@@ -72,15 +78,19 @@ use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\Mercure\Authorization;
+use Symfony\Component\Mercure\HubInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 use function array_diff_key;
 use function array_filter;
+use function array_intersect_key;
 use function array_key_exists;
 use function array_merge;
 use function array_unique;
 use function array_values;
 use function class_exists;
+use function interface_exists;
 use function is_array;
 use function is_bool;
 use function is_string;
@@ -253,6 +263,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$userClass', $config['user_class'])
             ->setArgument('$linksTableName', $prefix . '_page_links')
             ->setArgument('$attachmentsTableName', $prefix . '_attachments')
+            ->setArgument('$collabDocumentsTableName', $prefix . '_page_collab_documents')
+            ->setArgument('$collabUpdatesTableName', $prefix . '_page_collab_updates')
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata']));
 
         $container->setDefinition(WikiSpaceAccessResolver::class, (new Definition(WikiSpaceAccessResolver::class))
@@ -263,6 +275,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerSpaceAccess($container, $config);
         $this->registerPages($container, $config);
         $this->registerAttachments($container, $config['attachments']);
+        $this->registerCollaboration($container, $config);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
 
@@ -338,6 +351,65 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$icons', new Reference(IconResolverInterface::class)));
         $container->setDefinition(WikiMilkdownRichContent::class, (new Definition(WikiMilkdownRichContent::class))
             ->setArgument('$twig', new Reference(MilkdownEditorTwig::class)));
+    }
+
+    /**
+     * 1.13: real-time co-editing over Mercure — the service behind the page collaboration endpoints, its Yjs log
+     * store, publisher and subscriber authorizer (symfony/mercure by default).
+     *
+     * @param array<string, mixed> $config processed configuration
+     *
+     * @throws LogicException when collaboration is enabled without the Milkdown editor or without symfony/mercure
+     */
+    private function registerCollaboration(ContainerBuilder $container, array $config, string $mercureHub = HubInterface::class): void
+    {
+        $collab = $config['collaboration'];
+        if (!$collab['enabled']) {
+            return;
+        }
+
+        if ($config['editor']['type'] !== Configuration::EDITOR_MILKDOWN) {
+            throw new LogicException('nowo_wiki.collaboration needs nowo_wiki.editor.type "milkdown".');
+        }
+
+        $needsMercure = !is_string($collab['publisher']) || !is_string($collab['subscriber_authorizer']);
+        if ($needsMercure && !interface_exists($mercureHub)) {
+            throw new LogicException('nowo_wiki.collaboration needs symfony/mercure-bundle (composer require symfony/mercure-bundle) or your own collaboration.publisher and collaboration.subscriber_authorizer services.');
+        }
+
+        $hub   = is_string($collab['mercure_hub']) && $collab['mercure_hub'] !== '' ? $collab['mercure_hub'] : null;
+        $store = $collab['store'];
+        if (!is_string($store) || $store === '') {
+            $store = DoctrineWikiCollabStateStore::class;
+            $container->setDefinition($store, (new Definition(DoctrineWikiCollabStateStore::class))
+                ->setArgument('$entityManager', new Reference(WikiEntityManagerProvider::class)));
+        }
+
+        $publisher = $collab['publisher'];
+        if (!is_string($publisher) || $publisher === '') {
+            $publisher = MercureWikiCollabPublisher::class;
+            $container->setDefinition($publisher, (new Definition(MercureWikiCollabPublisher::class))
+                ->setArgument('$hub', new Reference($hub === null ? HubInterface::class : 'mercure.hub.' . $hub)));
+        }
+
+        $authorizer = $collab['subscriber_authorizer'];
+        if (!is_string($authorizer) || $authorizer === '') {
+            $authorizer = MercureWikiCollabSubscriberAuthorizer::class;
+            $container->setDefinition($authorizer, (new Definition(MercureWikiCollabSubscriberAuthorizer::class))
+                ->setArgument('$authorization', new Reference(Authorization::class))
+                ->setArgument('$hub', $hub));
+        }
+
+        $container->setDefinition(WikiCollabService::class, (new Definition(WikiCollabService::class))
+            ->setArgument('$store', new Reference($store))
+            ->setArgument('$publisher', new Reference($publisher))
+            ->setArgument('$authorizer', new Reference($authorizer))
+            ->setArgument('$options', array_intersect_key($collab, WikiCollabService::DEFAULTS))
+            ->setArgument('$rateLimiter', is_string($collab['rate_limiter']) && $collab['rate_limiter'] !== '' ? new Reference($collab['rate_limiter']) : null));
+        $container->setDefinition(WikiCollabSaveListener::class, (new Definition(WikiCollabSaveListener::class))
+            ->setArgument('$collab', new Reference(WikiCollabService::class))
+            ->setArgument('$requestStack', new Reference('request_stack', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->addTag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED]));
     }
 
     /**

@@ -260,6 +260,21 @@ final class ConfigurationTest extends TestCase
         self::assertSame(['page_resolver' => null], $defaults['editor']['milkdown']);
     }
 
+    public function testCollaborationDefaultsAndValidation(): void
+    {
+        $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
+        self::assertFalse($defaults['collaboration']['enabled']);
+        self::assertSame('/.well-known/mercure', $defaults['collaboration']['hub_url']);
+        self::assertSame(200, $defaults['collaboration']['compact_after']);
+        self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}', $defaults['routes']['page_collab']['path']);
+
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class'    => 'App\\Entity\\User',
+            'collaboration' => ['compact_after' => 500, 'max_log_entries' => 100],
+        ]]);
+    }
+
     public function testEditorTypeAndMarkdownFormTypeAreValidated(): void
     {
         foreach ([['type' => 'wysiwyg'], ['markdown_form_type' => 'App\\Form\\Missing'], ['markdown_form_type' => ['x']]] as $editor) {

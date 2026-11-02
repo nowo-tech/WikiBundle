@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Wiki: Milkdown editor (`editor.type: milkdown`) — the Milkdown ↔ wiki bridge renders the nowo-tech/milkdown-editor-bundle dialect (page links, mentions, Tabler icons, directives, math, Mermaid) in every wiki surface under Milkdown's limits; `wiki:convert-markdown` gains page scope and a fidelity report. No schema change; Tiptap stays the default. See [UPGRADING](UPGRADING.md#unreleased).
+Wiki: Milkdown editor (`editor.type: milkdown`) — the Milkdown ↔ wiki bridge renders the nowo-tech/milkdown-editor-bundle dialect (page links, mentions, Tabler icons, directives, math, Mermaid) in every wiki surface under Milkdown's limits; `wiki:convert-markdown` gains page scope and a fidelity report. Schema change only when co-editing is used (two tables); Tiptap stays the default. See [UPGRADING](UPGRADING.md#unreleased).
 
 ### Added
 
@@ -58,6 +58,8 @@ Wiki: Milkdown editor (`editor.type: milkdown`) — the Milkdown ↔ wiki bridge
 - `wiki:convert-markdown`: `--page` (repeatable), `--report=<file>` (JSON fidelity report, format `nowo-wiki-conversion-report` v1), `--skip-lossy`, `--fail-on-loss` (every page is analysed first; nothing is written when a page is lossy), a console fidelity summary, and pages edited during the run are skipped (`skipped_changed`). `Interchange\Conversion\WikiConversionFidelityAnalyzer` / `WikiConversionFidelity`.
 - `WikiMarkdownConverter(dialect: true)` (registered so with `milkdown`): `[[wiki:…]]` and `@handle` text kept as tokens, `<mark>` → `:mark[…]`, centred / right-aligned paragraphs and headings → `::: {align=…}`, embeds → links.
 - Exports with `milkdown`: page links to exported pages become relative Markdown links to the exported files (`WikiMarkdownPortableLinks`).
+
+- **Co-editing (FR-076):** `nowo_wiki.collaboration` (off by default; needs `milkdown`, Milkdown ≥ 1.2 and symfony/mercure-bundle or your own services) — `WikiCollabController` (`routes.page_collab`: token, state, update, awareness, compact; the edit permission checked on every request, same-origin JSON POSTs, size limits, optional rate limiter), `Collaboration\WikiCollabService`, `WikiCollabStateStoreInterface` (default `DoctrineWikiCollabStateStore`, tables `<prefix>_page_collab_documents` / `<prefix>_page_collab_updates`), `WikiCollabPublisherInterface` / `WikiCollabSubscriberAuthorizerInterface` (defaults on symfony/mercure: private updates, a subscriber cookie for one topic). The page edit form passes MilkdownEditorType the `collaboration` option and records each save in the log.
 
 ### Changed
 

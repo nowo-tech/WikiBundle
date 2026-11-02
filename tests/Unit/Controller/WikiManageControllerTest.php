@@ -13,6 +13,9 @@ use Nowo\UiKitBundle\View\ListPage;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\WikiAiAnswer;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -41,6 +44,7 @@ use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -566,6 +570,26 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('page_edit', (string) $response->getContent());
+    }
+
+    public function testEditPagePassesTheCollaborationOptionAndMarksTheSave(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hi</p>', $user, 'Hi'));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $this->routes['page_collab'] = ['path' => '/collab/{action}', 'name' => 'nowo_wiki_page_collab'];
+        $collab                      = new WikiCollabService(new InMemoryCollabStateStore(), $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class));
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collab);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        self::assertSame(Response::HTTP_OK, $controller->editPage(Request::create('/edit'), 'eng', 'welcome')->getStatusCode());
     }
 
     public function testDenyWhenCannotEdit(): void
@@ -1744,6 +1768,7 @@ MD);
         array $editor = ['tiptap_config' => 'notion'],
         ?WikiTenantPaths $tenantPaths = null,
         ?WikiRevisionBodyRenderer $bodyRenderer = null,
+        ?WikiCollabService $collab = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1790,6 +1815,7 @@ MD);
             $pagination,
             tenantPaths: $tenantPaths,
             bodyRenderer: $bodyRenderer,
+            collab: $collab,
         );
     }
 
