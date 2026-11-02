@@ -1307,6 +1307,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * }
  * @psalm-type NowoTiptapEditorConfig = array{
  *     default_profile?: scalar|Param|null, // Profile name used when the form field omits the "config" option (form option key remains "config" for BC). // Default: "default"
+ *     stylesheet?: bool|Param, // 1.7: when true the widget links tiptap-editor.css (asset package nowo_tiptap_editor, with the request attribute csp_nonce as nonce). Set false when your layout loads that file (or your own styles) itself. // Default: true
  *     html_sanitizer?: scalar|Param|null, // Optional service id implementing TiptapHtmlSanitizerInterface, or the special value "allowlist" for the built-in allowlist sanitizer. Null (default) disables server-side sanitization (BC). // Default: null
  *     profiles?: array<string, array{ // Default: []
  *         toolbar?: bool|Param, // When true, the frontend shows a compact formatting toolbar (bold, lists, undo, etc.). // Default: true
@@ -1314,9 +1315,35 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         form_theme?: scalar|Param|null, // Base Symfony form layout (must match twig.form_themes in your app). // Default: "form_div_layout.html.twig"
  *         debug?: bool|Param, // When true, the browser console receives detailed logs from the bundle script. // Default: false
  *         variant?: scalar|Param|null, // Editor UX preset: default, simple, notion, agent, headless (see EditorVariant). // Default: "default"
+ *         toolbar_display?: "text"|"icon"|Param, // 1.7: toolbar buttons as text glyphs (text, 1.x look) or icons (icon: built-in SVG or the host <template data-tiptap-icon> markup); both get translated aria-label / title. // Default: "text"
  *         theme?: scalar|Param|null, // Chrome palette: light, dark, or auto (follows prefers-color-scheme). // Default: "light"
  *     }>,
  *     ...<string, mixed>
+ * }
+ * @psalm-type NowoMilkdownEditorConfig = array{
+ *     default_profile?: scalar|Param|null, // Profile used when a form field does not set the `profile` option. // Default: "default"
+ *     profiles?: array<string, array{ // Default: {"default":{"features":["toolbar","link_tooltip","table","code_mirror","placeholder","cursor","slash_menu"],"theme":"auto","min_height":"12rem","icon_sprite_url":null,"icons":[],"upload_max_size":10485760,"upload_accept":[]}}
+ *         features?: list<scalar|Param|null>,
+ *         theme?: "light"|"dark"|"auto"|Param, // Default: "auto"
+ *         min_height?: scalar|Param|null, // Default: "12rem"
+ *         icon_sprite_url?: scalar|Param|null, // URL of the SVG sprite with <symbol id="tabler-NAME"> icons (null: icons render as text). // Default: null
+ *         icons?: list<scalar|Param|null>,
+ *         upload_max_size?: int|Param, // Largest upload in bytes (0: no client-side limit). // Default: 10485760
+ *         upload_accept?: list<scalar|Param|null>,
+ *     }>,
+ *     markdown?: array{ // The PHP renderer of the dialect (`milkdown_markdown` Twig filter, MilkdownMarkdownRenderer service).
+ *         html_input?: "escape"|"strip"|Param, // Raw HTML in Markdown: escaped (default) or stripped. // Default: "escape"
+ *         allow_unsafe_links?: bool|Param, // Keep javascript:, vbscript:, file: and data: links (never recommended). // Default: false
+ *         allow_remote_images?: bool|Param, // Render images from other hosts; when false they become plain links. // Default: false
+ *         math?: bool|Param, // Parse $inline$ and $$block$$ math (rendered client-side with KaTeX). // Default: true
+ *         max_nesting_level?: int|Param, // Default: 50
+ *         max_input_length?: int|Param, // Longer input (bytes) is rendered as escaped plain text; also the default max length of MilkdownEditorType. // Default: 100000
+ *         max_inline_markers?: int|Param, // Input with more inline delimiter characters ([ ] * _ ` ! < & @ : $ ~ | \) and line feeds is rendered as escaped plain text. // Default: 10000
+ *         max_references?: int|Param, // Distinct page ids and mention handles sent to each resolver per document; later ones render as not visible / plain text. // Default: 500
+ *         icon_sprite_url?: scalar|Param|null, // Sprite URL for :tabler-NAME: icons in rendered HTML. // Default: null
+ *         icons?: list<scalar|Param|null>,
+ *         mark_colors?: list<scalar|Param|null>,
+ *     },
  * }
  * @psalm-type NowoWikiConfig = array{
  *     user_class?: scalar|Param|null, // FQCN of the application user entity.
@@ -1350,9 +1377,12 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         extra_allowed_attributes?: list<scalar|Param|null>,
  *     },
  *     editor?: array{
- *         type?: "tiptap"|"markdown"|Param, // 1.11: tiptap = pages are HTML edited with TiptapEditorType; markdown = pages are stored as Markdown (content_markdown, the source) with content_html as its sanitized render cache, edited in a textarea or in markdown_form_type. // Default: "tiptap"
+ *         type?: "tiptap"|"markdown"|"milkdown"|Param, // 1.11: tiptap = pages are HTML edited with TiptapEditorType; markdown = pages are stored as Markdown (content_markdown, the source) with content_html as its sanitized render cache, edited in a textarea or in markdown_form_type. 1.13: milkdown = markdown with nowo-tech/milkdown-editor-bundle (MilkdownEditorType and its dialect renderer). // Default: "tiptap"
  *         tiptap_config?: scalar|Param|null, // Default: "notion"
  *         markdown_form_type?: scalar|Param|null, // 1.11: FQCN of the form type of the page body when type is markdown (e.g. a Markdown editor bundle type); null = a plain textarea. It receives the editor options (WikiEvents::EDITOR_OPTIONS). // Default: null
+ *         milkdown?: array{ // 1.13: options of editor.type milkdown.
+ *             page_resolver?: scalar|Param|null, // Service id of the Nowo\MilkdownEditorBundle\Markdown\Resolver\PageResolverInterface that resolves [[wiki:<uuid>]] links for the viewer in wiki pages; null = the bundle resolver (wiki pages the viewer may read, page_view URLs). // Default: null
+ *         },
  *     },
  *     security?: array{
  *         access_checker?: scalar|Param|null, // Default: null
@@ -1496,6 +1526,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     css_framework?: "bootstrap"|"bootstrap5"|"bootstrap4"|"tailwind"|"foundation"|"custom"|"tabler"|"none"|Param, // Host CSS stack: bootstrap5|bootstrap4|tailwind|foundation|custom|none|tabler (bootstrap alias → bootstrap5). // Default: "bootstrap5"
  *     icon_set?: "bootstrap-icons"|"tabler-icons"|"ux_icon"|"svg_inline"|"none"|Param, // Icon rendering: bootstrap-icons|tabler-icons|ux_icon|svg_inline|none. // Default: "bootstrap-icons"
  *     row_actions_display?: "icon"|"text"|"icon_text"|Param, // Table/list row actions: icon (glyph only) | text (label only) | icon_text (both). // Default: "icon"
+ *     row_actions_confirm?: "inline"|"native"|"dialog"|Param, // confirm_message of 1.x row_actions POST hashes (2.22, REQ-UI-003): inline = onsubmit="return confirm(…)" (default, unchanged markup); native | dialog = no inline handler, the confirm-submit Stimulus peer asks (window.confirm or the kit <dialog>). native / dialog need the confirm-submit peer registered. // Default: "inline"
  *     panel_path_rewrites?: array<string, scalar|Param|null>,
  *     release_check?: array{ // Optional GitHub release-version checker (footer dialog + JSON endpoint). Off by default.
  *         enabled?: bool|Param, // Register the checker service + controller. Also import @NowoUiKitBundle/Resources/config/routes/release_check.yaml. // Default: false
@@ -1504,6 +1535,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         cache_ttl?: int|Param, // Seconds to cache the GitHub answer (cache.app). Default 12h. // Default: 43200
  *         default_branch?: scalar|Param|null, // Branch used as compare target when the installed version is already the latest. // Default: "main"
  *         user_agent?: scalar|Param|null, // User-Agent sent to api.github.com. // Default: "nowo-ui-kit-release-check"
+ *         timeout?: float|Param, // Idle timeout in seconds of the GitHub "releases/latest" request (HttpClient "timeout"). Keep it below PHP max_execution_time (REQ-RUNTIME-001). // Default: 5.0
+ *         releases_timeout?: float|Param, // Idle timeout in seconds of the GitHub "releases" listing used to count versions behind. Keep it below PHP max_execution_time (REQ-RUNTIME-001). // Default: 8.0
  *     },
  *     route_links?: array{ // Route (or route prefix) → link map read by nowo_ui_route_link(), e.g. for the page-edge "manual" tab (partials/_edge_tab.html.twig). A prefix matches the route itself or any route starting with "<prefix>_"; the longest prefix wins.
  *         base_url?: scalar|Param|null, // Prepended to every relative path (paths starting with "/", "//", "http://" or "https://" are used as is). // Default: ""
@@ -1512,6 +1545,15 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             path?: scalar|Param|null,
  *             testid?: scalar|Param|null, // Default: null
  *         }>,
+ *     },
+ *     font_preload?: array{ // 2.21: <link rel="preload" as="font" crossorigin> tags printed in the <head> of the document and error layouts (Twig nowo_ui_font_preload()) for the fonts painted above the fold. Empty = no tags.
+ *         fonts?: list<scalar|Param|null>,
+ *         manifest?: array{ // Hashed builds: pick the fonts from a Vite manifest (.vite/manifest.json). A missing manifest (dev server) prints nothing.
+ *             path?: scalar|Param|null, // Absolute path of the manifest, e.g. "%kernel.project_dir%/public/build/.vite/manifest.json"; null = off. // Default: null
+ *             entry?: scalar|Param|null, // Manifest entry whose "assets" list holds the fonts. // Default: "assets/app.js"
+ *             prefixes?: list<scalar|Param|null>,
+ *             base?: scalar|Param|null, // Public URL prefix of the manifest assets. // Default: "/build/"
+ *         },
  *     },
  *     appearance?: array{ // Optional site appearance SPI (presets, --nowo-ui-* token emitter, Twig functions). Off by default.
  *         enabled?: bool|Param, // Default: false
@@ -2206,6 +2248,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     doctrine?: DoctrineConfig,
  *     doctrine_migrations?: DoctrineMigrationsConfig,
  *     nowo_tiptap_editor?: NowoTiptapEditorConfig,
+ *     nowo_milkdown_editor?: NowoMilkdownEditorConfig,
  *     nowo_wiki?: NowoWikiConfig,
  *     nowo_ui_kit?: NowoUiKitConfig,
  *     ai?: AiConfig,
@@ -2225,6 +2268,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         nowo_hot_reload?: NowoHotReloadConfig,
  *         nowo_twig_inspector?: NowoTwigInspectorConfig,
  *         nowo_tiptap_editor?: NowoTiptapEditorConfig,
+ *         nowo_milkdown_editor?: NowoMilkdownEditorConfig,
  *         nowo_wiki?: NowoWikiConfig,
  *         nowo_ui_kit?: NowoUiKitConfig,
  *         ai?: AiConfig,
@@ -2241,6 +2285,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         doctrine?: DoctrineConfig,
  *         doctrine_migrations?: DoctrineMigrationsConfig,
  *         nowo_tiptap_editor?: NowoTiptapEditorConfig,
+ *         nowo_milkdown_editor?: NowoMilkdownEditorConfig,
  *         nowo_wiki?: NowoWikiConfig,
  *         nowo_ui_kit?: NowoUiKitConfig,
  *         ai?: AiConfig,
@@ -2260,6 +2305,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         web_profiler?: WebProfilerConfig,
  *         nowo_hot_reload?: NowoHotReloadConfig,
  *         nowo_tiptap_editor?: NowoTiptapEditorConfig,
+ *         nowo_milkdown_editor?: NowoMilkdownEditorConfig,
  *         nowo_wiki?: NowoWikiConfig,
  *         nowo_ui_kit?: NowoUiKitConfig,
  *         ai?: AiConfig,
