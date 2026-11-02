@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f2238e9518aa534ec709b032da0dd021",
+    "content-hash": "a568c747b0bd9267a4b98c7d5b9c445c",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -2129,16 +2129,16 @@
         },
         {
             "name": "nowo-tech/milkdown-editor-bundle",
-            "version": "v1.1.1",
+            "version": "v1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/MilkdownEditorBundle.git",
-                "reference": "5333add980e2bd4f204ba2cb46d35861e23da146"
+                "reference": "7628386f7968e5e3a138ac4becdf1d6d6ae1870c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/5333add980e2bd4f204ba2cb46d35861e23da146",
-                "reference": "5333add980e2bd4f204ba2cb46d35861e23da146",
+                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/7628386f7968e5e3a138ac4becdf1d6d6ae1870c",
+                "reference": "7628386f7968e5e3a138ac4becdf1d6d6ae1870c",
                 "shasum": ""
             },
             "require": {
@@ -2227,8 +2227,8 @@
                 "issues": "https://github.com/nowo-tech/MilkdownEditorBundle/issues",
                 "source": "https://github.com/nowo-tech/MilkdownEditorBundle"
             },
-            "time": "2026-11-01T17:37:16+00:00",
-            "published-time": "2026-11-01T17:38:29+00:00"
+            "time": "2026-11-02T22:45:11+00:00",
+            "published-time": "2026-11-02T22:47:25+00:00"
         },
         {
             "name": "nowo-tech/tiptap-editor-bundle",
@@ -2418,7 +2418,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "04969258364d56b55cc99ae0ae56f95450411038"
+                "reference": "549fcfa5328f5614172282bbb449daf67f16e1ee"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -2449,12 +2449,12 @@
                 "twig/string-extra": "^3.12"
             },
             "conflict": {
-                "nowo-tech/milkdown-editor-bundle": "<1.1.1"
+                "nowo-tech/milkdown-editor-bundle": "<1.2.0"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
                 "igor-php/igor-php": "^0.10.0",
-                "nowo-tech/milkdown-editor-bundle": "^1.1.1",
+                "nowo-tech/milkdown-editor-bundle": "^1.2",
                 "nowo-tech/phpstan-frankenphp": "^1.0",
                 "phpstan/extension-installer": "^1.0",
                 "phpstan/phpstan": "^2.0",
@@ -2467,14 +2467,18 @@
                 "symfony/asset": "^7.4 || ^8.0",
                 "symfony/browser-kit": "^7.4 || ^8.0",
                 "symfony/dom-crawler": "^7.4 || ^8.0",
+                "symfony/mercure-bundle": "^0.3.9",
+                "symfony/rate-limiter": "^7.4 || ^8.0",
                 "symfony/var-exporter": "^7.4 || ^8.0",
                 "vincentlanglet/twig-cs-fixer": "^4.0"
             },
             "suggest": {
                 "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
-                "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.1.1): page links, mentions, icons, math and Mermaid.",
+                "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.2): page links, mentions, icons, math and Mermaid.",
                 "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales.",
-                "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools."
+                "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
+                "symfony/mercure-bundle": "Co-editing of Milkdown pages (nowo_wiki.collaboration): private Mercure updates and the subscriber cookie.",
+                "symfony/rate-limiter": "Rate limits of the co-editing endpoints (nowo_wiki.collaboration.rate_limiter)."
             },
             "type": "symfony-bundle",
             "extra": {

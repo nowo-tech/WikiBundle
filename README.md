@@ -31,6 +31,7 @@ This bundle is **FrankenPHP worker mode friendly**.
 - Integrates **[TiptapEditorBundle](https://github.com/nowo-tech/TiptapEditorBundle)** (`variant: notion` by default)
 - **Markdown pages (optional)** — `editor.type: markdown` stores the Markdown source with a sanitized HTML cache, an extensible league/commonmark + GFM renderer and `wiki:convert-markdown` for existing pages ([Usage](docs/USAGE.md#markdown-pages-111))
 - **Milkdown editor (optional)** — `editor.type: milkdown` with **[MilkdownEditorBundle](https://github.com/nowo-tech/MilkdownEditorBundle)**: page links, mentions, Tabler icons, callouts, math and Mermaid rendered per viewer under Milkdown's limits, and `wiki:convert-markdown --report` with a per-page fidelity report ([Usage](docs/USAGE.md#milkdown-editor-113))
+- **Co-editing (optional)** — several people edit one Milkdown page at once over Mercure (`nowo_wiki.collaboration`): edit permission and a rate limiter on every request, a bounded Yjs log, reset only when needed ([Usage](docs/USAGE.md#co-editing-113))
 - Web UI options under `nowo_wiki.web_ui` (`enabled`, `path_prefix`, `layout_template`, `templates.<page>`) and roles per action under `nowo_wiki.security.roles`
 
 ## Installation

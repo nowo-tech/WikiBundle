@@ -348,7 +348,7 @@ With `nowo_wiki.editor.type: milkdown` ([CONFIGURATION](CONFIGURATION.md#milkdow
 
 ### Co-editing (1.13)
 
-Several people edit one Milkdown page at once (FR-076): Yjs in the browser (`@milkdown/plugin-collab`, Milkdown ≥ 1.2), Mercure for the relay, the wiki for permissions and the stored Yjs log.
+Several people edit one Milkdown page at once (FR-076): Yjs in the browser (`@milkdown/plugin-collab` in nowo-tech/milkdown-editor-bundle ^1.2), Mercure for the relay, the wiki for permissions and the stored Yjs log.
 
 ```yaml
 nowo_wiki:
@@ -374,7 +374,7 @@ The page edit form passes MilkdownEditorType the `collaboration` option (base UR
 
 Every request checks a firewall-trusted user, `canEdit()` and `WikiAction::View` + `WikiAction::Edit` on the space and the page (404 when the page is not readable, 403 when not editable); POSTs must be same-origin and JSON. Every request is rate-limited per user and page. Errors answer `{"error": "<reason>"}`: 400 `invalid_payload`, 409 `log_reset` (the log went over `max_log_bytes` and was dropped; editors reload), 413 `too_large`, 415 `json_required`, 429 `rate_limited` / `log_full`.
 
-**Seeding:** the token request of the first editor of an empty log claims the seeding for that client (user + the tab's Yjs client id, header `X-Nowo-Collab-Client`, Milkdown ≥ 1.2: one tab seeds even when the same user opened two); `GET state` then answers `seed: true` to that client, which fills the document from the field's Markdown. A claim not fulfilled within `seed_timeout` seconds may be taken again.
+**Seeding:** the token request of the first editor of an empty log claims the seeding for that client (user + the tab's Yjs client id, header `X-Nowo-Collab-Client`: one tab seeds even when the same user opened two); `GET state` then answers `seed: true` to that client, which fills the document from the field's Markdown. A claim not fulfilled within `seed_timeout` seconds may be taken again.
 
 **Reset only when needed:** a save made from the live session — the Milkdown client adds `_nowo_milkdown_collab` (the page topic) to the form, and the log's base is the revision being replaced — keeps the log and records the new revision; nobody reloads. The log is dropped and `{"t": "r"}` published (live editors show a notice and reload the saved content) only for:
 

@@ -50,11 +50,11 @@
 
 ## Unreleased
 
-From **1.12.x**: no schema change and nothing to do while `nowo_wiki.editor.type` stays `tiptap` (the default) or `markdown`.
+From **1.12.x**: nothing to do while `nowo_wiki.editor.type` stays `tiptap` (the default) or `markdown`. The only schema change is two tables for co-editing (below), needed only with `nowo_wiki.collaboration.enabled: true`.
 
 **Switching to the Milkdown editor:**
 
-1. `composer require nowo-tech/milkdown-editor-bundle` (^1.1.1) and register `Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle`; publish its assets (`assets:install`).
+1. `composer require nowo-tech/milkdown-editor-bundle` (^1.2; the bundle conflicts with older versions) and register `Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle`; publish its assets (`assets:install`).
 2. Set `nowo_wiki.editor.type: milkdown`; configure `nowo_milkdown_editor.markdown` (limits, `icon_sprite_url`, `icons`) and alias `Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface` to your mention resolver. Point `editor.milkdown.page_resolver` at your own page resolver if wiki page links must resolve differently.
 3. Allow the Milkdown read-side script in your CSP (`script-src 'self' 'nonce-…'`, `style-src-attr 'unsafe-inline'` for KaTeX / Mermaid) — see the Milkdown SECURITY.md.
 4. Convert existing HTML pages when you are ready (pages also convert one by one when edited):
@@ -69,7 +69,7 @@ From **1.12.x**: no schema change and nothing to do while `nowo_wiki.editor.type
 
 **Behaviour with `milkdown`:** the page view renders Markdown for each viewer (one render per view instead of the stored cache); `content_html` is viewer-neutral, so page links read *Content not visible* in search excerpts and AI context. Exports write links to exported pages as relative `.md` links.
 
-**Co-editing (optional):** `composer require symfony/mercure-bundle symfony/rate-limiter` (or provide `collaboration.publisher` / `subscriber_authorizer`), Milkdown ≥ 1.2, then `nowo_wiki.collaboration.enabled: true` with `collaboration.rate_limiter` (required: the container refuses to compile without it) and a short `mercure.cookie_lifetime`. Schema: two new tables — generate the migration (`doctrine:migrations:diff`) or create them:
+**Co-editing (optional):** `composer require symfony/mercure-bundle symfony/rate-limiter` (or provide `collaboration.publisher` / `subscriber_authorizer`), then `nowo_wiki.collaboration.enabled: true` with `collaboration.rate_limiter` (required: the container refuses to compile without it) and a short `mercure.cookie_lifetime`. Schema: two new tables — generate the migration (`doctrine:migrations:diff`) or create them:
 
 ```sql
 CREATE TABLE wiki_page_collab_documents (page_id VARCHAR(36) NOT NULL, base_revision_id VARCHAR(36) DEFAULT NULL, seeded_at DATETIME DEFAULT NULL, seeded_by VARCHAR(180) DEFAULT NULL, recent_resets INT DEFAULT 0 NOT NULL, last_reset_at DATETIME DEFAULT NULL, updated_at DATETIME NOT NULL, PRIMARY KEY(page_id));

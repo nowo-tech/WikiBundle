@@ -75,7 +75,7 @@ nowo_wiki:
 ## Milkdown editor (1.13)
 
 ```bash
-composer require nowo-tech/milkdown-editor-bundle   # ^1.1.1, register NowoMilkdownEditorBundle
+composer require nowo-tech/milkdown-editor-bundle   # ^1.2, register NowoMilkdownEditorBundle
 ```
 
 ```yaml
@@ -104,7 +104,7 @@ nowo_milkdown_editor:
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `collaboration.enabled` | `false` | Co-editing of Milkdown pages over Mercure (needs `editor.type: milkdown`, Milkdown ≥ 1.2, symfony/mercure-bundle unless `publisher` and `subscriber_authorizer` are yours) |
+| `collaboration.enabled` | `false` | Co-editing of Milkdown pages over Mercure (needs `editor.type: milkdown`, symfony/mercure-bundle unless `publisher` and `subscriber_authorizer` are yours) |
 | `collaboration.hub_url` | `/.well-known/mercure` | Hub URL the browser subscribes to (same registrable domain as the app, for the cookie) |
 | `collaboration.topic_prefix` | `urn:nowo-wiki:page:` | Topic of a page = prefix + page id |
 | `collaboration.max_update_bytes` | 262144 | Largest decoded update / presence message (413 above) |
