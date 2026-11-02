@@ -6,6 +6,7 @@ namespace App\DataFixtures;
 
 use App\Entity\User;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Service\WikiPageService;
 
@@ -50,6 +51,9 @@ final class WikiDemoSeeder
         $legacy = $this->create($space, 'Legacy deploy (Capistrano)', 'legacy-deploy', '<p>Superseded by the container pipeline in 2025.</p>', $user, $runbooks);
         $this->pageService->archive($legacy, $user);
 
+        // 1.13: a Markdown page in the Milkdown dialect (page links by id, mention, icons, callout, math, Mermaid).
+        $this->pageService->create($space, 'Milkdown showcase', $this->milkdownShowcase($welcome, $deploy), $user, null, 'milkdown-showcase', WikiPageRevision::FORMAT_MARKDOWN);
+
         unset($legacy, $welcome, $gettingStarted, $installation, $configuration, $architecture, $frontend, $tiptap, $backend, $runbooks, $deploy, $rollback);
     }
 
@@ -69,6 +73,29 @@ final class WikiDemoSeeder
         ?WikiPage $parent = null,
     ): WikiPage {
         return $this->pageService->create($space, $title, $html, $user, $parent, $slug);
+    }
+
+    private function milkdownShowcase(WikiPage $welcome, WikiPage $deploy): string
+    {
+        return <<<MD
+            ## :tabler-rocket: Milkdown showcase
+
+            Start at [[wiki:{$welcome->getId()}]], then follow [[wiki:{$deploy->getId()}]] when you ship. Questions go to @demo.
+
+            :::callout{type=info}
+            Page links show the current title of pages you may read; renaming a page never breaks them.
+            :::
+
+            :mark[Highlighted]{color=yellow} text, a :tabler-bulb: tip and Euler's identity \$e^{i\pi} + 1 = 0\$.
+
+            - [x] Write the page in Markdown
+            - [ ] Convert the old HTML pages
+
+            ```mermaid
+            graph LR
+              Edit --> Save --> Render
+            ```
+            MD;
     }
 
     private function pageLink(WikiSpace $space, string $pageSlug, string $label): string

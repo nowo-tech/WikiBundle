@@ -26,6 +26,9 @@ use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
 use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
+use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
@@ -317,6 +320,54 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('page_view', (string) $response->getContent());
+    }
+
+    public function testViewPageRendersMarkdownForTheViewerWithRichContent(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>cache</p>', $user, 'source'));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $viewer = new class implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface {
+            public function render(string $markdown): string
+            {
+                return 'neutral';
+            }
+
+            public function renderForViewer(string $markdown): string
+            {
+                return '<p>for viewer: ' . $markdown . '</p>';
+            }
+        };
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, bodyRenderer: new WikiRevisionBodyRenderer($viewer, new WikiHtmlSanitizer()));
+        $twig       = new class {
+            /** @var array<string, mixed> */
+            public array $context = [];
+
+            /** @param array<string, mixed> $context */
+            public function render(string $name, array $context = []): string
+            {
+                $this->context = $context;
+
+                return $name;
+            }
+        };
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+
+        $controller->viewPage('eng', 'welcome');
+
+        self::assertSame('<p>for viewer: source</p>', $twig->context['content_html']);
+        self::assertTrue($twig->context['rich_content']);
+
+        $page->setCurrentRevision(null);
+        $controller->viewPage('eng', 'welcome');
+        self::assertSame('', $twig->context['content_html']);
     }
 
     public function testViewPageNotFoundForForeignSpace(): void
@@ -1692,6 +1743,7 @@ MD);
         array $pagination = WikiManageController::DEFAULT_PAGINATION,
         array $editor = ['tiptap_config' => 'notion'],
         ?WikiTenantPaths $tenantPaths = null,
+        ?WikiRevisionBodyRenderer $bodyRenderer = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1737,6 +1789,7 @@ MD);
             $tokenGuard,
             $pagination,
             tenantPaths: $tenantPaths,
+            bodyRenderer: $bodyRenderer,
         );
     }
 

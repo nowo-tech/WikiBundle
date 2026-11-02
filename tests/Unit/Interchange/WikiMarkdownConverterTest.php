@@ -69,4 +69,33 @@ MD);
 
         self::assertSame("| A | B |\n|---|---|\n| 1 | 2 |\n\n- [x] yes\n- [ ] no\n\n1. first\n\n~~gone~~ ~~old~~ ~~x~~kept", $markdown);
     }
+
+    public function testTheMilkdownDialectKeepsTokensHighlightsAlignmentAndEmbeds(): void
+    {
+        $converter = new WikiMarkdownConverter(dialect: true);
+        self::assertTrue($converter->dialect);
+
+        $markdown = $converter->htmlToMarkdown(
+            '<p>See [[wiki:0B6F4F0E-3c55-4d0a-9a43-1f7a2c9e8d10#setup]] by @ana_b and mail_x@example.com, '
+            . '(@bob_c) <mark>hot [1]</mark> <mark> </mark></p>'
+            . '<p style="text-align: center">Centred</p><h2 style="text-align:right">Right</h2><p style="text-align: left">Left</p>'
+            . '<p style="text-align: center"></p>'
+            . '<iframe src="https://www.youtube.com/embed/x"></iframe><iframe src="javascript:alert(1)"></iframe>',
+        );
+
+        self::assertSame(
+            "See [[wiki:0b6f4f0e-3c55-4d0a-9a43-1f7a2c9e8d10#setup]] by @ana_b and mail\\_x@example.com, (@bob_c) :mark[hot \\[1\\]]\n\n"
+            . "::: {align=center}\nCentred\n:::\n\n::: {align=right}\n## Right\n:::\n\nLeft\n\n"
+            . '[https://www.youtube.com/embed/x](https://www.youtube.com/embed/x)',
+            $markdown,
+        );
+    }
+
+    public function testWithoutTheDialectTokensAreEscapedText(): void
+    {
+        self::assertSame(
+            '\\[\\[wiki:0b6f4f0e-3c55-4d0a-9a43-1f7a2c9e8d10\\]\\] @ana\\_b hot',
+            (new WikiMarkdownConverter())->htmlToMarkdown('<p>[[wiki:0b6f4f0e-3c55-4d0a-9a43-1f7a2c9e8d10]] @ana_b <mark>hot</mark></p>'),
+        );
+    }
 }

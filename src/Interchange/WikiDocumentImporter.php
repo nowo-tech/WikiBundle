@@ -198,7 +198,7 @@ final readonly class WikiDocumentImporter
             $parent = $slugMap[$node->parentSlug];
         }
 
-        [$content, $format] = $this->editorType === Configuration::EDITOR_MARKDOWN
+        [$content, $format] = Configuration::storesMarkdown($this->editorType)
             ? [$node->markdownBody, WikiPageRevision::FORMAT_MARKDOWN]
             : [$this->markdownConverter->markdownToHtml($node->markdownBody), WikiPageRevision::FORMAT_HTML];
 

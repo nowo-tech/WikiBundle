@@ -7,6 +7,7 @@ use Doctrine\Bundle\FixturesBundle\DoctrineFixturesBundle;
 use Doctrine\Bundle\MigrationsBundle\DoctrineMigrationsBundle;
 use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\HotReloadBundle\NowoHotReloadBundle;
+use Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle;
 use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\TwigInspectorBundle\NowoTwigInspectorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
@@ -31,6 +32,7 @@ return [
     NowoHotReloadBundle::class      => ['dev' => true, 'test' => true],
     NowoTwigInspectorBundle::class  => ['dev' => true],
     NowoTiptapEditorBundle::class   => ['all' => true],
+    NowoMilkdownEditorBundle::class => ['all' => true],
     WikiBundle::class               => ['all' => true],
     NowoUiKitBundle::class          => ['all' => true],
     AiBundle::class                 => ['all' => true],

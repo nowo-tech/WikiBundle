@@ -182,6 +182,39 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Ui/WikiPages.php` | UiKit page plumbing (layout, per-page templates, legacy bridge) | FR-VIEW-001 |
 | `Ui/WikiPageFactory.php` | UiKit view models of the pages (value-free rows) | FR-VIEW-005 |
 
+## Markdown and the Milkdown bridge (1.11 / 1.13)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Command/WikiConvertMarkdownCommand.php` | HTML → Markdown conversion, scope and report | FR-MD-001, FR-MD-003 |
+| `DependencyInjection/Compiler/MilkdownBridgePass.php` | Milkdown options handed to the bridge (fail closed) | FR-MD-002 |
+| `Interchange/Conversion/WikiConversionFidelity.php` | Fidelity of one conversion | FR-MD-003 |
+| `Interchange/Conversion/WikiConversionFidelityAnalyzer.php` | Lost / approximated constructs, word comparison | FR-MD-003 |
+| `Interchange/HtmlToMarkdown/WikiAlignedHeaderConverter.php` | Dialect alignment of headings | FR-MD-002 |
+| `Interchange/HtmlToMarkdown/WikiAlignedParagraphConverter.php` | Dialect alignment of paragraphs | FR-MD-002 |
+| `Interchange/HtmlToMarkdown/WikiAlignmentTrait.php` | Dialect alignment container | FR-MD-002 |
+| `Interchange/HtmlToMarkdown/WikiDialectTextConverter.php` | Page-link / mention tokens kept | FR-MD-002 |
+| `Interchange/HtmlToMarkdown/WikiEmbedConverter.php` | Embeds as links | FR-MD-002 |
+| `Interchange/HtmlToMarkdown/WikiMarkConverter.php` | Highlight as `:mark[…]` | FR-MD-002 |
+| `Interchange/HtmlToMarkdown/WikiStrikethroughConverter.php` | GFM strikethrough | FR-MD-001 |
+| `Interchange/HtmlToMarkdown/WikiTaskItemConverter.php` | GFM task lists | FR-MD-001 |
+| `Interchange/WikiMarkdownPortableLinks.php` | Page links of exports as file links | FR-MD-002 |
+| `Markdown/Milkdown/MilkdownWikiMarkdownRenderer.php` | Bridge renderer | FR-MD-002 |
+| `Markdown/Milkdown/WikiMilkdownIconHydrator.php` | Icons after sanitizing | FR-MD-002 |
+| `Markdown/Milkdown/WikiMilkdownPageResolver.php` | Page links per viewer | FR-MD-002 |
+| `Markdown/Milkdown/WikiMilkdownRichContent.php` | Read-side assets | FR-MD-002 |
+| `Markdown/Milkdown/WikiTablerIconRenderer.php` | Icon placeholders | FR-MD-002 |
+| `Markdown/WikiMarkdownExtensionInterface.php` | Renderer extension point | FR-MD-001 |
+| `Markdown/WikiMarkdownLimitsInterface.php` | Renderer limits | FR-MD-003 |
+| `Markdown/WikiMarkdownReferenceExtractor.php` | Page references and mentions | FR-MD-001, FR-MD-002 |
+| `Markdown/WikiMarkdownReferenceParserInterface.php` | References from the renderer's parser | FR-MD-002 |
+| `Markdown/WikiMarkdownRenderer.php` | Default renderer | FR-MD-001 |
+| `Markdown/WikiMarkdownRendererInterface.php` | Renderer contract | FR-MD-001 |
+| `Markdown/WikiRevisionBodyRenderer.php` | Page body per viewer | FR-MD-002 |
+| `Markdown/WikiTaskListNormalizer.php` | Task-list markup | FR-MD-001 |
+| `Markdown/WikiViewerMarkdownRendererInterface.php` | Viewer render contract | FR-MD-002 |
+| `Repository/WikiPageBatchFinderInterface.php` | Pages by ids in one query | FR-MD-002 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |
@@ -200,6 +233,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | Support utilities | 2 | 2 |
 | Frontend TypeScript | 3 | 3 |
 | Symfony config | 1 | 1 |
+| Markdown and the Milkdown bridge | 28 | 28 |
 | Translations | 7 | 7 |
 | Twig views | 16 | 16 |
 | **Total production sources** | **92** | **92** |

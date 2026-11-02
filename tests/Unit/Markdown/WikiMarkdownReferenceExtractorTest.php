@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Markdown;
 
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\AllowlistIconResolver;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullPageResolver;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullUserResolver;
+use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use PHPUnit\Framework\TestCase;
+
+use function strtoupper;
 
 final class WikiMarkdownReferenceExtractorTest extends TestCase
 {
@@ -47,5 +54,24 @@ MD;
         self::assertSame([], $extractor->pageReferences(''));
         self::assertSame([], $extractor->pageReferences('No links here.'));
         self::assertSame([], $extractor->pageIds(null));
+    }
+
+    public function testMentionsOutsideCodeAndEmails(): void
+    {
+        $extractor = new WikiMarkdownReferenceExtractor(new WikiMarkdownRenderer());
+
+        self::assertSame(['ana', 'bob.c', 'dan_e'], $extractor->mentions("@ana and mail@example.com (@bob.c) `@carl`\n\n```\n@zed\n```\n\n@dan_e @ana"));
+        self::assertSame([], $extractor->mentions(null));
+        self::assertSame([], $extractor->mentions(''));
+    }
+
+    public function testTheBridgeParserIsUsedWhenTheRendererIsOne(): void
+    {
+        $renderer  = new MilkdownWikiMarkdownRenderer([], new NullPageResolver(), new NullUserResolver(), new AllowlistIconResolver());
+        $extractor = new WikiMarkdownReferenceExtractor($renderer);
+        $upper     = '[[wiki:' . strtoupper(self::A) . ']]';
+
+        self::assertSame([['id' => self::A, 'anchor' => 'x']], $extractor->pageReferences('[[wiki:' . self::A . '#x]] ' . $upper . ' @ana'));
+        self::assertSame(['ana'], $extractor->mentions('[[wiki:' . self::A . '#x]] @ana'));
     }
 }

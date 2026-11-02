@@ -26,6 +26,11 @@ use League\HTMLToMarkdown\Converter\TableConverter;
 use League\HTMLToMarkdown\Converter\TextConverter;
 use League\HTMLToMarkdown\Environment as HtmlEnvironment;
 use League\HTMLToMarkdown\HtmlConverter;
+use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiAlignedHeaderConverter;
+use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiAlignedParagraphConverter;
+use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiDialectTextConverter;
+use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiEmbedConverter;
+use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiMarkConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiStrikethroughConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiTaskItemConverter;
 use Nowo\WikiBundle\Markdown\WikiTaskListNormalizer;
@@ -62,9 +67,14 @@ final readonly class WikiMarkdownConverter
     /**
      * Configures the CommonMark + GFM converter (raw HTML stripped, unsafe links disabled) and the HTML-to-Markdown
      * converter (with its table converter).
+     *
+     * @param bool $dialect 1.13: write the Milkdown dialect (`nowo_wiki.editor.type: milkdown`) — page links and
+     *                      mentions kept as tokens, `<mark>` as `:mark[…]`, centred / right-aligned blocks in
+     *                      `::: {align=…}`, embeds as links
      */
-    public function __construct()
-    {
+    public function __construct(
+        public bool $dialect = false,
+    ) {
         $environment = new Environment([
             'html_input'         => 'strip',
             'allow_unsafe_links' => false,
@@ -84,6 +94,15 @@ final readonly class WikiMarkdownConverter
             new WikiStrikethroughConverter(),
         ] as $converter) {
             $htmlEnvironment->addConverter($converter);
+        }
+
+        if ($dialect) {
+            foreach ([
+                new WikiDialectTextConverter(), new WikiMarkConverter(), new WikiEmbedConverter(),
+                new WikiAlignedParagraphConverter(), new WikiAlignedHeaderConverter(),
+            ] as $converter) {
+                $htmlEnvironment->addConverter($converter);
+            }
         }
 
         $this->htmlConverter = new HtmlConverter($htmlEnvironment);

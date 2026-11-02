@@ -71,4 +71,23 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
 
         return new LegacyWikiSpaceAccessChecker($checker, $resolver);
     }
+
+    public function testMembershipsAreReadOncePerUserUntilReset(): void
+    {
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't');
+        $other    = new WikiSpace('hr', 'HR', WikiSpaceOwnerScope::Team, 't');
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->expects(self::exactly(3))->method('listSpacesForUser')->willReturn([$space]);
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver);
+
+        for ($i = 0; $i < 500; ++$i) {
+            self::assertTrue($checker->isGranted(new TestUser('u1', 'ana@x.test'), WikiAction::View, $space));
+        }
+
+        self::assertFalse($checker->isGranted(new TestUser('u1', 'ana@x.test'), WikiAction::View, $other));
+        self::assertTrue($checker->isGranted(new TestUser('u2', 'bob@x.test'), WikiAction::View, $space), 'another user is read on its own');
+
+        $checker->reset();
+        self::assertTrue($checker->isGranted(new TestUser('u1', 'ana@x.test'), WikiAction::View, $space), 'read again after kernel.reset');
+    }
 }

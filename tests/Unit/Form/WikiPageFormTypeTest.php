@@ -88,4 +88,15 @@ final class WikiPageFormTypeTest extends TypeTestCase
         $data = $form->getData();
         self::assertSame('# Title', $data->content);
     }
+
+    public function testMilkdownEditorUsesTheMarkdownFormType(): void
+    {
+        $form = $this->factory->create(WikiPageFormType::class, new WikiPageFormData(), [
+            'editor_type'        => 'milkdown',
+            'markdown_form_type' => TextType::class,
+        ]);
+
+        self::assertInstanceOf(TextType::class, $form->get('content')->getConfig()->getType()->getInnerType());
+        self::assertSame('wiki.editor.markdown_help', $form->get('content')->getConfig()->getOption('help'));
+    }
 }

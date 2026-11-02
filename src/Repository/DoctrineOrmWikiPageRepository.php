@@ -11,11 +11,13 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use SortDirection;
 
+use function array_values;
+
 /**
  * Lookups refresh already-managed pages ({@see Query::HINT_REFRESH}) so a page renamed or archived
  * by another worker is not served from a stale identity map.
  */
-final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepositoryInterface
+final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepositoryInterface, WikiPageBatchFinderInterface
 {
     /**
      * Creates the repository.
@@ -81,6 +83,31 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->getOneOrNullResult();
 
         return $page;
+    }
+
+    /**
+     * Finds the pages of the given ids in one query (1.13; archived pages included, unknown ids left out).
+     *
+     * @param list<string> $ids page ids
+     *
+     * @return list<WikiPage>
+     */
+    public function findByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        /* @var list<WikiPage> */
+        return $this->entityManager()->createQueryBuilder()
+            ->select('p', 's')
+            ->from(WikiPage::class, 'p')
+            ->join('p.space', 's')
+            ->where('p.id IN (:ids)')
+            ->setParameter('ids', array_values($ids))
+            ->getQuery()
+            ->setHint(Query::HINT_REFRESH, true)
+            ->getResult();
     }
 
     /**

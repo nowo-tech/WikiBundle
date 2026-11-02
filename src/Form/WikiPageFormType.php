@@ -40,7 +40,7 @@ final class WikiPageFormType extends AbstractType
             $this->addTextField('title', [
                 'label' => 'wiki.form.title',
             ]);
-            if ($options['editor_type'] === Configuration::EDITOR_MARKDOWN) {
+            if (Configuration::storesMarkdown($options['editor_type'])) {
                 $this->addMarkdownContent($options);
 
                 return;
@@ -55,7 +55,7 @@ final class WikiPageFormType extends AbstractType
     }
 
     /**
-     * The Markdown body (1.11, `editor.type: markdown`): the host form type of `editor.markdown_form_type` with the
+     * The Markdown body (1.11, `editor.type: markdown`; 1.13 `milkdown`): the host form type of `editor.markdown_form_type` with the
      * editor options, or a plain textarea.
      *
      * @param array<string, mixed> $options resolved options
@@ -102,14 +102,14 @@ final class WikiPageFormType extends AbstractType
             'tiptap_config'      => 'notion',
             // 1.9: extra TiptapEditorType options (upload / suggestion hooks), see WikiEvents::EDITOR_OPTIONS.
             'editor_options' => [],
-            // 1.11: tiptap (HTML) or markdown (textarea, or markdown_form_type).
+            // 1.11: tiptap (HTML) or markdown (textarea, or markdown_form_type); 1.13: milkdown (markdown_form_type).
             'editor_type'        => Configuration::EDITOR_TIPTAP,
             'markdown_form_type' => null,
         ]);
 
         $resolver->setAllowedTypes('tiptap_config', 'string');
         $resolver->setAllowedTypes('editor_options', 'array');
-        $resolver->setAllowedValues('editor_type', [Configuration::EDITOR_TIPTAP, Configuration::EDITOR_MARKDOWN]);
+        $resolver->setAllowedValues('editor_type', [Configuration::EDITOR_TIPTAP, Configuration::EDITOR_MARKDOWN, Configuration::EDITOR_MILKDOWN]);
         $resolver->setAllowedTypes('markdown_form_type', ['null', 'string']);
     }
 }

@@ -16,6 +16,8 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
+use function dirname;
+
 use const DIRECTORY_SEPARATOR;
 
 /**
@@ -102,13 +104,14 @@ final readonly class WikiDocumentExporter
         $tree   = $this->pageTreeBuilder->build($pages);
         $report = new WikiExportReport(outputPath: $targetDir);
 
+        $exported = $this->markdownConverter->dialect ? $this->exportedPaths($tree, $targetDir, $format) : [];
         if ($format === WikiInterchangeFormat::Notion) {
             foreach ($tree as $node) {
-                $this->exportNotionNode($node, $targetDir, $report);
+                $this->exportNotionNode($node, $targetDir, $report, $exported);
             }
         } else {
             foreach ($tree as $node) {
-                $this->exportOutlineNode($node, $targetDir, null, $report);
+                $this->exportOutlineNode($node, $targetDir, null, $report, $exported);
             }
         }
 
@@ -117,8 +120,9 @@ final readonly class WikiDocumentExporter
 
     /**
      * @param array{page: WikiPage, children: list<mixed>} $node
+     * @param array<string, array{path: string, title: string}> $exported page id => file of the exported pages (1.13)
      */
-    private function exportNotionNode(array $node, string $targetDir, WikiExportReport $report): void
+    private function exportNotionNode(array $node, string $targetDir, WikiExportReport $report, array $exported): void
     {
         $page   = $node['page'];
         $folder = $targetDir . DIRECTORY_SEPARATOR . $this->sanitizeFilesystemName($page->getTitle());
@@ -130,54 +134,89 @@ final readonly class WikiDocumentExporter
             $folder . DIRECTORY_SEPARATOR . $this->sanitizeFilesystemName($page->getTitle()) . '.md',
             $page,
             null,
+            $exported,
         );
         ++$report->pagesExported;
 
         /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
         $children = $node['children'];
         foreach ($children as $child) {
-            $this->exportNotionNode($child, $folder, $report);
+            $this->exportNotionNode($child, $folder, $report, $exported);
         }
     }
 
     /**
      * @param array{page: WikiPage, children: list<mixed>} $node
+     * @param array<string, array{path: string, title: string}> $exported page id => file of the exported pages (1.13)
      */
     private function exportOutlineNode(
         array $node,
         string $targetDir,
         ?WikiPage $parent,
         WikiExportReport $report,
+        array $exported,
     ): void {
         $page = $node['page'];
         $this->writeMarkdownFile(
             $targetDir . DIRECTORY_SEPARATOR . $page->getSlug() . '.md',
             $page,
             $parent,
+            $exported,
         );
         ++$report->pagesExported;
 
         /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
         $children = $node['children'];
         foreach ($children as $child) {
-            $this->exportOutlineNode($child, $targetDir, $page, $report);
+            $this->exportOutlineNode($child, $targetDir, $page, $report, $exported);
         }
     }
 
-    private function writeMarkdownFile(string $path, WikiPage $page, ?WikiPage $parent): void
+    /**
+     * @param array<string, array{path: string, title: string}> $exported
+     */
+    private function writeMarkdownFile(string $path, WikiPage $page, ?WikiPage $parent, array $exported): void
     {
         $revision = $page->getCurrentRevision();
-        // 1.11: a Markdown revision exports its source as is.
+        // 1.11: a Markdown revision exports its source as is (1.13: dialect page links to exported pages as file links).
         $markdown = $revision instanceof WikiPageRevision
             ? $revision->getContentMarkdown() ?? $this->markdownConverter->htmlToMarkdown($revision->getContentHtml())
             : '';
-        $meta = [
+        $markdown = WikiMarkdownPortableLinks::rewrite($markdown, dirname($path), $exported);
+        $meta     = [
             'title'       => $page->getTitle(),
             'wiki_slug'   => $page->getSlug(),
             'wiki_parent' => $parent?->getSlug() ?? '',
         ];
         $content = $this->frontMatterParser->serialize($meta, $markdown);
         file_put_contents($path, $content);
+    }
+
+    /**
+     * File path and title of every exported page, by page id (1.13, the same layout as the node writers).
+     *
+     * @param list<array{page: WikiPage, children: list<mixed>}> $nodes
+     *
+     * @return array<string, array{path: string, title: string}>
+     */
+    private function exportedPaths(array $nodes, string $directory, WikiInterchangeFormat $format): array
+    {
+        $paths = [];
+        foreach ($nodes as $node) {
+            $page = $node['page'];
+            $name = $this->sanitizeFilesystemName($page->getTitle());
+            $dir  = $format === WikiInterchangeFormat::Notion ? $directory . DIRECTORY_SEPARATOR . $name : $directory;
+
+            $paths[$page->getId()] = [
+                'path'  => $dir . DIRECTORY_SEPARATOR . ($format === WikiInterchangeFormat::Notion ? $name : $page->getSlug()) . '.md',
+                'title' => $page->getTitle(),
+            ];
+            /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
+            $children = $node['children'];
+            $paths += $this->exportedPaths($children, $dir, $format);
+        }
+
+        return $paths;
     }
 
     private function sanitizeFilesystemName(string $value): string

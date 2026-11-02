@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\DependencyInjection;
 
 use InvalidArgumentException;
+use Nowo\MilkdownEditorBundle\Form\MilkdownEditorType;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimits;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
@@ -35,6 +36,15 @@ final class Configuration implements ConfigurationInterface
     /** editor.type: Markdown pages (1.11). */
     public const EDITOR_MARKDOWN = 'markdown';
 
+    /**
+     * editor.type: Markdown pages in the nowo-tech/milkdown-editor-bundle dialect (1.13): MilkdownEditorType as the page
+     * body, the dialect renderer (page links, mentions, Tabler icons, directives, math, Mermaid) and its limits.
+     */
+    public const EDITOR_MILKDOWN = 'milkdown';
+
+    /** Form type of the page body with editor.type milkdown (nowo-tech/milkdown-editor-bundle). */
+    public const MILKDOWN_FORM_TYPE = MilkdownEditorType::class;
+
     /** Default of security.access_roles. */
     public const DEFAULT_ACCESS_ROLES = ['ROLE_USER'];
 
@@ -50,6 +60,16 @@ final class Configuration implements ConfigurationInterface
         'import'  => ['ROLE_ADMIN'],
         'export'  => ['ROLE_USER'],
     ];
+
+    /**
+     * Whether pages of the editor type are stored as Markdown (`markdown` and `milkdown`, 1.13).
+     *
+     * @param string $editorType value of nowo_wiki.editor.type
+     */
+    public static function storesMarkdown(string $editorType): bool
+    {
+        return $editorType === self::EDITOR_MARKDOWN || $editorType === self::EDITOR_MILKDOWN;
+    }
 
     /**
      * Builds the {@code nowo_wiki} configuration tree (user class, tables, routes, templates, security, AI, import/export, pagination, web UI).
@@ -175,8 +195,8 @@ final class Configuration implements ConfigurationInterface
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->enumNode('type')
-                            ->info('1.11: tiptap = pages are HTML edited with TiptapEditorType; markdown = pages are stored as Markdown (content_markdown, the source) with content_html as its sanitized render cache, edited in a textarea or in markdown_form_type.')
-                            ->values([self::EDITOR_TIPTAP, self::EDITOR_MARKDOWN])
+                            ->info('1.11: tiptap = pages are HTML edited with TiptapEditorType; markdown = pages are stored as Markdown (content_markdown, the source) with content_html as its sanitized render cache, edited in a textarea or in markdown_form_type. 1.13: milkdown = markdown with nowo-tech/milkdown-editor-bundle (MilkdownEditorType and its dialect renderer).')
+                            ->values([self::EDITOR_TIPTAP, self::EDITOR_MARKDOWN, self::EDITOR_MILKDOWN])
                             ->defaultValue(self::EDITOR_TIPTAP)
                         ->end()
                         ->scalarNode('tiptap_config')->defaultValue('notion')->end()
@@ -186,6 +206,16 @@ final class Configuration implements ConfigurationInterface
                             ->validate()
                                 ->ifTrue(static fn (mixed $value): bool => $value !== null && (!is_string($value) || !class_exists($value)))
                                 ->thenInvalid('nowo_wiki.editor.markdown_form_type must be the class name of a form type, got %s.')
+                            ->end()
+                        ->end()
+                        ->arrayNode('milkdown')
+                            ->info('1.13: options of editor.type milkdown.')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->scalarNode('page_resolver')
+                                    ->info('Service id of the Nowo\\MilkdownEditorBundle\\Markdown\\Resolver\\PageResolverInterface that resolves [[wiki:<uuid>]] links for the viewer in wiki pages; null = the bundle resolver (wiki pages the viewer may read, page_view URLs).')
+                                    ->defaultNull()
+                                ->end()
                             ->end()
                         ->end()
                     ->end()

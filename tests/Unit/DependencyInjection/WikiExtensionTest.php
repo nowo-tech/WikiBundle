@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
 
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use LogicException;
+use Nowo\MilkdownEditorBundle\Form\MilkdownEditorType;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
@@ -14,6 +15,11 @@ use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
+use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
@@ -39,6 +45,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
@@ -84,6 +91,64 @@ final class WikiExtensionTest extends TestCase
         self::assertSame('markdown', $container->getParameter('nowo_wiki.editor.type'));
         self::assertSame('%nowo_wiki.editor.type%', $container->getDefinition(WikiDocumentImporter::class)->getArgument('$editorType'));
         self::assertArrayHasKey('nowo_wiki.markdown_extension', $container->getAutoconfiguredInstanceof()[WikiMarkdownExtensionInterface::class]->getTags());
+    }
+
+    public function testMilkdownEditorWiresTheBridge(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'editor'     => ['type' => 'milkdown'],
+            'sanitizer'  => ['extra_allowed_elements' => ['details' => ['data-x']], 'extra_allowed_attributes' => ['data-callout', 'role']],
+        ]], $container);
+
+        self::assertSame(MilkdownWikiMarkdownRenderer::class, (string) $container->getAlias(WikiMarkdownRendererInterface::class));
+        self::assertSame(MilkdownEditorType::class, $container->getParameter('nowo_wiki.editor')['markdown_form_type']);
+        self::assertSame('milkdown', $container->getParameter('nowo_wiki.editor.type'));
+        self::assertTrue($container->getDefinition(WikiMarkdownConverter::class)->getArgument('$dialect'));
+        self::assertTrue($container->hasDefinition(WikiMilkdownIconHydrator::class));
+        self::assertTrue($container->hasDefinition(WikiMilkdownRichContent::class));
+        self::assertSame(WikiMilkdownPageResolver::class, (string) $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$pages'));
+
+        $sanitizer = $container->getDefinition(WikiHtmlSanitizer::class);
+        self::assertSame(['details' => ['data-x', 'open'], 'summary' => []], $sanitizer->getArgument('$extraAllowedElements'));
+        self::assertSame(['data-callout', 'role', 'aria-label', 'data-math', 'data-directive', 'data-icon'], $sanitizer->getArgument('$extraAllowedAttributes'));
+    }
+
+    public function testMilkdownEditorTakesTheHostPageResolverAndFormType(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'editor'     => ['type' => 'milkdown', 'markdown_form_type' => TextareaType::class, 'milkdown' => ['page_resolver' => 'app.wiki_pages']],
+        ]], $container);
+
+        self::assertSame(TextareaType::class, $container->getParameter('nowo_wiki.editor')['markdown_form_type']);
+        self::assertSame('app.wiki_pages', (string) $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$pages'));
+    }
+
+    public function testMilkdownEditorNeedsTheMilkdownBundle(): void
+    {
+        $method = new ReflectionMethod(WikiExtension::class, 'milkdownDefaults');
+
+        self::assertSame(['editor' => ['type' => 'tiptap']], $method->invoke(new WikiExtension(), ['editor' => ['type' => 'tiptap']], 'Missing\\Renderer'));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('nowo-tech/milkdown-editor-bundle');
+        $method->invoke(new WikiExtension(), ['editor' => ['type' => 'milkdown']], 'Missing\\Renderer');
+    }
+
+    public function testOtherEditorsKeepTheDefaultConverterAndNoBridge(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'markdown']]], $container);
+
+        self::assertFalse($container->hasDefinition(MilkdownWikiMarkdownRenderer::class));
+        self::assertSame([], $container->getDefinition(WikiMarkdownConverter::class)->getArguments());
+        self::assertNull($container->getParameter('nowo_wiki.editor')['markdown_form_type']);
     }
 
     /**

@@ -9,21 +9,29 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Default space checker: the 1.x behaviour (the user-level {@see WikiAccessCheckerInterface} decision plus
  * membership of the space through {@see WikiSpaceAccessResolverInterface}), so applications that configure no space
  * checker keep working unchanged.
+ *
+ * 1.13 (audit CV-L1): the spaces of a user are read once per request — a page with many links to one space asks
+ * {@see WikiSpaceAccessResolverInterface::listSpacesForUser()} once, not once per link. The memo is keyed by user
+ * identifier and cleared by {@see self::reset()} (`kernel.reset`), so a FrankenPHP worker never carries it over.
  */
-final readonly class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterface
+final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterface, ResetInterface
 {
+    /** @var array<string, array<string, true>> user identifier => ids of the spaces the user belongs to (this request) */
+    private array $memberships = [];
+
     /**
      * @param WikiAccessCheckerInterface $accessChecker user-level checker of 1.x
      * @param WikiSpaceAccessResolverInterface $spaceAccessResolver spaces the user belongs to
      */
     public function __construct(
-        private WikiAccessCheckerInterface $accessChecker,
-        private WikiSpaceAccessResolverInterface $spaceAccessResolver,
+        private readonly WikiAccessCheckerInterface $accessChecker,
+        private readonly WikiSpaceAccessResolverInterface $spaceAccessResolver,
     ) {
     }
 
@@ -57,15 +65,27 @@ final readonly class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessChec
         };
     }
 
+    /**
+     * Forgets the memberships read during the request (`kernel.reset`).
+     */
+    public function reset(): void
+    {
+        $this->memberships = [];
+    }
+
     /** The 1.x membership rule: the space is one of the user's spaces. */
     private function isMember(UserInterface $user, WikiSpace $space): bool
     {
-        foreach ($this->spaceAccessResolver->listSpacesForUser($user) as $accessible) {
-            if ($accessible->getId() === $space->getId()) {
-                return true;
+        $key = $user->getUserIdentifier();
+        if (!isset($this->memberships[$key])) {
+            $ids = [];
+            foreach ($this->spaceAccessResolver->listSpacesForUser($user) as $accessible) {
+                $ids[$accessible->getId()] = true;
             }
+
+            $this->memberships[$key] = $ids;
         }
 
-        return false;
+        return isset($this->memberships[$key][$space->getId()]);
     }
 }

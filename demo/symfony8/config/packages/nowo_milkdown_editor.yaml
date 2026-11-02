@@ -1,0 +1,16 @@
+# Milkdown editor of the wiki pages (nowo_wiki.editor.type: milkdown) and the renderer options the wiki bridge uses
+# (limits, icon allowlist). public/tabler-sprite.svg: committed Tabler icons (MIT), as in the Milkdown demo.
+nowo_milkdown_editor:
+    default_profile: wiki
+    profiles:
+        wiki:
+            features: [toolbar, link_tooltip, table, code_mirror, math, mermaid, placeholder, cursor, slash_menu]
+            theme: auto
+            min_height: 18rem
+            icon_sprite_url: /tabler-sprite.svg
+            icons: &icons [alert-triangle, bell, book, bulb, check, home, info-circle, rocket, server, settings, star, tool]
+            upload_max_size: 2097152
+            upload_accept: ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf']
+    markdown:
+        icon_sprite_url: /tabler-sprite.svg
+        icons: *icons

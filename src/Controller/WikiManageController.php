@@ -26,6 +26,7 @@ use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
+use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
@@ -110,6 +111,7 @@ final class WikiManageController extends AbstractController
      * @param TranslatorInterface|null $translator translates flash messages in the NowoWikiBundle domain when they are added (1.10)
      * @param WikiMarkdownConverter|null $markdownConverter turns an HTML revision into the Markdown of the editor (1.11)
      * @param WikiTenantPaths|null $tenantPaths tenant paths (1.12: with {@code tenant_only} the search keeps its space)
+     * @param WikiRevisionBodyRenderer|null $bodyRenderer renders the page body for the viewer (1.13; null = stored HTML)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -140,6 +142,7 @@ final class WikiManageController extends AbstractController
         private readonly ?TranslatorInterface $translator = null,
         ?WikiMarkdownConverter $markdownConverter = null,
         private readonly ?WikiTenantPaths $tenantPaths = null,
+        private readonly ?WikiRevisionBodyRenderer $bodyRenderer = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -266,7 +269,8 @@ final class WikiManageController extends AbstractController
 
         return $this->renderPage('page_view', [
             'page'             => $pages->pageView($space, $page, $can, $archiveForm),
-            'content_html'     => $page->getCurrentRevision()?->getContentHtml() ?? '',
+            'content_html'     => $this->revisionBody($page->getCurrentRevision()),
+            'rich_content'     => $this->bodyRenderer?->hasRichContent() ?? false,
             'tree'             => $pages->tree($space, $tree, $page->getSlug()),
             'tree_truncated'   => $treeTruncated,
             'max_tree_pages'   => $this->pagination['max_tree_pages'],
@@ -1030,11 +1034,24 @@ final class WikiManageController extends AbstractController
     }
 
     /**
-     * Revision format written by the page form: Markdown with `editor.type: markdown` (1.11), HTML otherwise.
+     * Body of the page view: the revision rendered for the viewer (1.13, Milkdown dialect) or its stored HTML.
+     */
+    private function revisionBody(?WikiPageRevision $revision): string
+    {
+        if (!$revision instanceof WikiPageRevision) {
+            return '';
+        }
+
+        return $this->bodyRenderer instanceof WikiRevisionBodyRenderer ? $this->bodyRenderer->body($revision) : $revision->getContentHtml();
+    }
+
+    /**
+     * Revision format written by the page form: Markdown with `editor.type: markdown` (1.11) or `milkdown` (1.13), HTML
+     * otherwise.
      */
     private function editorFormat(): string
     {
-        return ($this->editor['type'] ?? Configuration::EDITOR_TIPTAP) === Configuration::EDITOR_MARKDOWN
+        return Configuration::storesMarkdown($this->editor['type'] ?? Configuration::EDITOR_TIPTAP)
             ? WikiPageRevision::FORMAT_MARKDOWN
             : WikiPageRevision::FORMAT_HTML;
     }

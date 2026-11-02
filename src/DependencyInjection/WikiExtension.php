@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\DependencyInjection;
 
 use LogicException;
+use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
+use Nowo\MilkdownEditorBundle\Twig\MilkdownEditorTwig;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
@@ -16,9 +20,15 @@ use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
+use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
+use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
@@ -43,6 +53,7 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
+use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
@@ -53,6 +64,7 @@ use Nowo\WikiBundle\Ui\WikiPages;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
@@ -65,7 +77,10 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 use function array_diff_key;
 use function array_filter;
 use function array_key_exists;
+use function array_merge;
+use function array_unique;
 use function array_values;
+use function class_exists;
 use function is_array;
 use function is_bool;
 use function is_string;
@@ -78,6 +93,15 @@ use function str_starts_with;
  */
 final class WikiExtension extends Extension implements PrependExtensionInterface
 {
+    /** 1.13: elements of the Milkdown dialect markup kept by the sanitizer with editor.type milkdown. */
+    public const MILKDOWN_SANITIZER_ELEMENTS = ['details' => ['open'], 'summary' => []];
+
+    /**
+     * 1.13: attributes of the Milkdown dialect markup kept on every allowed element with editor.type milkdown
+     * (callout / icon roles and labels, math and directive markers, icon placeholders).
+     */
+    public const MILKDOWN_SANITIZER_ATTRIBUTES = ['role', 'aria-label', 'data-math', 'data-directive', 'data-icon'];
+
     /**
      * Processes the {@code nowo_wiki} configuration, sets the bundle parameters and registers the services and aliases.
      *
@@ -93,6 +117,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $configuration = new Configuration();
         $config        = $this->processConfiguration($configuration, $configs);
         $roles         = Configuration::resolveRoles($config['security']);
+        $config        = $this->milkdownDefaults($config);
 
         // BB L1: the switches that open the wiki must be literal booleans (an env placeholder string would be truthy).
         $config['web_ui']['enabled']                 = $this->literalBool($config['web_ui']['enabled'], 'web_ui.enabled');
@@ -199,6 +224,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(WikiHtmlSanitizer::class, (new Definition(WikiHtmlSanitizer::class))
             ->setArgument('$extraAllowedElements', $config['sanitizer']['extra_allowed_elements'])
             ->setArgument('$extraAllowedAttributes', array_values($config['sanitizer']['extra_allowed_attributes'])));
+        if ($config['editor']['type'] === Configuration::EDITOR_MILKDOWN) {
+            $this->registerMilkdown($container, $config);
+        }
 
         $container->setDefinition(WikiEntityManagerProvider::class, (new Definition(WikiEntityManagerProvider::class))
             ->setArgument('$registry', new Reference('doctrine'))
@@ -242,13 +270,86 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
+     * 1.13: `editor.type: milkdown` — the page body is MilkdownEditorType unless `markdown_form_type` names another type,
+     * and the sanitizer keeps the markup of the dialect ({@see self::MILKDOWN_SANITIZER_ELEMENTS} /
+     * {@see self::MILKDOWN_SANITIZER_ATTRIBUTES}) on top of the host's extra allowlist.
+     *
+     * @param array<string, mixed> $config processed configuration
+     * @param string $milkdownRenderer class that proves nowo-tech/milkdown-editor-bundle is installed
+     *
+     * @throws LogicException when nowo-tech/milkdown-editor-bundle is not installed
+     *
+     * @return array<string, mixed> the configuration with the Milkdown defaults
+     */
+    private function milkdownDefaults(array $config, string $milkdownRenderer = MilkdownMarkdownRenderer::class): array
+    {
+        if ($config['editor']['type'] !== Configuration::EDITOR_MILKDOWN) {
+            return $config;
+        }
+
+        if (!class_exists($milkdownRenderer)) {
+            throw new LogicException('nowo_wiki.editor.type "milkdown" requires nowo-tech/milkdown-editor-bundle (composer require nowo-tech/milkdown-editor-bundle) with NowoMilkdownEditorBundle registered.');
+        }
+
+        $config['editor']['markdown_form_type'] ??= Configuration::MILKDOWN_FORM_TYPE;
+        foreach (self::MILKDOWN_SANITIZER_ELEMENTS as $element => $attributes) {
+            $config['sanitizer']['extra_allowed_elements'][$element] = array_values(array_unique(array_merge($config['sanitizer']['extra_allowed_elements'][$element] ?? [], $attributes)));
+        }
+
+        $config['sanitizer']['extra_allowed_attributes'] = array_values(array_unique(array_merge($config['sanitizer']['extra_allowed_attributes'], self::MILKDOWN_SANITIZER_ATTRIBUTES)));
+
+        return $config;
+    }
+
+    /**
+     * 1.13: the Milkdown ↔ wiki bridge — the dialect renderer (alias of {@see WikiMarkdownRendererInterface}), the
+     * per-viewer page resolver, the icon hydrator and the read-side assets. {@see MilkdownBridgePass} gives the
+     * renderer the `nowo_milkdown_editor.markdown` options (limits) once every extension is loaded.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerMilkdown(ContainerBuilder $container, array $config): void
+    {
+        $container->setDefinition(WikiMilkdownPageResolver::class, (new Definition(WikiMilkdownPageResolver::class))
+            ->setArgument('$pages', new Reference(WikiPageRepositoryInterface::class))
+            ->setArgument('$spaceAccess', new Reference(WikiSpaceAccessCheckerInterface::class))
+            ->setArgument('$accessChecker', new Reference(WikiAccessCheckerInterface::class))
+            ->setArgument('$tokenStorage', new Reference('security.token_storage', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$urlGenerator', new Reference('router', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$routes', $config['routes'])
+            ->setArgument('$tokenGuard', new Reference(WikiTokenGuard::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+
+        $pageResolver = $config['editor']['milkdown']['page_resolver'] ?? null;
+        $container->setDefinition(MilkdownWikiMarkdownRenderer::class, (new Definition(MilkdownWikiMarkdownRenderer::class))
+            ->setArgument('$options', [])
+            ->setArgument('$pages', new Reference(is_string($pageResolver) && $pageResolver !== '' ? $pageResolver : WikiMilkdownPageResolver::class))
+            ->setArgument('$users', new Reference(UserResolverInterface::class))
+            ->setArgument('$icons', new Reference(IconResolverInterface::class))
+            ->setArgument('$directiveRenderers', new TaggedIteratorArgument('nowo_milkdown_editor.directive_renderer'))
+            ->setArgument('$extensions', new TaggedIteratorArgument('nowo_wiki.markdown_extension'))
+            ->setArgument('$translator', new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+        $container->setAlias(WikiMarkdownRendererInterface::class, MilkdownWikiMarkdownRenderer::class);
+
+        // HTML revisions opened in the editor, exported or converted by wiki:convert-markdown are written in the dialect.
+        $container->getDefinition(WikiMarkdownConverter::class)->setArgument('$dialect', true);
+        $container->setDefinition(WikiMilkdownIconHydrator::class, (new Definition(WikiMilkdownIconHydrator::class))
+            ->setArgument('$icons', new Reference(IconResolverInterface::class)));
+        $container->setDefinition(WikiMilkdownRichContent::class, (new Definition(WikiMilkdownRichContent::class))
+            ->setArgument('$twig', new Reference(MilkdownEditorTwig::class)));
+    }
+
+    /**
      * 1.9: space-aware access (host overrides the aliases), link resolvers and tenant routes.
      *
      * @param array<string, mixed> $config processed configuration
      */
     private function registerSpaceAccess(ContainerBuilder $container, array $config): void
     {
-        $container->setDefinition(LegacyWikiSpaceAccessChecker::class, (new Definition(LegacyWikiSpaceAccessChecker::class))->setAutowired(true));
+        $container->setDefinition(LegacyWikiSpaceAccessChecker::class, (new Definition(LegacyWikiSpaceAccessChecker::class))
+            ->setAutowired(true)
+            ->addTag('kernel.reset', ['method' => 'reset']));
         $container->setAlias(WikiSpaceAccessCheckerInterface::class, LegacyWikiSpaceAccessChecker::class);
         $container->setDefinition(AccessibleWikiSpaceLocator::class, (new Definition(AccessibleWikiSpaceLocator::class))->setAutowired(true));
         $container->setAlias(WikiSpaceLocatorInterface::class, AccessibleWikiSpaceLocator::class);
