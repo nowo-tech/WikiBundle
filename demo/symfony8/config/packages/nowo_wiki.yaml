@@ -5,6 +5,9 @@ nowo_wiki:
     # The seeded HTML pages stay HTML until edited or converted (bin/console wiki:convert-markdown).
     editor:
         type: milkdown
+    # 1.14: the Outline-style page tree (UiKit tree: fold state, drag, Alt+arrows, Move form).
+    tree:
+        enabled: true
     ai:
         enabled: true
         agent: wiki_assistant

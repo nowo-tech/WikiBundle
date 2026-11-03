@@ -46,6 +46,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Outline-style page tree** (`tree.enabled`, opt-in, T062 / T049): the sidebar renders the UiKit 2.24 `tree`
+  (WAI-ARIA treeview: one tab stop, arrows, Home / End, type-ahead, `*`) with disclosures, the current page's branch
+  unfolded and the fold state of each user and space applied by the server (no flash; kept in the session unless
+  `tree.state_store` names your service). Users who may edit move pages by dragging (drop line, *inside* / *between*),
+  with **Alt+↑ / ↓ / ← / →** (reorder, nest under the previous page, move out) or with the **Move** form of a page
+  (parent + position; the single-pointer and no-JavaScript alternative). Moves are announced in a live region.
+- **Moves on the server** (`WikiPageMover`): same space, no cycles, `tree.max_depth` (default 10), edit rights on the
+  page, its old and its new parent; one transaction that locks the space; sparse sibling positions (one row written
+  per move; siblings renumbered once when they share a position). `nowo_wiki.page.moved` (`WikiPageMovedEvent`:
+  page, from, to, index, actor, time) is the audit hook. Endpoints: `POST …/tree/move` and `POST …/tree/state` (JSON,
+  same origin, CSRF token per space, 4 KB bodies), `GET|POST …/pages/{pageSlug}/move`. Without the tree none of them
+  is registered and every page is byte-identical to 1.13.
+- Requires `nowo-tech/ui-kit-bundle` ^2.24 (tree component).
+
 ### Changed
 
 - **`ext-iconv` is required** (audit DA-I8): `show_names` transliterates names with iconv and, without it, falls back

@@ -5,6 +5,21 @@ wiki:
     reset_confirm_message: "Todas as pessoas que editam esta página voltam a carregá-la a partir da última versão guardada; as alterações não guardadas da sessão partilhada perdem-se."
     reset_capped: "A sessão partilhada foi reiniciada demasiadas vezes nos últimos minutos: não foi reiniciada agora. Tente mais tarde ou guarde a página."
     rate_limited: "Demasiados pedidos: a sessão partilhada não foi reiniciada. Tente novamente daqui a pouco."
+  tree:
+    move: "Mover"
+    move_title: "Mover «%title%»"
+    move_parent: "Página superior"
+    move_root: "Nível superior"
+    move_position: "Posição"
+    move_position_help: "1 é o primeiro lugar; deixe vazio para colocar a página no fim."
+    moved_under: "«%title%» movida para dentro de «%parent%», posição %position% de %count%."
+    moved_root: "«%title%» movida para o nível superior, posição %position% de %count%."
+    error:
+      page_missing: "A página já não existe."
+      parent_missing: "A nova página superior já não existe."
+      cycle: "Uma página não pode ser movida para dentro de si mesma nem das suas subpáginas."
+      too_deep: "A árvore de páginas ficaria demasiado profunda."
+      failed: "Não foi possível mover a página."
   title: Wiki
   back_dashboard: Voltar ao painel
   index:

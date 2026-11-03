@@ -27,6 +27,9 @@ services:
             - '../../Markdown/Milkdown/'
             - '../../Collaboration/'
             - '../../Controller/'
+            # 1.14: registered by WikiExtension only with tree.enabled (controllers get null otherwise).
+            - '../../Tree/'
+            - '../../Service/WikiPageMover.php'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
@@ -92,6 +95,11 @@ services:
             $attachments: '%nowo_wiki.attachments%'
             $pageFactory: '@Nowo\WikiBundle\Ui\WikiPageFactory'
             $translator: '@?translator'
+
+    Nowo\WikiBundle\Controller\WikiTreeController:
+        public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
 
     Nowo\WikiBundle\Controller\WikiCollabController:
         public: true

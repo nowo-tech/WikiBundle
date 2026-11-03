@@ -5,6 +5,21 @@ wiki:
     reset_confirm_message: "Chi modifica questa pagina la ricarica dall'ultima versione salvata; le modifiche non salvate della sessione condivisa vanno perse."
     reset_capped: "La sessione condivisa è stata reimpostata troppe volte negli ultimi minuti: ora non è stata reimpostata. Riprova più tardi o salva la pagina."
     rate_limited: "Troppe richieste: la sessione condivisa non è stata reimpostata. Riprova tra un momento."
+  tree:
+    move: "Sposta"
+    move_title: "Sposta «%title%»"
+    move_parent: "Pagina superiore"
+    move_root: "Livello principale"
+    move_position: "Posizione"
+    move_position_help: "1 è il primo posto; lascia vuoto per metterla in fondo."
+    moved_under: "«%title%» spostata sotto «%parent%», posizione %position% di %count%."
+    moved_root: "«%title%» spostata al livello principale, posizione %position% di %count%."
+    error:
+      page_missing: "La pagina non esiste più."
+      parent_missing: "La nuova pagina superiore non esiste più."
+      cycle: "Una pagina non può essere spostata in sé stessa o in una sua sottopagina."
+      too_deep: "L’albero delle pagine diventerebbe troppo profondo."
+      failed: "Impossibile spostare la pagina."
   title: Wiki
   back_dashboard: Torna alla dashboard
   index:

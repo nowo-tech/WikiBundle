@@ -3,6 +3,8 @@
   card_body), the truncation notice with a link to the space search. Variables: tree (value-free nodes),
   tree_truncated, max_tree_pages, tree_search_href (null = no link), bundle, actions (optional list of View\Action
   printed in the header, e.g. New page).
+  1.14: tree_ui ({nodes, attr, movable} from WikiPageFactory::uiTree() / treeAttributes(), tree.enabled) renders the
+  UiKit `tree` partial instead of the nested list (disclosures, fold state, moves; js/nowo-ui-tree.js + wiki.js).
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
 <aside class="{{ nowo_ui_class('card', bundle) }} nowo-wiki-sidebar" data-wiki-sidebar{{ nowo_ui_attrs('card', bundle) }}>
@@ -12,6 +14,8 @@
     <nav class="{{ nowo_ui_class('card_body', bundle) }} nowo-wiki-sidebar__body" aria-label="{{ 'wiki.space.pages'|trans }}">
         {% if tree is empty %}
             <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.space.no_pages'|trans }}</p>
+        {% elseif tree_ui|default(null) %}
+            {{ include(nowo_ui_partial('tree', bundle), {nodes: tree_ui.nodes, label: 'wiki.space.pages'|trans, attr: tree_ui.attr|merge({'data-wiki-tree-error': 'wiki.tree.error.failed'|trans}), movable: tree_ui.movable, bundle: bundle}, false) }}
         {% else %}
             {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {nodes: tree, depth: 0}, false) }}
         {% endif %}

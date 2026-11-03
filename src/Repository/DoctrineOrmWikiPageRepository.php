@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Repository;
 
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use SortDirection;
+use Throwable;
 
 use function array_values;
 
@@ -17,7 +19,7 @@ use function array_values;
  * Lookups refresh already-managed pages ({@see Query::HINT_REFRESH}) so a page renamed or archived
  * by another worker is not served from a stale identity map.
  */
-final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepositoryInterface, WikiPageBatchFinderInterface
+final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepositoryInterface, WikiPageBatchFinderInterface, WikiPageTreeWriterInterface
 {
     /**
      * Creates the repository.
@@ -39,6 +41,42 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
         $entityManager = $this->entityManager();
         $entityManager->persist($page);
         $entityManager->flush();
+    }
+
+    /**
+     * Starts the space-locked transaction of a tree change (1.14): a write lock on the space row.
+     */
+    public function beginSpaceTransaction(WikiSpace $space): void
+    {
+        $entityManager = $this->entityManager();
+        $entityManager->beginTransaction();
+        try {
+            // The space row is the lock of its tree: concurrent moves of one space wait for each other.
+            $entityManager->createQueryBuilder()
+                ->select('s.id')
+                ->from(WikiSpace::class, 's')
+                ->where('s.id = :id')
+                ->setParameter('id', $space->getId())
+                ->getQuery()
+                ->setLockMode(LockMode::PESSIMISTIC_WRITE)
+                ->getSingleColumnResult();
+        } catch (Throwable $exception) {
+            $entityManager->rollback();
+
+            throw $exception;
+        }
+    }
+
+    public function commitSpaceTransaction(): void
+    {
+        $entityManager = $this->entityManager();
+        $entityManager->flush();
+        $entityManager->commit();
+    }
+
+    public function rollbackSpaceTransaction(): void
+    {
+        $this->entityManager()->rollback();
     }
 
     /**

@@ -26,6 +26,7 @@ use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
+use function array_fill_keys;
 use function count;
 use function is_array;
 
@@ -37,7 +38,8 @@ use function is_array;
  * arrays of strings, booleans and URLs. The controller and the page contract test share it, so the test renders exactly
  * the view models the application gets. Stateless: safe in worker mode.
  *
- * @phpstan-type TreeNode array{title: string, href: string, current: bool, children: list<mixed>}
+ * @phpstan-type TreeNode array{id: string, title: string, href: string, current: bool, children: list<mixed>}
+ * @phpstan-type UiTreeNode array{id: string, label: string, href: string, current: bool, expanded: bool, children: list<mixed>}
  * @phpstan-type SourceNode array{page: WikiPage, children: list<mixed>}
  * @phpstan-type Hit array{page: WikiPage, space: WikiSpace, excerpt: string}
  */
@@ -157,7 +159,7 @@ final readonly class WikiPageFactory
      * Page view: Edit / History / Archive (POST + CSRF behind a Confirm) in the header, revision meta; the template
      * renders the tree, the sanitized content and "Used in".
      *
-     * @param array{edit: bool, history: bool} $can what the user may do on the page
+     * @param array{edit: bool, history: bool, move?: bool} $can what the user may do on the page (1.14: move)
      * @param FormView|null $archiveForm CSRF form of the archive action (null = no archive action)
      */
     public function pageView(WikiSpace $space, WikiPage $page, array $can, ?FormView $archiveForm = null): ShowPage
@@ -169,6 +171,9 @@ final readonly class WikiPageFactory
         }
         if ($can['history'] && $this->has('page_history')) {
             $actions[] = new Action('view', WikiPages::label('wiki.page.history'), $this->url('page_history', $params), attributes: ['data-testid' => 'wiki-history']);
+        }
+        if (($can['move'] ?? false) && $this->has('page_move')) {
+            $actions[] = new Action('edit', WikiPages::label('wiki.tree.move'), $this->url('page_move', $params), attributes: ['data-testid' => 'wiki-move']);
         }
         if ($archiveForm instanceof FormView && $this->has('page_archive')) {
             $actions[] = new Action(
@@ -398,7 +403,7 @@ final readonly class WikiPageFactory
     }
 
     /**
-     * Value-free page tree: title, URL, current flag and children per node.
+     * Value-free page tree: id (1.14), title, URL, current flag and children per node.
      *
      * @param list<SourceNode> $nodes {@see WikiPageTreeBuilder::build()} nodes
      *
@@ -411,6 +416,7 @@ final readonly class WikiPageFactory
             /** @var list<SourceNode> $children */
             $children = is_array($node['children']) ? $node['children'] : [];
             $tree[]   = [
+                'id'       => $node['page']->getId(),
                 'title'    => $node['page']->getTitle(),
                 'href'     => $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $node['page']->getSlug()]),
                 'current'  => $currentSlug !== null && $node['page']->getSlug() === $currentSlug,
@@ -419,6 +425,88 @@ final readonly class WikiPageFactory
         }
 
         return $tree;
+    }
+
+    /**
+     * Nodes of the UiKit `tree` partial (1.14, `tree.enabled`): the {@see self::tree()} nodes with the fold state of the
+     * user (`expanded` for the ids in it; the current branch is always unfolded by the partial).
+     *
+     * @param list<TreeNode> $nodes
+     * @param list<string> $expanded ids of the pages the user expanded
+     *
+     * @return list<UiTreeNode>
+     */
+    public function uiTree(array $nodes, array $expanded): array
+    {
+        $open = array_fill_keys($expanded, true);
+        $map  = static function (array $nodes) use (&$map, $open): array {
+            $out = [];
+            foreach ($nodes as $node) {
+                /** @var TreeNode $node */
+                /** @var list<TreeNode> $children */
+                $children = $node['children'];
+                $out[]    = [
+                    'id'       => $node['id'],
+                    'label'    => $node['title'],
+                    'href'     => $node['href'],
+                    'current'  => $node['current'],
+                    'expanded' => isset($open[$node['id']]),
+                    'children' => $map($children),
+                ];
+            }
+
+            return $out;
+        };
+
+        /* @var list<UiTreeNode> */
+        return $map($nodes);
+    }
+
+    /**
+     * Root attributes of the page tree (1.14): the endpoints and CSRF token read by wiki.js, `data-wiki-tree-movable`
+     * when the user may move pages of the space.
+     *
+     * @return array<string, bool|string>
+     */
+    public function treeAttributes(WikiSpace $space, string $token, bool $movable): array
+    {
+        $attributes = [
+            'id'                   => 'nowo-wiki-tree',
+            'data-wiki-tree'       => true,
+            'data-wiki-tree-state' => $this->url('space_tree', ['spaceSlug' => $space->getSlug(), 'action' => 'state']),
+            'data-wiki-tree-token' => $token,
+            'data-testid'          => 'wiki-tree',
+        ];
+        if ($movable) {
+            $attributes['data-wiki-tree-move'] = $this->url('space_tree', ['spaceSlug' => $space->getSlug(), 'action' => 'move']);
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * The "Move" form of a page (1.14): new parent and position, Move, Cancel back to the page.
+     */
+    public function pageMove(WikiSpace $space, WikiPage $page, FormView $form): FormPage
+    {
+        $back = $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+
+        return new FormPage(
+            header: new PageHeader(
+                WikiPages::label('wiki.tree.move_title', ['%title%' => $page->getTitle()]),
+                $space->getName(),
+                [],
+                breadcrumbs: $this->crumbs($space, $page, WikiPages::label('wiki.tree.move')),
+                back: new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
+            ),
+            form: $form,
+            submitLabel: WikiPages::label('wiki.tree.move'),
+            cancelHref: $back,
+            cancelLabel: WikiPages::label('wiki.action.cancel'),
+            bundle: WikiPages::BUNDLE,
+            layout: $this->pages->layout(),
+            attributes: ['data-testid' => 'wiki-page-move'],
+        );
     }
 
     /**

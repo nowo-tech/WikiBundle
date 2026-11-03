@@ -48,6 +48,7 @@ Root key: `nowo_wiki`.
 
 - [Markdown pages (1.11)](#markdown-pages-111)
 - [Milkdown editor (1.13)](#milkdown-editor-113)
+- [Page tree (1.14)](#page-tree-114)
 - [Sanitizer allowlist (1.11)](#sanitizer-allowlist-111)
 - [Space access and tenant paths (1.9)](#space-access-and-tenant-paths-19)
 - [Attachments (1.9)](#attachments-19)
@@ -123,6 +124,29 @@ nowo_milkdown_editor:
 | `routes.page_collab` | `…/pages/{pageSlug}/collab/{action}` | The collaboration endpoints (`action`: token, state, update, awareness, compact, corrupt, reset) |
 
 Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates`, part of the generated schema only while `collaboration.enabled` is true (1.13.1; see [UPGRADING](UPGRADING.md#to-1131)).
+
+## Page tree (1.14)
+
+```yaml
+nowo_wiki:
+    tree:
+        enabled: true          # literal boolean; off = the 1.13 nested list, no tree routes
+        max_depth: 10          # deepest level after a move (root pages are level 1)
+        state_store: null      # service id of a WikiTreeStateStoreInterface (null: the session)
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `tree.enabled` | `false` | UiKit tree in the sidebar with fold state and moves (drag, Alt+arrows, Move form) |
+| `tree.max_depth` | 10 | A move that would put a page deeper is refused (`too_deep`) |
+| `tree.state_store` | null | Where the expanded pages of each user and space are kept (default: the session, 500 ids per space) |
+| `routes.page_move` | `…/pages/{pageSlug}/move` | The Move form (GET, POST + CSRF) |
+| `routes.space_tree` | `…/spaces/{spaceSlug}/tree/{action}` | JSON endpoints `move` and `state` (POST, same origin, CSRF per space) |
+| `web_ui.templates.page_move` | null | Template of the Move form |
+
+Who may move: the role gate `canEdit()` and `WikiAction::Edit` on the page, on its current parent and on the new parent
+(the space for the top level); a parent the user may not read answers 404. The tree is only movable for users with
+`Edit` on the space.
 
 ## Sanitizer allowlist (1.11)
 

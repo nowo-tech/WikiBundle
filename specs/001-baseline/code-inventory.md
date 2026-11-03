@@ -234,6 +234,22 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Entity/WikiCollabDocument.php` | Log document per page | FR-MD-004 |
 | `Entity/WikiCollabUpdate.php` | Log entry | FR-MD-004 |
 
+## Page tree (1.14)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Controller/WikiTreeController.php` | Tree endpoints (move, state) | FR-TREE-001 |
+| `Controller/WikiTreeMoveTrait.php` | Who may move | FR-TREE-001 |
+| `Event/WikiPageMovedEvent.php` | Audit event of a move | FR-TREE-001 |
+| `Form/WikiPageMoveType.php` | Move form | FR-TREE-001 |
+| `Repository/WikiPageTreeWriterInterface.php` | Space-locked transaction | FR-TREE-001 |
+| `Service/WikiPageMover.php` | Move validation and positions | FR-TREE-001 |
+| `Service/WikiPageMoveResult.php` | Move outcome | FR-TREE-001 |
+| `Service/WikiPageMoveException.php` | Refused move | FR-TREE-001 |
+| `Tree/WikiTreeStateStoreInterface.php` | Fold state contract | FR-TREE-001 |
+| `Tree/SessionWikiTreeStateStore.php` | Session fold state | FR-TREE-001 |
+| `Resources/views/manage/page_move.html.twig` | Move form page | FR-TREE-001 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |

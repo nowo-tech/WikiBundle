@@ -54,6 +54,13 @@
 ## Unreleased
 
 - The bundle requires the PHP `iconv` extension (enabled in nearly every PHP build).
+- `nowo-tech/ui-kit-bundle` ^2.24 is required (`composer update nowo-tech/ui-kit-bundle`).
+- **Page tree (opt-in).** Nothing changes until you set `nowo_wiki.tree.enabled: true` (a literal boolean). Then the
+  sidebar becomes the UiKit tree, `js/nowo-ui-tree.js` is loaded on the space and page views, and two route keys are
+  registered (`page_move`, `space_tree`); add them to your firewall and access rules like the other wiki routes. No
+  schema change: moves reuse the `position` column. The fold state lives in the session by default; set
+  `tree.state_store` to keep it per user in your own storage. If you override `_sidebar.html.twig`, `space.html.twig`
+  or `page_view.html.twig`, compare them with the bundle's (`tree_ui` variable). New strings: `wiki.tree.*`.
 
 ## To 1.13.1
 

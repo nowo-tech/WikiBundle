@@ -5,6 +5,21 @@ wiki:
     reset_confirm_message: "Everyone editing this page reloads it from the last saved version; unsaved changes in the shared session are lost."
     reset_capped: "The shared session was reset too often in the last minutes: it was not reset now. Try again later, or save the page."
     rate_limited: "Too many requests: the shared session was not reset. Try again in a moment."
+  tree:
+    move: "Move"
+    move_title: "Move “%title%”"
+    move_parent: "Parent page"
+    move_root: "Top level"
+    move_position: "Position"
+    move_position_help: "1 is the first place; leave it empty to put the page last."
+    moved_under: "“%title%” moved under “%parent%”, position %position% of %count%."
+    moved_root: "“%title%” moved to the top level, position %position% of %count%."
+    error:
+      page_missing: "The page no longer exists."
+      parent_missing: "The new parent page no longer exists."
+      cycle: "A page cannot move into itself or into one of its sub-pages."
+      too_deep: "The page tree would become too deep."
+      failed: "The page could not be moved."
   title: Wiki
   back_dashboard: Back to dashboard
   index:

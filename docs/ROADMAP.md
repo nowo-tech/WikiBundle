@@ -146,6 +146,11 @@ confirmation*.
 - [x] 1.13.1 audit residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9 (CV-I5 stays in 1.14) and the Beacon adoption fixes
   (Tiptap script only for `editor.type: tiptap`, no collaboration tables without co-editing, opaque co-editor names
   by default) — PR #82
+- [x] 1.14 page tree (T062) and moves (T049): UiKit 2.24 tree in the sidebar, fold state, drag / Alt+arrows / Move
+  form, server validation and `nowo_wiki.page.moved` (opt-in `tree.enabled`). Defaults *pending user confirmation*:
+  sparse integer positions in the existing `position` column instead of a string rank column (no schema change), fold
+  state in the session (`tree.state_store` for a per-user table), depth limit 10 (D-W2), moves within one space (D-W1).
+  Lazy children, starred / recents, the per-node "+" / "⋯" menus and live updates stay open for the next 1.14 PRs.
 
 ## Plans
 

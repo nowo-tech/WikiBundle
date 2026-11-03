@@ -20,6 +20,7 @@ use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Form\WikiAiAskType;
 use Nowo\WikiBundle\Form\WikiImportType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
+use Nowo\WikiBundle\Form\WikiPageMoveType;
 use Nowo\WikiBundle\Form\WikiPostActionType;
 use Nowo\WikiBundle\Form\WikiSearchType;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
@@ -37,11 +38,14 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
+use Nowo\WikiBundle\Service\WikiPageMoveException;
+use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use RuntimeException;
@@ -64,6 +68,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
 
 use function array_filter;
+use function array_map;
 use function array_slice;
 use function array_values;
 use function ceil;
@@ -71,8 +76,11 @@ use function count;
 use function is_string;
 use function max;
 use function min;
+use function str_repeat;
 use function strlen;
 use function substr;
+
+use const PHP_INT_MAX;
 
 /**
  * Authenticated wiki management (spaces, pages, revisions, search).
@@ -83,6 +91,7 @@ use function substr;
 final class WikiManageController extends AbstractController
 {
     use WikiCsrfTrait;
+    use WikiTreeMoveTrait;
 
     /** Catalogue keys of the {@see WikiPageService} errors a page form can hit (1.12). */
     private const PAGE_ERROR_KEYS = [
@@ -116,6 +125,8 @@ final class WikiManageController extends AbstractController
      * @param WikiTenantPaths|null $tenantPaths tenant paths (1.12: with {@code tenant_only} the search keeps its space)
      * @param WikiRevisionBodyRenderer|null $bodyRenderer renders the page body for the viewer (1.13; null = stored HTML)
      * @param WikiCollabService|null $collab co-editing of the page form (1.13; null = collaboration disabled)
+     * @param WikiPageMover|null $mover page moves of the tree (1.14; null = tree disabled)
+     * @param WikiTreeStateStoreInterface|null $treeState fold state of the tree (1.14; null = tree disabled)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -148,6 +159,8 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiTenantPaths $tenantPaths = null,
         private readonly ?WikiRevisionBodyRenderer $bodyRenderer = null,
         private readonly ?WikiCollabService $collab = null,
+        private readonly ?WikiPageMover $mover = null,
+        private readonly ?WikiTreeStateStoreInterface $treeState = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -219,11 +232,14 @@ final class WikiManageController extends AbstractController
             'import' => $this->importExport['enabled'] && $this->accessChecker->canImport($user) && $permissions['import'],
             'export' => $this->importExport['enabled'] && $this->accessChecker->canExport($user) && $permissions['export'],
         ];
-        $pages = $this->pages();
+        $pages     = $this->pages();
+        $treeNodes = $pages->tree($space, $tree);
+        $treeUi    = $this->treeUi($user, $space, $treeNodes);
+        $vars      = $treeUi === null ? [] : ['tree_ui' => $treeUi];
 
-        return $this->renderPage('space', [
+        return $this->renderPage('space', $vars + [
             'page'             => $pages->space($space, $can),
-            'tree'             => $pages->tree($space, $tree),
+            'tree'             => $treeNodes,
             'tree_truncated'   => $treeTruncated,
             'max_tree_pages'   => $this->pagination['max_tree_pages'],
             'tree_search_href' => $this->treeSearchHref($space),
@@ -270,13 +286,22 @@ final class WikiManageController extends AbstractController
             $this->generateUrl($this->routes['page_archive']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug()]),
             'wiki_archive_' . $item->getId(),
         ])[0] : null;
-        $pages = $this->pages();
+        $pages     = $this->pages();
+        $treeNodes = $pages->tree($space, $tree, $page->getSlug());
+        $treeUi    = $this->treeUi($user, $space, $treeNodes);
+        $vars      = [];
+        if ($treeUi !== null) {
+            // 1.14: the Move action (the form is the single-pointer alternative to dragging).
+            $can['move'] = $can['edit'] && isset($this->routes['page_move']) && $this->canMoveIn($user, $space)
+                && $this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $page->getParent());
+            $vars = ['tree_ui' => $treeUi];
+        }
 
-        return $this->renderPage('page_view', [
+        return $this->renderPage('page_view', $vars + [
             'page'             => $pages->pageView($space, $page, $can, $archiveForm),
             'content_html'     => $this->revisionBody($page->getCurrentRevision()),
             'rich_content'     => $this->bodyRenderer?->hasRichContent() ?? false,
-            'tree'             => $pages->tree($space, $tree, $page->getSlug()),
+            'tree'             => $treeNodes,
             'tree_truncated'   => $treeTruncated,
             'max_tree_pages'   => $this->pagination['max_tree_pages'],
             'tree_search_href' => $this->treeSearchHref($space),
@@ -288,6 +313,63 @@ final class WikiManageController extends AbstractController
             'can_archive'      => $can['archive'],
             'permissions'      => $permissions,
         ]);
+    }
+
+    /**
+     * The "Move" form of a page (1.14, `tree.enabled`): a new parent among the pages the user may edit (never the page
+     * or one of its descendants) and a 1-based position (empty: last). A valid move redirects to the page with a
+     * flash; a refused one ({@see WikiPageMoveException}) re-renders the form with the reason (422).
+     *
+     * @throws NotFoundHttpException without the tree, or for a page or parent that is missing or not readable
+     * @throws AccessDeniedHttpException without the edit rights of {@see WikiTreeMoveTrait}
+     */
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/move', name: 'nowo_wiki_page_move', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_move'], methods: ['GET', 'POST'])]
+    public function movePage(Request $request, string $spaceSlug, string $pageSlug): Response
+    {
+        if (!$this->mover instanceof WikiPageMover) {
+            throw new NotFoundHttpException('Not found.');
+        }
+
+        $this->denyUnlessFeature('edit');
+        $user  = $this->requireUser();
+        $space = $this->requireAccessibleSpace($user, $spaceSlug);
+        $page  = $this->requirePage($user, $space, $pageSlug);
+        $this->requireMovable($user, $space, $page, $page->getParent());
+
+        $parents = $this->moveParents($user, $space, $page);
+        $form    = $this->container->get('form.factory')->createNamed('', WikiPageMoveType::class, ['parent' => $page->getParent()?->getId(), 'position' => null], [
+            'csrf_token_id'  => WikiPageMoveType::csrfTokenId($page->getId()),
+            'parent_choices' => array_map(static fn (array $choice): string => $choice['label'], $parents),
+        ]);
+        $form->handleRequest($request);
+
+        $error = null;
+        if ($form->isSubmitted() && $form->isValid()) {
+            /** @var array{parent: string|null, position: int|null} $data */
+            $data = $form->getData();
+            // A valid choice is one of the offered parents (readable, editable, not in the moved sub-tree).
+            $parent = $data['parent'] !== null ? $parents[$data['parent']]['page'] : null;
+            $this->requireMovable($user, $space, $page, $parent);
+
+            try {
+                $result = $this->mover->move($page, $parent, $data['position'] !== null ? $data['position'] - 1 : PHP_INT_MAX, $user);
+                $params = ['%title%' => $page->getTitle(), '%position%' => $result->index + 1, '%count%' => $result->count];
+                $this->flash('success', $parent instanceof WikiPage
+                    ? new TranslatableMessage('wiki.tree.moved_under', $params + ['%parent%' => $parent->getTitle()], WikiPages::DOMAIN)
+                    : new TranslatableMessage('wiki.tree.moved_root', $params, WikiPages::DOMAIN));
+
+                return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+            } catch (WikiPageMoveException $exception) {
+                $error = $this->translator?->trans('wiki.tree.error.' . $exception->reason, [], WikiPages::DOMAIN) ?? 'wiki.tree.error.' . $exception->reason;
+            }
+        }
+
+        $response = $this->renderPage('page_move', [
+            'page'  => $this->pages()->pageMove($space, $page, $form->createView()),
+            'error' => $error,
+        ], $form);
+
+        return $error !== null ? $response->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY) : $response;
     }
 
     /**
@@ -1230,6 +1312,57 @@ final class WikiManageController extends AbstractController
     private function treeSearchHref(WikiSpace $space): ?string
     {
         return isset($this->routes['search']) ? $this->generateUrl($this->routes['search']['name'], ['space' => $space->getSlug()]) : null;
+    }
+
+    /**
+     * The UiKit tree of the sidebar (1.14), or null without `tree.enabled` (the 1.13 nested list).
+     *
+     * @param list<array{id: string, title: string, href: string, current: bool, children: list<mixed>}> $nodes
+     *
+     * @return array{nodes: list<array<string, mixed>>, attr: array<string, bool|string>, movable: bool}|null
+     */
+    private function treeUi(UserInterface $user, WikiSpace $space, array $nodes): ?array
+    {
+        if (!$this->treeState instanceof WikiTreeStateStoreInterface || !isset($this->routes['space_tree'])) {
+            return null;
+        }
+
+        $pages   = $this->pages();
+        $movable = $this->mover instanceof WikiPageMover && $this->accessChecker->canEdit($user) && $this->canMoveIn($user, $space);
+        $token   = $this->container->get('security.csrf.token_manager')->getToken(WikiTreeController::csrfTokenId($space))->getValue();
+
+        return [
+            'nodes'   => $pages->uiTree($nodes, $this->treeState->expanded($user, $space)),
+            'attr'    => $pages->treeAttributes($space, $token, $movable),
+            'movable' => $movable,
+        ];
+    }
+
+    /**
+     * Parents a page may move under (1.14): the readable pages of the tree the user may edit, minus the page and its
+     * descendants, in tree order, with a label indented by depth.
+     *
+     * @return array<string, array{page: WikiPage, label: string}>
+     */
+    private function moveParents(UserInterface $user, WikiSpace $space, WikiPage $page): array
+    {
+        [$tree]  = $this->buildTree($user, $space);
+        $choices = [];
+        $walk    = function (array $nodes, int $depth) use (&$walk, &$choices, $user, $space, $page): void {
+            foreach ($nodes as $node) {
+                /** @var array{page: WikiPage, children: list<array{page: WikiPage, children: list<mixed>}>} $node */
+                if ($node['page'] === $page) {
+                    continue;
+                }
+                if ($this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $node['page'])) {
+                    $choices[$node['page']->getId()] = ['page' => $node['page'], 'label' => str_repeat('— ', $depth) . $node['page']->getTitle()];
+                }
+                $walk($node['children'], $depth + 1);
+            }
+        };
+        $walk($tree, 0);
+
+        return $choices;
     }
 
     /**

@@ -33,6 +33,9 @@ final class WikiEvents
     /** {@see WikiPageLinkEvent}: a page was unlinked from a host object (1.9). */
     public const PAGE_UNLINKED = 'nowo_wiki.page.unlinked';
 
+    /** {@see WikiPageMovedEvent}: a page was moved in the page tree (1.14). */
+    public const PAGE_MOVED = 'nowo_wiki.page.moved';
+
     /** {@see WikiAttachmentEvent}: an attachment was uploaded (1.9). */
     public const ATTACHMENT_UPLOADED = 'nowo_wiki.attachment.uploaded';
 

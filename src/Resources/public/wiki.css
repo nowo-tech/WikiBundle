@@ -75,6 +75,12 @@
   font-weight: 600;
 }
 
+/* 1.14 (tree.enabled): items of the UiKit tree read in the text colour (a theme's link colour fails AA on the tint
+   of the current row); the current page is told apart by the tint, the weight and aria-current. */
+.nowo-wiki-sidebar [role='tree'] [role='treeitem'] {
+  color: var(--nowo-ui-text, inherit);
+}
+
 .nowo-wiki-tree__truncated {
   margin: 0.75rem 0 0;
 }

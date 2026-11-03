@@ -5,6 +5,21 @@ wiki:
     reset_confirm_message: "Iedereen die deze pagina bewerkt, laadt hem opnieuw vanaf de laatst opgeslagen versie; niet-opgeslagen wijzigingen in de gedeelde sessie gaan verloren."
     reset_capped: "De gedeelde sessie is de afgelopen minuten te vaak opnieuw ingesteld: dat is nu niet gebeurd. Probeer het later opnieuw of sla de pagina op."
     rate_limited: "Te veel verzoeken: de gedeelde sessie is niet opnieuw ingesteld. Probeer het zo meteen opnieuw."
+  tree:
+    move: "Verplaatsen"
+    move_title: "“%title%” verplaatsen"
+    move_parent: "Bovenliggende pagina"
+    move_root: "Hoogste niveau"
+    move_position: "Positie"
+    move_position_help: "1 is de eerste plaats; laat leeg om de pagina achteraan te zetten."
+    moved_under: "“%title%” verplaatst onder “%parent%”, positie %position% van %count%."
+    moved_root: "“%title%” verplaatst naar het hoogste niveau, positie %position% van %count%."
+    error:
+      page_missing: "De pagina bestaat niet meer."
+      parent_missing: "De nieuwe bovenliggende pagina bestaat niet meer."
+      cycle: "Een pagina kan niet in zichzelf of in een van haar subpagina’s worden geplaatst."
+      too_deep: "De paginaboom zou te diep worden."
+      failed: "De pagina kon niet worden verplaatst."
   title: Wiki
   back_dashboard: Terug naar dashboard
   index:

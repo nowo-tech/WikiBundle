@@ -62,10 +62,13 @@ use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
+use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
+use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Symfony\AI\Agent\AgentInterface;
@@ -136,6 +139,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         // 1.13.1 (audit DA-M1): the schema listener and the collaboration services must agree; an env placeholder would
         // register the services while the schema left the tables out (and a diff would drop them).
         $config['collaboration']['enabled'] = $this->literalBool($config['collaboration']['enabled'], 'collaboration.enabled');
+        // 1.14: without the tree its two routes are not registered (byte-identical route list and pages).
+        $config['tree']['enabled'] = $this->literalBool($config['tree']['enabled'], 'tree.enabled');
+        if (!$config['tree']['enabled']) {
+            unset($config['routes']['page_move'], $config['routes']['space_tree']);
+        }
         if ($config['security']['allow_unauthenticated']) {
             $this->refuseAllowUnauthenticatedInProduction($container);
         }
@@ -282,6 +290,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerPages($container, $config);
         $this->registerAttachments($container, $config['attachments']);
         $this->registerCollaboration($container, $config);
+        $this->registerTree($container, $config);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
 
@@ -357,6 +366,35 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$icons', new Reference(IconResolverInterface::class)));
         $container->setDefinition(WikiMilkdownRichContent::class, (new Definition(WikiMilkdownRichContent::class))
             ->setArgument('$twig', new Reference(MilkdownEditorTwig::class)));
+    }
+
+    /**
+     * 1.14: the page tree — the mover (space-locked transaction on the Doctrine page repository, `nowo_wiki.page.moved`)
+     * and the fold state store (the session unless `tree.state_store` names a service).
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerTree(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool, max_depth: int, state_store: string|null} $tree */
+        $tree = $config['tree'];
+        if (!$tree['enabled']) {
+            return;
+        }
+
+        $store = $tree['state_store'];
+        if (!is_string($store) || $store === '') {
+            $store = SessionWikiTreeStateStore::class;
+            $container->setDefinition($store, (new Definition(SessionWikiTreeStateStore::class))
+                ->setArgument('$requestStack', new Reference('request_stack')));
+        }
+        $container->setAlias(WikiTreeStateStoreInterface::class, $store);
+
+        $container->setDefinition(WikiPageMover::class, (new Definition(WikiPageMover::class))
+            ->setArgument('$repository', new Reference(WikiPageRepositoryInterface::class))
+            ->setArgument('$writer', new Reference(DoctrineOrmWikiPageRepository::class))
+            ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$maxDepth', $tree['max_depth']));
     }
 
     /**
