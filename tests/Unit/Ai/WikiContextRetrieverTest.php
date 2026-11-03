@@ -127,12 +127,14 @@ final class WikiContextRetrieverTest extends TestCase
         $space  = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
         $public = new WikiPage($space, 'public', 'Public runbook');
         $secret = new WikiPage($space, 'secret', 'Secret runbook');
+        // 1.13.2: a readable page under a hidden one stays out as well.
+        $under = new WikiPage($space, 'under', 'Under the secret runbook', $secret);
 
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->method('listSpacesForUser')->willReturn([$space]);
         $checker = new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p?->getSlug() !== 'secret');
 
-        $result = (new WikiContextRetriever($this->createSearchService([[$public, 'contentHtml' => ''], [$secret, 'contentHtml' => '']]), $resolver, $checker))
+        $result = (new WikiContextRetriever($this->createSearchService([[$public, 'contentHtml' => ''], [$secret, 'contentHtml' => ''], [$under, 'contentHtml' => '']]), $resolver, $checker))
             ->retrieve($user, 'runbook', null, 5, 5000);
 
         self::assertSame(['public'], array_map(static fn (array $hit): string => $hit['page']->getSlug(), $result['sources']));

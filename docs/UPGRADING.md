@@ -53,6 +53,15 @@
 
 ## Unreleased
 
+- **Page visibility follows the ancestors on every route.** If your `WikiSpaceAccessCheckerInterface` denies `View` on
+  a page, its sub-pages now answer 404 on the page view, history, diff, attachments, co-editing, search and AI
+  answers too (they were already hidden from the tree, the export and page links). Grant `View` on the parent if
+  those users should read the sub-page.
+- **Web import (space page).** A document whose `wiki_parent` is neither in the archive nor a page the importing user
+  may read now fails with `Parent "x" is not available.` (it was attached at the top level). Pages the user may not
+  read are never matched or updated: their slug is "not available". The `wiki:import` command keeps attaching such
+  documents at the top level, as before (it runs without a user).
+
 ## To 1.13.1
 
 From **1.13.0**:

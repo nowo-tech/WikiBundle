@@ -69,6 +69,7 @@ As a user, I ask questions grounded in wiki content when Symfony AI is configure
 - **FR-PAGE-001 / FR-SPACE-001 / FR-TREE-001 / FR-REV-001 / FR-SEARCH-001**: Page/space CRUD, tree, diff, search services.
 - **FR-SEC-001 / FR-SEC-005 / FR-SEC-006**: Access checker, HTML sanitizer, team membership resolver.
 - **FR-SEC-007**: Attribute-level sanitizers keep only safe attributes: `EmbedIframeSrcAttributeSanitizer` (`<iframe src>` only for https hosts on the embed allowlist) and `TextAlignStyleAttributeSanitizer` (`style` only when it is exactly a Tiptap TextAlign declaration).
+- **FR-SEC-009** (1.13.2): one read rule for a page — `View` on the page and on every ancestor (`WikiPageVisibility`, `WikiSpaceGuard::isPageReadable()` / `requireReadablePage()`), applied to the page view and every page route, attachments, co-editing, search and AI hits, as in the tree, the export and the page-link resolver; a parent cycle reads as hidden.
 - **FR-SEC-008**: `WikiHtmlTwigExtension` (`nowo_wiki_safe_html`) re-sanitizes stored page HTML at render time, so revisions saved under an older policy are rendered with the current one.
 - **FR-WORKER-001**: Safe without kernel / `services_resetter` reset (FrankenPHP worker): `WikiEntityManagerProvider` resolves the configured entity manager on every call and resets a closed one; `WikiTokenGuard` refuses to trust a token left in storage by a previous request. `AllowAllWikiAccessChecker` (FR-SEC-001) is only used when `security.allow_unauthenticated` is true (demo/dev).
 - **FR-FORM-001**: Page form with slug and content fields.

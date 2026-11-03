@@ -66,6 +66,11 @@ final readonly class WikiDocumentImporter
      * @param object $author application user recorded as revision author
      * @param bool $updateExisting append a revision to pages whose slug already exists
      * @param bool $dryRun count changes without writing anything
+     * @param array<string, true>|null $readablePageIds ids of the pages the importing user may read (1.13.2, audit
+     *                                                  DJ-L1; null: every page, e.g. the CLI). Other pages are never
+     *                                                  matched, updated or used as parents: their slug is "not
+     *                                                  available" and a document asking for them is refused; in such an import a `wiki_parent` that
+     *                                                  does not exist is refused the same way
      *
      * @throws InvalidArgumentException when the source is neither a directory nor a ZIP archive
      *
@@ -78,6 +83,7 @@ final readonly class WikiDocumentImporter
         object $author,
         bool $updateExisting = false,
         bool $dryRun = false,
+        ?array $readablePageIds = null,
     ): WikiImportReport {
         $logContext = [
             'bundle'          => 'nowo_wiki',
@@ -90,7 +96,7 @@ final readonly class WikiDocumentImporter
         $this->logger->info('Wiki import started.', $logContext);
 
         try {
-            $report = $this->doImport($space, $sourcePath, $format, $author, $updateExisting, $dryRun);
+            $report = $this->doImport($space, $sourcePath, $format, $author, $updateExisting, $dryRun, $readablePageIds);
         } catch (Throwable $exception) {
             $this->logger->error('Wiki import failed.', $logContext + ['exception_class' => $exception::class]);
 
@@ -107,6 +113,9 @@ final readonly class WikiDocumentImporter
         return $report;
     }
 
+    /**
+     * @param array<string, true>|null $readablePageIds
+     */
     private function doImport(
         WikiSpace $space,
         string $sourcePath,
@@ -114,6 +123,7 @@ final readonly class WikiDocumentImporter
         object $author,
         bool $updateExisting,
         bool $dryRun,
+        ?array $readablePageIds,
     ): WikiImportReport {
         $report      = new WikiImportReport();
         $cleanupDir  = null;
@@ -142,7 +152,14 @@ final readonly class WikiDocumentImporter
             $pathMap = [];
             /** @var array<string, WikiPage> $slugMap */
             $slugMap = [];
+            /** @var array<string, true> $hiddenSlugs pages the user may not read: never matched, updated or parents */
+            $hiddenSlugs = [];
             foreach ($this->pageRepository->findActiveBySpace($space) as $existingPage) {
+                if ($readablePageIds !== null && !isset($readablePageIds[$existingPage->getId()])) {
+                    $hiddenSlugs[$existingPage->getSlug()] = true;
+
+                    continue;
+                }
                 $slugMap[$existingPage->getSlug()] = $existingPage;
             }
 
@@ -154,6 +171,8 @@ final readonly class WikiDocumentImporter
                         $author,
                         $pathMap,
                         $slugMap,
+                        $hiddenSlugs,
+                        $readablePageIds !== null,
                         $updateExisting,
                         $dryRun,
                         $report,
@@ -176,6 +195,9 @@ final readonly class WikiDocumentImporter
     /**
      * @param array<string, WikiPage> $pathMap
      * @param array<string, WikiPage> $slugMap
+     * @param array<string, true> $hiddenSlugs
+     * @param bool $strictParents a `wiki_parent` that is not imported or readable fails (a user's import) instead of
+     *                            attaching the page at the top level (the CLI)
      */
     private function importNode(
         WikiSpace $space,
@@ -183,19 +205,28 @@ final readonly class WikiDocumentImporter
         object $author,
         array &$pathMap,
         array &$slugMap,
+        array $hiddenSlugs,
+        bool $strictParents,
         bool $updateExisting,
         bool $dryRun,
         WikiImportReport $report,
     ): void {
         $title = $node->title ?? 'Untitled';
         $slug  = $node->slug ?? $this->slugger->slugify($title);
-        $slug  = $this->ensureUniqueSlug($space, $slug, $slugMap, $node->slug !== null);
+        // DJ-L1: a page the user may not read is never overwritten, matched or renamed around (no duplicate slug).
+        if (isset($hiddenSlugs[$slug])) {
+            throw new InvalidArgumentException(sprintf('Slug "%s" is not available.', $slug));
+        }
+        $slug = $this->ensureUniqueSlug($space, $slug, $slugMap, $node->slug !== null);
 
         $parent = null;
         if ($node->parentRelativePath !== null && $node->parentRelativePath !== '' && isset($pathMap[$node->parentRelativePath])) {
             $parent = $pathMap[$node->parentRelativePath];
         } elseif ($node->parentSlug !== null && isset($slugMap[$node->parentSlug])) {
             $parent = $slugMap[$node->parentSlug];
+        } elseif ($node->parentSlug !== null && ($strictParents || isset($hiddenSlugs[$node->parentSlug]))) {
+            // A hidden parent and (for a user's import) a missing one read the same: no existence oracle.
+            throw new InvalidArgumentException(sprintf('Parent "%s" is not available.', $node->parentSlug));
         }
 
         [$content, $format] = Configuration::storesMarkdown($this->editorType)
@@ -229,6 +260,8 @@ final readonly class WikiDocumentImporter
         if ($dryRun) {
             ++$report->created;
             $pathMap[$node->relativePath] = new WikiPage($space, $slug, $title, $parent);
+            // Later documents may name it as their wiki_parent, as in a real run.
+            $slugMap[$slug] = $pathMap[$node->relativePath];
 
             return;
         }
@@ -257,7 +290,7 @@ final readonly class WikiDocumentImporter
         }
 
         if ($preserveRequestedSlug) {
-            throw new InvalidArgumentException(sprintf('Slug "%s" already exists.', $slug));
+            throw new InvalidArgumentException(sprintf('Slug "%s" is not available.', $slug));
         }
 
         $base = $slug;

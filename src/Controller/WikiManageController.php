@@ -63,7 +63,9 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
 
+use function array_fill_keys;
 use function array_filter;
+use function array_map;
 use function array_slice;
 use function array_values;
 use function ceil;
@@ -540,7 +542,7 @@ final class WikiManageController extends AbstractController
             throw new NotFoundHttpException('Page not found.');
         }
 
-        $this->spaceGuard->requireGranted($user, WikiAction::View, $space, $page);
+        $this->spaceGuard->requireReadablePage($user, $space, $page);
         $this->spaceGuard->requireGranted($user, WikiAction::Archive, $space, $page);
         if (!$this->isValidCsrf($request, 'wiki_unarchive_' . $page->getId())) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
@@ -762,6 +764,9 @@ final class WikiManageController extends AbstractController
                 $format,
                 $user,
                 $form->get('update_existing')->getData() === true,
+                false,
+                // DJ-L1: pages the user may not read are never matched, updated or used as parents.
+                array_fill_keys(array_map(static fn (WikiPage $page): string => $page->getId(), $this->visiblePages($user, $space, $this->pageRepository->findActiveBySpace($space))), true),
             );
         } catch (InvalidArgumentException $exception) {
             $this->flash('error', new TranslatableMessage('wiki.import.failed', ['%reason%' => $exception->getMessage()], WikiPages::DOMAIN));
@@ -1216,7 +1221,8 @@ final class WikiManageController extends AbstractController
     }
 
     /**
-     * Search hits / AI sources the user may read ({@see WikiAction::View} on the hit's own space and page).
+     * Search hits / AI sources the user may read ({@see WikiAction::View} on the hit's own space, its page and every
+     * ancestor, 1.13.2).
      *
      * @param list<array{page: WikiPage, space: WikiSpace, excerpt: string}> $hits
      *
@@ -1224,7 +1230,11 @@ final class WikiManageController extends AbstractController
      */
     private function readableHits(UserInterface $user, array $hits): array
     {
-        return array_values(array_filter($hits, fn (array $hit): bool => $this->spaceGuard->isGranted($user, WikiAction::View, $hit['space'], $hit['page'])));
+        $decisions = [];
+
+        return array_values(array_filter($hits, function (array $hit) use ($user, &$decisions): bool {
+            return $this->spaceGuard->isPageReadable($user, $hit['space'], $hit['page'], $decisions);
+        }));
     }
 
     private function treeSearchHref(WikiSpace $space): ?string
@@ -1267,7 +1277,8 @@ final class WikiManageController extends AbstractController
     /**
      * Returns the active page of the slug the user may read; a missing, archived or hidden page answers 404 alike.
      *
-     * @throws NotFoundHttpException when the page is missing, archived or {@see WikiAction::View} is denied on it
+     * @throws NotFoundHttpException when the page is missing, archived or {@see WikiAction::View} is denied on it or on
+     *                               one of its ancestors (1.13.2)
      */
     private function requirePage(UserInterface $user, WikiSpace $space, string $pageSlug): WikiPage
     {
@@ -1276,7 +1287,7 @@ final class WikiManageController extends AbstractController
             throw new NotFoundHttpException('Page not found.');
         }
 
-        $this->spaceGuard->requireGranted($user, WikiAction::View, $space, $page);
+        $this->spaceGuard->requireReadablePage($user, $space, $page);
 
         return $page;
     }

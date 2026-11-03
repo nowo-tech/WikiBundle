@@ -28,6 +28,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use ZipArchive;
 
+use function array_keys;
+use function in_array;
+
 use const JSON_THROW_ON_ERROR;
 
 final class WikiDocumentImporterTest extends TestCase
@@ -550,6 +553,92 @@ MD);
         } finally {
             unlink($root . '/aaa-parent.md');
             unlink($root . '/zzz-child.md');
+            rmdir($root);
+        }
+    }
+
+    /**
+     * 1.13.2 (audit DJ-L1): a page the importing user may not read is never updated, matched or used as a parent; its
+     * slug is "not available" (no duplicate created, no "skipped existing" oracle).
+     */
+    public function testPagesTheUserMayNotReadAreNeverMatchedUpdatedOrUsedAsParents(): void
+    {
+        $root = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        $files = [
+            'a-secret.md'  => "---\ntitle: Secret\nwiki_slug: secret\n---\nOverwrite attempt.\n",
+            'b-derived.md' => "---\ntitle: Secret\n---\nDerived slug of a hidden page.\n",
+            'c-child.md'   => "---\ntitle: Child\nwiki_slug: child\nwiki_parent: secret\n---\nUnder a hidden parent.\n",
+            'd-public.md'  => "---\ntitle: Public\nwiki_slug: public\n---\nVisible page updated.\n",
+        ];
+        foreach ($files as $name => $body) {
+            file_put_contents($root . '/' . $name, $body);
+        }
+
+        $space  = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $secret = new WikiPage($space, 'secret', 'Secret');
+        $public = new WikiPage($space, 'public', 'Public');
+        $public->setCurrentRevision(new WikiPageRevision($public, 1, '<p>Old</p>', new TestUser()));
+
+        $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepository->method('findActiveBySpace')->willReturn([$secret, $public]);
+        $pageRepository->method('countBySpaceAndSlug')->willReturnCallback(static fn (WikiSpace $s, string $slug): int => in_array($slug, ['secret', 'public'], true) ? 1 : 0);
+        $saved = [];
+        $pageRepository->method('save')->willReturnCallback(static function (WikiPage $page) use (&$saved): void {
+            $saved[] = $page->getSlug();
+        });
+
+        $revisionRepository = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepository->method('getNextRevisionNumber')->willReturn(2);
+
+        try {
+            $report = $this->importer($pageRepository, $revisionRepository)->import(
+                $space,
+                $root,
+                WikiInterchangeFormat::Outline,
+                new TestUser(),
+                true,
+                false,
+                [$public->getId() => true],
+            );
+
+            self::assertSame([0, 1, 3], [$report->created, $report->updated, $report->failed]);
+            self::assertCount(3, $report->messages);
+            self::assertStringEndsWith('Slug "secret" is not available.', $report->messages[0]);
+            self::assertStringEndsWith('Slug "secret" is not available.', $report->messages[1]);
+            self::assertStringEndsWith('Parent "secret" is not available.', $report->messages[2]);
+            self::assertNotContains('secret', $saved);
+            self::assertNotContains('secret-2', $saved);
+        } finally {
+            foreach (array_keys($files) as $name) {
+                unlink($root . '/' . $name);
+            }
+            rmdir($root);
+        }
+    }
+
+    public function testAMissingParentReadsLikeAHiddenOneInAUsersImportButNotInTheCli(): void
+    {
+        $root = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/a-new.md', "---\ntitle: New\nwiki_slug: new-parent\n---\nA parent created by this import.\n");
+        file_put_contents($root . '/b-child.md', "---\ntitle: Child\nwiki_slug: child\nwiki_parent: nowhere\n---\nMissing parent.\n");
+        file_put_contents($root . '/c-child.md', "---\ntitle: Other\nwiki_slug: other\nwiki_parent: new-parent\n---\nParent from this import.\n");
+        $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+
+        try {
+            foreach ([false, true] as $dryRun) {
+                $web = $this->importer($this->pageRepository())->import($space, $root, WikiInterchangeFormat::Outline, new TestUser(), false, $dryRun, []);
+                self::assertSame([2, 1], [$web->created, $web->failed]);
+                self::assertStringEndsWith('Parent "nowhere" is not available.', $web->messages[0]);
+            }
+
+            $cli = $this->importer($this->pageRepository())->import($space, $root, WikiInterchangeFormat::Outline, new TestUser());
+            self::assertSame([3, 0], [$cli->created, $cli->failed]);
+        } finally {
+            foreach (['a-new.md', 'b-child.md', 'c-child.md'] as $name) {
+                unlink($root . '/' . $name);
+            }
             rmdir($root);
         }
     }

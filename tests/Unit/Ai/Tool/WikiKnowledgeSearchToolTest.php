@@ -145,12 +145,15 @@ final class WikiKnowledgeSearchToolTest extends TestCase
         $space   = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
         $public  = new WikiPage($space, 'public', 'Public deploy');
         $secret  = new WikiPage($space, 'secret', 'Secret deploy');
+        $under   = new WikiPage($space, 'under', 'Under deploy', $secret);
         $checker = new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p?->getSlug() !== 'secret');
 
-        $json = $this->tool([$space], [[$public, 'contentHtml' => ''], [$secret, 'contentHtml' => '']], $checker)('deploy');
+        $json = $this->tool([$space], [[$public, 'contentHtml' => ''], [$secret, 'contentHtml' => ''], [$under, 'contentHtml' => '']], $checker)('deploy');
 
         self::assertStringContainsString('public', $json);
         self::assertStringNotContainsString('secret', $json);
+        // 1.13.2: a readable page under a hidden one is left out too.
+        self::assertStringNotContainsString('under', $json);
     }
 
     public function testSpacesWithoutAskAiAreNotSearched(): void

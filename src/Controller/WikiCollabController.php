@@ -156,7 +156,7 @@ final class WikiCollabController extends AbstractController
             throw new NotFoundHttpException('Page not found.');
         }
 
-        $this->spaceGuard->requireGranted($user, WikiAction::View, $space, $page);
+        $this->spaceGuard->requireReadablePage($user, $space, $page);
         $this->spaceGuard->requireGranted($user, WikiAction::Edit, $space, $page);
         if (!$this->accessChecker->canEdit($user)) {
             throw new AccessDeniedHttpException('Access denied.');

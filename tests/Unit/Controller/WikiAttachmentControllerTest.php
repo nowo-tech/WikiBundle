@@ -165,6 +165,18 @@ final class WikiAttachmentControllerTest extends TestCase
         self::assertSame(200, $manager->download('eng', $file->getId())->getStatusCode());
     }
 
+    public function testAPageUnderAHiddenParentHasNoAttachmentsForTheUser(): void
+    {
+        // 1.13.2: the attachment's page is readable, its parent is not.
+        $vault      = new WikiPage($this->space, 'vault', 'Vault');
+        $this->page = new WikiPage($this->space, 'runbook', 'Runbook', $vault);
+        $file       = $this->stored('a.txt', 'hello');
+
+        [$controller, $container] = $this->controller(new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p !== $vault));
+        $this->assertThrows(NotFoundHttpException::class, static fn () => $controller->download('eng', $file->getId()));
+        $this->assertThrows(NotFoundHttpException::class, fn () => $controller->upload($this->uploadRequest($container, 'x', 'b.txt'), 'eng', 'runbook'));
+    }
+
     public function testTheRoleGateAppliesToDownloadsAndUploads(): void
     {
         $file   = $this->stored('a.txt', 'hello');
