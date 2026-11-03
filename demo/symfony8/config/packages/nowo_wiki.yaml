@@ -8,6 +8,9 @@ nowo_wiki:
     # 1.14: the Outline-style page tree (UiKit tree: fold state, drag, Alt+arrows, Move form).
     tree:
         enabled: true
+    # 1.14 (T065): Delete moves a page and its sub-pages to the trash (restore, purge, 30-day retention).
+    trash:
+        enabled: true
     ai:
         enabled: true
         agent: wiki_assistant

@@ -19,6 +19,7 @@ use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
 use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
+use Nowo\WikiBundle\Attachment\WikiAttachmentService;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
@@ -44,11 +45,13 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
@@ -67,6 +70,7 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
@@ -143,6 +147,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $config['tree']['enabled'] = $this->literalBool($config['tree']['enabled'], 'tree.enabled');
         if (!$config['tree']['enabled']) {
             unset($config['routes']['page_move'], $config['routes']['space_tree']);
+        }
+        // 1.14 (T065): the trash; its table and routes exist only when it is on.
+        $config['trash']['enabled'] = $this->literalBool($config['trash']['enabled'], 'trash.enabled');
+        if (!$config['trash']['enabled']) {
+            unset($config['routes']['page_delete'], $config['routes']['space_trash'], $config['routes']['trash_restore'], $config['routes']['trash_purge']);
         }
         if ($config['security']['allow_unauthenticated']) {
             $this->refuseAllowUnauthenticatedInProduction($container);
@@ -278,6 +287,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$collabDocumentsTableName', $prefix . '_page_collab_documents')
             ->setArgument('$collabUpdatesTableName', $prefix . '_page_collab_updates')
             ->setArgument('$collaborationEnabled', $config['collaboration']['enabled'])
+            ->setArgument('$trashTableName', $prefix . '_page_trash')
+            ->setArgument('$trashEnabled', $config['trash']['enabled'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
@@ -291,6 +302,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerAttachments($container, $config['attachments']);
         $this->registerCollaboration($container, $config);
         $this->registerTree($container, $config);
+        $this->registerTrash($container, $config, $emProviderRef);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
 
@@ -366,6 +378,35 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$icons', new Reference(IconResolverInterface::class)));
         $container->setDefinition(WikiMilkdownRichContent::class, (new Definition(WikiMilkdownRichContent::class))
             ->setArgument('$twig', new Reference(MilkdownEditorTwig::class)));
+    }
+
+    /**
+     * 1.14 (T065): the trash — its Doctrine store and the service (space lock of the tree writer, attachments when
+     * they are on); `wiki:trash:purge` gets the service when it exists.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerTrash(ContainerBuilder $container, array $config, Reference $entityManager): void
+    {
+        /** @var array{enabled: bool, retention_days: int} $trash */
+        $trash = $config['trash'];
+        if (!$trash['enabled']) {
+            return;
+        }
+
+        $container->setDefinition(DoctrineOrmWikiTrashRepository::class, (new Definition(DoctrineOrmWikiTrashRepository::class))
+            ->setArgument('$entityManager', $entityManager));
+        $container->setAlias(WikiTrashRepositoryInterface::class, DoctrineOrmWikiTrashRepository::class);
+        $container->setDefinition(WikiTrashService::class, (new Definition(WikiTrashService::class))
+            ->setArgument('$pages', new Reference(WikiPageRepositoryInterface::class))
+            ->setArgument('$trash', new Reference(WikiTrashRepositoryInterface::class))
+            ->setArgument('$writer', new Reference(DoctrineOrmWikiPageRepository::class))
+            ->setArgument('$dispatcher', new Reference('event_dispatcher'))
+            ->setArgument('$attachments', new Reference(WikiAttachmentService::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$attachmentRepository', new Reference(WikiAttachmentRepositoryInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$retentionDays', $trash['retention_days'])
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
     }
 
     /**

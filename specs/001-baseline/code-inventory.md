@@ -252,6 +252,20 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Tree/SessionWikiTreeStateStore.php` | Session fold state | FR-TREE-001 |
 | `Resources/views/manage/page_move.html.twig` | Move form page | FR-TREE-001 |
 
+## Trash (1.14)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Command/WikiTrashPurgeCommand.php` | Retention command | FR-TRASH-001 |
+| `Controller/WikiTrashController.php` | Delete, trash, restore, purge | FR-TRASH-001 |
+| `Entity/WikiTrashEntry.php` | Trashed page of a deletion | FR-TRASH-001 |
+| `Event/WikiTrashEvent.php` | Trash events | FR-TRASH-001 |
+| `Repository/WikiTrashRepositoryInterface.php` | Trash store contract | FR-TRASH-001 |
+| `Repository/DoctrineOrmWikiTrashRepository.php` | Doctrine trash store, purge | FR-TRASH-001 |
+| `Trash/WikiTrashService.php` | Delete, restore, purge, retention | FR-TRASH-001 |
+| `Resources/views/manage/trash.html.twig` | Trash page | FR-TRASH-001 |
+| `Resources/views/manage/trash_purge.html.twig` | Purge confirmation page | FR-TRASH-001 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |

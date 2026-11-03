@@ -153,6 +153,12 @@ confirmation*.
   in the session (`tree.state_store` for a per-user store).
   Lazy children, starred / recents, the per-node "+" / "⋯" menus and live updates stay open for the next 1.14 PRs.
   — PR #83
+- [x] 1.14 trash (T065, pulled forward on the owner's request): Delete with the sub-tree behind a confirm, the trash
+  with Restore and a twice-confirmed Purge, retention (`trash.retention_days`, D-W4: 30 days) and `wiki:trash:purge`,
+  `WikiAction::Delete` / `Purge` (D-W5: purge by the manage roles in the 1.x mapping), trashed pages invisible on
+  every read path (opt-in `trash.enabled`). Version history and the full trash UX stay in 1.15. Defaults *pending
+  user confirmation*: the sub-tree follows the deletion and is restored together; archived pages stay archived after
+  a restore.
 
 ## Plans
 

@@ -1,0 +1,28 @@
+{#
+  Second confirmation of a purge (1.14, T065): UiKit show scaffold. Variables: page (View\ShowPage from
+  WikiPageFactory::trashPurge(): header with the final Purge button (POST + CSRF behind a confirm dialog), back link
+  to the trash), titles (titles of the pages of the deletion the user may read; the others are only counted).
+  Blocks filled: nowo_ui_styles, nowo_ui_show_sections.
+#}
+{% extends '@NowoUiKit/page/show.html.twig' %}
+{% trans_default_domain 'NowoWikiBundle' %}
+
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+{% endblock %}
+
+{% block nowo_ui_show_sections %}
+    {% set _b = page.bundle %}
+    <section class="{{ nowo_ui_class('card', _b) }}" data-testid="wiki-trash-purge-list"{{ nowo_ui_attrs('card', _b) }}>
+        <header class="{{ nowo_ui_class('card_header', _b) }}">
+            <h2 class="{{ nowo_ui_class('card_title', _b) }} nowo-wiki-region-title">{{ 'wiki.trash.purge_pages'|trans }}</h2>
+        </header>
+        <ul class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-archived__list">
+            {% for title in titles|default([]) %}
+                <li class="nowo-wiki-archived__item">{{ title }}</li>
+            {% endfor %}
+        </ul>
+        <p class="{{ nowo_ui_class('card_body', _b) }} {{ nowo_ui_class('muted', _b) }}">{{ 'wiki.trash.purge_warning'|trans }}</p>
+    </section>
+{% endblock %}

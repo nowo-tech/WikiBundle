@@ -70,6 +70,9 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
             WikiAction::Import, WikiAction::Manage => $this->accessChecker->canImport($user),
             WikiAction::Export                     => $this->accessChecker->canExport($user),
             WikiAction::AskAi                      => $this->accessChecker->canAskAi($user),
+            // 1.14 trash: deleting is archiving with sub-pages; purging needs the space-management role (D-W5).
+            WikiAction::Delete => $this->accessChecker->canArchive($user),
+            WikiAction::Purge  => $this->accessChecker->canImport($user),
         };
     }
 
