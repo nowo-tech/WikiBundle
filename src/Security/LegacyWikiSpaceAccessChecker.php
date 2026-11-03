@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\Service\ResetInterface;
+use WeakMap;
 
 use function count;
 
@@ -28,8 +29,8 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
     /** Users memoised at most (the memo is emptied beyond it). */
     public const MAX_MEMO = 64;
 
-    /** @var array<string, array<string, true>> user object + identifier => ids of the spaces the user belongs to (this request) */
-    private array $memberships = [];
+    /** @var WeakMap<UserInterface, array{0: string, 1: array<string, true>}> user => [identifier, ids of its spaces] (this request) */
+    private WeakMap $memberships;
 
     /**
      * @param WikiAccessCheckerInterface $accessChecker user-level checker of 1.x
@@ -39,6 +40,7 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
         private readonly WikiAccessCheckerInterface $accessChecker,
         private readonly WikiSpaceAccessResolverInterface $spaceAccessResolver,
     ) {
+        $this->memberships = new WeakMap();
     }
 
     /**
@@ -76,27 +78,27 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
      */
     public function reset(): void
     {
-        $this->memberships = [];
+        $this->memberships = new WeakMap();
     }
 
     /** The 1.x membership rule: the space is one of the user's spaces. */
     private function isMember(UserInterface $user, WikiSpace $space): bool
     {
-        // 1.13.1 (CV-I9): one entry per user object (two providers may return different users with one identifier), and
-        // a bounded memo so a long-running process that never resets keeps at most MAX_MEMO users.
-        $key = spl_object_id($user) . '|' . $user->getUserIdentifier();
-        if (!isset($this->memberships[$key])) {
+        // 1.13.1 (CV-I9): one entry per user object, released with it (WeakMap: no reused object ids in long loops);
+        // the identifier is checked too, and the memo is bounded for processes that never reset.
+        $entry = $this->memberships[$user] ?? null;
+        if ($entry === null || $entry[0] !== $user->getUserIdentifier()) {
             if (count($this->memberships) >= self::MAX_MEMO) {
-                $this->memberships = [];
+                $this->memberships = new WeakMap();
             }
             $ids = [];
             foreach ($this->spaceAccessResolver->listSpacesForUser($user) as $accessible) {
                 $ids[$accessible->getId()] = true;
             }
-
-            $this->memberships[$key] = $ids;
+            $entry                    = [$user->getUserIdentifier(), $ids];
+            $this->memberships[$user] = $entry;
         }
 
-        return isset($this->memberships[$key][$space->getId()]);
+        return isset($entry[1][$space->getId()]);
     }
 }

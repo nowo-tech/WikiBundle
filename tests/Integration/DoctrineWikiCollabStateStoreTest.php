@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Integration;
 
 use DateTimeImmutable;
+use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -22,13 +24,16 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
 {
     private DoctrineWikiCollabStateStore $store;
 
+    private EntityManager $em;
+
     protected function setUp(): void
     {
         if (!extension_loaded('pdo_sqlite')) {
             self::markTestSkipped('pdo_sqlite is required.');
         }
 
-        $this->store = new DoctrineWikiCollabStateStore(SqliteWikiEntityManager::create());
+        $this->em    = SqliteWikiEntityManager::create();
+        $this->store = new DoctrineWikiCollabStateStore($this->em);
     }
 
     public function testAnEmptyPageHasAnEmptyLog(): void
@@ -140,6 +145,17 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertSame(2, $this->store->purge(new DateTimeImmutable('+1 minute')));
         self::assertTrue($this->store->info('old')->isEmpty());
         self::assertNull($this->store->info('new')->updatedAt);
+    }
+
+    public function testThePurgeAlsoDropsUpdatesLeftWithoutADocument(): void
+    {
+        $this->store->append('orphan', 'AQ==');
+        $this->store->append('kept', 'AQ==');
+        $this->em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId = :p')->setParameter('p', 'orphan')->getQuery()->execute();
+
+        self::assertSame([], $this->store->purgePages(new DateTimeImmutable('-1 day')));
+        self::assertSame(0, $this->store->info('orphan')->updateCount, 'DA-L1: the orphan update is gone');
+        self::assertSame(1, $this->store->info('kept')->updateCount);
     }
 
     public function testThePurgeRollsBackOnFailure(): void

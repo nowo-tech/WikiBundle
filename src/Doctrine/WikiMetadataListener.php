@@ -56,7 +56,8 @@ final readonly class WikiMetadataListener
      */
     public function postGenerateSchema(GenerateSchemaEventArgs $args): void
     {
-        if ($this->collaborationEnabled) {
+        // Only the wiki's entity manager (where the collaboration entities are mapped), only its two tables.
+        if ($this->collaborationEnabled || $args->getEntityManager()->getMetadataFactory()->isTransient(WikiCollabDocument::class)) {
             return;
         }
         $schema = $args->getSchema();

@@ -57,7 +57,17 @@ Patch for hosts adopting 1.13 (Beacon requests) and the audit Info residuals CW-
   the live editors of purged pages to reload (CW-I10; `WikiCollabPagePurgeInterface`, `WikiCollabService::purge()`).
 - **Capped manual reset** shows a flash message instead of failing silently (CW-I7; `wiki.collab.reset_capped`,
   `wiki.collab.rate_limited` in 7 locales).
-- **Membership memo** keyed by user object + identifier and bounded to 64 users (CV-I9).
+- **Membership memo** in a `WeakMap` per user object (checked against the identifier), bounded to 64 users (CV-I9).
+- **`collaboration.enabled` must be a literal boolean** (DA-M1): an `%env()%` placeholder registered the
+  collaboration services while the schema listener left the tables out, so a diff would have dropped live tables.
+- **Appends lock the page document** before storing an update, and purges also drop updates left without a document
+  (DA-L1).
+- **"Editor xxxx" is an HMAC** (`kernel.secret`) of the page id and the login: stable per page, not linkable across
+  pages nor reversible against a directory (DA-L2).
+- **`show_names` filter hardened** (DA-L3): fullwidth `＠`, the e-mail local part, the login in brackets, NBSP, zero-width
+  characters, case and Latin / Cyrillic / Greek lookalikes fall back to the opaque label.
+- The per-user limiter key is prefixed (`nowo_wiki_collab:`) and the schema listener only acts on the wiki's entity
+  manager.
 
 ### Changed
 

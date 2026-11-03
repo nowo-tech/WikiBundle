@@ -133,6 +133,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         // BB L1: the switches that open the wiki must be literal booleans (an env placeholder string would be truthy).
         $config['web_ui']['enabled']                 = $this->literalBool($config['web_ui']['enabled'], 'web_ui.enabled');
         $config['security']['allow_unauthenticated'] = $this->literalBool($config['security']['allow_unauthenticated'], 'security.allow_unauthenticated');
+        // 1.13.1 (audit DA-M1): the schema listener and the collaboration services must agree; an env placeholder would
+        // register the services while the schema left the tables out (and a diff would drop them).
+        $config['collaboration']['enabled'] = $this->literalBool($config['collaboration']['enabled'], 'collaboration.enabled');
         if ($config['security']['allow_unauthenticated']) {
             $this->refuseAllowUnauthenticatedInProduction($container);
         }
@@ -266,7 +269,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$attachmentsTableName', $prefix . '_attachments')
             ->setArgument('$collabDocumentsTableName', $prefix . '_page_collab_documents')
             ->setArgument('$collabUpdatesTableName', $prefix . '_page_collab_updates')
-            ->setArgument('$collaborationEnabled', $config['collaboration']['enabled'] === true)
+            ->setArgument('$collaborationEnabled', $config['collaboration']['enabled'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
@@ -415,7 +418,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$authorizer', new Reference($authorizer))
             ->setArgument('$options', array_intersect_key($collab, WikiCollabService::DEFAULTS))
             ->setArgument('$rateLimiter', new Reference((string) $collab['rate_limiter']))
-            ->setArgument('$userRateLimiter', is_string($collab['user_rate_limiter']) && $collab['user_rate_limiter'] !== '' ? new Reference($collab['user_rate_limiter']) : null));
+            ->setArgument('$userRateLimiter', is_string($collab['user_rate_limiter']) && $collab['user_rate_limiter'] !== '' ? new Reference($collab['user_rate_limiter']) : null)
+            ->setArgument('$secret', '%kernel.secret%'));
         $container->setDefinition(WikiCollabSaveListener::class, (new Definition(WikiCollabSaveListener::class))
             ->setArgument('$collab', new Reference(WikiCollabService::class))
             ->setArgument('$requestStack', new Reference('request_stack', ContainerInterface::NULL_ON_INVALID_REFERENCE))

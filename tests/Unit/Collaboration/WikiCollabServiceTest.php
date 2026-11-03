@@ -424,6 +424,47 @@ final class WikiCollabServiceTest extends TestCase
         }
     }
 
+    public function testPseudonymsAreKeyedAndPerPage(): void
+    {
+        $service = $this->service([], null, null, 'kernel-secret');
+        $other   = new WikiPage(new WikiSpace('ops', 'Ops', WikiSpaceOwnerScope::Team, 't'), 'q', 'Q');
+        $a       = $service->editorOptions($this->page, $this->user, '/c')['user'];
+        $b       = $service->editorOptions($other, $this->user, '/c')['user'];
+        self::assertSame($a, $service->editorOptions($this->page, $this->user, '/c')['user'], 'stable on a page');
+        self::assertNotSame($a['name'], $b['name'], 'DA-L2: not linkable across pages');
+        self::assertNotSame('Editor ' . substr(hash('sha256', $this->user->getUserIdentifier()), 6, 4), $a['name'], 'DA-L2: not an unsalted hash');
+        self::assertNotSame($a, $this->service([], null, null, 'other-secret')->editorOptions($this->page, $this->user, '/c')['user']);
+    }
+
+    /**
+     * @return iterable<string, array{string, string, bool}>
+     */
+    public static function names(): iterable
+    {
+        yield 'real name' => ['Ana López', 'u1@corp.example', true];
+        yield 'han' => ['张伟', 'zw@corp.example', true];
+        yield 'e-mail' => ['ana.lopez@corp.example', 'u1', false];
+        yield 'e-mail without a dot' => ['ana@corp', 'u1', false];
+        yield 'fullwidth at' => ['ana＠corp', 'u1', false];
+        yield 'small at' => ['ana﹫corp', 'u1', false];
+        yield 'local part' => ['ana.lopez', 'ana.lopez@corp.example', false];
+        yield 'login in brackets' => ['Ana (alopez)', 'alopez', false];
+        yield 'login with nbsp' => ["alopez\u{00A0}", 'alopez', false];
+        yield 'login in other case' => ['ALOPEZ', 'alopez', false];
+        yield 'fullwidth login' => ['ａｌｏｐｅｚ', 'alopez', false];
+        yield 'local part without dots' => ['Ana Lopez', 'ana.lopez@corp.example', false];
+        yield 'zero-width joiner' => ["alo\u{200D}pez", 'alopez', false];
+        yield 'cyrillic lookalike' => ['аlopez', 'alopez', false];
+        yield 'blank' => ["\u{00A0} ", 'u1', false];
+        yield 'short login is not a substring test' => ['Bob Brown', 'bo', true];
+    }
+
+    #[DataProvider('names')]
+    public function testShownNamesNeverIdentifyTheLogin(string $name, string $login, bool $safe): void
+    {
+        self::assertSame($safe, WikiCollabService::isSafeName($name, $login));
+    }
+
     public function testRequestsAreAlsoLimitedPerUserAcrossPages(): void
     {
         $perUser = new RateLimiterFactory(['id' => 'wiki_collab_user', 'policy' => 'fixed_window', 'limit' => 2, 'interval' => '1 minute'], new InMemoryStorage());
@@ -463,7 +504,7 @@ final class WikiCollabServiceTest extends TestCase
     /**
      * @param array<string, mixed> $options
      */
-    private function service(array $options = [], ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $userLimiter = null): WikiCollabService
+    private function service(array $options = [], ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $userLimiter = null, string $secret = ''): WikiCollabService
     {
         $publisher = new class($this->published) implements WikiCollabPublisherInterface {
             /** @param list<array{0: string, 1: string}> $published */
@@ -488,7 +529,7 @@ final class WikiCollabServiceTest extends TestCase
             }
         };
 
-        return new WikiCollabService($this->store, $publisher, $authorizer, $options, $limiter, $userLimiter);
+        return new WikiCollabService($this->store, $publisher, $authorizer, $options, $limiter, $userLimiter, $secret);
     }
 
     /**

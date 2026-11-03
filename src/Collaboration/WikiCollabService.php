@@ -16,7 +16,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 use function base64_decode;
 use function count;
-use function hash;
+use function in_array;
 use function is_array;
 use function is_int;
 use function is_string;
@@ -30,6 +30,7 @@ use function substr;
 
 use const JSON_THROW_ON_ERROR;
 use const PHP_INT_MAX;
+use const PREG_SPLIT_NO_EMPTY;
 
 /**
  * Server side of the Milkdown collaboration protocol on Mercure (1.13, FR-076; Milkdown ≥ 1.2 for the state log).
@@ -91,6 +92,7 @@ final readonly class WikiCollabService
      * @param array<string, mixed> $options `nowo_wiki.collaboration` options (see {@see self::DEFAULTS})
      * @param RateLimiterFactory|null $rateLimiter limits every request per user and page (required by the configuration)
      * @param RateLimiterFactory|null $userRateLimiter limits every request per user across pages (1.13.1, CW-I9; optional)
+     * @param string $secret key of the per-page pseudonyms "Editor xxxx" (`kernel.secret`, 1.13.1, DA-L2)
      */
     public function __construct(
         private WikiCollabStateStoreInterface $store,
@@ -99,6 +101,7 @@ final readonly class WikiCollabService
         array $options = [],
         private ?RateLimiterFactory $rateLimiter = null,
         private ?RateLimiterFactory $userRateLimiter = null,
+        private string $secret = '',
     ) {
         /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool} $merged */
         $merged        = $options + self::DEFAULTS;
@@ -135,7 +138,8 @@ final readonly class WikiCollabService
      */
     public function editorOptions(WikiPage $page, UserInterface $user, string $url): array
     {
-        $hash = hash('sha256', $user->getUserIdentifier());
+        // DA-L2: keyed and per page, so a label cannot be matched against a user directory nor linked across pages.
+        $hash = hash_hmac('sha256', $page->getId() . '|' . $user->getUserIdentifier(), $this->secret);
 
         return [
             'url'     => rtrim($url, '/'),
@@ -369,7 +373,7 @@ final readonly class WikiCollabService
             throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
         }
         if ($this->userRateLimiter instanceof RateLimiterFactory
-            && !$this->userRateLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
+            && !$this->userRateLimiter->create('nowo_wiki_collab:' . $user->getUserIdentifier())->consume()->isAccepted()) {
             throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
         }
     }
@@ -443,8 +447,8 @@ final readonly class WikiCollabService
     }
 
     /**
-     * The name co-editors see (1.13.1): an opaque "Editor xxxx" unless `show_names` is on; even then never a value that
-     * is the login identifier or looks like an e-mail address (CW-I2).
+     * The name co-editors see (1.13.1): an opaque "Editor xxxx" unless `show_names` is on; even then a name that could
+     * identify the login falls back to the opaque label (CW-I2, DA-L3).
      */
     private function displayName(UserInterface $user): ?string
     {
@@ -453,18 +457,51 @@ final readonly class WikiCollabService
         }
         foreach (['getDisplayName', 'getName'] as $method) {
             $name = method_exists($user, $method) ? $user->{$method}() : null;
-            if (!is_string($name) || trim($name) === '') {
+            if (!is_string($name) || self::fold($name) === '') {
                 continue;
             }
-            $name = trim($name);
-            if (strcasecmp($name, $user->getUserIdentifier()) === 0 || preg_match('/\S@\S+\.\S/', $name) === 1) {
-                return null;
-            }
 
-            return $name;
+            return self::isSafeName($name, $user->getUserIdentifier()) ? trim(self::spaces($name)) : null;
         }
 
         return null;
+    }
+
+    /**
+     * Whether a display name says nothing about the login (DA-L3). After folding (fullwidth forms to ASCII, Unicode
+     * spaces and invisible characters to one space, lower case) it must not contain `@`, equal the login or its e-mail
+     * local part, contain either as a token or, once separators are removed, as a substring, nor mix Latin with Greek
+     * or Cyrillic letters (lookalikes). When in doubt the caller shows "Editor xxxx".
+     */
+    public static function isSafeName(string $name, string $login): bool
+    {
+        $fold  = self::fold($name);
+        $login = self::fold($login);
+        $local = str_contains($login, '@') ? (string) strstr($login, '@', true) : $login;
+        if ($fold === '' || preg_match('/[@\x{FE6B}\x{FF20}]/u', $fold) === 1 || $fold === $login || $fold === $local) {
+            return false;
+        }
+        $tokens  = preg_split('/[^\p{L}\p{N}]+/u', $fold, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $compact = (string) preg_replace('/[^\p{L}\p{N}]+/u', '', $fold);
+        foreach ([$login, $local] as $id) {
+            $bare = (string) preg_replace('/[^\p{L}\p{N}]+/u', '', $id);
+            if (in_array($id, $tokens, true) || (mb_strlen($bare) >= 3 && str_contains($compact, $bare))) {
+                return false;
+            }
+        }
+
+        return preg_match('/\p{Latin}/u', $fold) !== 1 || preg_match('/[\p{Greek}\p{Cyrillic}]/u', $fold) !== 1;
+    }
+
+    /** Fullwidth forms to ASCII, Unicode spaces and invisible characters to one space, trimmed, lower case. */
+    private static function fold(string $value): string
+    {
+        return mb_strtolower(trim(self::spaces(mb_convert_kana($value, 'as', 'UTF-8'))), 'UTF-8');
+    }
+
+    private static function spaces(string $value): string
+    {
+        return (string) preg_replace('/[\p{Z}\p{Cc}\x{200B}-\x{200D}\x{2060}\x{FEFF}]+/u', ' ', $value);
     }
 
     private function idleFor(WikiCollabState $state): int

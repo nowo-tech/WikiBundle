@@ -6,10 +6,14 @@ namespace Nowo\WikiBundle\Tests\Integration;
 
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Events;
+use Doctrine\ORM\Mapping\ClassMetadataFactory;
 use Doctrine\ORM\ORMSetup;
+use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\ORM\Tools\ToolEvents;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
@@ -57,5 +61,20 @@ final class CollabTablesSchemaTest extends TestCase
         self::assertContains('w_pages', $tables);
         self::assertSame($expected, $schema->hasTable('w_page_collab_documents'));
         self::assertSame($expected, $schema->hasTable('w_page_collab_updates'));
+    }
+
+    public function testOtherEntityManagersAreLeftAlone(): void
+    {
+        // A host's second entity manager without the wiki entities keeps its own tables, even with the same names.
+        $factory = $this->createMock(ClassMetadataFactory::class);
+        $factory->method('isTransient')->willReturn(true);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getMetadataFactory')->willReturn($factory);
+        $schema = new Schema();
+        $schema->createTable('w_page_collab_documents');
+
+        (new WikiMetadataListener('s', 'p', 'r', TestUserEntity::class, 'l', 'a', 'w_page_collab_documents', 'w_page_collab_updates', false))
+            ->postGenerateSchema(new GenerateSchemaEventArgs($em, $schema));
+        self::assertTrue($schema->hasTable('w_page_collab_documents'));
     }
 }

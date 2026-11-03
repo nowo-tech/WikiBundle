@@ -109,14 +109,39 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
         );
     }
 
+    /**
+     * Appends under the page document's row lock (1.13.1, audit DA-L1): a purge running at the same time either sees
+     * the touched document (and keeps it) or has deleted it first, in which case the document is created again before
+     * the update is stored, so no update is ever left without its document.
+     */
     public function append(string $pageId, string $update): int
     {
-        $em  = $this->em();
-        $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_UPDATE, $update);
-        $em->persist($row);
-        $em->flush();
-        $em->detach($row);
-        $this->touch($pageId);
+        $em         = $this->em();
+        $connection = $em->getConnection();
+        $connection->beginTransaction();
+        try {
+            $this->ensureDocument($pageId);
+            $locked = $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+            // A purge deleted the document between the insert and the lock (needs two connections to test).
+            // @codeCoverageIgnoreStart
+            if ($locked === []) {
+                $this->ensureDocument($pageId);
+            }
+            // @codeCoverageIgnoreEnd
+            $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_UPDATE, $update);
+            $em->persist($row);
+            $em->flush();
+            $em->detach($row);
+            $this->touch($pageId);
+            $connection->commit();
+        } catch (Throwable $exception) { // @codeCoverageIgnore
+            $connection->rollBack(); // @codeCoverageIgnore
+
+            throw $exception; // @codeCoverageIgnore
+        }
 
         return (int) $row->getId();
     }
@@ -188,6 +213,10 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
                 $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')->where('u.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
                 $em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
             }
+            // DA-L1: updates left without a document (by 1.13.0, or a race it could lose) are purged too.
+            $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')
+                ->where('u.pageId NOT IN (' . $em->createQueryBuilder()->select('d2.pageId')->from(WikiCollabDocument::class, 'd2')->getDQL() . ')')
+                ->getQuery()->execute();
             $em->commit();
         } catch (Throwable $e) {
             $em->rollback();

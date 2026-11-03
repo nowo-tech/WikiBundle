@@ -60,6 +60,8 @@ From **1.13.0**: `composer update nowo-tech/wiki-bundle`. Changes to check:
   `<prefix>_page_collab_documents` / `_updates` tables are no longer part of the generated schema, so
   `doctrine:migrations:diff` / `schema:update` stop asking for them. If you already created them and do not use
   co-editing, your next diff drops them (they hold only transient Yjs logs). Hosts with co-editing see no change.
+- **`collaboration.enabled` must be `true` or `false`** written in the configuration; `%env(bool:…)%` is refused at
+  compile time (DA-M1).
 - **Co-editor names are opaque by default.** Co-editors now see "Editor xxxx" unless you set
   `nowo_wiki.collaboration.show_names: true` (the 1.13.0 behaviour); even then a display name equal to the login
   identifier or shaped like an e-mail address is replaced by the opaque label (CW-I2).
