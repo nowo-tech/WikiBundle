@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6831bc58f7e2650b25caae832a82c1d4",
+    "content-hash": "b7ca0a83e14aaad8d5ca33f3e1b65cd9",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -8374,7 +8374,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-28T22:38:53+00:00"
+            "time": "2026-10-28T22:38:53+00:00",
+            "published-time": "2026-10-28T22:39:06+00:00"
         },
         {
             "name": "phpstan/phpstan-phpunit",
@@ -12230,11 +12231,12 @@
     "prefer-lowest": false,
     "platform": {
         "php": ">=8.2 <8.6",
+        "ext-iconv": "*",
         "ext-zip": "*"
     },
     "platform-dev": {},
     "platform-overrides": {
         "php": "8.2.0"
     },
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.11.0"
 }

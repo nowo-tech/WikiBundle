@@ -53,6 +53,8 @@
 
 ## Unreleased
 
+- The bundle requires the PHP `iconv` extension (enabled in nearly every PHP build).
+
 ## To 1.13.1
 
 From **1.13.0**:

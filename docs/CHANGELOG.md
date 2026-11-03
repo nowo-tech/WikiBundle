@@ -46,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`ext-iconv` is required** (audit DA-I8): `show_names` transliterates names with iconv and, without it, falls back
+  to the opaque label (fail closed).
+- **A compaction of a purged log is refused with 409 `log_reset`** (audit DA-I9), like an append: the store no longer
+  recreates the document.
+
 ## [1.13.1] - 2026-11-03
 
 Tiptap assets only for tiptap, no collab tables when collaboration is off, safe co-editor names, purge/append race, audit residuals
