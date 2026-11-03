@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Collaboration;
 
 use DateTimeImmutable;
 use JsonException;
+use LogicException;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -138,8 +139,12 @@ final readonly class WikiCollabService
      */
     public function editorOptions(WikiPage $page, UserInterface $user, string $url): array
     {
-        // DA-L2: keyed and per page, so a label cannot be matched against a user directory nor linked across pages.
-        $hash = hash_hmac('sha256', $page->getId() . '|' . $user->getUserIdentifier(), $this->secret);
+        // DA-L2 / DA-I5: keyed (a subkey of kernel.secret for this purpose only) and per page, so a label cannot be
+        // matched against a user directory nor linked across pages.
+        if ($this->secret === '') {
+            throw new LogicException('nowo_wiki.collaboration needs a non-empty kernel.secret to derive the co-editor labels.');
+        }
+        $hash = hash_hmac('sha256', $page->getId() . '|' . $user->getUserIdentifier(), hash_hmac('sha256', 'nowo_wiki_collab_label', $this->secret));
 
         return [
             'url'     => rtrim($url, '/'),
@@ -457,51 +462,66 @@ final readonly class WikiCollabService
         }
         foreach (['getDisplayName', 'getName'] as $method) {
             $name = method_exists($user, $method) ? $user->{$method}() : null;
-            if (!is_string($name) || self::fold($name) === '') {
+            if (!is_string($name) || trim($this->spaces($name)) === '') {
                 continue;
             }
 
-            return self::isSafeName($name, $user->getUserIdentifier()) ? trim(self::spaces($name)) : null;
+            return self::isSafeName($name, $user->getUserIdentifier()) ? trim($this->spaces($name)) : null;
         }
 
         return null;
     }
 
     /**
-     * Whether a display name says nothing about the login (DA-L3). After folding (fullwidth forms to ASCII, Unicode
-     * spaces and invisible characters to one space, lower case) it must not contain `@`, equal the login or its e-mail
-     * local part, contain either as a token or, once separators are removed, as a substring, nor mix Latin with Greek
-     * or Cyrillic letters (lookalikes). When in doubt the caller shows "Editor xxxx".
+     * Whether a display name says nothing about the login (DA-L3). Conservative:
+     *
+     * - no format / bidi controls (`\p{Cf}`) and only Latin letters (Basic Latin, Latin-1, Latin Extended-A / B), digits,
+     *   spaces and common punctuation — fullwidth, mathematical, circled or small-cap letters and other scripts
+     *   (lookalikes) fall back to "Editor xxxx";
+     * - no `@`;
+     * - after folding (lower case, accents transliterated, separators removed) neither the login nor its e-mail local
+     *   part may equal the name, appear as one of its words or, from 3 characters, inside it.
+     *
+     * Leet variants (`al0pez`) are not detected: `show_names` is for display names the application manages.
      */
     public static function isSafeName(string $name, string $login): bool
     {
-        $fold  = self::fold($name);
-        $login = self::fold($login);
-        $local = str_contains($login, '@') ? (string) strstr($login, '@', true) : $login;
-        if ($fold === '' || preg_match('/[@\x{FE6B}\x{FF20}]/u', $fold) === 1 || $fold === $login || $fold === $local) {
+        if (preg_match('/\p{Cf}/u', $name) === 1 || preg_match('/[^\x{0020}-\x{007E}\x{00A0}-\x{024F}\x{2019}]/u', $name) === 1 || str_contains($name, '@')) {
             return false;
         }
-        $tokens  = preg_split('/[^\p{L}\p{N}]+/u', $fold, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $compact = (string) preg_replace('/[^\p{L}\p{N}]+/u', '', $fold);
+        $words = self::words($name);
+        if ($words === []) {
+            return false;
+        }
+        $compact = implode('', $words);
+        $login   = mb_strtolower(trim($login), 'UTF-8');
+        $local   = str_contains($login, '@') ? (string) strstr($login, '@', true) : $login;
         foreach ([$login, $local] as $id) {
-            $bare = (string) preg_replace('/[^\p{L}\p{N}]+/u', '', $id);
-            if (in_array($id, $tokens, true) || (mb_strlen($bare) >= 3 && str_contains($compact, $bare))) {
+            $idWords = self::words($id);
+            $bare    = implode('', $idWords);
+            if ($bare === $compact || in_array($bare, $words, true) || (strlen($bare) >= 3 && str_contains($compact, $bare))) {
                 return false;
             }
         }
 
-        return preg_match('/\p{Latin}/u', $fold) !== 1 || preg_match('/[\p{Greek}\p{Cyrillic}]/u', $fold) !== 1;
+        return true;
     }
 
-    /** Fullwidth forms to ASCII, Unicode spaces and invisible characters to one space, trimmed, lower case. */
-    private static function fold(string $value): string
+    /**
+     * Lower-case ASCII words of a value: accents transliterated (iconv), everything but letters and digits a separator.
+     *
+     * @return list<string>
+     */
+    private static function words(string $value): array
     {
-        return mb_strtolower(trim(self::spaces(mb_convert_kana($value, 'as', 'UTF-8'))), 'UTF-8');
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        return preg_split('/[^a-z0-9]+/', strtolower($ascii === false ? $value : $ascii), -1, PREG_SPLIT_NO_EMPTY) ?: [];
     }
 
-    private static function spaces(string $value): string
+    private function spaces(string $value): string
     {
-        return (string) preg_replace('/[\p{Z}\p{Cc}\x{200B}-\x{200D}\x{2060}\x{FEFF}]+/u', ' ', $value);
+        return (string) preg_replace('/[\p{Z}\p{Cc}]+/u', ' ', $value);
     }
 
     private function idleFor(WikiCollabState $state): int

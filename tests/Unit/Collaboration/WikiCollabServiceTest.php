@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Collaboration;
 
 use DateTimeImmutable;
+use LogicException;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
@@ -442,7 +443,14 @@ final class WikiCollabServiceTest extends TestCase
     public static function names(): iterable
     {
         yield 'real name' => ['Ana López', 'u1@corp.example', true];
-        yield 'han' => ['张伟', 'zw@corp.example', true];
+        yield 'other scripts fall back (conservative)' => ['张伟', 'zw@corp.example', false];
+        yield 'accented login' => ['Alópez', 'alopez', false];
+        yield 'bidi override' => ["Ana\u{202E}zepol", 'u1', false];
+        yield 'mathematical letters' => ['𝐚𝐥𝐨𝐩𝐞𝐳', 'alopez', false];
+        yield 'circled letters' => ['ⓐⓛⓞⓟⓔⓩ', 'alopez', false];
+        yield 'small caps' => ['ᴀʟᴏᴘᴇᴢ', 'alopez', false];
+        yield 'leet is not detected (documented)' => ['al0pez', 'alopez', true];
+        yield 'apostrophe' => ['Ana O’Brien', 'u1@corp.example', true];
         yield 'e-mail' => ['ana.lopez@corp.example', 'u1', false];
         yield 'e-mail without a dot' => ['ana@corp', 'u1', false];
         yield 'fullwidth at' => ['ana＠corp', 'u1', false];
@@ -463,6 +471,12 @@ final class WikiCollabServiceTest extends TestCase
     public function testShownNamesNeverIdentifyTheLogin(string $name, string $login, bool $safe): void
     {
         self::assertSame($safe, WikiCollabService::isSafeName($name, $login));
+    }
+
+    public function testAnEmptySecretIsRefused(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->service([], null, null, '')->editorOptions($this->page, $this->user, '/c');
     }
 
     public function testRequestsAreAlsoLimitedPerUserAcrossPages(): void
@@ -504,7 +518,7 @@ final class WikiCollabServiceTest extends TestCase
     /**
      * @param array<string, mixed> $options
      */
-    private function service(array $options = [], ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $userLimiter = null, string $secret = ''): WikiCollabService
+    private function service(array $options = [], ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $userLimiter = null, string $secret = 'test-secret'): WikiCollabService
     {
         $publisher = new class($this->published) implements WikiCollabPublisherInterface {
             /** @param list<array{0: string, 1: string}> $published */

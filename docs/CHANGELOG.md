@@ -60,12 +60,14 @@ Patch for hosts adopting 1.13 (Beacon requests) and the audit Info residuals CW-
 - **Membership memo** in a `WeakMap` per user object (checked against the identifier), bounded to 64 users (CV-I9).
 - **`collaboration.enabled` must be a literal boolean** (DA-M1): an `%env()%` placeholder registered the
   collaboration services while the schema listener left the tables out, so a diff would have dropped live tables.
-- **Appends lock the page document** before storing an update, and purges also drop updates left without a document
-  (DA-L1).
-- **"Editor xxxx" is an HMAC** (`kernel.secret`) of the page id and the login: stable per page, not linkable across
-  pages nor reversible against a directory (DA-L2).
-- **`show_names` filter hardened** (DA-L3): fullwidth `＠`, the e-mail local part, the login in brackets, NBSP, zero-width
-  characters, case and Latin / Cyrillic / Greek lookalikes fall back to the opaque label.
+- **Appends lock the page document** before storing an update; an append to a log purged meanwhile is refused with
+  409 `log_reset` (no purged session is revived), document rows use the platform's insert-or-ignore form (no aborted
+  PostgreSQL transaction), and purges also drop updates left without a document (DA-L1).
+- **"Editor xxxx" is an HMAC** of the page id and the login under a subkey of `kernel.secret` (an empty secret is
+  refused): stable per page, not linkable across pages nor reversible against a directory (DA-L2, DA-I5).
+- **`show_names` filter hardened** (DA-L3): only Latin-script names without format / bidi controls or `@` are shown;
+  the login and the e-mail local part are compared after case and accent folding, as words and as substrings;
+  fullwidth, mathematical, circled and small-cap letters and other scripts fall back to the opaque label.
 - The per-user limiter key is prefixed (`nowo_wiki_collab:`) and the schema listener only acts on the wiki's entity
   manager.
 

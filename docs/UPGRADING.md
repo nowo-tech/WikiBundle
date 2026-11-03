@@ -56,6 +56,9 @@
 
 From **1.13.0**: `composer update nowo-tech/wiki-bundle`. Changes to check:
 
+- **Schema listener and DoctrineBundle:** the bundle registers `WikiMetadataListener` (table names, and leaving the
+  collaboration tables out without co-editing) through DoctrineBundle's `doctrine.event_listener` tag. With a bare
+  Doctrine ORM setup, add it to your EventManager for `loadClassMetadata` and `postGenerateSchema` yourself (DA-I6).
 - **No collaboration tables without co-editing.** With `collaboration.enabled: false` (the default) the
   `<prefix>_page_collab_documents` / `_updates` tables are no longer part of the generated schema, so
   `doctrine:migrations:diff` / `schema:update` stop asking for them. If you already created them and do not use

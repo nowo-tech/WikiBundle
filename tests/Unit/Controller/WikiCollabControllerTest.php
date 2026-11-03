@@ -266,7 +266,7 @@ final class WikiCollabControllerTest extends TestCase
             new WikiSpaceGuard(new FixedSpaceLocator($this->space), $checker ?? CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit)),
             $pages,
             $roles,
-            $enabled ? new WikiCollabService(new InMemoryCollabStateStore(), $publisher, $authorizer) : null,
+            $enabled ? new WikiCollabService(new InMemoryCollabStateStore(), $publisher, $authorizer, secret: 'test-secret') : null,
             $guard,
             $routes,
         );

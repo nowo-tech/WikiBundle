@@ -5,14 +5,21 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Integration;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Platforms\MariaDBPlatform;
+use Doctrine\DBAL\Platforms\MySQLPlatform;
+use Doctrine\DBAL\Platforms\OraclePlatform;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
+use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
+use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use RuntimeException;
 
 use function extension_loaded;
@@ -50,9 +57,9 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
 
     public function testAppendsCompactsToOneSnapshotAndCountsWithoutReadingData(): void
     {
-        $one   = $this->store->append('p1', 'AQ==');
-        $two   = $this->store->append('p1', 'Ag==');
-        $other = $this->store->append('p2', 'Aw==');
+        $one   = $this->append('p1', 'AQ==');
+        $two   = $this->append('p1', 'Ag==');
+        $other = $this->append('p2', 'Aw==');
         self::assertGreaterThan($one, $two);
 
         $info = $this->store->info('p1');
@@ -67,7 +74,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertSame(['AQ==', 'Ag=='], $state->updates);
 
         $this->store->compact('p1', 'U1==', $one);
-        $three = $this->store->append('p1', 'Aw==');
+        $three = $this->append('p1', 'Aw==');
         $state = $this->store->load('p1');
         self::assertSame('U1==', $state->snapshot);
         self::assertSame(['Ag==', 'Aw=='], $state->updates);
@@ -93,7 +100,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertTrue($this->store->claimSeed('p1', new DateTimeImmutable('+1 minute'), 'bob'));
         self::assertSame('bob', $this->store->info('p1')->seededBy);
 
-        $this->store->append('p1', 'AQ==');
+        $this->append('p1', 'AQ==');
         $this->store->reset('p1', 'rev-2');
         $state = $this->store->load('p1');
         self::assertTrue($state->isEmpty());
@@ -122,7 +129,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
     {
         $seqs = [];
         for ($i = 0; $i < 4; ++$i) {
-            $seqs[] = $this->store->append('p1', 'AQ==');
+            $seqs[] = $this->append('p1', 'AQ==');
         }
 
         // CW-L4: the compaction covering more lands first; the one covering less must not delete it.
@@ -138,8 +145,8 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
 
     public function testStaleLogsArePurged(): void
     {
-        $this->store->append('old', 'AQ==');
-        $this->store->append('new', 'AQ==');
+        $this->append('old', 'AQ==');
+        $this->append('new', 'AQ==');
 
         self::assertSame(0, $this->store->purge(new DateTimeImmutable('-1 day')));
         self::assertSame(2, $this->store->purge(new DateTimeImmutable('+1 minute')));
@@ -149,13 +156,54 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
 
     public function testThePurgeAlsoDropsUpdatesLeftWithoutADocument(): void
     {
-        $this->store->append('orphan', 'AQ==');
-        $this->store->append('kept', 'AQ==');
+        $this->append('orphan', 'AQ==');
+        $this->append('kept', 'AQ==');
         $this->em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId = :p')->setParameter('p', 'orphan')->getQuery()->execute();
 
         self::assertSame([], $this->store->purgePages(new DateTimeImmutable('-1 day')));
         self::assertSame(0, $this->store->info('orphan')->updateCount, 'DA-L1: the orphan update is gone');
         self::assertSame(1, $this->store->info('kept')->updateCount);
+    }
+
+    public function testAnAppendToAPurgedLogIsALogReset(): void
+    {
+        $this->append('kept', 'AQ==');
+        $this->store->purgePages(new DateTimeImmutable('+1 minute'));
+        try {
+            $this->store->append('kept', 'Ag==');
+            self::fail('DA-L1: a purged log is never replayed');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([409, 'log_reset'], [$exception->status, $exception->reason]);
+        }
+        self::assertSame(0, $this->store->info('kept')->updateCount, 'nothing stored, the transaction rolled back');
+        self::assertFalse($this->em->getConnection()->isTransactionActive());
+    }
+
+    public function testDocumentsAreInsertedRaceSafelyInsideATransaction(): void
+    {
+        $connection = $this->em->getConnection();
+        $connection->beginTransaction();
+        $this->store->reset('p9', null);
+        $this->store->reset('p9', 'r1'); // the second insert is ignored: the transaction is not aborted
+        $connection->commit();
+        self::assertSame('r1', $this->store->info('p9')->baseRevisionId);
+    }
+
+    public function testInsertIgnoreStatementsPerPlatform(): void
+    {
+        self::assertSame('INSERT INTO t (page_id, updated_at) VALUES (?, ?) ON CONFLICT (page_id) DO NOTHING', DoctrineWikiCollabStateStore::insertIgnoreSql(new PostgreSQLPlatform(), 't'));
+        self::assertSame('INSERT IGNORE INTO t (page_id, updated_at) VALUES (?, ?)', DoctrineWikiCollabStateStore::insertIgnoreSql(new MySQLPlatform(), 't'));
+        self::assertSame('INSERT IGNORE INTO t (page_id, updated_at) VALUES (?, ?)', DoctrineWikiCollabStateStore::insertIgnoreSql(new MariaDBPlatform(), 't'));
+        self::assertSame('INSERT OR IGNORE INTO t (page_id, updated_at) VALUES (?, ?)', DoctrineWikiCollabStateStore::insertIgnoreSql(new SQLitePlatform(), 't'));
+        self::assertNull(DoctrineWikiCollabStateStore::insertIgnoreSql(new OraclePlatform(), 't'));
+    }
+
+    /** Appends like the service does after the token request created the page's document. */
+    private function append(string $pageId, string $update): int
+    {
+        (new ReflectionMethod($this->store, 'ensureDocument'))->invoke($this->store, $pageId);
+
+        return $this->store->append($pageId, $update);
     }
 
     public function testThePurgeRollsBackOnFailure(): void
@@ -177,6 +225,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         $registry->method('getManager')->willReturn($em);
         $store = new DoctrineWikiCollabStateStore(new WikiEntityManagerProvider($registry, 'default'));
 
+        $store->reset('p1', null);
         $store->append('p1', 'AQ==');
         self::assertSame(['AQ=='], $store->load('p1')->updates);
     }

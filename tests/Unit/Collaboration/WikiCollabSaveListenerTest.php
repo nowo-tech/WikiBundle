@@ -97,6 +97,6 @@ final class WikiCollabSaveListenerTest extends TestCase
             }
         };
 
-        return new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class));
+        return new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
     }
 }
