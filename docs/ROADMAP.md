@@ -36,6 +36,7 @@ task ids (T0xx) refer to symfony-beacon `specs/178-wiki/tasks.md`.
   - [Accessibility, performance and audit residuals](#accessibility-performance-and-audit-residuals)
 - [Notion-style databases](#notion-style-databases)
 - [Proposed (not yet requested)](#proposed-not-yet-requested)
+- [Decided](#decided)
 - [Open decisions](#open-decisions)
 - [Links](#links)
 
@@ -146,6 +147,17 @@ confirmation*.
 - [x] 1.13.1 audit residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9 (CV-I5 stays in 1.14) and the Beacon adoption fixes
   (Tiptap script only for `editor.type: tiptap`, no collaboration tables without co-editing, opaque co-editor names
   by default) — PR #82
+- [x] 1.14 page tree (T062) and moves (T049): UiKit 2.24 tree in the sidebar, fold state, drag / Alt+arrows / Move
+  form, server validation and `nowo_wiki.page.moved` (opt-in `tree.enabled`). Defaults confirmed by the user on
+  2026-11-03 (see [Decided](#decided)): D-W1 same space only, D-W2 depth 10, D-W27 integer positions, D-W28 fold state
+  in the session (`tree.state_store` for a per-user store).
+  Lazy children, starred / recents, the per-node "+" / "⋯" menus and live updates stay open for the next 1.14 PRs.
+  — PR #83
+- [x] 1.14 trash (T065, pulled forward on the owner's request): Delete with the sub-tree behind a confirm, the trash
+  with Restore and a twice-confirmed Purge, retention (`trash.retention_days`, D-W4: 30 days) and `wiki:trash:purge`,
+  `WikiAction::Delete` / `Purge` (D-W5: purge by the manage roles in the 1.x mapping), trashed pages invisible on
+  every read path (opt-in `trash.enabled`). Version history and the full trash UX stay in 1.15. Decided by the user
+  on 2026-11-03 (D-W29, D-W30, D-W31). — PR #85
 
 ## Plans
 
@@ -159,8 +171,8 @@ fully expanded, server-rendered `<ul>` capped at `max_tree_pages`.
 - **Sidebar.**
   - Spaces → collections (when T048 is enabled) → nested pages to any depth, each parent with a disclosure button.
   - The current page's branch unfolded and the page marked `aria-current="page"`.
-  - Fold state per user and space stored **server-side** (a `wiki_tree_state` row: user, space, expanded node ids;
-    same approach as Beacon's UI preferences), applied before rendering so there is no flash.
+  - Fold state per user and space applied **server-side** before rendering, so there is no flash (D-W28: the session
+    by default; `tree.state_store` for a per-user store such as Beacon's UI preferences).
   - **Lazy children**: the first render ships the expanded branches; collapsed parents load their children from
     `GET …/tree/children?parent=<id>` (JSON of value-free nodes, paged at 200).
   - Indicators where useful: draft badge, unresolved comment count (only counts the viewer may see), *private*
@@ -171,7 +183,7 @@ fully expanded, server-rendered `<ul>` capped at `max_tree_pages`.
   - A **"⋯" menu**: rename, icon / emoji, duplicate, move, copy link, archive, delete (→ trash), star / pin,
     export.
   - **Drag and drop** to reorder or re-parent: drop-indicator line, *inside* vs *between* zones, auto-expand after
-    hovering a collapsed parent, Escape cancels; across spaces only with D-W1.
+    hovering a collapsed parent, Escape cancels; never across spaces (D-W1).
   - **Keyboard alternative** (WCAG 2.5.7): Alt+↑ / ↓ reorders among siblings, Alt+← / → un-nests / nests, and the
     *Move to…* dialog (searchable tree, same data) for any target.
 - **Accessibility.** WAI-ARIA **treeview** pattern: one tab stop (roving `tabindex`), ↑ ↓ ← →, Home / End,
@@ -179,10 +191,10 @@ fully expanded, server-rendered `<ul>` capped at `max_tree_pages`.
   `aria-posinset`, the actions reachable with a shortcut (Shift+F10 / the "⋯" button); moves announced in a live
   region ("*Runbooks* moved under *Operations*, position 3 of 5"); axe and keyboard-only e2e.
 - **Server.**
-  - **Ordering:** a fractional `rank` (string lexorank) column next to `position`; a move writes one row, never
-    re-numbers siblings; a background job rebalances ranks that grow too long.
+  - **Ordering** (D-W27): sparse integers in the existing `position` column; a move writes one row while the
+    neighbours leave a gap, and renumbers the siblings only when they do not (or share a position).
   - **Move validation:** no cycles (target not inside the moved subtree), edit right on source and target parents,
-    depth limit (D-W2), same space unless D-W1; one transaction; an audit entry (who, from, to, when) and a
+    depth limit (D-W2), same space only (D-W1); one transaction; an audit entry (who, from, to, when) and a
     `nowo_wiki.page.moved` event.
   - **Per-viewer filtering:** subtrees the viewer cannot read are dropped with their counts; a readable child of an
     unreadable parent is attached to the nearest readable ancestor or the root (no placeholder title).
@@ -624,12 +636,22 @@ Further features found while writing this roadmap. They are **proposals**: accep
 | Webhook-driven integrations (Slack / Teams unfurls of wiki links) | Outline-like chat unfurls, per-viewer safe (title only for authorised workspaces) | M | 1.22 |
 | AI: summaries of long pages and Q&A citations to headings | Builds on the optional Symfony AI integration; host-provided models only | M | 1.22 |
 
+## Decided
+
+| # | Decision | Outcome (date) |
+|---|----------|----------------|
+| D-W1 | Allow moves **across spaces**? | No: moves stay within one space (2026-11-03) |
+| D-W2 | Maximum tree **depth** | 10 levels, `tree.max_depth` (2026-11-03) |
+| D-W27 | Sibling **ordering** storage | Sparse integers in the existing `position` column, no string rank column (2026-11-03) |
+| D-W28 | Where the **fold state** lives | The session by default; `tree.state_store` for a per-user store (2026-11-03) |
+| D-W29 | What a **delete** takes | The page and its whole sub-tree, restored together (2026-11-03) |
+| D-W30 | Pages **archived before** a delete | Stay archived after a restore (2026-11-03) |
+| D-W31 | A restored page whose **parent is gone** | Comes back at the top level (2026-11-03) |
+
 ## Open decisions
 
 | # | Decision | Recommendation |
 |---|----------|----------------|
-| D-W1 | Allow moves **across spaces**? | Yes for users with edit rights on both; permissions of the target apply |
-| D-W2 | Maximum tree **depth** | 10 levels |
 | D-W3 | Show **Starred** / **Recents** sections in the sidebar | Yes, both collapsible |
 | D-W4 | **Trash retention** period | 30 days, configurable |
 | D-W5 | Who can **purge** / empty the trash | Space managers (`manage`) |

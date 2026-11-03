@@ -9,12 +9,14 @@ use Nowo\UiKitBundle\View\Label;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
+use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\PageFixtures;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use PHPUnit\Framework\TestCase;
 
+use function array_diff_key;
 use function array_map;
 use function is_scalar;
 
@@ -59,7 +61,41 @@ final class WikiPageFactoryTest extends TestCase
         }
 
         self::assertSame(['id' => 'engineering', 'name' => 'Engineering', 'slug' => 'engineering', 'href' => '/nowo_wiki_space?spaceSlug=engineering'], $index->rows[0]);
-        self::assertSame([['title' => 'Welcome', 'href' => '/nowo_wiki_page_view?spaceSlug=engineering&pageSlug=welcome', 'current' => false, 'children' => []]], $factory->tree(PageFixtures::space('engineering', 'Engineering'), [['page' => new WikiPage(PageFixtures::space('engineering', 'E'), 'welcome', 'Welcome'), 'children' => 'not-a-list']]));
+        $welcome = new WikiPage(PageFixtures::space('engineering', 'E'), 'welcome', 'Welcome');
+        self::assertSame([['id' => $welcome->getId(), 'title' => 'Welcome', 'href' => '/nowo_wiki_page_view?spaceSlug=engineering&pageSlug=welcome', 'current' => false, 'children' => []]], $factory->tree(PageFixtures::space('engineering', 'Engineering'), [['page' => $welcome, 'children' => 'not-a-list']]));
+    }
+
+    public function testTheTreeViewModels(): void
+    {
+        $routes                           = PageFixtures::routes() + ['space_tree' => ['path' => '/t', 'name' => 'nowo_wiki_space_tree'], 'page_move' => ['path' => '/m', 'name' => 'nowo_wiki_page_move']];
+        $factory                          = new WikiPageFactory(PageFixtures::urlGenerator(), $routes, new WikiPages(), '');
+        $space                            = PageFixtures::space('eng', 'Engineering');
+        [$root, $page, $child, $glossary] = PageFixtures::pages($space);
+        $nodes                            = $factory->tree($space, (new WikiPageTreeBuilder())->build([$root, $page, $child, $glossary]), 'rollback');
+
+        $ui = $factory->uiTree($nodes, [$root->getId(), 'gone']);
+        self::assertSame(['id' => $root->getId(), 'label' => 'Welcome', 'href' => '/nowo_wiki_page_view?spaceSlug=eng&pageSlug=welcome', 'current' => false, 'expanded' => true], array_diff_key($ui[0], ['children' => true]));
+        self::assertFalse($ui[0]['children'][0]['expanded']);
+        self::assertTrue($ui[0]['children'][0]['children'][0]['current']);
+        self::assertSame([], $ui[1]['children']);
+
+        self::assertSame([
+            'id'                   => 'nowo-wiki-tree',
+            'data-wiki-tree'       => true,
+            'data-wiki-tree-state' => '/nowo_wiki_space_tree?spaceSlug=eng&action=state',
+            'data-wiki-tree-token' => 'tok',
+            'data-testid'          => 'wiki-tree',
+            'data-wiki-tree-move'  => '/nowo_wiki_space_tree?spaceSlug=eng&action=move',
+        ], $factory->treeAttributes($space, 'tok', true));
+        self::assertArrayNotHasKey('data-wiki-tree-move', $factory->treeAttributes($space, 'tok', false));
+
+        self::assertSame(['edit', 'edit'], $this->kinds($factory->pageView($space, $page, ['edit' => true, 'history' => false, 'move' => true])->header->actions));
+        self::assertSame(['edit'], $this->kinds($factory->pageView($space, $page, ['edit' => true, 'history' => false, 'move' => false])->header->actions));
+
+        $move = $factory->pageMove($space, $page, PageFixtures::postForm('t'));
+        self::assertSame('wiki.tree.move_title', $this->label($move->header->title)->key);
+        self::assertSame('/nowo_wiki_page_view?spaceSlug=eng&pageSlug=deploy', $move->cancelHref);
+        self::assertSame('wiki.tree.move', $this->label($move->submitLabel)->key);
     }
 
     public function testRoutesThatAreNotConfiguredGiveNoActionOrLink(): void

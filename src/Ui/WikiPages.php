@@ -43,6 +43,9 @@ final readonly class WikiPages
         'page_diff'    => '@NowoWikiBundle/manage/page_diff.html.twig',
         'search'       => '@NowoWikiBundle/manage/search.html.twig',
         'ai_ask'       => '@NowoWikiBundle/manage/ai_ask.html.twig',
+        'page_move'    => '@NowoWikiBundle/manage/page_move.html.twig',
+        'trash'        => '@NowoWikiBundle/manage/trash.html.twig',
+        'trash_purge'  => '@NowoWikiBundle/manage/trash_purge.html.twig',
     ];
 
     /** A layout that defines this block renders the UiKit canonical blocks. */

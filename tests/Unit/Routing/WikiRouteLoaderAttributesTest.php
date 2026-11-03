@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Routing;
 
 use Nowo\WikiBundle\Controller\WikiManageController;
+use Nowo\WikiBundle\Controller\WikiTreeController;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use PHPUnit\Framework\TestCase;
 
@@ -48,5 +49,19 @@ final class WikiRouteLoaderAttributesTest extends TestCase
             self::assertSame($methods, $route->getMethods(), $key);
             self::assertSame($requirements, $route->getRequirements(), $key);
         }
+    }
+
+    public function testTheTreeRoutesAreLoadedWhenConfigured(): void
+    {
+        $collection = (new WikiRouteLoader([
+            'page_move'  => ['path' => '/s/{spaceSlug}/p/{pageSlug}/move', 'name' => 'move'],
+            'space_tree' => ['path' => '/s/{spaceSlug}/tree/{action}', 'name' => 'tree'],
+        ], ''))->load('.', 'nowo_wiki');
+
+        self::assertSame(WikiManageController::class . '::movePage', $collection->get('move')?->getDefault('_controller'));
+        self::assertSame(['GET', 'POST'], $collection->get('move')?->getMethods());
+        self::assertSame(WikiTreeController::class . '::tree', $collection->get('tree')?->getDefault('_controller'));
+        self::assertSame(['POST'], $collection->get('tree')?->getMethods());
+        self::assertSame('move|state', $collection->get('tree')?->getRequirement('action'));
     }
 }

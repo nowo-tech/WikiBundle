@@ -44,11 +44,13 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
@@ -62,10 +64,14 @@ use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
+use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Trash\WikiTrashService;
+use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
+use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Symfony\AI\Agent\AgentInterface;
@@ -136,6 +142,16 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         // 1.13.1 (audit DA-M1): the schema listener and the collaboration services must agree; an env placeholder would
         // register the services while the schema left the tables out (and a diff would drop them).
         $config['collaboration']['enabled'] = $this->literalBool($config['collaboration']['enabled'], 'collaboration.enabled');
+        // 1.14: without the tree its two routes are not registered (byte-identical route list and pages).
+        $config['tree']['enabled'] = $this->literalBool($config['tree']['enabled'], 'tree.enabled');
+        if (!$config['tree']['enabled']) {
+            unset($config['routes']['page_move'], $config['routes']['space_tree']);
+        }
+        // 1.14 (T065): the trash; its table and routes exist only when it is on.
+        $config['trash']['enabled'] = $this->literalBool($config['trash']['enabled'], 'trash.enabled');
+        if (!$config['trash']['enabled']) {
+            unset($config['routes']['page_delete'], $config['routes']['space_trash'], $config['routes']['trash_restore'], $config['routes']['trash_purge']);
+        }
         if ($config['security']['allow_unauthenticated']) {
             $this->refuseAllowUnauthenticatedInProduction($container);
         }
@@ -270,6 +286,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$collabDocumentsTableName', $prefix . '_page_collab_documents')
             ->setArgument('$collabUpdatesTableName', $prefix . '_page_collab_updates')
             ->setArgument('$collaborationEnabled', $config['collaboration']['enabled'])
+            ->setArgument('$trashTableName', $prefix . '_page_trash')
+            ->setArgument('$trashEnabled', $config['trash']['enabled'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
@@ -282,6 +300,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerPages($container, $config);
         $this->registerAttachments($container, $config['attachments']);
         $this->registerCollaboration($container, $config);
+        $this->registerTree($container, $config);
+        $this->registerTrash($container, $config, $emProviderRef);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
 
@@ -357,6 +377,64 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$icons', new Reference(IconResolverInterface::class)));
         $container->setDefinition(WikiMilkdownRichContent::class, (new Definition(WikiMilkdownRichContent::class))
             ->setArgument('$twig', new Reference(MilkdownEditorTwig::class)));
+    }
+
+    /**
+     * 1.14 (T065): the trash — its Doctrine store and the service (space lock of the tree writer, attachments when
+     * they are on); `wiki:trash:purge` gets the service when it exists.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerTrash(ContainerBuilder $container, array $config, Reference $entityManager): void
+    {
+        /** @var array{enabled: bool, retention_days: int} $trash */
+        $trash = $config['trash'];
+        if (!$trash['enabled']) {
+            return;
+        }
+
+        $container->setDefinition(DoctrineOrmWikiTrashRepository::class, (new Definition(DoctrineOrmWikiTrashRepository::class))
+            ->setArgument('$entityManager', $entityManager));
+        $container->setAlias(WikiTrashRepositoryInterface::class, DoctrineOrmWikiTrashRepository::class);
+        $container->setDefinition(WikiTrashService::class, (new Definition(WikiTrashService::class))
+            ->setArgument('$pages', new Reference(WikiPageRepositoryInterface::class))
+            ->setArgument('$trash', new Reference(WikiTrashRepositoryInterface::class))
+            ->setArgument('$writer', new Reference(DoctrineOrmWikiPageRepository::class))
+            ->setArgument('$dispatcher', new Reference('event_dispatcher'))
+            ->setArgument('$storage', new Reference(WikiAttachmentStorageInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$attachmentRepository', new Reference(WikiAttachmentRepositoryInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$retentionDays', $trash['retention_days'])
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+    }
+
+    /**
+     * 1.14: the page tree — the mover (space-locked transaction on the Doctrine page repository, `nowo_wiki.page.moved`)
+     * and the fold state store (the session unless `tree.state_store` names a service).
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerTree(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool, max_depth: int, state_store: string|null} $tree */
+        $tree = $config['tree'];
+        if (!$tree['enabled']) {
+            return;
+        }
+
+        $store = $tree['state_store'];
+        if (!is_string($store) || $store === '') {
+            $store = SessionWikiTreeStateStore::class;
+            $container->setDefinition($store, (new Definition(SessionWikiTreeStateStore::class))
+                ->setArgument('$requestStack', new Reference('request_stack')));
+        }
+        $container->setAlias(WikiTreeStateStoreInterface::class, $store);
+
+        $container->setDefinition(WikiPageMover::class, (new Definition(WikiPageMover::class))
+            ->setArgument('$repository', new Reference(WikiPageRepositoryInterface::class))
+            ->setArgument('$writer', new Reference(DoctrineOrmWikiPageRepository::class))
+            ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$maxDepth', $tree['max_depth']));
     }
 
     /**

@@ -35,22 +35,26 @@ use const PHP_VERSION_ID;
 final class CollabTablesSchemaTest extends TestCase
 {
     /**
-     * @return iterable<string, array{bool, bool}>
+     * @return iterable<string, array{0: bool, 1: bool, 2?: string}>
      */
     public static function modes(): iterable
     {
         yield 'collaboration off' => [false, false];
         yield 'collaboration on' => [true, true];
+        // 1.14: the trash table follows the trash switch the same way.
+        yield 'trash off' => [false, false, 'trash'];
+        yield 'trash on' => [true, true, 'trash'];
     }
 
     #[DataProvider('modes')]
-    public function testTheCollaborationTablesFollowTheSwitch(bool $enabled, bool $expected): void
+    public function testTheCollaborationTablesFollowTheSwitch(bool $enabled, bool $expected, string $feature = 'collaboration'): void
     {
         $config = ORMSetup::createAttributeMetadataConfiguration([dirname(__DIR__, 2) . '/src/Entity', __DIR__ . '/../Stub'], true, sys_get_temp_dir() . '/wiki_sqlite_proxies');
         if (PHP_VERSION_ID >= 80400 && method_exists($config, 'enableNativeLazyObjects')) {
             $config->enableNativeLazyObjects(true);
         }
-        $listener = new WikiMetadataListener('w_spaces', 'w_pages', 'w_page_revisions', TestUserEntity::class, 'w_page_links', 'w_attachments', 'w_page_collab_documents', 'w_page_collab_updates', $enabled);
+        $trash    = $feature === 'trash';
+        $listener = new WikiMetadataListener('w_spaces', 'w_pages', 'w_page_revisions', TestUserEntity::class, 'w_page_links', 'w_attachments', 'w_page_collab_documents', 'w_page_collab_updates', $trash || $enabled, 'w_page_trash', !$trash || $enabled);
         $events   = new EventManager();
         $events->addEventListener([Events::loadClassMetadata, ToolEvents::postGenerateSchema], $listener);
         $em = new EntityManager(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true], $config), $config, $events);
@@ -59,8 +63,15 @@ final class CollabTablesSchemaTest extends TestCase
         $tables = array_map(static fn (Table $t): string => $t->getName(), $schema->getTables());
 
         self::assertContains('w_pages', $tables);
+        if ($trash) {
+            self::assertSame($expected, $schema->hasTable('w_page_trash'));
+            self::assertTrue($schema->hasTable('w_page_collab_documents'));
+
+            return;
+        }
         self::assertSame($expected, $schema->hasTable('w_page_collab_documents'));
         self::assertSame($expected, $schema->hasTable('w_page_collab_updates'));
+        self::assertTrue($schema->hasTable('w_page_trash'));
     }
 
     public function testOtherEntityManagersAreLeftAlone(): void

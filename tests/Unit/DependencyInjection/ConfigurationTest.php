@@ -276,6 +276,30 @@ final class ConfigurationTest extends TestCase
         ]]);
     }
 
+    public function testTrashDefaults(): void
+    {
+        $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
+        self::assertSame(['enabled' => false, 'retention_days' => 30], $defaults['trash']);
+        self::assertSame('/tools/wiki/spaces/{spaceSlug}/trash/{batchId}/purge', $defaults['routes']['trash_purge']['path']);
+        self::assertSame('nowo_wiki_page_delete', $defaults['routes']['page_delete']['name']);
+        self::assertNull($defaults['web_ui']['templates']['trash']);
+
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'trash' => ['retention_days' => 0]]]);
+    }
+
+    public function testTreeDefaults(): void
+    {
+        $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
+        self::assertSame(['enabled' => false, 'max_depth' => 10, 'state_store' => null], $defaults['tree']);
+        self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/move', $defaults['routes']['page_move']['path']);
+        self::assertSame('nowo_wiki_space_tree', $defaults['routes']['space_tree']['name']);
+        self::assertNull($defaults['web_ui']['templates']['page_move']);
+
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'tree' => ['max_depth' => 0]]]);
+    }
+
     public function testEditorTypeAndMarkdownFormTypeAreValidated(): void
     {
         foreach ([['type' => 'wysiwyg'], ['markdown_form_type' => 'App\\Form\\Missing'], ['markdown_form_type' => ['x']]] as $editor) {

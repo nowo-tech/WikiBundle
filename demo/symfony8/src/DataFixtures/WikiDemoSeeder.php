@@ -44,6 +44,9 @@ final class WikiDemoSeeder
         $rollback = $this->create($space, 'Rollback', 'rollback', $this->rollbackContent($space), $user, $runbooks);
 
         $this->create($space, 'Resources', 'resources', $this->resourcesContent($space), $user);
+        // 1.14 trash demo: a small branch to delete, restore and purge (the e2e uses it alone).
+        $retired = $this->create($space, 'Retired runbooks', 'retired-runbooks', '<p>Runbooks of services we no longer run.</p>', $user);
+        $this->create($space, 'Old on-call notes', 'old-on-call-notes', '<p>Pager rotations before 2024.</p>', $user, $retired);
 
         // A short history on Deploy (Compare / Restore on the history page) and one archived page (space page).
         $this->pageService->saveRevision($deploy, 'Deploy', $this->deployContent($space) . '<p><strong>Checklist:</strong> announce the window in #deploys first.</p>', $user);

@@ -13,6 +13,240 @@ export function initWikiTrees(root: ParentNode = document): void {
     });
 }
 
+/** A move asked by the UiKit tree: Alt+arrows (`nowo-ui:tree:move`) or a pointer drop (`nowo-ui:tree:drop`). */
+export type TreeMoveDetail = { id: string; direction: 'up' | 'down' | 'in' | 'out' };
+export type TreeDropDetail = { id: string; targetId: string; position: 'before' | 'after' | 'inside' };
+
+/** Where a page goes: its new parent item (null: top level) and its index among the new siblings, itself left out. */
+export interface TreePlan {
+    item: HTMLLIElement;
+    parent: HTMLLIElement | null;
+    index: number;
+}
+
+const NODE = 'li[data-nowo-ui-tree-node]';
+
+const nodeItem = (tree: HTMLElement, id: string): HTMLLIElement | null =>
+    tree.querySelector<HTMLLIElement>(`${NODE}[data-nowo-ui-tree-node="${CSS.escape(id)}"]`);
+
+const parentNode = (tree: HTMLElement, item: HTMLLIElement): HTMLLIElement | null => {
+    const parent = item.parentElement?.closest<HTMLLIElement>(NODE) ?? null;
+
+    return parent && tree.contains(parent) ? parent : null;
+};
+
+const childItems = (list: Element | null | undefined): HTMLLIElement[] =>
+    list ? ([...list.children].filter((el) => el.matches(NODE)) as HTMLLIElement[]) : [];
+
+const groupOf = (item: HTMLLIElement): HTMLUListElement | null => item.querySelector<HTMLUListElement>(':scope > ul[role="group"]');
+
+const linkOf = (item: HTMLLIElement): HTMLElement | null => item.querySelector<HTMLElement>(':scope > .nowo-ui-tree__row > [data-nowo-ui-tree-item]');
+
+/**
+ * Turns a tree move request into a target (null when there is nowhere to go: first item up, top level out, a drop
+ * onto the page itself or into its own sub-tree).
+ *
+ * @param tree - The tree root (`ul[role=tree]`).
+ * @param detail - The move or drop of the UiKit tree.
+ */
+export function planTreeMove(tree: HTMLElement, detail: TreeMoveDetail | TreeDropDetail): TreePlan | null {
+    const item = nodeItem(tree, detail.id);
+    if (!item) {
+        return null;
+    }
+    const parent = parentNode(tree, item);
+    const siblings = childItems(item.parentElement);
+    const index = siblings.indexOf(item);
+    if ('direction' in detail) {
+        switch (detail.direction) {
+            case 'up':
+                return index > 0 ? { item, parent, index: index - 1 } : null;
+            case 'down':
+                return index < siblings.length - 1 ? { item, parent, index: index + 1 } : null;
+            case 'in': {
+                const previous = siblings[index - 1];
+
+                return previous ? { item, parent: previous, index: childItems(groupOf(previous)).length } : null;
+            }
+            default: {
+                if (!parent) {
+                    return null;
+                }
+
+                return { item, parent: parentNode(tree, parent), index: childItems(parent.parentElement).indexOf(parent) + 1 };
+            }
+        }
+    }
+    const target = nodeItem(tree, detail.targetId);
+    if (!target || item.contains(target)) {
+        return null;
+    }
+    if (detail.position === 'inside') {
+        return { item, parent: target, index: childItems(groupOf(target)).filter((el) => el !== item).length };
+    }
+    const others = childItems(target.parentElement).filter((el) => el !== item);
+
+    return { item, parent: parentNode(tree, target), index: others.indexOf(target) + (detail.position === 'after' ? 1 : 0) };
+}
+
+/**
+ * Moves the item in the DOM after the server accepted the move: the new parent gets a disclosure and an expanded
+ * group if it had none, the old one loses them when it is left empty, and every item gets its aria-level / setsize /
+ * posinset again. The moved item becomes the tab stop and takes the focus.
+ *
+ * @param tree - The tree root.
+ * @param plan - The accepted move.
+ */
+export function applyTreeMove(tree: HTMLElement, plan: TreePlan): void {
+    const { item, parent, index } = plan;
+    const oldParent = parentNode(tree, item);
+    let list: HTMLElement = tree;
+    if (parent) {
+        let group = groupOf(parent);
+        const link = linkOf(parent);
+        if (!group) {
+            group = tree.ownerDocument.createElement('ul');
+            group.className = tree.querySelector('ul[role="group"]')?.className || 'nowo-ui-tree__group';
+            group.setAttribute('role', 'group');
+            group.id = `${tree.id}-${String(parent.dataset.nowoUiTreeNode).replace(/[^A-Za-z0-9_-]/g, '_')}-group`;
+            parent.append(group);
+            parent.querySelector(':scope > .nowo-ui-tree__row > .nowo-ui-tree__spacer')?.setAttribute('class', 'nowo-ui-tree__toggle');
+            parent.querySelector(':scope > .nowo-ui-tree__row > .nowo-ui-tree__toggle')?.setAttribute('data-nowo-ui-tree-toggle', '');
+            link?.setAttribute('aria-owns', group.id);
+        }
+        group.hidden = false;
+        link?.setAttribute('aria-expanded', 'true');
+        list = group;
+    }
+    item.remove();
+    list.insertBefore(item, childItems(list)[index] ?? null);
+    if (oldParent && oldParent !== parent && childItems(groupOf(oldParent)).length === 0) {
+        groupOf(oldParent)?.remove();
+        const toggle = oldParent.querySelector(':scope > .nowo-ui-tree__row > .nowo-ui-tree__toggle');
+        toggle?.removeAttribute('data-nowo-ui-tree-toggle');
+        toggle?.setAttribute('class', 'nowo-ui-tree__spacer');
+        linkOf(oldParent)?.removeAttribute('aria-expanded');
+        linkOf(oldParent)?.removeAttribute('aria-owns');
+    }
+    const number = (list: Element, level: number): void => {
+        const items = childItems(list);
+        items.forEach((child, i) => {
+            const link = linkOf(child);
+            link?.setAttribute('aria-level', String(level));
+            link?.setAttribute('aria-setsize', String(items.length));
+            link?.setAttribute('aria-posinset', String(i + 1));
+            const group = groupOf(child);
+            if (group) {
+                number(group, level + 1);
+            }
+        });
+    };
+    number(tree, 1);
+    tree.querySelectorAll<HTMLElement>('[data-nowo-ui-tree-item]').forEach((link) => {
+        link.tabIndex = -1;
+    });
+    const link = linkOf(item) as HTMLElement;
+    link.tabIndex = 0;
+    link.focus();
+}
+
+/**
+ * Says the text in the tree's polite live region (the same region as UiKit's `announceTree`, created on first use).
+ *
+ * @param tree - The tree root.
+ * @param text - What to say.
+ */
+export function announceInTree(tree: HTMLElement, text: string): void {
+    let live = tree.parentElement?.querySelector<HTMLElement>(':scope > [data-nowo-ui-tree-live]') ?? null;
+    if (!live) {
+        live = tree.ownerDocument.createElement('div');
+        live.className = 'visually-hidden';
+        live.setAttribute('data-nowo-ui-tree-live', '');
+        live.setAttribute('role', 'status');
+        tree.after(live);
+    }
+    live.textContent = text;
+}
+
+/** JSON POST to a tree endpoint with the tree's CSRF token (same-origin cookies). */
+export type TreePoster = (url: string, body: Record<string, unknown>) => Promise<{ ok: boolean; data: { message?: string } }>;
+
+const postJson: TreePoster = async (url, body) => {
+    const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const data = response.status === 204 ? {} : ((await response.json().catch(() => ({}))) as { message?: string });
+
+    return { ok: response.ok, data };
+};
+
+let poster: TreePoster = postJson;
+
+/**
+ * Replaces the JSON transport of the tree endpoints (tests, hosts with their own transport).
+ *
+ * @param next - The transport.
+ */
+export function setTreePoster(next: TreePoster): void {
+    poster = next;
+}
+
+const boundTrees = new WeakSet<Document>();
+
+/**
+ * Page tree glue (1.14, `tree.enabled`): listens to the UiKit tree of the sidebar (`[data-wiki-tree][role=tree]`).
+ * A fold change is recorded (`data-wiki-tree-state`); with `data-wiki-tree-move` a move or drop is sent to the server
+ * and, once accepted, applied in place and announced (the server's sentence, or `data-wiki-tree-error`). One move at
+ * a time.
+ *
+ * @param doc - The document (bound once).
+ */
+export function bindWikiTree(doc: Document = document): void {
+    if (boundTrees.has(doc)) {
+        return;
+    }
+    boundTrees.add(doc);
+    let busy = false;
+    doc.addEventListener('nowo-ui:tree:toggle', (event) => {
+        const tree = (event.target as Element | null)?.closest?.<HTMLElement>('[data-wiki-tree][role="tree"]');
+        const { id, expanded } = (event as CustomEvent<{ id: string; expanded: boolean }>).detail;
+        const url = tree?.dataset.wikiTreeState;
+        if (url) {
+            void poster(url, { page: id, expanded, _token: tree.dataset.wikiTreeToken ?? '' }).catch(() => undefined);
+        }
+    });
+    const onMove = (event: Event): void => {
+        const tree = (event.target as Element | null)?.closest?.<HTMLElement>('[data-wiki-tree][role="tree"]');
+        const url = tree?.dataset.wikiTreeMove;
+        if (!tree || !url) {
+            return;
+        }
+        event.preventDefault();
+        const plan = busy ? null : planTreeMove(tree, (event as CustomEvent<TreeMoveDetail | TreeDropDetail>).detail);
+        if (!plan) {
+            return;
+        }
+        busy = true;
+        const body = { page: plan.item.dataset.nowoUiTreeNode, parent: plan.parent?.dataset.nowoUiTreeNode ?? null, index: plan.index, _token: tree.dataset.wikiTreeToken ?? '' };
+        void poster(url, body)
+            .then(({ ok, data }) => {
+                if (ok) {
+                    applyTreeMove(tree, plan);
+                }
+                announceInTree(tree, data.message ?? tree.dataset.wikiTreeError ?? '');
+            })
+            .catch(() => announceInTree(tree, tree.dataset.wikiTreeError ?? ''))
+            .finally(() => {
+                busy = false;
+            });
+    };
+    doc.addEventListener('nowo-ui:tree:move', onMove);
+    doc.addEventListener('nowo-ui:tree:drop', onMove);
+}
+
 /** The part of the nowo-tech/milkdown-editor-bundle browser API the wiki uses (1.13, `editor.type: milkdown`). */
 export interface RichContentApi {
     renderRichContent(root: ParentNode, options?: { nonce?: string }): Promise<void>;
@@ -77,4 +311,5 @@ const scriptNonce = currentNonce(document.currentScript);
 
 document.documentElement.classList.add('wiki-ready');
 initWikiTrees();
+bindWikiTree();
 whenLoaded(() => void renderWikiRichContent());

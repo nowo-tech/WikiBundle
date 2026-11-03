@@ -19,6 +19,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
@@ -29,13 +30,19 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
+use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiSearchService;
+use Nowo\WikiBundle\Trash\WikiTrashService;
+use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
+use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use PHPUnit\Framework\TestCase;
@@ -158,6 +165,98 @@ final class WikiExtensionTest extends TestCase
         self::assertFalse($container->hasDefinition(MilkdownWikiMarkdownRenderer::class));
         self::assertSame([], $container->getDefinition(WikiMarkdownConverter::class)->getArguments());
         self::assertNull($container->getParameter('nowo_wiki.editor')['markdown_form_type']);
+    }
+
+    public function testTheTrashIsOffByDefaultAndWiresItsServicesWhenOn(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+        /** @var array<string, mixed> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        foreach (['page_delete', 'space_trash', 'trash_restore', 'trash_purge'] as $key) {
+            self::assertArrayNotHasKey($key, $routes);
+        }
+        self::assertFalse($container->hasDefinition(WikiTrashService::class) && !$container->getDefinition(WikiTrashService::class)->hasTag('container.excluded'));
+        self::assertFalse($container->getDefinition(WikiMetadataListener::class)->getArgument('$trashEnabled'));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'table_prefix' => 'kb', 'trash' => ['enabled' => true, 'retention_days' => 7]]], $container);
+        /** @var array<string, mixed> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        self::assertArrayHasKey('trash_purge', $routes);
+        $service = $container->getDefinition(WikiTrashService::class);
+        self::assertSame(7, $service->getArgument('$retentionDays'));
+        self::assertSame(DoctrineOrmWikiTrashRepository::class, (string) $container->getAlias(WikiTrashRepositoryInterface::class));
+        self::assertSame('kb_page_trash', $container->getDefinition(WikiMetadataListener::class)->getArgument('$trashTableName'));
+        self::assertTrue($container->getDefinition(WikiMetadataListener::class)->getArgument('$trashEnabled'));
+    }
+
+    public function testTheTrashSwitchMustBeALiteralBoolean(): void
+    {
+        $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $container->registerExtension(new WikiExtension());
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'trash' => ['enabled' => '%env(bool:WIKI_TRASH)%']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.trash.enabled must be a literal boolean');
+        (new MergeExtensionConfigurationPass())->process($container);
+    }
+
+    public function testTheTreeIsOffByDefaultWithoutItsRoutesAndServices(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+
+        /** @var array<string, mixed> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        self::assertArrayNotHasKey('page_move', $routes);
+        self::assertArrayNotHasKey('space_tree', $routes);
+        // Excluded from the resource scan: at most a `container.excluded` placeholder, never autowired.
+        self::assertTrue(!$container->hasDefinition(WikiPageMover::class) || $container->getDefinition(WikiPageMover::class)->hasTag('container.excluded'));
+        self::assertFalse($container->has(WikiTreeStateStoreInterface::class));
+    }
+
+    public function testTheTreeWiresTheMoverAndTheSessionStore(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'tree' => ['enabled' => true, 'max_depth' => 4]]], $container);
+
+        /** @var array<string, array{path: string, name: string}> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        self::assertSame('nowo_wiki_page_move', $routes['page_move']['name']);
+        self::assertSame('/tools/wiki/spaces/{spaceSlug}/tree/{action}', $routes['space_tree']['path']);
+        $mover = $container->getDefinition(WikiPageMover::class);
+        self::assertSame(4, $mover->getArgument('$maxDepth'));
+        self::assertSame(DoctrineOrmWikiPageRepository::class, (string) $mover->getArgument('$writer'));
+        self::assertSame(SessionWikiTreeStateStore::class, (string) $container->getAlias(WikiTreeStateStoreInterface::class));
+        self::assertSame('request_stack', (string) $container->getDefinition(SessionWikiTreeStateStore::class)->getArgument('$requestStack'));
+    }
+
+    public function testTheTreeTakesTheHostStateStore(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'tree' => ['enabled' => true, 'state_store' => 'app.tree_state']]], $container);
+
+        self::assertSame('app.tree_state', (string) $container->getAlias(WikiTreeStateStoreInterface::class));
+        self::assertFalse($container->hasDefinition(SessionWikiTreeStateStore::class));
+    }
+
+    public function testTheTreeSwitchMustBeALiteralBoolean(): void
+    {
+        $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $container->registerExtension(new WikiExtension());
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'tree' => ['enabled' => '%env(bool:WIKI_TREE)%']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.tree.enabled must be a literal boolean');
+        (new MergeExtensionConfigurationPass())->process($container);
     }
 
     public function testCollaborationWiresTheMercureDefaults(): void

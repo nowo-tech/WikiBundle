@@ -179,6 +179,20 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertFalse($this->em->getConnection()->isTransactionActive());
     }
 
+    public function testACompactionOfAPurgedLogIsALogReset(): void
+    {
+        $this->append('kept', 'AQ==');
+        $this->store->purgePages(new DateTimeImmutable('+1 minute'));
+        try {
+            $this->store->compact('kept', 'AQ==', 1);
+            self::fail('DA-I9: a purged log is not compacted (nor revived)');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([409, 'log_reset'], [$exception->status, $exception->reason]);
+        }
+        self::assertTrue($this->store->info('kept')->isEmpty());
+        self::assertFalse($this->em->getConnection()->isTransactionActive());
+    }
+
     public function testDocumentsAreInsertedRaceSafelyInsideATransaction(): void
     {
         $connection = $this->em->getConnection();

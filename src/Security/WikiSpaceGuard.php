@@ -12,6 +12,8 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+use function in_array;
+
 /**
  * Resolves the space of a route and enforces {@see WikiSpaceAccessCheckerInterface} (1.9): a space that is missing
  * or not readable answers 404, a denied action on a readable space answers 403.
@@ -100,6 +102,10 @@ final readonly class WikiSpaceGuard
     {
         $grants = [];
         foreach (WikiAction::cases() as $action) {
+            // The trash actions are asked one by one, only with the trash enabled (1.14).
+            if (in_array($action, WikiAction::trashActions(), true)) {
+                continue;
+            }
             $grants[$action->value] = $this->checker->isGranted($user, $action, $space, $page);
         }
 

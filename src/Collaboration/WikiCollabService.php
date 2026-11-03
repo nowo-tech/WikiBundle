@@ -17,6 +17,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 use function base64_decode;
 use function count;
+use function function_exists;
 use function in_array;
 use function is_array;
 use function is_int;
@@ -514,9 +515,13 @@ final readonly class WikiCollabService
      */
     private static function words(string $value): array
     {
-        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        // DA-I8: fail closed — without a transliteration the name is not shown (ext-iconv is required).
+        $ascii = function_exists('iconv') ? iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value) : false;
+        if ($ascii === false) {
+            return []; // @codeCoverageIgnore
+        }
 
-        return preg_split('/[^a-z0-9]+/', strtolower($ascii === false ? $value : $ascii), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        return preg_split('/[^a-z0-9]+/', strtolower($ascii), -1, PREG_SPLIT_NO_EMPTY) ?: [];
     }
 
     private function spaces(string $value): string

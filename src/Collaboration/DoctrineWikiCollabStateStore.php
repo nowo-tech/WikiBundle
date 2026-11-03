@@ -150,19 +150,24 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
         return (int) $row->getId();
     }
 
+    /**
+     * @throws WikiCollabException 409 `log_reset` when the page's log was purged meanwhile (1.14, DA-I9: as append())
+     */
     public function compact(string $pageId, string $snapshot, int $upToSeq): bool
     {
-        $this->ensureDocument($pageId);
         $em = $this->em();
 
         // CW-L4: one compaction of a page at a time (row lock on the page's document; a database lock on SQLite).
         $connection = $em->getConnection();
         $connection->beginTransaction();
         try {
-            $em->createQueryBuilder()
+            $locked = $em->createQueryBuilder()
                 ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
                 ->where('d.pageId = :page')->setParameter('page', $pageId)
                 ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+            if ($locked === []) {
+                throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
+            }
             $compacted = $upToSeq >= $this->info($pageId)->snapshotSeq;
             if ($compacted) {
                 $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_SNAPSHOT, $snapshot, $upToSeq);
@@ -181,10 +186,10 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
             }
 
             $connection->commit();
-        } catch (Throwable $exception) { // @codeCoverageIgnore
-            $connection->rollBack(); // @codeCoverageIgnore
+        } catch (Throwable $exception) {
+            $connection->rollBack();
 
-            throw $exception; // @codeCoverageIgnore
+            throw $exception;
         }
 
         return $compacted;

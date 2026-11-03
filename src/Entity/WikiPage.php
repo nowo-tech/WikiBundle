@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Entity;
 
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
+use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\ValueObject\Uuid;
 
 /**
@@ -142,6 +143,22 @@ class WikiPage
         $this->position = $position;
         // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
         $this->updatedAt = new DateTimeImmutable();
+    }
+
+    /**
+     * Places the page under another parent (null: a root page) at a sort position (1.14, page tree moves). The caller
+     * ({@see WikiPageMover}) checks the space, cycles and depth. The tree order is not
+     * content: the update timestamp is left alone.
+     *
+     * @param WikiPage|null $parent new parent page, or null for a root page
+     * @param int $position new sort position among the new siblings
+     */
+    public function moveTo(?self $parent, int $position): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->parent = $parent;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->position = $position;
     }
 
     /**

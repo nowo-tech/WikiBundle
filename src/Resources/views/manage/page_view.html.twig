@@ -2,7 +2,8 @@
   Page view (REQ-UI-003): UiKit show scaffold. Variable: page (View\ShowPage from WikiPageFactory::pageView(): header =
   page title / space name with Edit, History and Archive (POST + CSRF behind a UiKit confirm dialog), breadcrumbs
   Wiki > space > page; meta = revision number and date).
-  Also (value-free): tree, tree_truncated, max_tree_pages, tree_search_href, content_html (current revision body,
+  Also (value-free): tree, tree_truncated, max_tree_pages, tree_search_href, tree_ui (1.14, null without tree.enabled;
+  adds js/nowo-ui-tree.js; the header gets Move), content_html (current revision body,
   printed through nowo_wiki_safe_html), used_in (WikiPageFactory::usedIn(): {type, label, href, badge}), rich_content
   (1.13, editor.type milkdown: the body is rendered for the viewer and wiki.js draws its Mermaid / math with the
   Milkdown read-side script of nowo_wiki_rich_content_assets()).
@@ -20,6 +21,7 @@
     {{ parent() }}
     {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
     {% if rich_content|default(false) %}{{ nowo_wiki_rich_content_assets() }}{% endif %}
+    {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
     <script src="{{ asset('wiki.js', 'nowo_wiki') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
 {% endblock %}
 
@@ -27,7 +29,7 @@
     {% set _b = page.bundle %}
     <div class="nowo-wiki-layout">
         <div class="nowo-wiki-layout__aside">
-            {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), bundle: _b}, false) }}
+            {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), bundle: _b}, false) }}
         </div>
         <div class="nowo-wiki-layout__main">
             <article class="{{ nowo_ui_class('card', _b) }} nowo-wiki-page"{{ nowo_ui_attrs('card', _b) }}>

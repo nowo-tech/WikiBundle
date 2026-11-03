@@ -29,6 +29,8 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         yield 'manage' => [WikiAction::Manage, 'canImport'];
         yield 'export' => [WikiAction::Export, 'canExport'];
         yield 'ask_ai' => [WikiAction::AskAi, 'canAskAi'];
+        yield 'delete (1.14 trash)' => [WikiAction::Delete, 'canArchive'];
+        yield 'purge (1.14 trash)' => [WikiAction::Purge, 'canImport'];
     }
 
     #[DataProvider('actions')]

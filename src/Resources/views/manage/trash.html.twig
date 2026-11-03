@@ -1,0 +1,35 @@
+{#
+  Trash of a space (1.14, T065, trash.enabled): UiKit show scaffold. Variables: page (View\ShowPage from
+  WikiPageFactory::trash(): header wiki.trash.title / intro with the retention, breadcrumbs, back link), items
+  (value-free rows: {title, deleted, pages, actions}: Restore (POST + CSRF) and Purge (a link to the second
+  confirmation)). Only deletions whose page the user may read are listed.
+  Blocks filled: nowo_ui_styles, nowo_ui_show_sections.
+#}
+{% extends '@NowoUiKit/page/show.html.twig' %}
+{% trans_default_domain 'NowoWikiBundle' %}
+
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+{% endblock %}
+
+{% block nowo_ui_show_sections %}
+    {% set _b = page.bundle %}
+    <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-trash" data-testid="wiki-trash-list"{{ nowo_ui_attrs('card', _b) }}>
+        {% if items|default([]) is empty %}
+            <p class="{{ nowo_ui_class('card_body', _b) }} {{ nowo_ui_class('muted', _b) }}">{{ 'wiki.trash.empty'|trans }}</p>
+        {% else %}
+            <ul class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-archived__list">
+                {% for item in items %}
+                    <li class="nowo-wiki-archived__item" data-testid="wiki-trash-item">
+                        <span class="nowo-wiki-archived__title">{{ item.title }}</span>
+                        <span class="{{ nowo_ui_class('muted', _b) }}">{{ 'wiki.trash.row'|trans({'%date%': item.deleted, '%count%': item.pages}) }}</span>
+                        {% for action in item.actions %}
+                            {{ include(nowo_ui_partial('action', _b), {action: action, context: 'row', bundle: _b, nowo_ui_page_type: nowo_ui_page_type}, false) }}
+                        {% endfor %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </section>
+{% endblock %}

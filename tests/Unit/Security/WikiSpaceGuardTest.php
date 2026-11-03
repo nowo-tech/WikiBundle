@@ -50,6 +50,10 @@ final class WikiSpaceGuardTest extends TestCase
         $guard->requireGranted(new TestUser(), WikiAction::Edit, $space, $page);
         self::assertTrue($guard->isGranted(new TestUser(), WikiAction::Edit, $space, $page));
         self::assertSame(['view' => false, 'create' => false, 'edit' => true], array_slice($guard->grants(new TestUser(), $space, $page), 0, 3));
+        // 1.14: the trash actions are asked one by one, never in grants() (checkers written before 1.14 never see them).
+        self::assertArrayNotHasKey('delete', $guard->grants(new TestUser(), $space, $page));
+        self::assertArrayNotHasKey('purge', $guard->grants(new TestUser(), $space, $page));
+        self::assertSame([WikiAction::Delete, WikiAction::Purge], WikiAction::trashActions());
 
         try {
             $guard->requireGranted(new TestUser(), WikiAction::View, $space, $page);

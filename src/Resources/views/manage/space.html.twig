@@ -1,7 +1,8 @@
 {#
   Space home (REQ-UI-003): UiKit show scaffold. Variable: page (View\ShowPage from WikiPageFactory::space(): header =
   space name / wiki.space.pick_page with New page and the Outline / Notion exports, breadcrumbs Wiki > space).
-  Also (value-free): tree (WikiPageFactory::tree()), tree_truncated, max_tree_pages, tree_search_href, search_form
+  Also (value-free): tree (WikiPageFactory::tree()), tree_truncated, max_tree_pages, tree_search_href, tree_ui (1.14,
+  null without tree.enabled; adds js/nowo-ui-tree.js), search_form
   (GET, space hidden), import_form (WikiImportType view or null when the user may not import), archived
   (WikiPageFactory::archived(): {title, action}).
   Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + wiki.js: scrolls the current page of the tree into view), nowo_ui_show_sections (sidebar tree + search, import, archived
@@ -19,6 +20,7 @@
 {% block nowo_ui_scripts %}
     {{ parent() }}
     {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+    {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
     <script src="{{ asset('wiki.js', 'nowo_wiki') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
 {% endblock %}
 
@@ -26,7 +28,7 @@
     {% set _b = page.bundle %}
     <div class="nowo-wiki-layout">
         <div class="nowo-wiki-layout__aside">
-            {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), bundle: _b}, false) }}
+            {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), bundle: _b}, false) }}
         </div>
         <div class="nowo-wiki-layout__main">
             <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-search" data-testid="wiki-space-search"{{ nowo_ui_attrs('card', _b) }}>

@@ -26,6 +26,7 @@ use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
+use function array_fill_keys;
 use function count;
 use function is_array;
 
@@ -37,7 +38,8 @@ use function is_array;
  * arrays of strings, booleans and URLs. The controller and the page contract test share it, so the test renders exactly
  * the view models the application gets. Stateless: safe in worker mode.
  *
- * @phpstan-type TreeNode array{title: string, href: string, current: bool, children: list<mixed>}
+ * @phpstan-type TreeNode array{id: string, title: string, href: string, current: bool, children: list<mixed>}
+ * @phpstan-type UiTreeNode array{id: string, label: string, href: string, current: bool, expanded: bool, children: list<mixed>}
  * @phpstan-type SourceNode array{page: WikiPage, children: list<mixed>}
  * @phpstan-type Hit array{page: WikiPage, space: WikiSpace, excerpt: string}
  */
@@ -138,6 +140,10 @@ final readonly class WikiPageFactory
                 $actions[] = new Action('export', WikiPages::label('wiki.export.' . $format), $this->url('space_export', ['spaceSlug' => $space->getSlug(), 'format' => $format]));
             }
         }
+        // 1.14: the trash of the space, for users who may delete pages (`trash.enabled`).
+        if (($can['trash'] ?? false) && $this->has('space_trash')) {
+            $actions[] = new Action('view', WikiPages::label('wiki.trash.title'), $this->url('space_trash', ['spaceSlug' => $space->getSlug()]), attributes: ['data-testid' => 'wiki-trash']);
+        }
 
         return new ShowPage(
             header: new PageHeader(
@@ -157,10 +163,11 @@ final readonly class WikiPageFactory
      * Page view: Edit / History / Archive (POST + CSRF behind a Confirm) in the header, revision meta; the template
      * renders the tree, the sanitized content and "Used in".
      *
-     * @param array{edit: bool, history: bool} $can what the user may do on the page
+     * @param array{edit: bool, history: bool, move?: bool} $can what the user may do on the page (1.14: move)
      * @param FormView|null $archiveForm CSRF form of the archive action (null = no archive action)
+     * @param FormView|null $deleteForm CSRF form of the Delete action (1.14 trash; null = no Delete action)
      */
-    public function pageView(WikiSpace $space, WikiPage $page, array $can, ?FormView $archiveForm = null): ShowPage
+    public function pageView(WikiSpace $space, WikiPage $page, array $can, ?FormView $archiveForm = null, ?FormView $deleteForm = null): ShowPage
     {
         $params  = ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()];
         $actions = [];
@@ -169,6 +176,26 @@ final readonly class WikiPageFactory
         }
         if ($can['history'] && $this->has('page_history')) {
             $actions[] = new Action('view', WikiPages::label('wiki.page.history'), $this->url('page_history', $params), attributes: ['data-testid' => 'wiki-history']);
+        }
+        if (($can['move'] ?? false) && $this->has('page_move')) {
+            $actions[] = new Action('edit', WikiPages::label('wiki.tree.move'), $this->url('page_move', $params), attributes: ['data-testid' => 'wiki-move']);
+        }
+        // 1.14: Delete moves the page and its sub-pages to the trash (POST + CSRF behind a Confirm).
+        if ($deleteForm instanceof FormView && $this->has('page_delete')) {
+            $actions[] = new Action(
+                'delete',
+                WikiPages::label('wiki.trash.delete'),
+                $this->url('page_delete', $params),
+                method: 'POST',
+                confirm: new Confirm(
+                    WikiPages::label('wiki.trash.delete_confirm_title'),
+                    WikiPages::label('wiki.trash.delete_confirm_message', ['%title%' => $page->getTitle()]),
+                    WikiPages::label('wiki.trash.delete'),
+                    cancelLabel: WikiPages::label('wiki.action.cancel'),
+                ),
+                attributes: ['data-testid' => 'wiki-delete'],
+                form: $deleteForm,
+            );
         }
         if ($archiveForm instanceof FormView && $this->has('page_archive')) {
             $actions[] = new Action(
@@ -398,7 +425,7 @@ final readonly class WikiPageFactory
     }
 
     /**
-     * Value-free page tree: title, URL, current flag and children per node.
+     * Value-free page tree: id (1.14), title, URL, current flag and children per node.
      *
      * @param list<SourceNode> $nodes {@see WikiPageTreeBuilder::build()} nodes
      *
@@ -411,6 +438,7 @@ final readonly class WikiPageFactory
             /** @var list<SourceNode> $children */
             $children = is_array($node['children']) ? $node['children'] : [];
             $tree[]   = [
+                'id'       => $node['page']->getId(),
                 'title'    => $node['page']->getTitle(),
                 'href'     => $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $node['page']->getSlug()]),
                 'current'  => $currentSlug !== null && $node['page']->getSlug() === $currentSlug,
@@ -419,6 +447,161 @@ final readonly class WikiPageFactory
         }
 
         return $tree;
+    }
+
+    /**
+     * Nodes of the UiKit `tree` partial (1.14, `tree.enabled`): the {@see self::tree()} nodes with the fold state of the
+     * user (`expanded` for the ids in it; the current branch is always unfolded by the partial).
+     *
+     * @param list<TreeNode> $nodes
+     * @param list<string> $expanded ids of the pages the user expanded
+     *
+     * @return list<UiTreeNode>
+     */
+    public function uiTree(array $nodes, array $expanded): array
+    {
+        $open = array_fill_keys($expanded, true);
+        $map  = static function (array $nodes) use (&$map, $open): array {
+            $out = [];
+            foreach ($nodes as $node) {
+                /** @var TreeNode $node */
+                /** @var list<TreeNode> $children */
+                $children = $node['children'];
+                $out[]    = [
+                    'id'       => $node['id'],
+                    'label'    => $node['title'],
+                    'href'     => $node['href'],
+                    'current'  => $node['current'],
+                    'expanded' => isset($open[$node['id']]),
+                    'children' => $map($children),
+                ];
+            }
+
+            return $out;
+        };
+
+        /* @var list<UiTreeNode> */
+        return $map($nodes);
+    }
+
+    /**
+     * Root attributes of the page tree (1.14): the endpoints and CSRF token read by wiki.js, `data-wiki-tree-movable`
+     * when the user may move pages of the space.
+     *
+     * @return array<string, bool|string>
+     */
+    public function treeAttributes(WikiSpace $space, string $token, bool $movable): array
+    {
+        $attributes = [
+            'id'                   => 'nowo-wiki-tree',
+            'data-wiki-tree'       => true,
+            'data-wiki-tree-state' => $this->url('space_tree', ['spaceSlug' => $space->getSlug(), 'action' => 'state']),
+            'data-wiki-tree-token' => $token,
+            'data-testid'          => 'wiki-tree',
+        ];
+        if ($movable) {
+            $attributes['data-wiki-tree-move'] = $this->url('space_tree', ['spaceSlug' => $space->getSlug(), 'action' => 'move']);
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * The "Move" form of a page (1.14): new parent and position, Move, Cancel back to the page.
+     */
+    public function pageMove(WikiSpace $space, WikiPage $page, FormView $form): FormPage
+    {
+        $back = $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+
+        return new FormPage(
+            header: new PageHeader(
+                WikiPages::label('wiki.tree.move_title', ['%title%' => $page->getTitle()]),
+                $space->getName(),
+                [],
+                breadcrumbs: $this->crumbs($space, $page, WikiPages::label('wiki.tree.move')),
+                back: new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
+            ),
+            form: $form,
+            submitLabel: WikiPages::label('wiki.tree.move'),
+            cancelHref: $back,
+            cancelLabel: WikiPages::label('wiki.action.cancel'),
+            bundle: WikiPages::BUNDLE,
+            layout: $this->pages->layout(),
+            attributes: ['data-testid' => 'wiki-page-move'],
+        );
+    }
+
+    /**
+     * The trash of a space (1.14): one row per deletion — title of the deleted page, date, number of pages — with
+     * Restore (POST + CSRF) and Purge (a link to the second confirmation) per row.
+     *
+     * @param list<array{title: string, deleted: DateTimeInterface, pages: int, restore: FormView, purge: bool, batch: string}> $rows
+     *
+     * @return array{page: ShowPage, items: list<array{title: string, deleted: string, pages: int, actions: list<Action>}>}
+     */
+    public function trash(WikiSpace $space, array $rows, int $retentionDays): array
+    {
+        $items = [];
+        foreach ($rows as $row) {
+            $params  = ['spaceSlug' => $space->getSlug(), 'batchId' => $row['batch']];
+            $items[] = [
+                'title'   => $row['title'],
+                'deleted' => $this->date($row['deleted']),
+                'pages'   => $row['pages'],
+                'actions' => [
+                    new Action('restore', WikiPages::label('wiki.trash.restore'), $this->url('trash_restore', $params), method: 'POST', attributes: ['data-testid' => 'wiki-trash-restore'], form: $row['restore']),
+                    ...($row['purge'] ? [new Action('delete', WikiPages::label('wiki.trash.purge'), $this->url('trash_purge', $params), attributes: ['data-testid' => 'wiki-trash-purge'])] : []),
+                ],
+            ];
+        }
+
+        return ['items' => $items, 'page' => new ShowPage(
+            header: new PageHeader(
+                WikiPages::label('wiki.trash.title'),
+                WikiPages::label('wiki.trash.intro', ['%days%' => $retentionDays]),
+                [],
+                $this->crumbs($space, null, WikiPages::label('wiki.trash.title')),
+                back: new BackLink($this->url('space', ['spaceSlug' => $space->getSlug()]), WikiPages::label('wiki.action.back'), 'wiki-back'),
+            ),
+            bundle: WikiPages::BUNDLE,
+            layout: $this->pages->layout(),
+            attributes: ['data-testid' => 'wiki-trash-page'],
+        )];
+    }
+
+    /**
+     * The second confirmation of a purge (1.14): what will be deleted for good, and the final button (POST + CSRF
+     * behind a Confirm).
+     */
+    public function trashPurge(WikiSpace $space, string $batchId, string $title, int $pages, FormView $form): ShowPage
+    {
+        $trash = $this->url('space_trash', ['spaceSlug' => $space->getSlug()]);
+
+        return new ShowPage(
+            header: new PageHeader(
+                WikiPages::label('wiki.trash.purge_title', ['%title%' => $title]),
+                WikiPages::label('wiki.trash.purge_intro', ['%count%' => $pages]),
+                [new Action(
+                    'delete',
+                    WikiPages::label('wiki.trash.purge'),
+                    $this->url('trash_purge', ['spaceSlug' => $space->getSlug(), 'batchId' => $batchId]),
+                    method: 'POST',
+                    confirm: new Confirm(
+                        WikiPages::label('wiki.trash.purge_confirm_title'),
+                        WikiPages::label('wiki.trash.purge_confirm_message', ['%title%' => $title, '%count%' => $pages]),
+                        WikiPages::label('wiki.trash.purge'),
+                        cancelLabel: WikiPages::label('wiki.action.cancel'),
+                    ),
+                    attributes: ['data-testid' => 'wiki-trash-purge-confirm'],
+                    form: $form,
+                )],
+                $this->crumbs($space, null, WikiPages::label('wiki.trash.title')),
+                back: new BackLink($trash, WikiPages::label('wiki.action.back'), 'wiki-back'),
+            ),
+            bundle: WikiPages::BUNDLE,
+            layout: $this->pages->layout(),
+            attributes: ['data-testid' => 'wiki-trash-purge-page'],
+        );
     }
 
     /**

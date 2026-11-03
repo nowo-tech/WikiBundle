@@ -47,6 +47,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Outline-style page tree** (`tree.enabled`, opt-in, T062 / T049): the sidebar renders the UiKit 2.24 `tree`
+  (WAI-ARIA treeview: one tab stop, arrows, Home / End, type-ahead, `*`) with disclosures, the current page's branch
+  unfolded and the fold state of each user and space applied by the server (no flash; kept in the session unless
+  `tree.state_store` names your service). Users who may edit move pages by dragging (drop line, *inside* / *between*),
+  with **Alt+↑ / ↓ / ← / →** (reorder, nest under the previous page, move out) or with the **Move** form of a page
+  (parent + position; the single-pointer and no-JavaScript alternative). Moves are announced in a live region.
+- **Moves on the server** (`WikiPageMover`): same space, no cycles, `tree.max_depth` (default 10), edit rights on the
+  page, its old and its new parent; one transaction that locks the space; sparse sibling positions (one row written
+  per move; siblings renumbered once when they share a position). `nowo_wiki.page.moved` (`WikiPageMovedEvent`:
+  page, from, to, index, actor, time) is the audit hook. Endpoints: `POST …/tree/move` and `POST …/tree/state` (JSON,
+  same origin, CSRF token per space, 4 KB bodies), `GET|POST …/pages/{pageSlug}/move`. Without the tree none of them
+  is registered and every page is byte-identical to 1.13.
+- **Audit DI (before the first release of the tree):** the tree endpoints and the Move form need `View` on the page
+  and on every ancestor, like the sidebar (DI-L1); the index of a move and the position it answers count the siblings
+  the user can see (DI-I1); a page moved by someone else between the check and the lock is refused as `stale`
+  (DI-I2, compared with the very parent whose `Edit` was checked, DI-I6); a page moves with its whole sub-tree, descendants the actor cannot see included, whose readers become those
+  of the new branch (DI-I3, documented).
+- **Trash** (`trash.enabled`, opt-in, T065):
+  - *Delete* on a page moves it to the space's trash **with its whole sub-tree**, behind a confirm dialog. The pages
+    are archived, so the tree, search, page links, mentions, backlinks, the export and the AI treat them as gone.
+  - The trash lists each deletion with *Restore*, which brings the page back with its sub-pages (pages archived
+    before stay archived; a page whose parent is gone meanwhile goes to the top level).
+  - *Delete for good* opens a confirmation page, then asks a second confirm. It removes the pages with their
+    revisions, host-object links and attachments (files included).
+  - `wiki:trash:purge` purges deletions older than `trash.retention_days` (default 30); `--dry-run` counts them all.
+  - Restore and purge run under the space lock and read the deletion again, so a purge never deletes pages a restore
+    brought back; attachment files are unlinked after the commit (audit DO-M1, DO-L1). A deletion holding pages the
+    purger cannot see needs `WikiAction::Manage` to be purged (DO-I1).
+  - Rights: `WikiAction::Delete` and `WikiAction::Purge`, asked from your space checker. The 1.x mapping is the
+    archive roles to delete and the import / manage roles to purge.
+  - Events: `nowo_wiki.page.trashed`, `nowo_wiki.trash.restored` and `nowo_wiki.trash.purged`.
+  - Without the trash nothing changes: no routes, no table (`<prefix>_page_trash` is left out of the schema) and no
+    action.
+- Requires `nowo-tech/ui-kit-bundle` ^2.24 (tree component).
+
+### Changed
+
+- **`ext-iconv` is required** (audit DA-I8): `show_names` transliterates names with iconv and, without it, falls back
+  to the opaque label (fail closed).
+- **A compaction of a purged log is refused with 409 `log_reset`** (audit DA-I9), like an append: the store no longer
+  recreates the document.
+
 ## [1.13.2] - 2026-11-03
 
 Pages under a hidden parent stay hidden on every read path

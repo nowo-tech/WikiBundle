@@ -33,6 +33,9 @@
 | `nowo_wiki_ai_ask` | `/tools/wiki/ask` (requires `nowo_wiki.ai.enabled`) |
 | `nowo_wiki_space_export` | `/tools/wiki/spaces/{spaceSlug}/export` |
 | `nowo_wiki_space_import` | `/tools/wiki/spaces/{spaceSlug}/import` (POST, multipart upload) |
+| `nowo_wiki_page_delete` / `nowo_wiki_space_trash` / `nowo_wiki_trash_restore` / `nowo_wiki_trash_purge` | `…/pages/{pageSlug}/delete`, `…/spaces/{spaceSlug}/trash`, `…/trash/{batchId}/restore`, `…/trash/{batchId}/purge` (1.14, only with `trash.enabled`) |
+| `nowo_wiki_page_move` | `…/pages/{pageSlug}/move` (1.14, only with `tree.enabled`) |
+| `nowo_wiki_space_tree` | `/tools/wiki/spaces/{spaceSlug}/tree/{move\|state}` (1.14, POST JSON, only with `tree.enabled`) |
 
 ## Import / export
 
@@ -239,6 +242,8 @@ Dispatched after the change is flushed.
 - `nowo_wiki.page.restored` — `WikiPageRestoredEvent` (`restoredFrom`, `revision`, 1.9)
 - `nowo_wiki.page.linked` / `.unlinked` — `WikiPageLinkEvent` (`objectType`, `objectId`, 1.9)
 - `nowo_wiki.attachment.uploaded` / `.deleted` — `WikiAttachmentEvent` (1.9)
+- `nowo_wiki.page.trashed` / `nowo_wiki.trash.restored` / `nowo_wiki.trash.purged` — `WikiTrashEvent` (`space`, `batchId`, `rootTitle`, `pageIds`, `actor`; 1.14, `trash.enabled`; after a purge the pages no longer exist)
+- `nowo_wiki.page.moved` — `WikiPageMovedEvent` (`page`, `fromParent`, `toParent`, `index`, `actor`, `movedAt`; 1.14, `tree.enabled`): the audit entry of a move
 - `nowo_wiki.editor.options` — `WikiEditorOptionsEvent`: add TiptapEditorType options (e.g. the suggestion hook's candidate URLs) for the space and page being edited (1.9)
 
 ## Links to host objects (1.9)

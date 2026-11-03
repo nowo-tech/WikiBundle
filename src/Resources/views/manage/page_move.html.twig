@@ -1,0 +1,21 @@
+{#
+  Move a page (1.14, tree.enabled): UiKit form scaffold. Variable: page (View\FormPage from WikiPageFactory::pageMove():
+  header wiki.tree.move_title, breadcrumbs, back link; form = WikiPageMoveType (parent, position, CSRF token
+  wiki_move_<page id>); submit wiki.tree.move). The single-pointer and no-JavaScript alternative to dragging in the tree.
+  Also: error (translated message of a refused move, or null).
+  Blocks filled: nowo_ui_styles, nowo_ui_form_body (the error, then the REQ-TWIG-003 child loop).
+#}
+{% extends '@NowoUiKit/page/form.html.twig' %}
+{% trans_default_domain 'NowoWikiBundle' %}
+
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+{% endblock %}
+
+{% block nowo_ui_form_body %}
+    {% if error|default(null) %}
+        <div class="{{ nowo_ui_class('flash_warning', page.bundle) }}" role="alert" data-testid="wiki-move-error">{{ error }}</div>
+    {% endif %}
+    {{ parent() }}
+{% endblock %}

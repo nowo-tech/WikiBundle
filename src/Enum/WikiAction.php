@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Enum;
 
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Security\WikiSpaceGuard;
 
 /**
  * An action asked of {@see WikiSpaceAccessCheckerInterface} on a space (and optionally a page).
@@ -31,4 +32,19 @@ enum WikiAction: string
     case Manage = 'manage';
     /** Ask the AI assistant with the space as context. */
     case AskAi = 'ask_ai';
+    /** 1.14 (`trash.enabled`): move a page and its sub-pages to the trash, and restore them. */
+    case Delete = 'delete';
+    /** 1.14 (`trash.enabled`): delete trashed pages for good. */
+    case Purge = 'purge';
+
+    /**
+     * Actions asked only when the trash is enabled (1.14): {@see WikiSpaceGuard::grants()} leaves them out, so a host
+     * checker written before 1.14 is never asked about them unless the host turns the trash on.
+     *
+     * @return list<self>
+     */
+    public static function trashActions(): array
+    {
+        return [self::Delete, self::Purge];
+    }
 }
