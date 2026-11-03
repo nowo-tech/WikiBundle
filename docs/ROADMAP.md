@@ -158,6 +158,11 @@ confirmation*.
   `WikiAction::Delete` / `Purge` (D-W5: purge by the manage roles in the 1.x mapping), trashed pages invisible on
   every read path (opt-in `trash.enabled`). Version history and the full trash UX stay in 1.15. Decided by the user
   on 2026-11-03 (D-W29, D-W30, D-W31). — PR #85
+- [x] 1.15 version history, first part: the timeline (sessions, author labels, named versions with *Save version*
+  for every editor, D-W7), *Copy to new page* and the retention `wiki:history:thin` (D-W6: one revision per session
+  and day after `history.retention_days`; named, current and newest revisions kept), opt-in `history.timeline`. The
+  server-rendered diff and co-authors from the collab session follow once Milkdown 1.6 lands; there is no "published"
+  revision yet (drafts are 1.17), so the retention has no such floor for now.
 
 ## Plans
 

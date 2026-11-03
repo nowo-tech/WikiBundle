@@ -45,6 +45,7 @@ final readonly class WikiPages
         'ai_ask'       => '@NowoWikiBundle/manage/ai_ask.html.twig',
         'page_move'    => '@NowoWikiBundle/manage/page_move.html.twig',
         'trash'        => '@NowoWikiBundle/manage/trash.html.twig',
+        'page_version' => '@NowoWikiBundle/manage/page_version.html.twig',
         'trash_purge'  => '@NowoWikiBundle/manage/trash_purge.html.twig',
     ];
 

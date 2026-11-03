@@ -35,6 +35,7 @@
 | `nowo_wiki_space_import` | `/tools/wiki/spaces/{spaceSlug}/import` (POST, multipart upload) |
 | `nowo_wiki_page_delete` / `nowo_wiki_space_trash` / `nowo_wiki_trash_restore` / `nowo_wiki_trash_purge` | `…/pages/{pageSlug}/delete`, `…/spaces/{spaceSlug}/trash`, `…/trash/{batchId}/restore`, `…/trash/{batchId}/purge` (1.14, only with `trash.enabled`) |
 | `nowo_wiki_page_move` | `…/pages/{pageSlug}/move` (1.14, only with `tree.enabled`) |
+| `nowo_wiki_page_version_save` / `nowo_wiki_page_version_copy` | `…/pages/{pageSlug}/versions/new`, `…/pages/{pageSlug}/revisions/{revisionNumber}/copy` (1.15, only with `history.timeline`) |
 | `nowo_wiki_space_tree` | `/tools/wiki/spaces/{spaceSlug}/tree/{move\|state}` (1.14, POST JSON, only with `tree.enabled`) |
 
 ## Import / export

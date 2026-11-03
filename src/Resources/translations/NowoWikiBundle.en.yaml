@@ -97,6 +97,15 @@ wiki:
     empty: "No revisions yet."
     restore_confirm_title: "Restore this revision?"
     restore_confirm_message: "Revision v%number% becomes the current content as a new revision; the history keeps every version."
+    label: "Version name"
+    label_help: "Names the current revision, e.g. “Before the migration”. Named versions are never thinned."
+    author: "Author"
+    session_column: "Saves in session"
+    save_version: "Save version"
+    save_version_title: "Save version of %title%"
+    version_saved: "Revision v%number% saved as “%label%”."
+    copy: "Copy to new page"
+    copied: "“%title%” was created from the old version."
   diff:
     title: Diff
     range: "%title%: v%from% → v%to%"

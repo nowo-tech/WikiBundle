@@ -97,6 +97,15 @@ wiki:
     empty: "Ancora nessuna revisione."
     restore_confirm_title: "Ripristinare questa revisione?"
     restore_confirm_message: "La revisione v%number% diventa il contenuto attuale come nuova revisione; la cronologia conserva tutte le versioni."
+    label: "Nome della versione"
+    label_help: "Dà un nome alla revisione attuale, ad es. «Prima della migrazione». Le versioni con nome non vengono mai sfoltite."
+    author: "Autore"
+    session_column: "Salvataggi della sessione"
+    save_version: "Salva versione"
+    save_version_title: "Salva versione di %title%"
+    version_saved: "La revisione v%number% è stata salvata come «%label%»."
+    copy: "Copia in una nuova pagina"
+    copied: "«%title%» è stata creata dalla versione precedente."
   diff:
     title: Differenze
     range: "%title%: v%from% → v%to%"

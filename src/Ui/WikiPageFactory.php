@@ -174,6 +174,10 @@ final readonly class WikiPageFactory
         if ($can['edit'] && $this->has('page_edit')) {
             $actions[] = new Action('edit', WikiPages::label('wiki.page.edit'), $this->url('page_edit', $params), attributes: ['data-testid' => 'wiki-edit']);
         }
+        // 1.15: Save version names the current revision (history.timeline, editors).
+        if (($can['version'] ?? false) && $this->has('page_version_save')) {
+            $actions[] = new Action('create', WikiPages::label('wiki.history.save_version'), $this->url('page_version_save', $params), attributes: ['data-testid' => 'wiki-save-version']);
+        }
         if ($can['history'] && $this->has('page_history')) {
             $actions[] = new Action('view', WikiPages::label('wiki.page.history'), $this->url('page_history', $params), attributes: ['data-testid' => 'wiki-history']);
         }
@@ -281,24 +285,41 @@ final readonly class WikiPageFactory
      * @param list<WikiPageRevision> $revisions revisions of the current page, newest first
      * @param WikiPageRevision|null $older first revision of the next page (compare target of the last row)
      * @param array<int|string, FormView> $restoreForms revision number => CSRF restore form
+     * @param array<int, array{author: string, label: string|null, saves: int}>|null $timeline 1.15 timeline rows per
+     *                                                                                         revision number (null: the 1.14 list)
+     * @param array<int|string, FormView> $copyForms 1.15 Copy to new page forms per revision number
      */
-    public function history(WikiSpace $space, WikiPage $page, array $revisions, ?WikiPageRevision $older, array $restoreForms, ?Pagination $pagination): ListPage
+    public function history(WikiSpace $space, WikiPage $page, array $revisions, ?WikiPageRevision $older, array $restoreForms, ?Pagination $pagination, ?array $timeline = null, array $copyForms = []): ListPage
     {
         $params  = ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()];
         $rows    = [];
         $actions = [];
         foreach ($revisions as $index => $revision) {
             $number = $revision->getRevisionNumber();
-            $rows[] = [
+            $row    = [
                 'id'      => $number,
                 'number'  => 'v' . $number,
                 'created' => $this->date($revision->getCreatedAt()),
                 'current' => $revision->getId() === $page->getCurrentRevision()?->getId(),
             ];
+            // 1.15 (`history.timeline`): named version, author and the size of the session on its newest row.
+            if ($timeline !== null) {
+                $entry = $timeline[$number] ?? ['author' => '', 'label' => null, 'saves' => 0];
+                $row += [
+                    'label'  => $entry['label'] ?? '',
+                    'author' => $entry['author'],
+                    // Rows hold scalars: the count of saves (2 or more) on the newest row of a session.
+                    'session' => $entry['saves'] > 1 ? $entry['saves'] : '',
+                ];
+            }
+            $rows[]   = $row;
             $previous = $revisions[$index + 1] ?? $older;
             $row      = [];
             if ($previous instanceof WikiPageRevision && $this->has('page_diff')) {
                 $row[] = new Action('view', WikiPages::label('wiki.history.diff'), $this->url('page_diff', $params + ['from' => $previous->getRevisionNumber(), 'to' => $number]));
+            }
+            if (isset($copyForms[$number]) && $this->has('page_version_copy')) {
+                $row[] = new Action('create', WikiPages::label('wiki.history.copy'), $this->url('page_version_copy', $params + ['revisionNumber' => $number]), method: 'POST', attributes: ['data-testid' => 'wiki-version-copy'], form: $copyForms[$number]);
             }
             if (isset($restoreForms[$number]) && $this->has('page_restore')) {
                 $row[] = new Action(
@@ -326,9 +347,15 @@ final readonly class WikiPageFactory
                 breadcrumbs: $this->crumbs($space, $page, WikiPages::label('wiki.history.title')),
                 back: new BackLink($this->url('page_view', $params), WikiPages::label('wiki.action.back_to_page'), 'wiki-back'),
             ),
-            columns: [
+            columns: $timeline === null ? [
                 new Column('number', WikiPages::label('wiki.history.revision'), required: true),
                 new Column('created', WikiPages::label('wiki.history.created')),
+            ] : [
+                new Column('number', WikiPages::label('wiki.history.revision'), required: true),
+                new Column('label', WikiPages::label('wiki.history.label')),
+                new Column('author', WikiPages::label('wiki.history.author')),
+                new Column('created', WikiPages::label('wiki.history.created')),
+                new Column('session', WikiPages::label('wiki.history.session_column')),
             ],
             rows: $rows,
             rowActions: static fn (array $row): array => $actions[(int) $row['id']] ?? [],
@@ -528,6 +555,31 @@ final readonly class WikiPageFactory
             bundle: WikiPages::BUNDLE,
             layout: $this->pages->layout(),
             attributes: ['data-testid' => 'wiki-page-move'],
+        );
+    }
+
+    /**
+     * The Save version form of a page (1.15): the label of the current revision.
+     */
+    public function pageVersion(WikiSpace $space, WikiPage $page, FormView $form): FormPage
+    {
+        $back = $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+
+        return new FormPage(
+            header: new PageHeader(
+                WikiPages::label('wiki.history.save_version_title', ['%title%' => $page->getTitle()]),
+                $space->getName(),
+                [],
+                breadcrumbs: $this->crumbs($space, $page, WikiPages::label('wiki.history.save_version')),
+                back: new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
+            ),
+            form: $form,
+            submitLabel: WikiPages::label('wiki.history.save_version'),
+            cancelHref: $back,
+            cancelLabel: WikiPages::label('wiki.action.cancel'),
+            bundle: WikiPages::BUNDLE,
+            layout: $this->pages->layout(),
+            attributes: ['data-testid' => 'wiki-page-version'],
         );
     }
 
