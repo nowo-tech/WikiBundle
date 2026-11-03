@@ -148,6 +148,10 @@ Who may move: the role gate `canEdit()` and `WikiAction::Edit` on the page, on i
 (the space for the top level); a parent the user may not read answers 404. The tree is only movable for users with
 `Edit` on the space.
 
+Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): pages move within their space only (D-W1); the
+depth limit defaults to 10 (D-W2); sibling order uses sparse integers in the existing `position` column (D-W27, no
+schema change); the fold state lives in the session unless `tree.state_store` names a per-user store (D-W28).
+
 ## Sanitizer allowlist (1.11)
 
 Page bodies (HTML revisions and the render cache of Markdown revisions) go through `WikiHtmlSanitizer`. An editor dialect that emits more markup declares it here:
