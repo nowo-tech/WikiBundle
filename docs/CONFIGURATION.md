@@ -180,6 +180,10 @@ Who may: the role gate `canArchive()`, then `WikiAction::Delete` for *Delete*, t
 Only deletions whose page the user may read with every ancestor are listed; on the purge page, pages the user may not
 read are counted, not named. Schedule the retention, e.g. with cron: `0 3 * * * bin/console wiki:trash:purge`.
 
+Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): a delete takes the page and its whole sub-tree,
+and a restore brings them back together (D-W29); pages archived before the delete stay archived (D-W30); a restored
+page whose parent is gone meanwhile comes back at the top level (D-W31).
+
 ## Sanitizer allowlist (1.11)
 
 Page bodies (HTML revisions and the render cache of Markdown revisions) go through `WikiHtmlSanitizer`. An editor dialect that emits more markup declares it here:
