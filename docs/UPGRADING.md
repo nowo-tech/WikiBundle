@@ -53,6 +53,11 @@
 
 ## Unreleased
 
+- **Page visibility follows the ancestors on every route.** If your `WikiSpaceAccessCheckerInterface` denies `View` on
+  a page, its sub-pages now answer 404 on the page view, history, diff, attachments, co-editing, search and AI
+  answers too (they were already hidden from the tree, the export and page links). Grant `View` on the parent if
+  those users should read the sub-page.
+
 ## To 1.13.1
 
 From **1.13.0**:

@@ -46,6 +46,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **A page under a hidden parent is hidden too, on every read path** (hardening; found in the 1.14 tree audit,
+  DI-L1). Until now the page view, history, diff, edit, archive / unarchive / restore, attachments (upload and
+  download), co-editing, search and the AI answers checked `View` on the page only, while the sidebar tree, the export
+  and the page-link / mention resolver already required `View` on every ancestor. One rule now
+  (`WikiPageVisibility::isReadable()`, `WikiSpaceGuard::isPageReadable()` / `requireReadablePage()`): `View` on the
+  page and on every ancestor; otherwise 404, like a missing page, and the hit is left out. A parent cycle in the data
+  reads as hidden. Hosts whose checker grants `View` on a page but not on its parent will see that page disappear for
+  those users, as it already did from their tree.
+
 ## [1.13.1] - 2026-11-03
 
 Tiptap assets only for tiptap, no collab tables when collaboration is off, safe co-editor names, purge/append race, audit residuals

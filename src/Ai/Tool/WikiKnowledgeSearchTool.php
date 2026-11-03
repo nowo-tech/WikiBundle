@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Ai\Tool;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Security\WikiPageVisibility;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiSearchService;
@@ -88,7 +89,7 @@ final readonly class WikiKnowledgeSearchTool
 
         $results = [];
         foreach ($hits as $hit) {
-            if ($this->accessChecker instanceof WikiSpaceAccessCheckerInterface && !$this->accessChecker->isGranted($user, WikiAction::View, $hit['space'], $hit['page'])) {
+            if ($this->accessChecker instanceof WikiSpaceAccessCheckerInterface && !WikiPageVisibility::isReadable($this->accessChecker, $user, $hit['space'], $hit['page'])) {
                 continue;
             }
             $results[] = [

@@ -192,6 +192,17 @@ final class WikiCollabControllerTest extends TestCase
         $this->controller()->collab(Request::create('/', 'GET'), 'eng', 'runbook', 'update');
     }
 
+    public function testAPageUnderAHiddenParentIsNotFound(): void
+    {
+        // 1.13.2: the page is readable and editable, its parent is not readable.
+        $vault      = new WikiPage($this->space, 'vault', 'Vault');
+        $this->page = new WikiPage($this->space, 'runbook', 'Runbook', $vault);
+
+        $this->expectException(NotFoundHttpException::class);
+        $this->controller(new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p !== $vault))
+            ->collab(Request::create('/', 'GET'), 'eng', 'runbook', 'state');
+    }
+
     public function testAnonymousAndUntrustedTokensAreRefused(): void
     {
         foreach ([[false, null], [true, new WikiTokenGuard(new RequestStack([new Request()]))]] as [$user, $guard]) {
