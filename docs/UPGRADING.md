@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.14.0](#to-1140)
 - [To 1.13.2](#to-1132)
 - [To 1.13.1](#to-1131)
 - [To 1.13.1](#to-1131-1)
@@ -53,6 +54,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.14.0
+
+From **1.13.2**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 - The bundle requires the PHP `iconv` extension (enabled in nearly every PHP build).
 - `nowo-tech/ui-kit-bundle` ^2.24 is required (`composer update nowo-tech/ui-kit-bundle`).
