@@ -58,7 +58,7 @@
 
 ## To 1.14.1
 
-From **1.13.2**, with co-editing enabled:
+From **1.14.0**, with co-editing enabled:
 
 - **Schema:** four counter columns on `<prefix>_page_collab_documents`. Run `doctrine:migrations:diff`, then add the
   backfill to the generated migration so existing logs keep their size:
