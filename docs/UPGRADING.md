@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.14.1](#to-1141)
 - [To 1.14.0](#to-1140)
 - [To 1.13.2](#to-1132)
 - [To 1.13.1](#to-1131)
@@ -54,6 +55,41 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.14.1
+
+From **1.13.2**, with co-editing enabled:
+
+- **Schema:** four counter columns on `<prefix>_page_collab_documents`. Run `doctrine:migrations:diff`, then add the
+  backfill to the generated migration so existing logs keep their size:
+
+  ```sql
+  UPDATE wiki_page_collab_documents d SET
+      update_count = (SELECT COUNT(*) FROM wiki_page_collab_updates u WHERE u.page_id = d.page_id AND u.kind = 'update'),
+      log_bytes    = (SELECT COALESCE(SUM(LENGTH(u.data)), 0) FROM wiki_page_collab_updates u WHERE u.page_id = d.page_id),
+      last_seq     = (SELECT COALESCE(MAX(u.id), 0) FROM wiki_page_collab_updates u WHERE u.page_id = d.page_id),
+      snapshot_seq = (SELECT COALESCE(MAX(u.covers_seq), 0) FROM wiki_page_collab_updates u WHERE u.page_id = d.page_id AND u.kind = 'snapshot');
+  ```
+
+  Without co-editing the collaboration tables are not in your schema and nothing changes. Without the backfill, live
+  logs restart counting from zero (at worst a log grows past its budget once before the next compaction resets it).
+- **Rate limiters (optional):** split the co-editing budget so that typing and presence do not starve each other, e.g.
+
+  ```yaml
+  framework:
+      rate_limiter:
+          wiki_collab_update: { policy: sliding_window, limit: 1200, interval: '1 minute' }
+          wiki_collab_awareness: { policy: sliding_window, limit: 600, interval: '1 minute' }
+  nowo_wiki:
+      collaboration:
+          update_rate_limiter: limiter.wiki_collab_update
+          awareness_rate_limiter: limiter.wiki_collab_awareness
+  ```
+
+  `rate_limiter` stays required and keeps covering token, state, compaction and reset (and updates / presence when
+  their own limiter is not set). Beacon splits its `rate_limiter.yaml` the same way.
+- A custom `collaboration.store` keeps working. Implement `WikiCollabCountingStoreInterface` to get the one-write
+  update path.
 
 ## To 1.14.0
 

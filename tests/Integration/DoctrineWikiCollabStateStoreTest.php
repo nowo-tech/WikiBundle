@@ -17,6 +17,7 @@ use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -89,6 +90,54 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertFalse($state->isEmpty());
         self::assertSame(['Aw=='], $this->store->load('p2')->updates);
         self::assertSame($other, $this->store->info('p2')->seq);
+    }
+
+    public function testTheCountersFollowAppendsCompactionsResetsAndCapsWithoutReadingTheLog(): void
+    {
+        (new ReflectionMethod($this->store, 'ensureDocument'))->invoke($this->store, 'p1');
+        self::assertNull($this->store->appendWithin('p1', 'AQ==', 2, 100));
+        self::assertNull($this->store->appendWithin('p1', 'Ag==', 2, 100));
+        self::assertSame('log_full', $this->store->appendWithin('p1', 'Aw==', 2, 100));
+        self::assertSame('log_reset', $this->store->appendWithin('p1', 'Aw==', 5, 9));
+        $info = $this->store->info('p1');
+        self::assertSame([2, 8], [$info->updateCount, $info->bytes]);
+
+        // A compaction recounts: the snapshot and what it does not cover.
+        $last = $info->seq;
+        $this->store->compact('p1', 'U1U1', $last - 1);
+        $info = $this->store->info('p1');
+        self::assertSame([1, 8, $last - 1], [$info->updateCount, $info->bytes, $info->snapshotSeq]);
+
+        // A reset (log_reset) empties the counters; a purge removes the document.
+        $this->store->reset('p1', null);
+        $info = $this->store->info('p1');
+        self::assertSame([0, 0, 0, 0], [$info->updateCount, $info->bytes, $info->seq, $info->snapshotSeq]);
+        $this->store->purgePages(new DateTimeImmutable('+1 minute'));
+        self::assertSame(0, $this->store->info('p1')->bytes);
+        self::assertNull($this->store->info('p1')->updatedAt);
+
+        $this->expectException(WikiCollabException::class);
+        $this->store->appendWithin('p1', 'AQ==', 5, 100);
+    }
+
+    public function testAnUpdateRunsThreeStatementsInsideItsTransaction(): void
+    {
+        $logger = new RecordingLogger();
+        $em     = SqliteWikiEntityManager::create($logger);
+        $store  = new DoctrineWikiCollabStateStore($em);
+        (new ReflectionMethod($store, 'ensureDocument'))->invoke($store, 'p1');
+        $logger->records = [];
+
+        $store->appendWithin('p1', 'AQ==', 10, 1000);
+
+        // Savepoints of the ORM flush inside the transaction are not statements on the data.
+        $statements = array_values(array_filter($logger->records, static fn (array $r): bool => str_starts_with($r['message'], 'Executing')
+            && preg_match('/^(RELEASE )?SAVEPOINT/', (string) ($r['context']['sql'] ?? '')) !== 1));
+        // The locked counters, the insert, the counter update: no SUM over the log.
+        self::assertCount(3, $statements);
+        foreach ($statements as $statement) {
+            self::assertStringNotContainsString('SUM(', (string) ($statement['context']['sql'] ?? ''));
+        }
     }
 
     public function testOnlyOneClientSeedsUntilTheClaimIsStaleOrTheLogIsReset(): void

@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Stub\TestUserBase;
+use Nowo\WikiBundle\Tests\Support\CountingInMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -190,6 +191,56 @@ final class WikiCollabServiceTest extends TestCase
 
         self::assertTrue($this->store->info($this->page->getId())->isEmpty());
         self::assertSame('{"t":"r","c":0,"d":""}', $this->published[1][1]);
+    }
+
+    public function testACountingStoreChecksAndAppendsInOneWrite(): void
+    {
+        $this->store = $store = new CountingInMemoryCollabStateStore();
+        $service     = $this->service(['compact_after' => 10, 'max_log_entries' => 20, 'max_log_bytes' => 12]);
+
+        $service->update($this->json(['c' => 1, 'd' => 'AQIDBA==']), $this->page, $this->user);
+        self::assertSame(1, $store->checkedAppends);
+        self::assertSame('{"t":"u","c":1,"d":"AQIDBA=="}', $this->published[0][1]);
+
+        // Over the byte budget: the log is dropped and the editors reload.
+        try {
+            $service->update($this->json(['c' => 1, 'd' => 'AQIDBA==']), $this->page, $this->user);
+            self::fail('accepted');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([409, 'log_reset'], [$exception->status, $exception->reason]);
+        }
+        self::assertTrue($store->info($this->page->getId())->isEmpty());
+
+        // A full log: 429, nothing stored.
+        $full = $this->service(['compact_after' => 1, 'max_log_entries' => 1]);
+        $full->update($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, $this->user);
+        try {
+            $full->update($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, $this->user);
+            self::fail('accepted');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([429, 'log_full'], [$exception->status, $exception->reason]);
+        }
+        self::assertSame(0, $store->loads, 'no log data is read');
+    }
+
+    public function testUpdatesAndPresenceHaveTheirOwnBudgets(): void
+    {
+        $limiter = static fn (string $id, int $limit): RateLimiterFactory => new RateLimiterFactory(['id' => $id, 'policy' => 'fixed_window', 'limit' => $limit, 'interval' => '1 minute'], new InMemoryStorage());
+        $service = $this->service([], $limiter('shared', 100), null, 'test-secret', $limiter('update', 1), $limiter('awareness', 1));
+        $this->store->append($this->page->getId(), 'AQ==');
+
+        $service->update($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, $this->user);
+        $service->awareness($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, $this->user);
+        foreach (['update', 'awareness'] as $action) {
+            try {
+                $service->{$action}($this->json(['c' => 1, 'd' => 'AQ==']), $this->page, $this->user);
+                self::fail($action . ' accepted');
+            } catch (WikiCollabException $exception) {
+                self::assertSame([429, 'rate_limited'], [$exception->status, $exception->reason]);
+            }
+        }
+        // The shared budget still covers the other requests.
+        $service->state($this->page, $this->user);
     }
 
     public function testEverySaveDropsTheLogWithoutReadingIt(): void
@@ -518,7 +569,7 @@ final class WikiCollabServiceTest extends TestCase
     /**
      * @param array<string, mixed> $options
      */
-    private function service(array $options = [], ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $userLimiter = null, string $secret = 'test-secret'): WikiCollabService
+    private function service(array $options = [], ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $userLimiter = null, string $secret = 'test-secret', ?RateLimiterFactory $updateLimiter = null, ?RateLimiterFactory $awarenessLimiter = null): WikiCollabService
     {
         $publisher = new class($this->published) implements WikiCollabPublisherInterface {
             /** @param list<array{0: string, 1: string}> $published */
@@ -543,7 +594,7 @@ final class WikiCollabServiceTest extends TestCase
             }
         };
 
-        return new WikiCollabService($this->store, $publisher, $authorizer, $options, $limiter, $userLimiter, $secret);
+        return new WikiCollabService($this->store, $publisher, $authorizer, $options, $limiter, $userLimiter, $secret, $updateLimiter, $awarenessLimiter);
     }
 
     /**

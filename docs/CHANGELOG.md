@@ -48,6 +48,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Co-editing updates are cheap per keystroke** (Beacon audit, High). The update endpoint used to read the size of the
+  page's whole log twice per request (`SUM(LENGTH(data))` over the LONGTEXT rows) around the insert. Now:
+  - The document row keeps `update_count`, `log_bytes`, `last_seq` and `snapshot_seq`, written in the same transaction
+    as each insert, compaction and reset.
+  - The caps and the append are one locked write (`WikiCollabCountingStoreInterface::appendWithin()`: three
+    statements).
+  - The Mercure relay goes out after the commit.
+  - A host store without the new interface keeps working as before.
+- **Separate budgets for updates and presence.** `collaboration.update_rate_limiter` and
+  `collaboration.awareness_rate_limiter` (e.g. `limiter.wiki_collab_update` / `limiter.wiki_collab_awareness`).
+  Without them, `rate_limiter` keeps limiting every request.
+
 ## [1.14.0] - 2026-11-03
 
 Outline-style page tree and trash
