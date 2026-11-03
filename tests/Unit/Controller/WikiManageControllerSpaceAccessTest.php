@@ -310,6 +310,33 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
         $controller->restoreRevision(Request::create('/r', 'POST', ['_token' => $token]), 'eng', 'runbook', 99);
     }
 
+    /**
+     * 1.13.2: a readable page under a hidden parent is as missing as a hidden page, on every page route.
+     */
+    #[DataProvider('pageRoutes')]
+    public function testAPageUnderAHiddenParentIsNotFoundOnEveryPageRoute(string $route): void
+    {
+        $vault      = new WikiPage($this->space, 'vault', 'Vault');
+        $this->page = new WikiPage($this->space, 'runbook', 'Runbook', $vault);
+        $this->page->setCurrentRevision($this->revisions[3]);
+        $this->archived = new WikiPage($this->space, 'old', 'Old', $vault);
+        $this->archived->archive();
+        [$controller] = $this->controller(new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p !== $vault));
+
+        $this->assertThrows(NotFoundHttpException::class, $this->call($controller, $route));
+    }
+
+    public function testSearchLeavesOutAPageUnderAHiddenParent(): void
+    {
+        $vault        = new WikiPage($this->space, 'vault', 'Vault');
+        $this->page   = new WikiPage($this->space, 'runbook', 'Runbook', $vault);
+        [$controller] = $this->controller(new CallbackSpaceAccessChecker(static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p !== $vault));
+
+        $controller->search(Request::create('/q', 'GET', ['q' => 'run', 'space' => 'eng']));
+
+        self::assertSame([], $this->twig->context['page']->rows);
+    }
+
     public function testHiddenPagesStayOutOfTheTreeTheArchivedListAndSearch(): void
     {
         $hidden  = static fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => !$p instanceof WikiPage || ($p->getSlug() !== 'runbook' && $p->getSlug() !== 'old');

@@ -45,15 +45,8 @@ trait WikiTreeMoveTrait
      */
     private function isReadableBranch(UserInterface $user, WikiSpace $space, WikiPage $page): bool
     {
-        $seen = [];
-        for ($node = $page; $node instanceof WikiPage; $node = $node->getParent()) {
-            if (isset($seen[$node->getId()]) || !$this->spaceGuard->isGranted($user, WikiAction::View, $space, $node)) {
-                return false;
-            }
-            $seen[$node->getId()] = true;
-        }
-
-        return true;
+        // DJ-I3: the bundle's one read rule (1.13.2), also used by the page view, search and AI.
+        return $this->spaceGuard->isPageReadable($user, $space, $page);
     }
 
     /**
@@ -66,9 +59,10 @@ trait WikiTreeMoveTrait
      */
     private function readableIds(UserInterface $user, WikiSpace $space, array $pages): array
     {
-        $ids = [];
+        $ids       = [];
+        $decisions = [];
         foreach ($pages as $page) {
-            if ($this->isReadableBranch($user, $space, $page)) {
+            if ($this->spaceGuard->isPageReadable($user, $space, $page, $decisions)) {
                 $ids[$page->getId()] = true;
             }
         }

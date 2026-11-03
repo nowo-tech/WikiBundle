@@ -94,6 +94,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Security/AttributeSanitizer/EmbedIframeSrcAttributeSanitizer.php` | iframe src allowlist | FR-SEC-007 |
 | `Security/AttributeSanitizer/TextAlignStyleAttributeSanitizer.php` | TextAlign style filter | FR-SEC-007 |
 | `Security/WikiTokenGuard.php` | Stale token guard | FR-WORKER-001 |
+| `Security/WikiPageVisibility.php` | One read rule: View on the page and every ancestor | FR-SEC-009 |
 
 ## AI
 

@@ -94,7 +94,7 @@ final class WikiAttachmentController extends AbstractController
             throw new NotFoundHttpException('Page not found.');
         }
 
-        $this->spaceGuard->requireGranted($user, WikiAction::View, $space, $page);
+        $this->spaceGuard->requireReadablePage($user, $space, $page);
         $this->spaceGuard->requireGranted($user, WikiAction::Edit, $space, $page);
         if ($this->accessChecker instanceof WikiAccessCheckerInterface && !$this->accessChecker->canEdit($user)) {
             throw new AccessDeniedHttpException('Access denied.');
@@ -154,7 +154,7 @@ final class WikiAttachmentController extends AbstractController
 
         $page = $attachment->getPage();
         if (
-            !$this->spaceGuard->isGranted($user, WikiAction::View, $space, $page)
+            !$this->spaceGuard->isPageReadable($user, $space, $page)
             || ($page->isArchived() && !$this->spaceGuard->isGranted($user, WikiAction::Manage, $space, $page))
         ) {
             throw new NotFoundHttpException('Attachment not found.');

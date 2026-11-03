@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.13.2] - 2026-11-03](#1132---2026-11-03)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
 - [[1.13.0] - 2026-11-03](#1130---2026-11-03)
 - [[1.12.0] - 2026-10-31](#1120---2026-10-31)
@@ -73,6 +74,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the opaque label (fail closed).
 - **A compaction of a purged log is refused with 409 `log_reset`** (audit DA-I9), like an append: the store no longer
   recreates the document.
+
+## [1.13.2] - 2026-11-03
+
+Pages under a hidden parent stay hidden on every read path
+
+### Security
+
+- **A page under a hidden parent is hidden too, on every read path** (hardening; found in the 1.14 tree audit,
+  DI-L1). Until now the page view, history, diff, edit, archive / unarchive / restore, attachments (upload and
+  download), co-editing, search and the AI answers checked `View` on the page only, while the sidebar tree, the export
+  and the page-link / mention resolver already required `View` on every ancestor. One rule now
+  (`WikiPageVisibility::isReadable()`, `WikiSpaceGuard::isPageReadable()` / `requireReadablePage()`): `View` on the
+  page and on every ancestor; otherwise 404, like a missing page, and the hit is left out. A parent cycle in the data
+  reads as hidden. Hosts whose checker grants `View` on a page but not on its parent will see that page disappear for
+  those users, as it already did from their tree.
+- **Import respects the reader rule** (audit DJ-L1): pages the importing user may not read are never matched, updated
+  (`update_existing`) or used as a `wiki_parent`; a document asking for such a slug or parent fails with a neutral
+  "not available" message (no "skipped existing" answer, no duplicate slug). A `wiki_parent` that does not exist fails
+  the same way in the web import, so hidden and missing parents read alike. The CLI import is unchanged.
+- The ancestor walk is shared across the hits of one search or AI answer (DJ-I1). SECURITY.md says that host
+  endpoints for link titles, `@` candidates and the page picker must use `isPageReadable()` (DJ-I2).
 
 ## [1.13.1] - 2026-11-03
 
@@ -691,7 +713,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.13.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.13.2...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
