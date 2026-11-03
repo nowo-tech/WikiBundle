@@ -153,6 +153,11 @@ confirmation*.
   in the session (`tree.state_store` for a per-user store).
   Lazy children, starred / recents, the per-node "+" / "⋯" menus and live updates stay open for the next 1.14 PRs.
   — PR #83
+- [x] 1.14 trash (T065, pulled forward on the owner's request): Delete with the sub-tree behind a confirm, the trash
+  with Restore and a twice-confirmed Purge, retention (`trash.retention_days`, D-W4: 30 days) and `wiki:trash:purge`,
+  `WikiAction::Delete` / `Purge` (D-W5: purge by the manage roles in the 1.x mapping), trashed pages invisible on
+  every read path (opt-in `trash.enabled`). Version history and the full trash UX stay in 1.15. Decided by the user
+  on 2026-11-03 (D-W29, D-W30, D-W31). — PR #85
 
 ## Plans
 
@@ -639,6 +644,9 @@ Further features found while writing this roadmap. They are **proposals**: accep
 | D-W2 | Maximum tree **depth** | 10 levels, `tree.max_depth` (2026-11-03) |
 | D-W27 | Sibling **ordering** storage | Sparse integers in the existing `position` column, no string rank column (2026-11-03) |
 | D-W28 | Where the **fold state** lives | The session by default; `tree.state_store` for a per-user store (2026-11-03) |
+| D-W29 | What a **delete** takes | The page and its whole sub-tree, restored together (2026-11-03) |
+| D-W30 | Pages **archived before** a delete | Stay archived after a restore (2026-11-03) |
+| D-W31 | A restored page whose **parent is gone** | Comes back at the top level (2026-11-03) |
 
 ## Open decisions
 

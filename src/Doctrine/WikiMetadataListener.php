@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Entity\WikiTrashEntry;
 
 use function array_replace_recursive;
 use function ltrim;
@@ -35,6 +36,8 @@ final readonly class WikiMetadataListener
      * @param string $collabDocumentsTableName table name for collaboration documents (1.13)
      * @param string $collabUpdatesTableName table name for the collaboration Yjs log (1.13)
      * @param bool $collaborationEnabled false: the two collaboration tables are left out of the generated schema (1.13.1)
+     * @param string $trashTableName table name for the trash (1.14)
+     * @param bool $trashEnabled false: the trash table is left out of the generated schema (1.14)
      */
     public function __construct(
         private string $spacesTableName,
@@ -46,22 +49,29 @@ final readonly class WikiMetadataListener
         private string $collabDocumentsTableName = 'wiki_page_collab_documents',
         private string $collabUpdatesTableName = 'wiki_page_collab_updates',
         private bool $collaborationEnabled = true,
+        private string $trashTableName = 'wiki_page_trash',
+        private bool $trashEnabled = true,
     ) {
     }
 
     /**
-     * Without co-editing (`collaboration.enabled: false`) the collaboration tables are not part of the schema, so
+     * Without the trash (`trash.enabled: false`, 1.14) its table is not part of the schema either. Without co-editing
+     * (`collaboration.enabled: false`) the collaboration tables are not part of the schema, so
      * `doctrine:schema:update` and `doctrine:migrations:diff` do not ask for them (1.13.1). The entities stay mapped (no
      * service uses them then); a host enabling co-editing later gets the two tables in its next diff.
      */
     public function postGenerateSchema(GenerateSchemaEventArgs $args): void
     {
-        // Only the wiki's entity manager (where the collaboration entities are mapped), only its two tables.
-        if ($this->collaborationEnabled || $args->getEntityManager()->getMetadataFactory()->isTransient(WikiCollabDocument::class)) {
+        // Only the wiki's entity manager (where the wiki entities are mapped), only the tables of disabled features.
+        if ($args->getEntityManager()->getMetadataFactory()->isTransient(WikiCollabDocument::class)) {
             return;
         }
+        $tables = $this->collaborationEnabled ? [] : [$this->collabUpdatesTableName, $this->collabDocumentsTableName];
+        if (!$this->trashEnabled) {
+            $tables[] = $this->trashTableName;
+        }
         $schema = $args->getSchema();
-        foreach ([$this->collabUpdatesTableName, $this->collabDocumentsTableName] as $table) {
+        foreach ($tables as $table) {
             if ($schema->hasTable($table)) {
                 $schema->dropTable($table);
             }
@@ -106,6 +116,12 @@ final readonly class WikiMetadataListener
 
         if ($class === WikiCollabDocument::class || $class === WikiCollabUpdate::class) {
             $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $class === WikiCollabDocument::class ? $this->collabDocumentsTableName : $this->collabUpdatesTableName]));
+
+            return;
+        }
+
+        if ($class === WikiTrashEntry::class) {
+            $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->trashTableName]));
 
             return;
         }

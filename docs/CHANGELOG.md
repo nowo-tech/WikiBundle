@@ -66,6 +66,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the user can see (DI-I1); a page moved by someone else between the check and the lock is refused as `stale`
   (DI-I2, compared with the very parent whose `Edit` was checked, DI-I6); a page moves with its whole sub-tree, descendants the actor cannot see included, whose readers become those
   of the new branch (DI-I3, documented).
+- **Trash** (`trash.enabled`, opt-in, T065):
+  - *Delete* on a page moves it to the space's trash **with its whole sub-tree**, behind a confirm dialog. The pages
+    are archived, so the tree, search, page links, mentions, backlinks, the export and the AI treat them as gone.
+  - The trash lists each deletion with *Restore*, which brings the page back with its sub-pages (pages archived
+    before stay archived; a page whose parent is gone meanwhile goes to the top level).
+  - *Delete for good* opens a confirmation page, then asks a second confirm. It removes the pages with their
+    revisions, host-object links and attachments (files included).
+  - `wiki:trash:purge` purges deletions older than `trash.retention_days` (default 30); `--dry-run` counts them all.
+  - Restore and purge run under the space lock and read the deletion again, so a purge never deletes pages a restore
+    brought back; attachment files are unlinked after the commit (audit DO-M1, DO-L1). A deletion holding pages the
+    purger cannot see needs `WikiAction::Manage` to be purged (DO-I1).
+  - Rights: `WikiAction::Delete` and `WikiAction::Purge`, asked from your space checker. The 1.x mapping is the
+    archive roles to delete and the import / manage roles to purge.
+  - Events: `nowo_wiki.page.trashed`, `nowo_wiki.trash.restored` and `nowo_wiki.trash.purged`.
+  - Without the trash nothing changes: no routes, no table (`<prefix>_page_trash` is left out of the schema) and no
+    action.
 - Requires `nowo-tech/ui-kit-bundle` ^2.24 (tree component).
 
 ### Changed

@@ -46,6 +46,7 @@ use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
@@ -129,6 +130,7 @@ final class WikiManageController extends AbstractController
      * @param WikiCollabService|null $collab co-editing of the page form (1.13; null = collaboration disabled)
      * @param WikiPageMover|null $mover page moves of the tree (1.14; null = tree disabled)
      * @param WikiTreeStateStoreInterface|null $treeState fold state of the tree (1.14; null = tree disabled)
+     * @param WikiTrashService|null $trash the trash (1.14; null = trash disabled)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -163,6 +165,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiCollabService $collab = null,
         private readonly ?WikiPageMover $mover = null,
         private readonly ?WikiTreeStateStoreInterface $treeState = null,
+        private readonly ?WikiTrashService $trash = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -234,6 +237,12 @@ final class WikiManageController extends AbstractController
             'import' => $this->importExport['enabled'] && $this->accessChecker->canImport($user) && $permissions['import'],
             'export' => $this->importExport['enabled'] && $this->accessChecker->canExport($user) && $permissions['export'],
         ];
+        if ($this->trash instanceof WikiTrashService) {
+            // 1.14: trashed pages are in the trash, not in the archived list (their Unarchive would split a deletion).
+            $trashed      = $this->trash->trashedIds($space);
+            $archived     = array_values(array_filter($archived, static fn (WikiPage $item): bool => !isset($trashed[$item->getId()])));
+            $can['trash'] = $this->accessChecker->canArchive($user) && $this->spaceGuard->isGranted($user, WikiAction::Delete, $space);
+        }
         $pages     = $this->pages();
         $treeNodes = $pages->tree($space, $tree);
         $treeUi    = $this->treeUi($user, $space, $treeNodes);
@@ -288,6 +297,15 @@ final class WikiManageController extends AbstractController
             $this->generateUrl($this->routes['page_archive']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug()]),
             'wiki_archive_' . $item->getId(),
         ])[0] : null;
+        // 1.14: Delete (to the trash) for users with WikiAction::Delete on the page.
+        $deleteForm = $this->trash instanceof WikiTrashService && isset($this->routes['page_delete']) && $this->accessChecker->canArchive($user)
+            && $this->spaceGuard->isGranted($user, WikiAction::Delete, $space, $page)
+            ? $this->postActionForms([$page], fn (WikiPage $item): array => [
+                0,
+                $this->generateUrl($this->routes['page_delete']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug()]),
+                WikiTrashController::deleteTokenId($item),
+            ])[0]
+            : null;
         $pages     = $this->pages();
         $treeNodes = $pages->tree($space, $tree, $page->getSlug());
         $treeUi    = $this->treeUi($user, $space, $treeNodes);
@@ -300,7 +318,7 @@ final class WikiManageController extends AbstractController
         }
 
         return $this->renderPage('page_view', $vars + [
-            'page'             => $pages->pageView($space, $page, $can, $archiveForm),
+            'page'             => $pages->pageView($space, $page, $can, $archiveForm, $deleteForm),
             'content_html'     => $this->revisionBody($page->getCurrentRevision()),
             'rich_content'     => $this->bodyRenderer?->hasRichContent() ?? false,
             'tree'             => $treeNodes,
@@ -624,7 +642,8 @@ final class WikiManageController extends AbstractController
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->pageRepository->findBySlug($space, $pageSlug);
-        if (!$page instanceof WikiPage || !$page->isArchived()) {
+        // 1.14: a trashed page comes back with its deletion (the trash's Restore), never alone.
+        if (!$page instanceof WikiPage || !$page->isArchived() || isset($this->trash?->trashedIds($space)[$page->getId()])) {
             throw new NotFoundHttpException('Page not found.');
         }
 

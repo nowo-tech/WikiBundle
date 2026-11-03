@@ -26,6 +26,7 @@ use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
@@ -41,6 +42,7 @@ use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
+use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\TestCase;
@@ -234,6 +236,40 @@ final class WikiManageControllerTreeTest extends TestCase
         $controller->movePage(Request::create('/'), 'eng', 'run');
     }
 
+    public function testTheTrashAddsDeleteAndTheTrashLinkAndHidesTrashedPagesFromTheArchive(): void
+    {
+        $repository = new DoctrineOrmWikiPageRepository($this->em);
+        $trash      = new WikiTrashService($repository, new DoctrineOrmWikiTrashRepository($this->em), $repository, new EventDispatcher());
+        $this->locked->archive();
+        $this->em->flush();
+        $trash->delete($this->guide);
+
+        $controller = $this->controller(trash: $trash);
+        $controller->space('eng');
+        self::assertContains('wiki-trash', $this->actionIds());
+        // The archived list keeps the archived page, not the trashed one.
+        self::assertSame(['Locked'], array_column($this->twig->context['archived'], 'title'));
+
+        $controller->viewPage('eng', 'run');
+        self::assertContains('wiki-delete', $this->actionIds());
+
+        // A trashed page comes back with its deletion only.
+        $this->expectException(NotFoundHttpException::class);
+        $controller->unarchivePage(Request::create('/', 'POST'), 'eng', 'guide');
+    }
+
+    public function testWithoutTheDeleteRightThereIsNoDeleteNorTrash(): void
+    {
+        $repository = new DoctrineOrmWikiPageRepository($this->em);
+        $trash      = new WikiTrashService($repository, new DoctrineOrmWikiTrashRepository($this->em), $repository, new EventDispatcher());
+        $controller = $this->controller(decide: static fn (WikiAction $a): bool => $a !== WikiAction::Delete, trash: $trash);
+
+        $controller->space('eng');
+        self::assertNotContains('wiki-trash', $this->actionIds());
+        $controller->viewPage('eng', 'run');
+        self::assertNotContains('wiki-delete', $this->actionIds());
+    }
+
     public function testMovingNeedsTheEditRights(): void
     {
         $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $action === WikiAction::View || $page !== $this->ops);
@@ -290,7 +326,7 @@ final class WikiManageControllerTreeTest extends TestCase
     /**
      * @param (Closure(WikiAction, WikiSpace, ?WikiPage): bool)|null $decide
      */
-    private function controller(bool $tree = true, ?Closure $decide = null, int $maxDepth = 10, bool $translator = false): WikiManageController
+    private function controller(bool $tree = true, ?Closure $decide = null, int $maxDepth = 10, bool $translator = false, ?WikiTrashService $trash = null): WikiManageController
     {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
         $revisions  = $this->createStub(WikiPageRevisionRepositoryInterface::class);
@@ -319,7 +355,7 @@ final class WikiManageControllerTreeTest extends TestCase
             }
         };
         $routes = [];
-        foreach (['space', 'page_view', 'page_edit', 'page_history', 'search', 'page_move', 'space_tree'] as $key) {
+        foreach (['space', 'page_view', 'page_edit', 'page_history', 'search', 'page_move', 'space_tree', 'page_unarchive', 'page_delete', 'space_trash'] as $key) {
             $routes[$key] = ['path' => '/' . $key, 'name' => 'nowo_wiki_' . $key];
         }
         if (!$tree) {
@@ -358,6 +394,7 @@ final class WikiManageControllerTreeTest extends TestCase
             } : null,
             mover: $tree ? new WikiPageMover($repository, $repository, null, $maxDepth) : null,
             treeState: $tree ? $state : null,
+            trash: $trash,
         );
         $this->container = WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $this->twig]);
 

@@ -49,6 +49,7 @@ Root key: `nowo_wiki`.
 - [Markdown pages (1.11)](#markdown-pages-111)
 - [Milkdown editor (1.13)](#milkdown-editor-113)
 - [Page tree (1.14)](#page-tree-114)
+- [Trash (1.14)](#trash-114)
 - [Sanitizer allowlist (1.11)](#sanitizer-allowlist-111)
 - [Space access and tenant paths (1.9)](#space-access-and-tenant-paths-19)
 - [Attachments (1.9)](#attachments-19)
@@ -154,6 +155,36 @@ Notion). The tree is only movable for users with
 Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): pages move within their space only (D-W1); the
 depth limit defaults to 10 (D-W2); sibling order uses sparse integers in the existing `position` column (D-W27, no
 schema change); the fold state lives in the session unless `tree.state_store` names a per-user store (D-W28).
+
+## Trash (1.14)
+
+```yaml
+nowo_wiki:
+    trash:
+        enabled: true          # literal boolean; off = no Delete action, no trash routes, no trash table
+        retention_days: 30     # wiki:trash:purge deletes older deletions for good (D-W4)
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `trash.enabled` | `false` | *Delete* moves a page and its sub-pages to the trash (restore together, purge for good) |
+| `trash.retention_days` | 30 | Age at which `wiki:trash:purge` removes a deletion |
+| `routes.page_delete` | `…/pages/{pageSlug}/delete` | *Delete* (POST + CSRF, behind a confirm) |
+| `routes.space_trash` | `…/spaces/{spaceSlug}/trash` | The trash list |
+| `routes.trash_restore` | `…/trash/{batchId}/restore` | *Restore* (POST + CSRF) |
+| `routes.trash_purge` | `…/trash/{batchId}/purge` | GET: the confirmation page; POST: purge (CSRF, behind a second confirm) |
+| `web_ui.templates.trash` / `trash_purge` | null | Templates of the two pages |
+
+Who may: the role gate `canArchive()`, then `WikiAction::Delete` for *Delete*, the trash list and *Restore*, and
+`WikiAction::Purge` for *Delete for good* (the 1.x mapping: archive roles delete, import / manage roles purge, D-W5).
+A purge is irreversible: when the deletion holds pages the user may not read, it also needs `WikiAction::Manage` on the
+space (otherwise a neutral notice says so). The trash list counts only the pages the user may read.
+Only deletions whose page the user may read with every ancestor are listed; on the purge page, pages the user may not
+read are counted, not named. Schedule the retention, e.g. with cron: `0 3 * * * bin/console wiki:trash:purge`.
+
+Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): a delete takes the page and its whole sub-tree,
+and a restore brings them back together (D-W29); pages archived before the delete stay archived (D-W30); a restored
+page whose parent is gone meanwhile comes back at the top level (D-W31).
 
 ## Sanitizer allowlist (1.11)
 

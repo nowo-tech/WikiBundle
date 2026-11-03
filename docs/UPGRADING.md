@@ -62,6 +62,15 @@
   schema change: moves reuse the `position` column. The fold state lives in the session by default; set
   `tree.state_store` to keep it per user in your own storage. If you override `_sidebar.html.twig`, `space.html.twig`
   or `page_view.html.twig`, compare them with the bundle's (`tree_ui` variable). New strings: `wiki.tree.*`.
+- **Trash (opt-in).** Nothing changes until you set `nowo_wiki.trash.enabled: true` (a literal boolean). Then:
+  - Add the `<prefix>_page_trash` table: `doctrine:migrations:diff` picks it up.
+  - Four route keys are registered: `page_delete`, `space_trash`, `trash_restore`, `trash_purge`.
+  - Schedule `bin/console wiki:trash:purge` daily (the retention is `trash.retention_days`, 30 by default).
+  - Your `WikiSpaceAccessCheckerInterface` is asked `WikiAction::Delete` and `WikiAction::Purge`, only with the trash
+    on. A checker with an exhaustive `match` on `WikiAction` must handle the two new cases before you enable it, and
+    **a checker that grants actions it does not know (a default `true`) would give everyone Delete and Purge**: deny
+    unknown actions, or decide the two explicitly (audit DO-I4). `WikiSpaceGuard::grants()` leaves them out.
+  - New strings: `wiki.trash.*`.
 
 ## To 1.13.2
 
