@@ -158,7 +158,7 @@ confirmation*.
   `WikiAction::Delete` / `Purge` (D-W5: purge by the manage roles in the 1.x mapping), trashed pages invisible on
   every read path (opt-in `trash.enabled`). Version history and the full trash UX stay in 1.15. Defaults *pending
   user confirmation*: the sub-tree follows the deletion and is restored together; archived pages stay archived after
-  a restore.
+  a restore. — PR #85
 
 ## Plans
 
