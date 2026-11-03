@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
+use Nowo\WikiBundle\Service\WikiPageMoveScope;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -48,7 +49,8 @@ use const JSON_THROW_ON_ERROR;
  * Both ask a firewall-trusted user, the same origin (`Origin`, or `Sec-Fetch-Site`), a JSON body of at most
  * {@see self::MAX_BODY} bytes and the CSRF token {@see self::csrfTokenId()} of the space. A move also asks the role
  * gate canEdit() and the rights of {@see WikiTreeMoveTrait}; a fold change {@see WikiAction::View} on the page. Pages
- * the user may not read answer 404. Without the tree every endpoint answers 404.
+ * the user may not read with every ancestor answer 404 (DI-L1); the index and the answer count the siblings the user
+ * sees (DI-I1). Without the tree every endpoint answers 404.
  */
 final class WikiTreeController extends AbstractController
 {
@@ -120,8 +122,9 @@ final class WikiTreeController extends AbstractController
         $parent = $parentId === null ? null : $this->requireReadablePage($user, $space, $parentId);
         $this->requireMovable($user, $space, $page, $parent);
 
+        $scope = new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), $page->getParent()?->getId());
         try {
-            $result = $this->mover->move($page, $parent, $index, $user);
+            $result = $this->mover->move($page, $parent, $index, $user, $scope);
         } catch (WikiPageMoveException $exception) {
             return new JsonResponse(['error' => $exception->reason, 'message' => $this->trans('wiki.tree.error.' . $exception->reason)], Response::HTTP_UNPROCESSABLE_ENTITY, self::NO_STORE);
         }
@@ -162,8 +165,9 @@ final class WikiTreeController extends AbstractController
     private function requireReadablePage(UserInterface $user, WikiSpace $space, mixed $id): WikiPage
     {
         $page = is_string($id) && preg_match('/^[A-Za-z0-9-]{1,36}$/', $id) === 1 ? $this->pageRepository->findById($id) : null;
+        // DI-L1: the page and every ancestor must be readable (a hidden branch is hidden whole, as in the sidebar).
         if (!$page instanceof WikiPage || $page->isArchived() || $page->getSpace()->getId() !== $space->getId()
-            || !$this->spaceGuard->isGranted($user, WikiAction::View, $space, $page)) {
+            || !$this->isReadableBranch($user, $space, $page)) {
             throw new NotFoundHttpException('Page not found.');
         }
 

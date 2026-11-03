@@ -145,7 +145,10 @@ nowo_wiki:
 | `web_ui.templates.page_move` | null | Template of the Move form |
 
 Who may move: the role gate `canEdit()` and `WikiAction::Edit` on the page, on its current parent and on the new parent
-(the space for the top level); a parent the user may not read answers 404. The tree is only movable for users with
+(the space for the top level); a page or parent the user may not read **with every ancestor** answers 404 (as the
+sidebar hides a whole hidden branch). Positions count the siblings the user can see. A page moves with its whole
+sub-tree, including descendants the actor cannot see: their readers become those of the new branch (as in Outline and
+Notion). The tree is only movable for users with
 `Edit` on the space.
 
 Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): pages move within their space only (D-W1); the

@@ -40,6 +40,7 @@ use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
+use Nowo\WikiBundle\Service\WikiPageMoveScope;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
@@ -334,6 +335,10 @@ final class WikiManageController extends AbstractController
         $user  = $this->requireUser();
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->requirePage($user, $space, $pageSlug);
+        // DI-L1: as the tree, a page under a hidden ancestor is not there for this user.
+        if (!$this->isReadableBranch($user, $space, $page)) {
+            throw new NotFoundHttpException('Page not found.');
+        }
         $this->requireMovable($user, $space, $page, $page->getParent());
 
         $parents = $this->moveParents($user, $space, $page);
@@ -352,7 +357,8 @@ final class WikiManageController extends AbstractController
             $this->requireMovable($user, $space, $page, $parent);
 
             try {
-                $result = $this->mover->move($page, $parent, $data['position'] !== null ? $data['position'] - 1 : PHP_INT_MAX, $user);
+                $scope  = new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), $page->getParent()?->getId());
+                $result = $this->mover->move($page, $parent, $data['position'] !== null ? $data['position'] - 1 : PHP_INT_MAX, $user, $scope);
                 $params = ['%title%' => $page->getTitle(), '%position%' => $result->index + 1, '%count%' => $result->count];
                 $this->flash('success', $parent instanceof WikiPage
                     ? new TranslatableMessage('wiki.tree.moved_under', $params + ['%parent%' => $parent->getTitle()], WikiPages::DOMAIN)

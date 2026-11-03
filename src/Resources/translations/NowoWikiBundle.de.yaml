@@ -19,6 +19,7 @@ wiki:
       parent_missing: "Die neue übergeordnete Seite existiert nicht mehr."
       cycle: "Eine Seite kann nicht in sich selbst oder eine ihrer Unterseiten verschoben werden."
       too_deep: "Der Seitenbaum würde zu tief."
+      stale: "Die Seite wurde inzwischen von jemand anderem verschoben; neu laden und erneut versuchen."
       failed: "Die Seite konnte nicht verschoben werden."
   title: Wiki
   back_dashboard: Zurück zum Dashboard

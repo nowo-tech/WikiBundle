@@ -19,6 +19,7 @@ wiki:
       parent_missing: "La nouvelle page parente n’existe plus."
       cycle: "Une page ne peut pas être déplacée dans elle-même ni dans ses sous-pages."
       too_deep: "L’arborescence des pages deviendrait trop profonde."
+      stale: "La page a été déplacée par quelqu’un d’autre entre-temps ; rechargez et réessayez."
       failed: "La page n’a pas pu être déplacée."
   title: Wiki
   back_dashboard: Retour au tableau de bord

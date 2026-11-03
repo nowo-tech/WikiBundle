@@ -36,6 +36,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnsupportedMediaTypeHttpException;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+use function in_array;
 use function json_decode;
 use function json_encode;
 use function str_repeat;
@@ -60,6 +61,10 @@ final class WikiTreeControllerTest extends TestCase
 
     private WikiPage $hidden;
 
+    private WikiPage $plan;
+
+    private WikiPage $secret;
+
     private SessionWikiTreeStateStore $store;
 
     private Container $container;
@@ -73,6 +78,9 @@ final class WikiTreeControllerTest extends TestCase
         $this->run    = $this->page('run', 'Runbooks', $this->ops);
         $this->guide  = $this->page('guide', 'Guide');
         $this->hidden = $this->page('hidden', 'Hidden');
+        // DI-L1 / DI-I1: a readable page under a hidden one, and a hidden sibling of Runbooks.
+        $this->plan   = $this->page('plan', 'Plan', $this->hidden);
+        $this->secret = $this->page('secret', 'Secret', $this->ops);
     }
 
     public function testMovesAPageAndSaysWhere(): void
@@ -86,12 +94,48 @@ final class WikiTreeControllerTest extends TestCase
         self::assertSame($this->ops, $this->guide->getParent());
 
         $response = $controller->tree($this->post(['page' => $this->run->getId(), 'parent' => null, 'index' => 9]), 'eng', 'move');
-        self::assertSame('"Runbooks" moved to the top level, position 3 of 3.', $this->json($response->getContent())['message']);
+        // The hidden root page is not counted (DI-I1).
+        self::assertSame('"Runbooks" moved to the top level, position 2 of 2.', $this->json($response->getContent())['message']);
 
         // A refused move: 422 with the reason.
         $response = $controller->tree($this->post(['page' => $this->ops->getId(), 'parent' => $this->guide->getId(), 'index' => 0]), 'eng', 'move');
         self::assertSame(422, $response->getStatusCode());
         self::assertSame(['error' => 'cycle', 'message' => 'wiki.tree.error.cycle'], $this->json($response->getContent()));
+    }
+
+    public function testAPageUnderAHiddenPageIsHiddenToo(): void
+    {
+        // DI-L1 (audit PoC): Plan is readable, its parent Vault (here: Hidden) is not.
+        foreach ([
+            ['state', ['page' => $this->plan->getId(), 'expanded' => true]],
+            ['move', ['page' => $this->guide->getId(), 'parent' => $this->plan->getId(), 'index' => 0]],
+            ['move', ['page' => $this->plan->getId(), 'parent' => null, 'index' => 0]],
+        ] as [$action, $body]) {
+            $controller = $this->controller();
+            try {
+                $controller->tree($this->post($body), 'eng', $action);
+                self::fail('A page under a hidden page was reachable.');
+            } catch (NotFoundHttpException) {
+                self::assertNull($this->guide->getParent());
+            }
+        }
+    }
+
+    public function testTheIndexAndTheAnswerCountTheVisibleSiblingsOnly(): void
+    {
+        $controller = $this->controller();
+
+        // Under Operations: Runbooks (visible) and Secret (hidden). Index 1 = after Runbooks, of 2.
+        $response = $controller->tree($this->post(['page' => $this->guide->getId(), 'parent' => $this->ops->getId(), 'index' => 1]), 'eng', 'move');
+
+        self::assertSame(['index' => 1, 'count' => 2, 'moved' => true, 'message' => '"Guide" moved under "Operations", position 2 of 2.'], $this->json($response->getContent()));
+        $order = [];
+        foreach ((new DoctrineOrmWikiPageRepository($this->em))->findActiveBySpace($this->space) as $page) {
+            if ($page->getParent() === $this->ops) {
+                $order[] = $page->getSlug();
+            }
+        }
+        self::assertSame(['run', 'guide', 'secret'], $order);
     }
 
     public function testRecordsFoldChanges(): void
@@ -257,9 +301,9 @@ final class WikiTreeControllerTest extends TestCase
         bool $translator = true,
     ): WikiTreeController {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
-        $hidden     = $this->hidden;
+        $denied     = [$this->hidden, $this->secret];
         $decide ??= static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => true;
-        $checker = new CallbackSpaceAccessChecker(static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $page !== $hidden && $decide($action, $space, $page));
+        $checker = new CallbackSpaceAccessChecker(static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !in_array($page, $denied, true) && $decide($action, $space, $page));
         $roles   = $this->createStub(WikiAccessCheckerInterface::class);
         $roles->method('canEdit')->willReturn($roleEdit);
 

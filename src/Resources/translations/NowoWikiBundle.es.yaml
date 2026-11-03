@@ -19,6 +19,7 @@ wiki:
       parent_missing: "La nueva página superior ya no existe."
       cycle: "Una página no puede moverse dentro de sí misma ni de sus subpáginas."
       too_deep: "El árbol de páginas quedaría demasiado profundo."
+      stale: "Otra persona ha movido la página mientras tanto; recarga y vuelve a intentarlo."
       failed: "No se ha podido mover la página."
   title: Wiki
   back_dashboard: Volver al panel

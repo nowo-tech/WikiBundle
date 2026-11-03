@@ -19,6 +19,7 @@ wiki:
       parent_missing: "De nieuwe bovenliggende pagina bestaat niet meer."
       cycle: "Een pagina kan niet in zichzelf of in een van haar subpagina’s worden geplaatst."
       too_deep: "De paginaboom zou te diep worden."
+      stale: "De pagina is intussen door iemand anders verplaatst; laad opnieuw en probeer het nog eens."
       failed: "De pagina kon niet worden verplaatst."
   title: Wiki
   back_dashboard: Terug naar dashboard

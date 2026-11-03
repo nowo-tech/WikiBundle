@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Event\WikiPageMovedEvent;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
+use Nowo\WikiBundle\Service\WikiPageMoveScope;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -219,6 +220,39 @@ final class WikiPageMoverTest extends TestCase
 
         self::assertNull($a->getParent());
         self::assertSame($a, $b->getParent());
+    }
+
+    public function testAScopeMapsTheIndexOverTheVisibleSiblingsAndRefusesAStaleParent(): void
+    {
+        $ops    = $this->page('ops');
+        $a      = $this->page('a', $ops, 1024);
+        $hidden = $this->page('h', $ops, 2048);
+        $b      = $this->page('b', $ops, 3072);
+        $guide  = $this->page('guide');
+        $seen   = [$ops->getId() => true, $a->getId() => true, $b->getId() => true, $guide->getId() => true];
+
+        // Index 1 among [a, b] = before b, after the hidden page.
+        $result = $this->mover()->move($guide, $ops, 1, null, new WikiPageMoveScope($seen, null));
+        self::assertSame([1, 3], [$result->index, $result->count]);
+        self::assertSame(['a', 'h', 'guide', 'b'], $this->order($ops));
+
+        // Past the last visible sibling: right after it.
+        $this->mover()->move($a, $ops, 9, null, new WikiPageMoveScope($seen, $ops->getId()));
+        self::assertSame(['h', 'guide', 'b', 'a'], $this->order($ops));
+
+        // Only hidden siblings: at the end.
+        $only = $this->page('only');
+        $this->mover()->move($guide, $only, 0, null, new WikiPageMoveScope($seen, $ops->getId()));
+        $this->mover()->move($hidden, $only, 0);
+        $result = $this->mover()->move($guide, $only, 0, null, new WikiPageMoveScope($seen, $only->getId()));
+        self::assertSame([0, 1], [$result->index, $result->count]);
+        self::assertSame(['h', 'guide'], $this->order($only));
+        self::assertFalse($result->moved);
+
+        // DI-I2: the page left the parent the actor was allowed to take it out of.
+        $this->expectException(WikiPageMoveException::class);
+        $this->expectExceptionMessage('stale');
+        $this->mover()->move($guide, null, 0, null, new WikiPageMoveScope($seen, $ops->getId()));
     }
 
     public function testWorksWithoutDispatcher(): void

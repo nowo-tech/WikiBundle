@@ -245,6 +245,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Repository/WikiPageTreeWriterInterface.php` | Space-locked transaction | FR-TREE-001 |
 | `Service/WikiPageMover.php` | Move validation and positions | FR-TREE-001 |
 | `Service/WikiPageMoveResult.php` | Move outcome | FR-TREE-001 |
+| `Service/WikiPageMoveScope.php` | Visible siblings and checked parent of a move | FR-TREE-001 |
 | `Service/WikiPageMoveException.php` | Refused move | FR-TREE-001 |
 | `Tree/WikiTreeStateStoreInterface.php` | Fold state contract | FR-TREE-001 |
 | `Tree/SessionWikiTreeStateStore.php` | Session fold state | FR-TREE-001 |

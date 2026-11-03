@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
+use function array_filter;
 use function array_search;
 use function array_splice;
 use function array_values;
@@ -58,16 +59,22 @@ final readonly class WikiPageMover
     /**
      * Moves the page under the parent (null: the root) at the index (clamped) among the parent's other children.
      *
-     * @param int $index 0-based index among the new siblings, the page left out
-     * @param object|null $actor user who moves it (in the event)
+     * The whole sub-tree moves with the page, pages the actor cannot see included (as in Outline and Notion): their
+     * readers become the readers of the new branch (audit DI-I3, documented).
      *
-     * @throws WikiPageMoveException when the page or the parent is gone, or the move would build a cycle or go too deep
+     * @param int $index 0-based index among the new siblings, the page left out (with a scope: among the siblings the
+     *                   actor may read)
+     * @param object|null $actor user who moves it (in the event)
+     * @param WikiPageMoveScope|null $scope what the actor sees and the parent they may leave (null: every page, no check)
+     *
+     * @throws WikiPageMoveException when the page or the parent is gone, the page moved meanwhile (`stale`), or the move
+     *                               would build a cycle or go too deep
      */
-    public function move(WikiPage $page, ?WikiPage $parent, int $index, ?object $actor = null): WikiPageMoveResult
+    public function move(WikiPage $page, ?WikiPage $parent, int $index, ?object $actor = null, ?WikiPageMoveScope $scope = null): WikiPageMoveResult
     {
         $this->writer->beginSpaceTransaction($page->getSpace());
         try {
-            [$result, $fromParent, $moved] = $this->plan($page, $parent, $index);
+            [$result, $fromParent, $moved] = $this->plan($page, $parent, $index, $scope);
             $this->writer->commitSpaceTransaction();
         } catch (Throwable $exception) {
             $this->writer->rollbackSpaceTransaction();
@@ -87,7 +94,7 @@ final readonly class WikiPageMover
      *
      * @return array{0: WikiPageMoveResult, 1: WikiPage|null, 2: bool} result, previous parent, whether anything changed
      */
-    private function plan(WikiPage $page, ?WikiPage $parent, int $index): array
+    private function plan(WikiPage $page, ?WikiPage $parent, int $index, ?WikiPageMoveScope $scope): array
     {
         $byId = [];
         foreach ($this->repository->findActiveBySpace($space = $page->getSpace()) as $active) {
@@ -96,6 +103,10 @@ final readonly class WikiPageMover
         $current = $byId[$page->getId()] ?? null;
         if (!$current instanceof WikiPage) {
             throw new WikiPageMoveException('page_missing');
+        }
+        // DI-I2: the parent the actor may leave was checked before the lock; another move may have changed it since.
+        if ($scope instanceof WikiPageMoveScope && $current->getParent()?->getId() !== $scope->fromParentId) {
+            throw new WikiPageMoveException('stale');
         }
         $target = null;
         if ($parent instanceof WikiPage) {
@@ -118,15 +129,23 @@ final readonly class WikiPageMover
                 $siblings[] = $candidate;
             }
         }
-        $index = max(0, min($index, count($siblings)));
+        // DI-I1: with a scope the index and the answer count the siblings the actor sees; hidden ones keep their place.
+        $seen  = $scope instanceof WikiPageMoveScope ? array_values(array_filter($siblings, static fn (WikiPage $p): bool => isset($scope->visibleIds[$p->getId()]))) : $siblings;
+        $index = max(0, min($index, count($seen)));
+        $real  = match (true) {
+            $index < count($seen) => (int) array_search($seen[$index], $siblings, true),
+            $seen !== []          => (int) array_search($seen[count($seen) - 1], $siblings, true) + 1,
+            default               => count($siblings),
+        };
+        $result = new WikiPageMoveResult($index, count($seen) + 1, true);
 
-        if ($targetId === $fromParent?->getId() && $this->indexAmongSiblings($current, $byId, $parentOf) === $index) {
-            return [new WikiPageMoveResult($index, count($siblings) + 1, false), $fromParent, false];
+        if ($targetId === $fromParent?->getId() && $this->indexAmongSiblings($current, $byId, $parentOf) === $real) {
+            return [new WikiPageMoveResult($index, count($seen) + 1, false), $fromParent, false];
         }
 
-        $this->place($current, $target, $siblings, $index);
+        $this->place($current, $target, $siblings, $real);
 
-        return [new WikiPageMoveResult($index, count($siblings) + 1, true), $fromParent, true];
+        return [$result, $fromParent, true];
     }
 
     /**

@@ -19,6 +19,7 @@ wiki:
       parent_missing: "The new parent page no longer exists."
       cycle: "A page cannot move into itself or into one of its sub-pages."
       too_deep: "The page tree would become too deep."
+      stale: "The page was moved by someone else meanwhile; reload and try again."
       failed: "The page could not be moved."
   title: Wiki
   back_dashboard: Back to dashboard

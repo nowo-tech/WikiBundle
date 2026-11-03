@@ -225,6 +225,15 @@ final class WikiManageControllerTreeTest extends TestCase
         self::assertSame($this->ops, $this->run->getParent());
     }
 
+    public function testAPageUnderAHiddenPageCannotBeMoved(): void
+    {
+        // DI-L1: Runbooks is readable, its parent Operations is not.
+        $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $page !== $this->ops);
+
+        $this->expectException(NotFoundHttpException::class);
+        $controller->movePage(Request::create('/'), 'eng', 'run');
+    }
+
     public function testMovingNeedsTheEditRights(): void
     {
         $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $action === WikiAction::View || $page !== $this->ops);
