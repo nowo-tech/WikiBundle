@@ -58,7 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   those users, as it already did from their tree.
 - **Import respects the reader rule** (audit DJ-L1): pages the importing user may not read are never matched, updated
   (`update_existing`) or used as a `wiki_parent`; a document asking for such a slug or parent fails with a neutral
-  "not available" message (no "skipped existing" answer, no duplicate slug). The CLI import is unchanged.
+  "not available" message (no "skipped existing" answer, no duplicate slug). A `wiki_parent` that does not exist fails
+  the same way in the web import, so hidden and missing parents read alike. The CLI import is unchanged.
 - The ancestor walk is shared across the hits of one search or AI answer (DJ-I1). SECURITY.md says that host
   endpoints for link titles, `@` candidates and the page picker must use `isPageReadable()` (DJ-I2).
 

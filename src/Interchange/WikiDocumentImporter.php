@@ -69,7 +69,8 @@ final readonly class WikiDocumentImporter
      * @param array<string, true>|null $readablePageIds ids of the pages the importing user may read (1.13.2, audit
      *                                                  DJ-L1; null: every page, e.g. the CLI). Other pages are never
      *                                                  matched, updated or used as parents: their slug is "not
-     *                                                  available" and a document asking for them is refused
+     *                                                  available" and a document asking for them is refused; in such an import a `wiki_parent` that
+     *                                                  does not exist is refused the same way
      *
      * @throws InvalidArgumentException when the source is neither a directory nor a ZIP archive
      *
@@ -171,6 +172,7 @@ final readonly class WikiDocumentImporter
                         $pathMap,
                         $slugMap,
                         $hiddenSlugs,
+                        $readablePageIds !== null,
                         $updateExisting,
                         $dryRun,
                         $report,
@@ -194,6 +196,8 @@ final readonly class WikiDocumentImporter
      * @param array<string, WikiPage> $pathMap
      * @param array<string, WikiPage> $slugMap
      * @param array<string, true> $hiddenSlugs
+     * @param bool $strictParents a `wiki_parent` that is not imported or readable fails (a user's import) instead of
+     *                            attaching the page at the top level (the CLI)
      */
     private function importNode(
         WikiSpace $space,
@@ -202,6 +206,7 @@ final readonly class WikiDocumentImporter
         array &$pathMap,
         array &$slugMap,
         array $hiddenSlugs,
+        bool $strictParents,
         bool $updateExisting,
         bool $dryRun,
         WikiImportReport $report,
@@ -217,10 +222,11 @@ final readonly class WikiDocumentImporter
         $parent = null;
         if ($node->parentRelativePath !== null && $node->parentRelativePath !== '' && isset($pathMap[$node->parentRelativePath])) {
             $parent = $pathMap[$node->parentRelativePath];
-        } elseif ($node->parentSlug !== null && isset($hiddenSlugs[$node->parentSlug])) {
-            throw new InvalidArgumentException(sprintf('Parent "%s" is not available.', $node->parentSlug));
         } elseif ($node->parentSlug !== null && isset($slugMap[$node->parentSlug])) {
             $parent = $slugMap[$node->parentSlug];
+        } elseif ($node->parentSlug !== null && ($strictParents || isset($hiddenSlugs[$node->parentSlug]))) {
+            // A hidden parent and (for a user's import) a missing one read the same: no existence oracle.
+            throw new InvalidArgumentException(sprintf('Parent "%s" is not available.', $node->parentSlug));
         }
 
         [$content, $format] = Configuration::storesMarkdown($this->editorType)
@@ -254,6 +260,8 @@ final readonly class WikiDocumentImporter
         if ($dryRun) {
             ++$report->created;
             $pathMap[$node->relativePath] = new WikiPage($space, $slug, $title, $parent);
+            // Later documents may name it as their wiki_parent, as in a real run.
+            $slugMap[$slug] = $pathMap[$node->relativePath];
 
             return;
         }

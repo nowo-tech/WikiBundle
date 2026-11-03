@@ -617,6 +617,32 @@ MD);
         }
     }
 
+    public function testAMissingParentReadsLikeAHiddenOneInAUsersImportButNotInTheCli(): void
+    {
+        $root = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/a-new.md', "---\ntitle: New\nwiki_slug: new-parent\n---\nA parent created by this import.\n");
+        file_put_contents($root . '/b-child.md', "---\ntitle: Child\nwiki_slug: child\nwiki_parent: nowhere\n---\nMissing parent.\n");
+        file_put_contents($root . '/c-child.md', "---\ntitle: Other\nwiki_slug: other\nwiki_parent: new-parent\n---\nParent from this import.\n");
+        $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+
+        try {
+            foreach ([false, true] as $dryRun) {
+                $web = $this->importer($this->pageRepository())->import($space, $root, WikiInterchangeFormat::Outline, new TestUser(), false, $dryRun, []);
+                self::assertSame([2, 1], [$web->created, $web->failed]);
+                self::assertStringEndsWith('Parent "nowhere" is not available.', $web->messages[0]);
+            }
+
+            $cli = $this->importer($this->pageRepository())->import($space, $root, WikiInterchangeFormat::Outline, new TestUser());
+            self::assertSame([3, 0], [$cli->created, $cli->failed]);
+        } finally {
+            foreach (['a-new.md', 'b-child.md', 'c-child.md'] as $name) {
+                unlink($root . '/' . $name);
+            }
+            rmdir($root);
+        }
+    }
+
     private function pageRepository(): WikiPageRepositoryInterface&MockObject
     {
         $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
