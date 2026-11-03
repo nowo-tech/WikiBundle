@@ -3,6 +3,8 @@ wiki:
     reset: "Reiniciar la colaboración"
     reset_confirm_title: "¿Reiniciar la sesión compartida?"
     reset_confirm_message: "Todas las personas que editan esta página la recargan desde la última versión guardada; se pierden los cambios no guardados de la sesión compartida."
+    reset_capped: "La sesión compartida se ha reiniciado demasiadas veces en los últimos minutos: no se ha reiniciado ahora. Vuelve a intentarlo más tarde o guarda la página."
+    rate_limited: "Demasiadas solicitudes: no se ha reiniciado la sesión compartida. Vuelve a intentarlo en un momento."
   title: Wiki
   back_dashboard: Volver al panel
   index:

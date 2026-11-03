@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Doctrine;
 
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Entity\WikiCollabUpdate;
@@ -33,6 +34,7 @@ final readonly class WikiMetadataListener
      * @param string $attachmentsTableName table name for attachments (1.9)
      * @param string $collabDocumentsTableName table name for collaboration documents (1.13)
      * @param string $collabUpdatesTableName table name for the collaboration Yjs log (1.13)
+     * @param bool $collaborationEnabled false: the two collaboration tables are left out of the generated schema (1.13.1)
      */
     public function __construct(
         private string $spacesTableName,
@@ -43,7 +45,27 @@ final readonly class WikiMetadataListener
         private string $attachmentsTableName = 'wiki_attachments',
         private string $collabDocumentsTableName = 'wiki_page_collab_documents',
         private string $collabUpdatesTableName = 'wiki_page_collab_updates',
+        private bool $collaborationEnabled = true,
     ) {
+    }
+
+    /**
+     * Without co-editing (`collaboration.enabled: false`) the collaboration tables are not part of the schema, so
+     * `doctrine:schema:update` and `doctrine:migrations:diff` do not ask for them (1.13.1). The entities stay mapped (no
+     * service uses them then); a host enabling co-editing later gets the two tables in its next diff.
+     */
+    public function postGenerateSchema(GenerateSchemaEventArgs $args): void
+    {
+        // Only the wiki's entity manager (where the collaboration entities are mapped), only its two tables.
+        if ($this->collaborationEnabled || $args->getEntityManager()->getMetadataFactory()->isTransient(WikiCollabDocument::class)) {
+            return;
+        }
+        $schema = $args->getSchema();
+        foreach ([$this->collabUpdatesTableName, $this->collabDocumentsTableName] as $table) {
+            if ($schema->hasTable($table)) {
+                $schema->dropTable($table);
+            }
+        }
     }
 
     /**

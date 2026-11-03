@@ -45,6 +45,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Patch for hosts adopting 1.13 (Beacon requests) and the audit Info residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9. See
+[UPGRADING](UPGRADING.md#to-1131).
+
+### Fixed
+
+- **No schema diff without co-editing:** the collaboration tables are left out of the generated schema
+  (`postGenerateSchema`) while `collaboration.enabled` is false.
+- **Edit page loads the Tiptap script only for `editor.type: tiptap`** (Milkdown and Markdown pages no longer load it).
+- **`wiki:collab:purge`** refuses `--older-than 0`, selects stale logs under a row lock inside a transaction and tells
+  the live editors of purged pages to reload (CW-I10; `WikiCollabPagePurgeInterface`, `WikiCollabService::purge()`).
+- **Capped manual reset** shows a flash message instead of failing silently (CW-I7; `wiki.collab.reset_capped`,
+  `wiki.collab.rate_limited` in 7 locales).
+- **Membership memo** in a `WeakMap` per user object (checked against the identifier), bounded to 64 users (CV-I9).
+- **`collaboration.enabled` must be a literal boolean** (DA-M1): an `%env()%` placeholder registered the
+  collaboration services while the schema listener left the tables out, so a diff would have dropped live tables.
+- **Appends lock the page document** before storing an update; an append to a log purged meanwhile is refused with
+  409 `log_reset` (no purged session is revived), document rows use the platform's insert-or-ignore form (no aborted
+  PostgreSQL transaction), and purges also drop updates left without a document (DA-L1).
+- **"Editor xxxx" is an HMAC** of the page id and the login under a subkey of `kernel.secret` (an empty secret is
+  refused): stable per page, not linkable across pages nor reversible against a directory (DA-L2, DA-I5).
+- **`show_names` filter hardened** (DA-L3): only Latin-script names without format / bidi controls or `@` are shown;
+  the login and the e-mail local part are compared after case and accent folding, as words and as substrings;
+  fullwidth, mathematical, circled and small-cap letters and other scripts fall back to the opaque label.
+- The per-user limiter key is prefixed (`nowo_wiki_collab:`) and the schema listener only acts on the wiki's entity
+  manager.
+
+### Changed
+
+- **Co-editor names are opaque by default** ("Editor xxxx"); `collaboration.show_names: true` shows display names,
+  never one equal to the login identifier or shaped like an e-mail address (CW-I2).
+
+### Added
+
+- `collaboration.user_rate_limiter`: optional budget per user across all pages (CW-I9).
+- Documentation: never put `mercure` keys in the hub's default JWT claims (CW-I12).
+
 ### Documentation
 
 - `docs/ROADMAP.md`: knowledge-base roadmap towards Notion / Outline parity (page tree, trash, version history,

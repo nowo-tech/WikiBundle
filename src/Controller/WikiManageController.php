@@ -343,6 +343,7 @@ final class WikiManageController extends AbstractController
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
+            'editor_type'     => $this->editorType(),
         ], $form);
     }
 
@@ -403,6 +404,7 @@ final class WikiManageController extends AbstractController
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_new_' . $space->getId(),
+            'editor_type'     => $this->editorType(),
         ], $form);
     }
 
@@ -1100,6 +1102,15 @@ final class WikiManageController extends AbstractController
     }
 
     /**
+     * The configured page editor (`tiptap`, `markdown` or `milkdown`): the edit template loads the Tiptap script only for
+     * `tiptap` (1.13.1).
+     */
+    private function editorType(): string
+    {
+        return $this->editor['type'] ?? Configuration::EDITOR_TIPTAP;
+    }
+
+    /**
      * Editor options of {@see WikiPageFormType} from `nowo_wiki.editor`.
      *
      * @return array{tiptap_config: string, editor_type: string, markdown_form_type: string|null}
@@ -1108,7 +1119,7 @@ final class WikiManageController extends AbstractController
     {
         return [
             'tiptap_config'      => $this->editor['tiptap_config'],
-            'editor_type'        => $this->editor['type'] ?? Configuration::EDITOR_TIPTAP,
+            'editor_type'        => $this->editorType(),
             'markdown_form_type' => $this->editor['markdown_form_type'] ?? null,
         ];
     }

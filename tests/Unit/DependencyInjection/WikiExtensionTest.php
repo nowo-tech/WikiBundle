@@ -47,9 +47,11 @@ use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\DependencyInjection\TwigExtension;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
+use Symfony\Component\DependencyInjection\Compiler\MergeExtensionConfigurationPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
+use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -564,7 +566,7 @@ final class WikiExtensionTest extends TestCase
 
     public function testSecuritySwitchesMustBeLiteralBooleans(): void
     {
-        foreach ([['security' => ['allow_unauthenticated' => '%env(bool:WIKI_PUBLIC)%']], ['web_ui' => ['enabled' => '%env(bool:WIKI_UI)%']]] as $config) {
+        foreach ([['security' => ['allow_unauthenticated' => '%env(bool:WIKI_PUBLIC)%']], ['web_ui' => ['enabled' => '%env(bool:WIKI_UI)%']], ['collaboration' => ['enabled' => '%env(bool:WIKI_COLLAB)%']]] as $config) {
             $container = new ContainerBuilder();
             $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
 
@@ -587,6 +589,19 @@ final class WikiExtensionTest extends TestCase
         $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('nowo_wiki.security.allow_unauthenticated must be a literal boolean');
         $literalBool->invoke(new WikiExtension(), 'env_0123456789abcdef_bool_WIKI_PUBLIC_0123456789abcdef', 'security.allow_unauthenticated');
+    }
+
+    public function testCollaborationEnabledFromAnEnvPlaceholderIsRefused(): void
+    {
+        // DA-M1: in a real kernel the placeholder passes the tree; services and schema listener would disagree.
+        $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $container->registerExtension(new WikiExtension());
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'collaboration' => ['enabled' => '%env(bool:WIKI_COLLAB)%']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.collaboration.enabled must be a literal boolean');
+        (new MergeExtensionConfigurationPass())->process($container);
     }
 
     public function testAllowUnauthenticatedIsRefusedInProduction(): void

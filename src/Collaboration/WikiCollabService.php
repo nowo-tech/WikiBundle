@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Collaboration;
 
 use DateTimeImmutable;
 use JsonException;
+use LogicException;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -15,7 +16,8 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function base64_decode;
-use function hash;
+use function count;
+use function in_array;
 use function is_array;
 use function is_int;
 use function is_string;
@@ -29,6 +31,7 @@ use function substr;
 
 use const JSON_THROW_ON_ERROR;
 use const PHP_INT_MAX;
+use const PREG_SPLIT_NO_EMPTY;
 
 /**
  * Server side of the Milkdown collaboration protocol on Mercure (1.13, FR-076; Milkdown ≥ 1.2 for the state log).
@@ -77,9 +80,10 @@ final readonly class WikiCollabService
         'reset_after_idle'   => 300,
         'corrupt_resets'     => 3,
         'corrupt_window'     => 600,
+        'show_names'         => false,
     ];
 
-    /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int} */
+    /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool} */
     private array $options;
 
     /**
@@ -88,6 +92,8 @@ final readonly class WikiCollabService
      * @param WikiCollabSubscriberAuthorizerInterface $authorizer lets the browser subscribe to the page topic
      * @param array<string, mixed> $options `nowo_wiki.collaboration` options (see {@see self::DEFAULTS})
      * @param RateLimiterFactory|null $rateLimiter limits every request per user and page (required by the configuration)
+     * @param RateLimiterFactory|null $userRateLimiter limits every request per user across pages (1.13.1, CW-I9; optional)
+     * @param string $secret key of the per-page pseudonyms "Editor xxxx" (`kernel.secret`, 1.13.1, DA-L2)
      */
     public function __construct(
         private WikiCollabStateStoreInterface $store,
@@ -95,8 +101,10 @@ final readonly class WikiCollabService
         private WikiCollabSubscriberAuthorizerInterface $authorizer,
         array $options = [],
         private ?RateLimiterFactory $rateLimiter = null,
+        private ?RateLimiterFactory $userRateLimiter = null,
+        private string $secret = '',
     ) {
-        /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int} $merged */
+        /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool} $merged */
         $merged        = $options + self::DEFAULTS;
         $this->options = $merged;
     }
@@ -131,7 +139,12 @@ final readonly class WikiCollabService
      */
     public function editorOptions(WikiPage $page, UserInterface $user, string $url): array
     {
-        $hash = hash('sha256', $user->getUserIdentifier());
+        // DA-L2 / DA-I5: keyed (a subkey of kernel.secret for this purpose only) and per page, so a label cannot be
+        // matched against a user directory nor linked across pages.
+        if ($this->secret === '') {
+            throw new LogicException('nowo_wiki.collaboration needs a non-empty kernel.secret to derive the co-editor labels.');
+        }
+        $hash = hash_hmac('sha256', $page->getId() . '|' . $user->getUserIdentifier(), hash_hmac('sha256', 'nowo_wiki_collab_label', $this->secret));
 
         return [
             'url'     => rtrim($url, '/'),
@@ -320,6 +333,26 @@ final readonly class WikiCollabService
     }
 
     /**
+     * Drops the logs of pages untouched since `$before` and tells their live editors (if any) to reload, so a tab still
+     * open on a purged page does not keep a document the server no longer has (1.13.1, CW-I10). Stores without
+     * {@see WikiCollabPagePurgeInterface} are purged without the broadcast.
+     *
+     * @return int number of purged page logs
+     */
+    public function purge(DateTimeImmutable $before): int
+    {
+        if (!$this->store instanceof WikiCollabPagePurgeInterface) {
+            return $this->store->purge($before);
+        }
+        $pages = $this->store->purgePages($before);
+        foreach ($pages as $pageId) {
+            $this->publisher->publish($this->options['topic_prefix'] . $pageId, json_encode(['t' => 'r', 'c' => 0, 'd' => ''], JSON_THROW_ON_ERROR));
+        }
+
+        return count($pages);
+    }
+
+    /**
      * @throws WikiCollabException over `corrupt_resets` client / editor resets of the page per `corrupt_window`
      */
     private function capReset(WikiPage $page): void
@@ -342,6 +375,10 @@ final readonly class WikiCollabService
     {
         if ($this->rateLimiter instanceof RateLimiterFactory
             && !$this->rateLimiter->create($user->getUserIdentifier() . '|' . $page->getId())->consume()->isAccepted()) {
+            throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
+        }
+        if ($this->userRateLimiter instanceof RateLimiterFactory
+            && !$this->userRateLimiter->create('nowo_wiki_collab:' . $user->getUserIdentifier())->consume()->isAccepted()) {
             throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
         }
     }
@@ -414,16 +451,77 @@ final readonly class WikiCollabService
         return new DateTimeImmutable(sprintf('-%d seconds', $this->options['seed_timeout']));
     }
 
+    /**
+     * The name co-editors see (1.13.1): an opaque "Editor xxxx" unless `show_names` is on; even then a name that could
+     * identify the login falls back to the opaque label (CW-I2, DA-L3).
+     */
     private function displayName(UserInterface $user): ?string
     {
+        if (!$this->options['show_names']) {
+            return null;
+        }
         foreach (['getDisplayName', 'getName'] as $method) {
             $name = method_exists($user, $method) ? $user->{$method}() : null;
-            if (is_string($name) && trim($name) !== '') {
-                return trim($name);
+            if (!is_string($name) || trim($this->spaces($name)) === '') {
+                continue;
             }
+
+            return self::isSafeName($name, $user->getUserIdentifier()) ? trim($this->spaces($name)) : null;
         }
 
         return null;
+    }
+
+    /**
+     * Whether a display name says nothing about the login (DA-L3). Conservative:
+     *
+     * - no format / bidi controls (`\p{Cf}`) and only Latin letters (Basic Latin, Latin-1, Latin Extended-A / B), digits,
+     *   spaces and common punctuation — fullwidth, mathematical, circled or small-cap letters and other scripts
+     *   (lookalikes) fall back to "Editor xxxx";
+     * - no `@`;
+     * - after folding (lower case, accents transliterated, separators removed) neither the login nor its e-mail local
+     *   part may equal the name, appear as one of its words or, from 3 characters, inside it.
+     *
+     * Leet variants (`al0pez`) are not detected: `show_names` is for display names the application manages.
+     */
+    public static function isSafeName(string $name, string $login): bool
+    {
+        if (preg_match('/\p{Cf}/u', $name) === 1 || preg_match('/[^\x{0020}-\x{007E}\x{00A0}-\x{024F}\x{2019}]/u', $name) === 1 || str_contains($name, '@')) {
+            return false;
+        }
+        $words = self::words($name);
+        if ($words === []) {
+            return false;
+        }
+        $compact = implode('', $words);
+        $login   = mb_strtolower(trim($login), 'UTF-8');
+        $local   = str_contains($login, '@') ? (string) strstr($login, '@', true) : $login;
+        foreach ([$login, $local] as $id) {
+            $idWords = self::words($id);
+            $bare    = implode('', $idWords);
+            if ($bare === $compact || in_array($bare, $words, true) || (strlen($bare) >= 3 && str_contains($compact, $bare))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Lower-case ASCII words of a value: accents transliterated (iconv), everything but letters and digits a separator.
+     *
+     * @return list<string>
+     */
+    private static function words(string $value): array
+    {
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+
+        return preg_split('/[^a-z0-9]+/', strtolower($ascii === false ? $value : $ascii), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    private function spaces(string $value): string
+    {
+        return (string) preg_replace('/[\p{Z}\p{Cc}]+/u', ' ', $value);
     }
 
     private function idleFor(WikiCollabState $state): int

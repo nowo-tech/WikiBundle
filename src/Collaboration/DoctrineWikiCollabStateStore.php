@@ -7,12 +7,17 @@ namespace Nowo\WikiBundle\Collaboration;
 use DateTimeImmutable;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\LockMode;
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
+use Doctrine\DBAL\Platforms\AbstractPlatform;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
+use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Entity\WikiCollabUpdate;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 use function count;
@@ -25,7 +30,7 @@ use function max;
  * Appends are single inserts, the seed claim is a conditional update (one winner), compaction inserts the snapshot
  * before deleting what it covers — no read-modify-write, so concurrent requests never lose an update.
  */
-final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStoreInterface
+final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStoreInterface, WikiCollabPagePurgeInterface
 {
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki entity manager (or its provider)
@@ -109,14 +114,38 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
         );
     }
 
+    /**
+     * Appends under the page document's row lock (1.13.1, audit DA-L1): a purge running at the same time either sees
+     * the touched document (and keeps it) or has deleted it first. In that case nothing is stored and the client gets
+     * 409 `log_reset` (it reloads from the saved Markdown): replaying onto a purged log would revive an old session.
+     *
+     * @throws WikiCollabException 409 `log_reset` when the page's log was purged during the request
+     */
     public function append(string $pageId, string $update): int
     {
-        $em  = $this->em();
-        $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_UPDATE, $update);
-        $em->persist($row);
-        $em->flush();
-        $em->detach($row);
-        $this->touch($pageId);
+        $em         = $this->em();
+        $connection = $em->getConnection();
+        $connection->beginTransaction();
+        try {
+            // No ensureDocument() here: the token request created the document; a missing one was purged (409).
+            $locked = $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+            if ($locked === []) {
+                throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
+            }
+            $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_UPDATE, $update);
+            $em->persist($row);
+            $em->flush();
+            $em->detach($row);
+            $this->touch($pageId);
+            $connection->commit();
+        } catch (Throwable $exception) {
+            $connection->rollBack();
+
+            throw $exception;
+        }
 
         return (int) $row->getId();
     }
@@ -163,21 +192,43 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
 
     public function purge(DateTimeImmutable $before): int
     {
+        return count($this->purgePages($before));
+    }
+
+    /**
+     * Selects the stale documents with a write lock inside a transaction (1.13.1, CW-I10): an append or a compaction
+     * that touches one of them waits for the purge, and a document touched before the lock is no longer selected.
+     *
+     * @return list<string>
+     */
+    public function purgePages(DateTimeImmutable $before): array
+    {
         $em = $this->em();
-        /** @var list<string> $pages */
-        $pages = $em->createQueryBuilder()
-            ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
-            ->where('d.updatedAt < :before')
-            ->setParameter('before', $before, Types::DATETIME_IMMUTABLE)
-            ->getQuery()->getSingleColumnResult();
-        if ($pages === []) {
-            return 0;
+
+        $em->beginTransaction();
+        try {
+            /** @var list<string> $pages */
+            $pages = $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.updatedAt < :before')
+                ->setParameter('before', $before, Types::DATETIME_IMMUTABLE)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getSingleColumnResult();
+            if ($pages !== []) {
+                $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')->where('u.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
+                $em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
+            }
+            // DA-L1: updates left without a document (by 1.13.0, or a race it could lose) are purged too.
+            $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')
+                ->where('u.pageId NOT IN (' . $em->createQueryBuilder()->select('d2.pageId')->from(WikiCollabDocument::class, 'd2')->getDQL() . ')')
+                ->getQuery()->execute();
+            $em->commit();
+        } catch (Throwable $e) {
+            $em->rollback();
+
+            throw $e;
         }
 
-        $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')->where('u.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
-        $em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
-
-        return count($pages);
+        return $pages;
     }
 
     public function claimSeed(string $pageId, DateTimeImmutable $staleBefore, string $claimant): bool
@@ -281,24 +332,45 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
     }
 
     /**
-     * Inserts the document row when missing; a concurrent insert of the same page is not an error.
+     * Inserts the document row when missing, race-safe without a failing statement (1.13.1, DA-L1): a failed INSERT
+     * would abort an enclosing PostgreSQL transaction, so the platform's "insert or ignore" form is used (no identity
+     * map lookup either: a purged row may still be cached there).
      */
     private function ensureDocument(string $pageId): void
     {
-        $em = $this->em();
-        if ($em->find(WikiCollabDocument::class, $pageId) instanceof WikiCollabDocument) {
+        $em         = $this->em();
+        $connection = $em->getConnection();
+        $table      = $em->getClassMetadata(WikiCollabDocument::class)->getTableName();
+        $sql        = self::insertIgnoreSql($connection->getDatabasePlatform(), $connection->quoteIdentifier($table));
+        if ($sql !== null) {
+            $connection->executeStatement($sql, [$pageId, new DateTimeImmutable()], [Types::STRING, Types::DATETIME_IMMUTABLE]);
+
             return;
         }
 
-        $table = $em->getClassMetadata(WikiCollabDocument::class)->getTableName();
+        // @codeCoverageIgnoreStart
         try {
-            $em->getConnection()->insert($table, [
-                'page_id'    => $pageId,
-                'updated_at' => new DateTimeImmutable(),
-            ], ['updated_at' => Types::DATETIME_IMMUTABLE]);
-        } catch (UniqueConstraintViolationException) { // @codeCoverageIgnore
-            // A concurrent request inserted it between find() and insert(): the row exists, which is all we need.
+            $connection->insert($table, ['page_id' => $pageId, 'updated_at' => new DateTimeImmutable()], ['updated_at' => Types::DATETIME_IMMUTABLE]);
+        } catch (UniqueConstraintViolationException) {
+            // Another platform: a concurrent insert of the same page is not an error.
         }
+        // @codeCoverageIgnoreEnd
+    }
+
+    /**
+     * `INSERT … ON CONFLICT DO NOTHING` (PostgreSQL), `INSERT IGNORE` (MySQL / MariaDB), `INSERT OR IGNORE` (SQLite) for
+     * a document row, or null for another platform.
+     */
+    public static function insertIgnoreSql(AbstractPlatform $platform, string $table): ?string
+    {
+        $columns = ' (page_id, updated_at) VALUES (?, ?)';
+
+        return match (true) {
+            $platform instanceof PostgreSQLPlatform    => 'INSERT INTO ' . $table . $columns . ' ON CONFLICT (page_id) DO NOTHING',
+            $platform instanceof AbstractMySQLPlatform => 'INSERT IGNORE INTO ' . $table . $columns,
+            $platform instanceof SQLitePlatform        => 'INSERT OR IGNORE INTO ' . $table . $columns,
+            default                                    => null,
+        };
     }
 
     private function em(): EntityManagerInterface

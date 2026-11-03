@@ -584,7 +584,7 @@ final class WikiManageControllerTest extends TestCase
         $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
         $pageRepo->method('findBySlug')->willReturn($page);
         $this->routes['page_collab'] = ['path' => '/collab/{action}', 'name' => 'nowo_wiki_page_collab'];
-        $collab                      = new WikiCollabService(new InMemoryCollabStateStore(), $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class));
+        $collab                      = new WikiCollabService(new InMemoryCollabStateStore(), $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
 
         $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collab);
         WikiControllerContainerBuilder::bind($controller, $user);
@@ -602,7 +602,7 @@ final class WikiManageControllerTest extends TestCase
         $resolver->method('listSpacesForUser')->willReturn([$space]);
         $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
         $pageRepo->method('findBySlug')->willReturn($page);
-        $collab = new WikiCollabService(new InMemoryCollabStateStore(), $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class));
+        $collab = new WikiCollabService(new InMemoryCollabStateStore(), $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
 
         $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collab);
         $container  = WikiControllerContainerBuilder::bind($controller, $user);

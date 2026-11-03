@@ -3,6 +3,8 @@ wiki:
     reset: "Samenwerking opnieuw instellen"
     reset_confirm_title: "Gedeelde sessie opnieuw instellen?"
     reset_confirm_message: "Iedereen die deze pagina bewerkt, laadt hem opnieuw vanaf de laatst opgeslagen versie; niet-opgeslagen wijzigingen in de gedeelde sessie gaan verloren."
+    reset_capped: "De gedeelde sessie is de afgelopen minuten te vaak opnieuw ingesteld: dat is nu niet gebeurd. Probeer het later opnieuw of sla de pagina op."
+    rate_limited: "Te veel verzoeken: de gedeelde sessie is niet opnieuw ingesteld. Probeer het zo meteen opnieuw."
   title: Wiki
   back_dashboard: Terug naar dashboard
   index:

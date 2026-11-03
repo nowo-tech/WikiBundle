@@ -96,6 +96,16 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringContainsString('<script src="/assets/tiptap/tiptap-editor.js" nonce="n0nce"></script>', $this->renderPage($page)->html);
     }
 
+    public function testTheTiptapScriptLoadsOnlyForTheTiptapEditor(): void
+    {
+        foreach (['milkdown', 'markdown'] as $type) {
+            $page = new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', ['editor_type' => $type] + PageFixtures::pageForm());
+            self::assertStringNotContainsString('tiptap-editor.js', $this->renderPage($page)->html, $type);
+        }
+        $page = new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', ['editor_type' => 'tiptap'] + PageFixtures::pageForm());
+        self::assertStringContainsString('tiptap-editor.js', $this->renderPage($page)->html);
+    }
+
     private ?string $nonce = null;
 
     protected function configureTwig(Environment $twig): void

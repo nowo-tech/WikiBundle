@@ -3,6 +3,8 @@ wiki:
     reset: "Réinitialiser la collaboration"
     reset_confirm_title: "Réinitialiser la session partagée ?"
     reset_confirm_message: "Toutes les personnes qui modifient cette page la rechargent depuis la dernière version enregistrée ; les modifications non enregistrées de la session partagée sont perdues."
+    reset_capped: "La session partagée a été réinitialisée trop souvent ces dernières minutes : elle n'a pas été réinitialisée. Réessayez plus tard ou enregistrez la page."
+    rate_limited: "Trop de requêtes : la session partagée n'a pas été réinitialisée. Réessayez dans un instant."
   title: Wiki
   back_dashboard: Retour au tableau de bord
   index:

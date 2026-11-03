@@ -3,6 +3,8 @@ wiki:
     reset: "Zusammenarbeit zurücksetzen"
     reset_confirm_title: "Gemeinsame Sitzung zurücksetzen?"
     reset_confirm_message: "Alle, die diese Seite bearbeiten, laden sie aus der zuletzt gespeicherten Version neu; ungespeicherte Änderungen der gemeinsamen Sitzung gehen verloren."
+    reset_capped: "Die gemeinsame Sitzung wurde in den letzten Minuten zu oft zurückgesetzt: Sie wurde jetzt nicht zurückgesetzt. Versuchen Sie es später erneut oder speichern Sie die Seite."
+    rate_limited: "Zu viele Anfragen: Die gemeinsame Sitzung wurde nicht zurückgesetzt. Versuchen Sie es gleich noch einmal."
   title: Wiki
   back_dashboard: Zurück zum Dashboard
   index:

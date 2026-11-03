@@ -228,6 +228,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Collaboration/WikiCollabService.php` | Protocol, validation, seeding, reset | FR-MD-004 |
 | `Collaboration/WikiCollabState.php` | Stored log | FR-MD-004 |
 | `Collaboration/WikiCollabStateStoreInterface.php` | Store contract | FR-MD-004 |
+| `Collaboration/WikiCollabPagePurgeInterface.php` | Purge reporting page ids (1.13.1, CW-I10) | FR-MD-004 |
 | `Collaboration/WikiCollabSubscriberAuthorizerInterface.php` | Subscriber contract | FR-MD-004 |
 | `Controller/WikiCollabController.php` | Collaboration endpoints | FR-MD-004 |
 | `Entity/WikiCollabDocument.php` | Log document per page | FR-MD-004 |
@@ -252,9 +253,9 @@ This file proves that **every production source artifact** under `src/` is refer
 | Frontend TypeScript | 3 | 3 |
 | Symfony config | 1 | 1 |
 | Markdown and the Milkdown bridge | 28 | 28 |
-| Co-editing | 13 | 13 |
+| Co-editing | 14 | 14 |
 | Translations | 7 | 7 |
 | Twig views | 16 | 16 |
-| **Total production sources** | **92** | **92** |
+| **Total production sources** | **93** | **93** |
 
 Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l`
