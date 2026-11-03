@@ -63,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Audit DI (before the first release of the tree):** the tree endpoints and the Move form need `View` on the page
   and on every ancestor, like the sidebar (DI-L1); the index of a move and the position it answers count the siblings
   the user can see (DI-I1); a page moved by someone else between the check and the lock is refused as `stale`
-  (DI-I2); a page moves with its whole sub-tree, descendants the actor cannot see included, whose readers become those
+  (DI-I2, compared with the very parent whose `Edit` was checked, DI-I6); a page moves with its whole sub-tree, descendants the actor cannot see included, whose readers become those
   of the new branch (DI-I3, documented).
 - Requires `nowo-tech/ui-kit-bundle` ^2.24 (tree component).
 

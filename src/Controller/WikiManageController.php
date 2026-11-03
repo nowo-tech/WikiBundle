@@ -339,7 +339,9 @@ final class WikiManageController extends AbstractController
         if (!$this->isReadableBranch($user, $space, $page)) {
             throw new NotFoundHttpException('Page not found.');
         }
-        $this->requireMovable($user, $space, $page, $page->getParent());
+        // DI-I6: the parent is read once; every check and the scope's stale guard use the same one.
+        $from = $page->getParent();
+        $this->requireMovable($user, $space, $page, $from, $from);
 
         $parents = $this->moveParents($user, $space, $page);
         $form    = $this->container->get('form.factory')->createNamed('', WikiPageMoveType::class, ['parent' => $page->getParent()?->getId(), 'position' => null], [
@@ -354,10 +356,10 @@ final class WikiManageController extends AbstractController
             $data = $form->getData();
             // A valid choice is one of the offered parents (readable, editable, not in the moved sub-tree).
             $parent = $data['parent'] !== null ? $parents[$data['parent']]['page'] : null;
-            $this->requireMovable($user, $space, $page, $parent);
+            $this->requireMovable($user, $space, $page, $from, $parent);
 
             try {
-                $scope  = new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), $page->getParent()?->getId());
+                $scope  = new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), $from?->getId());
                 $result = $this->mover->move($page, $parent, $data['position'] !== null ? $data['position'] - 1 : PHP_INT_MAX, $user, $scope);
                 $params = ['%title%' => $page->getTitle(), '%position%' => $result->index + 1, '%count%' => $result->count];
                 $this->flash('success', $parent instanceof WikiPage

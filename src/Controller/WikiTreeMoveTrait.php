@@ -25,11 +25,13 @@ use Symfony\Component\Security\Core\User\UserInterface;
 trait WikiTreeMoveTrait
 {
     /**
+     * @param WikiPage|null $from the page's parent as read once by the caller; the same id goes into the
+     *                            {@see WikiPageMoveScope}, so the mover re-checks the parent checked here (DI-I6)
+     *
      * @throws AccessDeniedHttpException when an edit right is missing
      */
-    private function requireMovable(UserInterface $user, WikiSpace $space, WikiPage $page, ?WikiPage $parent): void
+    private function requireMovable(UserInterface $user, WikiSpace $space, WikiPage $page, ?WikiPage $from, ?WikiPage $parent): void
     {
-        $from = $page->getParent();
         foreach ([$page, $from, $parent] as $node) {
             if (!$this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $node)) {
                 throw new AccessDeniedHttpException('Access denied.');

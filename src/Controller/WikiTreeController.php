@@ -120,9 +120,11 @@ final class WikiTreeController extends AbstractController
             throw new BadRequestHttpException('Invalid body.');
         }
         $parent = $parentId === null ? null : $this->requireReadablePage($user, $space, $parentId);
-        $this->requireMovable($user, $space, $page, $parent);
+        // DI-I6: the parent is read once; the check and the scope's stale guard use the same one.
+        $from = $page->getParent();
+        $this->requireMovable($user, $space, $page, $from, $parent);
 
-        $scope = new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), $page->getParent()?->getId());
+        $scope = new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), $from?->getId());
         try {
             $result = $this->mover->move($page, $parent, $index, $user, $scope);
         } catch (WikiPageMoveException $exception) {
