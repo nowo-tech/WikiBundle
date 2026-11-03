@@ -210,7 +210,10 @@ nowo_wiki:
 | `web_ui.templates.page_version` | null | Template of the *Save version* form |
 
 Who may: *Save version* needs the role gate `canEdit()` and `WikiAction::Edit` on the page (D-W7: every editor);
-*Copy to new page* needs `WikiAction::History` on the page, `canCreate()` and `WikiAction::Create` on the space. Both
+*Copy to new page* needs `WikiAction::History` on the page, `canCreate()` and `WikiAction::Create` on the space.
+The copy is a new **top-level** page (title "<title> (vN)" and slug "<slug>-vN", cut to the column limits), so it
+takes the space's visibility: content from a branch with restricted rights becomes visible to everyone who may read
+the space's top level. That is by design (audit DT-I1); restrict `Create` or move the copy if it must stay private. Both
 answer 404 for a page the user may not read with every ancestor.
 
 Authors are labelled per page with an HMAC of `kernel.secret` (the co-editing labels): the same person has the same

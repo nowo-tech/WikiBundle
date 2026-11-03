@@ -60,7 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   revision, 120 characters; saving again renames it). Stored in `<prefix>_revision_labels`, which is left out of the
   schema when the timeline is off.
 - **Copy to new page**: a row action of the history creates a top-level page with the content of that revision
-  (title "<title> (vN)", a free slug), for users who may create pages (`canCreate()` and `WikiAction::Create` on the
+  (title "<title> (vN)", a free slug, both cut to the column limits; it takes the space's top-level visibility by
+  design), for users who may create pages (`canCreate()` and `WikiAction::Create` on the
   space) and see the history.
 - **Revision retention** (D-W6): `wiki:history:thin [--dry-run]` thins revisions older than `history.retention_days`
   (default 30) to the newest one per session and day. Named versions, the current revision and the newest revision

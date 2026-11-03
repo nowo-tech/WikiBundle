@@ -32,6 +32,10 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Translation\TranslatableMessage;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+use function mb_strlen;
+use function mb_substr;
+use function preg_replace;
+use function rtrim;
 use function sprintf;
 use function trim;
 
@@ -48,6 +52,15 @@ use function trim;
 final class WikiHistoryController extends AbstractController
 {
     use WikiCsrfTrait;
+
+    /** Length of the page title column. */
+    private const TITLE_MAX = 255;
+
+    /** Length of the page slug column. */
+    private const SLUG_MAX = 120;
+
+    /** Bidirectional control characters, stripped from version names (audit DT-I4). */
+    private const BIDI_CONTROLS = '/[\x{061C}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u';
 
     /**
      * @param array<string, array{path: string, name: string}> $routes the nowo_wiki routes
@@ -100,8 +113,10 @@ final class WikiHistoryController extends AbstractController
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var array{label: string} $data */
-            $data  = $form->getData();
-            $label = trim($data['label']);
+            $data = $form->getData();
+            // The form's trim already drops leading / trailing format characters, so a name of only bidirectional
+            // controls fails NotBlank; the ones inside a name are stripped here (audit DT-I4).
+            $label = trim((string) preg_replace(self::BIDI_CONTROLS, '', $data['label']));
             if ($existing instanceof WikiRevisionLabel) {
                 $existing->setLabel($label);
                 $labels->save($existing);
@@ -144,14 +159,16 @@ final class WikiHistoryController extends AbstractController
             throw new AccessDeniedHttpException('Invalid CSRF token.');
         }
 
-        $title = sprintf('%s (v%d)', $page->getTitle(), $revisionNumber);
-        $copy  = $this->pageService->create(
+        // The copy keeps the "(vN)" suffix within the title column (audit DT-I2).
+        $suffix = sprintf(' (v%d)', $revisionNumber);
+        $title  = rtrim(mb_substr($page->getTitle(), 0, self::TITLE_MAX - mb_strlen($suffix))) . $suffix;
+        $copy   = $this->pageService->create(
             $space,
             $title,
             $revision->isMarkdown() ? (string) $revision->getContentMarkdown() : $revision->getContentHtml(),
             $user,
             null,
-            $this->freeSlug($space, $page->getSlug() . '-v' . $revisionNumber),
+            $this->freeSlug($space, $page->getSlug(), '-v' . $revisionNumber),
             $revision->getFormat(),
         );
         $this->flash(new TranslatableMessage('wiki.history.copied', ['%title%' => $title], WikiPages::DOMAIN));
@@ -159,15 +176,19 @@ final class WikiHistoryController extends AbstractController
         return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $copy->getSlug()]);
     }
 
-    private function freeSlug(WikiSpace $space, string $base): string
+    /**
+     * The first free slug "<stem><tail>", "<stem><tail>-2", …, the stem cut so the whole fits the slug column (DT-I2).
+     */
+    private function freeSlug(WikiSpace $space, string $stem, string $tail): string
     {
-        $base = $this->slugger->slugify($base);
-        $slug = $base;
-        for ($i = 2; $this->pageRepository->countBySpaceAndSlug($space, $slug) > 0; ++$i) {
-            $slug = $base . '-' . $i;
+        $stem = $this->slugger->slugify($stem);
+        for ($i = 1;; ++$i) {
+            $end  = $tail . ($i > 1 ? '-' . $i : '');
+            $slug = rtrim(mb_substr($stem, 0, self::SLUG_MAX - mb_strlen($end)), '-') . $end;
+            if ($this->pageRepository->countBySpaceAndSlug($space, $slug) === 0) {
+                return $slug;
+            }
         }
-
-        return $slug;
     }
 
     private function requireTimeline(): WikiRevisionLabelRepositoryInterface

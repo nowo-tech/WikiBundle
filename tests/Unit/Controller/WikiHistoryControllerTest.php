@@ -45,6 +45,10 @@ use Symfony\Component\Translation\TranslatableMessage;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
 
+use function mb_strlen;
+use function str_repeat;
+use function strlen;
+
 /**
  * 1.15: Save version and Copy to new page check the timeline, the user, the rights, the page and the token.
  */
@@ -174,6 +178,41 @@ final class WikiHistoryControllerTest extends TestCase
         $this->controller()->copyVersion($this->post(WikiHistoryController::copyTokenId($this->v1)), 'eng', 'run', 1);
         $html = (new DoctrineOrmWikiPageRepository($this->em))->findBySlug($this->space, 'run-v1');
         self::assertSame(WikiPageRevision::FORMAT_HTML, $html?->getCurrentRevision()?->getFormat());
+    }
+
+    public function testLongTitlesAndSlugsAreCutToTheColumnsKeepingTheSuffix(): void
+    {
+        $title = str_repeat('é', 250) . 'xyz';
+        $slug  = str_repeat('a', 118) . 'bc';
+        $long  = $this->page($slug, $title);
+        $long->setCurrentRevision($revision = new WikiPageRevision($long, 12, '<p>long</p>', $this->author));
+        $this->em->persist($revision);
+        $this->em->flush();
+
+        $this->controller()->copyVersion($this->post(WikiHistoryController::copyTokenId($revision)), 'eng', $slug, 12);
+        $this->controller()->copyVersion($this->post(WikiHistoryController::copyTokenId($revision)), 'eng', $slug, 12);
+
+        $repository = new DoctrineOrmWikiPageRepository($this->em);
+        $first      = $repository->findBySlug($this->space, str_repeat('a', 116) . '-v12');
+        $second     = $repository->findBySlug($this->space, str_repeat('a', 114) . '-v12-2');
+        self::assertInstanceOf(WikiPage::class, $first);
+        self::assertInstanceOf(WikiPage::class, $second);
+        self::assertSame(255, mb_strlen($first->getTitle()));
+        self::assertStringEndsWith('é (v12)', $first->getTitle());
+        self::assertSame(120, strlen($second->getSlug()));
+    }
+
+    public function testBidiControlsAreStrippedFromVersionNames(): void
+    {
+        $this->controller()->saveVersion($this->labelPost("\u{202E}Before\u{2066} the move\u{200F}"), 'eng', 'run');
+        self::assertSame('Before the move', $this->labels->findForRevision($this->md)?->getLabel());
+
+        // Nothing visible: refused like an empty name.
+        $response = $this->controller()->saveVersion($this->labelPost("\u{202E}\u{2066} "), 'eng', 'run');
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $response->getStatusCode());
+        $response = $this->controller(translator: true)->saveVersion($this->labelPost("\u{200E}"), 'eng', 'run');
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $response->getStatusCode());
+        self::assertSame('Before the move', $this->labels->findForRevision($this->md)?->getLabel());
     }
 
     public function testCopyRefusals(): void
