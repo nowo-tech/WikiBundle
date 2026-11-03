@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.13.2](#to-1132)
 - [To 1.13.1](#to-1131)
 - [To 1.13.1](#to-1131-1)
 - [To 1.13.0](#to-1130)
@@ -52,6 +53,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.13.2
+
+From **1.13.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 - **Page visibility follows the ancestors on every route.** If your `WikiSpaceAccessCheckerInterface` denies `View` on
   a page, its sub-pages now answer 404 on the page view, history, diff, attachments, co-editing, search and AI
