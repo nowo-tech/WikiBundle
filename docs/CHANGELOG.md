@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- `docs/ROADMAP.md`: knowledge-base roadmap towards Notion / Outline parity (page tree, trash, version history,
+  comments, templates, search, per-page permissions, public links, Notion-style databases), parity matrix, open
+  decisions.
+
 ## [1.13.0] - 2026-11-03
 
 Milkdown editor bridge (renderer, link index, exports, HTML→Markdown conversion with report) and Mercure co-editing (off by default)

@@ -70,6 +70,7 @@ The screenshots at the top of this README come from this demo; refresh them with
 - [Upgrading](docs/UPGRADING.md)
 - [Release](docs/RELEASE.md)
 - [Security](docs/SECURITY.md)
+- [Roadmap](docs/ROADMAP.md)
 - [Engram](docs/ENGRAM.md)
 - [Spec-driven development](docs/SPEC-DRIVEN-DEVELOPMENT.md)
 - [GitHub Spec Kit](docs/SPEC-KIT.md)
