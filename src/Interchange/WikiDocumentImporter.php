@@ -66,6 +66,10 @@ final readonly class WikiDocumentImporter
      * @param object $author application user recorded as revision author
      * @param bool $updateExisting append a revision to pages whose slug already exists
      * @param bool $dryRun count changes without writing anything
+     * @param array<string, true>|null $readablePageIds ids of the pages the importing user may read (1.13.2, audit
+     *                                                  DJ-L1; null: every page, e.g. the CLI). Other pages are never
+     *                                                  matched, updated or used as parents: their slug is "not
+     *                                                  available" and a document asking for them is refused
      *
      * @throws InvalidArgumentException when the source is neither a directory nor a ZIP archive
      *
@@ -78,6 +82,7 @@ final readonly class WikiDocumentImporter
         object $author,
         bool $updateExisting = false,
         bool $dryRun = false,
+        ?array $readablePageIds = null,
     ): WikiImportReport {
         $logContext = [
             'bundle'          => 'nowo_wiki',
@@ -90,7 +95,7 @@ final readonly class WikiDocumentImporter
         $this->logger->info('Wiki import started.', $logContext);
 
         try {
-            $report = $this->doImport($space, $sourcePath, $format, $author, $updateExisting, $dryRun);
+            $report = $this->doImport($space, $sourcePath, $format, $author, $updateExisting, $dryRun, $readablePageIds);
         } catch (Throwable $exception) {
             $this->logger->error('Wiki import failed.', $logContext + ['exception_class' => $exception::class]);
 
@@ -107,6 +112,9 @@ final readonly class WikiDocumentImporter
         return $report;
     }
 
+    /**
+     * @param array<string, true>|null $readablePageIds
+     */
     private function doImport(
         WikiSpace $space,
         string $sourcePath,
@@ -114,6 +122,7 @@ final readonly class WikiDocumentImporter
         object $author,
         bool $updateExisting,
         bool $dryRun,
+        ?array $readablePageIds,
     ): WikiImportReport {
         $report      = new WikiImportReport();
         $cleanupDir  = null;
@@ -142,7 +151,14 @@ final readonly class WikiDocumentImporter
             $pathMap = [];
             /** @var array<string, WikiPage> $slugMap */
             $slugMap = [];
+            /** @var array<string, true> $hiddenSlugs pages the user may not read: never matched, updated or parents */
+            $hiddenSlugs = [];
             foreach ($this->pageRepository->findActiveBySpace($space) as $existingPage) {
+                if ($readablePageIds !== null && !isset($readablePageIds[$existingPage->getId()])) {
+                    $hiddenSlugs[$existingPage->getSlug()] = true;
+
+                    continue;
+                }
                 $slugMap[$existingPage->getSlug()] = $existingPage;
             }
 
@@ -154,6 +170,7 @@ final readonly class WikiDocumentImporter
                         $author,
                         $pathMap,
                         $slugMap,
+                        $hiddenSlugs,
                         $updateExisting,
                         $dryRun,
                         $report,
@@ -176,6 +193,7 @@ final readonly class WikiDocumentImporter
     /**
      * @param array<string, WikiPage> $pathMap
      * @param array<string, WikiPage> $slugMap
+     * @param array<string, true> $hiddenSlugs
      */
     private function importNode(
         WikiSpace $space,
@@ -183,17 +201,24 @@ final readonly class WikiDocumentImporter
         object $author,
         array &$pathMap,
         array &$slugMap,
+        array $hiddenSlugs,
         bool $updateExisting,
         bool $dryRun,
         WikiImportReport $report,
     ): void {
         $title = $node->title ?? 'Untitled';
         $slug  = $node->slug ?? $this->slugger->slugify($title);
-        $slug  = $this->ensureUniqueSlug($space, $slug, $slugMap, $node->slug !== null);
+        // DJ-L1: a page the user may not read is never overwritten, matched or renamed around (no duplicate slug).
+        if (isset($hiddenSlugs[$slug])) {
+            throw new InvalidArgumentException(sprintf('Slug "%s" is not available.', $slug));
+        }
+        $slug = $this->ensureUniqueSlug($space, $slug, $slugMap, $node->slug !== null);
 
         $parent = null;
         if ($node->parentRelativePath !== null && $node->parentRelativePath !== '' && isset($pathMap[$node->parentRelativePath])) {
             $parent = $pathMap[$node->parentRelativePath];
+        } elseif ($node->parentSlug !== null && isset($hiddenSlugs[$node->parentSlug])) {
+            throw new InvalidArgumentException(sprintf('Parent "%s" is not available.', $node->parentSlug));
         } elseif ($node->parentSlug !== null && isset($slugMap[$node->parentSlug])) {
             $parent = $slugMap[$node->parentSlug];
         }
@@ -257,7 +282,7 @@ final readonly class WikiDocumentImporter
         }
 
         if ($preserveRequestedSlug) {
-            throw new InvalidArgumentException(sprintf('Slug "%s" already exists.', $slug));
+            throw new InvalidArgumentException(sprintf('Slug "%s" is not available.', $slug));
         }
 
         $base = $slug;

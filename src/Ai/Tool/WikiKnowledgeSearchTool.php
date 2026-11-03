@@ -88,8 +88,10 @@ final readonly class WikiKnowledgeSearchTool
             : $this->searchService->searchAcrossSpaces($spaces, $query, $limit);
 
         $results = [];
+        /** @var array<string, bool> $decisions one ancestor walk per branch across the hits (DJ-I1) */
+        $decisions = [];
         foreach ($hits as $hit) {
-            if ($this->accessChecker instanceof WikiSpaceAccessCheckerInterface && !WikiPageVisibility::isReadable($this->accessChecker, $user, $hit['space'], $hit['page'])) {
+            if ($this->accessChecker instanceof WikiSpaceAccessCheckerInterface && !WikiPageVisibility::isReadable($this->accessChecker, $user, $hit['space'], $hit['page'], $decisions)) {
                 continue;
             }
             $results[] = [

@@ -63,7 +63,9 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
 
+use function array_fill_keys;
 use function array_filter;
+use function array_map;
 use function array_slice;
 use function array_values;
 use function ceil;
@@ -762,6 +764,9 @@ final class WikiManageController extends AbstractController
                 $format,
                 $user,
                 $form->get('update_existing')->getData() === true,
+                false,
+                // DJ-L1: pages the user may not read are never matched, updated or used as parents.
+                array_fill_keys(array_map(static fn (WikiPage $page): string => $page->getId(), $this->visiblePages($user, $space, $this->pageRepository->findActiveBySpace($space))), true),
             );
         } catch (InvalidArgumentException $exception) {
             $this->flash('error', new TranslatableMessage('wiki.import.failed', ['%reason%' => $exception->getMessage()], WikiPages::DOMAIN));
@@ -1225,7 +1230,11 @@ final class WikiManageController extends AbstractController
      */
     private function readableHits(UserInterface $user, array $hits): array
     {
-        return array_values(array_filter($hits, fn (array $hit): bool => $this->spaceGuard->isPageReadable($user, $hit['space'], $hit['page'])));
+        $decisions = [];
+
+        return array_values(array_filter($hits, function (array $hit) use ($user, &$decisions): bool {
+            return $this->spaceGuard->isPageReadable($user, $hit['space'], $hit['page'], $decisions);
+        }));
     }
 
     private function treeSearchHref(WikiSpace $space): ?string

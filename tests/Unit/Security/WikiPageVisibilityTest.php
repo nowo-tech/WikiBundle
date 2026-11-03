@@ -42,6 +42,27 @@ final class WikiPageVisibilityTest extends TestCase
         $guard->requireReadablePage($user, $space, $plan);
     }
 
+    public function testTheMemoWalksEachBranchOnce(): void
+    {
+        $space   = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');
+        $vault   = new WikiPage($space, 'vault', 'Vault');
+        $plan    = new WikiPage($space, 'plan', 'Plan', $vault);
+        $budget  = new WikiPage($space, 'budget', 'Budget', $vault);
+        $calls   = 0;
+        $checker = new CallbackSpaceAccessChecker(static function (WikiAction $a, WikiSpace $s, ?WikiPage $p) use (&$calls, $vault): bool {
+            ++$calls;
+
+            return $p !== $vault;
+        });
+        $decisions = [];
+
+        self::assertFalse(WikiPageVisibility::isReadable($checker, new TestUser(), $space, $plan, $decisions));
+        self::assertFalse(WikiPageVisibility::isReadable($checker, new TestUser(), $space, $budget, $decisions));
+        // Plan, Vault, then Budget only: the hidden Vault is remembered.
+        self::assertSame(3, $calls);
+        self::assertSame([$plan->getId() => false, $vault->getId() => false, $budget->getId() => false], $decisions);
+    }
+
     public function testAParentCycleReadsAsHidden(): void
     {
         $space = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');

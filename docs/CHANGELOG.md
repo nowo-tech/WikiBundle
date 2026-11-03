@@ -56,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page and on every ancestor; otherwise 404, like a missing page, and the hit is left out. A parent cycle in the data
   reads as hidden. Hosts whose checker grants `View` on a page but not on its parent will see that page disappear for
   those users, as it already did from their tree.
+- **Import respects the reader rule** (audit DJ-L1): pages the importing user may not read are never matched, updated
+  (`update_existing`) or used as a `wiki_parent`; a document asking for such a slug or parent fails with a neutral
+  "not available" message (no "skipped existing" answer, no duplicate slug). The CLI import is unchanged.
+- The ancestor walk is shared across the hits of one search or AI answer (DJ-I1). SECURITY.md says that host
+  endpoints for link titles, `@` candidates and the page picker must use `isPageReadable()` (DJ-I2).
 
 ## [1.13.1] - 2026-11-03
 

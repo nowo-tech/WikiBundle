@@ -78,6 +78,19 @@ is granted too. In **1.9.0** these lists, the export and the AI context ignored 
 checker (titles, excerpts and bodies of hidden pages were disclosed; the default checker is not affected) — upgrade to
 1.10.0.
 
+Since **1.13.2** one rule decides whether a page is readable, on every route and list: `view` on the page **and on
+every ancestor** (`WikiPageVisibility::isReadable()`, `WikiSpaceGuard::isPageReadable()` / `requireReadablePage()`).
+A page under a hidden parent answers 404 on the page view, history, diff, edit, archive / restore, attachments and
+co-editing, and is left out of search and AI hits, as it already was from the tree, the export and page links. The
+import never matches, updates or attaches under a page the importing user may not read: its slug is "not available"
+(no duplicate slug is created).
+
+**Host endpoints.** The endpoints your application provides to the editor — link titles of `[[` page links, the `@`
+mention candidates and the page picker (`suggestions` / `link_title_url` of the Milkdown or Tiptap editor) — must
+apply the same rule: call `WikiSpaceGuard::isPageReadable()` (or `WikiPageVisibility::isReadable()` with your
+`WikiSpaceAccessCheckerInterface`) for every page they return, so a page under a hidden parent never shows up there
+either (audit DJ-I2).
+
 ## Content safety
 
 - Attachments (1.9): stored under server-generated keys (`<space id>/<32 hex>`, no user input) in a private

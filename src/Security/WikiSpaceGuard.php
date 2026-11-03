@@ -65,9 +65,12 @@ final readonly class WikiSpaceGuard
      * Whether the user may read the page: {@see WikiAction::View} on it and on every ancestor (1.13.2,
      * {@see WikiPageVisibility}).
      */
-    public function isPageReadable(UserInterface $user, WikiSpace $space, WikiPage $page): bool
+    /**
+     * @param array<string, bool> $decisions memo shared across calls (a list of hits walks each branch once)
+     */
+    public function isPageReadable(UserInterface $user, WikiSpace $space, WikiPage $page, array &$decisions = []): bool
     {
-        return WikiPageVisibility::isReadable($this->checker, $user, $space, $page);
+        return WikiPageVisibility::isReadable($this->checker, $user, $space, $page, $decisions);
     }
 
     /**

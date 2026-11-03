@@ -101,6 +101,8 @@ final readonly class WikiContextRetriever
 
         /** @var array<string, array{page: WikiPage, space: WikiSpace, excerpt: string}> $indexed */
         $indexed = [];
+        /** @var array<string, bool> $decisions one ancestor walk per branch across every batch (DJ-I1) */
+        $decisions = [];
 
         foreach ($queries as $query) {
             $batch = $scopedSpace instanceof WikiSpace
@@ -108,7 +110,7 @@ final readonly class WikiContextRetriever
                 : $this->searchService->searchAcrossSpaces($spaces, $query, $maxPages);
 
             foreach ($batch as $hit) {
-                if ($this->accessChecker instanceof WikiSpaceAccessCheckerInterface && !WikiPageVisibility::isReadable($this->accessChecker, $user, $hit['space'], $hit['page'])) {
+                if ($this->accessChecker instanceof WikiSpaceAccessCheckerInterface && !WikiPageVisibility::isReadable($this->accessChecker, $user, $hit['space'], $hit['page'], $decisions)) {
                     continue;
                 }
                 $indexed[$hit['page']->getId()] = $hit;
