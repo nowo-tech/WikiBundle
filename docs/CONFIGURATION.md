@@ -126,6 +126,11 @@ nowo_milkdown_editor:
 
 Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates`, part of the generated schema only while `collaboration.enabled` is true (1.13.1; see [UPGRADING](UPGRADING.md#to-1131)).
 
+
+**Copy as Markdown (1.15).** `editor.milkdown.copy_markdown: true` (default `false`, needs Milkdown ≥ 1.5) adds a "Copy
+as Markdown" button to the page view, for users who may edit the page only. It copies the stored Markdown, raw: page
+ids of `[[wiki:<id>]]` links (also of pages the reader may not see), mention handles and directive attributes. That
+is why readers never get it (Milkdown audit DN-I2).
 ## Page tree (1.14)
 
 ```yaml

@@ -315,12 +315,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      *
      * @param array<string, mixed> $config processed configuration
      * @param string $milkdownRenderer class that proves nowo-tech/milkdown-editor-bundle is installed
+     * @param string $milkdownTwig its Twig extension (1.14: `copy_markdown` needs its copyMarkdown(), Milkdown 1.5)
      *
      * @throws LogicException when nowo-tech/milkdown-editor-bundle is not installed
      *
      * @return array<string, mixed> the configuration with the Milkdown defaults
      */
-    private function milkdownDefaults(array $config, string $milkdownRenderer = MilkdownMarkdownRenderer::class): array
+    private function milkdownDefaults(array $config, string $milkdownRenderer = MilkdownMarkdownRenderer::class, string $milkdownTwig = MilkdownEditorTwig::class): array
     {
         if ($config['editor']['type'] !== Configuration::EDITOR_MILKDOWN) {
             return $config;
@@ -331,6 +332,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         $config['editor']['markdown_form_type'] ??= Configuration::MILKDOWN_FORM_TYPE;
+        // 1.14: the page-view "Copy as Markdown" button prints nowo_milkdown_copy_markdown() (Milkdown 1.5).
+        if (($config['editor']['milkdown']['copy_markdown'] ?? false) === true && !method_exists($milkdownTwig, 'copyMarkdown')) {
+            throw new LogicException('nowo_wiki.editor.milkdown.copy_markdown needs nowo-tech/milkdown-editor-bundle >= 1.5 (composer require nowo-tech/milkdown-editor-bundle:^1.5).');
+        }
         foreach (self::MILKDOWN_SANITIZER_ELEMENTS as $element => $attributes) {
             $config['sanitizer']['extra_allowed_elements'][$element] = array_values(array_unique(array_merge($config['sanitizer']['extra_allowed_elements'][$element] ?? [], $attributes)));
         }

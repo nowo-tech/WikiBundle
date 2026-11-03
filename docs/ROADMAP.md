@@ -158,6 +158,8 @@ confirmation*.
   `WikiAction::Delete` / `Purge` (D-W5: purge by the manage roles in the 1.x mapping), trashed pages invisible on
   every read path (opt-in `trash.enabled`). Version history and the full trash UX stay in 1.15. Decided by the user
   on 2026-11-03 (D-W29, D-W30, D-W31). — PR #85
+- [x] 1.15 "Copy as Markdown" page action for editors (`editor.milkdown.copy_markdown`, opt-in; Milkdown 1.5,
+  audit DN-I2)
 
 ## Plans
 

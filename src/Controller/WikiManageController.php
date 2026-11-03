@@ -115,7 +115,7 @@ final class WikiManageController extends AbstractController
      *
      * @param array<string, array{path: string, name: string}> $routes route name/path per action
      * @param array<string, string> $templates Twig template per page
-     * @param array{type?: string, tiptap_config: string, markdown_form_type?: string|null} $editor editor options
+     * @param array{type?: string, tiptap_config: string, markdown_form_type?: string|null, milkdown?: array{copy_markdown?: bool}} $editor editor options
      * @param array{enabled: bool, max_upload_bytes: int} $importExport import/export options
      * @param array{spaces_per_page: int, revisions_per_page: int, max_tree_pages: int} $pagination list size limits
      * @param WikiSpaceGuard|null $spaceGuard space- and page-aware access (1.9; null = the 1.x behaviour)
@@ -308,13 +308,23 @@ final class WikiManageController extends AbstractController
             : null;
         $pages     = $this->pages();
         $treeNodes = $pages->tree($space, $tree, $page->getSlug());
-        $treeUi    = $this->treeUi($user, $space, $treeNodes);
-        $vars      = [];
+        // 1.15: the raw Markdown for the "Copy as Markdown" button, to editors only (it holds page ids and directive
+        // attributes the per-viewer render hides; Milkdown audit DN-I2).
+        $revision = $page->getCurrentRevision();
+        $source   = ($this->editor['milkdown']['copy_markdown'] ?? false) === true && $can['edit'] && $revision instanceof WikiPageRevision
+            ? $revision->getContentMarkdown()
+            : null;
+        $treeUi = $this->treeUi($user, $space, $treeNodes);
+        $vars   = [];
         if ($treeUi !== null) {
             // 1.14: the Move action (the form is the single-pointer alternative to dragging).
             $can['move'] = $can['edit'] && isset($this->routes['page_move']) && $this->canMoveIn($user, $space)
                 && $this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $page->getParent());
             $vars = ['tree_ui' => $treeUi];
+        }
+
+        if ($source !== null && $source !== '') {
+            $vars['copy_markdown'] = $source;
         }
 
         return $this->renderPage('page_view', $vars + [

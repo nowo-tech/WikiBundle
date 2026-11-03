@@ -55,6 +55,10 @@
 
 ## Unreleased
 
+- **"Copy as Markdown" (opt-in).** `editor.milkdown.copy_markdown: true` needs `nowo-tech/milkdown-editor-bundle` ^1.5
+  (the container refuses to build otherwise). Editors of a Markdown page then see the button on the page view. If you
+  override `page_view.html.twig`, add the `copy_markdown` include.
+
 ## To 1.14.0
 
 From **1.13.2**:

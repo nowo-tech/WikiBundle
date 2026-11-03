@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use LogicException;
 use Nowo\MilkdownEditorBundle\Form\MilkdownEditorType;
+use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
@@ -154,6 +155,19 @@ final class WikiExtensionTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('nowo-tech/milkdown-editor-bundle');
         $method->invoke(new WikiExtension(), ['editor' => ['type' => 'milkdown']], 'Missing\\Renderer');
+    }
+
+    public function testCopyMarkdownNeedsMilkdown15(): void
+    {
+        $method = new ReflectionMethod(WikiExtension::class, 'milkdownDefaults');
+        $config = ['editor' => ['type' => 'milkdown', 'milkdown' => ['copy_markdown' => true]], 'sanitizer' => ['extra_allowed_elements' => [], 'extra_allowed_attributes' => []]];
+
+        $result = $method->invoke(new WikiExtension(), $config);
+        self::assertTrue($result['editor']['milkdown']['copy_markdown']);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('copy_markdown needs nowo-tech/milkdown-editor-bundle >= 1.5');
+        $method->invoke(new WikiExtension(), $config, MilkdownMarkdownRenderer::class, 'Missing\\Twig');
     }
 
     public function testOtherEditorsKeepTheDefaultConverterAndNoBridge(): void
