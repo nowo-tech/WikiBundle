@@ -281,14 +281,17 @@ final class WikiManageControllerTreeTest extends TestCase
         $this->run->setCurrentRevision($markdown);
         $this->em->flush();
 
-        $this->controller(copy: true)->viewPage('eng', 'run');
+        $response = $this->controller(copy: true)->viewPage('eng', 'run');
         self::assertSame('# Runbooks [[wiki:x]]', $this->twig->context['copy_markdown']);
+        self::assertTrue($response->headers->hasCacheControlDirective('no-store'));
+        self::assertTrue($response->headers->hasCacheControlDirective('private'));
 
         // Readers, the option off, or a page without a Markdown revision: no button.
         $this->controller(decide: static fn (WikiAction $a): bool => $a !== WikiAction::Edit, copy: true)->viewPage('eng', 'run');
         self::assertArrayNotHasKey('copy_markdown', $this->twig->context);
-        $this->controller()->viewPage('eng', 'run');
+        $response = $this->controller()->viewPage('eng', 'run');
         self::assertArrayNotHasKey('copy_markdown', $this->twig->context);
+        self::assertFalse($response->headers->hasCacheControlDirective('no-store'));
         $this->controller(copy: true)->viewPage('eng', 'guide');
         self::assertArrayNotHasKey('copy_markdown', $this->twig->context);
     }

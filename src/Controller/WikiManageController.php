@@ -342,7 +342,10 @@ final class WikiManageController extends AbstractController
             'can_history'      => $can['history'],
             'can_archive'      => $can['archive'],
             'permissions'      => $permissions,
-        ]);
+        ], null, isset($vars['copy_markdown'])
+            // The page carries the editor-only Markdown source: never kept by a shared cache (audit DR-I1).
+            ? ['Cache-Control' => 'private, no-store']
+            : []);
     }
 
     /**
@@ -1428,8 +1431,9 @@ final class WikiManageController extends AbstractController
      *
      * @param array<string, mixed> $vars
      * @param FormInterface<mixed>|null $form form of the page
+     * @param array<string, string> $headers response headers
      */
-    private function renderPage(string $page, array $vars, ?FormInterface $form = null): Response
+    private function renderPage(string $page, array $vars, ?FormInterface $form = null, array $headers = []): Response
     {
         $pages   = $this->pages();
         $invalid = $form instanceof FormInterface && $form->isSubmitted() && !$form->isValid();
@@ -1437,6 +1441,7 @@ final class WikiManageController extends AbstractController
         return new Response(
             $this->renderView($pages->template($page), $pages->context($vars)),
             $invalid ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK,
+            $headers,
         );
     }
 

@@ -52,7 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **"Copy as Markdown" on the page view** (`editor.milkdown.copy_markdown`, opt-in, Milkdown 1.5): a button that copies
   the page's stored Markdown. It is shown only to users who may edit the page, because the raw source holds page ids,
-  mention handles and directive attributes that the per-viewer render hides (Milkdown audit DN-I2).
+  mention handles and directive attributes that the per-viewer render hides (Milkdown audit DN-I2). That response is
+  `Cache-Control: private, no-store` (audit DR-I1).
 
 ## [1.14.0] - 2026-11-03
 

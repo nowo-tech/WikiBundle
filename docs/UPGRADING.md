@@ -57,7 +57,8 @@
 
 - **"Copy as Markdown" (opt-in).** `editor.milkdown.copy_markdown: true` needs `nowo-tech/milkdown-editor-bundle` ^1.5
   (the container refuses to build otherwise). Editors of a Markdown page then see the button on the page view. If you
-  override `page_view.html.twig`, add the `copy_markdown` include.
+  override `page_view.html.twig`, add the `copy_markdown` include. Those responses are `Cache-Control: private,
+  no-store`: a reverse proxy or CDN in front of the wiki must not strip that header.
 
 ## To 1.14.0
 
