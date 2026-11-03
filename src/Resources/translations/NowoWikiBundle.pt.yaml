@@ -21,6 +21,7 @@ wiki:
     purge_intro: "Serão eliminadas %count% página(s) com o seu histórico, ligações e anexos. Não é possível anular."
     purge_pages: "Páginas"
     purge_warning: "As páginas que não pode ler são contadas mas não listadas."
+    purge_hidden: "Esta eliminação contém páginas que não pode ver: só quem gere o espaço a pode eliminar definitivamente."
     purge_confirm_title: "Eliminar definitivamente?"
     purge_confirm_message: "«%title%» e as suas %count% página(s) serão eliminadas definitivamente. Não é possível anular."
     purged: "«%title%» foi eliminada definitivamente (%count% página(s))."

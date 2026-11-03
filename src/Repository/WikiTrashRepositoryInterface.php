@@ -29,7 +29,7 @@ interface WikiTrashRepositoryInterface
     public function findRoots(WikiSpace $space): array;
 
     /**
-     * Every entry of a batch of the space (root first).
+     * Every entry of a batch of the space (root first), read from the database (inside the space lock: current).
      *
      * @return list<WikiTrashEntry>
      */
@@ -43,11 +43,11 @@ interface WikiTrashRepositoryInterface
     public function trashedPageIds(WikiSpace $space): array;
 
     /**
-     * Batch ids deleted before the date, with their space, at most `$limit`.
+     * Batch ids deleted before the date, with their space, oldest first: at most `$limit`, after `$offset`.
      *
      * @return list<array{batch: string, space: WikiSpace}>
      */
-    public function findExpiredBatches(DateTimeImmutable $before, int $limit = 100): array;
+    public function findExpiredBatches(DateTimeImmutable $before, int $limit = 100, int $offset = 0): array;
 
     /**
      * Removes the entries of a batch (after a restore; the pages stay).

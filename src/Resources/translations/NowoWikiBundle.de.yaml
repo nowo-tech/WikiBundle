@@ -21,6 +21,7 @@ wiki:
     purge_intro: "%count% Seite(n) mit Verlauf, Verknüpfungen und Anhängen werden gelöscht. Das kann nicht rückgängig gemacht werden."
     purge_pages: "Seiten"
     purge_warning: "Seiten, die Sie nicht lesen dürfen, werden gezählt, aber nicht aufgeführt."
+    purge_hidden: "Diese Löschung enthält Seiten, die Sie nicht sehen dürfen: Nur Verwalter des Bereichs können sie endgültig löschen."
     purge_confirm_title: "Endgültig löschen?"
     purge_confirm_message: "„%title%“ und ihre %count% Seite(n) werden endgültig gelöscht. Das kann nicht rückgängig gemacht werden."
     purged: "„%title%“ wurde endgültig gelöscht (%count% Seite(n))."

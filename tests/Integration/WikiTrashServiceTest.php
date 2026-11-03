@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Integration;
 
+use Closure;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManager;
-use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
-use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
-use Nowo\WikiBundle\Attachment\WikiAttachmentService;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -23,14 +21,19 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
+use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use RuntimeException;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Throwable;
 
+use function array_column;
 use function array_map;
 use function sort;
 
@@ -172,6 +175,97 @@ final class WikiTrashServiceTest extends TestCase
         self::assertSame(0, $service->purge($this->space, $batch));
     }
 
+    /** Audit DO-M1 (PoC): a restore that commits while a purge of the same batch runs keeps its pages. */
+    public function testARestoreThatWinsTheRaceKeepsItsPages(): void
+    {
+        $ops      = $this->page('ops');
+        $run      = $this->page('run', $ops);
+        $batch    = $this->service()->delete($ops);
+        $restorer = $this->service();
+        $purger   = $this->service(repo: $this->hooked(function () use ($restorer, $batch): void {
+            $restorer->restore($this->space, $batch);
+        }));
+
+        self::assertSame(0, $purger->purge($this->space, $batch));
+        $this->em->clear();
+        self::assertNotNull($this->em->find(WikiPage::class, $ops->getId()));
+        self::assertNotNull($this->em->find(WikiPage::class, $run->getId()));
+        self::assertSame([], $this->em->getRepository(WikiTrashEntry::class)->findAll());
+    }
+
+    /** Audit DO-L1 (PoC): a failed purge rolls back the attachment rows and unlinks no file. */
+    public function testAFailedPurgeKeepsTheAttachmentsAndTheirFiles(): void
+    {
+        $run = $this->page('run');
+        $this->em->persist(new WikiAttachment($run, $this->space, 'a.txt', 'k/1', 'text/plain', 5, str_repeat('a', 64)));
+        $this->em->flush();
+        $batch = $this->service()->delete($run);
+
+        try {
+            $this->service(repo: $this->hooked(null, true))->purge($this->space, $batch);
+            self::fail('The purge did not fail.');
+        } catch (RuntimeException $e) {
+            self::assertSame('database down', $e->getMessage());
+        }
+        $this->em->clear();
+        self::assertSame([], $this->deletedFiles);
+        self::assertCount(1, $this->em->getRepository(WikiAttachment::class)->findAll());
+        self::assertTrue($this->em->find(WikiPage::class, $run->getId())?->isArchived());
+        self::assertCount(1, $this->em->getRepository(WikiTrashEntry::class)->findAll());
+    }
+
+    public function testAFileThatCannotBeUnlinkedIsLoggedAfterTheCommit(): void
+    {
+        $run = $this->page('run');
+        $this->em->persist(new WikiAttachment($run, $this->space, 'a.txt', 'k/2', 'text/plain', 5, str_repeat('b', 64)));
+        $this->em->flush();
+        $logger = new RecordingLogger();
+        $batch  = $this->service(failUnlink: true, logger: $logger)->delete($run);
+
+        self::assertSame(1, $this->service(failUnlink: true, logger: $logger)->purge($this->space, $batch));
+        self::assertContains('Wiki trash: an attachment file could not be deleted.', array_column($logger->records, 'message'));
+        $this->em->clear();
+        self::assertNull($this->em->find(WikiPage::class, $run->getId()));
+    }
+
+    public function testAFailedRestoreIsRolledBack(): void
+    {
+        $page  = $this->page('p');
+        $batch = $this->service()->delete($page);
+
+        $this->expectExceptionMessage('remove failed');
+        try {
+            $this->service(repo: $this->hooked(null, false, true))->restore($this->space, $batch);
+        } finally {
+            self::assertFalse($this->em->getConnection()->isTransactionActive());
+        }
+    }
+
+    public function testStaleEntriesWithoutArchivedPagesAreDropped(): void
+    {
+        $page  = $this->page('p');
+        $batch = $this->service()->delete($page);
+        $page->unarchive();
+        $this->em->flush();
+
+        self::assertSame(0, $this->service()->purge($this->space, $batch));
+        self::assertSame([], $this->service()->trashedIds($this->space));
+        self::assertFalse($page->isArchived());
+    }
+
+    public function testTheDryRunCountsEveryExpiredDeletion(): void
+    {
+        $service = $this->service(retention: 1);
+        for ($i = 0; $i < 101; ++$i) {
+            $service->delete($this->page('p' . $i));
+        }
+        $this->em->createQueryBuilder()->update(WikiTrashEntry::class, 't')->set('t.deletedAt', ':at')
+            ->setParameter('at', new DateTimeImmutable('-3 days'))->getQuery()->execute();
+
+        self::assertSame(['batches' => 101, 'pages' => 101], $service->purgeExpired(new DateTimeImmutable(), true));
+        self::assertSame(['batches' => 101, 'pages' => 101], $service->purgeExpired(new DateTimeImmutable()));
+    }
+
     public function testPurgeWithoutAttachmentsAndAnEmptyPageList(): void
     {
         $page    = $this->page('solo');
@@ -227,7 +321,7 @@ final class WikiTrashServiceTest extends TestCase
         }
     }
 
-    private function service(bool $attachments = true, int $retention = 30): WikiTrashService
+    private function service(bool $attachments = true, int $retention = 30, ?WikiTrashRepositoryInterface $repo = null, bool $failUnlink = false, ?LoggerInterface $logger = null): WikiTrashService
     {
         $dispatcher = new EventDispatcher();
         foreach ([WikiEvents::PAGE_TRASHED, WikiEvents::TRASH_RESTORED, WikiEvents::TRASH_PURGED] as $name) {
@@ -236,9 +330,9 @@ final class WikiTrashServiceTest extends TestCase
             });
         }
         $files   = &$this->deletedFiles;
-        $storage = new class($files) implements WikiAttachmentStorageInterface {
+        $storage = new class($files, $failUnlink) implements WikiAttachmentStorageInterface {
             /** @param list<string> $deleted */
-            public function __construct(private array &$deleted)
+            public function __construct(private array &$deleted, private readonly bool $fail)
             {
             }
 
@@ -253,6 +347,9 @@ final class WikiTrashServiceTest extends TestCase
 
             public function delete(string $key): void
             {
+                if ($this->fail) {
+                    throw new RuntimeException('disk');
+                }
                 $this->deleted[] = $key;
             }
 
@@ -265,12 +362,13 @@ final class WikiTrashServiceTest extends TestCase
 
         return new WikiTrashService(
             $this->pages,
-            new DoctrineOrmWikiTrashRepository($this->em),
+            $repo ?? new DoctrineOrmWikiTrashRepository($this->em),
             $this->pages,
             $dispatcher,
-            $attachments ? new WikiAttachmentService($attachmentRepository, $storage, new NullWikiAttachmentScanner(), $this->createStub(WikiAttachmentLimitsProviderInterface::class), $dispatcher) : null,
+            $attachments ? $storage : null,
             $attachments ? $attachmentRepository : null,
             $retention,
+            $logger ?? new NullLogger(),
         );
     }
 
@@ -294,5 +392,64 @@ final class WikiTrashServiceTest extends TestCase
         sort($slugs);
 
         return $slugs;
+    }
+
+    private function hooked(?Closure $afterFindBatch, bool $failDelete = false, bool $failRemove = false): WikiTrashRepositoryInterface
+    {
+        $inner = new DoctrineOrmWikiTrashRepository($this->em);
+
+        return new class($inner, $afterFindBatch, $failDelete, $failRemove) implements WikiTrashRepositoryInterface {
+            public function __construct(private readonly DoctrineOrmWikiTrashRepository $inner, private ?Closure $hook, private readonly bool $fail, private readonly bool $failRemove)
+            {
+            }
+
+            public function saveBatch(array $entries): void
+            {
+                $this->inner->saveBatch($entries);
+            }
+
+            public function findRoots(WikiSpace $space): array
+            {
+                return $this->inner->findRoots($space);
+            }
+
+            public function findBatch(WikiSpace $space, string $batchId): array
+            {
+                $entries = $this->inner->findBatch($space, $batchId);
+                if ($this->hook instanceof Closure) {
+                    $hook       = $this->hook;
+                    $this->hook = null;
+                    $hook();
+                }
+
+                return $entries;
+            }
+
+            public function trashedPageIds(WikiSpace $space): array
+            {
+                return $this->inner->trashedPageIds($space);
+            }
+
+            public function findExpiredBatches(DateTimeImmutable $before, int $limit = 100, int $offset = 0): array
+            {
+                return $this->inner->findExpiredBatches($before, $limit, $offset);
+            }
+
+            public function removeBatch(string $batchId): void
+            {
+                if ($this->failRemove) {
+                    throw new RuntimeException('remove failed');
+                }
+                $this->inner->removeBatch($batchId);
+            }
+
+            public function deletePages(array $pages): void
+            {
+                if ($this->fail) {
+                    throw new RuntimeException('database down');
+                }
+                $this->inner->deletePages($pages);
+            }
+        };
     }
 }

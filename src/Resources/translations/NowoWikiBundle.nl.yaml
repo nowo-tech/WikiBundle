@@ -21,6 +21,7 @@ wiki:
     purge_intro: "%count% pagina(’s) met geschiedenis, koppelingen en bijlagen worden verwijderd. Dit kan niet ongedaan worden gemaakt."
     purge_pages: "Pagina’s"
     purge_warning: "Pagina’s die je niet mag lezen worden geteld maar niet getoond."
+    purge_hidden: "Deze verwijdering bevat pagina’s die je niet kunt zien: alleen een beheerder van de ruimte kan ze definitief verwijderen."
     purge_confirm_title: "Definitief verwijderen?"
     purge_confirm_message: "“%title%” en de %count% pagina(’s) worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt."
     purged: "“%title%” is definitief verwijderd (%count% pagina(’s))."

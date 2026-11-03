@@ -87,10 +87,15 @@ import never matches, updates or attaches under a page the importing user may no
 
 **Trash (1.14, `trash.enabled`).** A trashed page is archived, so every read path treats it as gone, and its
 attachments are only served to `manage`. The trash list and the purge page apply the same read rule (titles of pages
-the user may not read are counted, not shown). Purging deletes the pages, their revisions, host-object links and
-attachments with their files in one transaction (the attachment rows and files first); the co-editing log of a purged
-page is left to `wiki:collab:purge`. Delete and Restore ask `WikiAction::Delete`, Purge `WikiAction::Purge`; every
-write is POST + CSRF behind a confirm (two for a purge).
+the user may not read are counted, not shown). Delete, Restore and Purge run under the space lock of the page tree
+and read the deletion again inside it, so a purge only deletes pages that are still in the trash (a restore that ran
+first keeps its pages; audit DO-M1). Purging deletes the pages, their revisions, host-object links and attachment rows
+in one transaction; the attachment files are unlinked **after** the commit (a failed unlink is logged and leaves an
+orphan file for the attachment maintenance; DO-L1). The co-editing log of a purged page is not served any more (the
+co-editing endpoints need the page) and is removed by `wiki:collab:purge` (DO-I6). Delete and Restore ask
+`WikiAction::Delete` on the deleted page, Purge `WikiAction::Purge`; a deletion that holds pages the user may not read
+can only be purged with `WikiAction::Manage` on the space (DO-I1). Every write is POST + CSRF behind a confirm (two
+for a purge).
 
 **Host endpoints.** The endpoints your application provides to the editor — link titles of `[[` page links, the `@`
 mention candidates and the page picker (`suggestions` / `link_title_url` of the Milkdown or Tiptap editor) — must

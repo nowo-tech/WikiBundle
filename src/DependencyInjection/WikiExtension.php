@@ -19,7 +19,6 @@ use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
 use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
-use Nowo\WikiBundle\Attachment\WikiAttachmentService;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
@@ -402,7 +401,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$trash', new Reference(WikiTrashRepositoryInterface::class))
             ->setArgument('$writer', new Reference(DoctrineOrmWikiPageRepository::class))
             ->setArgument('$dispatcher', new Reference('event_dispatcher'))
-            ->setArgument('$attachments', new Reference(WikiAttachmentService::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$storage', new Reference(WikiAttachmentStorageInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$attachmentRepository', new Reference(WikiAttachmentRepositoryInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$retentionDays', $trash['retention_days'])
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))

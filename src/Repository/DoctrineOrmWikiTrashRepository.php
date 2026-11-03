@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Repository;
 use DateTimeImmutable;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
@@ -67,6 +68,7 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
             ->setParameter('batch', $batchId)
             ->orderBy('t.root', SortDirection::Descending)
             ->getQuery()
+            ->setHint(Query::HINT_REFRESH, true)
             ->getResult();
     }
 
@@ -85,7 +87,7 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
         return array_fill_keys($ids, true);
     }
 
-    public function findExpiredBatches(DateTimeImmutable $before, int $limit = 100): array
+    public function findExpiredBatches(DateTimeImmutable $before, int $limit = 100, int $offset = 0): array
     {
         /** @var list<WikiTrashEntry> $roots */
         $roots = $this->entityManager()->createQueryBuilder()
@@ -97,6 +99,8 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
             ->andWhere('t.deletedAt < :before')
             ->setParameter('before', $before, Types::DATETIME_IMMUTABLE)
             ->orderBy('t.deletedAt', SortDirection::Ascending)
+            ->addOrderBy('t.batchId', SortDirection::Ascending)
+            ->setFirstResult($offset)
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();

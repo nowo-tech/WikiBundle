@@ -21,6 +21,7 @@ wiki:
     purge_intro: "Se borrarán %count% página(s) con su historial, enlaces y adjuntos. No se puede deshacer."
     purge_pages: "Páginas"
     purge_warning: "Las páginas que no puedes leer se cuentan pero no se muestran."
+    purge_hidden: "Este borrado contiene páginas que no puedes ver: solo quien gestiona el espacio puede borrarlo definitivamente."
     purge_confirm_title: "¿Borrar definitivamente?"
     purge_confirm_message: "«%title%» y sus %count% página(s) se borrarán definitivamente. No se puede deshacer."
     purged: "«%title%» se ha borrado definitivamente (%count% página(s))."

@@ -126,7 +126,8 @@ final class WikiTrashController extends AbstractController
             $rows[] = [
                 'title'   => $page->getTitle(),
                 'deleted' => $root->getDeletedAt(),
-                'pages'   => count($trash->batch($space, $root->getBatchId())),
+                // DO-I2: only the pages the user may read are counted.
+                'pages'   => count(array_filter($trash->batch($space, $root->getBatchId()), fn (WikiTrashEntry $entry): bool => $this->spaceGuard->isPageReadable($user, $space, $entry->getPage()))),
                 'restore' => $this->postForm('wiki_trash_restore_' . $root->getBatchId()),
                 'purge'   => $purge && $this->spaceGuard->isGranted($user, WikiAction::Purge, $space, $page),
                 'batch'   => $root->getBatchId(),
@@ -178,6 +179,17 @@ final class WikiTrashController extends AbstractController
         $root  = $this->requireBatch($trash, $user, $space, $batchId);
         $this->spaceGuard->requireGranted($user, WikiAction::Purge, $space, $root->getPage());
         $tokenId = 'wiki_trash_purge_' . $batchId;
+        $batch   = $trash->batch($space, $batchId);
+        $titles  = array_values(array_map(
+            static fn (WikiTrashEntry $entry): string => $entry->getPage()->getTitle(),
+            array_filter($batch, fn (WikiTrashEntry $entry): bool => $this->spaceGuard->isPageReadable($user, $space, $entry->getPage())),
+        ));
+        // DO-I1: a purge is irreversible; pages the user cannot see may only be purged by a space manager.
+        if (count($titles) < count($batch) && !$this->spaceGuard->isGranted($user, WikiAction::Manage, $space)) {
+            $this->flash('warning', new TranslatableMessage('wiki.trash.purge_hidden', [], WikiPages::DOMAIN));
+
+            return $this->redirectToRoute($this->routes['space_trash']['name'], ['spaceSlug' => $space->getSlug()]);
+        }
 
         if ($request->isMethod('POST')) {
             if (!$this->isValidCsrf($request, $tokenId)) {
@@ -189,13 +201,7 @@ final class WikiTrashController extends AbstractController
             return $this->redirectToRoute($this->routes['space_trash']['name'], ['spaceSlug' => $space->getSlug()]);
         }
 
-        $batch = $trash->batch($space, $batchId);
-        // Titles of pages the user may not read are not shown; they are only counted.
-        $titles = array_values(array_map(
-            static fn (WikiTrashEntry $entry): string => $entry->getPage()->getTitle(),
-            array_filter($batch, fn (WikiTrashEntry $entry): bool => $this->spaceGuard->isPageReadable($user, $space, $entry->getPage())),
-        ));
-
+        // Titles of pages the user may not read are not shown (a space manager purging them sees them counted).
         return $this->renderWikiPage('trash_purge', [
             'page'   => $this->pageFactory->trashPurge($space, $batchId, $root->getPage()->getTitle(), count($batch), $this->postForm($tokenId)),
             'titles' => $titles,

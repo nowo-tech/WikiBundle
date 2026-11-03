@@ -21,6 +21,7 @@ wiki:
     purge_intro: "%count% page(s) with their history, links and attachments will be deleted. This cannot be undone."
     purge_pages: "Pages"
     purge_warning: "Pages you cannot read are counted but not listed."
+    purge_hidden: "This deletion contains pages you cannot see: only a space manager can delete it for good."
     purge_confirm_title: "Delete for good?"
     purge_confirm_message: "“%title%” and its %count% page(s) will be deleted for good. This cannot be undone."
     purged: "“%title%” was deleted for good (%count% page(s))."

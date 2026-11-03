@@ -21,6 +21,7 @@ wiki:
     purge_intro: "%count% page(s) avec leur historique, leurs liens et leurs pièces jointes seront supprimées. C’est irréversible."
     purge_pages: "Pages"
     purge_warning: "Les pages que vous ne pouvez pas lire sont comptées mais pas listées."
+    purge_hidden: "Cette suppression contient des pages que vous ne pouvez pas voir : seul un gestionnaire de l’espace peut la supprimer définitivement."
     purge_confirm_title: "Supprimer définitivement ?"
     purge_confirm_message: "« %title% » et ses %count% page(s) seront supprimées définitivement. C’est irréversible."
     purged: "« %title% » a été supprimée définitivement (%count% page(s))."

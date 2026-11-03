@@ -185,6 +185,30 @@ final class WikiTrashControllerTest extends TestCase
         $this->assertThrows(AccessDeniedHttpException::class, fn (): Response => $this->controller(decide: static fn (WikiAction $a): bool => $a !== WikiAction::Purge)->purge(Request::create('/'), 'eng', $other));
     }
 
+    public function testHiddenPagesAreNotCountedAndNeedAManagerToBePurged(): void
+    {
+        $batch = $this->trash->delete($this->vault);
+        // Plan (under Vault) is hidden from this user, who is not a space manager.
+        $decide = fn (WikiAction $a, WikiSpace $s, ?WikiPage $p): bool => $p !== $this->plan && $a !== WikiAction::Manage;
+
+        $this->controller(decide: $decide)->index('eng');
+        self::assertSame(1, $this->twig->context['items'][0]['pages']);
+
+        foreach (['GET', 'POST'] as $method) {
+            $controller = $this->controller(decide: $decide);
+            $response   = $controller->purge($this->post('wiki_trash_purge_' . $batch, $method), 'eng', $batch);
+            self::assertInstanceOf(RedirectResponse::class, $response);
+            /** @var RequestStack $stack */
+            $stack = $this->container->get('request_stack');
+            /** @var FlashBagAwareSessionInterface $session */
+            $session = $stack->getSession();
+            $message = $session->getFlashBag()->get('warning')[0] ?? null;
+            self::assertInstanceOf(TranslatableMessage::class, $message);
+            self::assertSame('wiki.trash.purge_hidden', $message->getMessage());
+        }
+        self::assertTrue($this->vault->isArchived());
+    }
+
     public function testWithoutTheTrashOrAUserNothingIsReachable(): void
     {
         $this->assertThrows(NotFoundHttpException::class, fn (): Response => $this->controller(enabled: false)->index('eng'));
