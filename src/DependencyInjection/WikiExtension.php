@@ -332,7 +332,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         $config['editor']['markdown_form_type'] ??= Configuration::MILKDOWN_FORM_TYPE;
-        // 1.14: the page-view "Copy as Markdown" button prints nowo_milkdown_copy_markdown() (Milkdown 1.5).
+        // 1.15: the page-view "Copy as Markdown" button prints nowo_milkdown_copy_markdown() (Milkdown 1.5).
         if (($config['editor']['milkdown']['copy_markdown'] ?? false) === true && !method_exists($milkdownTwig, 'copyMarkdown')) {
             throw new LogicException('nowo_wiki.editor.milkdown.copy_markdown needs nowo-tech/milkdown-editor-bundle >= 1.5 (composer require nowo-tech/milkdown-editor-bundle:^1.5).');
         }
