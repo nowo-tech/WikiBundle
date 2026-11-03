@@ -58,6 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     statements).
   - The Mercure relay goes out after the commit.
   - A host store without the new interface keeps working as before.
+  - A log reset runs in one transaction that locks the document row first, in the same order as an append or a
+    compaction (audit DQ-L1): an append can no longer land between the delete and the counter reset, and the two
+    cannot deadlock.
 - **Separate budgets for updates and presence.** `collaboration.update_rate_limiter` and
   `collaboration.awareness_rate_limiter` (e.g. `limiter.wiki_collab_update` / `limiter.wiki_collab_awareness`).
   Without them, `rate_limiter` keeps limiting every request.

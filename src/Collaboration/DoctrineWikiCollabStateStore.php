@@ -267,29 +267,47 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
         return is_numeric($claimed) && (int) $claimed === 1;
     }
 
+    /**
+     * Drops the log (audit DQ-L1): in one transaction that locks the document row first, in the same order as
+     * appendWithin() and compact() (document, then updates), so an append can neither slip between the delete and the
+     * counter reset nor deadlock with it.
+     */
     public function reset(string $pageId, ?string $baseRevisionId): void
     {
-        $em = $this->em();
-        $em->createQueryBuilder()
-            ->delete(WikiCollabUpdate::class, 'u')
-            ->where('u.pageId = :page')->setParameter('page', $pageId)
-            ->getQuery()->execute();
         $this->ensureDocument($pageId);
-        $em->createQueryBuilder()
-            ->update(WikiCollabDocument::class, 'd')
-            ->set('d.baseRevisionId', ':base')
-            ->set('d.seededAt', 'NULL')
-            ->set('d.seededBy', 'NULL')
-            ->set('d.updateCount', 0)
-            ->set('d.logBytes', 0)
-            ->set('d.lastSeq', 0)
-            ->set('d.snapshotSeq', 0)
-            ->set('d.updatedAt', ':now')
-            ->where('d.pageId = :page')
-            ->setParameter('base', $baseRevisionId)
-            ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
-            ->setParameter('page', $pageId)
-            ->getQuery()->execute();
+        $em         = $this->em();
+        $connection = $em->getConnection();
+        $connection->beginTransaction();
+        try {
+            $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+            $em->createQueryBuilder()
+                ->delete(WikiCollabUpdate::class, 'u')
+                ->where('u.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->execute();
+            $em->createQueryBuilder()
+                ->update(WikiCollabDocument::class, 'd')
+                ->set('d.baseRevisionId', ':base')
+                ->set('d.seededAt', 'NULL')
+                ->set('d.seededBy', 'NULL')
+                ->set('d.updateCount', 0)
+                ->set('d.logBytes', 0)
+                ->set('d.lastSeq', 0)
+                ->set('d.snapshotSeq', 0)
+                ->set('d.updatedAt', ':now')
+                ->where('d.pageId = :page')
+                ->setParameter('base', $baseRevisionId)
+                ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
+                ->setParameter('page', $pageId)
+                ->getQuery()->execute();
+            $connection->commit();
+        } catch (Throwable $exception) {
+            $connection->rollBack();
+
+            throw $exception;
+        }
     }
 
     public function markSaved(string $pageId, string $revisionId): void

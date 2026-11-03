@@ -22,7 +22,11 @@ use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 use RuntimeException;
+use Throwable;
 
+use function array_filter;
+use function array_map;
+use function array_values;
 use function extension_loaded;
 
 /**
@@ -118,6 +122,32 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
 
         $this->expectException(WikiCollabException::class);
         $this->store->appendWithin('p1', 'AQ==', 5, 100);
+    }
+
+    public function testAResetLocksTheDocumentFirstAndRollsBackOnFailure(): void
+    {
+        $logger = new RecordingLogger();
+        $em     = SqliteWikiEntityManager::create($logger);
+        $store  = new DoctrineWikiCollabStateStore($em);
+        (new ReflectionMethod($store, 'ensureDocument'))->invoke($store, 'p1');
+        $store->appendWithin('p1', 'AQ==', 10, 1000);
+        $logger->records = [];
+
+        $store->reset('p1', 'rev-1');
+
+        // The locked read of the document comes before the delete of the updates (the order of appendWithin()).
+        $sql = array_values(array_filter(array_map(static fn (array $r): string => (string) ($r['context']['sql'] ?? ''), $logger->records), static fn (string $q): bool => $q !== '' && preg_match('/SAVEPOINT|^INSERT OR IGNORE/', $q) !== 1));
+        self::assertStringStartsWith('SELECT', $sql[0]);
+        self::assertStringStartsWith('DELETE FROM wiki_page_collab_updates', $sql[1]);
+        self::assertSame([0, 0, 'rev-1'], [$store->info('p1')->updateCount, $store->info('p1')->bytes, $store->info('p1')->baseRevisionId]);
+
+        $em->getConnection()->executeStatement('DROP TABLE wiki_page_collab_updates');
+        try {
+            $store->reset('p1', null);
+            self::fail('The reset did not fail.');
+        } catch (Throwable) {
+            self::assertFalse($em->getConnection()->isTransactionActive());
+        }
     }
 
     public function testAnUpdateRunsThreeStatementsInsideItsTransaction(): void

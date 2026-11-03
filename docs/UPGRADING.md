@@ -71,8 +71,13 @@ From **1.14.0**, with co-editing enabled:
       snapshot_seq = (SELECT COALESCE(MAX(u.covers_seq), 0) FROM wiki_page_collab_updates u WHERE u.page_id = d.page_id AND u.kind = 'snapshot');
   ```
 
-  Without co-editing the collaboration tables are not in your schema and nothing changes. Without the backfill, live
-  logs restart counting from zero (at worst a log grows past its budget once before the next compaction resets it).
+  **The backfill is required, and `doctrine:migrations:diff` does not generate it**: add it by hand to the migration
+  that adds the columns. It reads every log once and holds locks on the documents table while it runs, so run the
+  migration in a quiet window (or with co-editing briefly off). Without co-editing the collaboration tables are not in
+  your schema and nothing changes. Without the backfill, live logs restart counting from zero (at worst a log grows
+  past its budget once before the next compaction resets it).
+- **Run `wiki:collab:purge` from a single scheduler** (one cron entry or one Scheduler worker): two purges at the same
+  time only wait for each other's locks, but there is nothing to gain from running it on several hosts.
 - **Rate limiters (optional):** split the co-editing budget so that typing and presence do not starve each other, e.g.
 
   ```yaml
