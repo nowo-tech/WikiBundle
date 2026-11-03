@@ -58,6 +58,10 @@
 
 ## To 1.14.1
 
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
 From **1.14.0**, with co-editing enabled:
 
 - **Schema:** four counter columns on `<prefix>_page_collab_documents`. Run `doctrine:migrations:diff`, then add the
