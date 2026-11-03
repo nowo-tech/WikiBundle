@@ -151,6 +151,7 @@ confirmation*.
   sparse integer positions in the existing `position` column instead of a string rank column (no schema change), fold
   state in the session (`tree.state_store` for a per-user table), depth limit 10 (D-W2), moves within one space (D-W1).
   Lazy children, starred / recents, the per-node "+" / "⋯" menus and live updates stay open for the next 1.14 PRs.
+  — PR #83
 
 ## Plans
 
