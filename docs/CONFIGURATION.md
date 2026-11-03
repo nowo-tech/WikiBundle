@@ -119,6 +119,7 @@ nowo_milkdown_editor:
 | `collaboration.corrupt_resets` / `corrupt_window` | 3 / 600 | Resets clients may trigger by reporting a log they cannot apply, per page and window (seconds) |
 | `collaboration.reset_after_idle` | 300 | Idle seconds after which a log not matching the current revision is dropped |
 | `collaboration.rate_limiter` | null | **Required** with `enabled`: service id of a `RateLimiterFactory` per user and page, applied to every request (token, state, update, awareness, compact) |
+| `collaboration.update_rate_limiter` / `awareness_rate_limiter` | null | 1.14.1: per user and page budgets for `update` and `awareness` requests instead of `rate_limiter` (e.g. `limiter.wiki_collab_update`, `limiter.wiki_collab_awareness`) |
 | `collaboration.user_rate_limiter` | null | 1.13.1 (CW-I9): service id of a `RateLimiterFactory` per **user** across all pages (optional, on top of `rate_limiter`) |
 | `collaboration.show_names` | `false` | 1.13.1 (CW-I2): co-editors see display names instead of "Editor xxxx" (never an identifier or e-mail-shaped value) |
 | `collaboration.store` / `publisher` / `subscriber_authorizer` | null | Your services instead of the Doctrine store and the Mercure defaults |

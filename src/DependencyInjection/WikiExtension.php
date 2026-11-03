@@ -539,6 +539,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$options', array_intersect_key($collab, WikiCollabService::DEFAULTS))
             ->setArgument('$rateLimiter', new Reference((string) $collab['rate_limiter']))
             ->setArgument('$userRateLimiter', is_string($collab['user_rate_limiter']) && $collab['user_rate_limiter'] !== '' ? new Reference($collab['user_rate_limiter']) : null)
+            ->setArgument('$updateRateLimiter', is_string($collab['update_rate_limiter']) && $collab['update_rate_limiter'] !== '' ? new Reference($collab['update_rate_limiter']) : null)
+            ->setArgument('$awarenessRateLimiter', is_string($collab['awareness_rate_limiter']) && $collab['awareness_rate_limiter'] !== '' ? new Reference($collab['awareness_rate_limiter']) : null)
             ->setArgument('$secret', '%kernel.secret%'));
         $container->setDefinition(WikiCollabSaveListener::class, (new Definition(WikiCollabSaveListener::class))
             ->setArgument('$collab', new Reference(WikiCollabService::class))

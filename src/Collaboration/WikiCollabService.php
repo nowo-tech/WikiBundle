@@ -95,6 +95,8 @@ final readonly class WikiCollabService
      * @param RateLimiterFactory|null $rateLimiter limits every request per user and page (required by the configuration)
      * @param RateLimiterFactory|null $userRateLimiter limits every request per user across pages (1.13.1, CW-I9; optional)
      * @param string $secret key of the per-page pseudonyms "Editor xxxx" (`kernel.secret`, 1.13.1, DA-L2)
+     * @param RateLimiterFactory|null $updateRateLimiter per user and page for `update` (1.14.1; null: `$rateLimiter`)
+     * @param RateLimiterFactory|null $awarenessRateLimiter per user and page for `awareness` (1.14.1; null: `$rateLimiter`)
      */
     public function __construct(
         private WikiCollabStateStoreInterface $store,
@@ -104,6 +106,8 @@ final readonly class WikiCollabService
         private ?RateLimiterFactory $rateLimiter = null,
         private ?RateLimiterFactory $userRateLimiter = null,
         private string $secret = '',
+        private ?RateLimiterFactory $updateRateLimiter = null,
+        private ?RateLimiterFactory $awarenessRateLimiter = null,
     ) {
         /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool} $merged */
         $merged        = $options + self::DEFAULTS;
@@ -209,8 +213,25 @@ final readonly class WikiCollabService
      */
     public function update(Request $request, WikiPage $page, UserInterface $user): void
     {
-        [$client, $data] = $this->payload($request, $page, $user, $this->options['max_update_bytes']);
-        $info            = $this->store->info($page->getId());
+        [$client, $data] = $this->payload($request, $page, $user, $this->options['max_update_bytes'], 'update');
+        // 1.14.1: the caps and the append in one locked write (no size read before and after), then the relay.
+        if ($this->store instanceof WikiCollabCountingStoreInterface) {
+            // @igor-ignore - Persists the update through the store (database write); the service keeps no state
+            $refused = $this->store->appendWithin($page->getId(), $data, $this->options['max_log_entries'], $this->options['max_log_bytes']);
+            if ($refused === 'log_full') {
+                throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'log_full');
+            }
+            if ($refused === 'log_reset') {
+                $this->drop($page, $page->getCurrentRevision()?->getId());
+
+                throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
+            }
+            $this->publisher->publish($this->topic($page), json_encode(['t' => 'u', 'c' => $client, 'd' => $data], JSON_THROW_ON_ERROR));
+
+            return;
+        }
+
+        $info = $this->store->info($page->getId());
         if ($info->updateCount >= $this->options['max_log_entries']) {
             throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'log_full');
         }
@@ -240,7 +261,7 @@ final readonly class WikiCollabService
      */
     public function awareness(Request $request, WikiPage $page, UserInterface $user): void
     {
-        [$client, $data] = $this->payload($request, $page, $user, $this->options['max_update_bytes']);
+        [$client, $data] = $this->payload($request, $page, $user, $this->options['max_update_bytes'], 'awareness');
         $this->publisher->publish($this->topic($page), json_encode(['t' => 'a', 'c' => $client, 'd' => $data], JSON_THROW_ON_ERROR));
     }
 
@@ -372,10 +393,16 @@ final readonly class WikiCollabService
     /**
      * @throws WikiCollabException when the user exhausted the page's budget
      */
-    private function limit(WikiPage $page, UserInterface $user): void
+    private function limit(WikiPage $page, UserInterface $user, string $kind = 'other'): void
     {
-        if ($this->rateLimiter instanceof RateLimiterFactory
-            && !$this->rateLimiter->create($user->getUserIdentifier() . '|' . $page->getId())->consume()->isAccepted()) {
+        // 1.14.1: updates and presence may have their own budgets (null: the shared rate_limiter).
+        $limiter = match ($kind) {
+            'update'    => $this->updateRateLimiter ?? $this->rateLimiter,
+            'awareness' => $this->awarenessRateLimiter ?? $this->rateLimiter,
+            default     => $this->rateLimiter,
+        };
+        if ($limiter instanceof RateLimiterFactory
+            && !$limiter->create($user->getUserIdentifier() . '|' . $page->getId())->consume()->isAccepted()) {
             throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
         }
         if ($this->userRateLimiter instanceof RateLimiterFactory
@@ -387,9 +414,9 @@ final readonly class WikiCollabService
     /**
      * @return array{0: int, 1: string, 2: array<string, mixed>}
      */
-    private function payload(Request $request, WikiPage $page, UserInterface $user, int $maxBytes): array
+    private function payload(Request $request, WikiPage $page, UserInterface $user, int $maxBytes, string $kind = 'other'): array
     {
-        $this->limit($page, $user);
+        $this->limit($page, $user, $kind);
         $body   = $this->json($request, (int) ($maxBytes * 4 / 3) + 64);
         $client = $body['c'] ?? null;
         $data   = $body['d'] ?? null;

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.14.1] - 2026-11-03](#1141---2026-11-03)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
@@ -64,6 +65,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Revision retention** (D-W6): `wiki:history:thin [--dry-run]` thins revisions older than `history.retention_days`
   (default 30) to the newest one per session and day. Named versions, the current revision and the newest revision
   are never removed; revision numbers are never reused.
+
+## [1.14.1] - 2026-11-03
+
+Collaboration cost: counters on the document row, split limiters
+
+### Fixed
+
+- **Co-editing updates are cheap per keystroke** (Beacon audit, High). The update endpoint used to read the size of the
+  page's whole log twice per request (`SUM(LENGTH(data))` over the LONGTEXT rows) around the insert. Now:
+  - The document row keeps `update_count`, `log_bytes`, `last_seq` and `snapshot_seq`, written in the same transaction
+    as each insert, compaction and reset.
+  - The caps and the append are one locked write (`WikiCollabCountingStoreInterface::appendWithin()`: three
+    statements).
+  - The Mercure relay goes out after the commit.
+  - A host store without the new interface keeps working as before.
+  - A log reset runs in one transaction that locks the document row first, in the same order as an append or a
+    compaction (audit DQ-L1): an append can no longer land between the delete and the counter reset, and the two
+    cannot deadlock.
+- **Separate budgets for updates and presence.** `collaboration.update_rate_limiter` and
+  `collaboration.awareness_rate_limiter` (e.g. `limiter.wiki_collab_update` / `limiter.wiki_collab_awareness`).
+  Without them, `rate_limiter` keeps limiting every request.
 
 ## [1.14.0] - 2026-11-03
 
@@ -751,7 +773,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.14.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.14.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
