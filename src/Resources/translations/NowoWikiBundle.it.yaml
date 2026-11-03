@@ -3,6 +3,8 @@ wiki:
     reset: "Reimposta la collaborazione"
     reset_confirm_title: "Reimpostare la sessione condivisa?"
     reset_confirm_message: "Chi modifica questa pagina la ricarica dall'ultima versione salvata; le modifiche non salvate della sessione condivisa vanno perse."
+    reset_capped: "La sessione condivisa è stata reimpostata troppe volte negli ultimi minuti: ora non è stata reimpostata. Riprova più tardi o salva la pagina."
+    rate_limited: "Troppe richieste: la sessione condivisa non è stata reimpostata. Riprova tra un momento."
   title: Wiki
   back_dashboard: Torna alla dashboard
   index:

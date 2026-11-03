@@ -116,11 +116,13 @@ nowo_milkdown_editor:
 | `collaboration.corrupt_resets` / `corrupt_window` | 3 / 600 | Resets clients may trigger by reporting a log they cannot apply, per page and window (seconds) |
 | `collaboration.reset_after_idle` | 300 | Idle seconds after which a log not matching the current revision is dropped |
 | `collaboration.rate_limiter` | null | **Required** with `enabled`: service id of a `RateLimiterFactory` per user and page, applied to every request (token, state, update, awareness, compact) |
+| `collaboration.user_rate_limiter` | null | 1.13.1 (CW-I9): service id of a `RateLimiterFactory` per **user** across all pages (optional, on top of `rate_limiter`) |
+| `collaboration.show_names` | `false` | 1.13.1 (CW-I2): co-editors see display names instead of "Editor xxxx" (never an identifier or e-mail-shaped value) |
 | `collaboration.store` / `publisher` / `subscriber_authorizer` | null | Your services instead of the Doctrine store and the Mercure defaults |
 | `collaboration.mercure_hub` | null | Mercure hub name of the defaults |
 | `routes.page_collab` | `…/pages/{pageSlug}/collab/{action}` | The collaboration endpoints (`action`: token, state, update, awareness, compact, corrupt, reset) |
 
-Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates` (see [UPGRADING](UPGRADING.md#unreleased)).
+Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates`, part of the generated schema only while `collaboration.enabled` is true (1.13.1; see [UPGRADING](UPGRADING.md#to-1131)).
 
 ## Sanitizer allowlist (1.11)
 

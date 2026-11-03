@@ -11,6 +11,8 @@ use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
+use function count;
+
 /**
  * Default space checker: the 1.x behaviour (the user-level {@see WikiAccessCheckerInterface} decision plus
  * membership of the space through {@see WikiSpaceAccessResolverInterface}), so applications that configure no space
@@ -18,11 +20,15 @@ use Symfony\Contracts\Service\ResetInterface;
  *
  * 1.13 (audit CV-L1): the spaces of a user are read once per request — a page with many links to one space asks
  * {@see WikiSpaceAccessResolverInterface::listSpacesForUser()} once, not once per link. The memo is keyed by user
- * identifier and cleared by {@see self::reset()} (`kernel.reset`), so a FrankenPHP worker never carries it over.
+ * object and identifier, bounded, and cleared by {@see self::reset()} (`kernel.reset`), so a FrankenPHP worker never
+ * carries it over. Call {@see self::reset()} after changing memberships inside one request or in a long-running loop.
  */
 final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterface, ResetInterface
 {
-    /** @var array<string, array<string, true>> user identifier => ids of the spaces the user belongs to (this request) */
+    /** Users memoised at most (the memo is emptied beyond it). */
+    public const MAX_MEMO = 64;
+
+    /** @var array<string, array<string, true>> user object + identifier => ids of the spaces the user belongs to (this request) */
     private array $memberships = [];
 
     /**
@@ -76,8 +82,13 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
     /** The 1.x membership rule: the space is one of the user's spaces. */
     private function isMember(UserInterface $user, WikiSpace $space): bool
     {
-        $key = $user->getUserIdentifier();
+        // 1.13.1 (CV-I9): one entry per user object (two providers may return different users with one identifier), and
+        // a bounded memo so a long-running process that never resets keeps at most MAX_MEMO users.
+        $key = spl_object_id($user) . '|' . $user->getUserIdentifier();
         if (!isset($this->memberships[$key])) {
+            if (count($this->memberships) >= self::MAX_MEMO) {
+                $this->memberships = [];
+            }
             $ids = [];
             foreach ($this->spaceAccessResolver->listSpacesForUser($user) as $accessible) {
                 $ids[$accessible->getId()] = true;

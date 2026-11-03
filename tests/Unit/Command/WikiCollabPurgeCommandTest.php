@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Command;
 
 use DateTimeImmutable;
+use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Command\WikiCollabPurgeCommand;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use PHPUnit\Framework\TestCase;
@@ -28,6 +31,32 @@ final class WikiCollabPurgeCommandTest extends TestCase
 
         self::assertSame(Command::FAILURE, $tester->execute(['--older-than' => 'week']));
         self::assertStringContainsString('whole number of days', $tester->getDisplay());
+        self::assertSame(Command::FAILURE, $tester->execute(['--older-than' => '0']), 'CW-I10: never a log in use');
+        self::assertStringContainsString('at least 1', $tester->getDisplay());
+    }
+
+    public function testPurgesThroughTheServiceSoLiveEditorsReload(): void
+    {
+        $store = new InMemoryCollabStateStore();
+        $store->append('idle', 'AQ==');
+        $store->pages['idle']['updated'] = new DateTimeImmutable('-30 days');
+        $published                       = [];
+        $publisher                       = new class($published) implements WikiCollabPublisherInterface {
+            /** @param list<string> $published */
+            public function __construct(private array &$published)
+            {
+            }
+
+            public function publish(string $topic, string $message): void
+            {
+                $this->published[] = $topic;
+            }
+        };
+        $service = new WikiCollabService($store, $publisher, $this->createMock(WikiCollabSubscriberAuthorizerInterface::class), ['topic_prefix' => 't:']);
+        $tester  = new CommandTester(new WikiCollabPurgeCommand($store, $service));
+
+        self::assertSame(Command::SUCCESS, $tester->execute([]));
+        self::assertSame(['t:idle'], $published);
     }
 
     public function testNothingToDoWithoutCollaboration(): void

@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Integration;
 
 use DateTimeImmutable;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 use function extension_loaded;
 
@@ -138,6 +140,18 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertSame(2, $this->store->purge(new DateTimeImmutable('+1 minute')));
         self::assertTrue($this->store->info('old')->isEmpty());
         self::assertNull($this->store->info('new')->updatedAt);
+    }
+
+    public function testThePurgeRollsBackOnFailure(): void
+    {
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::once())->method('beginTransaction');
+        $em->method('createQueryBuilder')->willThrowException(new RuntimeException('db down'));
+        $em->expects(self::once())->method('rollback');
+        $em->expects(self::never())->method('commit');
+
+        $this->expectException(RuntimeException::class);
+        (new DoctrineWikiCollabStateStore($em))->purgePages(new DateTimeImmutable());
     }
 
     public function testWorksThroughTheEntityManagerProvider(): void

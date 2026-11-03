@@ -3,8 +3,8 @@
   header wiki.page.new or wiki.page.edit_title (intro = space name) with a back link; form = WikiPageFormType (title +
   Tiptap content with the editor help; CSRF token wiki_new_<space id> / wiki_edit_<page id>); Save; Cancel back to the
   page or the space).
-  Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the TiptapEditorBundle script, with
-  the request attribute csp_nonce when set); nowo_ui_form_body keeps the default REQ-TWIG-003 child loop.
+  Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the TiptapEditorBundle script when editor_type is tiptap,
+  with the request attribute csp_nonce when set); nowo_ui_form_body keeps the default REQ-TWIG-003 child loop.
 #}
 {% extends '@NowoUiKit/page/form.html.twig' %}
 
@@ -15,6 +15,9 @@
 
 {% block nowo_ui_scripts %}
     {{ parent() }}
-    {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
-    <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+    {# 1.13.1: the Tiptap script only for the Tiptap editor (the Milkdown widget adds its own module; Markdown needs none). #}
+    {% if editor_type|default('tiptap') == 'tiptap' %}
+        {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+        <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+    {% endif %}
 {% endblock %}

@@ -3,6 +3,8 @@ wiki:
     reset: "Reset collaboration"
     reset_confirm_title: "Reset the shared session?"
     reset_confirm_message: "Everyone editing this page reloads it from the last saved version; unsaved changes in the shared session are lost."
+    reset_capped: "The shared session was reset too often in the last minutes: it was not reset now. Try again later, or save the page."
+    rate_limited: "Too many requests: the shared session was not reset. Try again in a moment."
   title: Wiki
   back_dashboard: Back to dashboard
   index:

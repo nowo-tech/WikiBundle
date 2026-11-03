@@ -77,17 +77,36 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't');
         $other    = new WikiSpace('hr', 'HR', WikiSpaceOwnerScope::Team, 't');
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
-        $resolver->expects(self::exactly(3))->method('listSpacesForUser')->willReturn([$space]);
+        $resolver->expects(self::exactly(4))->method('listSpacesForUser')->willReturn([$space]);
         $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver);
+        $ana     = new TestUser('u1', 'ana@x.test');
 
         for ($i = 0; $i < 500; ++$i) {
-            self::assertTrue($checker->isGranted(new TestUser('u1', 'ana@x.test'), WikiAction::View, $space));
+            self::assertTrue($checker->isGranted($ana, WikiAction::View, $space));
         }
 
-        self::assertFalse($checker->isGranted(new TestUser('u1', 'ana@x.test'), WikiAction::View, $other));
-        self::assertTrue($checker->isGranted(new TestUser('u2', 'bob@x.test'), WikiAction::View, $space), 'another user is read on its own');
+        self::assertFalse($checker->isGranted($ana, WikiAction::View, $other));
+        $bob = new TestUser('u2', 'bob@x.test');
+        self::assertTrue($checker->isGranted($bob, WikiAction::View, $space), 'another user is read on its own');
+        $twin = new TestUser('u1', 'ana@x.test');
+        self::assertTrue($checker->isGranted($twin, WikiAction::View, $space), 'CV-I9: another user object with the same identifier is read on its own');
 
         $checker->reset();
-        self::assertTrue($checker->isGranted(new TestUser('u1', 'ana@x.test'), WikiAction::View, $space), 'read again after kernel.reset');
+        self::assertTrue($checker->isGranted($ana, WikiAction::View, $space), 'read again after kernel.reset');
+    }
+
+    public function testTheMemoIsBounded(): void
+    {
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't');
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->expects(self::exactly(LegacyWikiSpaceAccessChecker::MAX_MEMO + 2))->method('listSpacesForUser')->willReturn([$space]);
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver);
+        $users   = [];
+        for ($i = 0; $i <= LegacyWikiSpaceAccessChecker::MAX_MEMO; ++$i) {
+            $users[] = new TestUser('u' . $i, 'u' . $i . '@x.test');
+            self::assertTrue($checker->isGranted($users[$i], WikiAction::View, $space));
+        }
+
+        self::assertTrue($checker->isGranted($users[0], WikiAction::View, $space), 'emptied past MAX_MEMO: read again');
     }
 }

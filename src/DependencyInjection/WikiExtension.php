@@ -266,7 +266,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$attachmentsTableName', $prefix . '_attachments')
             ->setArgument('$collabDocumentsTableName', $prefix . '_page_collab_documents')
             ->setArgument('$collabUpdatesTableName', $prefix . '_page_collab_updates')
-            ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata']));
+            ->setArgument('$collaborationEnabled', $config['collaboration']['enabled'] === true)
+            ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
+            ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
         $container->setDefinition(WikiSpaceAccessResolver::class, (new Definition(WikiSpaceAccessResolver::class))
             ->setAutowired(true)
@@ -412,7 +414,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$publisher', new Reference($publisher))
             ->setArgument('$authorizer', new Reference($authorizer))
             ->setArgument('$options', array_intersect_key($collab, WikiCollabService::DEFAULTS))
-            ->setArgument('$rateLimiter', new Reference((string) $collab['rate_limiter'])));
+            ->setArgument('$rateLimiter', new Reference((string) $collab['rate_limiter']))
+            ->setArgument('$userRateLimiter', is_string($collab['user_rate_limiter']) && $collab['user_rate_limiter'] !== '' ? new Reference($collab['user_rate_limiter']) : null));
         $container->setDefinition(WikiCollabSaveListener::class, (new Definition(WikiCollabSaveListener::class))
             ->setArgument('$collab', new Reference(WikiCollabService::class))
             ->setArgument('$requestStack', new Reference('request_stack', ContainerInterface::NULL_ON_INVALID_REFERENCE))

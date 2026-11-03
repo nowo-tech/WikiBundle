@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Support;
 
 use DateTimeImmutable;
+use Nowo\WikiBundle\Collaboration\WikiCollabPagePurgeInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
 
@@ -15,7 +16,7 @@ use function strlen;
 /**
  * In-memory Yjs log store for unit tests (counts the data reads in {@see self::$loads}).
  */
-class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
+class InMemoryCollabStateStore implements WikiCollabStateStoreInterface, WikiCollabPagePurgeInterface
 {
     /** @var array<string, array{snapshot: string|null, covers: int, updates: array<int, string>, base: string|null, seededAt: DateTimeImmutable|null, seededBy: string|null, updated: DateTimeImmutable|null}> */
     public array $pages = [];
@@ -73,11 +74,16 @@ class InMemoryCollabStateStore implements WikiCollabStateStoreInterface
 
     public function purge(DateTimeImmutable $before): int
     {
-        $purged = 0;
+        return count($this->purgePages($before));
+    }
+
+    public function purgePages(DateTimeImmutable $before): array
+    {
+        $purged = [];
         foreach ($this->pages as $id => $page) {
             if ($page['updated'] instanceof DateTimeImmutable && $page['updated'] < $before) {
                 unset($this->pages[$id]);
-                ++$purged;
+                $purged[] = (string) $id;
             }
         }
 

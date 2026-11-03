@@ -17,6 +17,7 @@ task ids (T0xx) refer to symfony-beacon `specs/178-wiki/tasks.md`.
 - [Notion / Outline parity matrix](#notion--outline-parity-matrix)
   - [Parity summary](#parity-summary)
 - [Milestones](#milestones)
+  - [Progress](#progress)
 - [Plans](#plans)
   - [Page tree sidebar (T062, T049)](#page-tree-sidebar-t062-t049)
   - [Structure: collections, icons, covers, emoji titles, tags](#structure-collections-icons-covers-emoji-titles-tags)
@@ -136,6 +137,15 @@ different code (for example 1.15 and 1.16). Version numbers give the order, not 
 Editor releases each milestone depends on: 1.14 → Milkdown 1.3 (heading anchors for *Copy link*); 1.15 → Milkdown 1.4
 (version view, optional); 1.16 → Milkdown 1.4 (comment anchors); 1.17 → Milkdown 1.5 (template picker, variable
 chips); 1.19 → Milkdown 1.6 (database block).
+
+### Progress
+
+Ticked when the PR is open and green. Defaults taken for open decisions are marked *default pending user
+confirmation*.
+
+- [x] 1.13.1 audit residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9 (CV-I5 stays in 1.14) and the Beacon adoption fixes
+  (Tiptap script only for `editor.type: tiptap`, no collaboration tables without co-editing, opaque co-editor names
+  by default) — PR (fix/audit-residuals-1.13.1)
 
 ## Plans
 

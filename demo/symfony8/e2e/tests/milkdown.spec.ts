@@ -28,6 +28,8 @@ test.describe('Milkdown wiki pages', () => {
     await page.goto(`${showcase}/edit`);
     const editor = page.locator('.nowo-milkdown .ProseMirror[contenteditable="true"]').first();
     await expect(editor).toBeVisible();
+    // 1.13.1: a Milkdown page does not load the TiptapEditorBundle script.
+    await expect(page.locator('script[src*="tiptap-editor.js"]')).toHaveCount(0);
     await editor.locator('p', { hasText: 'Start at' }).first().click();
     await page.keyboard.press('End');
     await page.keyboard.press('Enter');

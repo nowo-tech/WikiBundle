@@ -15,6 +15,7 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function base64_decode;
+use function count;
 use function hash;
 use function is_array;
 use function is_int;
@@ -77,9 +78,10 @@ final readonly class WikiCollabService
         'reset_after_idle'   => 300,
         'corrupt_resets'     => 3,
         'corrupt_window'     => 600,
+        'show_names'         => false,
     ];
 
-    /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int} */
+    /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool} */
     private array $options;
 
     /**
@@ -88,6 +90,7 @@ final readonly class WikiCollabService
      * @param WikiCollabSubscriberAuthorizerInterface $authorizer lets the browser subscribe to the page topic
      * @param array<string, mixed> $options `nowo_wiki.collaboration` options (see {@see self::DEFAULTS})
      * @param RateLimiterFactory|null $rateLimiter limits every request per user and page (required by the configuration)
+     * @param RateLimiterFactory|null $userRateLimiter limits every request per user across pages (1.13.1, CW-I9; optional)
      */
     public function __construct(
         private WikiCollabStateStoreInterface $store,
@@ -95,8 +98,9 @@ final readonly class WikiCollabService
         private WikiCollabSubscriberAuthorizerInterface $authorizer,
         array $options = [],
         private ?RateLimiterFactory $rateLimiter = null,
+        private ?RateLimiterFactory $userRateLimiter = null,
     ) {
-        /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int} $merged */
+        /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool} $merged */
         $merged        = $options + self::DEFAULTS;
         $this->options = $merged;
     }
@@ -320,6 +324,26 @@ final readonly class WikiCollabService
     }
 
     /**
+     * Drops the logs of pages untouched since `$before` and tells their live editors (if any) to reload, so a tab still
+     * open on a purged page does not keep a document the server no longer has (1.13.1, CW-I10). Stores without
+     * {@see WikiCollabPagePurgeInterface} are purged without the broadcast.
+     *
+     * @return int number of purged page logs
+     */
+    public function purge(DateTimeImmutable $before): int
+    {
+        if (!$this->store instanceof WikiCollabPagePurgeInterface) {
+            return $this->store->purge($before);
+        }
+        $pages = $this->store->purgePages($before);
+        foreach ($pages as $pageId) {
+            $this->publisher->publish($this->options['topic_prefix'] . $pageId, json_encode(['t' => 'r', 'c' => 0, 'd' => ''], JSON_THROW_ON_ERROR));
+        }
+
+        return count($pages);
+    }
+
+    /**
      * @throws WikiCollabException over `corrupt_resets` client / editor resets of the page per `corrupt_window`
      */
     private function capReset(WikiPage $page): void
@@ -342,6 +366,10 @@ final readonly class WikiCollabService
     {
         if ($this->rateLimiter instanceof RateLimiterFactory
             && !$this->rateLimiter->create($user->getUserIdentifier() . '|' . $page->getId())->consume()->isAccepted()) {
+            throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
+        }
+        if ($this->userRateLimiter instanceof RateLimiterFactory
+            && !$this->userRateLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
             throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
         }
     }
@@ -414,13 +442,26 @@ final readonly class WikiCollabService
         return new DateTimeImmutable(sprintf('-%d seconds', $this->options['seed_timeout']));
     }
 
+    /**
+     * The name co-editors see (1.13.1): an opaque "Editor xxxx" unless `show_names` is on; even then never a value that
+     * is the login identifier or looks like an e-mail address (CW-I2).
+     */
     private function displayName(UserInterface $user): ?string
     {
+        if (!$this->options['show_names']) {
+            return null;
+        }
         foreach (['getDisplayName', 'getName'] as $method) {
             $name = method_exists($user, $method) ? $user->{$method}() : null;
-            if (is_string($name) && trim($name) !== '') {
-                return trim($name);
+            if (!is_string($name) || trim($name) === '') {
+                continue;
             }
+            $name = trim($name);
+            if (strcasecmp($name, $user->getUserIdentifier()) === 0 || preg_match('/\S@\S+\.\S/', $name) === 1) {
+                return null;
+            }
+
+            return $name;
         }
 
         return null;

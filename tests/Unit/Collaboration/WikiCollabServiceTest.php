@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
+use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -71,14 +72,35 @@ final class WikiCollabServiceTest extends TestCase
                 return ' Ana Lopez ';
             }
         };
-        self::assertSame('Ana Lopez', $service->editorOptions($this->page, $named, '/c')['user']['name']);
+        self::assertMatchesRegularExpression('/^Editor [0-9a-f]{4}$/', $service->editorOptions($this->page, $named, '/c')['user']['name'], '1.13.1: names only with show_names');
+        $shown = $this->service(['show_names' => true]);
+        self::assertSame('Ana Lopez', $shown->editorOptions($this->page, $named, '/c')['user']['name']);
+        $email = new class extends TestUserBase {
+            public function getDisplayName(): string
+            {
+                return 'ana.lopez@corp.example';
+            }
+        };
+        self::assertMatchesRegularExpression('/^Editor [0-9a-f]{4}$/', $shown->editorOptions($this->page, $email, '/c')['user']['name'], 'CW-I2: never an e-mail');
+        $login = new class extends TestUserBase {
+            public function getName(): string
+            {
+                return 'U1';
+            }
+
+            public function getUserIdentifier(): string
+            {
+                return 'u1';
+            }
+        };
+        self::assertMatchesRegularExpression('/^Editor [0-9a-f]{4}$/', $shown->editorOptions($this->page, $login, '/c')['user']['name'], 'CW-I2: never the identifier');
         $blank = new class extends TestUserBase {
             public function getName(): string
             {
                 return ' ';
             }
         };
-        self::assertStringStartsWith('Editor ', $service->editorOptions($this->page, $blank, '/c')['user']['name']);
+        self::assertStringStartsWith('Editor ', $shown->editorOptions($this->page, $blank, '/c')['user']['name']);
     }
 
     public function testTheTokenClaimsTheSeedAndTheStateOnlyReads(): void
@@ -402,10 +424,46 @@ final class WikiCollabServiceTest extends TestCase
         }
     }
 
+    public function testRequestsAreAlsoLimitedPerUserAcrossPages(): void
+    {
+        $perUser = new RateLimiterFactory(['id' => 'wiki_collab_user', 'policy' => 'fixed_window', 'limit' => 2, 'interval' => '1 minute'], new InMemoryStorage());
+        $service = $this->service([], null, $perUser);
+        $other   = new WikiPage(new WikiSpace('ops', 'Ops', WikiSpaceOwnerScope::Team, 't'), 'q', 'Q');
+        $service->state($this->page, $this->user);
+        $service->state($other, $this->user);
+        $service->state($other, new TestUser('u2', 'bob@x.test'));
+
+        try {
+            $service->state($this->page, $this->user);
+            self::fail('CW-I9: not limited across pages');
+        } catch (WikiCollabException $exception) {
+            self::assertSame([429, 'rate_limited'], [$exception->status, $exception->reason]);
+        }
+    }
+
+    public function testThePurgeTellsLiveEditorsToReload(): void
+    {
+        $this->store->append('idle', 'AQ==');
+        $this->store->pages['idle']['updated'] = new DateTimeImmutable('-30 days');
+        $this->store->append('live', 'AQ==');
+        $service = $this->service(['topic_prefix' => 't:']);
+
+        self::assertSame(1, $service->purge(new DateTimeImmutable('-7 days')));
+        self::assertSame([['t:idle', '{"t":"r","c":0,"d":""}']], $this->published);
+        self::assertArrayHasKey('live', $this->store->pages);
+
+        $plain = $this->createMock(WikiCollabStateStoreInterface::class);
+        $plain->expects(self::once())->method('purge')->willReturn(2);
+        $publisher = $this->createMock(WikiCollabPublisherInterface::class);
+        $publisher->expects(self::never())->method('publish');
+        $authorizer = $this->createMock(WikiCollabSubscriberAuthorizerInterface::class);
+        self::assertSame(2, (new WikiCollabService($plain, $publisher, $authorizer))->purge(new DateTimeImmutable()));
+    }
+
     /**
      * @param array<string, mixed> $options
      */
-    private function service(array $options = [], ?RateLimiterFactory $limiter = null): WikiCollabService
+    private function service(array $options = [], ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $userLimiter = null): WikiCollabService
     {
         $publisher = new class($this->published) implements WikiCollabPublisherInterface {
             /** @param list<array{0: string, 1: string}> $published */
@@ -430,7 +488,7 @@ final class WikiCollabServiceTest extends TestCase
             }
         };
 
-        return new WikiCollabService($this->store, $publisher, $authorizer, $options, $limiter);
+        return new WikiCollabService($this->store, $publisher, $authorizer, $options, $limiter, $userLimiter);
     }
 
     /**

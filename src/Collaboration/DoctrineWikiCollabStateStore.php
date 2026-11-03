@@ -25,7 +25,7 @@ use function max;
  * Appends are single inserts, the seed claim is a conditional update (one winner), compaction inserts the snapshot
  * before deleting what it covers — no read-modify-write, so concurrent requests never lose an update.
  */
-final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStoreInterface
+final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStoreInterface, WikiCollabPagePurgeInterface
 {
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki entity manager (or its provider)
@@ -163,21 +163,39 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
 
     public function purge(DateTimeImmutable $before): int
     {
+        return count($this->purgePages($before));
+    }
+
+    /**
+     * Selects the stale documents with a write lock inside a transaction (1.13.1, CW-I10): an append or a compaction
+     * that touches one of them waits for the purge, and a document touched before the lock is no longer selected.
+     *
+     * @return list<string>
+     */
+    public function purgePages(DateTimeImmutable $before): array
+    {
         $em = $this->em();
-        /** @var list<string> $pages */
-        $pages = $em->createQueryBuilder()
-            ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
-            ->where('d.updatedAt < :before')
-            ->setParameter('before', $before, Types::DATETIME_IMMUTABLE)
-            ->getQuery()->getSingleColumnResult();
-        if ($pages === []) {
-            return 0;
+
+        $em->beginTransaction();
+        try {
+            /** @var list<string> $pages */
+            $pages = $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.updatedAt < :before')
+                ->setParameter('before', $before, Types::DATETIME_IMMUTABLE)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getSingleColumnResult();
+            if ($pages !== []) {
+                $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')->where('u.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
+                $em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
+            }
+            $em->commit();
+        } catch (Throwable $e) {
+            $em->rollback();
+
+            throw $e;
         }
 
-        $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')->where('u.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
-        $em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId IN (:pages)')->setParameter('pages', $pages)->getQuery()->execute();
-
-        return count($pages);
+        return $pages;
     }
 
     public function claimSeed(string $pageId, DateTimeImmutable $staleBefore, string $claimant): bool

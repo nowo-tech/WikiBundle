@@ -45,6 +45,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Patch for hosts adopting 1.13 (Beacon requests) and the audit Info residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9. See
+[UPGRADING](UPGRADING.md#to-1131).
+
+### Fixed
+
+- **No schema diff without co-editing:** the collaboration tables are left out of the generated schema
+  (`postGenerateSchema`) while `collaboration.enabled` is false.
+- **Edit page loads the Tiptap script only for `editor.type: tiptap`** (Milkdown and Markdown pages no longer load it).
+- **`wiki:collab:purge`** refuses `--older-than 0`, selects stale logs under a row lock inside a transaction and tells
+  the live editors of purged pages to reload (CW-I10; `WikiCollabPagePurgeInterface`, `WikiCollabService::purge()`).
+- **Capped manual reset** shows a flash message instead of failing silently (CW-I7; `wiki.collab.reset_capped`,
+  `wiki.collab.rate_limited` in 7 locales).
+- **Membership memo** keyed by user object + identifier and bounded to 64 users (CV-I9).
+
+### Changed
+
+- **Co-editor names are opaque by default** ("Editor xxxx"); `collaboration.show_names: true` shows display names,
+  never one equal to the login identifier or shaped like an e-mail address (CW-I2).
+
+### Added
+
+- `collaboration.user_rate_limiter`: optional budget per user across all pages (CW-I9).
+- Documentation: never put `mercure` keys in the hub's default JWT claims (CW-I12).
+
 ### Documentation
 
 - `docs/ROADMAP.md`: knowledge-base roadmap towards Notion / Outline parity (page tree, trash, version history,

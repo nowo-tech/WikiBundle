@@ -386,7 +386,7 @@ Every request checks a firewall-trusted user, `canEdit()` and `WikiAction::View`
 
 **Footprint and purge:** per page the log holds at most `max_log_entries` updates (each ≤ `max_update_bytes` decoded) and `max_log_bytes` in total (default 16 MiB), plus one snapshot (≤ `max_snapshot_bytes`); one editor typing produces small updates (tens of bytes each), presence is never stored. Logs of idle pages are deleted by `bin/console wiki:collab:purge --older-than=7` (days; schedule it daily) — nothing is lost, the next editor seeds a new log from the saved Markdown.
 
-As a safety net, a log whose base revision is not the current one is dropped on the next token when it is empty or idle for `reset_after_idle` seconds. **Names:** co-editors see each other's display name (`getDisplayName()` / `getName()` of your user class) or an opaque "Editor xxxx" label — never the login or e-mail.
+As a safety net, a log whose base revision is not the current one is dropped on the next token when it is empty or idle for `reset_after_idle` seconds. **Names:** co-editors see an opaque "Editor xxxx" label by default (1.13.1). Set `collaboration.show_names: true` to show each other's display name (`getDisplayName()` / `getName()` of your user class); a value equal to the login identifier or shaped like an e-mail address still falls back to the opaque label.
 
 Your own endpoints (e.g. Beacon routes) can call `WikiCollabService` directly — check the edit permission first, as `WikiCollabController` does. Replace the storage, the publisher or the cookie with `collaboration.store`, `publisher`, `subscriber_authorizer` (`WikiCollabStateStoreInterface`, `WikiCollabPublisherInterface`, `WikiCollabSubscriberAuthorizerInterface`).
 

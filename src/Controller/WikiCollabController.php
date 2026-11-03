@@ -22,6 +22,7 @@ use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Translation\TranslatableMessage;
 
 /**
  * Collaboration endpoints of a page (1.13, Milkdown on Mercure, FR-076): `POST token`, `GET state`, `POST update`,
@@ -115,8 +116,9 @@ final class WikiCollabController extends AbstractController
 
         try {
             $this->collab?->reset($page, $this->requireUser());
-        } catch (WikiCollabException) {
-            // Rate-limited or capped (CW-L3): nothing is reset, back to the editor.
+        } catch (WikiCollabException $e) {
+            // Rate-limited or capped (CW-L3): nothing is reset; say so instead of failing silently (1.13.1, CW-I7).
+            $this->addFlash('warning', new TranslatableMessage($e->reason === 'reset_capped' ? 'wiki.collab.reset_capped' : 'wiki.collab.rate_limited', [], 'NowoWikiBundle'));
         }
 
         $edit = $this->routes['page_edit']['name'] ?? null;

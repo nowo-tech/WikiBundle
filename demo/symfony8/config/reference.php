@@ -1386,6 +1386,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         corrupt_resets?: int|Param, // Resets a client may trigger by reporting a log it cannot apply, per page and corrupt_window. // Default: 3
  *         corrupt_window?: int|Param, // Window of corrupt_resets, in seconds. // Default: 600
  *         rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user and page to every collaboration request (token, state, update, awareness, compact). Required when collaboration is enabled. // Default: null
+ *         user_rate_limiter?: scalar|Param|null, // 1.13.1 (CW-I9): service id of a Symfony RateLimiterFactory applied per user across all pages to every collaboration request (null: none). // Default: null
+ *         show_names?: bool|Param, // 1.13.1 (CW-I2): co-editors see each other's display name (getDisplayName() / getName()) instead of an opaque "Editor xxxx". Values that equal the login identifier or look like an e-mail address are never shown. // Default: false
  *         store?: scalar|Param|null, // Service id of a WikiCollabStateStoreInterface (null: the Doctrine store, tables <prefix>_page_collab_*). // Default: null
  *         publisher?: scalar|Param|null, // Service id of a WikiCollabPublisherInterface (null: symfony/mercure HubInterface). // Default: null
  *         subscriber_authorizer?: scalar|Param|null, // Service id of a WikiCollabSubscriberAuthorizerInterface (null: symfony/mercure Authorization cookie). // Default: null

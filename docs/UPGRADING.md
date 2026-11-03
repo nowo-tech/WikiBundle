@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.13.1](#to-1131)
 - [To 1.13.0](#to-1130)
 - [To 1.12.0](#to-1120)
 - [To 1.11.1](#to-1111)
@@ -50,6 +51,27 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.13.1
+
+From **1.13.0**: `composer update nowo-tech/wiki-bundle`. Changes to check:
+
+- **No collaboration tables without co-editing.** With `collaboration.enabled: false` (the default) the
+  `<prefix>_page_collab_documents` / `_updates` tables are no longer part of the generated schema, so
+  `doctrine:migrations:diff` / `schema:update` stop asking for them. If you already created them and do not use
+  co-editing, your next diff drops them (they hold only transient Yjs logs). Hosts with co-editing see no change.
+- **Co-editor names are opaque by default.** Co-editors now see "Editor xxxx" unless you set
+  `nowo_wiki.collaboration.show_names: true` (the 1.13.0 behaviour); even then a display name equal to the login
+  identifier or shaped like an e-mail address is replaced by the opaque label (CW-I2).
+- **`wiki:collab:purge --older-than`** must be at least `1`; purged pages broadcast a reset so open editors reload
+  (CW-I10). Custom stores may implement `WikiCollabPagePurgeInterface` to get that broadcast.
+- **Optional per-user limiter:** `collaboration.user_rate_limiter` (CW-I9), e.g.
+  `framework.rate_limiter.wiki_collab_user: {policy: sliding_window, limit: 1200, interval: '1 minute'}` →
+  `user_rate_limiter: limiter.wiki_collab_user`.
+- **Edit page scripts:** `manage/page_edit.html.twig` loads the TiptapEditorBundle script only with
+  `editor.type: tiptap`. If you overrode `nowo_ui_scripts` to remove it for Milkdown, you can drop the override.
+- **Mercure default claims (CW-I12):** never put `mercure` or `authorization_details` keys in the hub's default JWT
+  claims — symfony/mercure merges them into the wiki subscriber cookie.
 
 ## To 1.13.0
 
