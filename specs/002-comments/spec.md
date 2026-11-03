@@ -2,7 +2,7 @@
 
 **Feature Branch**: `002-comments`  
 **Created**: 2026-11-03  
-**Status**: Draft (built after 1.15; the Beacon contract is reviewed before the PR)  
+**Status**: Draft (built after 1.15; Beacon contract v1.1 OK'd on 2026-11-03)  
 **Input**: Owner request via Beacon: page comments and Milkdown 1.6 inline threads in a right-side panel, toggled from
 the page tabs on the read and edit views.
 
@@ -65,25 +65,32 @@ exports, AI context and search for users without the view right; trashed pages t
 
 ## Requirements
 
-- **FR-COMMENT-001** (`comments.enabled`, opt-in, literal boolean): without it no tab row, toggle, panel, route or
-  table; 1.15 output byte-identical. Requires Milkdown ≥ 1.6 and `editor.type: milkdown` (container error otherwise).
+- **FR-COMMENT-001** (`comments.enabled`, opt-in, literal boolean): without it no toggle, panel, route or table.
+  The page tab row (FR-COMMENT-002) is present in every case (Beacon B-Q1), the one default change of 1.16. Requires Milkdown ≥ 1.6 and `editor.type: milkdown` (container error otherwise).
 - **FR-COMMENT-002** Page tabs: `PageHeader::tabs` (`AreaNav`, secondary level) with Page / Edit / History per
-  permission, current view active; the toggle is a `button` with `aria-controls` / `aria-expanded`, accessible name
-  "Comments (n)" (n = open threads the viewer may read; resolved excluded).
-- **FR-COMMENT-003** Panel: `<aside>` named by its heading, UiKit side panel markup and theme slots; ≥ 768 px a right
-  column, ≤ 767 px a full-height drawer with the rest inert; focus management, Escape, polite live region; works
+  permission, current view active, always rendered. The comments toggle (only with `comments.enabled` and
+  `ViewComments`) is the UiKit side-panel toggle as an icon button (`tabler:message-circle`) with `aria-controls` /
+  `aria-expanded` and a visible count badge that is also part of the accessible name (n = open threads the viewer may
+  read; resolved excluded). No default shortcut; `comments.shortcut` sets one (`aria-keyshortcuts`).
+- **FR-COMMENT-003** Panel: the UiKit ≥ 2.25 side panel (an interim WikiBundle partial with the same classes until
+  then): `<aside>` named by its heading; ≥ 768 px an inline right column (no focus trap), ≤ 767 px an overlay
+  full-height drawer; focus in on open and back to the toggle on close, Escape closes, polite live region; works
   without JavaScript through `?comments=1` (page-level comments by plain forms).
-- **FR-COMMENT-004** State: `WikiPanelStateStoreInterface` (session default, `comments.state_store`), same-origin JSON
-  state endpoint with a CSRF token per space.
-- **FR-COMMENT-005** Rights: `WikiAction::ViewComments`, `Comment`, `ResolveComment`, `ModerateComments`, outside
-  `grants()` and denied by the legacy mapping (default deny); authors edit / delete their own comments with
+- **FR-COMMENT-004** State: `WikiPanelStateStoreInterface` (a stable public contract; the session in v1,
+  `comments.state_store` for a host store such as Beacon's later DB store), same-origin JSON state endpoint with a
+  CSRF token per space.
+- **FR-COMMENT-005** Rights: `WikiAction::ViewComments` (a separate right), `Comment`, `ResolveComment`,
+  `ModerateComments`, outside `grants()` and denied by the legacy mapping (default deny; Beacon maps them to View,
+  Edit, manage, manage); authors edit / delete their own comments with
   `Comment`; the 1.13.2 read rule on every request.
 - **FR-COMMENT-006** Endpoints under `page_comments` as in the Milkdown 1.6 contract 6.1 (v1.2 fields), CSRF per page,
   rate limiter required, body caps; 403 / 404 / 409 / 413 / 422 / 429.
 - **FR-COMMENT-007** Storage: threads, comments, reactions tables (left out of the schema when off), page-owned (trash,
   restore, purge), resolved threads kept until purge (D-W9); author names follow the 1.15 label policy.
 - **FR-COMMENT-008** Integration: the Milkdown 1.6 thread component mounted into the panel (`panel: 'container'`),
-  two-way highlight / thread focus, `comments-count` event drives the badge; live updates by ids on a private
+  two-way highlight / thread focus (opening from a highlight scrolls to the thread and focuses its first control),
+  `comments-count` event drives the badge (others' new comments update it live, announced only while the panel is
+  open); live updates by ids on a private
   Mercure topic per page.
 - **FR-COMMENT-009** Events `nowo_wiki.comment.*` (`WikiCommentEvent`, ids and actors, no bodies) for host
   notifications.
@@ -95,7 +102,8 @@ exports, AI context and search for users without the view right; trashed pages t
   comments, resolve, rights matrix (reader without rights sees nothing), axe light + dark, CSP.
 - Beacon renders the panel with its UiKit theme and no template override (contract OK'd before the PR).
 
-## Open questions (Beacon contract section 9)
+## Beacon decisions (contract section 9, 2026-11-03)
 
-B-Q1 tab row without comments; B-Q2 generic side panel in UiKit ≥ 2.25; B-Q3 `ViewComments` separate or implied;
-B-Q4 state store; B-Q5 toggle details.
+B-Q1 the tab row always exists, the toggle only with comments and `ViewComments`; B-Q2 generic UiKit side panel
+(left / right, inline desktop, overlay drawer ≤ 767 px, no focus trap inline); B-Q3 `ViewComments` separate;
+B-Q4 session store in v1, stable interface; B-Q5 icon toggle with a visible count, configurable shortcut, live badge.
