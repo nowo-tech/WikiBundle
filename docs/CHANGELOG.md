@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.13.1] - 2026-11-03](#1131---2026-11-03)
 - [[1.13.0] - 2026-11-03](#1130---2026-11-03)
 - [[1.12.0] - 2026-10-31](#1120---2026-10-31)
 - [[1.11.1] - 2026-10-30](#1111---2026-10-30)
@@ -44,6 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.13.1] - 2026-11-03
+
+Tiptap assets only for tiptap, no collab tables when collaboration is off, safe co-editor names, purge/append race, audit residuals
 
 Patch for hosts adopting 1.13 (Beacon requests) and the audit Info residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9. See
 [UPGRADING](UPGRADING.md#to-1131).
@@ -658,7 +663,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.13.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.13.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
