@@ -6,12 +6,14 @@ namespace Nowo\WikiBundle\Tests\Support;
 
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Logging\Middleware as LoggingMiddleware;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Events;
 use Doctrine\ORM\ORMSetup;
 use Doctrine\ORM\Tools\SchemaTool;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Psr\Log\LoggerInterface;
 
 use function dirname;
 use function method_exists;
@@ -24,7 +26,7 @@ use const PHP_VERSION_ID;
  */
 final class SqliteWikiEntityManager
 {
-    public static function create(): EntityManager
+    public static function create(?LoggerInterface $sqlLogger = null): EntityManager
     {
         $config = ORMSetup::createAttributeMetadataConfiguration(
             [dirname(__DIR__, 2) . '/src/Entity', __DIR__ . '/../Stub'],
@@ -33,6 +35,11 @@ final class SqliteWikiEntityManager
         );
         if (PHP_VERSION_ID >= 80400 && method_exists($config, 'enableNativeLazyObjects')) {
             $config->enableNativeLazyObjects(true);
+        }
+
+        // 1.14.1: an optional SQL log (statement-count tests).
+        if ($sqlLogger instanceof LoggerInterface) {
+            $config->setMiddlewares([new LoggingMiddleware($sqlLogger)]);
         }
 
         $events = new EventManager();
