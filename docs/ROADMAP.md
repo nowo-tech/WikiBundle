@@ -136,7 +136,8 @@ different code (for example 1.15 and 1.16). Version numbers give the order, not 
 | 2.0 | Cleanup | Drop the TipTap path once hosts moved to Milkdown; remove deprecated options | W | — |
 
 Editor releases each milestone depends on: 1.14 → Milkdown 1.3 (heading anchors for *Copy link*); 1.15 → Milkdown 1.4
-(version view, optional); 1.16 → Milkdown 1.4 (comment anchors); 1.17 → Milkdown 1.5 (template picker, variable
+(version view, optional); 1.16 → Milkdown 1.6 (comment anchors,
+mountable thread component) and UiKit ≥ 2.25 (side panel); 1.17 → Milkdown 1.5 (template picker, variable
 chips); 1.19 → Milkdown 1.6 (database block).
 
 ### Progress
