@@ -145,7 +145,7 @@ confirmation*.
 
 - [x] 1.13.1 audit residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9 (CV-I5 stays in 1.14) and the Beacon adoption fixes
   (Tiptap script only for `editor.type: tiptap`, no collaboration tables without co-editing, opaque co-editor names
-  by default) — PR (fix/audit-residuals-1.13.1)
+  by default) — PR #82
 
 ## Plans
 
