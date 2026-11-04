@@ -78,30 +78,51 @@ MD);
         }
     }
 
-    public function testSkipsTheExportIndexInOutlineAndNotionTrees(): void
+    public function testSkipsOnlyTheRootExportIndexInOutlineAndNotionTrees(): void
     {
         // 1.15.1: re-importing a wiki export must not turn its README.md index into a page (nor, for Notion, into
-        // the parent of every top-level page).
+        // the parent of every top-level page). Audit DV-I1: only <root>/README.md is the index; the marker in any
+        // other file, or in a deeper README.md, is page content.
         $root      = sys_get_temp_dir() . '/wiki-index-' . bin2hex(random_bytes(4));
         $parentDir = $root . '/Parent Page';
         mkdir($parentDir, 0777, true);
         $index = WikiExportIndexWriter::MARKER . "\n\n# Docs\n";
         file_put_contents($root . '/README.md', $index);
         file_put_contents($parentDir . '/Parent Page.md', "# Parent\n");
-        file_put_contents($parentDir . '/README.md', $index);
 
         try {
             $reader = new WikiDocumentTreeReader(new WikiFrontMatterParser());
+            self::assertSame('README.md', $reader->exportIndex($root));
 
             $notion = $reader->read($root, WikiInterchangeFormat::Notion);
             self::assertCount(1, $notion);
             self::assertSame('Parent Page', $notion[0]->relativePath);
             self::assertNull($notion[0]->parentRelativePath);
 
+            // A Notion folder whose only page is a README.md starting with the marker keeps it as its page.
             unlink($parentDir . '/Parent Page.md');
+            file_put_contents($parentDir . '/README.md', $index);
+            self::assertSame(['Parent Page'], array_map(static fn (WikiDocumentNode $node): string => $node->relativePath, $reader->read($root, WikiInterchangeFormat::Notion)));
+
             file_put_contents($root . '/intro.md', "---\ntitle: Intro\nwiki_slug: intro\n---\nBody\n");
+            file_put_contents($root . '/notes.md', $index);
             $outline = $reader->read($root, WikiInterchangeFormat::Outline);
-            self::assertSame(['intro'], array_map(static fn (WikiDocumentNode $node): ?string => $node->slug, $outline));
+            self::assertSame(['intro', 'notes', 'Parent Page/README'], array_map(static fn (WikiDocumentNode $node): string => $node->relativePath, $outline));
+        } finally {
+            (new WikiArchiveHelper())->removeDirectory($root);
+        }
+    }
+
+    public function testExportIndexIsNullWithoutAMarkedRootReadme(): void
+    {
+        $root = sys_get_temp_dir() . '/wiki-index-' . bin2hex(random_bytes(4));
+        mkdir($root);
+        file_put_contents($root . '/README.md', "# Project notes\n");
+
+        try {
+            $reader = new WikiDocumentTreeReader(new WikiFrontMatterParser());
+            self::assertNull($reader->exportIndex($root));
+            self::assertSame(['README'], array_map(static fn (WikiDocumentNode $node): string => $node->relativePath, $reader->read($root, WikiInterchangeFormat::Outline)));
         } finally {
             (new WikiArchiveHelper())->removeDirectory($root);
         }

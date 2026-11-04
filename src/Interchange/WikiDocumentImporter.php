@@ -142,6 +142,13 @@ final readonly class WikiDocumentImporter
                 : $format;
 
             $nodes = $this->treeReader->read($workingPath, $resolvedFormat);
+            // 1.15.1: the README.md index of a wiki export is not a page; say so instead of skipping it silently.
+            $index = $this->treeReader->exportIndex($workingPath);
+            if ($index !== null) {
+                ++$report->skipped;
+                $report->addMessage(sprintf('%s: wiki export index, skipped.', $index));
+            }
+
             if ($nodes === []) {
                 $report->addMessage('No Markdown documents found in import source.');
 

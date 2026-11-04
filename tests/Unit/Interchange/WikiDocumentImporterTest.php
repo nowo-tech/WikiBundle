@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
+use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
 use Nowo\WikiBundle\Interchange\WikiFormatDetector;
@@ -20,6 +21,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Service\WikiPageService;
+use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Util\WikiSlugger;
@@ -28,7 +30,9 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use ZipArchive;
 
+use function array_diff;
 use function array_keys;
+use function array_values;
 use function in_array;
 
 use const JSON_THROW_ON_ERROR;
@@ -640,6 +644,43 @@ MD);
                 unlink($root . '/' . $name);
             }
             rmdir($root);
+        }
+    }
+
+    /**
+     * 1.15.1 round trip: an Outline export (README.md index, a page whose slug is "readme" written as readme-1.md)
+     * imports back with titles, slugs and parents from the front matter; the index is reported as skipped.
+     */
+    public function testReimportsAnOutlineExportAndReportsTheSkippedIndex(): void
+    {
+        $space  = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $intro  = new WikiPage($space, 'intro', 'Intro');
+        $readme = new WikiPage($space, 'readme', 'README', $intro);
+        $intro->setCurrentRevision(new WikiPageRevision($intro, 1, '<p>Hello</p>', new TestUser()));
+        $readme->setCurrentRevision(new WikiPageRevision($readme, 1, '<p>Read me</p>', new TestUser()));
+        $source = $this->createStub(WikiPageRepositoryInterface::class);
+        $source->method('findActiveBySpace')->willReturn([$intro, $readme]);
+
+        $root = sys_get_temp_dir() . '/wiki-roundtrip-' . bin2hex(random_bytes(4));
+        (new WikiDocumentExporter($source, new WikiPageTreeBuilder(), new WikiMarkdownConverter(), new WikiFrontMatterParser()))
+            ->export($space, $root, WikiInterchangeFormat::Outline);
+
+        $pageRepository = $this->pageRepository();
+        $saved          = [];
+        $pageRepository->method('save')->willReturnCallback(static function (WikiPage $page) use (&$saved): void {
+            $saved[$page->getSlug()] = [$page->getTitle(), $page->getParent()?->getSlug()];
+        });
+
+        try {
+            self::assertSame(['README.md', 'intro.md', 'readme-1.md'], array_values(array_diff(scandir($root) ?: [], ['.', '..'])));
+
+            $report = $this->importer($pageRepository)->import($space, $root, WikiInterchangeFormat::Outline, new TestUser());
+
+            self::assertSame([2, 1, 0], [$report->created, $report->skipped, $report->failed]);
+            self::assertSame(['README.md: wiki export index, skipped.'], $report->messages);
+            self::assertSame(['intro' => ['Intro', null], 'readme' => ['README', 'intro']], $saved);
+        } finally {
+            (new WikiArchiveHelper())->removeDirectory($root);
         }
     }
 

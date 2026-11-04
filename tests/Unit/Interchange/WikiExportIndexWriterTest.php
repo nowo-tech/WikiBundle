@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiExportIndexWriter;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Symfony\Component\Translation\Loader\YamlFileLoader;
 use Symfony\Component\Translation\Translator;
 
@@ -110,6 +111,43 @@ final class WikiExportIndexWriterTest extends TestCase
         self::assertTrue(WikiExportIndexWriter::isIndexFile($this->dir . '/README.md'));
         self::assertFalse(WikiExportIndexWriter::isIndexFile($this->dir . '/page.md'));
         self::assertFalse(WikiExportIndexWriter::isIndexFile($this->dir . '/missing.md'));
+    }
+
+    public function testRefusesToReplaceAReadmeThatIsNotAnIndex(): void
+    {
+        file_put_contents($this->dir . '/README.md', "# My notes\n");
+        $writer = new WikiExportIndexWriter();
+
+        try {
+            $writer->write($this->space('Docs'), $this->dir, new WikiExportReport(outputPath: $this->dir));
+            self::fail('A foreign README.md must not be overwritten.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('not a wiki export index', $exception->getMessage());
+            self::assertStringNotContainsString($this->dir, $exception->getMessage());
+        }
+        self::assertSame("# My notes\n", file_get_contents($this->dir . '/README.md'));
+
+        // The index of a previous export is replaced.
+        unlink($this->dir . '/README.md');
+        $writer->write($this->space('Old'), $this->dir, new WikiExportReport(outputPath: $this->dir));
+        $writer->write($this->space('New'), $this->dir, new WikiExportReport(outputPath: $this->dir));
+        self::assertStringContainsString('# New', (string) file_get_contents($this->dir . '/README.md'));
+    }
+
+    public function testFailsWithAPathFreeErrorWhenTheIndexCannotBeWritten(): void
+    {
+        $missing = $this->dir . '/missing';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Unable to write the export index (README.md).');
+        (new WikiExportIndexWriter())->write($this->space('Docs'), $missing, new WikiExportReport(outputPath: $missing));
+    }
+
+    public function testInvalidUtf8TitlesStayOnOneLine(): void
+    {
+        // 1.15.1 (audit DV-I3): the /u pattern fails on invalid UTF-8; newlines must still be collapsed.
+        self::assertSame("bad\xFF --- \\> quote", WikiExportIndexWriter::escape("bad\xFF\n\n---\n> quote"));
+        self::assertStringNotContainsString("\n", WikiExportIndexWriter::escape("bad\xFF\r\n\t# x"));
     }
 
     private function space(string $name): WikiSpace

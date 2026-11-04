@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
+use Nowo\WikiBundle\Interchange\WikiExportIndexWriter;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownPortableLinks;
@@ -19,6 +20,10 @@ use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
+
+use function array_diff;
+use function array_values;
 
 final class WikiDocumentExporterTest extends TestCase
 {
@@ -340,6 +345,64 @@ final class WikiDocumentExporterTest extends TestCase
             ))->export($space, $target, WikiInterchangeFormat::Notion);
         } finally {
             unlink($target . '/Intro');
+            $this->removeTree($target);
+        }
+    }
+
+    /**
+     * 1.15.1 (audit DV-L1 / DV-I4): no page file or folder may take the index name, even case-insensitively.
+     */
+    public function testPagesNamedLikeTheIndexAreRenamed(): void
+    {
+        $space          = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $readme         = new WikiPage($space, 'readme', 'README.md');
+        $taken          = new WikiPage($space, 'readme-1', 'Readme one');
+        $child          = new WikiPage($space, 'child', 'README.md', $readme);
+        $pageRepository = $this->createStub(WikiPageRepositoryInterface::class);
+        $pageRepository->method('findActiveBySpace')->willReturn([$readme, $taken, $child]);
+        $exporter = new WikiDocumentExporter($pageRepository, new WikiPageTreeBuilder(), new WikiMarkdownConverter(), new WikiFrontMatterParser());
+
+        $outline = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(4));
+        $notion  = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(4));
+
+        try {
+            $exporter->export($space, $outline, WikiInterchangeFormat::Outline);
+            self::assertSame(['README.md', 'child.md', 'readme-1.md', 'readme-2.md'], array_values(array_diff(scandir($outline) ?: [], ['.', '..'])));
+            self::assertStringContainsString("- [README.md](readme-2.md)\n  - [README.md](child.md)\n- [Readme one](readme-1.md)\n", (string) file_get_contents($outline . '/README.md'));
+            self::assertStringContainsString('wiki_slug: readme' . "\n", (string) file_get_contents($outline . '/readme-2.md'));
+
+            $exporter->export($space, $notion, WikiInterchangeFormat::Notion);
+            self::assertTrue(WikiExportIndexWriter::isIndexFile($notion . '/README.md'));
+            self::assertFileExists($notion . '/README.md-1/README.md-1.md');
+            // Only the export root is reserved: the sub-page keeps its name inside the renamed folder.
+            self::assertFileExists($notion . '/README.md-1/README.md/README.md.md');
+            self::assertStringContainsString('- [README.md](README.md-1/README.md-1.md)', (string) file_get_contents($notion . '/README.md'));
+        } finally {
+            $this->removeTree($outline);
+            $this->removeTree($notion);
+        }
+    }
+
+    public function testRefusesATargetWithAForeignReadmeBeforeWritingPages(): void
+    {
+        $space          = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1');
+        $page           = new WikiPage($space, 'intro', 'Intro');
+        $pageRepository = $this->createStub(WikiPageRepositoryInterface::class);
+        $pageRepository->method('findActiveBySpace')->willReturn([$page]);
+
+        $target = sys_get_temp_dir() . '/wiki-export-' . bin2hex(random_bytes(4));
+        mkdir($target);
+        file_put_contents($target . '/README.md', "# Mine\n");
+
+        try {
+            (new WikiDocumentExporter($pageRepository, new WikiPageTreeBuilder(), new WikiMarkdownConverter(), new WikiFrontMatterParser()))
+                ->export($space, $target, WikiInterchangeFormat::Outline);
+            self::fail('The export must refuse a foreign README.md.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('not a wiki export index', $exception->getMessage());
+        } finally {
+            self::assertFileDoesNotExist($target . '/intro.md');
+            self::assertSame("# Mine\n", file_get_contents($target . '/README.md'));
             $this->removeTree($target);
         }
     }

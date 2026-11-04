@@ -153,6 +153,26 @@ final class WikiExportCommandTest extends TestCase
         }
     }
 
+    public function testRefusesADirectoryWithAForeignReadme(): void
+    {
+        // 1.15.1 (audit DV-L1): a README.md that is not a wiki export index is never overwritten.
+        $target = sys_get_temp_dir() . '/wiki-cmd-target-' . bin2hex(random_bytes(4));
+        mkdir($target);
+        file_put_contents($target . '/README.md', "# Mine\n");
+
+        try {
+            $tester = new CommandTester($this->command());
+            $status = $tester->execute(['space' => 'docs', 'target' => $target]);
+
+            self::assertSame(Command::FAILURE, $status);
+            self::assertStringContainsString('not a wiki export index', (string) preg_replace('/\s+/', ' ', $tester->getDisplay()));
+            self::assertSame(['README.md'], array_values(array_diff(scandir($target) ?: [], ['.', '..'])));
+            self::assertSame("# Mine\n", file_get_contents($target . '/README.md'));
+        } finally {
+            (new WikiArchiveHelper())->removeDirectory($target);
+        }
+    }
+
     public function testAutoFormatFallsBackToOutline(): void
     {
         $space  = $this->spaceWithPage();

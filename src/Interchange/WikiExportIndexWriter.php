@@ -9,11 +9,13 @@ use DateTimeInterface;
 use DateTimeZone;
 use Nowo\WikiBundle\Dto\WikiExportReport;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use RuntimeException;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function addcslashes;
 use function array_map;
 use function explode;
+use function file_exists;
 use function file_get_contents;
 use function file_put_contents;
 use function implode;
@@ -69,9 +71,13 @@ final readonly class WikiExportIndexWriter
      * @param string $targetDir export directory (the archive root)
      * @param WikiExportReport $report export report holding the exported pages
      * @param DateTimeInterface|null $exportedAt export date (now when null)
+     *
+     * @throws RuntimeException when the target holds a README.md that is not an index, or the index cannot be written
      */
     public function write(WikiSpace $space, string $targetDir, WikiExportReport $report, ?DateTimeInterface $exportedAt = null): void
     {
+        $this->assertWritable($targetDir);
+
         $date  = DateTimeImmutable::createFromInterface($exportedAt ?? new DateTimeImmutable())->setTimezone(new DateTimeZone('UTC'));
         $lines = [
             self::MARKER,
@@ -92,7 +98,26 @@ final readonly class WikiExportIndexWriter
             }
         }
 
-        file_put_contents($targetDir . DIRECTORY_SEPARATOR . self::FILENAME, implode("\n", $lines) . "\n");
+        // Path-free message: the CLI prints it and the target may be a temporary directory (audit DV-I4).
+        if (@file_put_contents($targetDir . DIRECTORY_SEPARATOR . self::FILENAME, implode("\n", $lines) . "\n") === false) {
+            throw new RuntimeException('Unable to write the export index (README.md).');
+        }
+    }
+
+    /**
+     * Refuses to replace a {@code README.md} (or, on a case-insensitive filesystem, {@code readme.md}) of the target
+     * directory that is not an index written by a previous export (1.15.1, audit DV-L1).
+     *
+     * @param string $targetDir export directory
+     *
+     * @throws RuntimeException when the index path holds anything but an export index
+     */
+    public function assertWritable(string $targetDir): void
+    {
+        $path = $targetDir . DIRECTORY_SEPARATOR . self::FILENAME;
+        if (file_exists($path) && !self::isIndexFile($path)) {
+            throw new RuntimeException('README.md in the export directory is not a wiki export index; use an empty directory.');
+        }
     }
 
     /**
@@ -117,7 +142,9 @@ final readonly class WikiExportIndexWriter
      */
     public static function escape(string $text): string
     {
-        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        // Invalid UTF-8 makes the /u pattern fail (null): collapse ASCII whitespace byte-wise instead, so the
+        // text still stays on one line (audit DV-I3).
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? preg_replace('/\s+/', ' ', $text) ?? '');
 
         return addcslashes($text, '\\`*_[]()<>!|~#&');
     }
