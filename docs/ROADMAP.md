@@ -125,7 +125,7 @@ different code (for example 1.15 and 1.16). Version numbers give the order, not 
 | **1.13.1** | Audit residuals | CW-I10, CW-I7, CW-I9, CW-I12, CV-I9 (see [residuals](#accessibility-performance-and-audit-residuals)) | W | S |
 | **1.14** | Tree and navigation | Outline-style tree (T062), move / reorder with ranks (T049), collections (T048), icons / emoji titles / covers (T063, T057), starred + recents (T051), *Move to…* dialog, CV-I5 contract | W + U (treeview) | L |
 | **1.15** | Safety net | Trash with restore / purge (T065), duplicate (T065), version history (sessions, named versions, rendered diff, restore, copy to new page, retention) | W + S + E (optional diff view) | L |
-| **1.16** | Comments | Inline and page comments (T064), reactions, resolve, notifications and subscriptions, mentions filtered per viewer, presence, live updates | W + E + H | L |
+| **1.16** | Comments | Inline and page comments (T064) in a right-side panel toggled from the page tabs, reactions, resolve, notifications and subscriptions, mentions filtered per viewer, presence, live updates | W + E + H | L |
 | **1.17** | Templates and lifecycle | Templates (space / global, variables, seeds, row templates later), drafts (T055), pins (T065), review dates (T068) | W + E + H | L |
 | **1.18** | Search and discovery | DB full-text index, filters, highlighting, SearchKit provider (Ctrl / ⌘ + K), tags (T046), backlinks panel (T050) | W + SK + H | L |
 | **1.19** | Databases MVP | Database pages, rows as pages, basic property types, table + board views, filters / sorts / grouping, CSV import / export, `::database` block | W + E + U | L |
@@ -136,7 +136,8 @@ different code (for example 1.15 and 1.16). Version numbers give the order, not 
 | 2.0 | Cleanup | Drop the TipTap path once hosts moved to Milkdown; remove deprecated options | W | — |
 
 Editor releases each milestone depends on: 1.14 → Milkdown 1.3 (heading anchors for *Copy link*); 1.15 → Milkdown 1.4
-(version view, optional); 1.16 → Milkdown 1.4 (comment anchors); 1.17 → Milkdown 1.5 (template picker, variable
+(version view, optional); 1.16 → Milkdown 1.6 (comment anchors,
+mountable thread component) and UiKit ≥ 2.25 (side panel); 1.17 → Milkdown 1.5 (template picker, variable
 chips); 1.19 → Milkdown 1.6 (database block).
 
 ### Progress
@@ -305,10 +306,23 @@ Builds on the existing revisions table, line diff and restore.
     right, and AI context.
   - Privacy erasure: a user's comments are anonymised or deleted according to the host policy.
   - Counts per page in the tree (only for viewers who may read comments); an audit log of deletions and resolves.
+- **Comments panel** (owner request via Beacon, 2026-11-03; spec [`specs/002-comments`](../specs/002-comments/spec.md)):
+  - page tabs (Page / Edit / History) on the read and edit views, with a **Comments (n)** toggle at the end of the row
+    (n = open threads the viewer may read);
+  - a right-side panel (`<aside>`, UiKit side panel markup, so Beacon needs no override) holding page-level comments
+    and the Milkdown 1.6 inline threads, mounted into the panel with two-way highlight / thread focus and the count
+    for the badge;
+  - open / closed remembered per user (the session, or the host state store, like the tree's fold state);
+  - phones (≤ 767 px): a full-height drawer;
+  - focus moves into the panel on open and back to the toggle on close, Escape closes, open / close announced in a
+    live region;
+  - rights `WikiAction::ViewComments`, `Comment`, `ResolveComment`, `ModerateComments` (own comments: edit / delete
+    with `Comment`), default deny;
+  - the markup, tabs, panel, actions and endpoints are agreed with Beacon in a contract before the PR.
 - **Host (Beacon):** notification channels (in-app, e-mail, Web Push), the `wiki.comment` grant in roles.
 - **Later:** suggestions / track changes (Notion *Suggest edits*) as reviewable proposals (Milkdown 1.8 + drafts),
   planned after 1.21.
-- **Owners** W + E + H. **Effort** L. **Dependencies** Milkdown 1.4. **Version 1.16.**
+- **Owners** W + E + H (+ UiKit side panel). **Effort** L. **Dependencies** Milkdown 1.6 (comments, mountable thread component), UiKit ≥ 2.25 (side panel). **Version 1.16.**
 
 ### Templates (T069)
 
