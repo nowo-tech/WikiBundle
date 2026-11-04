@@ -20,6 +20,9 @@ use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
+use Nowo\WikiBundle\History\WikiAuthorLabel;
+use Nowo\WikiBundle\History\WikiHistoryThinner;
+use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
@@ -30,7 +33,9 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
+use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -191,6 +196,33 @@ final class WikiExtensionTest extends TestCase
         self::assertSame(DoctrineOrmWikiTrashRepository::class, (string) $container->getAlias(WikiTrashRepositoryInterface::class));
         self::assertSame('kb_page_trash', $container->getDefinition(WikiMetadataListener::class)->getArgument('$trashTableName'));
         self::assertTrue($container->getDefinition(WikiMetadataListener::class)->getArgument('$trashEnabled'));
+    }
+
+    public function testTheHistoryTimelineIsOffByDefaultAndWiresItsServicesWhenOn(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+        /** @var array<string, mixed> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        self::assertArrayNotHasKey('page_version_save', $routes);
+        self::assertArrayNotHasKey('page_version_copy', $routes);
+        self::assertFalse($container->hasDefinition(WikiHistoryTimeline::class) && !$container->getDefinition(WikiHistoryTimeline::class)->hasTag('container.excluded'));
+        self::assertFalse($container->getDefinition(WikiMetadataListener::class)->getArgument('$historyTimeline'));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'table_prefix' => 'kb', 'history' => ['timeline' => true, 'session_minutes' => 15, 'show_names' => true, 'retention_days' => 90]]], $container);
+        /** @var array<string, mixed> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        self::assertArrayHasKey('page_version_save', $routes);
+        self::assertArrayHasKey('page_version_copy', $routes);
+        self::assertSame(15, $container->getDefinition(WikiHistoryTimeline::class)->getArgument('$sessionMinutes'));
+        self::assertTrue($container->getDefinition(WikiAuthorLabel::class)->getArgument('$showNames'));
+        self::assertSame(90, $container->getDefinition(WikiHistoryThinner::class)->getArgument('$retentionDays'));
+        self::assertSame(DoctrineOrmWikiRevisionLabelRepository::class, (string) $container->getAlias(WikiRevisionLabelRepositoryInterface::class));
+        self::assertSame('kb_revision_labels', $container->getDefinition(WikiMetadataListener::class)->getArgument('$revisionLabelsTableName'));
+        self::assertTrue($container->getDefinition(WikiMetadataListener::class)->getArgument('$historyTimeline'));
     }
 
     public function testTheTrashSwitchMustBeALiteralBoolean(): void

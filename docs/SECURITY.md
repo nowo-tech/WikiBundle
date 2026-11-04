@@ -97,6 +97,18 @@ co-editing endpoints need the page) and is removed by `wiki:collab:purge` (DO-I6
 can only be purged with `WikiAction::Manage` on the space (DO-I1). Every write is POST + CSRF behind a confirm (two
 for a purge).
 
+**History timeline (1.15, `history.timeline`).** The history shows authors as per-page opaque labels (an HMAC of
+`kernel.secret`, the co-editing rule), so the history of one page does not tell who edited other pages and a label
+cannot be matched against a user directory; `history.show_names` shows only display names that say nothing about the
+login. *Save version* and *Copy to new page* are POST + CSRF (a token per page and per revision), answer 404 for a page
+the user may not read with every ancestor and check the edit, respectively history and create, rights; a copy is a
+new top-level page in the same space, so it never lands under a parent the user may not see — and, by design, it
+leaves any restricted branch: the copy is visible to whoever may read the space's top level (audit DT-I1). Version
+names are stripped of bidirectional control characters (DT-I4); copy titles and slugs are cut to the column limits
+(DT-I2). Labels are escaped like
+every other cell. `wiki:history:thin` deletes revisions for good, but never a named version, the current revision or
+the newest one.
+
 **Host endpoints.** The endpoints your application provides to the editor — link titles of `[[` page links, the `@`
 mention candidates and the page picker (`suggestions` / `link_title_url` of the Milkdown or Tiptap editor) — must
 apply the same rule: call `WikiSpaceGuard::isPageReadable()` (or `WikiPageVisibility::isReadable()` with your

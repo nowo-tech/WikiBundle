@@ -56,6 +56,18 @@
 
 ## Unreleased
 
+- **History timeline (opt-in).** Nothing changes until you set `nowo_wiki.history.timeline: true` (a literal
+  boolean). Then:
+  - Add the `<prefix>_revision_labels` table (named versions): `doctrine:migrations:diff` picks it up.
+  - Two route keys are registered (`page_version_save`, `page_version_copy`); add them to your firewall and access
+    rules like the other wiki routes.
+  - The history shows author labels derived from `kernel.secret` (it must not be empty).
+  - Schedule the retention if you want it: `wiki:history:thin` (daily, from a single scheduler). It deletes revisions
+    for good; try `--dry-run` first and raise `history.retention_days` if you need a longer full history.
+  - If you override `page_history.html.twig` or `page_view.html.twig`, compare them with the bundle's (new row
+    fields `label`, `author`, `session`; the *Save version* action). New template key `page_version`; new strings
+    `wiki.history.*`.
+
 ## To 1.14.1
 
 ```bash

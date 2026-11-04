@@ -49,6 +49,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **History timeline** (`history.timeline`, opt-in, 1.15): the version history gains the columns *Version name*,
+  *Author* and *Saves in session*. A session is consecutive saves by the same author less than
+  `history.session_minutes` apart (default 30); a named version is a session of its own. Authors show as the same
+  opaque, per-page "Editor xxxx" as co-editing, or as their display name with `history.show_names` (only names that
+  say nothing about the login).
+- **Named versions** (D-W7: every editor): *Save version* on the page view names the current revision (one name per
+  revision, 120 characters; saving again renames it). Stored in `<prefix>_revision_labels`, which is left out of the
+  schema when the timeline is off.
+- **Copy to new page**: a row action of the history creates a top-level page with the content of that revision
+  (title "<title> (vN)", a free slug, both cut to the column limits; it takes the space's top-level visibility by
+  design), for users who may create pages (`canCreate()` and `WikiAction::Create` on the
+  space) and see the history.
+- **Revision retention** (D-W6): `wiki:history:thin [--dry-run]` thins revisions older than `history.retention_days`
+  (default 30) to the newest one per session and day. Named versions, the current revision and the newest revision
+  are never removed; revision numbers are never reused.
+
 ## [1.14.1] - 2026-11-03
 
 Collaboration cost: counters on the document row, split limiters

@@ -11,6 +11,9 @@ nowo_wiki:
     # 1.14 (T065): Delete moves a page and its sub-pages to the trash (restore, purge, 30-day retention).
     trash:
         enabled: true
+    # 1.15: the history timeline (sessions, author labels, Save version, Copy to new page; wiki:history:thin).
+    history:
+        timeline: true
     ai:
         enabled: true
         agent: wiki_assistant

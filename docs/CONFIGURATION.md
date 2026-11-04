@@ -50,6 +50,7 @@ Root key: `nowo_wiki`.
 - [Milkdown editor (1.13)](#milkdown-editor-113)
 - [Page tree (1.14)](#page-tree-114)
 - [Trash (1.14)](#trash-114)
+- [History timeline (1.15)](#history-timeline-115)
 - [Sanitizer allowlist (1.11)](#sanitizer-allowlist-111)
 - [Space access and tenant paths (1.9)](#space-access-and-tenant-paths-19)
 - [Attachments (1.9)](#attachments-19)
@@ -186,6 +187,45 @@ read are counted, not named. Schedule the retention, e.g. with cron: `0 3 * * * 
 Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): a delete takes the page and its whole sub-tree,
 and a restore brings them back together (D-W29); pages archived before the delete stay archived (D-W30); a restored
 page whose parent is gone meanwhile comes back at the top level (D-W31).
+
+## History timeline (1.15)
+
+```yaml
+nowo_wiki:
+    history:
+        timeline: true         # literal boolean; off = the 1.14 revision list, no named-version routes or table
+        session_minutes: 30    # saves by the same author less than this apart form one session
+        show_names: false      # true = display names that say nothing about the login, else "Editor xxxx"
+        retention_days: 30     # wiki:history:thin thins older revisions to one per session and day (D-W6)
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `history.timeline` | `false` | Version name, author and session columns; *Save version*; *Copy to new page* |
+| `history.session_minutes` | 30 | Gap (1–1440 minutes) that ends a session of saves by one author |
+| `history.show_names` | `false` | Show safe display names (`getDisplayName()` / `getName()`, the co-editing rule) instead of opaque labels |
+| `history.retention_days` | 30 | Age at which `wiki:history:thin` thins revisions |
+| `routes.page_version_save` | `…/pages/{pageSlug}/versions/new` | *Save version* (GET form, POST + CSRF) |
+| `routes.page_version_copy` | `…/pages/{pageSlug}/revisions/{revisionNumber}/copy` | *Copy to new page* (POST + CSRF) |
+| `web_ui.templates.page_version` | null | Template of the *Save version* form |
+
+Who may: *Save version* needs the role gate `canEdit()` and `WikiAction::Edit` on the page (D-W7: every editor);
+*Copy to new page* needs `WikiAction::History` on the page, `canCreate()` and `WikiAction::Create` on the space.
+The copy is a new **top-level** page (title "<title> (vN)" and slug "<slug>-vN", cut to the column limits), so it
+takes the space's visibility: content from a branch with restricted rights becomes visible to everyone who may read
+the space's top level. That is by design (audit DT-I1); restrict `Create` or move the copy if it must stay private. Both
+answer 404 for a page the user may not read with every ancestor.
+
+Authors are labelled per page with an HMAC of `kernel.secret` (the co-editing labels): the same person has the same
+label on one page and unrelated labels on other pages, and a label cannot be matched against a user directory. With
+`show_names`, a display name that contains the login, its local part or an e-mail address falls back to the label.
+
+**Retention.** `wiki:history:thin` (add `--dry-run` to count only) removes, for every page, the revisions older than
+`retention_days` except the newest of each session and day. A session ends when the author changes, after
+`session_minutes` without a save, at midnight (the stored time) and at a named version (a session of its own). Named
+versions, the current revision and the newest revision are always kept. Revision numbers are never reused, so a thinned
+history has gaps. Run it from a single scheduler, e.g. `30 3 * * * bin/console wiki:history:thin`. Without the
+timeline the command does nothing.
 
 ## Sanitizer allowlist (1.11)
 

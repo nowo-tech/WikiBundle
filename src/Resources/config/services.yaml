@@ -30,6 +30,7 @@ services:
             # 1.14: registered by WikiExtension only with tree.enabled (controllers get null otherwise).
             - '../../Tree/'
             - '../../Trash/'
+            - '../../History/'
             - '../../Service/WikiPageMover.php'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
@@ -94,6 +95,15 @@ services:
             $allowUnauthenticated: '%nowo_wiki.security.allow_unauthenticated%'
             $pagination: '%nowo_wiki.pagination%'
             $attachments: '%nowo_wiki.attachments%'
+            $pageFactory: '@Nowo\WikiBundle\Ui\WikiPageFactory'
+            $translator: '@?translator'
+
+    Nowo\WikiBundle\Controller\WikiHistoryController:
+        public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
+        arguments:
+            $routes: '%nowo_wiki.routes%'
             $pageFactory: '@Nowo\WikiBundle\Ui\WikiPageFactory'
             $translator: '@?translator'
 

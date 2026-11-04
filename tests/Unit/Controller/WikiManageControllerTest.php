@@ -8,6 +8,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
 use InvalidArgumentException;
+use Nowo\UiKitBundle\View\Action;
 use Nowo\UiKitBundle\View\FormPage;
 use Nowo\UiKitBundle\View\ListPage;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
@@ -22,6 +23,8 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\History\WikiAuthorLabel;
+use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
@@ -34,6 +37,7 @@ use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
@@ -290,6 +294,50 @@ final class WikiManageControllerTest extends TestCase
         $controller->pageHistory('eng', 'welcome');
         self::assertCount(6, $twig->context['page']->rows);
         self::assertNull($twig->context['page']->pagination);
+    }
+
+    public function testTheHistoryTimelineAddsSaveVersionAndCopyToNewPage(): void
+    {
+        $user  = new TestUser();
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $v1    = new WikiPageRevision($page, 1, '<p>1</p>', $user);
+        $v2    = new WikiPageRevision($page, 2, '<p>2</p>', $user);
+        $page->setCurrentRevision($v2);
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $revisionRepo = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepo->method('findByPage')->willReturn([$v2, $v1]);
+        $labels = $this->createStub(WikiRevisionLabelRepositoryInterface::class);
+        $labels->method('labelsFor')->willReturn([$v1->getId() => 'Before']);
+        $timeline = new WikiHistoryTimeline($labels, new WikiAuthorLabel('secret'));
+        $this->routes += [
+            'page_version_save' => ['path' => '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/versions/new', 'name' => 'nowo_wiki_page_version_save'],
+            'page_version_copy' => ['path' => '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/copy', 'name' => 'nowo_wiki_page_version_copy'],
+        ];
+
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisionRepo, timeline: $timeline);
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+
+        $controller->pageHistory('eng', 'welcome');
+        $history = $twig->context['page'];
+        self::assertInstanceOf(ListPage::class, $history);
+        self::assertSame(['', 'Before'], array_column($history->rows, 'label'));
+        self::assertContains('wiki-version-copy', array_map(static fn (Action $a) => $a->attributes['data-testid'] ?? null, $history->rowActions($history->rows[0])));
+
+        $controller->viewPage('eng', 'welcome');
+        self::assertContains('wiki-save-version', array_map(static fn ($a) => $a->attributes['data-testid'] ?? null, $twig->context['page']->header->actions));
+
+        // Without the right to create pages: no Copy to new page.
+        $roles      = $this->createConfiguredMock(WikiAccessCheckerInterface::class, ['canAccess' => true, 'canList' => true, 'canCreate' => false, 'canEdit' => true, 'canViewHistory' => true, 'canArchive' => true, 'canAskAi' => true, 'canImport' => true, 'canExport' => true]);
+        $controller = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisionRepo, timeline: $timeline);
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->pageHistory('eng', 'welcome');
+        self::assertNotContains('wiki-version-copy', array_map(static fn ($a) => $a->attributes['data-testid'] ?? null, $twig->context['page']->rowActions($twig->context['page']->rows[0])));
     }
 
     public function testDenyWhenCannotList(): void
@@ -1797,6 +1845,7 @@ MD);
         ?WikiTenantPaths $tenantPaths = null,
         ?WikiRevisionBodyRenderer $bodyRenderer = null,
         ?WikiCollabService $collab = null,
+        ?WikiHistoryTimeline $timeline = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1844,6 +1893,7 @@ MD);
             tenantPaths: $tenantPaths,
             bodyRenderer: $bodyRenderer,
             collab: $collab,
+            timeline: $timeline,
         );
     }
 

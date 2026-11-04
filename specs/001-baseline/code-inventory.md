@@ -266,6 +266,21 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Resources/views/manage/trash.html.twig` | Trash page | FR-TRASH-001 |
 | `Resources/views/manage/trash_purge.html.twig` | Purge confirmation page | FR-TRASH-001 |
 
+## History timeline (1.15)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Command/WikiHistoryThinCommand.php` | Retention command | FR-HIST-001 |
+| `Controller/WikiHistoryController.php` | Save version, copy to new page | FR-HIST-001 |
+| `Entity/WikiRevisionLabel.php` | Named version | FR-HIST-001 |
+| `Form/WikiVersionLabelType.php` | Save version form | FR-HIST-001 |
+| `History/WikiAuthorLabel.php` | Author labels | FR-HIST-001 |
+| `History/WikiHistoryTimeline.php` | Sessions, labels, authors per revision | FR-HIST-001 |
+| `History/WikiHistoryThinner.php` | Retention (D-W6) | FR-HIST-001 |
+| `Repository/WikiRevisionLabelRepositoryInterface.php` | Named-version store contract | FR-HIST-001 |
+| `Repository/DoctrineOrmWikiRevisionLabelRepository.php` | Doctrine named-version store | FR-HIST-001 |
+| `Resources/views/manage/page_version.html.twig` | Save version page | FR-HIST-001 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |

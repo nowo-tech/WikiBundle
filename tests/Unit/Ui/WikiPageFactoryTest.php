@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Ui;
 
 use Nowo\UiKitBundle\View\Action;
+use Nowo\UiKitBundle\View\Column;
 use Nowo\UiKitBundle\View\Label;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -98,6 +99,38 @@ final class WikiPageFactoryTest extends TestCase
         self::assertSame('wiki.tree.move', $this->label($move->submitLabel)->key);
     }
 
+    public function testTheHistoryTimelineViewModels(): void
+    {
+        $routes    = PageFixtures::routes() + ['page_version_save' => ['path' => '/vs', 'name' => 'nowo_wiki_page_version_save'], 'page_version_copy' => ['path' => '/vc', 'name' => 'nowo_wiki_page_version_copy']];
+        $factory   = new WikiPageFactory(PageFixtures::urlGenerator(), $routes, new WikiPages(), '');
+        $space     = PageFixtures::space('eng', 'Engineering');
+        [, $page]  = PageFixtures::pages($space);
+        $revisions = [new WikiPageRevision($page, 3, '', new TestUser()), new WikiPageRevision($page, 2, '', new TestUser()), new WikiPageRevision($page, 1, '', new TestUser())];
+
+        $actions = $factory->pageView($space, $page, ['edit' => true, 'history' => true, 'version' => true])->header->actions;
+        self::assertSame(['edit', 'create', 'view'], $this->kinds($actions));
+        self::assertSame('wiki-save-version', $actions[1]->attributes['data-testid']);
+
+        $history = $factory->history($space, $page, $revisions, null, [], null, [
+            3 => ['author' => 'Editor ab12', 'label' => 'Reviewed', 'saves' => 1],
+            2 => ['author' => 'Editor cd34', 'label' => null, 'saves' => 2],
+        ], [3 => PageFixtures::postForm('t')]);
+        self::assertSame(['number', 'label', 'author', 'created', 'session'], array_map(static fn (Column $c): string => $c->key, $history->columns));
+        self::assertSame(['Reviewed', 'Editor ab12', ''], [$history->rows[0]['label'], $history->rows[0]['author'], $history->rows[0]['session']]);
+        self::assertSame(2, $history->rows[1]['session']);
+        // A revision missing from the timeline gets empty cells.
+        self::assertSame(['', '', ''], [$history->rows[2]['label'], $history->rows[2]['author'], $history->rows[2]['session']]);
+        $copy = $history->rowActions($history->rows[0]);
+        self::assertSame('wiki-version-copy', $copy[1]->attributes['data-testid']);
+        self::assertSame('POST', $copy[1]->method);
+        self::assertCount(1, $history->rowActions($history->rows[1]));
+
+        $form = $factory->pageVersion($space, $page, PageFixtures::postForm('t'));
+        self::assertSame('wiki.history.save_version_title', $this->label($form->header->title)->key);
+        self::assertSame('wiki.history.save_version', $this->label($form->submitLabel)->key);
+        self::assertSame('/nowo_wiki_page_view?spaceSlug=eng&pageSlug=deploy', $form->cancelHref);
+    }
+
     public function testRoutesThatAreNotConfiguredGiveNoActionOrLink(): void
     {
         $factory  = new WikiPageFactory(PageFixtures::urlGenerator(), ['space' => ['path' => '/s', 'name' => 'space'], 'page_view' => ['path' => '/v', 'name' => 'view']]);
@@ -106,12 +139,12 @@ final class WikiPageFactoryTest extends TestCase
 
         self::assertSame([], $factory->index([], PageFixtures::index()['page']->pagination, PageFixtures::searchForm(null), true)->header->actions);
         self::assertSame([], $factory->space($space, ['create' => true, 'import' => true, 'export' => true])->header->actions);
-        self::assertSame([], $factory->pageView($space, $page, ['edit' => true, 'history' => true], PageFixtures::postForm('t'))->header->actions);
+        self::assertSame([], $factory->pageView($space, $page, ['edit' => true, 'history' => true, 'version' => true], PageFixtures::postForm('t'))->header->actions);
         self::assertNull($factory->diff($space, $page, 1, 2)->header->back);
         self::assertNull($factory->pageView($space, $page, ['edit' => false, 'history' => false])->header->breadcrumbs[0]->href);
         self::assertSame([['title' => 'Deploy', 'action' => null]], $factory->archived($space, [$page], [$page->getId() => PageFixtures::postForm('t')]));
 
-        $history = $factory->history($space, $page, [new WikiPageRevision($page, 2, '', new TestUser())], null, [2 => PageFixtures::postForm('t')], PageFixtures::index()['page']->pagination);
+        $history = $factory->history($space, $page, [new WikiPageRevision($page, 2, '', new TestUser())], null, [2 => PageFixtures::postForm('t')], PageFixtures::index()['page']->pagination, [], [2 => PageFixtures::postForm('t')]);
         self::assertSame([], $history->rowActions($history->rows[0]));
     }
 
