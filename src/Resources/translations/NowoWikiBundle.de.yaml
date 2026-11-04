@@ -165,6 +165,10 @@ wiki:
   export:
     outline: Export (Outline ZIP)
     notion: Export (Notion ZIP)
+    readme:
+      exported_on: "Exportiert am %date%."
+      pages: "Seiten"
+      empty: "Dieser Bereich enthält keine für Sie sichtbaren Seiten."
   pagination:
     label: "Seitennavigation"
     previous: "Zurück"

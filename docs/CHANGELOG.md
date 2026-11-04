@@ -50,6 +50,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Exporting a space with no visible pages no longer returns 500** (reported by symfony-beacon). ZipArchive writes no
+  file for an archive without entries, so the web export (`nowo_wiki_space_export`) ended in
+  `FileNotFoundException: ".../wiki-export-<slug>-<hex>.zip" does not exist`, and `wiki:export --zip` reported success
+  without writing the archive. Every export now holds a `README.md` index at its root (Outline-style): the space
+  title, the export date (UTC) and the exported pages as nested relative links, or a line saying the space has no
+  pages visible to the exporter. It lists exactly the exported pages (never the title of a page the exporter may not
+  read), escapes titles for Markdown link text and is translated in the `NowoWikiBundle` domain (`wiki.export.readme.*`,
+  all seven locales).
+- `WikiArchiveHelper::createZipFromDirectory()` throws a `RuntimeException` when the archive was not written instead of
+  returning a path that does not exist.
+- `wiki:export` removes its temporary directory on every path and reports a failed export (`Export failed: ...`,
+  exit code 1) instead of throwing.
+- Imports skip the `README.md` index of a wiki export (first line `<!-- nowo-wiki:export-index -->`), so re-importing
+  an export does not create a README page (nor, for Notion, nest every top-level page under it).
+
 ## [1.15.0] - 2026-11-04
 
 Version history timeline, named versions, copy to new page, retention; Copy as Markdown

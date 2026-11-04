@@ -114,7 +114,7 @@ final readonly class WikiDocumentTreeReader
 
     private function normalizeRootDirectory(string $rootDir): string
     {
-        $markdownAtRoot = glob($rootDir . '/*.md') ?: [];
+        $markdownAtRoot = $this->markdownFiles($rootDir);
         $directories    = array_values(array_filter(scandir($rootDir) ?: [], static function (string $entry) use ($rootDir): bool {
             if ($entry === '.' || $entry === '..') {
                 return false;
@@ -146,7 +146,7 @@ final readonly class WikiDocumentTreeReader
             return $primary !== null ? [$primary] : [];
         }
 
-        $markdownFiles = glob($directory . '/*.md') ?: [];
+        $markdownFiles = $this->markdownFiles($directory);
         sort($markdownFiles);
 
         return $markdownFiles;
@@ -165,17 +165,30 @@ final readonly class WikiDocumentTreeReader
         $candidates[] = $directory . DIRECTORY_SEPARATOR . 'README.md';
 
         foreach ($candidates as $candidate) {
-            if (is_file($candidate)) {
+            if (is_file($candidate) && !WikiExportIndexWriter::isIndexFile($candidate)) {
                 return $candidate;
             }
         }
 
-        $markdownFiles = glob($directory . '/*.md') ?: [];
+        $markdownFiles = $this->markdownFiles($directory);
         if (count($markdownFiles) === 1) {
             return $markdownFiles[0];
         }
 
         return null;
+    }
+
+    /**
+     * Markdown files of a directory, without the README index of a wiki export (1.15.1).
+     *
+     * @return list<string>
+     */
+    private function markdownFiles(string $directory): array
+    {
+        return array_values(array_filter(
+            glob($directory . '/*.md') ?: [],
+            static fn (string $file): bool => !WikiExportIndexWriter::isIndexFile($file),
+        ));
     }
 
     private function relativePath(string $rootDir, string $path): string

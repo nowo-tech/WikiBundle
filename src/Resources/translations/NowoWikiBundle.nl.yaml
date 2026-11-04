@@ -165,6 +165,10 @@ wiki:
   export:
     outline: Exporteren (Outline ZIP)
     notion: Exporteren (Notion ZIP)
+    readme:
+      exported_on: "Geëxporteerd op %date%."
+      pages: "Pagina's"
+      empty: "Deze ruimte heeft geen pagina's die voor jou zichtbaar zijn."
   pagination:
     label: "Paginering"
     previous: "Vorige"

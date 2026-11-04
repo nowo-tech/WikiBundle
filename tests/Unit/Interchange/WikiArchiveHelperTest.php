@@ -191,6 +191,23 @@ final class WikiArchiveHelperTest extends TestCase
         }
     }
 
+    public function testCreateZipThrowsWhenNothingWasWritten(): void
+    {
+        // ZipArchive writes no file for an archive without entries: callers must not get a missing path back.
+        $sourceDir = sys_get_temp_dir() . '/wiki-archive-src-' . bin2hex(random_bytes(4));
+        mkdir($sourceDir);
+        $zipPath = sys_get_temp_dir() . '/wiki-archive-' . bin2hex(random_bytes(4)) . '.zip';
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('ZIP archive was not written');
+            $this->helper->createZipFromDirectory($sourceDir, $zipPath);
+        } finally {
+            rmdir($sourceDir);
+            self::assertFileDoesNotExist($zipPath);
+        }
+    }
+
     public function testCreateZipSkipsNonSplFileInfoEntries(): void
     {
         $sourceDir = sys_get_temp_dir() . '/wiki-archive-src-' . bin2hex(random_bytes(4));

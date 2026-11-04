@@ -70,6 +70,7 @@ use Symfony\Component\Translation\TranslatableMessage;
 use ZipArchive;
 
 use function array_column;
+use function array_diff;
 use function array_keys;
 use function array_slice;
 use function array_values;
@@ -1491,6 +1492,70 @@ MD);
         }
     }
 
+    public function testExportSpaceWithNoVisiblePagesReturnsZipWithReadme(): void
+    {
+        // 1.15.1: ZipArchive writes no file for an empty archive, so an empty space used to end in a 500
+        // (BinaryFileResponse: "... .zip does not exist"). The README index keeps the archive non-empty.
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $before   = glob(sys_get_temp_dir() . '/wiki-export-*') ?: [];
+        $response = $controller->exportSpace(Request::create('/export?format=outline'), 'eng');
+        $path     = $response->getFile()->getPathname();
+
+        try {
+            self::assertSame(Response::HTTP_OK, $response->getStatusCode());
+            $entries = $this->zipEntries($path);
+            self::assertSame(['README.md'], array_keys($entries));
+            self::assertStringContainsString('# Engineering', $entries['README.md']);
+            self::assertStringContainsString('This space has no pages visible to you.', $entries['README.md']);
+            // Only the archive itself is left behind (deleted after send); the working directory is gone.
+            self::assertSame([$path], array_values(array_diff(glob(sys_get_temp_dir() . '/wiki-export-*') ?: [], $before)));
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function testExportSpaceReadmeListsTheExportedPages(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $intro = new WikiPage($space, 'intro', 'Intro');
+        $setup = new WikiPage($space, 'setup', 'Setup [draft]', $intro);
+        $intro->setCurrentRevision(new WikiPageRevision($intro, 1, '<p>Hello</p>', $user));
+        $setup->setCurrentRevision(new WikiPageRevision($setup, 1, '<p>Steps</p>', $user));
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([$intro, $setup]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        WikiControllerContainerBuilder::bind($controller, $user);
+
+        $path = $controller->exportSpace(Request::create('/export?format=notion'), 'eng')->getFile()->getPathname();
+
+        try {
+            $entries = $this->zipEntries($path);
+            self::assertArrayHasKey('README.md', $entries);
+            self::assertArrayHasKey('Intro/Intro.md', $entries);
+            self::assertStringContainsString("- [Intro](Intro/Intro.md)\n  - [Setup \\[draft\\]](Intro/Setup%20%5Bdraft%5D/Setup%20%5Bdraft%5D.md)\n", $entries['README.md']);
+            self::assertStringNotContainsString('no pages visible', $entries['README.md']);
+        } finally {
+            @unlink($path);
+        }
+    }
+
     public function testStaleTokenFromPreviousRequestIsIgnoredOutsideSecuredFirewall(): void
     {
         $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
@@ -1940,6 +2005,27 @@ MD);
                 return $name;
             }
         };
+    }
+
+    /**
+     * Entry name => contents of a ZIP archive.
+     *
+     * @return array<string, string>
+     */
+    private function zipEntries(string $path): array
+    {
+        $zip = new ZipArchive();
+        self::assertTrue($zip->open($path));
+        $entries = [];
+        for ($i = 0; $i < $zip->numFiles; ++$i) {
+            $name = (string) $zip->getNameIndex($i);
+            if (!str_ends_with($name, '/')) {
+                $entries[$name] = (string) $zip->getFromIndex($i);
+            }
+        }
+        $zip->close();
+
+        return $entries;
     }
 
     private function documentImporter(

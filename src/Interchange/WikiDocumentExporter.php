@@ -17,6 +17,10 @@ use Psr\Log\NullLogger;
 use Throwable;
 
 use function dirname;
+use function ltrim;
+use function str_replace;
+use function strlen;
+use function substr;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -35,6 +39,7 @@ final readonly class WikiDocumentExporter
      * @param WikiMarkdownConverter $markdownConverter converts stored HTML to Markdown
      * @param WikiFrontMatterParser $frontMatterParser serializes the YAML front matter
      * @param LoggerInterface|null $logger logger (defaults to a NullLogger)
+     * @param WikiExportIndexWriter|null $indexWriter writes the README.md index (1.15.1; untranslated English when null)
      */
     public function __construct(
         private WikiPageRepositoryInterface $pageRepository,
@@ -42,14 +47,19 @@ final readonly class WikiDocumentExporter
         private WikiMarkdownConverter $markdownConverter,
         private WikiFrontMatterParser $frontMatterParser,
         ?LoggerInterface $logger = null,
+        ?WikiExportIndexWriter $indexWriter = null,
     ) {
-        $this->logger = $logger ?? new NullLogger();
+        $this->logger      = $logger ?? new NullLogger();
+        $this->indexWriter = $indexWriter ?? new WikiExportIndexWriter();
     }
 
     private LoggerInterface $logger;
 
+    private WikiExportIndexWriter $indexWriter;
+
     /**
-     * Writes the active pages of the space (those the page filter keeps) as Markdown files under the target directory.
+     * Writes the active pages of the space (those the page filter keeps) as Markdown files under the target directory,
+     * plus a {@code README.md} index of exactly those pages (1.15.1: an export is never empty).
      *
      * @param WikiSpace $space space to export
      * @param string $targetDir output directory (created when missing)
@@ -107,13 +117,15 @@ final readonly class WikiDocumentExporter
         $exported = $this->markdownConverter->dialect ? $this->exportedPaths($tree, $targetDir, $format) : [];
         if ($format === WikiInterchangeFormat::Notion) {
             foreach ($tree as $node) {
-                $this->exportNotionNode($node, $targetDir, $report, $exported);
+                $this->exportNotionNode($node, $targetDir, $report, $exported, 0);
             }
         } else {
             foreach ($tree as $node) {
-                $this->exportOutlineNode($node, $targetDir, null, $report, $exported);
+                $this->exportOutlineNode($node, $targetDir, null, $report, $exported, 0);
             }
         }
+
+        $this->indexWriter->write($space, $targetDir, $report);
 
         return $report;
     }
@@ -122,7 +134,7 @@ final readonly class WikiDocumentExporter
      * @param array{page: WikiPage, children: list<mixed>} $node
      * @param array<string, array{path: string, title: string}> $exported page id => file of the exported pages (1.13)
      */
-    private function exportNotionNode(array $node, string $targetDir, WikiExportReport $report, array $exported): void
+    private function exportNotionNode(array $node, string $targetDir, WikiExportReport $report, array $exported, int $depth): void
     {
         $page   = $node['page'];
         $folder = $targetDir . DIRECTORY_SEPARATOR . $this->sanitizeFilesystemName($page->getTitle());
@@ -135,13 +147,14 @@ final readonly class WikiDocumentExporter
             $page,
             null,
             $exported,
+            $report,
+            $depth,
         );
-        ++$report->pagesExported;
 
         /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
         $children = $node['children'];
         foreach ($children as $child) {
-            $this->exportNotionNode($child, $folder, $report, $exported);
+            $this->exportNotionNode($child, $folder, $report, $exported, $depth + 1);
         }
     }
 
@@ -155,6 +168,7 @@ final readonly class WikiDocumentExporter
         ?WikiPage $parent,
         WikiExportReport $report,
         array $exported,
+        int $depth,
     ): void {
         $page = $node['page'];
         $this->writeMarkdownFile(
@@ -162,20 +176,23 @@ final readonly class WikiDocumentExporter
             $page,
             $parent,
             $exported,
+            $report,
+            $depth,
         );
-        ++$report->pagesExported;
 
         /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
         $children = $node['children'];
         foreach ($children as $child) {
-            $this->exportOutlineNode($child, $targetDir, $page, $report, $exported);
+            $this->exportOutlineNode($child, $targetDir, $page, $report, $exported, $depth + 1);
         }
     }
 
     /**
+     * Writes one page and records it in the report (count and README index entry).
+     *
      * @param array<string, array{path: string, title: string}> $exported
      */
-    private function writeMarkdownFile(string $path, WikiPage $page, ?WikiPage $parent, array $exported): void
+    private function writeMarkdownFile(string $path, WikiPage $page, ?WikiPage $parent, array $exported, WikiExportReport $report, int $depth): void
     {
         $revision = $page->getCurrentRevision();
         // 1.11: a Markdown revision exports its source as is (1.13: dialect page links to exported pages as file links).
@@ -190,6 +207,13 @@ final readonly class WikiDocumentExporter
         ];
         $content = $this->frontMatterParser->serialize($meta, $markdown);
         file_put_contents($path, $content);
+
+        ++$report->pagesExported;
+        $report->pages[] = [
+            'title' => $page->getTitle(),
+            'path'  => str_replace(DIRECTORY_SEPARATOR, '/', ltrim(substr($path, strlen($report->outputPath)), '/\\')),
+            'depth' => $depth,
+        ];
     }
 
     /**

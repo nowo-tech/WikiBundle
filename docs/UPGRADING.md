@@ -57,6 +57,14 @@
 
 ## Unreleased
 
+- **Exports include `README.md`.** Web (`nowo_wiki_space_export`) and console (`wiki:export`) exports now write a
+  `README.md` index at the archive / target directory root, listing the exported pages (or saying there are none).
+  A `wiki:export` into an existing directory overwrites a `README.md` already there. The bundle's importer skips the
+  index; other tools that read the export see one more Markdown file. Strings: `wiki.export.readme.*` in the
+  `NowoWikiBundle` domain (override them in your app translations if needed).
+- `WikiExportReport` gains `$pages` (title, relative path, depth of each exported page) and `WikiDocumentExporter`
+  an optional 6th constructor argument (`?WikiExportIndexWriter`); both are additive.
+
 ## To 1.15.0
 
 From **1.14.1**:

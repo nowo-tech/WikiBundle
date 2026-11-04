@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Command;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use RuntimeException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -60,10 +62,12 @@ final class WikiExportCommand extends Command
     /**
      * Exports the space to a directory, or to a ZIP archive built from a temporary directory with {@code --zip}.
      *
+     * Both always hold a {@code README.md} index (1.15.1), so an empty space still produces a valid archive.
+     *
      * @param InputInterface $input console input
      * @param OutputInterface $output console output
      *
-     * @return int Command::FAILURE when disabled or the space is missing; Command::SUCCESS otherwise
+     * @return int Command::FAILURE when disabled, the space is missing or the export fails; Command::SUCCESS otherwise
      */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
@@ -105,16 +109,23 @@ final class WikiExportCommand extends Command
             $cleanupDir = $workingDir;
         }
 
-        $report = $this->documentExporter->export($space, $workingDir, $format);
+        // 1.15.1: the temporary directory is removed on every path; a failed export is reported, not thrown.
+        try {
+            $report = $this->documentExporter->export($space, $workingDir, $format);
 
-        if ($asZip) {
-            $this->archiveHelper->createZipFromDirectory($workingDir, $target);
-            $report->outputPath = $target;
-        }
+            if ($asZip) {
+                $this->archiveHelper->createZipFromDirectory($workingDir, $target);
+                $report->outputPath = $target;
+            }
+        } catch (InvalidArgumentException|RuntimeException $exception) {
+            $io->error(sprintf('Export failed: %s', $exception->getMessage()));
 
-        if ($cleanupDir !== null) {
-            // @igor-ignore - Console command; not executed in FrankenPHP worker HTTP requests.
-            $this->archiveHelper->removeDirectory($cleanupDir);
+            return Command::FAILURE;
+        } finally {
+            if ($cleanupDir !== null) {
+                // @igor-ignore - Console command; not executed in FrankenPHP worker HTTP requests.
+                $this->archiveHelper->removeDirectory($cleanupDir);
+            }
         }
 
         $io->success(sprintf(

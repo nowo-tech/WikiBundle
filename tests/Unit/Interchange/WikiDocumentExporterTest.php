@@ -49,10 +49,16 @@ final class WikiDocumentExporterTest extends TestCase
             self::assertFileExists($target . '/child.md');
             $content = (string) file_get_contents($target . '/child.md');
             self::assertStringContainsString('wiki_parent: parent', $content);
+            // 1.15.1: README.md index of exactly the exported pages, nested like the tree.
+            self::assertSame([
+                ['title' => 'Parent', 'path' => 'parent.md', 'depth' => 0],
+                ['title' => 'Child', 'path' => 'child.md', 'depth' => 1],
+            ], $report->pages);
+            self::assertStringContainsString("- [Parent](parent.md)\n  - [Child](child.md)\n", (string) file_get_contents($target . '/README.md'));
         } finally {
             unlink($target . '/parent.md');
             unlink($target . '/child.md');
-            rmdir($target);
+            $this->removeTree($target);
         }
     }
 
@@ -81,7 +87,7 @@ final class WikiDocumentExporterTest extends TestCase
             self::assertStringNotContainsString('cache', $content);
         } finally {
             unlink($target . '/runbook.md');
-            rmdir($target);
+            $this->removeTree($target);
         }
     }
 
@@ -113,16 +119,8 @@ final class WikiDocumentExporterTest extends TestCase
             self::assertStringContainsString('Go to [Set up](Set%20up/Set%20up.md#step-1)', (string) file_get_contents($notion . '/Guide [v2]/Guide [v2].md'));
             self::assertStringContainsString('Back to [Guide \\[v2\\]](../Guide%20%5Bv2%5D.md)', (string) file_get_contents($notion . '/Guide [v2]/Set up/Set up.md'));
         } finally {
-            foreach (['/guide.md', '/setup.md'] as $file) {
-                unlink($outline . $file);
-            }
-
-            rmdir($outline);
-            unlink($notion . '/Guide [v2]/Set up/Set up.md');
-            rmdir($notion . '/Guide [v2]/Set up');
-            unlink($notion . '/Guide [v2]/Guide [v2].md');
-            rmdir($notion . '/Guide [v2]');
-            rmdir($notion);
+            $this->removeTree($outline);
+            $this->removeTree($notion);
         }
     }
 
@@ -222,9 +220,7 @@ final class WikiDocumentExporterTest extends TestCase
             if (is_file($target . '/intro.md')) {
                 unlink($target . '/intro.md');
             }
-            if (is_dir($target)) {
-                rmdir($target);
-            }
+            $this->removeTree($target);
         }
     }
 
@@ -250,7 +246,7 @@ final class WikiDocumentExporterTest extends TestCase
             self::assertFileExists($target . '/draft.md');
         } finally {
             unlink($target . '/draft.md');
-            rmdir($target);
+            $this->removeTree($target);
         }
     }
 
@@ -277,9 +273,7 @@ final class WikiDocumentExporterTest extends TestCase
         try {
             $exporter->export($space, $target, WikiInterchangeFormat::Notion);
         } finally {
-            unlink($target . '/Intro/Intro.md');
-            rmdir($target . '/Intro');
-            rmdir($target);
+            $this->removeTree($target);
         }
 
         self::assertSame(['info: Wiki export started.', 'info: Wiki export finished.'], $logger->lines());
@@ -346,7 +340,7 @@ final class WikiDocumentExporterTest extends TestCase
             ))->export($space, $target, WikiInterchangeFormat::Notion);
         } finally {
             unlink($target . '/Intro');
-            rmdir($target);
+            $this->removeTree($target);
         }
     }
 

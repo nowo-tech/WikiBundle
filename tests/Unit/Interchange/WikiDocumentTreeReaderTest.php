@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Interchange;
 
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
+use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
+use Nowo\WikiBundle\Interchange\WikiDocumentNode;
 use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
+use Nowo\WikiBundle\Interchange\WikiExportIndexWriter;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use PHPUnit\Framework\TestCase;
 
@@ -72,6 +75,35 @@ MD);
             rmdir($childDir);
             rmdir($parentDir);
             rmdir($root);
+        }
+    }
+
+    public function testSkipsTheExportIndexInOutlineAndNotionTrees(): void
+    {
+        // 1.15.1: re-importing a wiki export must not turn its README.md index into a page (nor, for Notion, into
+        // the parent of every top-level page).
+        $root      = sys_get_temp_dir() . '/wiki-index-' . bin2hex(random_bytes(4));
+        $parentDir = $root . '/Parent Page';
+        mkdir($parentDir, 0777, true);
+        $index = WikiExportIndexWriter::MARKER . "\n\n# Docs\n";
+        file_put_contents($root . '/README.md', $index);
+        file_put_contents($parentDir . '/Parent Page.md', "# Parent\n");
+        file_put_contents($parentDir . '/README.md', $index);
+
+        try {
+            $reader = new WikiDocumentTreeReader(new WikiFrontMatterParser());
+
+            $notion = $reader->read($root, WikiInterchangeFormat::Notion);
+            self::assertCount(1, $notion);
+            self::assertSame('Parent Page', $notion[0]->relativePath);
+            self::assertNull($notion[0]->parentRelativePath);
+
+            unlink($parentDir . '/Parent Page.md');
+            file_put_contents($root . '/intro.md', "---\ntitle: Intro\nwiki_slug: intro\n---\nBody\n");
+            $outline = $reader->read($root, WikiInterchangeFormat::Outline);
+            self::assertSame(['intro'], array_map(static fn (WikiDocumentNode $node): ?string => $node->slug, $outline));
+        } finally {
+            (new WikiArchiveHelper())->removeDirectory($root);
         }
     }
 
