@@ -18,6 +18,22 @@ class WikiCollabDocument
     #[ORM\Column(name: 'updated_at', type: 'datetime_immutable')]
     private DateTimeImmutable $updatedAt;
 
+    /** 1.14.1: updates in the log after the snapshot, kept with every write (no SUM over the log per request). */
+    #[ORM\Column(name: 'update_count', type: 'integer', options: ['default' => 0])]
+    private int $updateCount = 0;
+
+    /** 1.14.1: bytes of the stored log (snapshot and updates, base64), kept with every write. */
+    #[ORM\Column(name: 'log_bytes', type: 'integer', options: ['default' => 0])]
+    private int $logBytes = 0;
+
+    /** 1.14.1: sequence number of the last stored update. */
+    #[ORM\Column(name: 'last_seq', type: 'integer', options: ['default' => 0])]
+    private int $lastSeq = 0;
+
+    /** 1.14.1: sequence number the snapshot covers. */
+    #[ORM\Column(name: 'snapshot_seq', type: 'integer', options: ['default' => 0])]
+    private int $snapshotSeq = 0;
+
     /**
      * @param string $pageId id of the page (one document per page)
      * @param string|null $baseRevisionId revision the log started from or was last saved as
@@ -77,5 +93,25 @@ class WikiCollabDocument
     public function getUpdatedAt(): DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    public function getUpdateCount(): int
+    {
+        return $this->updateCount;
+    }
+
+    public function getLogBytes(): int
+    {
+        return $this->logBytes;
+    }
+
+    public function getLastSeq(): int
+    {
+        return $this->lastSeq;
+    }
+
+    public function getSnapshotSeq(): int
+    {
+        return $this->snapshotSeq;
     }
 }

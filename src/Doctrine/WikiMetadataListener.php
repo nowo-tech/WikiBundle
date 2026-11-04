@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Entity\WikiCollabUpdate;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Entity\WikiRevisionLabel;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
 
@@ -38,6 +39,8 @@ final readonly class WikiMetadataListener
      * @param bool $collaborationEnabled false: the two collaboration tables are left out of the generated schema (1.13.1)
      * @param string $trashTableName table name for the trash (1.14)
      * @param bool $trashEnabled false: the trash table is left out of the generated schema (1.14)
+     * @param string $revisionLabelsTableName table name for the named versions (1.15)
+     * @param bool $historyTimeline false: the named-version table is left out of the generated schema (1.15)
      */
     public function __construct(
         private string $spacesTableName,
@@ -51,6 +54,8 @@ final readonly class WikiMetadataListener
         private bool $collaborationEnabled = true,
         private string $trashTableName = 'wiki_page_trash',
         private bool $trashEnabled = true,
+        private string $revisionLabelsTableName = 'wiki_revision_labels',
+        private bool $historyTimeline = true,
     ) {
     }
 
@@ -69,6 +74,9 @@ final readonly class WikiMetadataListener
         $tables = $this->collaborationEnabled ? [] : [$this->collabUpdatesTableName, $this->collabDocumentsTableName];
         if (!$this->trashEnabled) {
             $tables[] = $this->trashTableName;
+        }
+        if (!$this->historyTimeline) {
+            $tables[] = $this->revisionLabelsTableName;
         }
         $schema = $args->getSchema();
         foreach ($tables as $table) {
@@ -116,6 +124,12 @@ final readonly class WikiMetadataListener
 
         if ($class === WikiCollabDocument::class || $class === WikiCollabUpdate::class) {
             $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $class === WikiCollabDocument::class ? $this->collabDocumentsTableName : $this->collabUpdatesTableName]));
+
+            return;
+        }
+
+        if ($class === WikiRevisionLabel::class) {
+            $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->revisionLabelsTableName]));
 
             return;
         }

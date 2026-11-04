@@ -30,6 +30,9 @@ use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\History\WikiAuthorLabel;
+use Nowo\WikiBundle\History\WikiHistoryThinner;
+use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
@@ -43,12 +46,14 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
@@ -146,6 +151,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $config['tree']['enabled'] = $this->literalBool($config['tree']['enabled'], 'tree.enabled');
         if (!$config['tree']['enabled']) {
             unset($config['routes']['page_move'], $config['routes']['space_tree']);
+        }
+        // 1.15: the history timeline; its table and routes exist only when it is on.
+        $config['history']['timeline'] = $this->literalBool($config['history']['timeline'], 'history.timeline');
+        if (!$config['history']['timeline']) {
+            unset($config['routes']['page_version_save'], $config['routes']['page_version_copy']);
         }
         // 1.14 (T065): the trash; its table and routes exist only when it is on.
         $config['trash']['enabled'] = $this->literalBool($config['trash']['enabled'], 'trash.enabled');
@@ -288,6 +298,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$collaborationEnabled', $config['collaboration']['enabled'])
             ->setArgument('$trashTableName', $prefix . '_page_trash')
             ->setArgument('$trashEnabled', $config['trash']['enabled'])
+            ->setArgument('$revisionLabelsTableName', $prefix . '_revision_labels')
+            ->setArgument('$historyTimeline', $config['history']['timeline'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
@@ -302,6 +314,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerCollaboration($container, $config);
         $this->registerTree($container, $config);
         $this->registerTrash($container, $config, $emProviderRef);
+        $this->registerHistory($container, $config, $emProviderRef);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
 
@@ -382,6 +395,35 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$icons', new Reference(IconResolverInterface::class)));
         $container->setDefinition(WikiMilkdownRichContent::class, (new Definition(WikiMilkdownRichContent::class))
             ->setArgument('$twig', new Reference(MilkdownEditorTwig::class)));
+    }
+
+    /**
+     * 1.15: the history timeline — the named-version store, the author labels, the timeline service and the retention
+     * (`wiki:history:thin` gets the thinner when it exists).
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerHistory(ContainerBuilder $container, array $config, Reference $entityManager): void
+    {
+        /** @var array{timeline: bool, session_minutes: int, show_names: bool, retention_days: int} $history */
+        $history = $config['history'];
+        if (!$history['timeline']) {
+            return;
+        }
+        $container->setDefinition(DoctrineOrmWikiRevisionLabelRepository::class, (new Definition(DoctrineOrmWikiRevisionLabelRepository::class))
+            ->setArgument('$entityManager', $entityManager));
+        $container->setAlias(WikiRevisionLabelRepositoryInterface::class, DoctrineOrmWikiRevisionLabelRepository::class);
+        $container->setDefinition(WikiAuthorLabel::class, (new Definition(WikiAuthorLabel::class))
+            ->setArgument('$secret', '%kernel.secret%')
+            ->setArgument('$showNames', $history['show_names']));
+        $container->setDefinition(WikiHistoryTimeline::class, (new Definition(WikiHistoryTimeline::class))
+            ->setArgument('$labels', new Reference(WikiRevisionLabelRepositoryInterface::class))
+            ->setArgument('$authors', new Reference(WikiAuthorLabel::class))
+            ->setArgument('$sessionMinutes', $history['session_minutes']));
+        $container->setDefinition(WikiHistoryThinner::class, (new Definition(WikiHistoryThinner::class))
+            ->setArgument('$entityManager', $entityManager)
+            ->setArgument('$retentionDays', $history['retention_days'])
+            ->setArgument('$sessionMinutes', $history['session_minutes']));
     }
 
     /**
@@ -502,6 +544,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$options', array_intersect_key($collab, WikiCollabService::DEFAULTS))
             ->setArgument('$rateLimiter', new Reference((string) $collab['rate_limiter']))
             ->setArgument('$userRateLimiter', is_string($collab['user_rate_limiter']) && $collab['user_rate_limiter'] !== '' ? new Reference($collab['user_rate_limiter']) : null)
+            ->setArgument('$updateRateLimiter', is_string($collab['update_rate_limiter']) && $collab['update_rate_limiter'] !== '' ? new Reference($collab['update_rate_limiter']) : null)
+            ->setArgument('$awarenessRateLimiter', is_string($collab['awareness_rate_limiter']) && $collab['awareness_rate_limiter'] !== '' ? new Reference($collab['awareness_rate_limiter']) : null)
             ->setArgument('$secret', '%kernel.secret%'));
         $container->setDefinition(WikiCollabSaveListener::class, (new Definition(WikiCollabSaveListener::class))
             ->setArgument('$collab', new Reference(WikiCollabService::class))

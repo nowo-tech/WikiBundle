@@ -23,14 +23,18 @@ use Throwable;
 use function count;
 use function is_numeric;
 use function max;
+use function strlen;
+
+use const PHP_INT_MAX;
 
 /**
- * Default {@see WikiCollabStateStoreInterface} (1.13) on the wiki entity manager: `<prefix>_page_collab_documents`
+ * Default {@see WikiCollabStateStoreInterface} (1.13; {@see WikiCollabCountingStoreInterface} since 1.14.1: the
+ * document row keeps the log's update count, bytes and sequence numbers) on the wiki entity manager: `<prefix>_page_collab_documents`
  * (one row per page) and `<prefix>_page_collab_updates` (the log; the auto-increment id is the sequence number).
  * Appends are single inserts, the seed claim is a conditional update (one winner), compaction inserts the snapshot
  * before deleting what it covers — no read-modify-write, so concurrent requests never lose an update.
  */
-final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStoreInterface, WikiCollabPagePurgeInterface
+final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface
 {
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki entity manager (or its provider)
@@ -71,46 +75,24 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
 
     public function info(string $pageId): WikiCollabState
     {
-        $em       = $this->em();
-        $document = $em->createQueryBuilder()
+        // 1.14.1: one read of the document row; its counters are kept by every write (no SUM over the log).
+        $document = $this->em()->createQueryBuilder()
             ->select('d')->from(WikiCollabDocument::class, 'd')
             ->where('d.pageId = :page')->setParameter('page', $pageId)
             ->getQuery()->setHint(Query::HINT_REFRESH, true)->getOneOrNullResult();
-        /** @var list<array{kind: string, n: int|string, b: int|string|null, m: int|string|null, c: int|string|null}> $rows */
-        $rows = $em->createQueryBuilder()
-            ->select('u.kind AS kind', 'COUNT(u.id) AS n', 'SUM(LENGTH(u.data)) AS b', 'MAX(u.id) AS m', 'MAX(u.coversSeq) AS c')
-            ->from(WikiCollabUpdate::class, 'u')
-            ->where('u.pageId = :page')->setParameter('page', $pageId)
-            ->groupBy('u.kind')
-            ->getQuery()->getArrayResult();
-
-        $count = 0;
-        $bytes = 0;
-        $seq   = 0;
-        $cover = 0;
-        foreach ($rows as $row) {
-            $bytes += (int) $row['b'];
-            $seq = max($seq, (int) $row['m']);
-            if ($row['kind'] === WikiCollabUpdate::KIND_SNAPSHOT) {
-                $cover = (int) $row['c'];
-            } else {
-                $count = (int) $row['n'];
-            }
-        }
-
         $document = $document instanceof WikiCollabDocument ? $document : null;
 
         return new WikiCollabState(
             null,
             [],
-            max($seq, $cover),
+            max($document?->getLastSeq() ?? 0, $document?->getSnapshotSeq() ?? 0),
             $document?->getBaseRevisionId(),
             $document?->getSeededAt(),
             $document?->getSeededBy(),
             $document?->getUpdatedAt(),
-            $count,
-            $bytes,
-            $cover,
+            $document?->getUpdateCount() ?? 0,
+            $document?->getLogBytes() ?? 0,
+            $document?->getSnapshotSeq() ?? 0,
         );
     }
 
@@ -123,23 +105,53 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
      */
     public function append(string $pageId, string $update): int
     {
+        $this->appendWithin($pageId, $update, PHP_INT_MAX, PHP_INT_MAX);
+
+        return $this->info($pageId)->seq;
+    }
+
+    /**
+     * 1.14.1: the caps and the append in one transaction under the document's row lock — three statements (the
+     * locked counters, the insert, the counter update) instead of two SUMs over the log per request.
+     */
+    public function appendWithin(string $pageId, string $update, int $maxEntries, int $maxBytes): ?string
+    {
         $em         = $this->em();
         $connection = $em->getConnection();
         $connection->beginTransaction();
         try {
             // No ensureDocument() here: the token request created the document; a missing one was purged (409).
+            /** @var list<array{updateCount: int|string, logBytes: int|string}> $locked */
             $locked = $em->createQueryBuilder()
-                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->select('d.updateCount AS updateCount', 'd.logBytes AS logBytes')->from(WikiCollabDocument::class, 'd')
                 ->where('d.pageId = :page')->setParameter('page', $pageId)
                 ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
             if ($locked === []) {
                 throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
             }
-            $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_UPDATE, $update);
-            $em->persist($row);
-            $em->flush();
-            $em->detach($row);
-            $this->touch($pageId);
+            $refused = match (true) {
+                (int) $locked[0]['updateCount'] >= $maxEntries             => 'log_full',
+                (int) $locked[0]['logBytes'] + strlen($update) > $maxBytes => 'log_reset',
+                default                                                    => null,
+            };
+            if ($refused === null) {
+                $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_UPDATE, $update);
+                $em->persist($row);
+                $em->flush();
+                $em->detach($row);
+                $em->createQueryBuilder()
+                    ->update(WikiCollabDocument::class, 'd')
+                    ->set('d.updateCount', 'd.updateCount + 1')
+                    ->set('d.logBytes', 'd.logBytes + :bytes')
+                    ->set('d.lastSeq', ':seq')
+                    ->set('d.updatedAt', ':now')
+                    ->where('d.pageId = :page')
+                    ->setParameter('bytes', strlen($update))
+                    ->setParameter('seq', (int) $row->getId())
+                    ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
+                    ->setParameter('page', $pageId)
+                    ->getQuery()->execute();
+            }
             $connection->commit();
         } catch (Throwable $exception) {
             $connection->rollBack();
@@ -147,7 +159,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
             throw $exception;
         }
 
-        return (int) $row->getId();
+        return $refused;
     }
 
     /**
@@ -182,7 +194,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
                     ->setParameter('upTo', $upToSeq)
                     ->setParameter('snapshot', $row->getId())
                     ->getQuery()->execute();
-                $this->touch($pageId);
+                $this->recount($pageId);
             }
 
             $connection->commit();
@@ -255,25 +267,47 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
         return is_numeric($claimed) && (int) $claimed === 1;
     }
 
+    /**
+     * Drops the log (audit DQ-L1): in one transaction that locks the document row first, in the same order as
+     * appendWithin() and compact() (document, then updates), so an append can neither slip between the delete and the
+     * counter reset nor deadlock with it.
+     */
     public function reset(string $pageId, ?string $baseRevisionId): void
     {
-        $em = $this->em();
-        $em->createQueryBuilder()
-            ->delete(WikiCollabUpdate::class, 'u')
-            ->where('u.pageId = :page')->setParameter('page', $pageId)
-            ->getQuery()->execute();
         $this->ensureDocument($pageId);
-        $em->createQueryBuilder()
-            ->update(WikiCollabDocument::class, 'd')
-            ->set('d.baseRevisionId', ':base')
-            ->set('d.seededAt', 'NULL')
-            ->set('d.seededBy', 'NULL')
-            ->set('d.updatedAt', ':now')
-            ->where('d.pageId = :page')
-            ->setParameter('base', $baseRevisionId)
-            ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
-            ->setParameter('page', $pageId)
-            ->getQuery()->execute();
+        $em         = $this->em();
+        $connection = $em->getConnection();
+        $connection->beginTransaction();
+        try {
+            $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+            $em->createQueryBuilder()
+                ->delete(WikiCollabUpdate::class, 'u')
+                ->where('u.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->execute();
+            $em->createQueryBuilder()
+                ->update(WikiCollabDocument::class, 'd')
+                ->set('d.baseRevisionId', ':base')
+                ->set('d.seededAt', 'NULL')
+                ->set('d.seededBy', 'NULL')
+                ->set('d.updateCount', 0)
+                ->set('d.logBytes', 0)
+                ->set('d.lastSeq', 0)
+                ->set('d.snapshotSeq', 0)
+                ->set('d.updatedAt', ':now')
+                ->where('d.pageId = :page')
+                ->setParameter('base', $baseRevisionId)
+                ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
+                ->setParameter('page', $pageId)
+                ->getQuery()->execute();
+            $connection->commit();
+        } catch (Throwable $exception) {
+            $connection->rollBack();
+
+            throw $exception;
+        }
     }
 
     public function markSaved(string $pageId, string $revisionId): void
@@ -324,13 +358,45 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabStateStor
         return is_numeric($counted) && (int) $counted === 1;
     }
 
-    private function touch(string $pageId): void
+    /**
+     * Counts the page's log again after a compaction (rare): updates after the snapshot, bytes, last and covered
+     * sequence numbers, written to the document row (1.14.1).
+     */
+    private function recount(string $pageId): void
     {
-        $this->ensureDocument($pageId);
-        $this->em()->createQueryBuilder()
+        $em = $this->em();
+        /** @var list<array{kind: string, n: int|string, b: int|string|null, m: int|string|null, c: int|string|null}> $rows */
+        $rows = $em->createQueryBuilder()
+            ->select('u.kind AS kind', 'COUNT(u.id) AS n', 'SUM(LENGTH(u.data)) AS b', 'MAX(u.id) AS m', 'MAX(u.coversSeq) AS c')
+            ->from(WikiCollabUpdate::class, 'u')
+            ->where('u.pageId = :page')->setParameter('page', $pageId)
+            ->groupBy('u.kind')
+            ->getQuery()->getArrayResult();
+        $count = 0;
+        $bytes = 0;
+        $seq   = 0;
+        $cover = 0;
+        foreach ($rows as $row) {
+            $bytes += (int) $row['b'];
+            $seq = max($seq, (int) $row['m']);
+            if ($row['kind'] === WikiCollabUpdate::KIND_SNAPSHOT) {
+                $cover = (int) $row['c'];
+            } else {
+                $count = (int) $row['n'];
+            }
+        }
+        $em->createQueryBuilder()
             ->update(WikiCollabDocument::class, 'd')
+            ->set('d.updateCount', ':count')
+            ->set('d.logBytes', ':bytes')
+            ->set('d.lastSeq', ':seq')
+            ->set('d.snapshotSeq', ':cover')
             ->set('d.updatedAt', ':now')
             ->where('d.pageId = :page')
+            ->setParameter('count', $count)
+            ->setParameter('bytes', $bytes)
+            ->setParameter('seq', $seq)
+            ->setParameter('cover', $cover)
             ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
             ->setParameter('page', $pageId)
             ->getQuery()->execute();

@@ -97,6 +97,15 @@ wiki:
     empty: "Nog geen revisies."
     restore_confirm_title: "Deze revisie herstellen?"
     restore_confirm_message: "Revisie v%number% wordt de huidige inhoud als nieuwe revisie; de geschiedenis bewaart alle versies."
+    label: "Versienaam"
+    label_help: "Geeft de huidige revisie een naam, bijv. ‘Vóór de migratie’. Benoemde versies worden nooit uitgedund."
+    author: "Auteur"
+    session_column: "Opslagen in sessie"
+    save_version: "Versie opslaan"
+    save_version_title: "Versie van %title% opslaan"
+    version_saved: "Revisie v%number% is opgeslagen als ‘%label%’."
+    copy: "Kopiëren naar nieuwe pagina"
+    copied: "‘%title%’ is gemaakt van de oude versie."
   diff:
     title: Verschillen
     range: "%title%: v%from% → v%to%"

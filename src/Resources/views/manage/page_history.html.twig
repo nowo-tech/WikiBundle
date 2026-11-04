@@ -3,6 +3,8 @@
   header wiki.history.title / page title with a back link to the page, breadcrumbs; columns revision, created; rows
   {id, number, created, current}; row actions Compare (diff with the next older revision) and Restore (POST + CSRF
   behind a UiKit confirm dialog; not on the current revision); Pagination (pagination.revisions_per_page)).
+  1.15 (history.timeline): rows also hold label (named version), author (opaque "Editor xxxx" or a safe display name)
+  and session (number of saves on the newest row of a session, else empty); row action Copy to new page (POST + CSRF).
   Blocks filled: nowo_ui_styles, nowo_ui_list_row (the current revision gets a badge).
 #}
 {% extends '@NowoUiKit/page/list.html.twig' %}
@@ -19,5 +21,12 @@
         {{ row.number }}
         {% if row.current %}<span class="{{ nowo_ui_class('badge_success', page.bundle) }}">{{ 'wiki.history.current'|trans }}</span>{% endif %}
     </td>
+    {% if row.author is defined %}
+        <td class="{{ _cell }}" data-label="{{ 'wiki.history.label'|trans }}">{% if row.label != '' %}<strong>{{ row.label }}</strong>{% endif %}</td>
+        <td class="{{ _cell }}" data-label="{{ 'wiki.history.author'|trans }}">{{ row.author }}</td>
+    {% endif %}
     <td class="{{ _cell }}" data-label="{{ 'wiki.history.created'|trans }}">{{ row.created }}</td>
+    {% if row.session is defined %}
+        <td class="{{ _cell }}" data-label="{{ 'wiki.history.session_column'|trans }}">{{ row.session }}</td>
+    {% endif %}
 {% endblock %}

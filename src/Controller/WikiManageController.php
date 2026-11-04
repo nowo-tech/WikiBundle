@@ -23,6 +23,7 @@ use Nowo\WikiBundle\Form\WikiPageFormType;
 use Nowo\WikiBundle\Form\WikiPageMoveType;
 use Nowo\WikiBundle\Form\WikiPostActionType;
 use Nowo\WikiBundle\Form\WikiSearchType;
+use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
@@ -131,6 +132,7 @@ final class WikiManageController extends AbstractController
      * @param WikiPageMover|null $mover page moves of the tree (1.14; null = tree disabled)
      * @param WikiTreeStateStoreInterface|null $treeState fold state of the tree (1.14; null = tree disabled)
      * @param WikiTrashService|null $trash the trash (1.14; null = trash disabled)
+     * @param WikiHistoryTimeline|null $timeline the history timeline (1.15; null = the 1.14 revision list)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -166,6 +168,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiPageMover $mover = null,
         private readonly ?WikiTreeStateStoreInterface $treeState = null,
         private readonly ?WikiTrashService $trash = null,
+        private readonly ?WikiHistoryTimeline $timeline = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -297,6 +300,10 @@ final class WikiManageController extends AbstractController
             $this->generateUrl($this->routes['page_archive']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug()]),
             'wiki_archive_' . $item->getId(),
         ])[0] : null;
+        // 1.15: Save version for editors (history.timeline).
+        if ($this->timeline instanceof WikiHistoryTimeline) {
+            $can['version'] = $can['edit'] && isset($this->routes['page_version_save']) && $page->getCurrentRevision() instanceof WikiPageRevision;
+        }
         // 1.14: Delete (to the trash) for users with WikiAction::Delete on the page.
         $deleteForm = $this->trash instanceof WikiTrashService && isset($this->routes['page_delete']) && $this->accessChecker->canArchive($user)
             && $this->spaceGuard->isGranted($user, WikiAction::Delete, $space, $page)
@@ -562,6 +569,8 @@ final class WikiManageController extends AbstractController
                 $this->restoreForms($user, $space, $page, $revisions),
                 // 1.12: no pagination region (empty card / "1 of 1") when every revision fits on one page.
                 $total > $perPage ? Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $route, [], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]) : null,
+                $this->timeline?->rows($page, $revisions),
+                $this->copyForms($user, $space, $page, $revisions),
             ),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
@@ -1166,6 +1175,27 @@ final class WikiManageController extends AbstractController
         }
 
         return $forms;
+    }
+
+    /**
+     * Copy to new page forms of the listed revisions (1.15, `history.timeline`), for users who may create pages.
+     *
+     * @param list<WikiPageRevision> $revisions
+     *
+     * @return array<int|string, FormView>
+     */
+    private function copyForms(UserInterface $user, WikiSpace $space, WikiPage $page, array $revisions): array
+    {
+        if (!$this->timeline instanceof WikiHistoryTimeline || !isset($this->routes['page_version_copy']) || !$this->accessChecker->canCreate($user)
+            || !$this->spaceGuard->isGranted($user, WikiAction::Create, $space)) {
+            return [];
+        }
+
+        return $this->postActionForms($revisions, fn (WikiPageRevision $revision): array => [
+            $revision->getRevisionNumber(),
+            $this->generateUrl($this->routes['page_version_copy']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug(), 'revisionNumber' => $revision->getRevisionNumber()]),
+            WikiHistoryController::copyTokenId($revision),
+        ]);
     }
 
     /**

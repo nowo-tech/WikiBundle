@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Routing;
 
 use Nowo\WikiBundle\Controller\WikiAttachmentController;
 use Nowo\WikiBundle\Controller\WikiCollabController;
+use Nowo\WikiBundle\Controller\WikiHistoryController;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Controller\WikiTrashController;
 use Nowo\WikiBundle\Controller\WikiTreeController;
@@ -80,7 +81,7 @@ final class WikiRouteLoader extends Loader
             return $collection;
         }
 
-        foreach ([WikiManageController::class, WikiAttachmentController::class, WikiCollabController::class, WikiTreeController::class, WikiTrashController::class] as $controller) {
+        foreach ([WikiManageController::class, WikiAttachmentController::class, WikiCollabController::class, WikiTreeController::class, WikiTrashController::class, WikiHistoryController::class] as $controller) {
             foreach ((new ReflectionClass($controller))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 foreach ($method->getAttributes(RouteAttribute::class) as $attribute) {
                     $declared = $attribute->newInstance();

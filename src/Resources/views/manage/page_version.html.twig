@@ -1,0 +1,12 @@
+{#
+  Save version (1.15, history.timeline): UiKit form scaffold. Variable: page (View\FormPage from
+  WikiPageFactory::pageVersion(): header wiki.history.save_version_title, back link; form = WikiVersionLabelType
+  (label, CSRF token wiki_version_<page id>)). The label goes on the page's current revision.
+  Blocks filled: nowo_ui_styles.
+#}
+{% extends '@NowoUiKit/page/form.html.twig' %}
+
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+{% endblock %}
