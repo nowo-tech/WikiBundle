@@ -414,7 +414,8 @@ final class WikiExtensionTest extends TestCase
             'table_prefix'  => 'kb',
             'editor'        => ['type' => 'milkdown'],
             'collaboration' => ['enabled' => true, 'rate_limiter' => 'limiter.wiki_collab'],
-            'comments'      => ['enabled' => true, 'rate_limiter' => 'limiter.wiki_comments', 'shortcut' => 'Alt+Shift+C'],
+            'comments'      => ['enabled' => true, 'rate_limiter' => 'limiter.wiki_comments', 'page_rate_limiter' => 'limiter.wiki_comments_page', 'shortcut' => 'Alt+Shift+C', 'limits' => ['threads_per_page' => 50]],
+            'trash'         => ['enabled' => true],
         ]], $container);
 
         /** @var array<string, array{path: string, name: string}> $routes */
@@ -427,6 +428,11 @@ final class WikiExtensionTest extends TestCase
         self::assertSame(SessionWikiPanelStateStore::class, (string) $container->getAlias(WikiPanelStateStoreInterface::class));
         $service = $container->getDefinition(WikiCommentService::class);
         self::assertSame('limiter.wiki_comments', (string) $service->getArgument('$rateLimiter'));
+        self::assertSame('limiter.wiki_comments_page', (string) $service->getArgument('$pageRateLimiter'));
+        self::assertSame(50, $service->getArgument('$limits')['threads_per_page']);
+        self::assertSame(20, $service->getArgument('$limits')['reactions_per_comment']);
+        // EI-L5: the trash purge deletes comments explicitly.
+        self::assertSame(WikiCommentRepositoryInterface::class, (string) $container->getDefinition(DoctrineOrmWikiTrashRepository::class)->getArgument('$comments'));
         self::assertSame(WikiCollabService::class, (string) $service->getArgument('$collab'));
         self::assertSame(WikiCollabPublisherInterface::class, (string) $service->getArgument('$publisher'));
         self::assertSame(MercureWikiCollabPublisher::class, (string) $container->getAlias(WikiCollabPublisherInterface::class));
@@ -441,6 +447,7 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$readViewSource'));
         self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$collab'));
         self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$publisher'));
+        self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$pageRateLimiter'));
         self::assertSame('app.panel_state', (string) $container->getAlias(WikiPanelStateStoreInterface::class));
     }
 

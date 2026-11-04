@@ -91,20 +91,37 @@ final class WikiCommentsPanelTest extends TestCase
 
     public function testWithoutTheComponentTheServerRendersEveryOpenThread(): void
     {
-        // 1.16 default for commenters who may not edit: no page source, the panel is the server list (closed or not).
+        // 1.16 default for commenters who may not edit: no page source, the panel is the server list.
         [$panel, $user, $space, $page, $service] = $this->panel([WikiAction::ViewComments, WikiAction::Comment]);
         $service->create($user, $space, $page, ['v' => 1, 'quote' => ['exact' => 'deploy', 'prefix' => '', 'suffix' => ''], 'position' => ['start' => 0, 'end' => 6], 'block' => ['index' => 0, 'heading' => null]], 'Inline note');
         $service->create($user, $space, $page, null, 'Page note');
 
-        $server = $panel->panel(Request::create('/wiki/run'), $user, $space, $page, false);
+        // Closed: nothing is read (audit EI-L4); opening it in place reloads the page with ?comments=1.
+        $closed = $panel->panel(Request::create('/wiki/run'), $user, $space, $page, false);
+        self::assertNotNull($closed);
+        self::assertFalse($closed['open']);
+        self::assertFalse($closed['mounted']);
+        self::assertSame([], $closed['page_threads']);
+        self::assertNull($closed['form']);
+        self::assertSame('/wiki/run?comments=1', $closed['reload_href']);
+
+        $server = $panel->panel(Request::create('/wiki/run?comments=1'), $user, $space, $page, false);
         self::assertNotNull($server);
-        self::assertFalse($server['open']);
-        self::assertFalse($server['mounted']);
         self::assertCount(2, $server['page_threads']);
+        self::assertFalse($server['truncated']);
+        self::assertNull($server['reload_href']);
         self::assertInstanceOf(FormView::class, $server['form']);
         self::assertFalse($panel->readViewSource());
         self::assertNull($server['edit_href']);
-        self::assertSame('/wiki/run/edit?comments=1', $panel->panel(null, $user, $space, $page, false, '/wiki/run/edit')['edit_href'] ?? null);
+        self::assertSame('/wiki/run/edit?comments=1', $panel->panel(null, $user, $space, $page, false, '/wiki/run/edit?comments=1')['edit_href'] ?? null);
+
+        // The list is capped.
+        for ($i = 0; $i < WikiCommentService::LIST_CAP; ++$i) {
+            $service->create($user, $space, $page, null, 'Note ' . $i);
+        }
+        $capped = $panel->panel(Request::create('/wiki/run?comments=1'), $user, $space, $page, false);
+        self::assertCount(WikiCommentService::LIST_CAP, $capped['page_threads'] ?? []);
+        self::assertTrue($capped['truncated'] ?? null);
 
         $mounted = $panel->panel(Request::create('/wiki/run'), $user, $space, $page);
         self::assertTrue($mounted['mounted'] ?? null);

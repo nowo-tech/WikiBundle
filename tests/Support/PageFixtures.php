@@ -157,15 +157,17 @@ final class PageFixtures
             'can'          => ['view' => true, 'comment' => $open, 'resolve' => false, 'moderate' => false],
             'mounted'      => $mounted,
             'edit_href'    => $editHref,
+            'truncated'    => !$mounted,
+            'reload_href'  => !$open && !$mounted ? '/p?comments=1' : null,
             'page_threads' => $open || !$mounted ? [[
                 'id'       => 't1',
-                'anchor'   => $mounted ? null : ['v' => 1, 'quote' => ['exact' => 'make deploy', 'prefix' => '', 'suffix' => ''], 'position' => ['start' => 0, 'end' => 11], 'block' => ['index' => 1, 'heading' => 'Deploy'], 'yjs' => null],
+                'anchor'   => $mounted ? null : ['v' => 1, 'quote' => ['exact' => 'make deploy']],
                 'comments' => [
                     $comment('c1', 'Maria Ruiz', '/files/maria/s64', '<p>Is <strong>this</strong> current?</p><script>alert(1)</script>'),
                     $comment('c2', 'Editor 3f2a', null, '', true),
                     $comment('c3', 'Editor 9b1c', null, '<p>Yes.</p>'),
                 ],
-            ]] : [],
+            ]] + ($mounted ? [] : [1 => ['id' => 't2', 'anchor' => ['v' => 1, 'quote' => ['exact' => '']], 'comments' => [$comment('c4', 'Editor 1a2b', null, '<p>Gone?</p>')]]]) : [],
             'form' => $open || !$mounted ? self::formFactory()->createNamed('', WikiCommentType::class, null, ['csrf_token_id' => 'wiki_comments_' . $page->getId(), 'action' => '/p/comments/new'])->createView() : null,
         ];
     }

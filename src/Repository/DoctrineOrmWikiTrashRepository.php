@@ -26,8 +26,13 @@ use function array_values;
  */
 final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashRepositoryInterface
 {
+    /**
+     * @param WikiCommentRepositoryInterface|null $comments 1.16: the comment store (with comments.enabled), whose rows
+     *                                                      of purged pages are deleted explicitly (no reliance on FKs)
+     */
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
+        private ?WikiCommentRepositoryInterface $comments = null,
     ) {
     }
 
@@ -131,6 +136,8 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
             // Pages under a purged page that are not purged with it (e.g. restored meanwhile) move to the top level.
             $entityManager->createQueryBuilder()->update(WikiPage::class, 'p')->set('p.parent', ':none')
                 ->where('p.parent IN (:ids)')->andWhere('p.id NOT IN (:ids)')->setParameter('none', null)->setParameter('ids', $ids)->getQuery()->execute();
+            // 1.16 (audit EI-L5): comments go with their pages even where foreign keys are not enforced (SQLite).
+            $this->comments?->deleteForPages($ids);
             foreach ([WikiPageRevision::class, WikiPageLink::class, WikiTrashEntry::class] as $class) {
                 $entityManager->createQueryBuilder()->delete($class, 'x')->where('x.page IN (:ids)')->setParameter('ids', $ids)->getQuery()->execute();
             }

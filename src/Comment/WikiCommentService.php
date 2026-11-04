@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentReaction;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Event\WikiCommentEvent;
@@ -22,6 +23,8 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
+use Nowo\WikiBundle\Search\WikiPlainText;
+use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Symfony\Component\HttpFoundation\Response;
@@ -41,6 +44,8 @@ use function is_bool;
 use function is_string;
 use function mb_strlen;
 use function preg_match;
+use function preg_replace;
+use function preg_split;
 use function spl_object_id;
 use function str_contains;
 use function strlen;
@@ -84,13 +89,28 @@ final readonly class WikiCommentService
     /** Emoji accepted as reactions: pictographs with their modifiers, joiners and keycaps (at most {@see self::MAX_EMOJI_BYTES} bytes). */
     private const EMOJI = '/^(?:[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{2300}-\x{23FF}\x{2B00}-\x{2BFF}\x{2190}-\x{21FF}\x{3030}\x{303D}\x{3297}\x{3299}\x{00A9}\x{00AE}\x{203C}\x{2049}\x{2122}\x{2139}\x{E0020}-\x{E007F}][\x{FE0F}\x{200D}\x{20E3}\x{1F3FB}-\x{1F3FF}]*)+\z/u';
 
+    /** Default caps (`comments.limits`): 422 `limit_reached` beyond them. */
+    public const DEFAULT_LIMITS = [
+        'threads_per_page'           => 500,
+        'comments_per_thread'        => 500,
+        'reactions_per_comment'      => 20,
+        'user_reactions_per_comment' => 10,
+    ];
+
+    /** Most threads the server-rendered list shows (`truncated` beyond). */
+    public const LIST_CAP = 50;
+
     /** Format of `updatedAt` / `resolvedAt` / `createdAt` (ISO 8601). */
     private const DATE = DateTimeInterface::ATOM;
 
     /**
      * @param WikiCollabService|null $collab co-editing (null: no live updates)
      * @param WikiCollabPublisherInterface|null $publisher the co-editing publisher (null: no live updates)
-     * @param RateLimiterFactory|null $rateLimiter `comments.rate_limiter`, per user and page on writes
+     * @param RateLimiterFactory|null $rateLimiter `comments.rate_limiter`, per user across all pages on writes
+     * @param RateLimiterFactory|null $pageRateLimiter `comments.page_rate_limiter`, per user and page on writes (optional)
+     * @param WikiAccessCheckerInterface|null $accessChecker the role gate (canEdit) of the full-anchor rule
+     * @param bool $readViewSource `comments.read_view_source`: every commenter mounts the editor, so gets full anchors
+     * @param array{threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits `comments.limits`
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -104,6 +124,10 @@ final readonly class WikiCommentService
         private ?WikiCollabPublisherInterface $publisher = null,
         private ?RateLimiterFactory $rateLimiter = null,
         private ?TranslatorInterface $translator = null,
+        private ?RateLimiterFactory $pageRateLimiter = null,
+        private ?WikiAccessCheckerInterface $accessChecker = null,
+        private bool $readViewSource = false,
+        private array $limits = self::DEFAULT_LIMITS,
     ) {
     }
 
@@ -154,13 +178,14 @@ final readonly class WikiCommentService
     public function list(UserInterface $user, WikiSpace $space, WikiPage $page): array
     {
         $this->require($this->rights($user, $space, $page)['view']);
+        $full      = $this->fullAnchors($user, $page);
         $threads   = $this->comments->threads($page, self::MAX_THREADS + 1);
         $truncated = count($threads) > self::MAX_THREADS;
         $threads   = array_slice($threads, 0, self::MAX_THREADS);
         $counts    = $this->comments->commentCounts($threads);
         $answer    = ['threads' => [], 'page' => []];
         foreach ($threads as $thread) {
-            $answer[$thread->isPageLevel() ? 'page' : 'threads'][] = $this->ref($thread, $counts[$thread->getId()] ?? 0);
+            $answer[$thread->isPageLevel() ? 'page' : 'threads'][] = $this->ref($thread, $counts[$thread->getId()] ?? 0, $full, $page);
         }
         if ($truncated) {
             $answer['truncated'] = true;
@@ -187,13 +212,15 @@ final readonly class WikiCommentService
      * `$withInline`, the inline ones too, each with its quote (1.16: the read view of viewers who do not get the page
      * source, where no editor resolves highlights).
      *
+     * @param int $max at most this many threads (the oldest open ones)
+     *
      * @return list<array<string, mixed>> Thread JSON objects
      */
-    public function pageThreads(UserInterface $user, WikiSpace $space, WikiPage $page, bool $withInline = false): array
+    public function pageThreads(UserInterface $user, WikiSpace $space, WikiPage $page, bool $withInline = false, int $max = self::MAX_THREADS): array
     {
         $rights = $this->rights($user, $space, $page);
         $this->require($rights['view']);
-        $threads = array_values(array_filter($this->comments->threads($page, self::MAX_THREADS), static fn (WikiCommentThread $t): bool => !$t->isResolved() && ($withInline || $t->isPageLevel())));
+        $threads = array_slice(array_values(array_filter($this->comments->threads($page, self::MAX_THREADS), static fn (WikiCommentThread $t): bool => !$t->isResolved() && ($withInline || $t->isPageLevel()))), 0, $max);
 
         return array_map(fn (WikiCommentThread $thread): array => $this->threadJson($user, $page, $thread, $rights), $threads);
     }
@@ -209,6 +236,7 @@ final readonly class WikiCommentService
         $this->require($rights['comment']);
         $text           = $this->body($body);
         [$json, $quote] = $anchor === null ? [null, null] : $this->anchor($anchor);
+        $this->cap($this->comments->countThreads($page), 'threads_per_page');
         $this->limit($user, $page);
 
         $thread  = new WikiCommentThread($page, $user, $json, $quote);
@@ -237,8 +265,9 @@ final readonly class WikiCommentService
         $this->limit($user, $page);
 
         $existing = $this->comments->comments([$thread])[$thread->getId()] ?? [];
-        $last     = $existing === [] ? null : $existing[array_key_last($existing)];
-        $comment  = new WikiComment($thread, $user, $text, $last instanceof WikiComment ? $last->getPosition() + 1 : 0);
+        $this->cap(count($existing), 'comments_per_thread');
+        $last    = $existing === [] ? null : $existing[array_key_last($existing)];
+        $comment = new WikiComment($thread, $user, $text, $last instanceof WikiComment ? $last->getPosition() + 1 : 0);
         $thread->touch();
         // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
         $this->comments->add($comment);
@@ -373,6 +402,16 @@ final readonly class WikiCommentService
 
         $existing = $this->comments->reaction($comment, $user, $emoji);
         if ($on && !$existing instanceof WikiCommentReaction) {
+            $emojis = [];
+            $mine   = 0;
+            foreach ($this->comments->reactions([$comment]) as $reaction) {
+                $emojis[$reaction->getEmoji()] = true;
+                $mine += $this->same($reaction->getUser(), $user) ? 1 : 0;
+            }
+            if (!isset($emojis[$emoji])) {
+                $this->cap(count($emojis), 'reactions_per_comment');
+            }
+            $this->cap($mine, 'user_reactions_per_comment');
             // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
             $this->comments->add(new WikiCommentReaction($comment, $user, $emoji));
         } elseif (!$on && $existing instanceof WikiCommentReaction) {
@@ -387,10 +426,53 @@ final readonly class WikiCommentService
     }
 
     /**
-     * The body of a comment as sanitized HTML for the current viewer (page links and mentions resolved for them):
-     * the `html` of the Thread JSON, and what a notification should show its recipient (render it in their context).
+     * The body of a comment for a notification (e-mail, in-app text): sanitized HTML rendered **viewer-neutral**:
+     * page links show *Content not visible* instead of a title and mentions stay `@handle`, because a
+     * `nowo_wiki.comment.*` listener runs in the actor's request, whose rights are not the recipient's (audit EI-L2).
+     * Check each recipient's {@see WikiAction::ViewComments} on the page before sending it; to show titles, render the
+     * Markdown yourself in the recipient's own security context (for example a Messenger worker authenticated as them).
      */
-    public function renderBody(WikiComment $comment): string
+    public function renderBodyForNotification(WikiComment $comment): string
+    {
+        return $comment->isDeleted() ? '' : $this->sanitizer->sanitize($this->renderer->render($comment->getBody()));
+    }
+
+    /**
+     * Privacy export (1.16, audit EI-L6): every comment the user wrote, with its page, thread and Markdown body (no
+     * rights check: call it from an administrative or data-subject-request flow).
+     *
+     * @return list<array{id: string, page_id: string, thread_id: string, body: string, created_at: string, edited_at: string|null, deleted: bool}>
+     */
+    public function exportAuthor(object $user): array
+    {
+        return array_map(static fn (WikiComment $comment): array => [
+            'id'         => $comment->getId(),
+            'page_id'    => $comment->getThread()->getPage()->getId(),
+            'thread_id'  => $comment->getThread()->getId(),
+            'body'       => $comment->getBody(),
+            'created_at' => $comment->getCreatedAt()->format(self::DATE),
+            'edited_at'  => $comment->getEditedAt()?->format(self::DATE),
+            'deleted'    => $comment->isDeleted(),
+        ], $this->comments->byAuthor($user));
+    }
+
+    /**
+     * Privacy erasure (1.16, audit EI-L6): unlinks the user from their comments, threads and resolutions and deletes
+     * their reactions; with `$deleteBodies` their comments also become "Comment deleted" placeholders (bodies blanked).
+     * Quotes are page text, not the user's: they stay (edit the page or delete the thread to remove them).
+     *
+     * @return int the comments of the user that were changed
+     */
+    public function eraseAuthor(object $user, bool $deleteBodies = true): int
+    {
+        return $this->comments->eraseAuthor($user, $deleteBodies);
+    }
+
+    /**
+     * The body of a comment as sanitized HTML for the current viewer (page links and mentions resolved for the user of
+     * this request): the `html` of the Thread JSON. Never use it for someone else (see renderBodyForNotification()).
+     */
+    private function renderBody(WikiComment $comment): string
     {
         if ($comment->isDeleted()) {
             return '';
@@ -408,6 +490,7 @@ final readonly class WikiCommentService
      */
     private function threadJson(UserInterface $user, WikiPage $page, WikiCommentThread $thread, array $rights): array
     {
+        $full      = $this->fullAnchors($user, $page);
         $comments  = $this->comments->comments([$thread])[$thread->getId()] ?? [];
         $reactions = [];
         foreach ($this->comments->reactions($comments) as $reaction) {
@@ -452,7 +535,7 @@ final readonly class WikiCommentService
 
         $resolvedBy = $thread->getResolvedBy();
 
-        return $this->ref($thread, $count) + [
+        return $this->ref($thread, $count, $full, $page) + [
             'comments'   => $items,
             'can'        => ['reply' => $rights['comment'], 'resolve' => $rights['resolve'], 'react' => $rights['comment']],
             'resolvedBy' => $resolvedBy !== null ? $this->person($byObject[spl_object_id($resolvedBy)]) : ($thread->isResolved() ? ['name' => $this->trans('wiki.comments.unknown_author'), 'avatarUrl' => null] : null),
@@ -473,13 +556,21 @@ final readonly class WikiCommentService
     /**
      * @return ThreadRef
      */
-    private function ref(WikiCommentThread $thread, int $count): array
+    private function ref(WikiCommentThread $thread, int $count, bool $full, WikiPage $page): array
     {
         $anchor = $thread->getAnchor();
+        if ($anchor !== null) {
+            $anchor = CommentAnchor::fromJson($anchor)->toArray();
+            // Viewers who do not mount the editor (audit EI-L7) get the quote only, and only while the page still has
+            // that text: no context, offsets or heading, and nothing of text removed since (or never there).
+            if (!$full) {
+                $anchor = ['v' => 1, 'quote' => ['exact' => $this->stillInPage($anchor['quote']['exact'], $page) ? $anchor['quote']['exact'] : '']];
+            }
+        }
 
         return [
             'id'        => $thread->getId(),
-            'anchor'    => $anchor === null ? null : CommentAnchor::fromJson($anchor)->toArray(),
+            'anchor'    => $anchor,
             'resolved'  => $thread->isResolved(),
             'count'     => $count,
             'updatedAt' => $thread->getUpdatedAt()->format(self::DATE),
@@ -560,8 +651,13 @@ final readonly class WikiCommentService
 
     private function limit(UserInterface $user, WikiPage $page): void
     {
+        // Per user across every page (audit EI-L3), and optionally per user and page.
         if ($this->rateLimiter instanceof RateLimiterFactory
-            && !$this->rateLimiter->create('nowo_wiki_comments:' . $user->getUserIdentifier() . '|' . $page->getId())->consume()->isAccepted()) {
+            && !$this->rateLimiter->create('nowo_wiki_comments:' . $user->getUserIdentifier())->consume()->isAccepted()) {
+            throw new WikiCommentException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
+        }
+        if ($this->pageRateLimiter instanceof RateLimiterFactory
+            && !$this->pageRateLimiter->create('nowo_wiki_comments_page:' . $user->getUserIdentifier() . '|' . $page->getId())->consume()->isAccepted()) {
             throw new WikiCommentException(Response::HTTP_TOO_MANY_REQUESTS, 'rate_limited');
         }
     }
@@ -580,6 +676,44 @@ final readonly class WikiCommentService
             return;
         }
         $this->publisher->publish($topic, '{"threads":["' . $thread->getId() . '"]}');
+    }
+
+    /**
+     * Whether the viewer gets full anchors: they mount the editor (they may edit the page, or
+     * `comments.read_view_source` mounts it for every commenter).
+     */
+    private function fullAnchors(UserInterface $user, WikiPage $page): bool
+    {
+        return $this->readViewSource
+            || ($this->guard->isGranted($user, WikiAction::Edit, $page->getSpace(), $page) && ($this->accessChecker?->canEdit($user) ?? true));
+    }
+
+    /**
+     * Whether every piece of a quote (atoms are U+FFFC in anchors, so they split it) still occurs in the plain text of
+     * the page's current revision.
+     */
+    private function stillInPage(string $quote, WikiPage $page): bool
+    {
+        $revision = $page->getCurrentRevision();
+        $text     = $revision instanceof WikiPageRevision ? $revision->getContentText() ?? WikiPlainText::fromHtml($revision->getContentHtml()) : ('');
+        foreach (preg_split('/\x{FFFC}/u', $quote) ?: [] as $piece) {
+            $piece = trim((string) preg_replace('/[\s\x{00A0}]+/u', ' ', $piece));
+            if ($piece !== '' && !str_contains($text, $piece)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param 'comments_per_thread'|'reactions_per_comment'|'threads_per_page'|'user_reactions_per_comment' $limit
+     */
+    private function cap(int $current, string $limit): void
+    {
+        if ($current >= $this->limits[$limit]) {
+            throw new WikiCommentException(Response::HTTP_UNPROCESSABLE_ENTITY, 'limit_reached');
+        }
     }
 
     private function trans(string $key): string

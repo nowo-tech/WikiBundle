@@ -18,10 +18,13 @@ wiki:
     new_help: "Markdown, 10 000 caractères au plus. Commenter une sélection nécessite JavaScript."
     added: "Votre commentaire a été ajouté."
     reply_in_editor: "Répondez depuis l’éditeur"
+    quote_gone: "Le texte commenté n’est plus sur la page."
+    truncated: "Seuls les %count% premiers fils ouverts sont affichés."
     unknown_author: "Utilisateur supprimé"
     error:
       invalid: "Le commentaire est vide ou invalide."
       too_large: "Le commentaire est trop long (10 000 caractères au plus)."
+      limit_reached: "Cette page, ce fil ou ce commentaire a atteint sa limite."
       rate_limited: "Trop de commentaires en peu de temps : réessayez dans un instant."
   collab:
     reset: "Réinitialiser la collaboration"

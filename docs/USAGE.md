@@ -461,8 +461,10 @@ in the text opens the panel on its thread; a thread scrolls its text into view. 
 
 On the read view, **editors** get the page as a read-only Milkdown editor (needed for the highlights and the thread
 component). Other viewers with `ViewComments` keep the server-rendered page and never receive its Markdown source:
-their panel lists the open threads rendered by the server (inline threads show their quote) with a form for a page
-comment. `comments.read_view_source: true` gives them the read-only editor too, with the source (see SECURITY).
+their panel lists the open threads rendered by the server (inline threads show their quote; at most 50, read only when
+the panel is opened) with a form for a page comment. The list offers no reply, reaction or resolve buttons: that is a
+user-interface limit, not an authorization one: the JSON endpoints accept those writes from any viewer with the
+matching right (`Comment`, `ResolveComment`), from the API or the edit view. `comments.read_view_source: true` gives them the read-only editor too, with the source (see SECURITY).
 Without JavaScript the toggle is a link, the panel lists the page-level threads and has the same form.
 
 ### Endpoints
@@ -484,7 +486,9 @@ the Milkdown `comments.url`. JSON, same origin, header `X-CSRF-Token` (token id
 | `PUT` / `DELETE /comments/{cid}/reactions/{emoji}` | Comment | Thread |
 
 Errors: `{"error": reason}` with 400 (JSON), 403 (right), 404 (page or thread not visible), 409, 413 (body over 16 KiB
-or more than 10 000 characters), 415, 422, 429 (rate limit). A CSRF or origin failure is a 403 from the firewall
+or more than 10 000 characters), 415, 422 (`invalid`, `invalid_anchor`, `limit_reached`), 429 (rate limit). Viewers
+who may not edit the page get anchors reduced to `{v: 1, quote: {exact}}`, with `exact` blank once the quoted text is no
+longer in the page. A CSRF or origin failure is a 403 from the firewall
 layer. `author.name` follows the history name policy; `author.avatarUrl` / `resolvedBy.avatarUrl` only beside a real
 name ([Avatars](CONFIGURATION.md#avatars-116)).
 
@@ -503,7 +507,8 @@ final class NotifyOnComment
     {
         // $event->page, $event->thread, $event->comment (null for resolve / reopen / a deleted thread),
         // $event->actor, $event->mentions (handles). Check each recipient's ViewComments right on the page, link to
-        // the page with ?comments=1 and render the body for them with WikiCommentService::renderBody().
+        // the page with ?comments=1 and use WikiCommentService::renderBodyForNotification() (viewer-neutral: this runs
+        // in the actor's request). Never serialise $event itself (it carries entities); copy the ids.
     }
 }
 ```
@@ -514,7 +519,10 @@ Events: `nowo_wiki.comment.created`, `.replied`, `.edited`, `.deleted`, `.resolv
 
 What a host such as symfony-beacon configures:
 
-1. `nowo_wiki.comments: {enabled: true, rate_limiter: limiter.wiki_comments}` and the rate limiter; `editor.type:
+0. **Before enabling:** add the four new `WikiAction` cases to `BeaconWikiAccessChecker` (its exhaustive `match`
+   would otherwise throw a 500 on every page view).
+1. `nowo_wiki.comments: {enabled: true, rate_limiter: limiter.wiki_comments}` and the rate limiter (per user, across
+   pages); `editor.type:
    milkdown` with `nowo-tech/milkdown-editor-bundle` ^1.6 and `nowo-tech/ui-kit-bundle` ^2.26.
 2. The migration of the three comment tables and of `content_text`, then `wiki:search:backfill-text` once.
 3. Its `WikiSpaceAccessCheckerInterface` maps `ViewComments` → `project.wiki.view` / `wiki.view`, `Comment` → edit,
@@ -528,7 +536,9 @@ What a host such as symfony-beacon configures:
 8. Avatars: alias `WikiUserAvatarResolverInterface` to its `WikiAvatarUrls` adapter of the core `AvatarUrls`
    service; keep `history.show_names` as it is (pictures follow names).
 9. Search: switch `WikiPageSearchProvider`'s `LIKE` from `content_markdown` to `content_text`.
-10. No Twig override is needed: the tab row, the toggle and the panel are UiKit partials themed by Beacon's UiKit
+10. Privacy: call `WikiCommentService::exportAuthor()` / `eraseAuthor()` (or `wiki:comments:erase-user`) from its
+    data-subject flows.
+11. No Twig override is needed: the tab row, the toggle and the panel are UiKit partials themed by Beacon's UiKit
     theme (`tabs`, `side_panel`, `side_panel_toggle`, `side_panel_container`, `_avatar`); `nowo-wiki-*` classes are
     hooks only.
 

@@ -306,7 +306,9 @@ Builds on the existing revisions table, line diff and restore.
   - Trash / purge: comments follow their page; resolved threads kept or purged after N days (D-W9).
   - Excluded from exports (unless an explicit *with comments* option for admins), search for users without the
     right, and AI context.
-  - Privacy erasure: a user's comments are anonymised or deleted according to the host policy.
+  - Privacy erasure: **1.16** `WikiCommentService::exportAuthor()` / `eraseAuthor()` and `wiki:comments:erase-user`
+    (unlink the user, delete their reactions, blank their bodies by default); the host decides when to call them.
+    Quotes are page text and stay; re-anchoring or blanking quotes on page save is a 1.17 item (below).
   - Counts per page in the tree (only for viewers who may read comments); an audit log of deletions and resolves.
 - **Comments panel** (owner request via Beacon, 2026-11-03; spec [`specs/002-comments`](../specs/002-comments/spec.md)):
   - page tabs (Page / Edit / History) on the read and edit views, with a **Comments (n)** toggle at the end of the row
@@ -323,13 +325,38 @@ Builds on the existing revisions table, line diff and restore.
   - the markup, tabs, panel, actions and endpoints are agreed with Beacon in a contract before the PR.
 - **Host (Beacon):** notification channels (in-app, e-mail, Web Push), the `wiki.comment` grant in roles.
 - **Next (1.17, after 1.16.0):**
-  - **Anchored server-rendered read view.** Readers keep the server HTML (no Markdown sent, DN-I2) with inline
-    highlights and the thread component. Needs MilkdownEditor: a thread component that mounts without an editor and
-    a DOM anchor resolver over the rendered HTML that yields the same canonical text as the editor (anchor v1:
-    blocks joined by `\n`, inline atoms as `U+FFFC`, UTF-16 offsets), with `data-nowo-block` / heading ids
-    (`heading_ids`) injected by the renderer as block hints; or, alternatively, a read-only mount fed with a
-    sanitised ProseMirror doc JSON built server-side (no source, no hidden blocks, no raw link targets). Until then
-    readers see the threads rendered by the server (quotes, no highlight) unless `comments.read_view_source`.
+  - **Anchored server-rendered read view** (design from the 1.16 security audit, appendix EI). Readers keep the
+    server HTML (no Markdown sent, DN-I2), with inline highlights, new inline threads and the thread component:
+    1. *One canonical text model on both sides.* The anchor's canonical text is ProseMirror
+       `doc.textBetween(0, size, "\n", "U+FFFC")`. The Milkdown PHP renderer marks structure on the server body:
+       `data-nowo-block="<top-level index>"` on each top-level block and `data-nowo-atom` on every inline leaf
+       (mention, page link, icon, image, math, hard break), which counts as one U+FFFC whatever it renders (per-viewer
+       titles and hidden placeholders never shift offsets). A host directive renders as an atom or a block with a
+       fixed text weight. A shared fixture corpus (Milkdown TS: Markdown → canonical text; a PHP test: the DOM walker
+       over the server HTML yields the same string) fails CI on drift.
+    2. *Resolve in the browser over the DOM, read-only.* A Milkdown `DomQuoteResolver` walks the marked DOM, builds
+       the canonical string and an offset → (text node, offset) map, applies the anchor resolution of the contract
+       (§3 step 2: exact match ranked by prefix / suffix, then `position.start`, then `block.index`) and paints with
+       the CSS Custom Highlight API (no DOM mutation, CSP-clean), falling back to `<mark data-comment-id>` built with
+       DOM APIs (never `innerHTML`). Unresolved threads are orphaned, as today.
+    3. *New inline threads from the read view.* The DOM `Selection` maps back through the same map to `{exact,
+       prefix, suffix, position, block}`; selections that cross or sit inside an atom are refused; `yjs: null`.
+    4. *Never refresh anchors from the read view.* Only the editor (Yjs, the real document) PATCHes anchors.
+    5. *Stability across edits.* Yjs relative positions stay the primary key while co-editing. Store the revision the
+       anchor was last confirmed against (`anchorRevision`); on each save the editor flushes refreshed anchors
+       (`comment-anchors-changed` / `snapshot()`) with the save; optionally a server-side re-anchor on save (the same
+       quote search in PHP over the new canonical text) for threads the editor did not refresh, the rest orphaned.
+       With a server canonical text, POST / PATCH can also check that `quote.exact` occurs in the current revision
+       (closes the spoofed-quote note).
+    6. *Leak checks.* The server view is per viewer, so a quote inside content hidden from that viewer stays
+       orphaned for them; blank its `quote` in the thread JSON for threads that do not resolve in the viewer's text
+       (server-side resolution makes this possible; 1.16 already blanks quotes no longer in the page).
+       `nowo_milkdown_view()` gains a `source: false` mode that mounts only the thread UI over an existing element
+       (`target: '[data-nowo-wiki-server-body]'`); the thread component needs no other change.
+    7. *Fallback* until it ships: the 1.16 behaviour (editors get the mount; other readers the server list, no inline
+       highlights; `comments.read_view_source` opts in to the source).
+  - **Re-anchor or blank quotes on page save** (point 5) and drop `.nowo-md-ref--hidden` placeholders from
+    `WikiPlainText::fromHtml()` (searching "visible" hits every page with a link).
   - **Live comments on the read view via a read-only topic, no co-editing needed:** a private
     `<topic_prefix><page id>/comments` grant issued with the page view for viewers with `ViewComments` (today live
     updates ride on the co-editing subscriber cookie of the edit view only).

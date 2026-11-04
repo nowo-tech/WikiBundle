@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Nowo\MilkdownEditorBundle\Form\MilkdownEditorType;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimits;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\Builder\VariableNodeDefinition;
@@ -227,7 +228,18 @@ final class Configuration implements ConfigurationInterface
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->booleanNode('enabled')->defaultFalse()->end()
-                        ->scalarNode('rate_limiter')->info('Service id of a Symfony RateLimiterFactory applied per user and page to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled.')->defaultNull()->end()
+                        ->scalarNode('rate_limiter')->info('Service id of a Symfony RateLimiterFactory applied per user, across all pages, to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled.')->defaultNull()->end()
+                        ->scalarNode('page_rate_limiter')->info('Optional service id of a Symfony RateLimiterFactory applied per user and page to every comment write, on top of rate_limiter (null: none).')->defaultNull()->end()
+                        ->arrayNode('limits')
+                            ->info('Caps per page, thread and comment; a write beyond them answers 422 limit_reached.')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->integerNode('threads_per_page')->min(1)->max(100000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['threads_per_page'])->end()
+                                ->integerNode('comments_per_thread')->min(1)->max(100000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['comments_per_thread'])->end()
+                                ->integerNode('reactions_per_comment')->info('Distinct emoji on one comment.')->min(1)->max(1000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['reactions_per_comment'])->end()
+                                ->integerNode('user_reactions_per_comment')->info('Reactions of one user on one comment.')->min(1)->max(1000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['user_reactions_per_comment'])->end()
+                            ->end()
+                        ->end()
                         ->scalarNode('state_store')->info('Service id of a WikiPanelStateStoreInterface keeping the open / closed state of the panel per user (null: the session).')->defaultNull()->end()
                         ->booleanNode('read_view_source')->info('Literal boolean. true: on the read view, viewers with ViewComments who may not edit the page also get its Markdown source (the read-only Milkdown mount with inline highlights; HTML comments, link targets, reference definitions and directive arguments included). false (default): only editors do; the others see the threads rendered by the server.')->defaultFalse()->end()
                         ->scalarNode('shortcut')

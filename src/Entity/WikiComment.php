@@ -84,6 +84,13 @@ class WikiComment
         $this->editedAt = new DateTimeImmutable();
     }
 
+    /** Forgets the author (privacy erasure): the comment shows no author name. */
+    public function unlinkAuthor(): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->author = null;
+    }
+
     /** Erases the body and keeps a placeholder (replies follow it). */
     public function markDeleted(): void
     {

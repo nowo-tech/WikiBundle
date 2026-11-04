@@ -482,7 +482,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     private function registerComments(ContainerBuilder $container, array $config, Reference $entityManager, string $anchorClass = CommentAnchor::class): void
     {
-        /** @var array{enabled: bool, rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool} $comments */
+        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, limits: array{threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
         $comments = $config['comments'];
         if (!$comments['enabled']) {
             return;
@@ -503,6 +503,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(DoctrineOrmWikiCommentRepository::class, (new Definition(DoctrineOrmWikiCommentRepository::class))
             ->setArgument('$entityManager', $entityManager));
         $container->setAlias(WikiCommentRepositoryInterface::class, DoctrineOrmWikiCommentRepository::class);
+        // EI-L5: the trash purge deletes the comments of purged pages explicitly.
+        if ($container->hasDefinition(DoctrineOrmWikiTrashRepository::class)) {
+            $container->getDefinition(DoctrineOrmWikiTrashRepository::class)->setArgument('$comments', new Reference(WikiCommentRepositoryInterface::class));
+        }
 
         $store = $comments['state_store'];
         if (!is_string($store) || $store === '') {
@@ -524,7 +528,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$collab', $collab ? new Reference(WikiCollabService::class) : null)
             ->setArgument('$publisher', $collab ? new Reference(WikiCollabPublisherInterface::class) : null)
             ->setArgument('$rateLimiter', new Reference($comments['rate_limiter']))
-            ->setArgument('$translator', new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            ->setArgument('$translator', new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$pageRateLimiter', is_string($comments['page_rate_limiter']) && $comments['page_rate_limiter'] !== '' ? new Reference($comments['page_rate_limiter']) : null)
+            ->setArgument('$accessChecker', new Reference(WikiAccessCheckerInterface::class))
+            ->setArgument('$readViewSource', $comments['read_view_source'])
+            ->setArgument('$limits', $comments['limits']));
         $container->setDefinition(WikiCommentsPanel::class, (new Definition(WikiCommentsPanel::class))
             ->setArgument('$comments', new Reference(WikiCommentService::class))
             ->setArgument('$state', new Reference(WikiPanelStateStoreInterface::class))

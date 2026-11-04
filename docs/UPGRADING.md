@@ -94,6 +94,13 @@ composer require nowo-tech/ui-kit-bundle:^2.26 nowo-tech/wiki-bundle:^1.16
 
 **Comments (opt-in, `nowo_wiki.comments.enabled: true`, a literal boolean):**
 
+> [!WARNING]
+> **Exhaustive `match` checkers fail with a 500.** `WikiAction` gains four cases (`ViewComments`, `Comment`,
+> `ResolveComment`, `ModerateComments`). A host `WikiSpaceAccessCheckerInterface` whose `isGranted()` uses an exhaustive
+> `match ($action)` without a `default` arm (Beacon's `BeaconWikiAccessChecker`) throws `UnhandledMatchError` as soon
+> as comments are enabled — on every page view, since the page asks for `ViewComments`. Add the four cases (or a
+> `default => false` arm) **before** turning comments on. With comments off they are never asked.
+
 - Needs `editor.type: milkdown` and `nowo-tech/milkdown-editor-bundle` `^1.6` (the container refuses to build
   otherwise), and a rate limiter:
 
@@ -104,7 +111,9 @@ composer require nowo-tech/ui-kit-bundle:^2.26 nowo-tech/wiki-bundle:^1.16
   nowo_wiki:
       comments:
           enabled: true
-          rate_limiter: limiter.wiki_comments
+          rate_limiter: limiter.wiki_comments   # per user, across all pages
+          # page_rate_limiter: limiter.wiki_comments_page   # optional: a second budget per user and page
+          # limits: {threads_per_page: 500, comments_per_thread: 500, reactions_per_comment: 20, user_reactions_per_comment: 10}
           # state_store: app.wiki_panel_state   # a WikiPanelStateStoreInterface (default: the session)
           # shortcut: 'Alt+Shift+C'              # none by default
   ```
@@ -122,16 +131,40 @@ composer require nowo-tech/ui-kit-bundle:^2.26 nowo-tech/wiki-bundle:^1.16
   mount on the read view (inline highlights, the thread component; the response carries the Markdown source and is
   `Cache-Control: private, no-store`). Other viewers with `ViewComments` never receive the source: their panel lists
   the open threads rendered by the server (inline threads with their quote, no highlight in the text) with the
-  page-comment form; they reply, react and resolve from the edit view or once 1.17 ships an anchored server-rendered
-  read view. `comments.read_view_source: true` (a literal boolean, default false) gives every commenter the mount,
+  page-comment form. That is a **user-interface** limit only: replying, reacting and resolving from the read view need
+  the editor mount, but the JSON endpoints still accept those writes from any viewer with the matching right
+  (`Comment`, `ResolveComment`), as the contract says; the server-rendered list simply offers no buttons for them
+  until the anchored read view of 1.17. `comments.read_view_source: true` (a literal boolean, default false) gives every commenter the mount,
   **and the full Markdown source** (HTML comments, link targets, reference definitions, hidden blocks, front matter):
   enable it only if everyone with `ViewComments` may read the source.
 - **Live updates** need co-editing: the thread component listens on `<collab topic>/comments`, granted in the
   co-editing subscriber cookie. A custom `collaboration.subscriber_authorizer` must implement
   `WikiCollabTopicsAuthorizerInterface` to grant both topics (otherwise comments refresh on the viewer's own actions
   only).
-- **Notifications:** listen to `nowo_wiki.comment.*` (`WikiCommentEvent`); render a body for a recipient with
-  `WikiCommentService::renderBody()` and check their `ViewComments` right first.
+- **Notifications:** listen to `nowo_wiki.comment.*` (`WikiCommentEvent`). Check each recipient's `ViewComments` on
+  the page first, then use `WikiCommentService::renderBodyForNotification()`: it renders **viewer-neutral** (page links
+  show *Content not visible*, mentions stay `@handle`), because the listener runs in the actor's request and the
+  actor's rights are not the recipient's. To show titles, render the comment Markdown yourself in the recipient's
+  security context (e.g. a Messenger worker authenticated as the recipient). Do not serialise the event: it carries
+  entities (the comment holds its body).
+- **Rate limits and caps:** `comments.rate_limiter` is keyed **per user, across all pages**; add
+  `comments.page_rate_limiter` for a second budget per user and page. Writes beyond `comments.limits` (500 threads per
+  page, 500 comments per thread, 20 distinct emoji per comment, 10 reactions of one user per comment) answer 422
+  `limit_reached`.
+- **Anchors and quotes:** viewers who may edit the page (or everyone, with `read_view_source`) get the full anchor in
+  the thread JSON. Others get only `quote.exact`, and an empty one once that text is no longer in the page's current
+  revision (`content_text`). The stored `quote` is page text that outlives later edits of the page: treat it as
+  confidential page content in exports and erasure.
+- **Privacy:** `WikiCommentService::exportAuthor($user)` / `eraseAuthor($user, $deleteBodies)` and the command
+  `wiki:comments:erase-user <id> [--export] [--keep-bodies]`: erasure unlinks the user from their comments, threads
+  and resolutions, deletes their reactions and (by default) blanks their bodies into "Comment deleted" placeholders.
+  Ownership of a comment follows `getUserIdentifier()`: do not recycle identifiers.
+- **Deleting pages or spaces yourself:** the trash purge deletes comment rows explicitly. If your host deletes wiki
+  pages or spaces outside the trash, call `WikiCommentRepositoryInterface::deleteForPages($pageIds)` first (MySQL and
+  PostgreSQL cascade through the foreign keys; SQLite does not unless `foreign_keys` is on).
+- **Turning comments off later:** the comment tables leave the generated schema, so a `doctrine:migrations:diff`
+  run afterwards proposes `DROP TABLE` for them. Remove those lines from the migration unless you mean to delete the
+  comments.
 - **CSP:** the panel needs UiKit's `js/nowo-ui-side-panel.js` (loaded by the wiki pages that show the panel) and the
   Milkdown module; no inline style or handler. Avatar origins must be in `img-src`.
 - New strings `wiki.comments.*`; new templates `manage/_page_tabs.html.twig`, `_comments_panel.html.twig`,

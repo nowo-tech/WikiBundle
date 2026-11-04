@@ -23,7 +23,8 @@
             {% for thread in comments.page_threads %}
                 <li class="nowo-wiki-comments__thread" data-thread-id="{{ thread.id }}">
                     {% if thread.anchor|default(null) %}
-                        <blockquote class="nowo-wiki-comment__quote" data-testid="wiki-comment-quote">{{ thread.anchor.quote.exact }}</blockquote>
+                        {#- only the quote, and blank once the text left the page (audit EI-L7) -#}
+                        {% if thread.anchor.quote.exact != '' %}<blockquote class="nowo-wiki-comment__quote" data-testid="wiki-comment-quote">{{ thread.anchor.quote.exact }}</blockquote>{% else %}<p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-comment__quote-gone" data-testid="wiki-comment-quote-gone">{{ 'wiki.comments.quote_gone'|trans }}</p>{% endif %}
                         {#- inline threads are answered in the editor (no highlight here): a link for editors, else a hint -#}
                         <p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-comment__reply-hint" data-testid="wiki-comment-reply-hint">
                             {%- if comments.edit_href|default(null) -%}
@@ -50,6 +51,7 @@
                 </li>
             {% endfor %}
         </ul>
+        {% if comments.truncated|default(false) %}<p class="{{ nowo_ui_class('muted', _b) }}" data-testid="wiki-comments-truncated">{{ 'wiki.comments.truncated'|trans({'%count%': comments.page_threads|length}) }}</p>{% endif %}
     {% endif %}
     {% if comments.form|default(null) %}
         {{ form_start(comments.form, {attr: {class: 'nowo-wiki-comments__form', 'data-testid': 'wiki-comments-fallback-form'}}) }}

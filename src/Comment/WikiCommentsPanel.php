@@ -18,7 +18,9 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 
+use function array_slice;
 use function array_values;
+use function count;
 use function in_array;
 use function is_array;
 use function is_string;
@@ -30,7 +32,7 @@ use function strtok;
  * remembered state), the badge count, the no-JavaScript URLs and the Milkdown options that mount the thread
  * component into the panel (`panel: container`). Viewers without the right get null: no toggle, no panel, no count.
  *
- * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null}
+ * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, truncated: bool, reload_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null}
  */
 final readonly class WikiCommentsPanel
 {
@@ -87,10 +89,11 @@ final readonly class WikiCommentsPanel
             return null;
         }
 
-        $query = $request?->query->get('comments');
-        $open  = $query === '1' ? true : ($query === '0' ? false : $this->state->isOpen($user, WikiPanelStateStoreInterface::COMMENTS));
-        $here  = $request instanceof Request ? (string) strtok($request->getRequestUri(), '?') : '';
-        $state = $this->routes['space_panel_state']['name'] ?? null;
+        $query   = $request?->query->get('comments');
+        $open    = $query === '1' ? true : ($query === '0' ? false : $this->state->isOpen($user, WikiPanelStateStoreInterface::COMMENTS));
+        $here    = $request instanceof Request ? (string) strtok($request->getRequestUri(), '?') : '';
+        $state   = $this->routes['space_panel_state']['name'] ?? null;
+        $threads = $open ? $this->comments->pageThreads($user, $space, $page, !$mounted, WikiCommentService::LIST_CAP + 1) : [];
 
         return [
             'id'           => self::ID,
@@ -106,11 +109,14 @@ final readonly class WikiCommentsPanel
             'can'          => $can,
             'mounted'      => $mounted,
             // Inline threads of the server list are replied to from the editor (opened on the comments panel).
-            'edit_href' => $editHref !== null ? $editHref . '?comments=1' : null,
-            // The server list: with the component, the no-JavaScript fallback (page-level threads, read only when the
-            // panel is rendered open); without it, the panel's content (every open thread, with its quote).
-            'page_threads' => $open || !$mounted ? $this->comments->pageThreads($user, $space, $page, !$mounted) : [],
-            'form'         => ($open || !$mounted) && $can['comment'] ? $this->form($space, $page) : null,
+            'edit_href' => $editHref,
+            // The server list (the no-JavaScript fallback, or the panel's content when nothing mounts: every open
+            // thread with its quote) is read only when the panel is rendered open, and capped (audit EI-L4). A closed
+            // server-list panel reloads the page with ?comments=1 when it is opened in place (wiki.js, `reload_href`).
+            'page_threads' => array_slice($threads, 0, WikiCommentService::LIST_CAP),
+            'truncated'    => count($threads) > WikiCommentService::LIST_CAP,
+            'reload_href'  => !$mounted && !$open ? $here . '?comments=1' : null,
+            'form'         => $open && $can['comment'] ? $this->form($space, $page) : null,
         ];
     }
 

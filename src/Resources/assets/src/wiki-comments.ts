@@ -7,6 +7,8 @@
  *   component then scrolls to the thread and focuses its first control);
  * - `nowo-ui:side-panel:open` / `close` of the panel → the open state is stored for the next page
  *   (`POST data-state-url`, `X-CSRF-Token: data-state-token`, `{panel: "comments", open}`);
+ * - opening a closed panel whose threads are rendered by the server (`data-reload-href`, readers without the page
+ *   source): the page is loaded again with `?comments=1`, so the list is only read when someone opens it;
  * - `nowo-milkdown:ready` of a comments editor → the no-JavaScript list is hidden, and on the read view the read-only
  *   editor replaces the server-rendered body.
  */
@@ -33,6 +35,22 @@ const postState: StatePoster = (url, token, body) =>
     });
 
 let statePoster: StatePoster = postState;
+
+/** Page navigation (tests replace it). */
+export type Navigator = (url: string) => void;
+
+let navigate: Navigator = (url) => {
+    window.location.href = url;
+};
+
+/**
+ * Replaces the navigation used to load a server-rendered comments list (tests).
+ *
+ * @param next - The navigation.
+ */
+export function setNavigator(next: Navigator): void {
+    navigate = next;
+}
 
 /**
  * Replaces the transport of the panel state (tests, hosts with their own transport).
@@ -136,6 +154,10 @@ export function bindWikiComments(doc: Document = document): void {
             return;
         }
         const url = panel.dataset.stateUrl;
+        const reload = open ? panel.dataset.reloadHref : undefined;
+        if (reload) {
+            navigate(reload);
+        }
         if (url) {
             void Promise.resolve()
                 .then(() => statePoster(url, panel.dataset.stateToken ?? '', { panel: 'comments', open }))

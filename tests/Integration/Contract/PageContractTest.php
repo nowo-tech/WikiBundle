@@ -163,6 +163,7 @@ final class PageContractTest extends PageContractTestCase
         self::assertMatchesRegularExpression('#<aside id="nowo-wiki-comments"[^>]* hidden#', $closed);
         self::assertStringContainsString('aria-expanded="false"', $closed);
         self::assertStringNotContainsString('name="body"', $closed);
+        self::assertStringNotContainsString('data-reload-href', $closed);
 
         // 1.16 default for readers who may not edit: no read-only mount (no page source), the server list is the panel.
         $server = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false, null, false, false)))->html;
@@ -170,6 +171,10 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringNotContainsString('data-nowo-wiki-comments-mount', $server);
         self::assertStringNotContainsString('data-nowo-wiki-comments-fallback', $server);
         self::assertStringContainsString('data-testid="wiki-comment-quote">make deploy</blockquote>', $server);
+        self::assertStringContainsString('data-reload-href="/p?comments=1"', $server);
+        // EI-L7: a quote that left the page is not printed; EI-L4: the capped list says so.
+        self::assertStringContainsString('data-testid="wiki-comment-quote-gone">The commented text is no longer on the page.</p>', $server);
+        self::assertStringContainsString('data-testid="wiki-comments-truncated">Only the first 2 open threads are shown.</p>', $server);
         // A reader who may not edit: the hint is muted plain text.
         self::assertMatchesRegularExpression('#<p class="[^"]*nowo-ui-muted[^"]*nowo-wiki-comment__reply-hint" data-testid="wiki-comment-reply-hint">Reply from the editor</p>#', $server);
         // One who may edit: a link to the editor, opened on the comments panel.

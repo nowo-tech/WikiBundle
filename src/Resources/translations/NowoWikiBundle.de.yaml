@@ -18,10 +18,13 @@ wiki:
     new_help: "Markdown, höchstens 10.000 Zeichen. Kommentare zu einer Auswahl brauchen JavaScript."
     added: "Ihr Kommentar wurde hinzugefügt."
     reply_in_editor: "Im Editor antworten"
+    quote_gone: "Der kommentierte Text steht nicht mehr auf der Seite."
+    truncated: "Nur die ersten %count% offenen Threads werden angezeigt."
     unknown_author: "Gelöschter Benutzer"
     error:
       invalid: "Der Kommentar ist leer oder ungültig."
       too_large: "Der Kommentar ist zu lang (höchstens 10.000 Zeichen)."
+      limit_reached: "Diese Seite, dieser Thread oder Kommentar hat sein Limit erreicht."
       rate_limited: "Zu viele Kommentare in kurzer Zeit: Versuchen Sie es gleich noch einmal."
   collab:
     reset: "Zusammenarbeit zurücksetzen"

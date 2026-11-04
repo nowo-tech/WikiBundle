@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindWikiComments, PANEL_ID, setCommentsCount, setStatePoster, showCommentsEditor, type SidePanelApi } from './wiki-comments';
+import { bindWikiComments, PANEL_ID, setCommentsCount, setNavigator, setStatePoster, showCommentsEditor, type SidePanelApi } from './wiki-comments';
 
 type PanelWindow = Window & { NowoUiSidePanel?: SidePanelApi };
 
@@ -147,6 +147,18 @@ describe('wiki comments glue', () => {
         expect(posted[2]).toEqual({ url: '/state', token: '', body: { panel: 'comments', open: false } });
     });
 
+    it('loads the server-rendered list when a lazy panel is opened in place', async () => {
+        const visited: string[] = [];
+        setNavigator((url) => visited.push(url));
+        const panel = document.getElementById(PANEL_ID) as HTMLElement;
+        panel.dataset.reloadHref = '/p?comments=1';
+        fire(panel, 'nowo-ui:side-panel:close', { id: PANEL_ID });
+        expect(visited).toEqual([]);
+        fire(panel, 'nowo-ui:side-panel:open', { id: PANEL_ID });
+        expect(visited).toEqual(['/p?comments=1']);
+        await flush();
+    });
+
     it('swallows a failed state request', async () => {
         setStatePoster(() => Promise.reject(new Error('offline')));
         fire(document.getElementById(PANEL_ID) as HTMLElement, 'nowo-ui:side-panel:open', { id: PANEL_ID });
@@ -159,6 +171,18 @@ describe('wiki comments default transport', () => {
     afterEach(() => {
         vi.unstubAllGlobals();
         document.body.innerHTML = '';
+    });
+
+    it('navigates with window.location by default', async () => {
+        vi.resetModules();
+        const mod = await import('./wiki-comments');
+        const doc = document.implementation.createHTMLDocument('x');
+        Object.defineProperty(doc, 'defaultView', { value: window });
+        doc.body.innerHTML = `<aside id="${mod.PANEL_ID}" data-reload-href="#comments-reload"></aside>`;
+        mod.setStatePoster(async () => undefined);
+        mod.bindWikiComments(doc);
+        fire(doc.getElementById(mod.PANEL_ID) as HTMLElement, 'nowo-ui:side-panel:open', { id: mod.PANEL_ID });
+        expect(window.location.hash).toBe('#comments-reload');
     });
 
     it('posts the state as same-origin JSON with the CSRF header', async () => {

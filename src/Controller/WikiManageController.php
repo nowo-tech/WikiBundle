@@ -343,7 +343,7 @@ final class WikiManageController extends AbstractController
         // DN-I2), unless comments.read_view_source opts every commenter in; the others get the threads rendered by
         // the server and never the source.
         $mount    = $can['edit'] || $this->commentsPanel?->readViewSource() === true;
-        $editHref = $can['edit'] && isset($this->routes['page_edit']) ? $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]) : null;
+        $editHref = $can['edit'] && isset($this->routes['page_edit']) ? $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug(), 'comments' => 1]) : null;
         $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page, $mount, $editHref);
         if ($comments !== null && $this->commentsPanel instanceof WikiCommentsPanel) {
             $vars['comments'] = $comments;
@@ -372,8 +372,9 @@ final class WikiManageController extends AbstractController
             'can_history'      => $can['history'],
             'can_archive'      => $can['archive'],
             'permissions'      => $permissions,
-        ], null, isset($vars['copy_markdown']) || isset($vars['comments_view'])
-            // The page carries the Markdown source: never kept by a shared cache (audit DR-I1).
+        ], null, isset($vars['copy_markdown']) || isset($vars['comments'])
+            // The page carries the Markdown source (audit DR-I1) or the per-viewer comments panel and its tokens:
+            // never kept by any cache.
             ? ['Cache-Control' => 'private, no-store']
             : []);
     }
@@ -503,7 +504,7 @@ final class WikiManageController extends AbstractController
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
             'editor_type'     => $this->editorType(),
-        ], $form);
+        ], $form, $comments !== null ? ['Cache-Control' => 'private, no-store'] : []);
     }
 
     /**

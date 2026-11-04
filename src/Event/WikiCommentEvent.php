@@ -17,7 +17,8 @@ use Nowo\WikiBundle\Enum\WikiAction;
  *
  * The event carries the page, the thread, the comment (null for resolve / reopen and a deleted thread), the actor and
  * the handles mentioned in the body (without `@`). Never put the body into a notification as is: render it for each
- * recipient with {@see WikiCommentService::renderBody()} (per-viewer page links and mentions),
+ * recipient with {@see WikiCommentService::renderBodyForNotification()} (viewer-neutral: a listener runs in the
+ * actor's request, whose rights are not the recipient's),
  * and check that the recipient may read the page and its comments ({@see WikiAction::ViewComments}).
  */
 final readonly class WikiCommentEvent

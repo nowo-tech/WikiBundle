@@ -1421,7 +1421,14 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     },
  *     comments?: array{ // 1.16: comments of a page (Milkdown 1.6 inline threads and page-level comments) in a right-side panel toggled from the page tabs. Needs editor.type milkdown and nowo-tech/milkdown-editor-bundle >= 1.6. Off: no toggle, no panel, no route, no comment table in the schema. Rights: WikiAction::ViewComments, Comment, ResolveComment, ModerateComments (granted only by a host access checker).
  *         enabled?: bool|Param, // Default: false
- *         rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user and page to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled. // Default: null
+ *         rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user, across all pages, to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled. // Default: null
+ *         page_rate_limiter?: scalar|Param|null, // Optional service id of a Symfony RateLimiterFactory applied per user and page to every comment write, on top of rate_limiter (null: none). // Default: null
+ *         limits?: array{ // Caps per page, thread and comment; a write beyond them answers 422 limit_reached.
+ *             threads_per_page?: int|Param, // Default: 500
+ *             comments_per_thread?: int|Param, // Default: 500
+ *             reactions_per_comment?: int|Param, // Distinct emoji on one comment. // Default: 20
+ *             user_reactions_per_comment?: int|Param, // Reactions of one user on one comment. // Default: 10
+ *         },
  *         state_store?: scalar|Param|null, // Service id of a WikiPanelStateStoreInterface keeping the open / closed state of the panel per user (null: the session). // Default: null
  *         read_view_source?: bool|Param, // Literal boolean. true: on the read view, viewers with ViewComments who may not edit the page also get its Markdown source (the read-only Milkdown mount with inline highlights; HTML comments, link targets, reference definitions and directive arguments included). false (default): only editors do; the others see the threads rendered by the server. // Default: false
  *         shortcut?: scalar|Param|null, // Keyboard shortcut of the comments toggle, e.g. "Alt+Shift+C" (exposed as aria-keyshortcuts); null: none. // Default: null

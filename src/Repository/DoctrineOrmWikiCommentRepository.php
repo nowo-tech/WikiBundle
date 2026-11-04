@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 
 use function array_map;
+use function count;
 
 /**
  * Doctrine comment storage (1.16): `<prefix>_comment_threads`, `<prefix>_comments` and `<prefix>_comment_reactions`,
@@ -147,6 +148,73 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
             ->setParameter('page', $page->getId())
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    public function countThreads(WikiPage $page): int
+    {
+        return (int) $this->entityManager()->createQueryBuilder()
+            ->select('COUNT(t.id)')
+            ->from(WikiCommentThread::class, 't')
+            ->where('t.page = :page')
+            ->setParameter('page', $page->getId())
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function byAuthor(object $user): array
+    {
+        /** @var list<WikiComment> $comments */
+        $comments = $this->entityManager()->createQueryBuilder()
+            ->select('c', 't')
+            ->from(WikiComment::class, 'c')
+            ->innerJoin('c.thread', 't')
+            ->where('c.author = :user')
+            ->setParameter('user', $user)
+            ->orderBy('t.createdAt', 'ASC')
+            ->addOrderBy('t.id', 'ASC')
+            ->addOrderBy('c.position', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $comments;
+    }
+
+    public function eraseAuthor(object $user, bool $deleteBodies): int
+    {
+        $em       = $this->entityManager();
+        $comments = $this->byAuthor($user);
+        foreach ($comments as $comment) {
+            if ($deleteBodies && !$comment->isDeleted()) {
+                $comment->markDeleted();
+            }
+            $comment->unlinkAuthor();
+        }
+        // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
+        $em->flush();
+        $em->createQueryBuilder()->delete(WikiCommentReaction::class, 'r')->where('r.user = :user')->setParameter('user', $user)->getQuery()->execute();
+        foreach (['createdBy', 'resolvedBy'] as $field) {
+            $em->createQueryBuilder()->update(WikiCommentThread::class, 't')->set('t.' . $field, ':none')
+                ->where('t.' . $field . ' = :user')->setParameter('none', null)->setParameter('user', $user)->getQuery()->execute();
+        }
+
+        return count($comments);
+    }
+
+    public function deleteForPages(array $pageIds): void
+    {
+        if ($pageIds === []) {
+            return;
+        }
+        $em      = $this->entityManager();
+        $threads = $em->createQueryBuilder()->select('t.id')->from(WikiCommentThread::class, 't')->where('t.page IN (:pages)')->setParameter('pages', $pageIds)->getQuery()->getSingleColumnResult();
+        if ($threads !== []) {
+            $comments = $em->createQueryBuilder()->select('c.id')->from(WikiComment::class, 'c')->where('c.thread IN (:threads)')->setParameter('threads', $threads)->getQuery()->getSingleColumnResult();
+            if ($comments !== []) {
+                $em->createQueryBuilder()->delete(WikiCommentReaction::class, 'r')->where('r.comment IN (:comments)')->setParameter('comments', $comments)->getQuery()->execute();
+            }
+            $em->createQueryBuilder()->delete(WikiComment::class, 'c')->where('c.thread IN (:threads)')->setParameter('threads', $threads)->getQuery()->execute();
+        }
+        $em->createQueryBuilder()->delete(WikiCommentThread::class, 't')->where('t.page IN (:pages)')->setParameter('pages', $pageIds)->getQuery()->execute();
     }
 
     public function add(WikiCommentThread|WikiComment|WikiCommentReaction $entity): void

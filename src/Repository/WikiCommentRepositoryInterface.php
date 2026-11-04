@@ -60,6 +60,32 @@ interface WikiCommentRepositoryInterface
     /** The reaction of the user to the comment with this emoji, or null. */
     public function reaction(WikiComment $comment, object $user, string $emoji): ?WikiCommentReaction;
 
+    /** Number of threads of the page, resolved ones included (the `threads_per_page` cap). */
+    public function countThreads(WikiPage $page): int;
+
+    /**
+     * Comments the user wrote, by thread (oldest first) and position (privacy export).
+     *
+     * @return list<WikiComment>
+     */
+    public function byAuthor(object $user): array;
+
+    /**
+     * Unlinks the user from their comments, threads and resolutions, deletes their reactions and, with
+     * `$deleteBodies`, blanks their comments into "Comment deleted" placeholders (privacy erasure). Flushes.
+     *
+     * @return int the comments of the user that were changed
+     */
+    public function eraseAuthor(object $user, bool $deleteBodies): int;
+
+    /**
+     * Deletes the threads, comments and reactions of these pages (children first), without relying on foreign keys:
+     * the trash purge calls it, and so should a host that deletes pages or spaces itself.
+     *
+     * @param list<string> $pageIds
+     */
+    public function deleteForPages(array $pageIds): void;
+
     /** Number of open (not resolved) threads of the page. */
     public function countOpen(WikiPage $page): int;
 

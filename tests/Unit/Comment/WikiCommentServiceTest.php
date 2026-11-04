@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Comment;
 
 use Doctrine\ORM\EntityManager;
+use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
@@ -14,6 +15,7 @@ use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
@@ -86,7 +88,8 @@ final class WikiCommentServiceTest extends TestCase
             $this->em->persist($entity);
         }
         $this->em->flush();
-        $all          = WikiAction::commentActions();
+        // Ana edits the page (full anchors); Bob only comments.
+        $all          = [WikiAction::Edit, ...WikiAction::commentActions()];
         $this->grants = ['id-ana' => $all, 'id-bob' => [WikiAction::ViewComments, WikiAction::Comment]];
     }
 
@@ -380,7 +383,142 @@ final class WikiCommentServiceTest extends TestCase
         self::assertSame(['edit' => true, 'delete' => true], $json['comments'][0]['can'], 'A moderator may still change it.');
     }
 
-    private function service(bool $showNames = true, ?RateLimiterFactory $limiter = null): WikiCommentService
+    public function testNonEditorsGetOnlyQuotesStillInThePage(): void
+    {
+        // Audit EI-L7: a secret removed from the page must not stay readable through the thread JSON.
+        $this->revise('<p>The prod key is AKIA-SECRET-KEY-123 and the region is eu-west.</p>');
+        $service = $this->service();
+        $secret  = $service->create($this->ana, $this->space, $this->page, $this->anchor('AKIA-SECRET-KEY-123', 15), 'Remove this!');
+        $region  = $service->create($this->ana, $this->space, $this->page, $this->anchor('eu-west', 54), 'OK');
+        $atom    = $service->create($this->ana, $this->space, $this->page, $this->anchor("prod\u{FFFC}key", 4), 'Atom');
+
+        // Bob (no Edit) while the text is there: the quote only, no context, offsets or heading.
+        self::assertSame(['v' => 1, 'quote' => ['exact' => 'AKIA-SECRET-KEY-123']], $service->thread($this->bob, $this->space, $this->page, $secret['id'])['anchor']);
+        self::assertSame(['v' => 1, 'quote' => ['exact' => "prod\u{FFFC}key"]], $service->thread($this->bob, $this->space, $this->page, $atom['id'])['anchor']);
+
+        $this->revise('<p>The prod key lives in the vault and the region is eu-west.</p>');
+        $service->patchThread($this->ana, $this->space, $this->page, $secret['id'], ['resolved' => true]);
+        $listed = array_column($service->list($this->bob, $this->space, $this->page)['threads'], 'anchor', 'id');
+        foreach ([$service->thread($this->bob, $this->space, $this->page, $secret['id'])['anchor'], $listed[$secret['id']]] as $anchor) {
+            self::assertSame(['v' => 1, 'quote' => ['exact' => '']], $anchor);
+        }
+        self::assertSame('eu-west', $service->thread($this->bob, $this->space, $this->page, $region['id'])['anchor']['quote']['exact']);
+        self::assertStringNotContainsString('AKIA', (string) json_encode($service->pageThreads($this->bob, $this->space, $this->page, true)));
+        // Editors keep the full anchor (the editor resolves and refreshes it).
+        $full = $service->thread($this->ana, $this->space, $this->page, $secret['id'])['anchor'];
+        self::assertSame(['exact' => 'AKIA-SECRET-KEY-123', 'prefix' => 'We ', 'suffix' => ' daily'], $full['quote']);
+        self::assertSame(15, $full['position']['start']);
+        // A page without a revision has no text: every quote is blank for non-editors.
+        $this->page->setCurrentRevision(null);
+        self::assertSame('', $service->thread($this->bob, $this->space, $this->page, $region['id'])['anchor']['quote']['exact']);
+    }
+
+    public function testCapsThreadsCommentsAndReactions(): void
+    {
+        $service = $this->service(limits: ['threads_per_page' => 2, 'comments_per_thread' => 2, 'reactions_per_comment' => 2, 'user_reactions_per_comment' => 2]);
+        $thread  = $service->create($this->ana, $this->space, $this->page, null, 'One');
+        $service->create($this->ana, $this->space, $this->page, null, 'Two');
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->create($this->ana, $this->space, $this->page, null, 'Three'));
+
+        $service->reply($this->bob, $this->space, $this->page, $thread['id'], 'Reply');
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->reply($this->bob, $this->space, $this->page, $thread['id'], 'Again'));
+
+        $cid = $thread['comments'][0]['id'];
+        $service->react($this->ana, $this->space, $this->page, $cid, '👍', true);
+        $service->react($this->ana, $this->space, $this->page, $cid, '🎉', true);
+        // The same emoji again is fine; a third distinct one, or a third of one user's, is not.
+        $service->react($this->bob, $this->space, $this->page, $cid, '👍', true);
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->react($this->bob, $this->space, $this->page, $cid, '🚀', true));
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->react($this->ana, $this->space, $this->page, $cid, '🚀', true));
+        $service->react($this->bob, $this->space, $this->page, $cid, '🎉', true);
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->react($this->bob, $this->space, $this->page, $cid, '👀', true));
+    }
+
+    public function testTheRateLimiterIsPerUserAcrossPagesPlusAnOptionalPageBucket(): void
+    {
+        // Audit EI-L3: limit 2 per user, whatever the page.
+        $other = new WikiPage($this->space, 'other', 'Other');
+        $this->em->persist($other);
+        $this->em->flush();
+        $user    = new RateLimiterFactory(['id' => 'u', 'policy' => 'fixed_window', 'limit' => 2, 'interval' => '1 minute'], new InMemoryStorage());
+        $service = $this->service(limiter: $user);
+        $service->create($this->ana, $this->space, $this->page, null, 'p1');
+        $service->create($this->ana, $this->space, $other, null, 'p2');
+        $this->assertRefused(429, 'rate_limited', fn (): array => $service->create($this->ana, $this->space, $other, null, 'p2 again'));
+        $service->create($this->bob, $this->space, $other, null, 'Bob has his own bucket');
+
+        $page    = new RateLimiterFactory(['id' => 'p', 'policy' => 'fixed_window', 'limit' => 1, 'interval' => '1 minute'], new InMemoryStorage());
+        $service = $this->service(pageLimiter: $page);
+        $service->create($this->ana, $this->space, $this->page, null, 'p1');
+        $this->assertRefused(429, 'rate_limited', fn (): array => $service->create($this->ana, $this->space, $this->page, null, 'p1 again'));
+        $service->create($this->ana, $this->space, $other, null, 'another page');
+    }
+
+    public function testNotificationBodiesAreViewerNeutralAndPrivacyRequests(): void
+    {
+        $renderer = new class implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface {
+            public function render(string $markdown): string
+            {
+                return '<p>neutral: Content not visible</p>';
+            }
+
+            public function renderForViewer(string $markdown): string
+            {
+                return '<p>Secret page title</p>';
+            }
+        };
+        $service = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret'), $renderer, new WikiHtmlSanitizer());
+        $thread  = $service->create($this->bob, $this->space, $this->page, null, 'See [[wiki:x]]');
+        $comment = $this->em->find(WikiComment::class, $thread['comments'][0]['id']);
+        self::assertInstanceOf(WikiComment::class, $comment);
+        // Audit EI-L2: the actor's view never reaches a notification.
+        self::assertSame('<p>Secret page title</p>', $thread['comments'][0]['html']);
+        self::assertSame('<p>neutral: Content not visible</p>', $service->renderBodyForNotification($comment));
+
+        // Audit EI-L6: export, then erase (bodies blanked, reactions gone, threads unlinked).
+        $service->reply($this->bob, $this->space, $this->page, $thread['id'], 'Second');
+        $service->react($this->bob, $this->space, $this->page, $comment->getId(), '👍', true);
+        $service->patchThread($this->ana, $this->space, $this->page, $thread['id'], ['resolved' => true]);
+        $export = $service->exportAuthor($this->bob);
+        self::assertSame(['See [[wiki:x]]', 'Second'], array_column($export, 'body'));
+        self::assertSame($this->page->getId(), $export[0]['page_id']);
+        self::assertFalse($export[0]['deleted']);
+        self::assertSame(2, $service->eraseAuthor($this->bob));
+        self::assertSame('', $service->renderBodyForNotification($comment));
+        $this->em->clear();
+        $after = $service->thread($this->ana, $this->space, $this->page, $thread['id']);
+        self::assertSame([true, true], array_column($after['comments'], 'deleted'));
+        self::assertNull($this->em->find(WikiCommentThread::class, $thread['id'])?->getCreatedBy());
+        self::assertSame([], $service->exportAuthor($this->em->find(TestUserEntity::class, 'id-ana') ?? $this->ana));
+        // Ana keeps her (no) comments but loses the resolution.
+        self::assertSame(0, $service->eraseAuthor($this->em->find(TestUserEntity::class, 'id-ana') ?? $this->ana, false));
+        $this->em->clear();
+        self::assertNull($this->em->find(WikiCommentThread::class, $thread['id'])?->getResolvedBy());
+    }
+
+    public function testReactionsAreGoneAfterAnErasure(): void
+    {
+        $service = $this->service();
+        $thread  = $service->create($this->ana, $this->space, $this->page, null, 'React');
+        $service->react($this->bob, $this->space, $this->page, $thread['comments'][0]['id'], '👍', true);
+        $service->eraseAuthor($this->bob, false);
+        $this->em->clear();
+
+        self::assertSame([], $service->thread($this->ana, $this->space, $this->page, $thread['id'])['comments'][0]['reactions']);
+    }
+
+    private function revise(string $html): void
+    {
+        $revision = new WikiPageRevision($this->page, ($this->page->getCurrentRevision()?->getRevisionNumber() ?? 0) + 1, $html, $this->ana);
+        $this->em->persist($revision);
+        $this->page->setCurrentRevision($revision);
+        $this->em->flush();
+    }
+
+    /**
+     * @param array{threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits
+     */
+    private function service(bool $showNames = true, ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $pageLimiter = null, array $limits = WikiCommentService::DEFAULT_LIMITS): WikiCommentService
     {
         $dispatcher = new EventDispatcher();
         foreach ([WikiEvents::COMMENT_CREATED, WikiEvents::COMMENT_REPLIED, WikiEvents::COMMENT_EDITED, WikiEvents::COMMENT_DELETED, WikiEvents::COMMENT_RESOLVED, WikiEvents::COMMENT_REOPENED] as $name) {
@@ -430,6 +568,8 @@ final class WikiCommentServiceTest extends TestCase
             publisher: $publisher,
             rateLimiter: $limiter,
             translator: $translator,
+            pageRateLimiter: $pageLimiter,
+            limits: $limits,
         );
     }
 
@@ -460,7 +600,7 @@ final class WikiCommentServiceTest extends TestCase
         return [
             'v'        => 1,
             'quote'    => ['exact' => $exact, 'prefix' => 'We ', 'suffix' => ' daily', 'smuggled' => 'x'],
-            'position' => ['start' => $start, 'end' => $start + strlen($exact)],
+            'position' => ['start' => $start, 'end' => $start + CommentAnchor::length($exact)],
             'block'    => ['index' => 0, 'heading' => null],
             'extra'    => true,
         ];

@@ -78,7 +78,12 @@ Planned as **1.16.0**: comments panel, avatars, plain-text search.
     host store), `POST …/spaces/{spaceSlug}/panel-state`; `?comments=1|0` overrides it for one request;
   - endpoints under the route key `page_comments` (`…/pages/{pageSlug}/comments/…`, the Milkdown 6.1 contract v1.2:
     `updatedAt` / `base` and 409, `resolvedBy` / `resolvedAt`, deleted comments, `truncated`), JSON, same origin,
-    `X-CSRF-Token` per page, bodies <= 16 KiB, Markdown <= 10 000 characters, `comments.rate_limiter` (required);
+    `X-CSRF-Token` per page, bodies <= 16 KiB, Markdown <= 10 000 characters, `comments.rate_limiter` (required, per
+    user across pages) and optional `comments.page_rate_limiter`, caps in `comments.limits` (422 `limit_reached`);
+  - viewers who may not edit get only the quote of an anchor, blanked once the text left the page;
+    `renderBodyForNotification()` (viewer-neutral) for notification bodies; privacy export / erasure
+    (`exportAuthor()`, `eraseAuthor()`, `wiki:comments:erase-user`); the trash purge deletes comment rows explicitly;
+    every response with the panel is `Cache-Control: private, no-store`;
   - rights `WikiAction::ViewComments`, `Comment`, `ResolveComment`, `ModerateComments`: outside `grants()`, denied by
     the 1.x legacy mapping (default deny); authors edit and delete their own comments with `Comment`;
   - tables `<prefix>_comment_threads`, `<prefix>_comments`, `<prefix>_comment_reactions` (left out of the schema when

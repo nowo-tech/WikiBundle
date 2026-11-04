@@ -249,7 +249,13 @@ nowo_wiki:
         type: milkdown                         # required (nowo-tech/milkdown-editor-bundle ^1.6)
     comments:
         enabled: true                          # literal boolean; off = no toggle, panel, route or comment table
-        rate_limiter: limiter.wiki_comments    # required when enabled: comment writes per user and page
+        rate_limiter: limiter.wiki_comments    # required when enabled: comment writes per user, across all pages
+        page_rate_limiter: null                # optional: a second budget per user and page
+        limits:                                # 422 limit_reached beyond these
+            threads_per_page: 500
+            comments_per_thread: 500
+            reactions_per_comment: 20          # distinct emoji on one comment
+            user_reactions_per_comment: 10
         state_store: null                      # a WikiPanelStateStoreInterface service id (null: the session)
         read_view_source: false                # true: non-editors get the page Markdown on the read view (see below)
         shortcut: null                         # e.g. 'Alt+Shift+C' (aria-keyshortcuts); none by default
@@ -258,7 +264,9 @@ nowo_wiki:
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `comments.enabled` | `false` | The comments toggle and panel, the endpoints and the three comment tables |
-| `comments.rate_limiter` | null (required when on) | `RateLimiterFactory` service id, keyed by user identifier + page id, on every write (429) |
+| `comments.rate_limiter` | null (required when on) | `RateLimiterFactory` service id, keyed by **user identifier, across all pages**, on every write (429) |
+| `comments.page_rate_limiter` | null | Optional `RateLimiterFactory` service id keyed by user identifier + page id, on top of `rate_limiter` |
+| `comments.limits.*` | 500 / 500 / 20 / 10 | Threads per page, comments per thread, distinct emoji per comment, reactions of one user per comment (422 `limit_reached` beyond) |
 | `comments.state_store` | null | Service id of a `WikiPanelStateStoreInterface` (open / closed per user); the session by default |
 | `comments.read_view_source` | `false` | Literal boolean. `false`: on the read view only editors get the read-only Milkdown mount (inline highlights) and so the page source; other commenters get the threads rendered by the server. `true`: every viewer with `ViewComments` gets the mount **and the Markdown source** ([SECURITY](SECURITY.md#comments-threat-model-116)) |
 | `comments.shortcut` | null | Modifiers + one key (`Control`, `Alt`, `Shift`, `Meta`), e.g. `Alt+Shift+C` |

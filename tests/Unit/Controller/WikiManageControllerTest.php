@@ -478,7 +478,8 @@ final class WikiManageControllerTest extends TestCase
         self::assertNull($twig->context['comments']['edit_href']);
         self::assertArrayNotHasKey('comments_view', $twig->context);
         self::assertArrayNotHasKey('copy_markdown', $twig->context);
-        self::assertNotSame('no-store, private', $response->headers->get('Cache-Control'));
+        // Every response with the panel is private and never stored.
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
 
         // comments.read_view_source opts every commenter in to the read-only mount (and the source).
         $controller = $this->controller(accessChecker: $reader, spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'milkdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments], true));
@@ -509,9 +510,10 @@ final class WikiManageControllerTest extends TestCase
         $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments]));
         $twig       = $this->capturingTwig();
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
-        $controller->editPage(Request::create('/edit'), 'eng', 'welcome');
+        $response = $controller->editPage(Request::create('/edit'), 'eng', 'welcome');
 
         self::assertSame(3, $twig->context['comments']['count']);
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
         $tabs = $twig->context['page']->header->tabs;
         self::assertSame(['wiki.tabs.page', 'wiki.tabs.edit', 'wiki.tabs.history'], array_map(static fn ($item): string => $item->label->key, $tabs->items));
         self::assertTrue($tabs->items[1]->active);
