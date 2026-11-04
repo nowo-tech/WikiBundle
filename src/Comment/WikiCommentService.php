@@ -183,15 +183,17 @@ final readonly class WikiCommentService
     }
 
     /**
-     * The page-level threads with their comments (the no-JavaScript list of the panel).
+     * The open threads rendered by the server in the panel: the page-level ones (the no-JavaScript list), or, with
+     * `$withInline`, the inline ones too, each with its quote (1.16: the read view of viewers who do not get the page
+     * source, where no editor resolves highlights).
      *
      * @return list<array<string, mixed>> Thread JSON objects
      */
-    public function pageThreads(UserInterface $user, WikiSpace $space, WikiPage $page): array
+    public function pageThreads(UserInterface $user, WikiSpace $space, WikiPage $page, bool $withInline = false): array
     {
         $rights = $this->rights($user, $space, $page);
         $this->require($rights['view']);
-        $threads = array_values(array_filter($this->comments->threads($page, self::MAX_THREADS), static fn (WikiCommentThread $t): bool => $t->isPageLevel() && !$t->isResolved()));
+        $threads = array_values(array_filter($this->comments->threads($page, self::MAX_THREADS), static fn (WikiCommentThread $t): bool => !$t->isResolved() && ($withInline || $t->isPageLevel())));
 
         return array_map(fn (WikiCommentThread $thread): array => $this->threadJson($user, $page, $thread, $rights), $threads);
     }

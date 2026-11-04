@@ -89,6 +89,26 @@ final class WikiCommentsPanelTest extends TestCase
         self::assertFalse($panel->panel(Request::create('/x?comments=0'), $user, $space, $page)['open'] ?? null);
     }
 
+    public function testWithoutTheComponentTheServerRendersEveryOpenThread(): void
+    {
+        // 1.16 default for commenters who may not edit: no page source, the panel is the server list (closed or not).
+        [$panel, $user, $space, $page, $service] = $this->panel([WikiAction::ViewComments, WikiAction::Comment]);
+        $service->create($user, $space, $page, ['v' => 1, 'quote' => ['exact' => 'deploy', 'prefix' => '', 'suffix' => ''], 'position' => ['start' => 0, 'end' => 6], 'block' => ['index' => 0, 'heading' => null]], 'Inline note');
+        $service->create($user, $space, $page, null, 'Page note');
+
+        $server = $panel->panel(Request::create('/wiki/run'), $user, $space, $page, false);
+        self::assertNotNull($server);
+        self::assertFalse($server['open']);
+        self::assertFalse($server['mounted']);
+        self::assertCount(2, $server['page_threads']);
+        self::assertInstanceOf(FormView::class, $server['form']);
+        self::assertFalse($panel->readViewSource());
+
+        $mounted = $panel->panel(Request::create('/wiki/run'), $user, $space, $page);
+        self::assertTrue($mounted['mounted'] ?? null);
+        self::assertSame([], $mounted['page_threads'] ?? null);
+    }
+
     public function testMilkdownOptionsMountTheThreadComponent(): void
     {
         [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments]);
@@ -109,7 +129,8 @@ final class WikiCommentsPanelTest extends TestCase
 
         self::assertSame(['a', 'comments'], $panel->editorOptions(['features' => ['a', 'comments']], $data, $page, true)['features']);
         self::assertSame(['toolbar', 'table', 'comments'], $panel->editorOptions([], $data, $page)['features']);
-        $bare = $this->panel([WikiAction::ViewComments], profiles: false)[0];
+        $bare = $this->panel([WikiAction::ViewComments], profiles: false, readViewSource: true)[0];
+        self::assertTrue($bare->readViewSource());
         self::assertSame(['comments'], $bare->editorOptions([], $data, $page)['features']);
     }
 
@@ -118,7 +139,7 @@ final class WikiCommentsPanelTest extends TestCase
      *
      * @return array{0: WikiCommentsPanel, 1: UserInterface, 2: WikiSpace, 3: WikiPage, 4: WikiCommentService}
      */
-    private function panel(array $granted, bool $profiles = true): array
+    private function panel(array $granted, bool $profiles = true, bool $readViewSource = false): array
     {
         $this->granted = $granted;
         $em            = SqliteWikiEntityManager::create();
@@ -164,6 +185,7 @@ final class WikiCommentsPanelTest extends TestCase
             'Alt+Shift+C',
             $profiles ? new ProfileRegistry(['wiki' => ['features' => ['toolbar', 'table'], 'theme' => 'auto', 'min_height' => '1rem', 'icon_sprite_url' => null, 'icons' => [], 'upload_max_size' => 1, 'upload_accept' => []]], 'wiki') : null,
             $forms,
+            $readViewSource,
         );
 
         return [$panel, $user, $space, $page, $service];

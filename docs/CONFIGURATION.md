@@ -251,6 +251,7 @@ nowo_wiki:
         enabled: true                          # literal boolean; off = no toggle, panel, route or comment table
         rate_limiter: limiter.wiki_comments    # required when enabled: comment writes per user and page
         state_store: null                      # a WikiPanelStateStoreInterface service id (null: the session)
+        read_view_source: false                # true: non-editors get the page Markdown on the read view (see below)
         shortcut: null                         # e.g. 'Alt+Shift+C' (aria-keyshortcuts); none by default
 ```
 
@@ -259,6 +260,7 @@ nowo_wiki:
 | `comments.enabled` | `false` | The comments toggle and panel, the endpoints and the three comment tables |
 | `comments.rate_limiter` | null (required when on) | `RateLimiterFactory` service id, keyed by user identifier + page id, on every write (429) |
 | `comments.state_store` | null | Service id of a `WikiPanelStateStoreInterface` (open / closed per user); the session by default |
+| `comments.read_view_source` | `false` | Literal boolean. `false`: on the read view only editors get the read-only Milkdown mount (inline highlights) and so the page source; other commenters get the threads rendered by the server. `true`: every viewer with `ViewComments` gets the mount **and the Markdown source** ([SECURITY](SECURITY.md#comments-threat-model-116)) |
 | `comments.shortcut` | null | Modifiers + one key (`Control`, `Alt`, `Shift`, `Meta`), e.g. `Alt+Shift+C` |
 | `routes.page_comments` | `…/pages/{pageSlug}/comments/{path}` | The thread component's endpoints (a custom path must end with `/{path}`) |
 | `routes.space_panel_state` | `…/spaces/{spaceSlug}/panel-state` | `POST {panel: "comments", open}` (204) |

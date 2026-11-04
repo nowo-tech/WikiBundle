@@ -229,6 +229,7 @@ final class Configuration implements ConfigurationInterface
                         ->booleanNode('enabled')->defaultFalse()->end()
                         ->scalarNode('rate_limiter')->info('Service id of a Symfony RateLimiterFactory applied per user and page to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled.')->defaultNull()->end()
                         ->scalarNode('state_store')->info('Service id of a WikiPanelStateStoreInterface keeping the open / closed state of the panel per user (null: the session).')->defaultNull()->end()
+                        ->booleanNode('read_view_source')->info('Literal boolean. true: on the read view, viewers with ViewComments who may not edit the page also get its Markdown source (the read-only Milkdown mount with inline highlights; HTML comments, link targets, reference definitions and directive arguments included). false (default): only editors do; the others see the threads rendered by the server.')->defaultFalse()->end()
                         ->scalarNode('shortcut')
                             ->info('Keyboard shortcut of the comments toggle, e.g. "Alt+Shift+C" (exposed as aria-keyshortcuts); null: none.')
                             ->defaultNull()

@@ -208,3 +208,12 @@ occurrence is the callout attribute.
 Beacon (2026-11-04) prefers a **`contentText` column on the revision**, filled on save, with a
 `wiki:search:backfill-text` command, so that hosts can filter in SQL. Beacon's `WikiPageSearchProvider` will switch its
 `LIKE` to that column. Also expose `WikiPlainText::fromMarkdown()` for reuse. Document the column as public API.
+
+## Implementation note (1.16.0, after Beacon's PR review of 2026-11-04)
+
+Section 6 is narrowed for the read view: by default only viewers who may edit the page get the read-only
+`nowo_milkdown_view()` mount (which needs the Markdown source); other viewers with `ViewComments` keep the
+server-rendered page and get the open threads rendered by the server in the panel (inline threads with their quote, no
+highlight) and the page-comment form, so the source is never sent to them (DN-I2). `comments.read_view_source: true`
+(opt-in) restores section 6 as written for every commenter. The anchored server-rendered read view and live updates on
+the read view without co-editing are planned for 1.17 (docs/ROADMAP.md).

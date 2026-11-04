@@ -141,6 +141,8 @@ final class WikiCommentServiceTest extends TestCase
         self::assertSame(2, $service->openCount($this->page));
         self::assertSame($inline, $service->thread($this->ana, $this->space, $this->page, $inline['id']));
         self::assertSame([$page['id']], array_column($service->pageThreads($this->ana, $this->space, $this->page), 'id'));
+        // The server-rendered read view lists the inline threads too (with their anchor, hence their quote).
+        self::assertEqualsCanonicalizing([$inline['id'], $page['id']], array_column($service->pageThreads($this->ana, $this->space, $this->page, true), 'id'));
 
         self::assertSame([WikiEvents::COMMENT_CREATED, WikiEvents::COMMENT_CREATED], array_column($this->events, 0));
         self::assertSame($this->page, $this->events[0][1]->page);

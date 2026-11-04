@@ -291,7 +291,7 @@ final class ConfigurationTest extends TestCase
     public function testCommentsDefaultsAndShortcutValidation(): void
     {
         $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
-        self::assertSame(['enabled' => false, 'rate_limiter' => null, 'state_store' => null, 'shortcut' => null], $defaults['comments']);
+        self::assertSame(['enabled' => false, 'rate_limiter' => null, 'state_store' => null, 'read_view_source' => false, 'shortcut' => null], $defaults['comments']);
         self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}', $defaults['routes']['page_comments']['path']);
         self::assertSame('nowo_wiki_space_panel_state', $defaults['routes']['space_panel_state']['name']);
         $ok = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'comments' => ['shortcut' => 'Control+Alt+M']]]);

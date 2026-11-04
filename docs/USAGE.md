@@ -459,9 +459,11 @@ threads anchored in the text and page-level threads, replies, reactions, resolve
 in the text opens the panel on its thread; a thread scrolls its text into view. The open state is remembered per user;
 `?comments=1` / `?comments=0` open or close it for one request (use `?comments=1` in notification links).
 
-On the read view, viewers with `ViewComments` get the page as a read-only Milkdown editor (needed for the highlights);
-everyone else keeps the server-rendered page. Without JavaScript the toggle is a link, the panel lists the page-level
-threads and has a form for a new page comment.
+On the read view, **editors** get the page as a read-only Milkdown editor (needed for the highlights and the thread
+component). Other viewers with `ViewComments` keep the server-rendered page and never receive its Markdown source:
+their panel lists the open threads rendered by the server (inline threads show their quote) with a form for a page
+comment. `comments.read_view_source: true` gives them the read-only editor too, with the source (see SECURITY).
+Without JavaScript the toggle is a link, the panel lists the page-level threads and has the same form.
 
 ### Endpoints
 
@@ -519,6 +521,8 @@ What a host such as symfony-beacon configures:
    `ResolveComment` and `ModerateComments` → manage (B-Q3).
 4. The two routes (`page_comments`, `space_panel_state`) behind the wiki firewall; tenant paths get them automatically.
 5. Optional: `comments.state_store` → its user-preferences store (`WikiPanelStateStoreInterface`), `comments.shortcut`.
+   Keep `comments.read_view_source: false` (the default) while `ViewComments` maps to view: readers then never get the
+   page source; editors keep inline highlights on the read view.
 6. Live updates come with co-editing (the comments topic shares the co-editing subscriber cookie).
 7. Notifications from `nowo_wiki.comment.*`; deep links with `?comments=1`.
 8. Avatars: alias `WikiUserAvatarResolverInterface` to its `WikiAvatarUrls` adapter of the core `AvatarUrls`

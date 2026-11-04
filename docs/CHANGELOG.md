@@ -67,9 +67,12 @@ Planned as **1.16.0**: comments panel, avatars, plain-text search.
     behind inert), named by its heading, Escape / close / toggle, focus in on open and back on close, polite live
     region; the Milkdown thread component mounts into it (`panel: 'container'`), with two-way highlight / thread
     focus and the `comments-count` badge;
-  - commenters get the page as a read-only Milkdown mount on the read view (`nowo_milkdown_view()`), editors in the
-    edit form; without JavaScript the toggle is a link to `?comments=1`, the panel lists the page-level threads and a
-    `WikiCommentType` form posts to `…/comments/new`;
+  - editors get the page as a read-only Milkdown mount on the read view (`nowo_milkdown_view()`) and the thread
+    component in the edit form; **other commenters never receive the Markdown source**: their panel lists the open
+    threads rendered by the server (inline threads with their quote) and the page-comment form.
+    `comments.read_view_source: true` (opt-in) gives them the mount and the source. Without JavaScript the toggle is
+    a link to `?comments=1`, the panel lists the page-level threads and a `WikiCommentType` form posts to
+    `…/comments/new`;
   - open / closed state per user: `WikiPanelStateStoreInterface` (the session by default, `comments.state_store` for a
     host store), `POST …/spaces/{spaceSlug}/panel-state`; `?comments=1|0` overrides it for one request;
   - endpoints under the route key `page_comments` (`…/pages/{pageSlug}/comments/…`, the Milkdown 6.1 contract v1.2:

@@ -431,11 +431,14 @@ final class WikiExtensionTest extends TestCase
         self::assertSame(WikiCollabPublisherInterface::class, (string) $service->getArgument('$publisher'));
         self::assertSame(MercureWikiCollabPublisher::class, (string) $container->getAlias(WikiCollabPublisherInterface::class));
         self::assertSame('Alt+Shift+C', $container->getDefinition(WikiCommentsPanel::class)->getArgument('$shortcut'));
+        // The page source stays with editors unless the host opts in.
+        self::assertFalse($container->getDefinition(WikiCommentsPanel::class)->getArgument('$readViewSource'));
 
         // Without co-editing: no live updates; a host panel state store.
         $container = new ContainerBuilder();
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
-        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'state_store' => 'app.panel_state']]], $container);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'state_store' => 'app.panel_state', 'read_view_source' => true]]], $container);
+        self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$readViewSource'));
         self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$collab'));
         self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$publisher'));
         self::assertSame('app.panel_state', (string) $container->getAlias(WikiPanelStateStoreInterface::class));
@@ -461,6 +464,18 @@ final class WikiExtensionTest extends TestCase
                 self::assertStringContainsString($message, $exception->getMessage());
             }
         }
+    }
+
+    public function testTheReadViewSourceSwitchMustBeALiteralBoolean(): void
+    {
+        $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $container->registerExtension(new WikiExtension());
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'comments' => ['read_view_source' => '%env(bool:WIKI_SOURCE)%']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.comments.read_view_source must be a literal boolean');
+        (new MergeExtensionConfigurationPass())->process($container);
     }
 
     public function testTheCommentsSwitchMustBeALiteralBoolean(): void

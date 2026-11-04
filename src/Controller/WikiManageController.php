@@ -338,12 +338,15 @@ final class WikiManageController extends AbstractController
             $vars['copy_markdown'] = $source;
         }
 
-        // 1.16: the comments toggle and panel (viewers with ViewComments only), and the read-only Milkdown mount that
-        // holds the thread component (it needs the page's Markdown: never kept by a shared cache).
-        $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page);
+        // 1.16: the comments toggle and panel (viewers with ViewComments only). The read-only Milkdown mount that holds
+        // the thread component needs the page's Markdown, so only editors get it (they may read the source anyway,
+        // DN-I2), unless comments.read_view_source opts every commenter in; the others get the threads rendered by
+        // the server and never the source.
+        $mount    = $can['edit'] || $this->commentsPanel?->readViewSource() === true;
+        $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page, $mount);
         if ($comments !== null && $this->commentsPanel instanceof WikiCommentsPanel) {
             $vars['comments'] = $comments;
-            if ($revision instanceof WikiPageRevision) {
+            if ($mount && $revision instanceof WikiPageRevision) {
                 $options = $this->editorOptions($user, $space, $page);
                 unset($options['collaboration'], $options['upload_url'], $options['upload_csrf_token']);
                 $vars['comments_view'] = [

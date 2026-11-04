@@ -322,6 +322,17 @@ Builds on the existing revisions table, line diff and restore.
     with `Comment`), default deny;
   - the markup, tabs, panel, actions and endpoints are agreed with Beacon in a contract before the PR.
 - **Host (Beacon):** notification channels (in-app, e-mail, Web Push), the `wiki.comment` grant in roles.
+- **Next (1.17, after 1.16.0):**
+  - **Anchored server-rendered read view.** Readers keep the server HTML (no Markdown sent, DN-I2) with inline
+    highlights and the thread component. Needs MilkdownEditor: a thread component that mounts without an editor and
+    a DOM anchor resolver over the rendered HTML that yields the same canonical text as the editor (anchor v1:
+    blocks joined by `\n`, inline atoms as `U+FFFC`, UTF-16 offsets), with `data-nowo-block` / heading ids
+    (`heading_ids`) injected by the renderer as block hints; or, alternatively, a read-only mount fed with a
+    sanitised ProseMirror doc JSON built server-side (no source, no hidden blocks, no raw link targets). Until then
+    readers see the threads rendered by the server (quotes, no highlight) unless `comments.read_view_source`.
+  - **Live comments on the read view via a read-only topic, no co-editing needed:** a private
+    `<topic_prefix><page id>/comments` grant issued with the page view for viewers with `ViewComments` (today live
+    updates ride on the co-editing subscriber cookie of the edit view only).
 - **Later:** suggestions / track changes (Notion *Suggest edits*) as reviewable proposals (Milkdown 1.8 + drafts),
   planned after 1.21.
 - **Owners** W + E + H (+ UiKit side panel). **Effort** L. **Dependencies** Milkdown 1.6 (comments, mountable thread component), UiKit ≥ 2.25 (side panel). **Version 1.16.**

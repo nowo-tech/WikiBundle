@@ -30,6 +30,7 @@ final class PageContractTest extends PageContractTestCase
         yield 'page view' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView());
         yield 'page view (read only)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false));
         yield 'page view (comments open)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(true, null, true));
+        yield 'page view (comments, server list)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false, null, false, false));
         yield 'page view (comments closed)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false, null, false));
         yield 'page edit (comments)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm(true, null, true));
         yield 'history (timeline)' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', PageFixtures::history(false, null, true));
@@ -161,6 +162,14 @@ final class PageContractTest extends PageContractTestCase
         self::assertMatchesRegularExpression('#<aside id="nowo-wiki-comments"[^>]* hidden#', $closed);
         self::assertStringContainsString('aria-expanded="false"', $closed);
         self::assertStringNotContainsString('name="body"', $closed);
+
+        // 1.16 default for readers who may not edit: no read-only mount (no page source), the server list is the panel.
+        $server = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false, null, false, false)))->html;
+        self::assertStringNotContainsString('data-nowo-wiki-comments-view', $server);
+        self::assertStringNotContainsString('data-nowo-wiki-comments-mount', $server);
+        self::assertStringNotContainsString('data-nowo-wiki-comments-fallback', $server);
+        self::assertStringContainsString('data-testid="wiki-comment-quote">make deploy</blockquote>', $server);
+        self::assertStringContainsString('name="body"', $server);
 
         $edit = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm(true, null, true)))->html;
         self::assertMatchesRegularExpression('#data-testid="wiki-tab-edit"[^>]*aria-current="page"|aria-current="page"[^>]*data-testid="wiki-tab-edit"#', $edit);

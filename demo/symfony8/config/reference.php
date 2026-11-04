@@ -1423,6 +1423,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // Default: false
  *         rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user and page to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled. // Default: null
  *         state_store?: scalar|Param|null, // Service id of a WikiPanelStateStoreInterface keeping the open / closed state of the panel per user (null: the session). // Default: null
+ *         read_view_source?: bool|Param, // Literal boolean. true: on the read view, viewers with ViewComments who may not edit the page also get its Markdown source (the read-only Milkdown mount with inline highlights; HTML comments, link targets, reference definitions and directive arguments included). false (default): only editors do; the others see the threads rendered by the server. // Default: false
  *         shortcut?: scalar|Param|null, // Keyboard shortcut of the comments toggle, e.g. "Alt+Shift+C" (exposed as aria-keyshortcuts); null: none. // Default: null
  *     },
  *     sanitizer?: array{ // 1.11: extra HTML allowed in page bodies (e.g. the <details> / <summary> or data-* attributes of a Markdown dialect). script, style, iframe, forms, embeds, style= and on* handlers are always refused.

@@ -1,6 +1,9 @@
 {#
-  Body of the comments panel (1.16). With JavaScript the Milkdown 1.6 thread component (inline and page-level
-  threads) mounts into [data-nowo-wiki-comments-mount] (panel: container) and wiki.js hides the fallback below.
+  Body of the comments panel (1.16). With comments.mounted (the edit view, editors on the read view, or
+  comments.read_view_source) the Milkdown 1.6 thread component (inline and page-level threads) mounts into
+  [data-nowo-wiki-comments-mount] (panel: container) and wiki.js hides the fallback below once the editor is ready.
+  Without it (commenters who may not edit, by default) the server list below is the panel: every open thread, inline
+  ones with their quote as text, and the comment form; the page source is never sent.
   Without JavaScript: the open page-level threads (comment bodies rendered per viewer by the safe renderer and printed
   through nowo_wiki_safe_html) and, for commenters, the WikiCommentType form posting to …/comments/new; inline threads
   need the editor. Authors follow the history name policy; a picture only beside a real name (UiKit `_avatar`).
@@ -8,14 +11,17 @@
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
 {% set _b = bundle|default(null) %}
-<div class="nowo-wiki-comments__mount" data-nowo-wiki-comments-mount data-testid="wiki-comments-mount"></div>
-<div class="nowo-wiki-comments__fallback" data-nowo-wiki-comments-fallback data-testid="wiki-comments-fallback">
+{% if comments.mounted is not defined or comments.mounted %}
+    <div class="nowo-wiki-comments__mount" data-nowo-wiki-comments-mount data-testid="wiki-comments-mount"></div>
+{% endif %}
+<div class="nowo-wiki-comments__fallback"{% if comments.mounted is not defined or comments.mounted %} data-nowo-wiki-comments-fallback{% endif %} data-testid="wiki-comments-fallback">
     {% if comments.page_threads is empty %}
         <p class="nowo-wiki-comments__empty">{{ 'wiki.comments.empty'|trans }}</p>
     {% else %}
         <ul class="nowo-wiki-comments__list">
             {% for thread in comments.page_threads %}
                 <li class="nowo-wiki-comments__thread" data-thread-id="{{ thread.id }}">
+                    {% if thread.anchor|default(null) %}<blockquote class="nowo-wiki-comment__quote" data-testid="wiki-comment-quote">{{ thread.anchor.quote.exact }}</blockquote>{% endif %}
                     {% for comment in thread.comments %}
                         <article class="nowo-wiki-comment" aria-label="{{ 'wiki.comments.by'|trans({'%name%': comment.author.name}) }}">
                             <header class="nowo-wiki-comment__header">

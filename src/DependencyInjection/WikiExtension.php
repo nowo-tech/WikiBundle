@@ -179,7 +179,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             unset($config['routes']['page_delete'], $config['routes']['space_trash'], $config['routes']['trash_restore'], $config['routes']['trash_purge']);
         }
         // 1.16: comments; their tables and routes exist only when they are on.
-        $config['comments']['enabled'] = $this->literalBool($config['comments']['enabled'], 'comments.enabled');
+        $config['comments']['enabled']          = $this->literalBool($config['comments']['enabled'], 'comments.enabled');
+        $config['comments']['read_view_source'] = $this->literalBool($config['comments']['read_view_source'], 'comments.read_view_source');
         if (!$config['comments']['enabled']) {
             unset($config['routes']['page_comments'], $config['routes']['space_panel_state']);
         }
@@ -481,7 +482,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     private function registerComments(ContainerBuilder $container, array $config, Reference $entityManager, string $anchorClass = CommentAnchor::class): void
     {
-        /** @var array{enabled: bool, rate_limiter: string|null, state_store: string|null, shortcut: string|null} $comments */
+        /** @var array{enabled: bool, rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool} $comments */
         $comments = $config['comments'];
         if (!$comments['enabled']) {
             return;
@@ -532,7 +533,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$routes', $config['routes'])
             ->setArgument('$shortcut', $comments['shortcut'])
             ->setArgument('$profiles', new Reference(ProfileRegistry::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$forms', new Reference('form.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            ->setArgument('$forms', new Reference('form.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$readViewSource', $comments['read_view_source']));
     }
 
     /**

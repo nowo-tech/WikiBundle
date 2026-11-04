@@ -468,6 +468,24 @@ final class WikiManageControllerTest extends TestCase
         self::assertArrayHasKey('comments', $twig->context);
         self::assertArrayNotHasKey('comments_view', $twig->context);
 
+        // 1.16 default: a commenter who may not edit gets the server-rendered threads, never the page source.
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hi</p>', $user, 'Hi **there** <!-- hidden -->'));
+        $reader     = $this->createConfiguredMock(WikiAccessCheckerInterface::class, ['canAccess' => true, 'canList' => true, 'canEdit' => false, 'canViewHistory' => true, 'canArchive' => false, 'canAskAi' => false, 'canImport' => false, 'canExport' => false, 'canCreate' => false]);
+        $controller = $this->controller(accessChecker: $reader, spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'milkdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments, WikiAction::Comment]));
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $response = $controller->viewPage('eng', 'welcome');
+        self::assertFalse($twig->context['comments']['mounted']);
+        self::assertArrayNotHasKey('comments_view', $twig->context);
+        self::assertArrayNotHasKey('copy_markdown', $twig->context);
+        self::assertNotSame('no-store, private', $response->headers->get('Cache-Control'));
+
+        // comments.read_view_source opts every commenter in to the read-only mount (and the source).
+        $controller = $this->controller(accessChecker: $reader, spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'milkdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments], true));
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->viewPage('eng', 'welcome');
+        self::assertTrue($twig->context['comments']['mounted']);
+        self::assertSame('Hi **there** <!-- hidden -->', $twig->context['comments_view']['markdown']);
+
         // Without ViewComments: no panel at all.
         $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, commentsPanel: $this->commentsPanel($space, [WikiAction::Comment]));
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
@@ -2043,7 +2061,7 @@ MD);
      *
      * @param list<WikiAction> $granted
      */
-    private function commentsPanel(WikiSpace $space, array $granted): WikiCommentsPanel
+    private function commentsPanel(WikiSpace $space, array $granted, bool $readViewSource = false): WikiCommentsPanel
     {
         $guard    = new WikiSpaceGuard(new FixedSpaceLocator($space), CallbackSpaceAccessChecker::allowing(...$granted));
         $comments = $this->createStub(WikiCommentRepositoryInterface::class);
@@ -2060,6 +2078,7 @@ MD);
             $router,
             $csrf,
             ['page_comments' => ['path' => '/c/{path}', 'name' => 'nowo_wiki_page_comments']],
+            readViewSource: $readViewSource,
         );
     }
 

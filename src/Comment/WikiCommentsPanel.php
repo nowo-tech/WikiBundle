@@ -30,7 +30,7 @@ use function strtok;
  * remembered state), the badge count, the no-JavaScript URLs and the Milkdown options that mount the thread
  * component into the panel (`panel: container`). Viewers without the right get null: no toggle, no panel, no count.
  *
- * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null}
+ * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null}
  */
 final readonly class WikiCommentsPanel
 {
@@ -55,17 +55,30 @@ final readonly class WikiCommentsPanel
         private ?string $shortcut = null,
         private ?ProfileRegistry $profiles = null,
         private ?FormFactoryInterface $forms = null,
+        private bool $readViewSource = false,
     ) {
+    }
+
+    /**
+     * `comments.read_view_source` (default false): whether viewers who may not edit the page get its Markdown source in
+     * the read view (the read-only Milkdown mount with inline highlights). Off, they get the server-rendered list.
+     */
+    public function readViewSource(): bool
+    {
+        return $this->readViewSource;
     }
 
     /**
      * The panel of a page for the viewer, or null without {@see WikiAction::ViewComments}.
      *
      * @param Request|null $request the current request (`?comments=1|0` overrides the remembered state)
+     * @param bool $mounted the Milkdown thread component mounts into the panel (the edit view, or a read view that
+     *                      carries the page source); false: the server renders every open thread (quotes of the inline
+     *                      ones included) and the comment form, and no Markdown is sent
      *
      * @return Panel|null
      */
-    public function panel(?Request $request, UserInterface $user, WikiSpace $space, WikiPage $page): ?array
+    public function panel(?Request $request, UserInterface $user, WikiSpace $space, WikiPage $page, bool $mounted = true): ?array
     {
         $can = $this->comments->rights($user, $space, $page);
         if (!$can['view']) {
@@ -89,9 +102,11 @@ final readonly class WikiCommentsPanel
             'state_url'    => $state !== null ? $this->urlGenerator->generate($state, ['spaceSlug' => $space->getSlug()]) : null,
             'state_token'  => $state !== null ? $this->csrf->getToken(WikiCommentController::panelTokenId($space))->getValue() : null,
             'can'          => $can,
-            // The no-JavaScript list (page-level threads) is only read when the panel is rendered open.
-            'page_threads' => $open ? $this->comments->pageThreads($user, $space, $page) : [],
-            'form'         => $open && $can['comment'] ? $this->form($space, $page) : null,
+            'mounted'      => $mounted,
+            // The server list: with the component, the no-JavaScript fallback (page-level threads, read only when the
+            // panel is rendered open); without it, the panel's content (every open thread, with its quote).
+            'page_threads' => $open || !$mounted ? $this->comments->pageThreads($user, $space, $page, !$mounted) : [],
+            'form'         => ($open || !$mounted) && $can['comment'] ? $this->form($space, $page) : null,
         ];
     }
 

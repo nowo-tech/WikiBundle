@@ -298,3 +298,12 @@
   display: grid;
   gap: 0.5rem;
 }
+
+/* 1.16: quote of an inline thread in the server-rendered comments list (no highlight without the page source). */
+.nowo-wiki-comment__quote {
+  margin: 0 0 0.375rem;
+  padding-inline-start: 0.5rem;
+  border-inline-start: 3px solid var(--nowo-ui-border, #e2e8f0);
+  color: var(--nowo-ui-muted, #64748b);
+  overflow-wrap: anywhere;
+}

@@ -118,9 +118,14 @@ composer require nowo-tech/ui-kit-bundle:^2.26 nowo-tech/wiki-bundle:^1.16
   `WikiAction::ViewComments` (see the toggle, the panel, the threads), `Comment` (start, reply, react; edit / delete
   own), `ResolveComment` and `ModerateComments`. The 1.x legacy mapping denies all four, and `WikiSpaceGuard::grants()`
   never asks for them, so an existing checker is not asked until you turn comments on.
-- **Read view of commenters:** viewers with `ViewComments` get the page as a read-only Milkdown editor (it carries the
-  highlights and the thread component), so their responses include the page's Markdown source (like the editor) and
-  are sent `Cache-Control: private, no-store`. Map `ViewComments` only to people who may see the source.
+- **Read view and the page source:** by default only viewers who may **edit** the page get the read-only Milkdown
+  mount on the read view (inline highlights, the thread component; the response carries the Markdown source and is
+  `Cache-Control: private, no-store`). Other viewers with `ViewComments` never receive the source: their panel lists
+  the open threads rendered by the server (inline threads with their quote, no highlight in the text) with the
+  page-comment form; they reply, react and resolve from the edit view or once 1.17 ships an anchored server-rendered
+  read view. `comments.read_view_source: true` (a literal boolean, default false) gives every commenter the mount,
+  **and the full Markdown source** (HTML comments, link targets, reference definitions, hidden blocks, front matter):
+  enable it only if everyone with `ViewComments` may read the source.
 - **Live updates** need co-editing: the thread component listens on `<collab topic>/comments`, granted in the
   co-editing subscriber cookie. A custom `collaboration.subscriber_authorizer` must implement
   `WikiCollabTopicsAuthorizerInterface` to grant both topics (otherwise comments refresh on the viewer's own actions

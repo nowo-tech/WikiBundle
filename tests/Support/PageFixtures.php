@@ -99,7 +99,7 @@ final class PageFixtures
     /**
      * @return array<string, mixed>
      */
-    public static function pageView(bool $full = true, ?WikiPageFactory $factory = null, ?bool $commentsOpen = null): array
+    public static function pageView(bool $full = true, ?WikiPageFactory $factory = null, ?bool $commentsOpen = null, bool $mounted = true): array
     {
         $factory ??= self::factory();
         $space    = self::space('engineering', 'Engineering');
@@ -121,9 +121,8 @@ final class PageFixtures
             'can_archive'      => $full,
             'permissions'      => [],
         ] + ($commentsOpen === null ? [] : [
-            'comments'      => self::comments($page, $commentsOpen),
-            'comments_view' => ['markdown' => '## Deploy', 'options' => ['features' => ['comments']]],
-        ]));
+            'comments' => self::comments($page, $commentsOpen, $mounted),
+        ] + ($mounted ? ['comments_view' => ['markdown' => '## Deploy', 'options' => ['features' => ['comments']]]] : [])));
     }
 
     /**
@@ -132,7 +131,7 @@ final class PageFixtures
      *
      * @return array<string, mixed>
      */
-    public static function comments(WikiPage $page, bool $open): array
+    public static function comments(WikiPage $page, bool $open, bool $mounted = true): array
     {
         $comment = static fn (string $id, string $name, ?string $avatar, string $html, bool $deleted = false): array => [
             'id'        => $id,
@@ -156,15 +155,17 @@ final class PageFixtures
             'state_url'    => '/s/panel-state',
             'state_token'  => 'state-token',
             'can'          => ['view' => true, 'comment' => $open, 'resolve' => false, 'moderate' => false],
-            'page_threads' => $open ? [[
+            'mounted'      => $mounted,
+            'page_threads' => $open || !$mounted ? [[
                 'id'       => 't1',
+                'anchor'   => $mounted ? null : ['v' => 1, 'quote' => ['exact' => 'make deploy', 'prefix' => '', 'suffix' => ''], 'position' => ['start' => 0, 'end' => 11], 'block' => ['index' => 1, 'heading' => 'Deploy'], 'yjs' => null],
                 'comments' => [
                     $comment('c1', 'Maria Ruiz', '/files/maria/s64', '<p>Is <strong>this</strong> current?</p><script>alert(1)</script>'),
                     $comment('c2', 'Editor 3f2a', null, '', true),
                     $comment('c3', 'Editor 9b1c', null, '<p>Yes.</p>'),
                 ],
             ]] : [],
-            'form' => $open ? self::formFactory()->createNamed('', WikiCommentType::class, null, ['csrf_token_id' => 'wiki_comments_' . $page->getId(), 'action' => '/p/comments/new'])->createView() : null,
+            'form' => $open || !$mounted ? self::formFactory()->createNamed('', WikiCommentType::class, null, ['csrf_token_id' => 'wiki_comments_' . $page->getId(), 'action' => '/p/comments/new'])->createView() : null,
         ];
     }
 
