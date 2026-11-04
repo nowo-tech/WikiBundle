@@ -25,9 +25,11 @@ use const JSON_UNESCAPED_SLASHES;
 use const JSON_UNESCAPED_UNICODE;
 
 /**
- * Privacy export and erasure of a user's comments (1.16, audit EI-L6). `--export` prints their comments as JSON;
+ * Privacy export and erasure of a user's comments (1.16, audit EI-L6). `--export` prints their comments, reactions
+ * and the threads they started or resolved as JSON (1.16.1);
  * otherwise they are unlinked from their comments, threads and resolutions, their reactions are deleted and their
- * comment bodies blanked ("Comment deleted"; `--keep-bodies` keeps the text, unattributed). Hosts may call
+ * comment bodies blanked ("Comment deleted"; `--keep-bodies` keeps the text, unattributed), after a confirmation unless
+ * `--force` / `--no-interaction` (1.16.1). Mentions of the user in other people's comments stay. Hosts may call
  * {@see WikiCommentService::exportAuthor()} / {@see WikiCommentService::eraseAuthor()} directly instead.
  */
 #[AsCommand(
@@ -48,7 +50,8 @@ final class WikiCommentsEraseUserCommand extends Command
         $this
             ->addArgument('user', InputArgument::REQUIRED, 'User id (or e-mail when the user class has getEmail())')
             ->addOption('export', null, InputOption::VALUE_NONE, 'Print the user\'s comments as JSON, change nothing')
-            ->addOption('keep-bodies', null, InputOption::VALUE_NONE, 'Unlink the user but keep the text of their comments');
+            ->addOption('keep-bodies', null, InputOption::VALUE_NONE, 'Unlink the user but keep the text of their comments')
+            ->addOption('force', 'f', InputOption::VALUE_NONE, 'Erase without asking for confirmation (also implied by --no-interaction)');
     }
 
     /**
@@ -71,12 +74,19 @@ final class WikiCommentsEraseUserCommand extends Command
         }
 
         if ($input->getOption('export') === true) {
-            $output->writeln(json_encode($this->comments->exportAuthor($user), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            $output->writeln(json_encode($this->comments->exportAuthorData($user), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
             return Command::SUCCESS;
         }
 
         $keep = $input->getOption('keep-bodies') === true;
+        // 1.16.1 (audit EI-I17): an erasure cannot be undone; ask unless --force or --no-interaction.
+        if ($input->getOption('force') !== true && $input->isInteractive()
+            && !$io->confirm(sprintf('%s the wiki comments of "%s"? This cannot be undone.', $keep ? 'Unlink' : 'Erase', (string) $input->getArgument('user')), false)) {
+            $io->note('Nothing was changed.');
+
+            return Command::SUCCESS;
+        }
         $io->success(sprintf('%d comment(s) %s; reactions deleted, threads and resolutions unlinked.', $this->comments->eraseAuthor($user, !$keep), $keep ? 'unlinked' : 'erased'));
 
         return Command::SUCCESS;

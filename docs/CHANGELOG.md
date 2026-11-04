@@ -52,6 +52,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Planned as **1.16.1**: the final Info items of the 1.16.0 security audit (appendix EI).
+
+### Added
+
+- **Moderator thread delete** `DELETE …/comments/threads/{id}` (`WikiAction::ModerateComments`, 204): a whole thread
+  with its comments and reactions, event `nowo_wiki.comment.thread_deleted` (EI-I16).
+- `comments.limits.user_threads_per_page` (default 50): open threads one user may start on one page (EI-I16).
+- `WikiCommentService::visibleQuote()`: the quote a notification may show, blank once the text left the page
+  (EI-I15).
+- `WikiCommentService::exportAuthorData()`: the user's comments, reactions and the threads they started or resolved;
+  `wiki:comments:erase-user --export` prints it. Event `nowo_wiki.comment.author_erased`
+  (`WikiCommentAuthorErasedEvent`) after an erasure (EI-I17).
+
+### Changed
+
+- `comments.limits.threads_per_page` counts **open** threads only: resolved threads no longer lock a page (EI-I16).
+- The server-rendered comments list shows the latest 20 comments of each thread, with "N earlier comment(s) in the
+  editor" (EI-I18).
+- `wiki:comments:erase-user` asks for confirmation unless `--force` or `--no-interaction` (EI-I17).
+
 ## [1.16.0] - 2026-11-04
 
 Comments panel, avatars, plain-text search.

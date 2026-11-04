@@ -217,6 +217,53 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         $em->createQueryBuilder()->delete(WikiCommentThread::class, 't')->where('t.page IN (:pages)')->setParameter('pages', $pageIds)->getQuery()->execute();
     }
 
+    public function countOpenBy(WikiPage $page, object $user): int
+    {
+        return (int) $this->entityManager()->createQueryBuilder()
+            ->select('COUNT(t.id)')
+            ->from(WikiCommentThread::class, 't')
+            ->where('t.page = :page')
+            ->andWhere('t.resolvedAt IS NULL')
+            ->andWhere('t.createdBy = :user')
+            ->setParameter('page', $page->getId())
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function reactionsBy(object $user): array
+    {
+        /** @var list<WikiCommentReaction> $reactions */
+        $reactions = $this->entityManager()->createQueryBuilder()
+            ->select('r', 'c', 't')
+            ->from(WikiCommentReaction::class, 'r')
+            ->innerJoin('r.comment', 'c')
+            ->innerJoin('c.thread', 't')
+            ->where('r.user = :user')
+            ->setParameter('user', $user)
+            ->orderBy('r.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $reactions;
+    }
+
+    public function threadsBy(object $user, string $role): array
+    {
+        /** @var list<WikiCommentThread> $threads */
+        $threads = $this->entityManager()->createQueryBuilder()
+            ->select('t')
+            ->from(WikiCommentThread::class, 't')
+            ->where('t.' . ($role === 'resolvedBy' ? 'resolvedBy' : 'createdBy') . ' = :user')
+            ->setParameter('user', $user)
+            ->orderBy('t.createdAt', 'ASC')
+            ->addOrderBy('t.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $threads;
+    }
+
     public function add(WikiCommentThread|WikiComment|WikiCommentReaction $entity): void
     {
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.

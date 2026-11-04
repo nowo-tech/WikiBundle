@@ -97,6 +97,10 @@ final class WikiCommentControllerTest extends TestCase
         self::assertStringContainsString('Edited', $this->json($this->call($controller, 'PATCH', 'comments/' . $cid, ['body' => 'Edited']))['comments'][0]['html']);
         self::assertSame(1, $this->json($this->call($controller, 'PUT', 'comments/' . $cid . '/reactions/👍'))['comments'][0]['reactions'][0]['count']);
         self::assertSame([], $this->json($this->call($controller, 'DELETE', 'comments/' . $cid . '/reactions/👍'))['comments'][0]['reactions']);
+        // 1.16.1: a moderator deletes a whole thread (204).
+        $spam = $this->json($this->call($controller, 'POST', 'threads', ['anchor' => null, 'body' => 'Spam']))['id'];
+        self::assertSame(204, $this->call($controller, 'DELETE', 'threads/' . $spam)->getStatusCode());
+        self::assertSame(404, $this->call($controller, 'GET', 'threads/' . $spam)->getStatusCode());
         $deleted = $this->call($controller, 'DELETE', 'comments/' . $cid);
         self::assertSame(200, $deleted->getStatusCode());
         $last = $this->json($deleted)['comments'][1]['id'];

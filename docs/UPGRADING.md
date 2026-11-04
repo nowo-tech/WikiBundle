@@ -59,6 +59,26 @@
 
 ## Unreleased
 
+### To 1.16.1
+
+From **1.16.0**: `composer update nowo-tech/wiki-bundle`. No schema change.
+
+- **Caps:** `comments.limits.threads_per_page` now counts open threads only, and the new
+  `comments.limits.user_threads_per_page` (default 50) caps the open threads one user starts on one page; beyond them
+  a new thread answers 422 `limit_reached`.
+- **Moderation:** `DELETE …/comments/threads/{id}` deletes a thread with every comment and reaction for viewers with
+  `WikiAction::ModerateComments` (204) and dispatches `nowo_wiki.comment.thread_deleted` (`WikiCommentEvent`, comment
+  null). Add it to notification listeners that react to deletions.
+- **Notification quotes:** show `WikiCommentService::visibleQuote($event->thread)`, never `$event->thread->getQuote()`:
+  the stored quote keeps text that may have left the page since (`visibleQuote()` blanks it).
+- **Privacy:** `exportAuthorData($user)` (comments, reactions, threads started or resolved) completes `exportAuthor()`;
+  `wiki:comments:erase-user --export` prints it. Mentions of the user in other people's comments are those people's
+  text: they are neither exported nor erased. Listen to `nowo_wiki.comment.author_erased`
+  (`WikiCommentAuthorErasedEvent`) to drop your own copies (indexes, caches, notification history). The command now
+  asks for confirmation; scripts pass `--force` or `--no-interaction`.
+- **Server-rendered list:** each listed thread shows its latest 20 comments; an override of
+  `_comments_panel_body.html.twig` gets `thread.more` (the number of earlier comments).
+
 ## To 1.16.0
 
 From **1.15.1**:

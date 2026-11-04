@@ -20,6 +20,7 @@ wiki:
     reply_in_editor: "Répondez depuis l’éditeur"
     quote_gone: "Le texte commenté n’est plus sur la page."
     truncated: "Seuls les %count% premiers fils ouverts sont affichés."
+    more_in_editor: "%count% commentaire(s) précédent(s) dans l’éditeur"
     unknown_author: "Utilisateur supprimé"
     error:
       invalid: "Le commentaire est vide ou invalide."

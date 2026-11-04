@@ -20,6 +20,7 @@ wiki:
     reply_in_editor: "Im Editor antworten"
     quote_gone: "Der kommentierte Text steht nicht mehr auf der Seite."
     truncated: "Nur die ersten %count% offenen Threads werden angezeigt."
+    more_in_editor: "%count% frühere(r) Kommentar(e) im Editor"
     unknown_author: "Gelöschter Benutzer"
     error:
       invalid: "Der Kommentar ist leer oder ungültig."

@@ -19,6 +19,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiCommentAuthorErasedEvent;
 use Nowo\WikiBundle\Event\WikiCommentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
@@ -415,7 +416,7 @@ final class WikiCommentServiceTest extends TestCase
 
     public function testCapsThreadsCommentsAndReactions(): void
     {
-        $service = $this->service(limits: ['threads_per_page' => 2, 'comments_per_thread' => 2, 'reactions_per_comment' => 2, 'user_reactions_per_comment' => 2]);
+        $service = $this->service(limits: ['threads_per_page' => 2, 'user_threads_per_page' => 50, 'comments_per_thread' => 2, 'reactions_per_comment' => 2, 'user_reactions_per_comment' => 2]);
         $thread  = $service->create($this->ana, $this->space, $this->page, null, 'One');
         $service->create($this->ana, $this->space, $this->page, null, 'Two');
         $this->assertRefused(422, 'limit_reached', fn (): array => $service->create($this->ana, $this->space, $this->page, null, 'Three'));
@@ -507,6 +508,92 @@ final class WikiCommentServiceTest extends TestCase
         self::assertSame([], $service->thread($this->ana, $this->space, $this->page, $thread['id'])['comments'][0]['reactions']);
     }
 
+    public function testResolvedThreadsDoNotCountAndEachUserHasAShare(): void
+    {
+        // Audit EI-I16: resolved threads never lock a page; one user may only fill their own share.
+        $service = $this->service(limits: ['threads_per_page' => 3, 'user_threads_per_page' => 2] + WikiCommentService::DEFAULT_LIMITS);
+        $one     = $service->create($this->bob, $this->space, $this->page, null, 'One');
+        $service->create($this->bob, $this->space, $this->page, null, 'Two');
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->create($this->bob, $this->space, $this->page, null, 'Three'));
+        $service->create($this->ana, $this->space, $this->page, null, 'Ana');
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->create($this->ana, $this->space, $this->page, null, 'Page full'));
+        $service->patchThread($this->ana, $this->space, $this->page, $one['id'], ['resolved' => true]);
+        $service->create($this->bob, $this->space, $this->page, null, 'Room again');
+    }
+
+    public function testModeratorsDeleteAWholeThread(): void
+    {
+        $service = $this->service();
+        $thread  = $service->create($this->bob, $this->space, $this->page, null, 'Spam');
+        $service->reply($this->bob, $this->space, $this->page, $thread['id'], 'More spam');
+        $service->react($this->bob, $this->space, $this->page, $thread['comments'][0]['id'], '👍', true);
+
+        $this->assertRefused(403, 'forbidden', fn () => $service->deleteThread($this->bob, $this->space, $this->page, $thread['id']));
+        $this->assertRefused(404, 'not_found', fn () => $service->deleteThread($this->ana, $this->space, $this->page, 'missing'));
+        $service->deleteThread($this->ana, $this->space, $this->page, $thread['id']);
+        $this->em->clear();
+
+        self::assertNull($this->em->find(WikiCommentThread::class, $thread['id']));
+        self::assertSame(0, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM wiki_comments'));
+        self::assertSame(0, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM wiki_comment_reactions'));
+        $last = $this->events[count($this->events) - 1];
+        self::assertSame(WikiEvents::COMMENT_THREAD_DELETED, $last[0]);
+        self::assertNull($last[1]->comment);
+        self::assertSame($this->ana, $last[1]->actor);
+    }
+
+    public function testTheServerListShowsTheLatestCommentsOfAThread(): void
+    {
+        // Audit EI-I18: at most LIST_COMMENTS_CAP rendered comments per listed thread.
+        $service = $this->service();
+        $thread  = $service->create($this->ana, $this->space, $this->page, null, 'First');
+        for ($i = 1; $i < WikiCommentService::LIST_COMMENTS_CAP + 3; ++$i) {
+            $service->reply($this->bob, $this->space, $this->page, $thread['id'], 'Reply ' . $i);
+        }
+        $listed = $service->pageThreads($this->bob, $this->space, $this->page)[0];
+
+        self::assertSame(3, $listed['more']);
+        self::assertCount(WikiCommentService::LIST_COMMENTS_CAP, $listed['comments']);
+        self::assertStringContainsString('Reply ' . (WikiCommentService::LIST_COMMENTS_CAP + 2), (string) end($listed['comments'])['html']);
+        self::assertSame(WikiCommentService::LIST_COMMENTS_CAP + 3, $listed['count']);
+        self::assertArrayNotHasKey('more', $service->thread($this->bob, $this->space, $this->page, $thread['id']));
+    }
+
+    public function testVisibleQuoteExportDataAndTheErasureEvent(): void
+    {
+        // Audit EI-I15: the quote a notification may show.
+        $this->revise('<p>The prod key is AKIA-SECRET-KEY-123.</p>');
+        $service = $this->service();
+        $inline  = $service->create($this->bob, $this->space, $this->page, $this->anchor('AKIA-SECRET-KEY-123', 15), 'Secret');
+        $page    = $service->create($this->bob, $this->space, $this->page, null, 'Page');
+        $thread  = $this->em->find(WikiCommentThread::class, $inline['id']);
+        self::assertInstanceOf(WikiCommentThread::class, $thread);
+        self::assertSame('AKIA-SECRET-KEY-123', $service->visibleQuote($thread));
+        $this->revise('<p>The prod key lives in the vault.</p>');
+        self::assertSame('', $service->visibleQuote($thread));
+        self::assertSame('AKIA-SECRET-KEY-123', $thread->getQuote());
+        self::assertNull($service->visibleQuote($this->em->find(WikiCommentThread::class, $page['id']) ?? $thread));
+
+        // Audit EI-I17: the export holds reactions and threads started or resolved; the erasure is announced.
+        $service->react($this->bob, $this->space, $this->page, $inline['comments'][0]['id'], '👍', true);
+        $service->patchThread($this->ana, $this->space, $this->page, $page['id'], ['resolved' => true]);
+        $bob = $service->exportAuthorData($this->bob);
+        self::assertEqualsCanonicalizing(['Secret', 'Page'], array_column($bob['comments'], 'body'));
+        self::assertSame([['comment_id' => $inline['comments'][0]['id'], 'thread_id' => $inline['id'], 'page_id' => $this->page->getId(), 'emoji' => '👍']], $bob['reactions']);
+        self::assertEqualsCanonicalizing([$inline['id'], $page['id']], array_column($bob['threads_started'], 'id'));
+        self::assertSame([], $bob['threads_resolved']);
+        self::assertSame([$page['id']], array_column($service->exportAuthorData($this->ana)['threads_resolved'], 'id'));
+
+        $erased     = [];
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(WikiEvents::COMMENT_AUTHOR_ERASED, static function (WikiCommentAuthorErasedEvent $event) use (&$erased): void {
+            $erased[] = [$event->user, $event->comments, $event->bodiesDeleted];
+        });
+        $eraser = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), dispatcher: $dispatcher);
+        self::assertSame(2, $eraser->eraseAuthor($this->bob, false));
+        self::assertSame([[$this->bob, 2, false]], $erased);
+    }
+
     private function revise(string $html): void
     {
         $revision = new WikiPageRevision($this->page, ($this->page->getCurrentRevision()?->getRevisionNumber() ?? 0) + 1, $html, $this->ana);
@@ -516,12 +603,12 @@ final class WikiCommentServiceTest extends TestCase
     }
 
     /**
-     * @param array{threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits
+     * @param array{threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits
      */
     private function service(bool $showNames = true, ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $pageLimiter = null, array $limits = WikiCommentService::DEFAULT_LIMITS): WikiCommentService
     {
         $dispatcher = new EventDispatcher();
-        foreach ([WikiEvents::COMMENT_CREATED, WikiEvents::COMMENT_REPLIED, WikiEvents::COMMENT_EDITED, WikiEvents::COMMENT_DELETED, WikiEvents::COMMENT_RESOLVED, WikiEvents::COMMENT_REOPENED] as $name) {
+        foreach ([WikiEvents::COMMENT_CREATED, WikiEvents::COMMENT_REPLIED, WikiEvents::COMMENT_EDITED, WikiEvents::COMMENT_DELETED, WikiEvents::COMMENT_RESOLVED, WikiEvents::COMMENT_REOPENED, WikiEvents::COMMENT_THREAD_DELETED] as $name) {
             $dispatcher->addListener($name, function (WikiCommentEvent $event) use ($name): void {
                 $this->events[] = [$name, $event];
             });
