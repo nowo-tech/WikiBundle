@@ -383,10 +383,14 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
         for ($i = 0; $i < $zip->numFiles; ++$i) {
             $names[] = (string) $zip->getNameIndex($i);
         }
+        $readme = (string) $zip->getFromName('README.md');
         $zip->close();
         @unlink($path);
 
         self::assertSame([], array_values(array_filter($names, static fn (string $name): bool => str_contains(strtolower($name), 'secret'))));
+        // 1.15.1: the README index lists exactly the exported pages, never the titles of hidden ones.
+        self::assertStringContainsString('(runbook.md)', $readme);
+        self::assertStringNotContainsString('Secret', $readme);
         self::assertNotSame([], array_values(array_filter($names, static fn (string $name): bool => str_contains(strtolower($name), 'runbook'))));
     }
 

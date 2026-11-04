@@ -51,6 +51,11 @@ services:
         tags:
             - { name: monolog.logger, channel: nowo_wiki }
 
+    # 1.15.1: README.md index of every export, translated in the NowoWikiBundle domain when a translator exists.
+    Nowo\WikiBundle\Interchange\WikiExportIndexWriter:
+        arguments:
+            $translator: '@?translator'
+
     Nowo\WikiBundle\Service\WikiPageService:
         arguments:
             $logger: '@?logger'

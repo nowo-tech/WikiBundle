@@ -49,6 +49,8 @@ bin/console wiki:import {spaceSlug} /path/to/export [--format=auto|outline|notio
 bin/console wiki:export {spaceSlug} /path/to/output [--format=outline|notion] [--zip]
 ```
 
+Every export holds a `README.md` index at its root (space title, export date, links to the exported pages); imports skip it.
+
 Configure limits and ACL in `nowo_wiki.import_export` and `nowo_wiki.security.roles.{import,export}`.
 
 ## Symfony AI

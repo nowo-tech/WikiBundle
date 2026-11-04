@@ -50,6 +50,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Exporting a space with no visible pages no longer returns 500** (reported by symfony-beacon). ZipArchive writes no
+  file for an archive without entries, so the web export (`nowo_wiki_space_export`) ended in
+  `FileNotFoundException: ".../wiki-export-<slug>-<hex>.zip" does not exist`, and `wiki:export --zip` reported success
+  without writing the archive. Every export now holds a `README.md` index at its root (Outline-style): the space
+  title, the export date (UTC) and the exported pages as nested relative links, or a line saying the space has no
+  pages visible to the exporter. It lists exactly the exported pages (never the title of a page the exporter may not
+  read), escapes titles for Markdown link text and is translated in the `NowoWikiBundle` domain (`wiki.export.readme.*`,
+  all seven locales).
+- `WikiArchiveHelper::createZipFromDirectory()` throws a `RuntimeException` when the archive was not written instead of
+  returning a path that does not exist.
+- `wiki:export` removes its temporary directory on every path and reports a failed export (`Export failed: ...`,
+  exit code 1) instead of throwing.
+- Imports skip the `README.md` index of a wiki export (first line `<!-- nowo-wiki:export-index -->`), so re-importing
+  an export does not create a README page (nor, for Notion, nest every top-level page under it). Only `README.md` at
+  the export root is the index; the marker anywhere else is page content. The import report counts the index as
+  skipped (`README.md: wiki export index, skipped.`).
+- The index name is reserved (audit DV-L1 / DV-I4): an Outline page whose slug is `readme` (`readme.md`, the same file
+  as `README.md` on case-insensitive filesystems) and a top-level Notion page titled `README.md` (its folder) get the
+  first free `-N` suffix (`readme-1.md`, `README.md-1/`); links and the index follow, and the front matter keeps the
+  slug. The index never replaces a `README.md` that is not an earlier index (the export fails before writing any
+  page), and a failed index write raises a path-free `RuntimeException`.
+- Index titles stay on one line even with invalid UTF-8 (audit DV-I3).
+- **Exported front matter parses back** (audit DV-I8, since the first export): `WikiFrontMatterParser::serialize()` wrote
+  the closing `---` right after the last value (`wiki_parent: ''---`), so `parse()` found no front matter. Re-importing
+  an Outline export lost every title, slug and parent and imported the YAML as page text. The delimiter is on its own
+  line again.
+
 ## [1.15.0] - 2026-11-04
 
 Version history timeline, named versions, copy to new page, retention; Copy as Markdown

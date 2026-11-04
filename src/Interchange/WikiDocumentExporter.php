@@ -16,7 +16,14 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
+use function array_column;
+use function array_push;
 use function dirname;
+use function ltrim;
+use function str_replace;
+use function strlen;
+use function strtolower;
+use function substr;
 
 use const DIRECTORY_SEPARATOR;
 
@@ -35,6 +42,7 @@ final readonly class WikiDocumentExporter
      * @param WikiMarkdownConverter $markdownConverter converts stored HTML to Markdown
      * @param WikiFrontMatterParser $frontMatterParser serializes the YAML front matter
      * @param LoggerInterface|null $logger logger (defaults to a NullLogger)
+     * @param WikiExportIndexWriter|null $indexWriter writes the README.md index (1.15.1; untranslated English when null)
      */
     public function __construct(
         private WikiPageRepositoryInterface $pageRepository,
@@ -42,14 +50,19 @@ final readonly class WikiDocumentExporter
         private WikiMarkdownConverter $markdownConverter,
         private WikiFrontMatterParser $frontMatterParser,
         ?LoggerInterface $logger = null,
+        ?WikiExportIndexWriter $indexWriter = null,
     ) {
-        $this->logger = $logger ?? new NullLogger();
+        $this->logger      = $logger ?? new NullLogger();
+        $this->indexWriter = $indexWriter ?? new WikiExportIndexWriter();
     }
 
     private LoggerInterface $logger;
 
+    private WikiExportIndexWriter $indexWriter;
+
     /**
-     * Writes the active pages of the space (those the page filter keeps) as Markdown files under the target directory.
+     * Writes the active pages of the space (those the page filter keeps) as Markdown files under the target directory,
+     * plus a {@code README.md} index of exactly those pages (1.15.1: an export is never empty).
      *
      * @param WikiSpace $space space to export
      * @param string $targetDir output directory (created when missing)
@@ -101,19 +114,25 @@ final readonly class WikiDocumentExporter
         if ($pageFilter !== null) {
             $pages = $pageFilter($pages);
         }
-        $tree   = $this->pageTreeBuilder->build($pages);
-        $report = new WikiExportReport(outputPath: $targetDir);
+        // 1.15.1: refuse before writing any page when the target holds a README.md that is not a wiki export index.
+        $this->indexWriter->assertWritable($targetDir);
 
-        $exported = $this->markdownConverter->dialect ? $this->exportedPaths($tree, $targetDir, $format) : [];
+        $tree    = $this->pageTreeBuilder->build($pages);
+        $report  = new WikiExportReport(outputPath: $targetDir);
+        $renames = $this->reservedNameRenames($tree, $format);
+
+        $exported = $this->markdownConverter->dialect ? $this->exportedPaths($tree, $targetDir, $format, $renames) : [];
         if ($format === WikiInterchangeFormat::Notion) {
             foreach ($tree as $node) {
-                $this->exportNotionNode($node, $targetDir, $report, $exported);
+                $this->exportNotionNode($node, $targetDir, $report, $exported, 0, $renames);
             }
         } else {
             foreach ($tree as $node) {
-                $this->exportOutlineNode($node, $targetDir, null, $report, $exported);
+                $this->exportOutlineNode($node, $targetDir, null, $report, $exported, 0, $renames);
             }
         }
+
+        $this->indexWriter->write($space, $targetDir, $report);
 
         return $report;
     }
@@ -121,33 +140,37 @@ final readonly class WikiDocumentExporter
     /**
      * @param array{page: WikiPage, children: list<mixed>} $node
      * @param array<string, array{path: string, title: string}> $exported page id => file of the exported pages (1.13)
+     * @param array<string, string> $renames page id => folder name of the root pages renamed away from the index name
      */
-    private function exportNotionNode(array $node, string $targetDir, WikiExportReport $report, array $exported): void
+    private function exportNotionNode(array $node, string $targetDir, WikiExportReport $report, array $exported, int $depth, array $renames): void
     {
         $page   = $node['page'];
-        $folder = $targetDir . DIRECTORY_SEPARATOR . $this->sanitizeFilesystemName($page->getTitle());
+        $name   = $renames[$page->getId()] ?? $this->sanitizeFilesystemName($page->getTitle());
+        $folder = $targetDir . DIRECTORY_SEPARATOR . $name;
         if (!is_dir($folder) && !mkdir($folder, 0700, true) && !is_dir($folder)) {
             throw new InvalidArgumentException('Unable to create export folder.');
         }
 
         $this->writeMarkdownFile(
-            $folder . DIRECTORY_SEPARATOR . $this->sanitizeFilesystemName($page->getTitle()) . '.md',
+            $folder . DIRECTORY_SEPARATOR . $name . '.md',
             $page,
             null,
             $exported,
+            $report,
+            $depth,
         );
-        ++$report->pagesExported;
 
         /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
         $children = $node['children'];
         foreach ($children as $child) {
-            $this->exportNotionNode($child, $folder, $report, $exported);
+            $this->exportNotionNode($child, $folder, $report, $exported, $depth + 1, $renames);
         }
     }
 
     /**
      * @param array{page: WikiPage, children: list<mixed>} $node
      * @param array<string, array{path: string, title: string}> $exported page id => file of the exported pages (1.13)
+     * @param array<string, string> $renames page id => file stem of the pages renamed away from the index name
      */
     private function exportOutlineNode(
         array $node,
@@ -155,27 +178,32 @@ final readonly class WikiDocumentExporter
         ?WikiPage $parent,
         WikiExportReport $report,
         array $exported,
+        int $depth,
+        array $renames,
     ): void {
         $page = $node['page'];
         $this->writeMarkdownFile(
-            $targetDir . DIRECTORY_SEPARATOR . $page->getSlug() . '.md',
+            $targetDir . DIRECTORY_SEPARATOR . ($renames[$page->getId()] ?? $page->getSlug()) . '.md',
             $page,
             $parent,
             $exported,
+            $report,
+            $depth,
         );
-        ++$report->pagesExported;
 
         /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
         $children = $node['children'];
         foreach ($children as $child) {
-            $this->exportOutlineNode($child, $targetDir, $page, $report, $exported);
+            $this->exportOutlineNode($child, $targetDir, $page, $report, $exported, $depth + 1, $renames);
         }
     }
 
     /**
+     * Writes one page and records it in the report (count and README index entry).
+     *
      * @param array<string, array{path: string, title: string}> $exported
      */
-    private function writeMarkdownFile(string $path, WikiPage $page, ?WikiPage $parent, array $exported): void
+    private function writeMarkdownFile(string $path, WikiPage $page, ?WikiPage $parent, array $exported, WikiExportReport $report, int $depth): void
     {
         $revision = $page->getCurrentRevision();
         // 1.11: a Markdown revision exports its source as is (1.13: dialect page links to exported pages as file links).
@@ -190,33 +218,101 @@ final readonly class WikiDocumentExporter
         ];
         $content = $this->frontMatterParser->serialize($meta, $markdown);
         file_put_contents($path, $content);
+
+        ++$report->pagesExported;
+        $report->pages[] = [
+            'title' => $page->getTitle(),
+            'path'  => str_replace(DIRECTORY_SEPARATOR, '/', ltrim(substr($path, strlen($report->outputPath)), '/\\')),
+            'depth' => $depth,
+        ];
     }
 
     /**
      * File path and title of every exported page, by page id (1.13, the same layout as the node writers).
      *
      * @param list<array{page: WikiPage, children: list<mixed>}> $nodes
+     * @param array<string, string> $renames page id => file stem / folder name renamed away from the index name
      *
      * @return array<string, array{path: string, title: string}>
      */
-    private function exportedPaths(array $nodes, string $directory, WikiInterchangeFormat $format): array
+    private function exportedPaths(array $nodes, string $directory, WikiInterchangeFormat $format, array $renames): array
     {
         $paths = [];
         foreach ($nodes as $node) {
             $page = $node['page'];
-            $name = $this->sanitizeFilesystemName($page->getTitle());
+            $name = $renames[$page->getId()] ?? $this->sanitizeFilesystemName($page->getTitle());
             $dir  = $format === WikiInterchangeFormat::Notion ? $directory . DIRECTORY_SEPARATOR . $name : $directory;
 
             $paths[$page->getId()] = [
-                'path'  => $dir . DIRECTORY_SEPARATOR . ($format === WikiInterchangeFormat::Notion ? $name : $page->getSlug()) . '.md',
+                'path'  => $dir . DIRECTORY_SEPARATOR . ($format === WikiInterchangeFormat::Notion ? $name : ($renames[$page->getId()] ?? $page->getSlug())) . '.md',
                 'title' => $page->getTitle(),
             ];
             /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
             $children = $node['children'];
-            $paths += $this->exportedPaths($children, $dir, $format);
+            $paths += $this->exportedPaths($children, $dir, $format, $renames);
         }
 
         return $paths;
+    }
+
+    /**
+     * Renames the export-root entries that would collide with the README.md index on a case-insensitive filesystem
+     * (1.15.1, audit DV-L1/DV-I4): an Outline page with the slug {@code readme} ({@code readme.md}), or a top-level
+     * Notion page titled {@code README.md} (its folder). They get the first free {@code -N} suffix
+     * ({@code readme-1.md}, {@code README.md-1/}); links and the index follow. The slug in the front matter is kept,
+     * so a re-import restores the page as it was.
+     *
+     * @param list<array{page: WikiPage, children: list<mixed>}> $tree
+     *
+     * @return array<string, string> page id => new file stem (Outline) or folder name (Notion)
+     */
+    private function reservedNameRenames(array $tree, WikiInterchangeFormat $format): array
+    {
+        $outline = $format !== WikiInterchangeFormat::Notion;
+        $suffix  = $outline ? '.md' : '';
+        $stems   = [];
+        foreach ($outline ? $this->flattenTree($tree) : array_column($tree, 'page') as $page) {
+            $stems[$page->getId()] = $outline ? $page->getSlug() : $this->sanitizeFilesystemName($page->getTitle());
+        }
+
+        $taken = [];
+        foreach ($stems as $stem) {
+            $taken[strtolower($stem . $suffix)] = true;
+        }
+
+        $renames = [];
+        foreach ($stems as $id => $stem) {
+            if (strtolower($stem . $suffix) !== strtolower(WikiExportIndexWriter::FILENAME)) {
+                continue;
+            }
+
+            $n = 1;
+            while (isset($taken[strtolower($stem . '-' . $n . $suffix)])) {
+                ++$n;
+            }
+            $taken[strtolower($stem . '-' . $n . $suffix)] = true;
+            $renames[$id]                                  = $stem . '-' . $n;
+        }
+
+        return $renames;
+    }
+
+    /**
+     * @param list<array{page: WikiPage, children: list<mixed>}> $nodes
+     *
+     * @return list<WikiPage>
+     */
+    private function flattenTree(array $nodes): array
+    {
+        $pages = [];
+        foreach ($nodes as $node) {
+            $pages[] = $node['page'];
+            /** @var list<array{page: WikiPage, children: list<mixed>}> $children */
+            $children = $node['children'];
+            array_push($pages, ...$this->flattenTree($children));
+        }
+
+        return $pages;
     }
 
     private function sanitizeFilesystemName(string $value): string

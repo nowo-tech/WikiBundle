@@ -43,7 +43,9 @@ final class WikiFrontMatterParser
             ++$bodyStart;
         }
 
+        // serialize() separates the block from the body with one blank line: drop it so the round trip is exact.
         $body = substr($content, $bodyStart);
+        $body = preg_replace('/^\r?\n/', '', $body, 1) ?? $body;
         $meta = [];
 
         try {
@@ -75,6 +77,7 @@ final class WikiFrontMatterParser
 
         $yaml = trim(Yaml::dump($meta, 2, 2, Yaml::DUMP_EMPTY_ARRAY_AS_SEQUENCE));
 
-        return "---\n" . $yaml . "---\n\n" . ltrim($body);
+        // 1.15.1: the closing delimiter needs its own line, or parse() finds no block (`wiki_parent: ''---`).
+        return "---\n" . $yaml . "\n---\n\n" . ltrim($body);
     }
 }

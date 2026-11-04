@@ -765,6 +765,9 @@ final class WikiManageController extends AbstractController
     /**
      * Exports a space to Outline or Notion Markdown and streams it as a ZIP download (deleted after send).
      *
+     * The archive always holds a README.md index of the pages the user may read (1.15.1: an empty space used to
+     * yield no archive and a 500); the working directory, and the archive on failure, are removed on every path.
+     *
      * @param Request $request current request (reads the {@code format} query parameter)
      * @param string $spaceSlug space slug from the route
      *

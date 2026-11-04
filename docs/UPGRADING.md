@@ -57,6 +57,19 @@
 
 ## Unreleased
 
+- **Exports include `README.md`.** Web (`nowo_wiki_space_export`) and console (`wiki:export`) exports now write a
+  `README.md` index at the archive / target directory root, listing the exported pages (or saying there are none).
+  A `wiki:export` into a directory that holds a `README.md` of its own now fails (exit 1) before writing any page;
+  the index of an earlier export is replaced. A page with the slug `readme` is written as `readme-1.md` (Outline), a
+  top-level Notion page titled `README.md` as `README.md-1/`. The bundle's importer skips the index (and reports it
+  as skipped); other tools that read the export see one more Markdown file.
+- **Outline / Notion exports from earlier versions** have front matter that does not parse (`wiki_parent: ''---`), so
+  re-importing them yields pages without their titles, slugs and parents. Export again with 1.15.1 before
+  re-importing. Strings: `wiki.export.readme.*` in the
+  `NowoWikiBundle` domain (override them in your app translations if needed).
+- `WikiExportReport` gains `$pages` (title, relative path, depth of each exported page) and `WikiDocumentExporter`
+  an optional 6th constructor argument (`?WikiExportIndexWriter`); both are additive.
+
 ## To 1.15.0
 
 From **1.14.1**:

@@ -13,6 +13,7 @@ use SplFileInfo;
 use ZipArchive;
 
 use function chmod;
+use function clearstatcache;
 use function in_array;
 use function sprintf;
 use function strlen;
@@ -142,7 +143,8 @@ final readonly class WikiArchiveHelper
      * @param string $zipPath path of the ZIP archive to create
      *
      * @throws InvalidArgumentException when the source directory does not exist
-     * @throws RuntimeException when the archive cannot be created
+     * @throws RuntimeException when the archive cannot be created, or was not written (1.15.1: ZipArchive writes no
+     *                          file for an empty directory, so callers would otherwise get a path that does not exist)
      */
     public function createZipFromDirectory(string $sourceDir, string $zipPath): void
     {
@@ -174,9 +176,13 @@ final readonly class WikiArchiveHelper
             }
         }
 
-        $zip->close();
+        if (!$zip->close() || !is_file($zipPath)) {
+            throw new RuntimeException('ZIP archive was not written (empty export directory?).');
+        }
         // Exported spaces may be private: owner-only, whatever the umask (the archive sits in the shared temp dir).
         chmod($zipPath, 0o600);
+        // is_file() above cached the pre-chmod stat; later stat calls (fileperms, BinaryFileResponse) must see 0600.
+        clearstatcache(true, $zipPath);
     }
 
     /**
