@@ -99,7 +99,7 @@ final class PageFixtures
     /**
      * @return array<string, mixed>
      */
-    public static function pageView(bool $full = true, ?WikiPageFactory $factory = null, ?bool $commentsOpen = null, bool $mounted = true): array
+    public static function pageView(bool $full = true, ?WikiPageFactory $factory = null, ?bool $commentsOpen = null, bool $mounted = true, ?string $editHref = null): array
     {
         $factory ??= self::factory();
         $space    = self::space('engineering', 'Engineering');
@@ -121,7 +121,7 @@ final class PageFixtures
             'can_archive'      => $full,
             'permissions'      => [],
         ] + ($commentsOpen === null ? [] : [
-            'comments' => self::comments($page, $commentsOpen, $mounted),
+            'comments' => self::comments($page, $commentsOpen, $mounted, $editHref),
         ] + ($mounted ? ['comments_view' => ['markdown' => '## Deploy', 'options' => ['features' => ['comments']]]] : [])));
     }
 
@@ -131,7 +131,7 @@ final class PageFixtures
      *
      * @return array<string, mixed>
      */
-    public static function comments(WikiPage $page, bool $open, bool $mounted = true): array
+    public static function comments(WikiPage $page, bool $open, bool $mounted = true, ?string $editHref = null): array
     {
         $comment = static fn (string $id, string $name, ?string $avatar, string $html, bool $deleted = false): array => [
             'id'        => $id,
@@ -156,6 +156,7 @@ final class PageFixtures
             'state_token'  => 'state-token',
             'can'          => ['view' => true, 'comment' => $open, 'resolve' => false, 'moderate' => false],
             'mounted'      => $mounted,
+            'edit_href'    => $editHref,
             'page_threads' => $open || !$mounted ? [[
                 'id'       => 't1',
                 'anchor'   => $mounted ? null : ['v' => 1, 'quote' => ['exact' => 'make deploy', 'prefix' => '', 'suffix' => ''], 'position' => ['start' => 0, 'end' => 11], 'block' => ['index' => 1, 'heading' => 'Deploy'], 'yjs' => null],

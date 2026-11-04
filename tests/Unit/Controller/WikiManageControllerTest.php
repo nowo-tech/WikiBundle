@@ -475,6 +475,7 @@ final class WikiManageControllerTest extends TestCase
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $response = $controller->viewPage('eng', 'welcome');
         self::assertFalse($twig->context['comments']['mounted']);
+        self::assertNull($twig->context['comments']['edit_href']);
         self::assertArrayNotHasKey('comments_view', $twig->context);
         self::assertArrayNotHasKey('copy_markdown', $twig->context);
         self::assertNotSame('no-store, private', $response->headers->get('Cache-Control'));
@@ -484,6 +485,7 @@ final class WikiManageControllerTest extends TestCase
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $controller->viewPage('eng', 'welcome');
         self::assertTrue($twig->context['comments']['mounted']);
+        self::assertNull($twig->context['comments']['edit_href']);
         self::assertSame('Hi **there** <!-- hidden -->', $twig->context['comments_view']['markdown']);
 
         // Without ViewComments: no panel at all.

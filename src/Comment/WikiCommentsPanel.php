@@ -30,7 +30,7 @@ use function strtok;
  * remembered state), the badge count, the no-JavaScript URLs and the Milkdown options that mount the thread
  * component into the panel (`panel: container`). Viewers without the right get null: no toggle, no panel, no count.
  *
- * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null}
+ * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null}
  */
 final readonly class WikiCommentsPanel
 {
@@ -72,13 +72,15 @@ final readonly class WikiCommentsPanel
      * The panel of a page for the viewer, or null without {@see WikiAction::ViewComments}.
      *
      * @param Request|null $request the current request (`?comments=1|0` overrides the remembered state)
+     * @param string|null $editHref the page's edit URL when the viewer may edit it (the server list then links its
+     *                              inline threads to the editor; null: a plain hint)
      * @param bool $mounted the Milkdown thread component mounts into the panel (the edit view, or a read view that
      *                      carries the page source); false: the server renders every open thread (quotes of the inline
      *                      ones included) and the comment form, and no Markdown is sent
      *
      * @return Panel|null
      */
-    public function panel(?Request $request, UserInterface $user, WikiSpace $space, WikiPage $page, bool $mounted = true): ?array
+    public function panel(?Request $request, UserInterface $user, WikiSpace $space, WikiPage $page, bool $mounted = true, ?string $editHref = null): ?array
     {
         $can = $this->comments->rights($user, $space, $page);
         if (!$can['view']) {
@@ -103,6 +105,8 @@ final readonly class WikiCommentsPanel
             'state_token'  => $state !== null ? $this->csrf->getToken(WikiCommentController::panelTokenId($space))->getValue() : null,
             'can'          => $can,
             'mounted'      => $mounted,
+            // Inline threads of the server list are replied to from the editor (opened on the comments panel).
+            'edit_href' => $editHref !== null ? $editHref . '?comments=1' : null,
             // The server list: with the component, the no-JavaScript fallback (page-level threads, read only when the
             // panel is rendered open); without it, the panel's content (every open thread, with its quote).
             'page_threads' => $open || !$mounted ? $this->comments->pageThreads($user, $space, $page, !$mounted) : [],

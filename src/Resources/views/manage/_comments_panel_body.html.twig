@@ -3,7 +3,8 @@
   comments.read_view_source) the Milkdown 1.6 thread component (inline and page-level threads) mounts into
   [data-nowo-wiki-comments-mount] (panel: container) and wiki.js hides the fallback below once the editor is ready.
   Without it (commenters who may not edit, by default) the server list below is the panel: every open thread, inline
-  ones with their quote as text, and the comment form; the page source is never sent.
+  ones with their quote as text and a muted "Reply from the editor" line (a link to page_edit?comments=1 when
+  comments.edit_href is set, i.e. the viewer may edit), and the comment form; the page source is never sent.
   Without JavaScript: the open page-level threads (comment bodies rendered per viewer by the safe renderer and printed
   through nowo_wiki_safe_html) and, for commenters, the WikiCommentType form posting to …/comments/new; inline threads
   need the editor. Authors follow the history name policy; a picture only beside a real name (UiKit `_avatar`).
@@ -21,7 +22,17 @@
         <ul class="nowo-wiki-comments__list">
             {% for thread in comments.page_threads %}
                 <li class="nowo-wiki-comments__thread" data-thread-id="{{ thread.id }}">
-                    {% if thread.anchor|default(null) %}<blockquote class="nowo-wiki-comment__quote" data-testid="wiki-comment-quote">{{ thread.anchor.quote.exact }}</blockquote>{% endif %}
+                    {% if thread.anchor|default(null) %}
+                        <blockquote class="nowo-wiki-comment__quote" data-testid="wiki-comment-quote">{{ thread.anchor.quote.exact }}</blockquote>
+                        {#- inline threads are answered in the editor (no highlight here): a link for editors, else a hint -#}
+                        <p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-comment__reply-hint" data-testid="wiki-comment-reply-hint">
+                            {%- if comments.edit_href|default(null) -%}
+                                <a href="{{ comments.edit_href }}">{{ 'wiki.comments.reply_in_editor'|trans }}</a>
+                            {%- else -%}
+                                {{ 'wiki.comments.reply_in_editor'|trans }}
+                            {%- endif -%}
+                        </p>
+                    {% endif %}
                     {% for comment in thread.comments %}
                         <article class="nowo-wiki-comment" aria-label="{{ 'wiki.comments.by'|trans({'%name%': comment.author.name}) }}">
                             <header class="nowo-wiki-comment__header">

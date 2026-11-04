@@ -343,7 +343,8 @@ final class WikiManageController extends AbstractController
         // DN-I2), unless comments.read_view_source opts every commenter in; the others get the threads rendered by
         // the server and never the source.
         $mount    = $can['edit'] || $this->commentsPanel?->readViewSource() === true;
-        $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page, $mount);
+        $editHref = $can['edit'] && isset($this->routes['page_edit']) ? $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]) : null;
+        $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page, $mount, $editHref);
         if ($comments !== null && $this->commentsPanel instanceof WikiCommentsPanel) {
             $vars['comments'] = $comments;
             if ($mount && $revision instanceof WikiPageRevision) {

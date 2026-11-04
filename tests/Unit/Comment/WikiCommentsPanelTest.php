@@ -103,6 +103,8 @@ final class WikiCommentsPanelTest extends TestCase
         self::assertCount(2, $server['page_threads']);
         self::assertInstanceOf(FormView::class, $server['form']);
         self::assertFalse($panel->readViewSource());
+        self::assertNull($server['edit_href']);
+        self::assertSame('/wiki/run/edit?comments=1', $panel->panel(null, $user, $space, $page, false, '/wiki/run/edit')['edit_href'] ?? null);
 
         $mounted = $panel->panel(Request::create('/wiki/run'), $user, $space, $page);
         self::assertTrue($mounted['mounted'] ?? null);

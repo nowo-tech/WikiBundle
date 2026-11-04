@@ -17,6 +17,7 @@ wiki:
     new_label: "Reageer op deze pagina"
     new_help: "Markdown, maximaal 10.000 tekens. Reageren op een selectie vereist JavaScript."
     added: "Je opmerking is toegevoegd."
+    reply_in_editor: "Reageer vanuit de editor"
     unknown_author: "Verwijderde gebruiker"
     error:
       invalid: "De opmerking is leeg of ongeldig."

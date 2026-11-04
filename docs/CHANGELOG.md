@@ -69,7 +69,8 @@ Planned as **1.16.0**: comments panel, avatars, plain-text search.
     focus and the `comments-count` badge;
   - editors get the page as a read-only Milkdown mount on the read view (`nowo_milkdown_view()`) and the thread
     component in the edit form; **other commenters never receive the Markdown source**: their panel lists the open
-    threads rendered by the server (inline threads with their quote) and the page-comment form.
+    threads rendered by the server (inline threads with their quote and a muted *Reply from the editor* line, a link
+    to the editor for viewers who may edit) and the page-comment form.
     `comments.read_view_source: true` (opt-in) gives them the mount and the source. Without JavaScript the toggle is
     a link to `?comments=1`, the panel lists the page-level threads and a `WikiCommentType` form posts to
     `…/comments/new`;

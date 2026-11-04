@@ -30,6 +30,7 @@ final class PageContractTest extends PageContractTestCase
         yield 'page view' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView());
         yield 'page view (read only)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false));
         yield 'page view (comments open)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(true, null, true));
+        yield 'page view (comments, server list, editor link)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false, null, false, false, '/edit?comments=1'));
         yield 'page view (comments, server list)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false, null, false, false));
         yield 'page view (comments closed)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false, null, false));
         yield 'page edit (comments)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm(true, null, true));
@@ -169,6 +170,11 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringNotContainsString('data-nowo-wiki-comments-mount', $server);
         self::assertStringNotContainsString('data-nowo-wiki-comments-fallback', $server);
         self::assertStringContainsString('data-testid="wiki-comment-quote">make deploy</blockquote>', $server);
+        // A reader who may not edit: the hint is muted plain text.
+        self::assertMatchesRegularExpression('#<p class="[^"]*nowo-ui-muted[^"]*nowo-wiki-comment__reply-hint" data-testid="wiki-comment-reply-hint">Reply from the editor</p>#', $server);
+        // One who may edit: a link to the editor, opened on the comments panel.
+        $editor = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false, null, false, false, '/edit?comments=1')))->html;
+        self::assertMatchesRegularExpression('#data-testid="wiki-comment-reply-hint"><a href="/edit\?comments=1">Reply from the editor</a></p>#', $editor);
         self::assertStringContainsString('name="body"', $server);
 
         $edit = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm(true, null, true)))->html;

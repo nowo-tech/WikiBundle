@@ -17,6 +17,7 @@ wiki:
     new_label: "Comentar esta página"
     new_help: "Markdown, até 10 000 caracteres. Comentar uma seleção requer JavaScript."
     added: "O seu comentário foi adicionado."
+    reply_in_editor: "Responda a partir do editor"
     unknown_author: "Utilizador eliminado"
     error:
       invalid: "O comentário está vazio ou não é válido."
