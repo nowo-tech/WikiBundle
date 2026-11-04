@@ -26,6 +26,8 @@
         </exclude>
     </source>
     <php>
+        <!-- The full suite needs more than PHP's default 128M (audit EP-I9). -->
+        <ini name="memory_limit" value="512M"/>
         <!-- REQ-SF-005: fail on direct Symfony deprecations -->
         <env name="SYMFONY_DEPRECATIONS_HELPER" value="max[direct]=0"/>
     </php>

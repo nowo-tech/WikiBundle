@@ -114,10 +114,15 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
         'style', 'svg', 'template', 'textarea', 'title', 'xmp', 'plaintext', 'html', 'head', 'body',
     ];
 
-    /** Attributes that can never be added (styles, URLs, script hooks); `on*` handlers are refused too. */
+    /**
+     * Attributes that can never be added (styles, URLs, script hooks); `on*` handlers are refused too. 1.16.2: `name`
+     * (it clobbers `document.<name>` and form controls, audit EP-I3); `id` may be listed but only renderer anchors are
+     * kept ({@see AnchorIdAttributeSanitizer}).
+     */
     public const FORBIDDEN_ATTRIBUTES = [
         'style', 'href', 'src', 'srcset', 'srcdoc', 'action', 'formaction', 'background', 'poster', 'data', 'codebase',
         'cite', 'longdesc', 'manifest', 'ping', 'xmlns', 'is', 'slot', 'autofocus', 'contenteditable', 'nonce',
+        'name',
     ];
 
     private HtmlSanitizerInterface $sanitizer;

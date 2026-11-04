@@ -64,7 +64,15 @@ No configuration or schema change. With `editor.type: milkdown` the read view no
 (`nowo-h-<slug>`), table alignment classes (`nowo-wiki-align--*`) and a text / link fallback for leaf directives no
 host renders; a template that ships its own CSS instead of `wiki.css` may want to style `.nowo-wiki-align--*`,
 `.nowo-md-footnotes` and `.nowo-wiki-directive`. The sanitizer keeps an `id` only when it is one of those anchors: an
-`id` a host allowed through `sanitizer.extra_allowed_attributes` is now dropped.
+`id` a host allowed through `sanitizer.extra_allowed_attributes` (or `extra_allowed_elements`) is now dropped, and
+listing it logs a deprecation at container build: remove it. `name` can no longer be allowed at all (the container
+refuses to compile, like `style` or `on*`): remove it from `sanitizer.extra_allowed_*`.
+
+The viewer-neutral `content_html` (search excerpts, AI context) now holds the fallback text of leaf directives no host
+renders (the label, or `name · key: value`; URL, `id` and `class` attributes excluded) where it had an empty `div`:
+keep secrets out of directive attributes. The wiki registers its own `LeafDirective` renderer (priority 10): a host
+`nowo_wiki.markdown_extension` that rendered `LeafDirective` itself needs a higher priority (or a
+`nowo_milkdown_editor.directive_renderer`).
 
 ## To 1.16.1
 

@@ -62,20 +62,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `nowo-fn-<salt>-<n>` / `nowo-fn-ref-<salt>-<n>[__<k>]` (`<salt>`: 8 hex of a hash of the Markdown, so a page and
     its comments never share an id), the back-links are kept and the footnote content goes through the same
     allowlist sanitizer.
-  - **Heading ids**: headings get `id="nowo-h-<slug>"` with the editor's slugs (Milkdown `HeadingIds`: lower-case,
-    runs of non letters/marks/digits become `-`, 80 characters, `section` when empty, `-2`, `-3`… for duplicates),
-    so anchors and in-page links written in the editor work in the read view.
+  - **Heading ids**: headings get `id="nowo-h-<slug>"` with the editor's slugs (Milkdown `HeadingIds::slug()`:
+    lower-case, runs of non letters/marks/digits become `-`, 80 characters, `section` when empty, `-2`, `-3`… for
+    duplicates), so anchors and in-page links written in the editor work in the read view. `WikiHeadingIds` keeps the
+    next suffix per slug (linear; Milkdown's `HeadingIds::slugs()` retries from `-2` for every duplicate, so 9 999
+    identical headings took ~4 s per view, audit EP-L1) and gives ids to the first 1 000 headings of a document only.
+  - **Footnotes with a non-ASCII label** (`[^Ä]: Note`) keep their whole text: league/commonmark's definition parser
+    advanced by bytes instead of characters and ate the first characters of the note (`ote`); `WikiFootnoteStartParser`
+    replaces it (audit EP-I6).
   - **Table column alignment** (`:---:`) is kept as the class `nowo-wiki-align--left|center|right` (styled by
     `wiki.css`); no `align` attribute and no inline style (CSP-safe).
   - **Leaf directives without a renderer** (`::beacon{…}`, any `::name{…}`) fall back to readable text (the label, or
     `name · key: value…`), or to a link when a `url` / `href` / `link` attribute holds a safe URL (same-origin `/path`
     or `https://` without userinfo: the Milkdown link policy and the UI kit URL policy must both accept it). Every
-    value is escaped; host directive renderers still win for the viewer.
+    value is escaped; host directive renderers still win for the viewer. A same-origin path with `//`, a `.` / `..`
+    segment or an encoded slash (`/.//host`, `/%2F%2Fhost`) is not linked (audit EP-I2).
 - **Sanitizer** (`WikiHtmlSanitizer`): `id` is kept only as one of those anchors — `nowo-h-<slug>` on `h1`…`h6`
   (letters, marks, digits and single hyphens, at most 90 characters), `nowo-fn-<8 hex>-<n>` on `li`,
   `nowo-fn-ref-<8 hex>-<n>[__<k>]` on `sup` — and dropped everywhere else, even when a host allowed `id` through
-  `sanitizer.extra_allowed_attributes` (DOM clobbering: `__proto__`, `location`, host ids). `align` and general
-  `style` stay refused.
+  `sanitizer.extra_allowed_attributes` (DOM clobbering: `__proto__`, `location`, host ids); listing `id` there now
+  logs a deprecation at container build (audit EP-I4). `name` joins `FORBIDDEN_ATTRIBUTES`: a host can no longer allow
+  it (it clobbers `document.<name>`, audit EP-I3). `align` and general `style` stay refused.
+- The PHPUnit configuration sets `memory_limit` to 512M (the full suite outgrew the default 128M, audit EP-I9).
 
 ## [1.16.1] - 2026-11-04
 

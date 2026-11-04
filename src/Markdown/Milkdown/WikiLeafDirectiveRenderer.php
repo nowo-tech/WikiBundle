@@ -15,6 +15,7 @@ use Nowo\UiKitBundle\Avatar\AvatarUrlPolicy;
 
 use function implode;
 use function in_array;
+use function preg_match;
 use function trim;
 
 /**
@@ -26,7 +27,8 @@ use function trim;
  * - the text is the label, or `name` followed by its attributes (`beacon · type: issue · id: 42`);
  * - when a `url`, `href` or `link` attribute holds a safe URL it becomes a link: the Milkdown link policy
  *   ({@see DialectRenderer::safeUrl()}) and the UI kit URL policy ({@see AvatarUrlPolicy}: a same-origin `/path` or an
- *   `https://` URL without userinfo, quotes, whitespace or control characters) must both accept it. Any other URL
+ *   `https://` URL without userinfo, quotes, whitespace or control characters) must both accept it, and a same-origin
+ *   path may not hold `//`, `.` / `..` segments or encoded slashes (`/.//host`, `/%2F%2Fhost`). Any other URL
  *   (`javascript:`, `data:`, `http:`, `//host`, entity-encoded schemes…) is dropped;
  * - every value is escaped. `id` and `class` attributes are never copied into the markup.
  */
@@ -34,6 +36,12 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
 {
     /** Attributes read as the card's link, in this order. */
     public const URL_ATTRIBUTES = ['url', 'href', 'link'];
+
+    /**
+     * A same-origin path that a browser or a host route may turn into `//host` (audit EP-I2): an empty segment, a `.` /
+     * `..` segment or an encoded slash / backslash before the query or fragment.
+     */
+    private const AMBIGUOUS_PATH = '~^(?=/)[^?#]*?(?://|/\\.\\.?(?:/|[?#]|$)|%2f|%5c)~i';
 
     /** Attributes never shown in the fallback text. */
     private const HIDDEN_ATTRIBUTES = ['id', 'class', ...self::URL_ATTRIBUTES];
@@ -76,7 +84,11 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
      */
     public static function safeUrl(string $url): ?string
     {
-        return DialectRenderer::safeUrl($url) === $url ? AvatarUrlPolicy::sanitize($url) : null;
+        if (DialectRenderer::safeUrl($url) !== $url || preg_match(self::AMBIGUOUS_PATH, $url) === 1) {
+            return null;
+        }
+
+        return AvatarUrlPolicy::sanitize($url);
     }
 
     private function url(LeafDirective $node): ?string

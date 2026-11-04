@@ -16,7 +16,6 @@ use Nowo\MilkdownEditorBundle\Markdown\DialectRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Directive\DirectiveRendererInterface;
 use Nowo\MilkdownEditorBundle\Markdown\DocumentProcessor;
 use Nowo\MilkdownEditorBundle\Markdown\FootnoteGuard;
-use Nowo\MilkdownEditorBundle\Markdown\HeadingIds;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownDialectExtension;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Node\LeafDirective;
@@ -68,7 +67,7 @@ use function trim;
  *
  * 1.16.2 (read view of what Milkdown writes): GFM footnotes (`[^1]`, unless `footnotes: false`; at most
  * `max_footnote_refs` references, as in the Milkdown renderer) with the sanitizer-safe ids of {@see WikiFootnoteIds};
- * heading ids `nowo-h-<slug>` with the editor's slugs ({@see HeadingIds}); table alignment as the
+ * heading ids `nowo-h-<slug>` with the editor's slugs ({@see WikiHeadingIds}); table alignment as the
  * `nowo-wiki-align--left|center|right` class; leaf directives no host renders fall back to text or a safe link
  * ({@see WikiLeafDirectiveRenderer}).
  */
@@ -234,12 +233,15 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         $environment->addExtension(new GithubFlavoredMarkdownExtension());
         if (!in_array($options['footnotes'] ?? true, [false, 0, '0', 'false', ''], true)) {
             $environment->addExtension(new FootnoteExtension());
+            // Before league's own (51): advances by characters, so a non-ASCII label keeps its note's text (EP-I6).
+            $environment->addBlockStartParser(new WikiFootnoteStartParser(), 52);
             // Before the footnote listeners (40 … 10): case-insensitive labels and the reference cap (Milkdown CZ-L1).
             $environment->addEventListener(DocumentParsedEvent::class, [new FootnoteGuard($this->intOption($options, 'max_footnote_refs', FootnoteGuard::DEFAULT_MAX_FOOTNOTE_REFS)), 'onDocumentParsed'], 50);
             // After orphans become text (30), before numbering (20).
             $environment->addEventListener(DocumentParsedEvent::class, (new WikiFootnoteIds())->onDocumentParsed(...), 25);
         }
-        $environment->addEventListener(DocumentParsedEvent::class, [new HeadingIds(), 'onDocumentParsed'], 0);
+        // Linear and capped (EP-L1); the same slugs as Milkdown's HeadingIds.
+        $environment->addEventListener(DocumentParsedEvent::class, (new WikiHeadingIds())->onDocumentParsed(...), 0);
         $environment->addExtension(new MilkdownDialectExtension(
             new DialectRenderer($icons, $directiveRenderers, is_array($markColors) ? array_values(array_filter($markColors, is_string(...))) : ['yellow'], $translator),
             new DocumentProcessor($pages, $users, $directiveRenderers, in_array($options['allow_remote_images'] ?? false, [true, 1, '1', 'true'], true), $logger, $this->maxReferences),

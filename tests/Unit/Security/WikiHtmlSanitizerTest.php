@@ -173,6 +173,8 @@ final class WikiHtmlSanitizerTest extends TestCase
         yield 'not a string' => [[], [['a']]];
         yield 'not maps' => ['details', []];
         yield 'attributes not a list' => [[], 'data-x'];
+        yield 'name attribute' => [[], ['name']];
+        yield 'name on element' => [['img' => ['NAME']], []];
     }
 
     #[DataProvider('unsafeAllowlists')]

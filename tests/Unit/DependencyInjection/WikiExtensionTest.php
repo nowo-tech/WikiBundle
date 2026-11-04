@@ -1140,4 +1140,52 @@ final class WikiExtensionTest extends TestCase
             }
         });
     }
+
+    public function testAHostAllowedIdLogsADeprecationOnce(): void
+    {
+        foreach ([
+            'global'     => ['extra_allowed_attributes' => ['data-x', 'ID', 'id']],
+            'on element' => ['extra_allowed_elements' => ['section' => ['id']]],
+        ] as $case => $sanitizer) {
+            $deprecations = [];
+            set_error_handler(static function (int $level, string $message) use (&$deprecations): bool {
+                $deprecations[] = $message;
+
+                return true;
+            }, E_USER_DEPRECATED);
+
+            try {
+                (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'sanitizer' => $sanitizer]], $this->hostIdContainer());
+            } finally {
+                restore_error_handler();
+            }
+
+            $hostId = array_values(array_filter($deprecations, static fn (string $m): bool => str_contains($m, 'Allowing "id"')));
+            self::assertCount(1, $hostId, $case);
+            self::assertStringContainsString('1.16.2', $hostId[0]);
+        }
+
+        $deprecations = [];
+        set_error_handler(static function (int $level, string $message) use (&$deprecations): bool {
+            $deprecations[] = $message;
+
+            return true;
+        }, E_USER_DEPRECATED);
+
+        try {
+            (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'sanitizer' => ['extra_allowed_attributes' => ['data-id'], 'extra_allowed_elements' => ['details' => ['open']]]]], $this->hostIdContainer());
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame([], array_values(array_filter($deprecations, static fn (string $m): bool => str_contains($m, 'Allowing "id"'))));
+    }
+
+    private function hostIdContainer(): ContainerBuilder
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+
+        return $container;
+    }
 }

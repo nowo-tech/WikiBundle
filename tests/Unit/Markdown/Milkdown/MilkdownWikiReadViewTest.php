@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use League\CommonMark\Node\Block\Paragraph;
 use League\CommonMark\Renderer\ChildNodeRendererInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Directive\DirectiveRendererInterface;
+use Nowo\MilkdownEditorBundle\Markdown\HeadingIds;
 use Nowo\MilkdownEditorBundle\Markdown\Node\LeafDirective;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\AllowlistIconResolver;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullPageResolver;
@@ -15,6 +16,8 @@ use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullUserResolver;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiFootnoteIds;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiFootnoteStartParser;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiHeadingIds;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiLeafDirectiveRenderer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -31,6 +34,8 @@ use function str_repeat;
 #[CoversClass(MilkdownWikiMarkdownRenderer::class)]
 #[CoversClass(WikiFootnoteIds::class)]
 #[CoversClass(WikiLeafDirectiveRenderer::class)]
+#[CoversClass(WikiHeadingIds::class)]
+#[CoversClass(WikiFootnoteStartParser::class)]
 final class MilkdownWikiReadViewTest extends TestCase
 {
     public function testFootnotesRenderWithPrefixedIdsAndBackLinksThatSurviveTheSanitizer(): void
@@ -256,6 +261,59 @@ final class MilkdownWikiReadViewTest extends TestCase
         self::assertNull(WikiLeafDirectiveRenderer::safeUrl('x'));
         self::assertNull(WikiLeafDirectiveRenderer::safeUrl("https://a.example/x\n"));
         self::assertNull(WikiLeafDirectiveRenderer::safeUrl('mailto:a@example.com'));
+    }
+
+    public function testManyIdenticalHeadingsRenderInLinearTimeAndIdsAreCapped(): void
+    {
+        // Audit EP-L1 PoC: 9 999 identical headings (90 KB, under both Milkdown limits) took ~4 s per view.
+        $markdown = str_repeat("# abcdef\n", 9_999);
+        $renderer = $this->renderer();
+        self::assertFalse($renderer->exceedsLimits($markdown));
+
+        $start = hrtime(true);
+        $html  = $renderer->renderForViewer($markdown);
+        $ms    = (hrtime(true) - $start) / 1e6;
+
+        self::assertLessThan(1500, $ms, 'heading ids must stay linear');
+        self::assertSame(WikiHeadingIds::MAX_IDS, substr_count($html, ' id="nowo-h-abcdef'));
+        self::assertSame(9_999, substr_count($html, '<h1'));
+        self::assertStringContainsString('<h1 id="nowo-h-abcdef">abcdef</h1>', $html);
+        self::assertStringContainsString('<h1 id="nowo-h-abcdef-1000">abcdef</h1>', $html);
+        self::assertStringNotContainsString('nowo-h-abcdef-1001', $html);
+    }
+
+    public function testHeadingSlugsMatchMilkdown(): void
+    {
+        $texts = ['Intro', 'Intro', 'Intro-2', 'Intro', 'intro 3', 'Intro', '', '!!!', 'Año', 'año', 'A-2', 'A', 'A', 'A'];
+
+        self::assertSame(HeadingIds::slugs($texts), WikiHeadingIds::slugs($texts));
+        self::assertSame(['intro', 'intro-2', 'intro-2-2', 'intro-3', 'intro-3-2', 'intro-4'], WikiHeadingIds::slugs(['Intro', 'Intro', 'Intro-2', 'Intro', 'intro 3', 'Intro']));
+    }
+
+    public function testFootnotesWithNonAsciiLabelsKeepTheirText(): void
+    {
+        $html = $this->read("x[^Ä] y[^ä] z[^日本]\n\n[^ä]: Note text\n\n[^日本]: Zweite Notiz");
+
+        self::assertStringContainsString('<p>Note text', $html);
+        self::assertStringContainsString('<p>Zweite Notiz', $html);
+        self::assertSame(3, substr_count($html, 'role="doc-noteref"'));
+        self::assertStringNotContainsString('[^', $html);
+
+        // Not a definition: a lazy paragraph continuation, or indented code (as in league/commonmark).
+        $html = $this->read("a[^ü]\nb[^ü]: lazy\n\n    [^ü]: code");
+        self::assertStringContainsString('b[^ü]: lazy', $html);
+        self::assertStringContainsString('<pre><code>[^ü]: code', $html);
+        self::assertStringNotContainsString('nowo-md-footnote', $html);
+    }
+
+    public function testAmbiguousSameOriginPathsAreNotLinked(): void
+    {
+        foreach (['/.//evil.example', '/%2F%2Fevil.example', '/%2f%2fevil.example', '/./x', '/a/../b', '/..', '/x/.', '/a//b', '/x%5Cy', '/a/.?q'] as $url) {
+            self::assertNull(WikiLeafDirectiveRenderer::safeUrl($url), $url);
+        }
+        foreach (['/wiki/page', '/wiki/v1.2/x', '/a.b/.c', '/wiki/p?a=//x&b=%2F', '/wiki/p#/./x', 'https://a.example//x'] as $url) {
+            self::assertSame($url, WikiLeafDirectiveRenderer::safeUrl($url), $url);
+        }
     }
 
     /**
