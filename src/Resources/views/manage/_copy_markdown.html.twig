@@ -1,0 +1,8 @@
+{#
+  "Copy as Markdown" of a page (1.15, editor.milkdown.copy_markdown): nowo-tech/milkdown-editor-bundle's button,
+  included only when the page view passes copy_markdown (users who may edit the page; the raw source holds page ids
+  and directive attributes). Variables: source (the Markdown), bundle.
+#}
+<div class="nowo-wiki-copy" data-testid="wiki-copy-markdown">
+    {{ nowo_milkdown_copy_markdown(source, {class: nowo_ui_class('btn_secondary', bundle)}) }}
+</div>

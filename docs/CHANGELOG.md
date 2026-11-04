@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **"Copy as Markdown" on the page view** (`editor.milkdown.copy_markdown`, opt-in, Milkdown 1.5): a button that copies
+  the page's stored Markdown. It is shown only to users who may edit the page, because the raw source holds page ids,
+  mention handles and directive attributes that the per-viewer render hides (Milkdown audit DN-I2). That response is
+  `Cache-Control: private, no-store` (audit DR-I1).
 - **History timeline** (`history.timeline`, opt-in, 1.15): the version history gains the columns *Version name*,
   *Author* and *Saves in session*. A session is consecutive saves by the same author less than
   `history.session_minutes` apart (default 30); a named version is a session of its own. Authors show as the same

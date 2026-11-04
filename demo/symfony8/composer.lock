@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8add729d00734a3d5a5a6a4dc3bfaa51",
+    "content-hash": "04e0b2c7fb538f199a33cb05be2d4f6a",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -2129,16 +2129,16 @@
         },
         {
             "name": "nowo-tech/milkdown-editor-bundle",
-            "version": "v1.4.0",
+            "version": "v1.5.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/MilkdownEditorBundle.git",
-                "reference": "4693b1b72cae5b2f8a3403cc689dfa2285efafa2"
+                "reference": "6c053537525067e2227c3802d1fdbee2f7fd84a2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/4693b1b72cae5b2f8a3403cc689dfa2285efafa2",
-                "reference": "4693b1b72cae5b2f8a3403cc689dfa2285efafa2",
+                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/6c053537525067e2227c3802d1fdbee2f7fd84a2",
+                "reference": "6c053537525067e2227c3802d1fdbee2f7fd84a2",
                 "shasum": ""
             },
             "require": {
@@ -2227,8 +2227,8 @@
                 "issues": "https://github.com/nowo-tech/MilkdownEditorBundle/issues",
                 "source": "https://github.com/nowo-tech/MilkdownEditorBundle"
             },
-            "time": "2026-11-03T11:09:51+00:00",
-            "published-time": "2026-11-03T11:11:47+00:00"
+            "time": "2026-11-03T16:13:03+00:00",
+            "published-time": "2026-11-03T16:14:47+00:00"
         },
         {
             "name": "nowo-tech/tiptap-editor-bundle",
@@ -2418,7 +2418,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "59d09b91a1fe916ce69546ddf08261ca2df8768b"
+                "reference": "28095f8313c20f49ba27dc00fe6d017a72b52475"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -2455,7 +2455,7 @@
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
                 "igor-php/igor-php": "^0.10.0",
-                "nowo-tech/milkdown-editor-bundle": "^1.3.1",
+                "nowo-tech/milkdown-editor-bundle": "^1.5",
                 "nowo-tech/phpstan-frankenphp": "^1.0",
                 "phpstan/extension-installer": "^1.0",
                 "phpstan/phpstan": "^2.0",

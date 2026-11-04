@@ -257,7 +257,7 @@ final class ConfigurationTest extends TestCase
 
         $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
         self::assertSame(Configuration::EDITOR_TIPTAP, $defaults['editor']['type']);
-        self::assertSame(['page_resolver' => null], $defaults['editor']['milkdown']);
+        self::assertSame(['page_resolver' => null, 'copy_markdown' => false], $defaults['editor']['milkdown']);
     }
 
     public function testCollaborationDefaultsAndValidation(): void

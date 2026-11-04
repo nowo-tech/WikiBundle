@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Controller\WikiTreeController;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
@@ -39,6 +40,7 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
@@ -270,6 +272,30 @@ final class WikiManageControllerTreeTest extends TestCase
         self::assertNotContains('wiki-delete', $this->actionIds());
     }
 
+    public function testCopyAsMarkdownIsForEditorsOfMarkdownPagesOnly(): void
+    {
+        $author = new TestUserEntity('u-1');
+        $this->em->persist($author);
+        $markdown = new WikiPageRevision($this->run, 1, '<p>x</p>', $author, '# Runbooks [[wiki:x]]');
+        $this->em->persist($markdown);
+        $this->run->setCurrentRevision($markdown);
+        $this->em->flush();
+
+        $response = $this->controller(copy: true)->viewPage('eng', 'run');
+        self::assertSame('# Runbooks [[wiki:x]]', $this->twig->context['copy_markdown']);
+        self::assertTrue($response->headers->hasCacheControlDirective('no-store'));
+        self::assertTrue($response->headers->hasCacheControlDirective('private'));
+
+        // Readers, the option off, or a page without a Markdown revision: no button.
+        $this->controller(decide: static fn (WikiAction $a): bool => $a !== WikiAction::Edit, copy: true)->viewPage('eng', 'run');
+        self::assertArrayNotHasKey('copy_markdown', $this->twig->context);
+        $response = $this->controller()->viewPage('eng', 'run');
+        self::assertArrayNotHasKey('copy_markdown', $this->twig->context);
+        self::assertFalse($response->headers->hasCacheControlDirective('no-store'));
+        $this->controller(copy: true)->viewPage('eng', 'guide');
+        self::assertArrayNotHasKey('copy_markdown', $this->twig->context);
+    }
+
     public function testMovingNeedsTheEditRights(): void
     {
         $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $action === WikiAction::View || $page !== $this->ops);
@@ -326,7 +352,7 @@ final class WikiManageControllerTreeTest extends TestCase
     /**
      * @param (Closure(WikiAction, WikiSpace, ?WikiPage): bool)|null $decide
      */
-    private function controller(bool $tree = true, ?Closure $decide = null, int $maxDepth = 10, bool $translator = false, ?WikiTrashService $trash = null): WikiManageController
+    private function controller(bool $tree = true, ?Closure $decide = null, int $maxDepth = 10, bool $translator = false, ?WikiTrashService $trash = null, bool $copy = false): WikiManageController
     {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
         $revisions  = $this->createStub(WikiPageRevisionRepositoryInterface::class);
@@ -378,7 +404,7 @@ final class WikiManageControllerTreeTest extends TestCase
             $routes,
             [],
             null,
-            ['tiptap_config' => 'notion'],
+            ['tiptap_config' => 'notion', 'milkdown' => ['copy_markdown' => $copy]],
             ['enabled' => false, 'max_upload_bytes' => 1],
             spaceGuard: new WikiSpaceGuard(new FixedSpaceLocator($this->space), new CallbackSpaceAccessChecker($decide)),
             translator: $translator ? new class implements TranslatorInterface {

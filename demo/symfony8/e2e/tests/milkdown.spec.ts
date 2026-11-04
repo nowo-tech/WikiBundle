@@ -8,6 +8,20 @@ const space = '/tools/wiki/spaces/engineering';
 const showcase = `${space}/pages/milkdown-showcase`;
 
 test.describe('Milkdown wiki pages', () => {
+  test('editors copy the stored Markdown of a page (1.14, editor.milkdown.copy_markdown)', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto(showcase);
+    const button = page.getByTestId('wiki-copy-markdown').getByRole('button', { name: 'Copy as Markdown' });
+    await expect(button).toBeVisible();
+    await button.click();
+    await expect(page.getByTestId('wiki-copy-markdown').getByRole('status')).toHaveText('Copied as Markdown');
+    // The raw source, page links as ids (editors only).
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\[\[wiki:[0-9a-f-]{36}\]\]/);
+    // HTML pages (the seeded ones) have no Markdown source to copy.
+    await page.goto(`${space}/pages/welcome`);
+    await expect(page.getByTestId('wiki-copy-markdown')).toHaveCount(0);
+  });
+
   test('the dialect is rendered on the server for the viewer, never as raw tokens', async ({ page }) => {
     await page.goto(showcase);
     const content = page.getByTestId('wiki-content');
