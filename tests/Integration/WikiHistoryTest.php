@@ -169,9 +169,9 @@ final class WikiHistoryTest extends TestCase
     public function testAvatarsAreOnlyResolvedBesideRealNames(): void
     {
         // 1.16 (avatar contract §11, Beacon review): where the name is hidden the resolver is never called.
-        $maria   = new TestUserEntity('id-17', 'Maria Ruiz');
-        $leaky   = new TestUserEntity('jdoe', 'jdoe');
-        $carl    = new TestUserEntity('id-18', 'Carl Berg');
+        $maria   = (new TestUserEntity('id-17'))->withDisplayName('Maria Ruiz');
+        $leaky   = (new TestUserEntity('jdoe'))->withDisplayName('jdoe');
+        $carl    = (new TestUserEntity('id-18'))->withDisplayName('Carl Berg');
         $authors = [$maria, $leaky, $maria, $carl, new stdClass()];
 
         $resolver = new RecordingAvatarResolver(['id-17' => '/files/maria/s64', 'id-18' => 'http://insecure.test/c.png']);

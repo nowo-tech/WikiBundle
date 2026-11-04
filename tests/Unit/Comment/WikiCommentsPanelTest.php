@@ -164,7 +164,7 @@ final class WikiCommentsPanelTest extends TestCase
         $em            = SqliteWikiEntityManager::create();
         $space         = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');
         $page          = new WikiPage($space, 'run', 'Runbooks');
-        $user          = new TestUserEntity('id-ana', 'Ana Garcia');
+        $user          = (new TestUserEntity('id-ana'))->withDisplayName('Ana Garcia');
         foreach ([$space, $page, $user] as $entity) {
             $em->persist($entity);
         }

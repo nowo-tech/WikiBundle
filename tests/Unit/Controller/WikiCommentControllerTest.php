@@ -71,7 +71,7 @@ final class WikiCommentControllerTest extends TestCase
         $this->em    = SqliteWikiEntityManager::create();
         $this->space = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');
         $this->page  = new WikiPage($this->space, 'run', 'Runbooks');
-        $this->user  = new TestUserEntity('id-ana', 'Ana Garcia');
+        $this->user  = (new TestUserEntity('id-ana'))->withDisplayName('Ana Garcia');
         foreach ([$this->space, $this->page, $this->user] as $entity) {
             $this->em->persist($entity);
         }
