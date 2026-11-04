@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.15.0](#to-1150)
 - [To 1.14.1](#to-1141)
 - [To 1.14.0](#to-1140)
 - [To 1.13.2](#to-1132)
@@ -55,6 +56,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.15.0
+
+From **1.14.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 - **"Copy as Markdown" (opt-in).** `editor.milkdown.copy_markdown: true` needs `nowo-tech/milkdown-editor-bundle` ^1.5
   (the container refuses to build otherwise). Editors of a Markdown page then see the button on the page view. If you
