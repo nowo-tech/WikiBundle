@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.16.2](#to-1162)
 - [To 1.16.1](#to-1161)
 - [To 1.16.0](#to-1160)
 - [To 1.15.1](#to-1151)
@@ -59,6 +60,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.16.2
+
+From **1.16.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 No configuration or schema change. With `editor.type: milkdown` the read view now renders footnotes, heading ids
 (`nowo-h-<slug>`), table alignment classes (`nowo-wiki-align--*`) and a text / link fallback for leaf directives no
