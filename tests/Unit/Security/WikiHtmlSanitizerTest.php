@@ -237,12 +237,12 @@ final class WikiHtmlSanitizerTest extends TestCase
      */
     public static function alignInjections(): iterable
     {
-        yield 'align attribute' => ['<table><tr><td align="center">x</td></tr></table>', '<table><tr><td>x</td></tr></table>'];
+        yield 'align attribute' => ['<table><tbody><tr><td align="center">x</td></tr></tbody></table>', '<table><tbody><tr><td>x</td></tr></tbody></table>'];
         yield 'align on paragraph' => ['<p align="right">x</p>', '<p>x</p>'];
-        yield 'align quote breakout' => ['<td align=\'center" onclick="alert(1)\'>x</td>', '<td>x</td>'];
-        yield 'align with handler' => ['<table><tr><th align="left" onmouseover="alert(1)">x</th></tr></table>', '<table><tr><th>x</th></tr></table>'];
-        yield 'style beyond text-align' => ['<table><tr><td style="text-align:center;background:url(javascript:alert(1))">x</td></tr></table>', '<table><tr><td>x</td></tr></table>'];
-        yield 'alignment class' => ['<table><tr><td class="nowo-wiki-align--center">x</td></tr></table>', '<table><tr><td class="nowo-wiki-align--center">x</td></tr></table>'];
+        yield 'align quote breakout' => ['<table><tbody><tr><td align=\'center" onclick="alert(1)\'>x</td></tr></tbody></table>', '<table><tbody><tr><td>x</td></tr></tbody></table>'];
+        yield 'align with handler' => ['<table><tbody><tr><th align="left" onmouseover="alert(1)">x</th></tr></tbody></table>', '<table><tbody><tr><th>x</th></tr></tbody></table>'];
+        yield 'style beyond text-align' => ['<table><tbody><tr><td style="text-align:center;background:url(javascript:alert(1))">x</td></tr></tbody></table>', '<table><tbody><tr><td>x</td></tr></tbody></table>'];
+        yield 'alignment class' => ['<table><tbody><tr><td class="nowo-wiki-align--center">x</td></tr></tbody></table>', '<table><tbody><tr><td class="nowo-wiki-align--center">x</td></tr></tbody></table>'];
     }
 
     #[DataProvider('alignInjections')]
