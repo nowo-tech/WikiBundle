@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Comment;
 
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManager;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
@@ -33,6 +34,7 @@ use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
+use Nowo\WikiBundle\Tests\Support\LegacyCommentRepository;
 use Nowo\WikiBundle\Tests\Support\RecordingAvatarResolver;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
@@ -554,6 +556,9 @@ final class WikiCommentServiceTest extends TestCase
 
         self::assertSame(3, $listed['more']);
         self::assertCount(WikiCommentService::LIST_COMMENTS_CAP, $listed['comments']);
+        // Audit EI2-I6: the opening comment stays, then the latest ones.
+        self::assertStringContainsString('First', (string) $listed['comments'][0]['html']);
+        self::assertStringContainsString('Reply 4', (string) $listed['comments'][1]['html']);
         self::assertStringContainsString('Reply ' . (WikiCommentService::LIST_COMMENTS_CAP + 2), (string) end($listed['comments'])['html']);
         self::assertSame(WikiCommentService::LIST_COMMENTS_CAP + 3, $listed['count']);
         self::assertArrayNotHasKey('more', $service->thread($this->bob, $this->space, $this->page, $thread['id']));
@@ -592,6 +597,71 @@ final class WikiCommentServiceTest extends TestCase
         $eraser = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), dispatcher: $dispatcher);
         self::assertSame(2, $eraser->eraseAuthor($this->bob, false));
         self::assertSame([[$this->bob, 2, false]], $erased);
+    }
+
+    public function testResolvedThreadsNeverHideOpenOnesAndTheTotalIsCapped(): void
+    {
+        // Audit EI2-L1 (PoC [EI2 window]): MAX_THREADS resolved threads, then a new open one.
+        $old = (new DateTimeImmutable())->modify('-1 day');
+        for ($i = 0; $i < WikiCommentService::MAX_THREADS; ++$i) {
+            $thread = new WikiCommentThread($this->page, $this->bob);
+            $thread->resolve($this->ana);
+            (new ReflectionProperty(WikiCommentThread::class, 'createdAt'))->setValue($thread, $old);
+            $this->em->persist($thread);
+        }
+        $this->em->flush();
+        $service = $this->service(limits: ['total_threads_per_page' => 5000] + WikiCommentService::DEFAULT_LIMITS);
+        $open    = $service->create($this->ana, $this->space, $this->page, null, 'Still visible');
+
+        $list = $service->list($this->ana, $this->space, $this->page);
+        self::assertSame($open['id'], $list['page'][0]['id']);
+        self::assertTrue($list['truncated']);
+        self::assertSame([$open['id']], array_column($service->pageThreads($this->bob, $this->space, $this->page, true), 'id'));
+        self::assertSame(1, $service->openCount($this->page));
+
+        // The total cap counts resolved threads too.
+        $capped = $this->service(limits: ['total_threads_per_page' => WikiCommentService::MAX_THREADS + 1] + WikiCommentService::DEFAULT_LIMITS);
+        $this->assertRefused(422, 'limit_reached', fn (): array => $capped->create($this->ana, $this->space, $this->page, null, 'One too many'));
+    }
+
+    public function testReopeningCountsAgainstTheOpenCaps(): void
+    {
+        // Audit EI2-I1: a reopen adds an open thread, like a creation.
+        $service = $this->service(limits: ['threads_per_page' => 2, 'user_threads_per_page' => 1] + WikiCommentService::DEFAULT_LIMITS);
+        $first   = $service->create($this->bob, $this->space, $this->page, null, 'First');
+        $service->patchThread($this->ana, $this->space, $this->page, $first['id'], ['resolved' => true]);
+        $service->create($this->bob, $this->space, $this->page, null, 'Second');
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->patchThread($this->ana, $this->space, $this->page, $first['id'], ['resolved' => false]));
+
+        $ana = $service->create($this->ana, $this->space, $this->page, null, 'Ana');
+        $service->patchThread($this->ana, $this->space, $this->page, $ana['id'], ['resolved' => true]);
+        $service->create($this->ana, $this->space, $this->page, null, 'Page full again');
+        // Bob's share is used, and the page is full: neither reopen fits.
+        $this->assertRefused(422, 'limit_reached', fn (): array => $service->patchThread($this->ana, $this->space, $this->page, $ana['id'], ['resolved' => false]));
+
+        // A thread whose author was erased only counts against the page.
+        $wide   = $this->service(limits: ['threads_per_page' => 10, 'user_threads_per_page' => 2] + WikiCommentService::DEFAULT_LIMITS);
+        $orphan = $wide->create($this->ana, $this->space, $this->page, null, 'Orphan');
+        $wide->patchThread($this->ana, $this->space, $this->page, $orphan['id'], ['resolved' => true]);
+        $stored = $this->em->find(WikiCommentThread::class, $orphan['id']);
+        self::assertInstanceOf(WikiCommentThread::class, $stored);
+        (new ReflectionProperty(WikiCommentThread::class, 'createdBy'))->setValue($stored, null);
+        $this->em->flush();
+        // Ana is now at her share (2 open), yet the authorless thread reopens.
+        $wide->create($this->ana, $this->space, $this->page, null, 'Ana at her share');
+        self::assertFalse($wide->patchThread($this->ana, $this->space, $this->page, $orphan['id'], ['resolved' => false])['resolved']);
+    }
+
+    public function testAStoreWrittenFor1160KeepsWorking(): void
+    {
+        // Audit EI2-I5: a host repository without the per-author queries.
+        $legacy  = new LegacyCommentRepository(new DoctrineOrmWikiCommentRepository($this->em));
+        $service = new WikiCommentService($legacy, $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), limits: ['user_threads_per_page' => 1] + WikiCommentService::DEFAULT_LIMITS);
+        $thread  = $service->create($this->bob, $this->space, $this->page, null, 'One');
+        $service->create($this->bob, $this->space, $this->page, null, 'No per-user cap without the queries');
+        $service->react($this->bob, $this->space, $this->page, $thread['comments'][0]['id'], '👍', true);
+
+        self::assertSame(['comments' => array_column($service->exportAuthor($this->bob), null), 'reactions' => [], 'threads_started' => [], 'threads_resolved' => []], $service->exportAuthorData($this->bob));
     }
 
     private function revise(string $html): void

@@ -235,6 +235,7 @@ final class Configuration implements ConfigurationInterface
                             ->addDefaultsIfNotSet()
                             ->children()
                                 ->integerNode('threads_per_page')->info('Open threads of one page (resolved ones do not count).')->min(1)->max(100000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['threads_per_page'])->end()
+                                ->integerNode('total_threads_per_page')->info('1.16.1: every thread of one page, resolved ones included (they are kept until a moderator deletes them or the page is purged).')->min(1)->max(100000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['total_threads_per_page'])->end()
                                 ->integerNode('user_threads_per_page')->info('1.16.1: open threads one user started on one page.')->min(1)->max(100000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['user_threads_per_page'])->end()
                                 ->integerNode('comments_per_thread')->min(1)->max(100000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['comments_per_thread'])->end()
                                 ->integerNode('reactions_per_comment')->info('Distinct emoji on one comment.')->min(1)->max(1000)->defaultValue(WikiCommentService::DEFAULT_LIMITS['reactions_per_comment'])->end()

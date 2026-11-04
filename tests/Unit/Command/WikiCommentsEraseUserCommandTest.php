@@ -57,6 +57,8 @@ final class WikiCommentsEraseUserCommandTest extends TestCase
         $tester->setInputs(['no']);
         self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana'], ['interactive' => true]));
         self::assertStringContainsString('Nothing was changed.', $tester->getDisplay());
+        // Audit EI2-I4: the question names the resolved account and what will change.
+        self::assertStringContainsString('Erase the 2 wiki comment(s) of "ana"?', $tester->getDisplay());
         $tester->setInputs(['yes']);
         self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--keep-bodies' => true], ['interactive' => true]));
         self::assertStringContainsString('2 comment(s) unlinked', $tester->getDisplay());

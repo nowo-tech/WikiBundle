@@ -34,8 +34,6 @@
                             {%- endif -%}
                         </p>
                     {% endif %}
-                    {#- 1.16.1 (audit EI-I18): the latest comments only -#}
-                    {% if thread.more|default(0) > 0 %}<p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-comment__more" data-testid="wiki-comment-more">{{ 'wiki.comments.more_in_editor'|trans({'%count%': thread.more}) }}</p>{% endif %}
                     {% for comment in thread.comments %}
                         <article class="nowo-wiki-comment" aria-label="{{ 'wiki.comments.by'|trans({'%name%': comment.author.name}) }}">
                             <header class="nowo-wiki-comment__header">
@@ -49,6 +47,8 @@
                                 <div class="nowo-wiki-comment__body nowo-md">{{ comment.html|nowo_wiki_safe_html }}</div>
                             {% endif %}
                         </article>
+                        {#- 1.16.1 (audit EI-I18 / EI2-I6): the opening comment, then the latest ones -#}
+                        {% if loop.first and thread.more|default(0) > 0 %}<p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-comment__more" data-testid="wiki-comment-more">{{ 'wiki.comments.more_in_editor'|trans({'%count%': thread.more}) }}</p>{% endif %}
                     {% endfor %}
                 </li>
             {% endfor %}

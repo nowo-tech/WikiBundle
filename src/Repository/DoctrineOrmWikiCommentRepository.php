@@ -19,7 +19,7 @@ use function count;
  * part of the schema only with `comments.enabled`. Deleting a thread or a comment deletes its children explicitly (the
  * foreign keys cascade too, but a platform without enforced keys, such as SQLite by default, would keep orphans).
  */
-final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface
+final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface, WikiCommentAuthorRepositoryInterface
 {
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
@@ -29,12 +29,15 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
     public function threads(WikiPage $page, int $limit): array
     {
         /** @var list<WikiCommentThread> $threads */
+        // 1.16.1 (audit EI2-L1): open threads first, so resolved ones never push open ones out of the window.
         $threads = $this->entityManager()->createQueryBuilder()
             ->select('t')
+            ->addSelect('CASE WHEN t.resolvedAt IS NULL THEN 0 ELSE 1 END AS HIDDEN resolvedLast')
             ->from(WikiCommentThread::class, 't')
             ->where('t.page = :page')
             ->setParameter('page', $page->getId())
-            ->orderBy('t.createdAt', 'ASC')
+            ->orderBy('resolvedLast', 'ASC')
+            ->addOrderBy('t.createdAt', 'ASC')
             ->addOrderBy('t.id', 'ASC')
             ->setMaxResults($limit)
             ->getQuery()

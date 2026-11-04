@@ -16,7 +16,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 interface WikiCommentRepositoryInterface
 {
     /**
-     * Threads of the page, oldest first.
+     * Threads of the page: open ones first (1.16.1), each group oldest first.
      *
      * @param int $limit at most this many
      *
@@ -85,25 +85,6 @@ interface WikiCommentRepositoryInterface
      * @param list<string> $pageIds
      */
     public function deleteForPages(array $pageIds): void;
-
-    /** Number of open threads of the page started by the user (1.16.1, the `user_threads_per_page` cap). */
-    public function countOpenBy(WikiPage $page, object $user): int;
-
-    /**
-     * Reactions of the user (1.16.1, privacy export).
-     *
-     * @return list<WikiCommentReaction>
-     */
-    public function reactionsBy(object $user): array;
-
-    /**
-     * Threads the user started (`createdBy`) or resolved (`resolvedBy`), oldest first (1.16.1, privacy export).
-     *
-     * @param 'createdBy'|'resolvedBy' $role
-     *
-     * @return list<WikiCommentThread>
-     */
-    public function threadsBy(object $user, string $role): array;
 
     /** Number of open (not resolved) threads of the page. */
     public function countOpen(WikiPage $page): int;

@@ -63,9 +63,16 @@
 
 From **1.16.0**: `composer update nowo-tech/wiki-bundle`. No schema change.
 
-- **Caps:** `comments.limits.threads_per_page` now counts open threads only, and the new
-  `comments.limits.user_threads_per_page` (default 50) caps the open threads one user starts on one page; beyond them
-  a new thread answers 422 `limit_reached`.
+- **Caps:** `comments.limits.threads_per_page` now counts open threads only, the new
+  `comments.limits.user_threads_per_page` (default 50) caps the open threads one user starts on one page, and the new
+  `comments.limits.total_threads_per_page` (default 1000) caps every thread of a page, resolved ones included. Beyond
+  them a new thread answers 422 `limit_reached`; reopening a thread checks the two open-thread caps too. Pages that
+  already hold more threads than the total keep them (moderators delete threads to make room).
+- **Custom comment stores:** the three per-author queries added in 1.16.1 (`countOpenBy()`, `reactionsBy()`,
+  `threadsBy()`) live in a separate `WikiCommentAuthorRepositoryInterface`, so a host implementation of
+  `WikiCommentRepositoryInterface` written for 1.16.0 keeps working: without them the per-user thread cap is not
+  applied and `exportAuthorData()` holds the comments only. Implement the new interface too to get both. `threads()`
+  now returns open threads first (then resolved ones), each group oldest first: custom stores should do the same.
 - **Moderation:** `DELETE …/comments/threads/{id}` deletes a thread with every comment and reaction for viewers with
   `WikiAction::ModerateComments` (204) and dispatches `nowo_wiki.comment.thread_deleted` (`WikiCommentEvent`, comment
   null). Add it to notification listeners that react to deletions.
@@ -76,7 +83,7 @@ From **1.16.0**: `composer update nowo-tech/wiki-bundle`. No schema change.
   text: they are neither exported nor erased. Listen to `nowo_wiki.comment.author_erased`
   (`WikiCommentAuthorErasedEvent`) to drop your own copies (indexes, caches, notification history). The command now
   asks for confirmation; scripts pass `--force` or `--no-interaction`.
-- **Server-rendered list:** each listed thread shows its latest 20 comments; an override of
+- **Server-rendered list:** each listed thread shows its opening comment and the latest 19; an override of
   `_comments_panel_body.html.twig` gets `thread.more` (the number of earlier comments).
 
 ## To 1.16.0

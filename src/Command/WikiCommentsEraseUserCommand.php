@@ -15,7 +15,9 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Security\Core\User\UserInterface;
 
+use function count;
 use function json_encode;
 use function sprintf;
 
@@ -82,7 +84,8 @@ final class WikiCommentsEraseUserCommand extends Command
         $keep = $input->getOption('keep-bodies') === true;
         // 1.16.1 (audit EI-I17): an erasure cannot be undone; ask unless --force or --no-interaction.
         if ($input->getOption('force') !== true && $input->isInteractive()
-            && !$io->confirm(sprintf('%s the wiki comments of "%s"? This cannot be undone.', $keep ? 'Unlink' : 'Erase', (string) $input->getArgument('user')), false)) {
+            // 1.16.1 (audit EI2-I4): the resolved account and what will change, so a wrong match shows before it is too late.
+            && !$io->confirm(sprintf('%s the %d wiki comment(s) of "%s"? This cannot be undone.', $keep ? 'Unlink' : 'Erase', count($this->comments->exportAuthor($user)), $user instanceof UserInterface ? $user->getUserIdentifier() : (string) $input->getArgument('user')), false)) {
             $io->note('Nothing was changed.');
 
             return Command::SUCCESS;
