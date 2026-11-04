@@ -79,6 +79,11 @@ Planned as **1.16.1**: the final Info items of the 1.16.0 security audit (append
 - The `wiki:comments:erase-user` confirmation names the resolved account and the number of comments (EI2-I4).
 - `wiki:comments:erase-user` asks for confirmation unless `--force` or `--no-interaction` (EI-I17).
 
+### Fixed
+
+- **iOS Safari:** the sidebar page tree (`.nowo-wiki-sidebar__body`) uses `max-height: calc(100dvh - 8rem)`, with
+  `100vh` kept as the fallback, so it no longer runs under the browser bars.
+
 ## [1.16.0] - 2026-11-04
 
 Comments panel, avatars, plain-text search.
