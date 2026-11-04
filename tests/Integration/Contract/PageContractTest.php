@@ -175,6 +175,8 @@ final class PageContractTest extends PageContractTestCase
         // EI-L7: a quote that left the page is not printed; EI-L4: the capped list says so.
         self::assertStringContainsString('data-testid="wiki-comment-quote-gone">The commented text is no longer on the page.</p>', $server);
         self::assertStringContainsString('data-testid="wiki-comments-truncated">Only the first 2 open threads are shown.</p>', $server);
+        // EI-I18: the earlier comments of a long thread stay in the editor.
+        self::assertStringContainsString('data-testid="wiki-comment-more">3 earlier comment(s) in the editor</p>', $server);
         // A reader who may not edit: the hint is muted plain text.
         self::assertMatchesRegularExpression('#<p class="[^"]*nowo-ui-muted[^"]*nowo-wiki-comment__reply-hint" data-testid="wiki-comment-reply-hint">Reply from the editor</p>#', $server);
         // One who may edit: a link to the editor, opened on the comments panel.

@@ -20,6 +20,7 @@ wiki:
     reply_in_editor: "Reply from the editor"
     quote_gone: "The commented text is no longer on the page."
     truncated: "Only the first %count% open threads are shown."
+    more_in_editor: "%count% earlier comment(s) in the editor"
     unknown_author: "Deleted user"
     error:
       invalid: "The comment is empty or not valid."

@@ -481,6 +481,7 @@ the Milkdown `comments.url`. JSON, same origin, header `X-CSRF-Token` (token id
 | `POST /threads/{id}/comments` `{body}` | Comment | 201 Thread |
 | `PATCH /threads/{id}` `{resolved}` | ResolveComment | Thread |
 | `PATCH /threads/{id}` `{anchor, base}` | Comment | Thread; 409 when `base` is not the thread's `updatedAt` |
+| `DELETE /threads/{id}` (1.16.1) | ModerateComments | 204 (the thread, its comments and reactions) |
 | `PATCH /comments/{cid}` `{body}` | own + Comment, or ModerateComments | Thread |
 | `DELETE /comments/{cid}` | own + Comment, or ModerateComments | Thread, or 204 when the thread is gone |
 | `PUT` / `DELETE /comments/{cid}/reactions/{emoji}` | Comment | Thread |
@@ -513,7 +514,10 @@ final class NotifyOnComment
 }
 ```
 
-Events: `nowo_wiki.comment.created`, `.replied`, `.edited`, `.deleted`, `.resolved`, `.reopened`, after the flush.
+Events: `nowo_wiki.comment.created`, `.replied`, `.edited`, `.deleted`, `.resolved`, `.reopened` and (1.16.1)
+`.thread_deleted`, after the flush; `nowo_wiki.comment.author_erased` (`WikiCommentAuthorErasedEvent`) after a privacy
+erasure. Show quotes with `WikiCommentService::visibleQuote($event->thread)` (blank once the text left the page),
+never `$event->thread->getQuote()`.
 
 ### Beacon
 

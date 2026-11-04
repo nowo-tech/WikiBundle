@@ -71,4 +71,10 @@ final class WikiEvents
 
     /** 1.16: a resolved thread was reopened. {@see WikiCommentEvent} */
     public const COMMENT_REOPENED = 'nowo_wiki.comment.reopened';
+
+    /** 1.16.1: a moderator deleted a whole thread. {@see WikiCommentEvent} (comment null) */
+    public const COMMENT_THREAD_DELETED = 'nowo_wiki.comment.thread_deleted';
+
+    /** 1.16.1: a user's comments were erased or unlinked (privacy). {@see WikiCommentAuthorErasedEvent} */
+    public const COMMENT_AUTHOR_ERASED = 'nowo_wiki.comment.author_erased';
 }

@@ -16,12 +16,14 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Event\WikiCommentAuthorErasedEvent;
 use Nowo\WikiBundle\Event\WikiCommentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
+use Nowo\WikiBundle\Repository\WikiCommentAuthorRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Search\WikiPlainText;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -42,6 +44,7 @@ use function array_values;
 use function count;
 use function is_bool;
 use function is_string;
+use function max;
 use function mb_strlen;
 use function preg_match;
 use function preg_replace;
@@ -92,6 +95,8 @@ final readonly class WikiCommentService
     /** Default caps (`comments.limits`): 422 `limit_reached` beyond them. */
     public const DEFAULT_LIMITS = [
         'threads_per_page'           => 500,
+        'user_threads_per_page'      => 50,
+        'total_threads_per_page'     => 1000,
         'comments_per_thread'        => 500,
         'reactions_per_comment'      => 20,
         'user_reactions_per_comment' => 10,
@@ -99,6 +104,9 @@ final readonly class WikiCommentService
 
     /** Most threads the server-rendered list shows (`truncated` beyond). */
     public const LIST_CAP = 50;
+
+    /** Most comments of one thread the server-rendered list shows: the first and the latest; `more` counts the others. */
+    public const LIST_COMMENTS_CAP = 20;
 
     /** Format of `updatedAt` / `resolvedAt` / `createdAt` (ISO 8601). */
     private const DATE = DateTimeInterface::ATOM;
@@ -110,7 +118,7 @@ final readonly class WikiCommentService
      * @param RateLimiterFactory|null $pageRateLimiter `comments.page_rate_limiter`, per user and page on writes (optional)
      * @param WikiAccessCheckerInterface|null $accessChecker the role gate (canEdit) of the full-anchor rule
      * @param bool $readViewSource `comments.read_view_source`: every commenter mounts the editor, so gets full anchors
-     * @param array{threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits `comments.limits`
+     * @param array{threads_per_page: int, user_threads_per_page: int, total_threads_per_page?: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits `comments.limits`
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -222,7 +230,8 @@ final readonly class WikiCommentService
         $this->require($rights['view']);
         $threads = array_slice(array_values(array_filter($this->comments->threads($page, self::MAX_THREADS), static fn (WikiCommentThread $t): bool => !$t->isResolved() && ($withInline || $t->isPageLevel()))), 0, $max);
 
-        return array_map(fn (WikiCommentThread $thread): array => $this->threadJson($user, $page, $thread, $rights), $threads);
+        // 1.16.1 (audit EI-I18): the latest comments of each thread only; `more` counts the others (shown in the editor).
+        return array_map(fn (WikiCommentThread $thread): array => $this->threadJson($user, $page, $thread, $rights, self::LIST_COMMENTS_CAP), $threads);
     }
 
     /**
@@ -236,7 +245,9 @@ final readonly class WikiCommentService
         $this->require($rights['comment']);
         $text           = $this->body($body);
         [$json, $quote] = $anchor === null ? [null, null] : $this->anchor($anchor);
-        $this->cap($this->comments->countThreads($page), 'threads_per_page');
+        // 1.16.1: open threads (EI-I16), a share per user, and a generous total, resolved ones included (EI2-L1).
+        $this->openCaps($page, $user);
+        $this->cap($this->comments->countThreads($page), 'total_threads_per_page');
         $this->limit($user, $page);
 
         $thread  = new WikiCommentThread($page, $user, $json, $quote);
@@ -298,6 +309,10 @@ final readonly class WikiCommentService
             $this->require($rights['resolve']);
             $this->limit($user, $page);
             if ($patch['resolved'] !== $thread->isResolved()) {
+                // 1.16.1 (audit EI2-I1): reopening adds an open thread, so the open caps apply as on creation.
+                if (!$patch['resolved']) {
+                    $this->openCaps($page, $thread->getCreatedBy());
+                }
                 $patch['resolved'] ? $thread->resolve($user) : $thread->reopen();
                 $this->comments->flush();
                 $this->changed($page, $thread, null, $user, $patch['resolved'] ? WikiEvents::COMMENT_RESOLVED : WikiEvents::COMMENT_REOPENED);
@@ -386,6 +401,24 @@ final readonly class WikiCommentService
     }
 
     /**
+     * `DELETE /threads/{id}` (1.16.1, audit EI-I16): a moderator ({@see WikiAction::ModerateComments}) deletes a whole
+     * thread with its comments and reactions in one call; dispatches {@see WikiEvents::COMMENT_THREAD_DELETED}.
+     */
+    public function deleteThread(UserInterface $user, WikiSpace $space, WikiPage $page, string $id): void
+    {
+        $rights = $this->rights($user, $space, $page);
+        $this->require($rights['view']);
+        $thread = $this->requireThread($page, $id);
+        $this->require($rights['moderate']);
+        $this->limit($user, $page);
+
+        // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
+        $this->comments->remove($thread);
+        $this->comments->flush();
+        $this->changed($page, $thread, null, $user, WikiEvents::COMMENT_THREAD_DELETED);
+    }
+
+    /**
      * `PUT` (`$on`) / `DELETE /comments/{cid}/reactions/{emoji}` (Comment).
      *
      * @return array<string, mixed> the Thread JSON
@@ -438,6 +471,55 @@ final readonly class WikiCommentService
     }
 
     /**
+     * The quote of a thread as anyone may be shown it outside the editor (1.16.1, audit EI-I15): the stored
+     * `quote.exact` only while every piece of it is still in the page's current text, else `''`; null for a page-level
+     * thread. Notification listeners must use it instead of {@see WikiCommentThread::getQuote()}, which keeps text that
+     * may have left the page since.
+     */
+    public function visibleQuote(WikiCommentThread $thread): ?string
+    {
+        $quote = $thread->getQuote();
+        if ($quote === null) {
+            return null;
+        }
+
+        return $this->stillInPage($quote, $thread->getPage()) ? $quote : '';
+    }
+
+    /**
+     * Full privacy export (1.16.1, audit EI-I17): the user's comments ({@see self::exportAuthor()}), their reactions,
+     * and the threads they started or resolved (ids, page, dates; never the quote of others' text). Mentions of the user
+     * in other people's comments are those people's data and are not included (nor erased).
+     *
+     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>}
+     */
+    public function exportAuthorData(object $user): array
+    {
+        // A host store written for 1.16.0 (no per-author queries) exports the comments only.
+        $authors = $this->comments instanceof WikiCommentAuthorRepositoryInterface ? $this->comments : null;
+
+        return [
+            'comments'  => $this->exportAuthor($user),
+            'reactions' => array_map(static fn (WikiCommentReaction $r): array => [
+                'comment_id' => $r->getComment()->getId(),
+                'thread_id'  => $r->getComment()->getThread()->getId(),
+                'page_id'    => $r->getComment()->getThread()->getPage()->getId(),
+                'emoji'      => $r->getEmoji(),
+            ], $authors?->reactionsBy($user) ?? []),
+            'threads_started' => array_map(static fn (WikiCommentThread $t): array => [
+                'id'         => $t->getId(),
+                'page_id'    => $t->getPage()->getId(),
+                'created_at' => $t->getCreatedAt()->format(self::DATE),
+            ], $authors?->threadsBy($user, 'createdBy') ?? []),
+            'threads_resolved' => array_map(static fn (WikiCommentThread $t): array => [
+                'id'          => $t->getId(),
+                'page_id'     => $t->getPage()->getId(),
+                'resolved_at' => $t->getResolvedAt()?->format(self::DATE),
+            ], $authors?->threadsBy($user, 'resolvedBy') ?? []),
+        ];
+    }
+
+    /**
      * Privacy export (1.16, audit EI-L6): every comment the user wrote, with its page, thread and Markdown body (no
      * rights check: call it from an administrative or data-subject-request flow).
      *
@@ -459,13 +541,19 @@ final readonly class WikiCommentService
     /**
      * Privacy erasure (1.16, audit EI-L6): unlinks the user from their comments, threads and resolutions and deletes
      * their reactions; with `$deleteBodies` their comments also become "Comment deleted" placeholders (bodies blanked).
-     * Quotes are page text, not the user's: they stay (edit the page or delete the thread to remove them).
+     * Quotes are page text, not the user's: they stay (edit the page or delete the thread to remove them). Mentions of
+     * the user in other people's comments stay too (they are those people's text). Dispatches
+     * {@see WikiEvents::COMMENT_AUTHOR_ERASED}.
      *
      * @return int the comments of the user that were changed
      */
     public function eraseAuthor(object $user, bool $deleteBodies = true): int
     {
-        return $this->comments->eraseAuthor($user, $deleteBodies);
+        $changed = $this->comments->eraseAuthor($user, $deleteBodies);
+        // 1.16.1 (audit EI-I17): hosts drop their own copies (search indexes, caches, notification history).
+        $this->dispatcher?->dispatch(new WikiCommentAuthorErasedEvent($user, $changed, $deleteBodies), WikiEvents::COMMENT_AUTHOR_ERASED);
+
+        return $changed;
     }
 
     /**
@@ -488,10 +576,14 @@ final readonly class WikiCommentService
      *
      * @return array<string, mixed>
      */
-    private function threadJson(UserInterface $user, WikiPage $page, WikiCommentThread $thread, array $rights): array
+    private function threadJson(UserInterface $user, WikiPage $page, WikiCommentThread $thread, array $rights, ?int $latest = null): array
     {
-        $full      = $this->fullAnchors($user, $page);
-        $comments  = $this->comments->comments([$thread])[$thread->getId()] ?? [];
+        $full     = $this->fullAnchors($user, $page);
+        $comments = $this->comments->comments([$thread])[$thread->getId()] ?? [];
+        $count    = count(array_filter($comments, static fn (WikiComment $c): bool => !$c->isDeleted()));
+        // The server list keeps the thread's opening comment and the latest others (1.16.1, audit EI2-I6).
+        $more      = $latest !== null ? max(0, count($comments) - $latest) : 0;
+        $comments  = $more > 0 ? [$comments[0], ...array_slice($comments, $more + 1)] : $comments;
         $reactions = [];
         foreach ($this->comments->reactions($comments) as $reaction) {
             $entry = $reactions[$reaction->getComment()->getId()][$reaction->getEmoji()] ?? ['emoji' => $reaction->getEmoji(), 'count' => 0, 'mine' => false];
@@ -510,12 +602,10 @@ final readonly class WikiCommentService
         }
 
         $items = [];
-        $count = 0;
         foreach ($comments as $comment) {
             $deleted = $comment->isDeleted();
-            $count += $deleted ? 0 : 1;
-            $author = $comment->getAuthor();
-            $item   = [
+            $author  = $comment->getAuthor();
+            $item    = [
                 'id'        => $comment->getId(),
                 'author'    => $author !== null && !$deleted ? $this->person($byObject[spl_object_id($author)]) : ['name' => $this->trans('wiki.comments.unknown_author'), 'avatarUrl' => null],
                 'html'      => $this->renderBody($comment),
@@ -540,7 +630,7 @@ final readonly class WikiCommentService
             'can'        => ['reply' => $rights['comment'], 'resolve' => $rights['resolve'], 'react' => $rights['comment']],
             'resolvedBy' => $resolvedBy !== null ? $this->person($byObject[spl_object_id($resolvedBy)]) : ($thread->isResolved() ? ['name' => $this->trans('wiki.comments.unknown_author'), 'avatarUrl' => null] : null),
             'resolvedAt' => $thread->getResolvedAt()?->format(self::DATE),
-        ];
+        ] + ($latest !== null ? ['more' => $more] : []);
     }
 
     /**
@@ -707,11 +797,22 @@ final readonly class WikiCommentService
     }
 
     /**
-     * @param 'comments_per_thread'|'reactions_per_comment'|'threads_per_page'|'user_reactions_per_comment' $limit
+     * The caps on open threads: per page and, with a store that counts per author and a known author, per user.
+     */
+    private function openCaps(WikiPage $page, ?object $author): void
+    {
+        $this->cap($this->comments->countOpen($page), 'threads_per_page');
+        if ($author !== null && $this->comments instanceof WikiCommentAuthorRepositoryInterface) {
+            $this->cap($this->comments->countOpenBy($page, $author), 'user_threads_per_page');
+        }
+    }
+
+    /**
+     * @param 'comments_per_thread'|'reactions_per_comment'|'threads_per_page'|'total_threads_per_page'|'user_reactions_per_comment'|'user_threads_per_page' $limit
      */
     private function cap(int $current, string $limit): void
     {
-        if ($current >= $this->limits[$limit]) {
+        if ($current >= ($this->limits[$limit] ?? self::DEFAULT_LIMITS[$limit])) {
             throw new WikiCommentException(Response::HTTP_UNPROCESSABLE_ENTITY, 'limit_reached');
         }
     }

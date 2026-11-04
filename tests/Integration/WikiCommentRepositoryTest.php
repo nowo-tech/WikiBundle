@@ -69,6 +69,8 @@ final class WikiCommentRepositoryTest extends TestCase
         self::assertSame($reaction, $repo->reaction($comment, $ana, '👍'));
         self::assertNull($repo->reaction($comment, $ana, '🎉'));
         self::assertSame(1, $repo->countOpen($page));
+        self::assertSame(1, $repo->countThreads($page));
+        self::assertSame(1, $repo->countOpenBy($page, $ana));
         self::assertSame(0, $repo->countOpen($other));
 
         $repo->remove($thread);

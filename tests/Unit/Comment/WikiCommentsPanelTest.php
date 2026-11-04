@@ -171,7 +171,7 @@ final class WikiCommentsPanelTest extends TestCase
         $em->flush();
 
         $guard   = new WikiSpaceGuard(new FixedSpaceLocator($space), new CallbackSpaceAccessChecker(fn (WikiAction $action): bool => in_array($action, $this->granted, true)));
-        $service = new WikiCommentService(new DoctrineOrmWikiCommentRepository($em), $guard, new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer());
+        $service = new WikiCommentService(new DoctrineOrmWikiCommentRepository($em), $guard, new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), limits: ['user_threads_per_page' => 1000] + WikiCommentService::DEFAULT_LIMITS);
         $state   = new class($this->remembered) implements WikiPanelStateStoreInterface {
             public function __construct(private bool &$open)
             {

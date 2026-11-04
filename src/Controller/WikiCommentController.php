@@ -50,6 +50,7 @@ use const JSON_THROW_ON_ERROR;
  * | `POST /threads` `{anchor \| null, body}` | 201 Thread |
  * | `POST /threads/{id}/comments` `{body}` | 201 Thread |
  * | `PATCH /threads/{id}` `{resolved}` or `{anchor, base}` | Thread (409: stale base) |
+ * | `DELETE /threads/{id}` (1.16.1, ModerateComments) | 204 |
  * | `PATCH /comments/{cid}` `{body}` / `DELETE /comments/{cid}` | Thread (204: thread gone) |
  * | `PUT` / `DELETE /comments/{cid}/reactions/{emoji}` | Thread |
  * | `GET /` (no JavaScript) | 303 to the page with the panel open |
@@ -74,7 +75,7 @@ final class WikiCommentController extends AbstractController
     /** Request path (after the base) => [method => handler]. */
     private const PATHS = [
         '#^threads$#'                                                => ['GET' => 'list', 'POST' => 'create'],
-        '#^threads/([A-Za-z0-9_-]{1,64})$#'                          => ['GET' => 'thread', 'PATCH' => 'patchThread'],
+        '#^threads/([A-Za-z0-9_-]{1,64})$#'                          => ['GET' => 'thread', 'PATCH' => 'patchThread', 'DELETE' => 'deleteThread'],
         '#^threads/([A-Za-z0-9_-]{1,64})/comments$#'                 => ['POST' => 'reply'],
         '#^comments/([A-Za-z0-9_-]{1,64})$#'                         => ['PATCH' => 'editComment', 'DELETE' => 'deleteComment'],
         '#^comments/([A-Za-z0-9_-]{1,64})/reactions/([^/]{1,64})$#u' => ['PUT' => 'react', 'DELETE' => 'unreact'],
@@ -145,6 +146,7 @@ final class WikiCommentController extends AbstractController
                 'patchThread'   => $this->json200($service->patchThread($user, $space, $page, $args[0], $this->body($request))),
                 'editComment'   => $this->json200($service->editComment($user, $space, $page, $args[0], $this->field($request, 'body'))),
                 'deleteComment' => $this->maybeGone($service->deleteComment($user, $space, $page, $args[0])),
+                'deleteThread'  => $this->gone(static fn () => $service->deleteThread($user, $space, $page, $args[0])),
                 'react'         => $this->json200($service->react($user, $space, $page, $args[0], $args[1], true)),
                 default         => $this->json200($service->react($user, $space, $page, $args[0], $args[1], false)),
             };
@@ -289,6 +291,16 @@ final class WikiCommentController extends AbstractController
     private function maybeGone(?array $data): Response
     {
         return $data === null ? new Response(null, Response::HTTP_NO_CONTENT, self::NO_STORE) : $this->json200($data);
+    }
+
+    /**
+     * @param callable(): void $call
+     */
+    private function gone(callable $call): Response
+    {
+        $call();
+
+        return new Response(null, Response::HTTP_NO_CONTENT, self::NO_STORE);
     }
 
     private function requireReadablePage(UserInterface $user, WikiSpace $space, string $pageSlug): WikiPage

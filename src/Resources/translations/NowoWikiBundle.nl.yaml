@@ -20,6 +20,7 @@ wiki:
     reply_in_editor: "Reageer vanuit de editor"
     quote_gone: "De becommentarieerde tekst staat niet meer op de pagina."
     truncated: "Alleen de eerste %count% open discussies worden getoond."
+    more_in_editor: "%count% eerdere opmerking(en) in de editor"
     unknown_author: "Verwijderde gebruiker"
     error:
       invalid: "De opmerking is leeg of ongeldig."

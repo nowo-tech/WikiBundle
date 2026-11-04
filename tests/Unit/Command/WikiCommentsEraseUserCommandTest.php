@@ -49,11 +49,20 @@ final class WikiCommentsEraseUserCommandTest extends TestCase
         $tester  = new CommandTester(new WikiCommentsEraseUserCommand(new WikiAuthorResolver($em, TestUserEntity::class), $service));
 
         self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--export' => true]));
-        self::assertSame(['Mine', 'Also mine'], array_column(json_decode($tester->getDisplay(), true, 512, JSON_THROW_ON_ERROR), 'body'));
+        $export = json_decode($tester->getDisplay(), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(['Mine', 'Also mine'], array_column($export['comments'], 'body'));
+        self::assertSame([$thread->getId()], array_column($export['threads_started'], 'id'));
 
-        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--keep-bodies' => true]));
+        // 1.16.1: interactive runs ask first (default no); --force or --no-interaction skip the question.
+        $tester->setInputs(['no']);
+        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana'], ['interactive' => true]));
+        self::assertStringContainsString('Nothing was changed.', $tester->getDisplay());
+        // Audit EI2-I4: the question names the resolved account and what will change.
+        self::assertStringContainsString('Erase the 2 wiki comment(s) of "ana"?', $tester->getDisplay());
+        $tester->setInputs(['yes']);
+        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--keep-bodies' => true], ['interactive' => true]));
         self::assertStringContainsString('2 comment(s) unlinked', $tester->getDisplay());
-        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana']));
+        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--force' => true], ['interactive' => true]));
         self::assertStringContainsString('0 comment(s) erased', $tester->getDisplay());
 
         self::assertSame(Command::FAILURE, $tester->execute(['user' => 'nobody']));

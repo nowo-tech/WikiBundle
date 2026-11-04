@@ -28,6 +28,8 @@
 
   .nowo-wiki-sidebar__body {
     max-height: calc(100vh - 8rem);
+    /* iOS Safari: the dynamic viewport excludes the browser bars (100vh stays the fallback). */
+    max-height: calc(100dvh - 8rem);
     overflow-y: auto;
   }
 }

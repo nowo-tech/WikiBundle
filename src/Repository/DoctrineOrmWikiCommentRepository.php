@@ -19,7 +19,7 @@ use function count;
  * part of the schema only with `comments.enabled`. Deleting a thread or a comment deletes its children explicitly (the
  * foreign keys cascade too, but a platform without enforced keys, such as SQLite by default, would keep orphans).
  */
-final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface
+final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface, WikiCommentAuthorRepositoryInterface
 {
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
@@ -29,12 +29,15 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
     public function threads(WikiPage $page, int $limit): array
     {
         /** @var list<WikiCommentThread> $threads */
+        // 1.16.1 (audit EI2-L1): open threads first, so resolved ones never push open ones out of the window.
         $threads = $this->entityManager()->createQueryBuilder()
             ->select('t')
+            ->addSelect('CASE WHEN t.resolvedAt IS NULL THEN 0 ELSE 1 END AS HIDDEN resolvedLast')
             ->from(WikiCommentThread::class, 't')
             ->where('t.page = :page')
             ->setParameter('page', $page->getId())
-            ->orderBy('t.createdAt', 'ASC')
+            ->orderBy('resolvedLast', 'ASC')
+            ->addOrderBy('t.createdAt', 'ASC')
             ->addOrderBy('t.id', 'ASC')
             ->setMaxResults($limit)
             ->getQuery()
@@ -215,6 +218,53 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
             $em->createQueryBuilder()->delete(WikiComment::class, 'c')->where('c.thread IN (:threads)')->setParameter('threads', $threads)->getQuery()->execute();
         }
         $em->createQueryBuilder()->delete(WikiCommentThread::class, 't')->where('t.page IN (:pages)')->setParameter('pages', $pageIds)->getQuery()->execute();
+    }
+
+    public function countOpenBy(WikiPage $page, object $user): int
+    {
+        return (int) $this->entityManager()->createQueryBuilder()
+            ->select('COUNT(t.id)')
+            ->from(WikiCommentThread::class, 't')
+            ->where('t.page = :page')
+            ->andWhere('t.resolvedAt IS NULL')
+            ->andWhere('t.createdBy = :user')
+            ->setParameter('page', $page->getId())
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function reactionsBy(object $user): array
+    {
+        /** @var list<WikiCommentReaction> $reactions */
+        $reactions = $this->entityManager()->createQueryBuilder()
+            ->select('r', 'c', 't')
+            ->from(WikiCommentReaction::class, 'r')
+            ->innerJoin('r.comment', 'c')
+            ->innerJoin('c.thread', 't')
+            ->where('r.user = :user')
+            ->setParameter('user', $user)
+            ->orderBy('r.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $reactions;
+    }
+
+    public function threadsBy(object $user, string $role): array
+    {
+        /** @var list<WikiCommentThread> $threads */
+        $threads = $this->entityManager()->createQueryBuilder()
+            ->select('t')
+            ->from(WikiCommentThread::class, 't')
+            ->where('t.' . ($role === 'resolvedBy' ? 'resolvedBy' : 'createdBy') . ' = :user')
+            ->setParameter('user', $user)
+            ->orderBy('t.createdAt', 'ASC')
+            ->addOrderBy('t.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $threads;
     }
 
     public function add(WikiCommentThread|WikiComment|WikiCommentReaction $entity): void

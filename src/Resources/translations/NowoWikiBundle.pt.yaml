@@ -20,6 +20,7 @@ wiki:
     reply_in_editor: "Responda a partir do editor"
     quote_gone: "O texto comentado já não está na página."
     truncated: "Só são mostrados os primeiros %count% tópicos abertos."
+    more_in_editor: "%count% comentário(s) anterior(es) no editor"
     unknown_author: "Utilizador eliminado"
     error:
       invalid: "O comentário está vazio ou não é válido."

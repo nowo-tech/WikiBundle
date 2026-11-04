@@ -16,7 +16,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 interface WikiCommentRepositoryInterface
 {
     /**
-     * Threads of the page, oldest first.
+     * Threads of the page: open ones first (1.16.1), each group oldest first.
      *
      * @param int $limit at most this many
      *

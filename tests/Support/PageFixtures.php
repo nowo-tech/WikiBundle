@@ -161,6 +161,7 @@ final class PageFixtures
             'reload_href'  => !$open && !$mounted ? '/p?comments=1' : null,
             'page_threads' => $open || !$mounted ? [[
                 'id'       => 't1',
+                'more'     => $mounted ? 0 : 3,
                 'anchor'   => $mounted ? null : ['v' => 1, 'quote' => ['exact' => 'make deploy']],
                 'comments' => [
                     $comment('c1', 'Maria Ruiz', '/files/maria/s64', '<p>Is <strong>this</strong> current?</p><script>alert(1)</script>'),

@@ -52,6 +52,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Planned as **1.16.1**: the final Info items of the 1.16.0 security audit (appendix EI).
+
+### Added
+
+- **Moderator thread delete** `DELETE …/comments/threads/{id}` (`WikiAction::ModerateComments`, 204): a whole thread
+  with its comments and reactions, event `nowo_wiki.comment.thread_deleted` (EI-I16).
+- `comments.limits.user_threads_per_page` (default 50): open threads one user may start on one page (EI-I16).
+- `comments.limits.total_threads_per_page` (default 1000): every thread of a page, resolved ones included (EI2-L1).
+- `WikiCommentAuthorRepositoryInterface` (per-author queries of the comment store), implemented by the Doctrine store
+  (EI2-I5).
+- `WikiCommentService::visibleQuote()`: the quote a notification may show, blank once the text left the page
+  (EI-I15).
+- `WikiCommentService::exportAuthorData()`: the user's comments, reactions and the threads they started or resolved;
+  `wiki:comments:erase-user --export` prints it. Event `nowo_wiki.comment.author_erased`
+  (`WikiCommentAuthorErasedEvent`) after an erasure (EI-I17).
+
+### Changed
+
+- `comments.limits.threads_per_page` counts **open** threads only: resolved threads no longer lock a page (EI-I16).
+- The server-rendered comments list shows the opening comment and the latest 19 of each thread, with "N earlier
+  comment(s) in the editor" (EI-I18, EI2-I6).
+- Open threads are listed first: resolved threads can no longer push open ones out of the 2000-thread window of
+  `GET /threads` and the server list, and `truncated` is set only when threads were left out (EI2-L1).
+- Reopening a thread checks the open-thread caps, like starting one (EI2-I1).
+- The `wiki:comments:erase-user` confirmation names the resolved account and the number of comments (EI2-I4).
+- `wiki:comments:erase-user` asks for confirmation unless `--force` or `--no-interaction` (EI-I17).
+
+### Fixed
+
+- **iOS Safari:** the sidebar page tree (`.nowo-wiki-sidebar__body`) uses `max-height: calc(100dvh - 8rem)`, with
+  `100vh` kept as the fallback, so it no longer runs under the browser bars.
+
 ## [1.16.0] - 2026-11-04
 
 Comments panel, avatars, plain-text search.
