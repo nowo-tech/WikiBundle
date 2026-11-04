@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.16.1](#to-1161)
 - [To 1.16.0](#to-1160)
 - [To 1.15.1](#to-1151)
 - [To 1.15.0](#to-1150)
@@ -59,7 +60,7 @@
 
 ## Unreleased
 
-### To 1.16.1
+## To 1.16.1
 
 From **1.16.0**: `composer update nowo-tech/wiki-bundle`. No schema change.
 
