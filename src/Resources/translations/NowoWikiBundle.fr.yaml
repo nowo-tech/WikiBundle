@@ -1,4 +1,27 @@
 wiki:
+  tabs:
+    label: "Vues de la page"
+    page: "Page"
+    edit: "Modifier"
+    history: "Historique"
+  comments:
+    title: "Commentaires"
+    open_suffix: " ouverts"
+    close: "Fermer les commentaires"
+    opened: "Commentaires ouverts"
+    closed: "Commentaires fermés"
+    empty: "Aucun commentaire sur la page pour l’instant."
+    by: "Commentaire de %name%"
+    deleted: "Commentaire supprimé"
+    send: "Commenter"
+    new_label: "Commenter cette page"
+    new_help: "Markdown, 10 000 caractères au plus. Commenter une sélection nécessite JavaScript."
+    added: "Votre commentaire a été ajouté."
+    unknown_author: "Utilisateur supprimé"
+    error:
+      invalid: "Le commentaire est vide ou invalide."
+      too_large: "Le commentaire est trop long (10 000 caractères au plus)."
+      rate_limited: "Trop de commentaires en peu de temps : réessayez dans un instant."
   collab:
     reset: "Réinitialiser la collaboration"
     reset_confirm_title: "Réinitialiser la session partagée ?"

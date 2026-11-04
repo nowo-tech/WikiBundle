@@ -17,6 +17,9 @@ use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\ORM\Tools\ToolEvents;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
+use Nowo\WikiBundle\Entity\WikiComment;
+use Nowo\WikiBundle\Entity\WikiCommentReaction;
+use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -72,6 +75,38 @@ final class CollabTablesSchemaTest extends TestCase
         self::assertSame($expected, $schema->hasTable('w_page_collab_documents'));
         self::assertSame($expected, $schema->hasTable('w_page_collab_updates'));
         self::assertTrue($schema->hasTable('w_page_trash'));
+    }
+
+    /**
+     * @return iterable<string, array{bool}>
+     */
+    public static function commentModes(): iterable
+    {
+        yield 'comments off' => [false];
+        yield 'comments on' => [true];
+    }
+
+    #[DataProvider('commentModes')]
+    public function testTheCommentTablesFollowTheSwitch(bool $enabled): void
+    {
+        // 1.16: <prefix>_comment_threads, _comments and _comment_reactions only with comments.enabled; users remapped.
+        $config = ORMSetup::createAttributeMetadataConfiguration([dirname(__DIR__, 2) . '/src/Entity', __DIR__ . '/../Stub'], true, sys_get_temp_dir() . '/wiki_sqlite_proxies');
+        if (PHP_VERSION_ID >= 80400 && method_exists($config, 'enableNativeLazyObjects')) {
+            $config->enableNativeLazyObjects(true);
+        }
+        $listener = new WikiMetadataListener('w_spaces', 'w_pages', 'w_page_revisions', TestUserEntity::class, 'w_page_links', 'w_attachments', 'w_page_collab_documents', 'w_page_collab_updates', true, 'w_page_trash', true, 'w_revision_labels', true, 'w', $enabled);
+        $events   = new EventManager();
+        $events->addEventListener([Events::loadClassMetadata, ToolEvents::postGenerateSchema], $listener);
+        $em = new EntityManager(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true], $config), $config, $events);
+
+        $schema = (new SchemaTool($em))->getSchemaFromMetadata($em->getMetadataFactory()->getAllMetadata());
+        foreach (['w_comment_threads', 'w_comments', 'w_comment_reactions'] as $table) {
+            self::assertSame($enabled, $schema->hasTable($table), $table);
+        }
+        self::assertTrue($schema->hasTable('w_pages'));
+        self::assertSame(TestUserEntity::class, $em->getClassMetadata(WikiComment::class)->getAssociationTargetClass('author'));
+        self::assertSame(TestUserEntity::class, $em->getClassMetadata(WikiCommentThread::class)->getAssociationTargetClass('resolvedBy'));
+        self::assertSame(TestUserEntity::class, $em->getClassMetadata(WikiCommentReaction::class)->getAssociationTargetClass('user'));
     }
 
     public function testOtherEntityManagersAreLeftAlone(): void

@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Routing;
 
 use Nowo\WikiBundle\Controller\WikiAttachmentController;
 use Nowo\WikiBundle\Controller\WikiCollabController;
+use Nowo\WikiBundle\Controller\WikiCommentController;
 use Nowo\WikiBundle\Controller\WikiHistoryController;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Controller\WikiTrashController;
@@ -81,7 +82,7 @@ final class WikiRouteLoader extends Loader
             return $collection;
         }
 
-        foreach ([WikiManageController::class, WikiAttachmentController::class, WikiCollabController::class, WikiTreeController::class, WikiTrashController::class, WikiHistoryController::class] as $controller) {
+        foreach ([WikiManageController::class, WikiAttachmentController::class, WikiCollabController::class, WikiTreeController::class, WikiTrashController::class, WikiHistoryController::class, WikiCommentController::class] as $controller) {
             foreach ((new ReflectionClass($controller))->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
                 foreach ($method->getAttributes(RouteAttribute::class) as $attribute) {
                     $declared = $attribute->newInstance();
@@ -90,7 +91,7 @@ final class WikiRouteLoader extends Loader
                         continue;
                     }
 
-                    $this->addRoutes($collection, $this->routes[$key], $controller . '::' . $method->getName(), $declared->methods, $declared->requirements);
+                    $this->addRoutes($collection, $this->routes[$key], $controller . '::' . $method->getName(), $declared->methods, $declared->requirements, $declared->defaults);
                 }
             }
         }
@@ -117,10 +118,11 @@ final class WikiRouteLoader extends Loader
      * @param array{path: string, name: string} $route configured path and name
      * @param array<string> $methods
      * @param array<string, mixed> $requirements
+     * @param array<string, mixed> $defaults placeholder defaults of the attribute (1.16: the optional `{path}` of `page_comments`)
      */
-    private function addRoutes(RouteCollection $collection, array $route, string $controller, array $methods, array $requirements): void
+    private function addRoutes(RouteCollection $collection, array $route, string $controller, array $methods, array $requirements, array $defaults = []): void
     {
-        $defaults    = ['_controller' => $controller];
+        $defaults    = ['_controller' => $controller] + $defaults;
         $spaceScoped = WikiTenantPaths::isSpaceScoped($route['path']);
 
         foreach ($this->tenantPaths?->tenants() ?? [] as $tenant) {

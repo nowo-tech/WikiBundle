@@ -2,13 +2,13 @@
 
 **Feature Branch**: `002-comments`  
 **Created**: 2026-11-03  
-**Status**: Draft (built after 1.15; Beacon contract v1.1 OK'd on 2026-11-03)  
+**Status**: Implemented for 1.16.0 (Beacon contract v1.1 OK'd on 2026-11-03, avatar and search addenda 2026-11-04)  
 **Input**: Owner request via Beacon: page comments and Milkdown 1.6 inline threads in a right-side panel, toggled from
 the page tabs on the read and edit views.
 
 **Related docs**: [`docs/ROADMAP.md` › Inline and page comments](../../docs/ROADMAP.md#inline-and-page-comments-t064),
 Milkdown 1.6 comments contract (anchor v1, thread component, endpoints), Beacon contract
-(`.uic-work/wiki-1.16/CONTRACT.md`, copied to `docs/` with the PR).
+([`docs/COMMENTS-CONTRACT.md`](../../docs/COMMENTS-CONTRACT.md)).
 
 ---
 

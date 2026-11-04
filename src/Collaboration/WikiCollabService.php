@@ -162,9 +162,11 @@ final readonly class WikiCollabService
     /**
      * `POST <url>/token`: drops a stale log, claims the seeding of an empty log and authorizes the subscription.
      *
+     * @param list<string> $extraTopics 1.16: more topics of the same grant (the comments topic for viewers with ViewComments)
+     *
      * @throws WikiCollabException when rate-limited
      */
-    public function token(Request $request, WikiPage $page, UserInterface $user): void
+    public function token(Request $request, WikiPage $page, UserInterface $user, array $extraTopics = []): void
     {
         $this->limit($page, $user);
         $id      = $page->getId();
@@ -179,6 +181,12 @@ final readonly class WikiCollabService
             $this->store->claimSeed($id, $this->staleBefore(), $this->claimant($request, $user));
         }
 
+        // 1.16: the page's private comments topic rides on the same grant (one cookie), when the caller adds it.
+        if ($extraTopics !== [] && $this->authorizer instanceof WikiCollabTopicsAuthorizerInterface) {
+            $this->authorizer->authorizeTopics($request, [$this->topic($page), ...$extraTopics]);
+
+            return;
+        }
         $this->authorizer->authorize($request, $this->topic($page));
     }
 

@@ -125,7 +125,7 @@ final class WikiMarkdownStorageTest extends TestCase
         $this->service->create($this->space, 'Odd', 'x', $this->user, null, null, 'rtf');
     }
 
-    public function testSearchReadsTheMarkdownSourceOfMarkdownRevisions(): void
+    public function testSearchReadsThePlainTextOfEveryRevision(): void
     {
         $this->service->create($this->space, 'Markdown page', 'Rotate the **keys** monthly.', $this->user, null, null, WikiPageRevision::FORMAT_MARKDOWN);
         $this->service->create($this->space, 'Html page', '<p>Rotate the <strong>keys</strong> yearly.</p>', $this->user);
@@ -135,8 +135,11 @@ final class WikiMarkdownStorageTest extends TestCase
         $space  = $this->em->find(WikiSpace::class, $this->space->getId());
         self::assertInstanceOf(WikiSpace::class, $space);
 
-        self::assertSame(['Markdown page'], $this->titles($search->search($space, '**keys**')));
-        self::assertSame(['Html page'], $this->titles($search->search($space, '<strong>keys')));
+        // 1.16: the plain text is searched, so Markdown and HTML punctuation are never matched.
+        self::assertSame([], $this->titles($search->search($space, '**keys**')));
+        self::assertSame([], $this->titles($search->search($space, '<strong>keys')));
+        self::assertSame(['Markdown page'], $this->titles($search->search($space, 'keys monthly')));
+        self::assertSame(['Html page'], $this->titles($search->search($space, 'keys yearly')));
         self::assertSame(['Html page', 'Markdown page'], $this->titles($search->search($space, 'Rotate')));
     }
 

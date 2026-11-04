@@ -23,7 +23,7 @@ describe('wiki page tree', () => {
 
     it('ignores trees without a current page and elements without scrollIntoView', () => {
         document.body.innerHTML = '<ul data-wiki-tree><li><a href="/a" aria-current="page">A</a></li></ul>';
-        const current = document.querySelector('[aria-current="page"]') as HTMLElement & { scrollIntoView?: unknown };
+        const current = document.querySelector('[aria-current="page"]') as unknown as { scrollIntoView?: unknown };
         current.scrollIntoView = undefined;
 
         expect(() => initWikiTrees()).not.toThrow();

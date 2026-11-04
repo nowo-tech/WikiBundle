@@ -1,0 +1,7 @@
+{#
+  1.16: the page as a read-only Milkdown editor (nowo_milkdown_view(), Milkdown >= 1.6) for viewers with
+  WikiAction::ViewComments: it carries the comment highlights and the thread component that mounts into the comments
+  panel. Hidden until the editor is ready (wiki.js then hides the server-rendered body); a separate template so pages
+  without Milkdown never compile the function. Variables: comments_view ({markdown, options}).
+#}
+<div class="nowo-wiki-comments-view" data-nowo-wiki-comments-view data-testid="wiki-comments-view" hidden>{{ nowo_milkdown_view(comments_view.markdown, comments_view.options) }}</div>

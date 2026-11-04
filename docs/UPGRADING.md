@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [To 1.16.0](#to-1160)
 - [To 1.15.1](#to-1151)
 - [To 1.15.0](#to-1150)
 - [To 1.14.1](#to-1141)
@@ -57,6 +58,79 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+### To 1.16.0
+
+From **1.15.1**:
+
+```bash
+composer require nowo-tech/ui-kit-bundle:^2.26 nowo-tech/wiki-bundle:^1.16
+```
+
+**Always (no switch):**
+
+- **The read and edit views have a tab row** (*Page* / *Edit* / *History*) under the title (B-Q1). If you override
+  `page_view.html.twig` or `page_edit.html.twig`, compare them with the bundle's: both now fill
+  `nowo_ui_page_header` (the UiKit header without its tabs, then `manage/_page_tabs.html.twig`) and, with comments,
+  `nowo_ui_content`. The header actions (Edit, History…) are unchanged. New strings `wiki.tabs.*`.
+- **Search matches plain text.** `<prefix>_page_revisions` gains a nullable `content_text` column (public API: filter
+  on it in SQL instead of `content_markdown`). Generate the migration, run it, then fill the column once:
+
+  ```bash
+  bin/console doctrine:migrations:diff && bin/console doctrine:migrations:migrate
+  bin/console wiki:search:backfill-text          # --dry-run to count, --batch-size=500, --all to recompute
+  ```
+
+  Until a revision is backfilled it is matched the 1.15 way (its Markdown or HTML). Searching for Markdown
+  punctuation or tags (`**bold**`, `<strong>`) or for directive attributes (`bulb`, `type="info"`) no longer finds
+  pages. Hosts with their own `LIKE` on `content_markdown` (Beacon's `WikiPageSearchProvider`) should switch to
+  `content_text`; `Nowo\WikiBundle\Search\WikiPlainText::fromMarkdown()` reduces Markdown the same way.
+- **Avatars.** Alias `Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface` to your service to show pictures
+  (history authors, comment authors). URLs must be `https://` without userinfo or a same-origin path starting with
+  one `/`, stable and access-checked when fetched (the UiKit avatar URL policy drops anything else). Pictures appear
+  only where the real name is shown (`history.show_names: true` and a name that passes `isSafeName()`); otherwise the
+  resolver is never called. If you override `page_history.html.twig`, the rows gain `author_named` / `author_avatar`.
+- UiKit `^2.26` is required (side panel, avatar partial and URL policy).
+
+**Comments (opt-in, `nowo_wiki.comments.enabled: true`, a literal boolean):**
+
+- Needs `editor.type: milkdown` and `nowo-tech/milkdown-editor-bundle` `^1.6` (the container refuses to build
+  otherwise), and a rate limiter:
+
+  ```yaml
+  framework:
+      rate_limiter:
+          wiki_comments: { policy: sliding_window, limit: 60, interval: '1 minute' }
+  nowo_wiki:
+      comments:
+          enabled: true
+          rate_limiter: limiter.wiki_comments
+          # state_store: app.wiki_panel_state   # a WikiPanelStateStoreInterface (default: the session)
+          # shortcut: 'Alt+Shift+C'              # none by default
+  ```
+
+- **Schema:** three tables, `<prefix>_comment_threads`, `<prefix>_comments` and `<prefix>_comment_reactions`
+  (`doctrine:migrations:diff` picks them up; they are not in the schema while comments are off).
+- **Routes:** two route keys, `page_comments` (`…/pages/{pageSlug}/comments/{path}`; a custom path must keep the
+  trailing `/{path}`) and `space_panel_state` (`…/spaces/{spaceSlug}/panel-state`). Put them behind the same firewall
+  and access rules as the other wiki routes.
+- **Rights (default deny):** nobody comments until your `WikiSpaceAccessCheckerInterface` grants
+  `WikiAction::ViewComments` (see the toggle, the panel, the threads), `Comment` (start, reply, react; edit / delete
+  own), `ResolveComment` and `ModerateComments`. The 1.x legacy mapping denies all four, and `WikiSpaceGuard::grants()`
+  never asks for them, so an existing checker is not asked until you turn comments on.
+- **Read view of commenters:** viewers with `ViewComments` get the page as a read-only Milkdown editor (it carries the
+  highlights and the thread component), so their responses include the page's Markdown source (like the editor) and
+  are sent `Cache-Control: private, no-store`. Map `ViewComments` only to people who may see the source.
+- **Live updates** need co-editing: the thread component listens on `<collab topic>/comments`, granted in the
+  co-editing subscriber cookie. A custom `collaboration.subscriber_authorizer` must implement
+  `WikiCollabTopicsAuthorizerInterface` to grant both topics (otherwise comments refresh on the viewer's own actions
+  only).
+- **Notifications:** listen to `nowo_wiki.comment.*` (`WikiCommentEvent`); render a body for a recipient with
+  `WikiCommentService::renderBody()` and check their `ViewComments` right first.
+- **CSP:** the panel needs UiKit's `js/nowo-ui-side-panel.js` (loaded by the wiki pages that show the panel) and the
+  Milkdown module; no inline style or handler. Avatar origins must be in `img-src`.
+- New strings `wiki.comments.*`; new templates `manage/_page_tabs.html.twig`, `_comments_panel.html.twig`,
+  `_comments_panel_body.html.twig`, `_comments_view.html.twig`.
 
 ## To 1.15.1
 

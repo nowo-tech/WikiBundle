@@ -17,8 +17,15 @@ class TestUserEntity implements UserInterface
     public function __construct(
         #[ORM\Id]
         #[ORM\Column(type: 'string', length: 36)]
-        private string $id = 'user-1'
+        private string $id = 'user-1',
+        /** 1.16: an unmapped display name (author labels and avatars under history.show_names). */
+        private ?string $displayName = null,
     ) {
+    }
+
+    public function getDisplayName(): ?string
+    {
+        return $this->displayName;
     }
 
     public function getId(): string

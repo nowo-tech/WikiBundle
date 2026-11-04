@@ -53,4 +53,22 @@ final class WikiEvents
 
     /** {@see WikiAttachmentEvent}: an attachment was deleted (1.9). */
     public const ATTACHMENT_DELETED = 'nowo_wiki.attachment.deleted';
+
+    /** 1.16: a thread was started (inline or page-level). {@see WikiCommentEvent} */
+    public const COMMENT_CREATED = 'nowo_wiki.comment.created';
+
+    /** 1.16: a reply was added to a thread. {@see WikiCommentEvent} */
+    public const COMMENT_REPLIED = 'nowo_wiki.comment.replied';
+
+    /** 1.16: a comment body was edited. {@see WikiCommentEvent} */
+    public const COMMENT_EDITED = 'nowo_wiki.comment.edited';
+
+    /** 1.16: a comment (or its whole thread) was deleted. {@see WikiCommentEvent} */
+    public const COMMENT_DELETED = 'nowo_wiki.comment.deleted';
+
+    /** 1.16: a thread was resolved. {@see WikiCommentEvent} */
+    public const COMMENT_RESOLVED = 'nowo_wiki.comment.resolved';
+
+    /** 1.16: a resolved thread was reopened. {@see WikiCommentEvent} */
+    public const COMMENT_REOPENED = 'nowo_wiki.comment.reopened';
 }

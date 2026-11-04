@@ -102,8 +102,8 @@ final readonly class WikiSpaceGuard
     {
         $grants = [];
         foreach (WikiAction::cases() as $action) {
-            // The trash actions are asked one by one, only with the trash enabled (1.14).
-            if (in_array($action, WikiAction::trashActions(), true)) {
+            // The trash actions (1.14) and the comment actions (1.16) are asked one by one, only with their feature on.
+            if (in_array($action, WikiAction::trashActions(), true) || in_array($action, WikiAction::commentActions(), true)) {
                 continue;
             }
             $grants[$action->value] = $this->checker->isGranted($user, $action, $space, $page);

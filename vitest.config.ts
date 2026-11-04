@@ -8,7 +8,7 @@ export default defineConfig({
             provider: 'v8',
             reporter: ['text', 'text-summary', 'html'],
             reportsDirectory: 'coverage-ts',
-            include: ['src/Resources/assets/src/wiki.ts'],
+            include: ['src/Resources/assets/src/wiki.ts', 'src/Resources/assets/src/wiki-comments.ts'],
             exclude: ['**/*.test.ts', '**/node_modules/**'],
             // REQ-TEST-003: fail the run (non-zero exit) when TS coverage drops below 100%.
             thresholds: {

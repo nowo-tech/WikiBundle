@@ -6,6 +6,7 @@
 - [Threats and mitigations](#threats-and-mitigations)
 - [Access control](#access-control)
 - [Content safety](#content-safety)
+- [Comments threat model (1.16)](#comments-threat-model-116)
 - [Secrets and cryptography](#secrets-and-cryptography)
 - [Logging](#logging)
 - [Limits and DoS](#limits-and-dos)
@@ -148,6 +149,21 @@ either (audit DJ-I2).
 | Identity | Co-editors see an opaque "Editor xxxx" label and a colour from an HMAC (`kernel.secret`) of the page id and the identifier (1.13.1 default): stable on a page, not linkable across pages, not reversible against a user directory (DA-L2). With `collaboration.show_names: true` they see each other's display name only when it is made of Latin letters (Basic, Latin-1, Extended-A / B), digits, spaces and common punctuation, has no format / bidi control and no `@`, and — lower-cased, accents transliterated, separators removed — neither equals nor contains the login or its e-mail local part; otherwise the opaque label is shown (CW-I2, DA-L3). Leet variants (`al0pez`) are not detected. The label key is a subkey of `kernel.secret` (`hash_hmac('sha256', 'nowo_wiki_collab_label', secret)`); an empty secret is refused (DA-I5). |
 | Mercure claims | Never put `mercure` (or `authorization_details`) keys in the hub's default JWT claims: symfony/mercure merges them into the wiki cookie, and a default `subscribe: ['*']` would replace the page topic (CW-I12). |
 | Hub | Needs private updates, cookie authorization (the hub on the app's registrable domain, `SameSite`), no anonymous subscribers for these topics, TLS. FrankenPHP's built-in Mercure works. |
+
+## Comments threat model (1.16)
+
+| Question | Answer |
+|----------|--------|
+| Who can read? | Viewers with `WikiAction::ViewComments` on a page they may read with every ancestor (1.13.2 rule): 404 otherwise, 403 without the right. The toggle, the count and the panel are not rendered for others. Default deny: the 1.x legacy mapping grants no comment right and `grants()` never asks for them. |
+| Who can write? | `Comment` (start, reply, react, refresh an anchor; edit / delete own), `ResolveComment`, `ModerateComments` (edit / delete any). Every endpoint checks again; the `can` flags in the HTML and the JSON are hints. |
+| CSRF | Writes must be same-origin (`Origin`, else `Sec-Fetch-Site`) and carry `X-CSRF-Token` (token id per page); the no-JavaScript form posts `_token`; the panel state endpoint has a token per space. JSON bodies need `Content-Type: application/json` (415). |
+| Input | Bodies ≤ 16 KiB (413), JSON depth ≤ 16; comment Markdown 1–10 000 characters, valid UTF-8, no NUL; anchors validated with Milkdown's `CommentAnchor` (unknown keys dropped, caps, ≤ 16 KiB) and stored normalised; ids `^[A-Za-z0-9_-]{1,64}$`; reaction emoji ≤ 16 bytes of pictographs / modifiers only. |
+| Output | Bodies are rendered per viewer with the page's Milkdown renderer (raw HTML escaped, unsafe links dropped, page links and mentions resolved for the viewer) and sanitized; the thread component copies an allow-list of that HTML with DOM APIs. The no-JavaScript list prints it through `nowo_wiki_safe_html`, inside the panel's `content_template` (never the side panel's raw `content`, UiKit audit DU-I1). Quotes are text. |
+| Rate | `comments.rate_limiter` on every write (required). |
+| Names and pictures | Authors follow the history policy (opaque per-page "Editor xxxx" unless `history.show_names` and a safe name). A picture URL is resolved only for an author shown under a real name, sanitized by the UiKit avatar URL policy (https without userinfo, or a same-origin path) and rendered with `referrerpolicy="same-origin"`. |
+| Live updates | With co-editing only: private Mercure topic `<collab topic>/comments`, granted with the co-editing topic in one subscriber cookie to viewers with `ViewComments`; messages carry thread ids, never bodies. |
+| Read-only mount | Viewers with `ViewComments` receive the page Markdown (the read-only editor needs it), like editors do: page ids of linked pages and directive arguments are visible in the source. Responses are `Cache-Control: private, no-store`. Map `ViewComments` to people who may see the source. |
+| Storage | Threads, comments and reactions are deleted with their page (FK cascade, plus explicit deletes); a user's deletion keeps their comments without an author (`SET NULL`) and drops their reactions. Comments are not in exports, AI context or search. |
 
 ## Secrets and cryptography
 

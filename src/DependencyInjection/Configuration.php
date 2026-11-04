@@ -19,6 +19,7 @@ use function class_exists;
 use function implode;
 use function is_array;
 use function is_string;
+use function preg_match;
 use function sprintf;
 
 /**
@@ -219,6 +220,23 @@ final class Configuration implements ConfigurationInterface
                     ->children()
                         ->booleanNode('enabled')->defaultFalse()->end()
                         ->integerNode('retention_days')->info('Days a deletion stays in the trash; wiki:trash:purge removes older ones (D-W4).')->min(1)->max(3650)->defaultValue(30)->end()
+                    ->end()
+                ->end()
+                ->arrayNode('comments')
+                    ->info('1.16: comments of a page (Milkdown 1.6 inline threads and page-level comments) in a right-side panel toggled from the page tabs. Needs editor.type milkdown and nowo-tech/milkdown-editor-bundle >= 1.6. Off: no toggle, no panel, no route, no comment table in the schema. Rights: WikiAction::ViewComments, Comment, ResolveComment, ModerateComments (granted only by a host access checker).')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')->defaultFalse()->end()
+                        ->scalarNode('rate_limiter')->info('Service id of a Symfony RateLimiterFactory applied per user and page to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled.')->defaultNull()->end()
+                        ->scalarNode('state_store')->info('Service id of a WikiPanelStateStoreInterface keeping the open / closed state of the panel per user (null: the session).')->defaultNull()->end()
+                        ->scalarNode('shortcut')
+                            ->info('Keyboard shortcut of the comments toggle, e.g. "Alt+Shift+C" (exposed as aria-keyshortcuts); null: none.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && (!is_string($value) || preg_match('/^(?:(?:Control|Alt|Shift|Meta)\+){1,3}[A-Za-z0-9]$/D', $value) !== 1))
+                                ->thenInvalid('nowo_wiki.comments.shortcut must be modifiers and one key, e.g. "Alt+Shift+C", got %s.')
+                            ->end()
+                        ->end()
                     ->end()
                 ->end()
                 ->arrayNode('sanitizer')
@@ -529,6 +547,14 @@ final class Configuration implements ConfigurationInterface
                         ->arrayNode('space_tree')->addDefaultsIfNotSet()->children()
                             ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/tree/{action}')->end()
                             ->scalarNode('name')->defaultValue('nowo_wiki_space_tree')->end()
+                        ->end()->end()
+                        ->arrayNode('page_comments')->addDefaultsIfNotSet()->children()
+                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}')->end()
+                            ->scalarNode('name')->defaultValue('nowo_wiki_page_comments')->end()
+                        ->end()->end()
+                        ->arrayNode('space_panel_state')->addDefaultsIfNotSet()->children()
+                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/panel-state')->end()
+                            ->scalarNode('name')->defaultValue('nowo_wiki_space_panel_state')->end()
                         ->end()->end()
                         ->arrayNode('page_collab')->addDefaultsIfNotSet()->children()
                             ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}')->end()

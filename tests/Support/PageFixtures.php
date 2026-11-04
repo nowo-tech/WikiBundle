@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Form\WikiAiAskType;
+use Nowo\WikiBundle\Form\WikiCommentType;
 use Nowo\WikiBundle\Form\WikiImportType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
 use Nowo\WikiBundle\Form\WikiPostActionType;
@@ -98,7 +99,7 @@ final class PageFixtures
     /**
      * @return array<string, mixed>
      */
-    public static function pageView(bool $full = true, ?WikiPageFactory $factory = null): array
+    public static function pageView(bool $full = true, ?WikiPageFactory $factory = null, ?bool $commentsOpen = null): array
     {
         $factory ??= self::factory();
         $space    = self::space('engineering', 'Engineering');
@@ -119,13 +120,58 @@ final class PageFixtures
             'can_history'      => $full,
             'can_archive'      => $full,
             'permissions'      => [],
-        ]);
+        ] + ($commentsOpen === null ? [] : [
+            'comments'      => self::comments($page, $commentsOpen),
+            'comments_view' => ['markdown' => '## Deploy', 'options' => ['features' => ['comments']]],
+        ]));
+    }
+
+    /**
+     * 1.16: the comments panel of a page (WikiCommentsPanel::panel()): open with one page-level thread (a deleted
+     * comment, a named author with a picture, an opaque one) and the no-JavaScript form; closed with nothing loaded.
+     *
+     * @return array<string, mixed>
+     */
+    public static function comments(WikiPage $page, bool $open): array
+    {
+        $comment = static fn (string $id, string $name, ?string $avatar, string $html, bool $deleted = false): array => [
+            'id'        => $id,
+            'author'    => ['name' => $name, 'avatarUrl' => $avatar],
+            'html'      => $html,
+            'createdAt' => '2026-11-04T10:00:00+00:00',
+            'editedAt'  => null,
+            'reactions' => [],
+            'can'       => ['edit' => false, 'delete' => false],
+        ] + ($deleted ? ['deleted' => true] : []);
+
+        return [
+            'id'           => 'nowo-wiki-comments',
+            'open'         => $open,
+            'count'        => $open ? 2 : 0,
+            'shortcut'     => $open ? 'Alt+Shift+C' : null,
+            'toggle_href'  => '/p?comments=' . ($open ? '0' : '1'),
+            'close_href'   => '/p?comments=0',
+            'comments_url' => '/p/comments',
+            'csrf_token'   => 'token',
+            'state_url'    => '/s/panel-state',
+            'state_token'  => 'state-token',
+            'can'          => ['view' => true, 'comment' => $open, 'resolve' => false, 'moderate' => false],
+            'page_threads' => $open ? [[
+                'id'       => 't1',
+                'comments' => [
+                    $comment('c1', 'Maria Ruiz', '/files/maria/s64', '<p>Is <strong>this</strong> current?</p><script>alert(1)</script>'),
+                    $comment('c2', 'Editor 3f2a', null, '', true),
+                    $comment('c3', 'Editor 9b1c', null, '<p>Yes.</p>'),
+                ],
+            ]] : [],
+            'form' => $open ? self::formFactory()->createNamed('', WikiCommentType::class, null, ['csrf_token_id' => 'wiki_comments_' . $page->getId(), 'action' => '/p/comments/new'])->createView() : null,
+        ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    public static function pageForm(bool $edit = true, ?WikiPageFactory $factory = null): array
+    public static function pageForm(bool $edit = true, ?WikiPageFactory $factory = null, bool $comments = false): array
     {
         $factory ??= self::factory();
         $space    = self::space('engineering', 'Engineering');
@@ -135,17 +181,18 @@ final class PageFixtures
         ])->createView();
 
         return $factory->context([
-            'page'            => $factory->pageForm($space, $edit ? $page : null, $form),
+            'page'            => $factory->pageForm($space, $edit ? $page : null, $form, null, ['history' => true]),
             'routes'          => self::routes(),
             'dashboard_route' => null,
             'csrf_token_id'   => $edit ? 'wiki_edit_1' : 'wiki_new_1',
+            'comments'        => $comments ? self::comments($page, true) : null,
         ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-    public static function history(bool $empty = false, ?WikiPageFactory $factory = null): array
+    public static function history(bool $empty = false, ?WikiPageFactory $factory = null, bool $timeline = false): array
     {
         $factory ??= self::factory();
         $space     = self::space('engineering', 'Engineering');
@@ -168,6 +215,11 @@ final class PageFixtures
                 $older,
                 $empty ? [] : [2 => self::postForm('wiki_restore_' . $page->getId())],
                 Pagination::fromTotal($empty ? 0 : 3, 1, 2, [2], 2, 'nowo_wiki_page_history', [], ['spaceSlug' => 'engineering', 'pageSlug' => 'deploy']),
+                // 1.16: a named author with a picture, an opaque one without any avatar.
+                $timeline ? [
+                    3 => ['author' => 'Maria Ruiz', 'named' => true, 'avatar' => '/files/maria/s64', 'label' => 'Reviewed', 'saves' => 1],
+                    2 => ['author' => 'Editor 3f2a', 'named' => false, 'avatar' => null, 'label' => null, 'saves' => 1],
+                ] : null,
             ),
             'routes'          => self::routes(),
             'dashboard_route' => null,
@@ -328,6 +380,7 @@ final class PageFixtures
             FormKitTestSupport::withMerger(new WikiSearchType()),
             FormKitTestSupport::withMerger(new WikiAiAskType()),
             FormKitTestSupport::withMerger(new WikiImportType()),
+            FormKitTestSupport::withMerger(new WikiCommentType()),
             new TiptapEditorType(['notion' => ['toolbar' => true, 'min_height' => '200px', 'form_theme' => 'bootstrap_5_layout', 'debug' => false, 'variant' => 'notion', 'theme' => 'light']], 'notion'),
         ];
 

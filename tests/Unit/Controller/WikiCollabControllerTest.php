@@ -7,13 +7,19 @@ namespace Nowo\WikiBundle\Tests\Unit\Controller;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabTopicsAuthorizerInterface;
+use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\History\WikiAuthorLabel;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
+use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
@@ -48,7 +54,7 @@ final class WikiCollabControllerTest extends TestCase
     /** @var list<string> */
     private array $published = [];
 
-    /** @var list<string> */
+    /** @var list<list<string>|string> */
     private array $authorized = [];
 
     protected function setUp(): void
@@ -79,6 +85,22 @@ final class WikiCollabControllerTest extends TestCase
         $invalid = $controller->collab($this->post('{"c":1}'), 'eng', 'runbook', 'update');
         self::assertSame(400, $invalid->getStatusCode());
         self::assertSame('{"error":"invalid_payload"}', $invalid->getContent());
+    }
+
+    public function testViewersOfCommentsAlsoGetTheCommentsTopic(): void
+    {
+        // 1.16: one grant for the co-editing topic and the private comments topic (WikiCollabTopicsAuthorizerInterface).
+        $topic      = 'urn:nowo-wiki:page:' . $this->page->getId();
+        $controller = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit, WikiAction::ViewComments), comments: true, topics: true);
+        $controller->collab($this->post(''), 'eng', 'runbook', 'token');
+        self::assertSame([[$topic, $topic . '/comments']], $this->authorized);
+
+        // Without ViewComments, or with an authorizer that grants one topic: only the co-editing topic.
+        $this->authorized = [];
+        $this->controller(comments: true, topics: true)->collab($this->post(''), 'eng', 'runbook', 'token');
+        $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit, WikiAction::ViewComments), comments: true)->collab($this->post(''), 'eng', 'runbook', 'token');
+        $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit, WikiAction::ViewComments), comments: true, collabTopic: false)->collab($this->post(''), 'eng', 'runbook', 'token');
+        self::assertSame([[$topic], $topic, $topic], $this->authorized);
     }
 
     public function testCorruptReportsAreRelayedAsResets(): void
@@ -242,6 +264,9 @@ final class WikiCollabControllerTest extends TestCase
         ?WikiTokenGuard $guard = null,
         ?WikiAccessCheckerInterface $roles = null,
         array $routes = [],
+        bool $comments = false,
+        bool $topics = false,
+        bool $collabTopic = true,
     ): WikiCollabController {
         $pages = $this->createStub(WikiPageRepositoryInterface::class);
         $pages->method('findBySlug')->willReturnCallback(fn (WikiSpace $space, string $slug): ?WikiPage => ['runbook' => $this->page, 'old' => $this->archived][$slug] ?? null);
@@ -273,13 +298,34 @@ final class WikiCollabControllerTest extends TestCase
             }
         };
 
+        if ($topics) {
+            $authorizer = new class($this->authorized) implements WikiCollabTopicsAuthorizerInterface {
+                /** @param list<list<string>|string> $authorized */
+                public function __construct(private array &$authorized)
+                {
+                }
+
+                public function authorize(Request $request, string $topic): void
+                {
+                    $this->authorized[] = [$topic];
+                }
+
+                public function authorizeTopics(Request $request, array $topics): void
+                {
+                    $this->authorized[] = $topics;
+                }
+            };
+        }
+        $spaceGuard = new WikiSpaceGuard(new FixedSpaceLocator($this->space), $checker ?? CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit));
+        $collab     = new WikiCollabService(new InMemoryCollabStateStore(), $publisher, $authorizer, secret: 'test-secret');
         $controller = new WikiCollabController(
-            new WikiSpaceGuard(new FixedSpaceLocator($this->space), $checker ?? CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit)),
+            $spaceGuard,
             $pages,
             $roles,
-            $enabled ? new WikiCollabService(new InMemoryCollabStateStore(), $publisher, $authorizer, secret: 'test-secret') : null,
+            $enabled ? $collab : null,
             $guard,
             $routes,
+            $comments ? new WikiCommentService($this->createStub(WikiCommentRepositoryInterface::class), $spaceGuard, new WikiAuthorLabel('s'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), collab: $collabTopic ? $collab : null) : null,
         );
         WikiControllerContainerBuilder::bind($controller, $user ? new TestUser() : null);
 

@@ -629,7 +629,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         }>,
  *     },
  *     rate_limiter?: bool|array{ // Rate limiter configuration
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *         limiters?: array<string, array{ // Default: []
  *             lock_factory?: scalar|Param|null, // The service ID of the lock factory used by this limiter (or null to disable locking). // Default: "auto"
  *             cache_pool?: scalar|Param|null, // The cache pool to use for storing the current limiter state. // Default: "cache.rate_limiter"
@@ -1322,13 +1322,17 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * }
  * @psalm-type NowoMilkdownEditorConfig = array{
  *     default_profile?: scalar|Param|null, // Profile used when a form field does not set the `profile` option. // Default: "default"
- *     profiles?: array<string, array{ // Default: {"default":{"features":["toolbar","link_tooltip","table","code_mirror","placeholder","cursor","slash_menu"],"theme":"auto","min_height":"12rem","icon_sprite_url":null,"icons":[],"upload_max_size":10485760,"upload_accept":[]}}
+ *     profiles?: array<string, array{ // Default: {"default":{"features":["toolbar","link_tooltip","table","code_mirror","placeholder","cursor","slash_menu"],"theme":"auto","min_height":"12rem","icon_sprite_url":null,"icons":[],"icon_catalog":false,"toolbar_icons":true,"menu_icons":true,"upload_max_size":10485760,"mention_display":"handle","upload_accept":[]}}
  *         features?: list<scalar|Param|null>,
  *         theme?: "light"|"dark"|"auto"|Param, // Default: "auto"
  *         min_height?: scalar|Param|null, // Default: "12rem"
  *         icon_sprite_url?: scalar|Param|null, // URL of the SVG sprite with <symbol id="tabler-NAME"> icons (null: icons render as text). // Default: null
  *         icons?: list<scalar|Param|null>,
+ *         icon_catalog?: bool|Param, // 1.7: the bundled Tabler outline catalog (5,000+ icons, MIT) in the icon picker and the `:` list; allowlisted icons keep their sprite. // Default: false
+ *         toolbar_icons?: bool|Param, // 1.7: decorative icons before the labels of the action bar buttons. // Default: true
+ *         menu_icons?: bool|Param, // 1.7: decorative icons before the labels of the context menu, block menu and `/` menu items. // Default: true
  *         upload_max_size?: int|Param, // Largest upload in bytes (0: no client-side limit). // Default: 10485760
+ *         mention_display?: "handle"|"name"|Param, // Mention chips show the @handle (default) or the person's name (1.2.1; names from the `@` suggestions and `user_title_url`). // Default: "handle"
  *         upload_accept?: list<scalar|Param|null>,
  *     }>,
  *     markdown?: array{ // The PHP renderer of the dialect (`milkdown_markdown` Twig filter, MilkdownMarkdownRenderer service).
@@ -1336,12 +1340,17 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         allow_unsafe_links?: bool|Param, // Keep javascript:, vbscript:, file: and data: links (never recommended). // Default: false
  *         allow_remote_images?: bool|Param, // Render images from other hosts; when false they become plain links. // Default: false
  *         math?: bool|Param, // Parse $inline$ and $$block$$ math (rendered client-side with KaTeX). // Default: true
+ *         mention_display?: "handle"|"name"|Param, // Rendered mentions show the @handle (default) or the resolved name, the handle kept in data-handle and title (1.2.1). // Default: "handle"
+ *         heading_ids?: bool|Param, // Give headings ids (`nowo-h-<slug>`, the same slugs as the editor feature `heading_ids`) for links, the TOC and comment hints (1.6). // Default: false
+ *         footnotes?: bool|Param, // Render GFM footnotes ([^1] references and [^1]: definitions), as the editor writes them. // Default: true
+ *         max_footnote_refs?: int|Param, // More footnote references in one document render as literal [^label] text (each one expands to two links). // Default: 200
  *         max_nesting_level?: int|Param, // Default: 50
  *         max_input_length?: int|Param, // Longer input (bytes) is rendered as escaped plain text; also the default max length of MilkdownEditorType. // Default: 100000
  *         max_inline_markers?: int|Param, // Input with more inline delimiter characters ([ ] * _ ` ! < & @ : $ ~ | \) and line feeds is rendered as escaped plain text. // Default: 10000
  *         max_references?: int|Param, // Distinct page ids and mention handles sent to each resolver per document; later ones render as not visible / plain text. // Default: 500
  *         icon_sprite_url?: scalar|Param|null, // Sprite URL for :tabler-NAME: icons in rendered HTML. // Default: null
  *         icons?: list<scalar|Param|null>,
+ *         icon_catalog?: bool|Param, // 1.7: also render any icon of the bundled Tabler outline catalog (sprite shards under /bundles/nowomilkdowneditor/icons/). // Default: false
  *         mark_colors?: list<scalar|Param|null>,
  *     },
  * }
@@ -1386,12 +1395,35 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         corrupt_resets?: int|Param, // Resets a client may trigger by reporting a log it cannot apply, per page and corrupt_window. // Default: 3
  *         corrupt_window?: int|Param, // Window of corrupt_resets, in seconds. // Default: 600
  *         rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user and page to every collaboration request (token, state, update, awareness, compact). Required when collaboration is enabled. // Default: null
+ *         update_rate_limiter?: scalar|Param|null, // 1.14.1: service id of a RateLimiterFactory applied per user and page to update requests instead of rate_limiter (e.g. limiter.wiki_collab_update; null: rate_limiter). // Default: null
+ *         awareness_rate_limiter?: scalar|Param|null, // 1.14.1: service id of a RateLimiterFactory applied per user and page to presence (awareness) requests instead of rate_limiter (e.g. limiter.wiki_collab_awareness; null: rate_limiter). // Default: null
  *         user_rate_limiter?: scalar|Param|null, // 1.13.1 (CW-I9): service id of a Symfony RateLimiterFactory applied per user across all pages to every collaboration request (null: none). // Default: null
  *         show_names?: bool|Param, // 1.13.1 (CW-I2): co-editors see each other's display name (getDisplayName() / getName()) instead of an opaque "Editor xxxx". Values that equal the login identifier or look like an e-mail address are never shown. // Default: false
  *         store?: scalar|Param|null, // Service id of a WikiCollabStateStoreInterface (null: the Doctrine store, tables <prefix>_page_collab_*). // Default: null
  *         publisher?: scalar|Param|null, // Service id of a WikiCollabPublisherInterface (null: symfony/mercure HubInterface). // Default: null
  *         subscriber_authorizer?: scalar|Param|null, // Service id of a WikiCollabSubscriberAuthorizerInterface (null: symfony/mercure Authorization cookie). // Default: null
  *         mercure_hub?: scalar|Param|null, // Mercure hub name for the default publisher / authorizer (null: the default hub). // Default: null
+ *     },
+ *     tree?: array{ // 1.14: Outline-style page tree in the sidebar (UiKit tree, nowo-tech/ui-kit-bundle >= 2.24): disclosures, current branch unfolded, fold state per user and space, moves by drag and drop, Alt+arrows and a "Move" form. Off: the 1.13 nested list.
+ *         enabled?: bool|Param, // Default: false
+ *         max_depth?: int|Param, // Deepest level of a page after a move (root pages are level 1). // Default: 10
+ *         state_store?: scalar|Param|null, // Service id of a WikiTreeStateStoreInterface keeping the fold state (null: the session). // Default: null
+ *     },
+ *     history?: array{ // 1.15: the history timeline — sessions, author labels, named versions (Save version) and Copy to new page. Off: the 1.14 revision list, no named-version table in the schema.
+ *         timeline?: bool|Param, // Default: false
+ *         session_minutes?: int|Param, // Saves by the same author less than this many minutes apart form one session. // Default: 30
+ *         show_names?: bool|Param, // Show display names of authors (only names that say nothing about the login), else an opaque "Editor xxxx" per page, as co-editing. // Default: false
+ *         retention_days?: int|Param, // Revisions older than this are thinned by wiki:history:thin to one per session and day; named versions and the current revision are kept (D-W6). // Default: 30
+ *     },
+ *     trash?: array{ // 1.14 (T065): Delete moves a page and its sub-pages to the trash of the space (restore together, purge for good, retention). Off: no Delete action, no trash table in the schema.
+ *         enabled?: bool|Param, // Default: false
+ *         retention_days?: int|Param, // Days a deletion stays in the trash; wiki:trash:purge removes older ones (D-W4). // Default: 30
+ *     },
+ *     comments?: array{ // 1.16: comments of a page (Milkdown 1.6 inline threads and page-level comments) in a right-side panel toggled from the page tabs. Needs editor.type milkdown and nowo-tech/milkdown-editor-bundle >= 1.6. Off: no toggle, no panel, no route, no comment table in the schema. Rights: WikiAction::ViewComments, Comment, ResolveComment, ModerateComments (granted only by a host access checker).
+ *         enabled?: bool|Param, // Default: false
+ *         rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user and page to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled. // Default: null
+ *         state_store?: scalar|Param|null, // Service id of a WikiPanelStateStoreInterface keeping the open / closed state of the panel per user (null: the session). // Default: null
+ *         shortcut?: scalar|Param|null, // Keyboard shortcut of the comments toggle, e.g. "Alt+Shift+C" (exposed as aria-keyshortcuts); null: none. // Default: null
  *     },
  *     sanitizer?: array{ // 1.11: extra HTML allowed in page bodies (e.g. the <details> / <summary> or data-* attributes of a Markdown dialect). script, style, iframe, forms, embeds, style= and on* handlers are always refused.
  *         extra_allowed_elements?: array<string, list<scalar|Param|null>>,
@@ -1403,6 +1435,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         markdown_form_type?: scalar|Param|null, // 1.11: FQCN of the form type of the page body when type is markdown (e.g. a Markdown editor bundle type); null = a plain textarea. It receives the editor options (WikiEvents::EDITOR_OPTIONS). // Default: null
  *         milkdown?: array{ // 1.13: options of editor.type milkdown.
  *             page_resolver?: scalar|Param|null, // Service id of the Nowo\MilkdownEditorBundle\Markdown\Resolver\PageResolverInterface that resolves [[wiki:<uuid>]] links for the viewer in wiki pages; null = the bundle resolver (wiki pages the viewer may read, page_view URLs). // Default: null
+ *             copy_markdown?: bool|Param, // 1.15: a "Copy as Markdown" button on the page view, for users who may edit the page only (the raw source holds page ids and directive attributes). Needs nowo-tech/milkdown-editor-bundle >= 1.5. // Default: false
  *         },
  *     },
  *     security?: array{
@@ -1513,6 +1546,46 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/attachments/{attachmentId}"
  *             name?: scalar|Param|null, // Default: "nowo_wiki_attachment_download"
  *         },
+ *         page_version_save?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/versions/new"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_version_save"
+ *         },
+ *         page_version_copy?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/copy"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_version_copy"
+ *         },
+ *         page_delete?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/delete"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_delete"
+ *         },
+ *         space_trash?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/trash"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_space_trash"
+ *         },
+ *         trash_restore?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/trash/{batchId}/restore"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_trash_restore"
+ *         },
+ *         trash_purge?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/trash/{batchId}/purge"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_trash_purge"
+ *         },
+ *         page_move?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/move"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_move"
+ *         },
+ *         space_tree?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/tree/{action}"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_space_tree"
+ *         },
+ *         page_comments?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_comments"
+ *         },
+ *         space_panel_state?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/panel-state"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_space_panel_state"
+ *         },
  *         page_collab?: array{
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}"
  *             name?: scalar|Param|null, // Default: "nowo_wiki_page_collab"
@@ -1542,6 +1615,10 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             page_diff?: scalar|Param|null, // Default: null
  *             search?: scalar|Param|null, // Default: null
  *             ai_ask?: scalar|Param|null, // Default: null
+ *             page_move?: scalar|Param|null, // Default: null
+ *             trash?: scalar|Param|null, // Default: null
+ *             page_version?: scalar|Param|null, // Default: null
+ *             trash_purge?: scalar|Param|null, // Default: null
  *         },
  *         css_framework?: null|"bootstrap"|"bootstrap4"|"bootstrap5"|"tabler"|"tailwind"|"foundation"|"custom"|"none"|Param, // Deprecated: The "nowo_wiki.web_ui.css_framework.css_framework" option is deprecated: set nowo_ui_kit.css_framework once for every bundle. It only seeds nowo_ui_kit.css_framework when the host leaves it unset. // Deprecated since 1.10: set nowo_ui_kit.css_framework once for every bundle. Only seeds nowo_ui_kit.css_framework (and icon_set) when the host leaves them unset. // Default: null
  *     },

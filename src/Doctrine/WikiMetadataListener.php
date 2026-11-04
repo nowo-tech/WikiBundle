@@ -10,6 +10,9 @@ use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Entity\WikiCollabUpdate;
+use Nowo\WikiBundle\Entity\WikiComment;
+use Nowo\WikiBundle\Entity\WikiCommentReaction;
+use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -18,6 +21,8 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
 
 use function array_replace_recursive;
+use function array_reverse;
+use function array_values;
 use function ltrim;
 
 /**
@@ -41,6 +46,9 @@ final readonly class WikiMetadataListener
      * @param bool $trashEnabled false: the trash table is left out of the generated schema (1.14)
      * @param string $revisionLabelsTableName table name for the named versions (1.15)
      * @param bool $historyTimeline false: the named-version table is left out of the generated schema (1.15)
+     * @param string $commentTablePrefix prefix of the three comment tables `<prefix>_comment_threads`, `_comments`,
+     *                                   `_comment_reactions` (1.16)
+     * @param bool $commentsEnabled false: the comment tables are left out of the generated schema (1.16)
      */
     public function __construct(
         private string $spacesTableName,
@@ -56,6 +64,8 @@ final readonly class WikiMetadataListener
         private bool $trashEnabled = true,
         private string $revisionLabelsTableName = 'wiki_revision_labels',
         private bool $historyTimeline = true,
+        private string $commentTablePrefix = 'wiki',
+        private bool $commentsEnabled = true,
     ) {
     }
 
@@ -77,6 +87,10 @@ final readonly class WikiMetadataListener
         }
         if (!$this->historyTimeline) {
             $tables[] = $this->revisionLabelsTableName;
+        }
+        if (!$this->commentsEnabled) {
+            // Children first: a platform that drops foreign keys with the table never sees a dangling one.
+            $tables = [...$tables, ...array_reverse(array_values($this->commentTables()))];
         }
         $schema = $args->getSchema();
         foreach ($tables as $table) {
@@ -134,6 +148,15 @@ final readonly class WikiMetadataListener
             return;
         }
 
+        if (isset($this->commentTables()[$class])) {
+            $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->commentTables()[$class]]));
+            foreach (['createdBy', 'resolvedBy', 'author', 'user'] as $field) {
+                $this->remapAuthorAssociation($metadata, $field);
+            }
+
+            return;
+        }
+
         if ($class === WikiTrashEntry::class) {
             $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->trashTableName]));
 
@@ -144,6 +167,20 @@ final readonly class WikiMetadataListener
             $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->attachmentsTableName]));
             $this->remapAuthorAssociation($metadata, 'uploadedBy');
         }
+    }
+
+    /**
+     * The comment tables (1.16) by entity class, parents first.
+     *
+     * @return array<class-string, string>
+     */
+    private function commentTables(): array
+    {
+        return [
+            WikiCommentThread::class   => $this->commentTablePrefix . '_comment_threads',
+            WikiComment::class         => $this->commentTablePrefix . '_comments',
+            WikiCommentReaction::class => $this->commentTablePrefix . '_comment_reactions',
+        ];
     }
 
     /**

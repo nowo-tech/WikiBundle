@@ -14,7 +14,7 @@ use Symfony\Component\Mercure\Jwt\Grant;
  * the claims the Mercure protocol 1.0 requires (`iss`, `aud`, `sub`, `client_id`) come from the hub's default claims
  * (symfony/mercure-bundle configuration).
  */
-final readonly class MercureWikiCollabSubscriberAuthorizer implements WikiCollabSubscriberAuthorizerInterface
+final readonly class MercureWikiCollabSubscriberAuthorizer implements WikiCollabTopicsAuthorizerInterface
 {
     /**
      * @param Authorization $authorization symfony/mercure cookie helper
@@ -28,6 +28,11 @@ final readonly class MercureWikiCollabSubscriberAuthorizer implements WikiCollab
 
     public function authorize(Request $request, string $topic): void
     {
-        $this->authorization->setCookie($request, [new Grant([Grant::ACTION_SUBSCRIBE], [$topic])], null, [], $this->hub);
+        $this->authorizeTopics($request, [$topic]);
+    }
+
+    public function authorizeTopics(Request $request, array $topics): void
+    {
+        $this->authorization->setCookie($request, [new Grant([Grant::ACTION_SUBSCRIBE], $topics)], null, [], $this->hub);
     }
 }

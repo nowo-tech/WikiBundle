@@ -1,4 +1,27 @@
 wiki:
+  tabs:
+    label: "Paginaweergaven"
+    page: "Pagina"
+    edit: "Bewerken"
+    history: "Geschiedenis"
+  comments:
+    title: "Opmerkingen"
+    open_suffix: " open"
+    close: "Opmerkingen sluiten"
+    opened: "Opmerkingen geopend"
+    closed: "Opmerkingen gesloten"
+    empty: "Nog geen opmerkingen bij de pagina."
+    by: "Opmerking van %name%"
+    deleted: "Opmerking verwijderd"
+    send: "Reageren"
+    new_label: "Reageer op deze pagina"
+    new_help: "Markdown, maximaal 10.000 tekens. Reageren op een selectie vereist JavaScript."
+    added: "Je opmerking is toegevoegd."
+    unknown_author: "Verwijderde gebruiker"
+    error:
+      invalid: "De opmerking is leeg of ongeldig."
+      too_large: "De opmerking is te lang (maximaal 10.000 tekens)."
+      rate_limited: "Te veel opmerkingen in korte tijd: probeer het zo opnieuw."
   collab:
     reset: "Samenwerking opnieuw instellen"
     reset_confirm_title: "Gedeelde sessie opnieuw instellen?"

@@ -17,10 +17,13 @@ use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Comment\WikiCommentService;
+use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
@@ -32,22 +35,28 @@ use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
 use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
+use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
+use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
+use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use Nowo\WikiBundle\Util\WikiSlugger;
@@ -66,6 +75,9 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Security\Csrf\CsrfToken;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Component\Translation\TranslatableMessage;
 use ZipArchive;
 
@@ -421,6 +433,68 @@ final class WikiManageControllerTest extends TestCase
         $page->setCurrentRevision(null);
         $controller->viewPage('eng', 'welcome');
         self::assertSame('', $twig->context['content_html']);
+    }
+
+    public function testViewPageCarriesTheCommentsPanelAndTheReadOnlyMount(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hi</p>', $user, 'Hi **there**'));
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $this->routes['attachment_upload'] = ['path' => '/up', 'name' => 'nowo_wiki_attachment_upload'];
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'milkdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments, WikiAction::Comment]));
+        $twig       = $this->capturingTwig();
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $response = $controller->viewPage('eng', 'welcome');
+
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+        self::assertSame(3, $twig->context['comments']['count']);
+        self::assertSame('Hi **there**', $twig->context['comments_view']['markdown']);
+        self::assertSame('container', $twig->context['comments_view']['options']['comments']['panel']);
+        self::assertTrue($twig->context['comments_view']['options']['comments']['can_create']);
+        self::assertArrayNotHasKey('collaboration', $twig->context['comments_view']['options']);
+        self::assertArrayNotHasKey('upload_url', $twig->context['comments_view']['options']);
+        // The tab row is always there (B-Q1).
+        self::assertNotNull($twig->context['page']->header->tabs);
+
+        // A page without a revision: the panel, no read-only mount.
+        $page->setCurrentRevision(null);
+        $controller->viewPage('eng', 'welcome');
+        self::assertArrayHasKey('comments', $twig->context);
+        self::assertArrayNotHasKey('comments_view', $twig->context);
+
+        // Without ViewComments: no panel at all.
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, commentsPanel: $this->commentsPanel($space, [WikiAction::Comment]));
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->viewPage('eng', 'welcome');
+        self::assertArrayNotHasKey('comments', $twig->context);
+    }
+
+    public function testEditPageMountsTheThreadComponentIntoThePanel(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hi</p>', $user, 'Hi'));
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments]));
+        $twig       = $this->capturingTwig();
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->editPage(Request::create('/edit'), 'eng', 'welcome');
+
+        self::assertSame(3, $twig->context['comments']['count']);
+        $tabs = $twig->context['page']->header->tabs;
+        self::assertSame(['wiki.tabs.page', 'wiki.tabs.edit', 'wiki.tabs.history'], array_map(static fn ($item): string => $item->label->key, $tabs->items));
+        self::assertTrue($tabs->items[1]->active);
     }
 
     public function testViewPageNotFoundForForeignSpace(): void
@@ -1911,6 +1985,7 @@ MD);
         ?WikiRevisionBodyRenderer $bodyRenderer = null,
         ?WikiCollabService $collab = null,
         ?WikiHistoryTimeline $timeline = null,
+        ?WikiCommentsPanel $commentsPanel = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -1959,6 +2034,32 @@ MD);
             bodyRenderer: $bodyRenderer,
             collab: $collab,
             timeline: $timeline,
+            commentsPanel: $commentsPanel,
+        );
+    }
+
+    /**
+     * 1.16: a comments panel whose own guard grants the given comment actions (open threads: 3).
+     *
+     * @param list<WikiAction> $granted
+     */
+    private function commentsPanel(WikiSpace $space, array $granted): WikiCommentsPanel
+    {
+        $guard    = new WikiSpaceGuard(new FixedSpaceLocator($space), CallbackSpaceAccessChecker::allowing(...$granted));
+        $comments = $this->createStub(WikiCommentRepositoryInterface::class);
+        $comments->method('countOpen')->willReturn(3);
+        $comments->method('threads')->willReturn([]);
+        $router = $this->createStub(UrlGeneratorInterface::class);
+        $router->method('generate')->willReturnCallback(static fn (string $name): string => '/' . $name);
+        $csrf = $this->createStub(CsrfTokenManagerInterface::class);
+        $csrf->method('getToken')->willReturnCallback(static fn (string $id): CsrfToken => new CsrfToken($id, 'tok'));
+
+        return new WikiCommentsPanel(
+            new WikiCommentService($comments, $guard, new WikiAuthorLabel('s'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer()),
+            new SessionWikiPanelStateStore(new RequestStack()),
+            $router,
+            $csrf,
+            ['page_comments' => ['path' => '/c/{path}', 'name' => 'nowo_wiki_page_comments']],
         );
     }
 

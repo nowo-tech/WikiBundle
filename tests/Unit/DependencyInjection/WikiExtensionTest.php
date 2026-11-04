@@ -12,11 +12,18 @@ use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Avatar\NullWikiUserAvatarResolver;
+use Nowo\WikiBundle\Avatar\WikiAvatars;
+use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
+use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
+use Nowo\WikiBundle\Comment\WikiCommentService;
+use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
@@ -33,9 +40,13 @@ use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
+use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
+use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
@@ -370,6 +381,98 @@ final class WikiExtensionTest extends TestCase
         $bare = new ContainerBuilder();
         $bare->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'collaboration' => ['enabled' => true]]], $bare);
+    }
+
+    public function testCommentsAreOffByDefaultWithoutRoutesTablesOrServices(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+
+        /** @var array<string, mixed> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        self::assertArrayNotHasKey('page_comments', $routes);
+        self::assertArrayNotHasKey('space_panel_state', $routes);
+        self::assertFalse($container->hasDefinition(WikiCommentService::class));
+        self::assertFalse($container->hasDefinition(WikiCommentsPanel::class));
+        self::assertFalse($container->getDefinition(WikiMetadataListener::class)->getArgument('$commentsEnabled'));
+        self::assertSame('wiki', $container->getDefinition(WikiMetadataListener::class)->getArgument('$commentTablePrefix'));
+        // 1.16: avatars are always wired (a null resolver by alias), and the author labels with them.
+        self::assertSame(NullWikiUserAvatarResolver::class, (string) $container->getAlias(WikiUserAvatarResolverInterface::class));
+        self::assertSame([['method' => 'reset']], $container->getDefinition(WikiAvatars::class)->getTag('kernel.reset'));
+        self::assertSame(WikiAvatars::class, (string) $container->getDefinition(WikiAuthorLabel::class)->getArgument('$avatars'));
+        self::assertFalse($container->getDefinition(WikiAuthorLabel::class)->getArgument('$showNames'));
+        self::assertSame(WikiEntityManagerProvider::class, (string) $container->getDefinition(WikiSearchBackfillTextCommand::class)->getArgument('$entityManager'));
+    }
+
+    public function testCommentsWireTheirServicesAndRoutes(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class'    => 'App\\Entity\\User',
+            'table_prefix'  => 'kb',
+            'editor'        => ['type' => 'milkdown'],
+            'collaboration' => ['enabled' => true, 'rate_limiter' => 'limiter.wiki_collab'],
+            'comments'      => ['enabled' => true, 'rate_limiter' => 'limiter.wiki_comments', 'shortcut' => 'Alt+Shift+C'],
+        ]], $container);
+
+        /** @var array<string, array{path: string, name: string}> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}', $routes['page_comments']['path']);
+        self::assertSame('nowo_wiki_space_panel_state', $routes['space_panel_state']['name']);
+        self::assertTrue($container->getDefinition(WikiMetadataListener::class)->getArgument('$commentsEnabled'));
+        self::assertSame('kb', $container->getDefinition(WikiMetadataListener::class)->getArgument('$commentTablePrefix'));
+        self::assertSame(DoctrineOrmWikiCommentRepository::class, (string) $container->getAlias(WikiCommentRepositoryInterface::class));
+        self::assertSame(SessionWikiPanelStateStore::class, (string) $container->getAlias(WikiPanelStateStoreInterface::class));
+        $service = $container->getDefinition(WikiCommentService::class);
+        self::assertSame('limiter.wiki_comments', (string) $service->getArgument('$rateLimiter'));
+        self::assertSame(WikiCollabService::class, (string) $service->getArgument('$collab'));
+        self::assertSame(WikiCollabPublisherInterface::class, (string) $service->getArgument('$publisher'));
+        self::assertSame(MercureWikiCollabPublisher::class, (string) $container->getAlias(WikiCollabPublisherInterface::class));
+        self::assertSame('Alt+Shift+C', $container->getDefinition(WikiCommentsPanel::class)->getArgument('$shortcut'));
+
+        // Without co-editing: no live updates; a host panel state store.
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'state_store' => 'app.panel_state']]], $container);
+        self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$collab'));
+        self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$publisher'));
+        self::assertSame('app.panel_state', (string) $container->getAlias(WikiPanelStateStoreInterface::class));
+    }
+
+    public function testCommentsNeedMilkdown16ARateLimiterAndThePathPlaceholder(): void
+    {
+        $method = new ReflectionMethod(WikiExtension::class, 'registerComments');
+        $config = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c']]]);
+        $cases  = [
+            'editor.type "milkdown"'        => [['editor' => ['type' => 'tiptap'] + $config['editor']] + $config, null],
+            'milkdown-editor-bundle >= 1.6' => [$config, 'Missing\\Anchor'],
+            'comments.rate_limiter'         => [['comments' => ['rate_limiter' => null] + $config['comments']] + $config, null],
+            'must end with "/{path}"'       => [['routes' => ['page_comments' => ['path' => '/c', 'name' => 'c']] + $config['routes']] + $config, null],
+        ];
+        foreach ($cases as $message => [$case, $anchor]) {
+            try {
+                $anchor === null
+                    ? $method->invoke(new WikiExtension(), new ContainerBuilder(), $case, new Reference('em'))
+                    : $method->invoke(new WikiExtension(), new ContainerBuilder(), $case, new Reference('em'), $anchor);
+                self::fail('Accepted: ' . $message);
+            } catch (LogicException $exception) {
+                self::assertStringContainsString($message, $exception->getMessage());
+            }
+        }
+    }
+
+    public function testTheCommentsSwitchMustBeALiteralBoolean(): void
+    {
+        $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $container->registerExtension(new WikiExtension());
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'comments' => ['enabled' => '%env(bool:WIKI_COMMENTS)%']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.comments.enabled must be a literal boolean');
+        (new MergeExtensionConfigurationPass())->process($container);
     }
 
     public function testCollaborationWithOwnPublisherAndAuthorizerNeedsNoMercure(): void

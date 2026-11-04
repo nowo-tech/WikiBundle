@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Entity;
 
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
+use Nowo\WikiBundle\Search\WikiPlainText;
 use Nowo\WikiBundle\ValueObject\Uuid;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -15,8 +16,12 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * 1.11: a revision is either HTML (`format` = {@see self::FORMAT_HTML}, the Tiptap editor) or Markdown
  * (`format` = {@see self::FORMAT_MARKDOWN}): then `content_markdown` is the source and `content_html` its sanitized
  * render cache (search, AI context, attachment references and readers of the HTML keep working).
+ *
+ * 1.16: `content_text` is the plain text of `content_html` ({@see WikiPlainText::fromHtml()}), filled when the revision
+ * is saved and by `wiki:search:backfill-text`; the search matches it, and hosts may filter on it in SQL (public API).
  */
 #[ORM\Entity]
+#[ORM\HasLifecycleCallbacks]
 #[ORM\Table(name: 'wiki_page_revisions')]
 #[ORM\UniqueConstraint(name: 'wiki_revision_page_number', columns: ['page_id', 'revision_number'])]
 class WikiPageRevision
@@ -36,6 +41,10 @@ class WikiPageRevision
 
     #[ORM\Column(name: 'format', type: 'string', length: 16, options: ['default' => self::FORMAT_HTML])]
     private string $format;
+
+    /** 1.16: plain text of the body (null: written before 1.16 and not backfilled yet). */
+    #[ORM\Column(name: 'content_text', type: 'text', nullable: true)]
+    private ?string $contentText = null;
 
     /**
      * Creates a revision with a generated UUID and the creation timestamp set to now.
@@ -59,6 +68,16 @@ class WikiPageRevision
         $this->id        = Uuid::generate()->toString();
         $this->createdAt = new DateTimeImmutable();
         $this->format    = $this->contentMarkdown === null ? self::FORMAT_HTML : self::FORMAT_MARKDOWN;
+    }
+
+    /**
+     * Fills `content_text` when the revision is first saved (1.16; revisions are immutable, so once is enough).
+     */
+    #[ORM\PrePersist]
+    public function fillContentText(): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->contentText ??= WikiPlainText::fromHtml($this->contentHtml);
     }
 
     /**
@@ -109,6 +128,35 @@ class WikiPageRevision
     public function getContentMarkdown(): ?string
     {
         return $this->contentMarkdown;
+    }
+
+    /**
+     * Returns the plain text of the body (1.16, the `content_text` column): the text of the sanitized HTML, with no
+     * markup, directive marker or attribute value. Null for a revision written before 1.16 until
+     * `wiki:search:backfill-text` runs.
+     *
+     * @return string|null revision plain text
+     */
+    public function getContentText(): ?string
+    {
+        return $this->contentText;
+    }
+
+    /**
+     * Recomputes `content_text` from `content_html` (1.16, `wiki:search:backfill-text`); the body itself never changes.
+     *
+     * @return bool true when the stored text changed
+     */
+    public function refreshContentText(): bool
+    {
+        $text = WikiPlainText::fromHtml($this->contentHtml);
+        if ($text === $this->contentText) {
+            return false;
+        }
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->contentText = $text;
+
+        return true;
     }
 
     /**

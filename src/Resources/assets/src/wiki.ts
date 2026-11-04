@@ -1,3 +1,5 @@
+import { bindWikiComments } from './wiki-comments';
+
 /**
  * Wiki page tree: brings the current page (`aria-current="page"`) into view inside each scrollable tree
  * (`[data-wiki-tree]`), so long trees open at the page being read. No-op without a current page.
@@ -312,4 +314,5 @@ const scriptNonce = currentNonce(document.currentScript);
 document.documentElement.classList.add('wiki-ready');
 initWikiTrees();
 bindWikiTree();
+bindWikiComments();
 whenLoaded(() => void renderWikiRichContent());

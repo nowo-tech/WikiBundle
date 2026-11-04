@@ -1,0 +1,73 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Nowo\WikiBundle\Repository;
+
+use Nowo\WikiBundle\Entity\WikiComment;
+use Nowo\WikiBundle\Entity\WikiCommentReaction;
+use Nowo\WikiBundle\Entity\WikiCommentThread;
+use Nowo\WikiBundle\Entity\WikiPage;
+
+/**
+ * Storage of the comment threads, comments and reactions of pages (1.16, `comments.enabled`). Every lookup is scoped
+ * to a page: an id of another page's thread or comment is not found.
+ */
+interface WikiCommentRepositoryInterface
+{
+    /**
+     * Threads of the page, oldest first.
+     *
+     * @param int $limit at most this many
+     *
+     * @return list<WikiCommentThread>
+     */
+    public function threads(WikiPage $page, int $limit): array;
+
+    /** The thread of the page with this id, or null. */
+    public function thread(WikiPage $page, string $id): ?WikiCommentThread;
+
+    /** The comment of a thread of the page with this id, or null. */
+    public function comment(WikiPage $page, string $id): ?WikiComment;
+
+    /**
+     * Comments of the threads, oldest first, keyed by thread id.
+     *
+     * @param list<WikiCommentThread> $threads
+     *
+     * @return array<string, list<WikiComment>>
+     */
+    public function comments(array $threads): array;
+
+    /**
+     * Comments that are not deleted, per thread id (the thread's `count`).
+     *
+     * @param list<WikiCommentThread> $threads
+     *
+     * @return array<string, int>
+     */
+    public function commentCounts(array $threads): array;
+
+    /**
+     * Reactions to the comments.
+     *
+     * @param list<WikiComment> $comments
+     *
+     * @return list<WikiCommentReaction>
+     */
+    public function reactions(array $comments): array;
+
+    /** The reaction of the user to the comment with this emoji, or null. */
+    public function reaction(WikiComment $comment, object $user, string $emoji): ?WikiCommentReaction;
+
+    /** Number of open (not resolved) threads of the page. */
+    public function countOpen(WikiPage $page): int;
+
+    /** Persists new entities (flushed by {@see self::flush()}). */
+    public function add(WikiCommentThread|WikiComment|WikiCommentReaction $entity): void;
+
+    /** Deletes an entity (flushed by {@see self::flush()}; a thread takes its comments and reactions with it). */
+    public function remove(WikiCommentThread|WikiComment|WikiCommentReaction $entity): void;
+
+    public function flush(): void;
+}

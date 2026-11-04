@@ -5,6 +5,8 @@
   behind a UiKit confirm dialog; not on the current revision); Pagination (pagination.revisions_per_page)).
   1.15 (history.timeline): rows also hold label (named version), author (opaque "Editor xxxx" or a safe display name)
   and session (number of saves on the newest row of a session, else empty); row action Copy to new page (POST + CSRF).
+  1.16: rows also hold author_named (the author is shown under a real name) and author_avatar (picture URL or ''): a
+  named author gets the UiKit avatar (xs, decorative) before the name; a hidden one never gets an avatar.
   Blocks filled: nowo_ui_styles, nowo_ui_list_row (the current revision gets a badge).
 #}
 {% extends '@NowoUiKit/page/list.html.twig' %}
@@ -23,7 +25,10 @@
     </td>
     {% if row.author is defined %}
         <td class="{{ _cell }}" data-label="{{ 'wiki.history.label'|trans }}">{% if row.label != '' %}<strong>{{ row.label }}</strong>{% endif %}</td>
-        <td class="{{ _cell }}" data-label="{{ 'wiki.history.author'|trans }}">{{ row.author }}</td>
+        <td class="{{ _cell }}" data-label="{{ 'wiki.history.author'|trans }}">
+            {#- 1.16: the picture only beside a real name (a hidden "Editor xxxx" has no avatar); decorative: the name follows -#}
+            {%- if row.author_named|default(false) %}<span class="nowo-wiki-author">{{ include('@NowoUiKitBundle/partials/_avatar.html.twig', {name: row.author, src: row.author_avatar|default('') ?: null, size: 'xs', decorative: true, attr: {'data-testid': 'wiki-history-avatar'}}, false) }}<span class="nowo-wiki-author__name">{{ row.author }}</span></span>{% else %}{{ row.author }}{% endif -%}
+        </td>
     {% endif %}
     <td class="{{ _cell }}" data-label="{{ 'wiki.history.created'|trans }}">{{ row.created }}</td>
     {% if row.session is defined %}

@@ -73,6 +73,8 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
             // 1.14 trash: deleting is archiving with sub-pages; purging needs the space-management role (D-W5).
             WikiAction::Delete => $this->accessChecker->canArchive($user),
             WikiAction::Purge  => $this->accessChecker->canImport($user),
+            // 1.16 comments: default deny; a host checker grants them (Beacon: View, Edit, manage, manage).
+            WikiAction::ViewComments, WikiAction::Comment, WikiAction::ResolveComment, WikiAction::ModerateComments => false,
         };
     }
 

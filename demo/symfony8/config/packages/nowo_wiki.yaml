@@ -17,6 +17,13 @@ nowo_wiki:
     # 1.15: the history timeline (sessions, author labels, Save version, Copy to new page; wiki:history:thin).
     history:
         timeline: true
+    # 1.16: comments in a right-side panel toggled from the page tabs (Milkdown >= 1.6 thread component). The demo
+    # checker (App\Security\DemoWikiSpaceAccessChecker) grants ViewComments with View, Comment with Edit, and
+    # ResolveComment / ModerateComments with Archive (Beacon: View, Edit, manage, manage).
+    comments:
+        enabled: true
+        rate_limiter: limiter.wiki_comments
+        shortcut: 'Alt+Shift+C'
     ai:
         enabled: true
         agent: wiki_assistant
