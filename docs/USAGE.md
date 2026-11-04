@@ -18,6 +18,10 @@
 - [Milkdown editor (1.13)](#milkdown-editor-113)
   - [Co-editing (1.13)](#co-editing-113)
   - [Conversion report (1.13)](#conversion-report-113)
+- [Comments (1.16)](#comments-116)
+  - [Endpoints](#endpoints)
+  - [Notifications](#notifications)
+  - [Beacon](#beacon)
 
 ## Manage UI routes (defaults)
 
@@ -62,7 +66,9 @@ When `nowo_wiki.ai.enabled` is `true` and `symfony/ai-bundle` is installed, the 
 The manage UI includes a **full-text search** over:
 
 - Page **titles**
-- **Current revision** body: the Markdown source of a Markdown revision, else its HTML (tags stripped for excerpts)
+- **Current revision** body: its plain text (1.16, the `content_text` column: the sanitized HTML without markup, so
+  Markdown punctuation, directive markers and attribute values are never hits). Revisions written before 1.16 are
+  matched on their Markdown source or HTML until `wiki:search:backfill-text` fills their text.
 
 Search respects ACL: only spaces returned by `WikiSpaceAccessResolver` are queried. Leave `space` empty to search **across all spaces** you can access.
 
@@ -442,4 +448,97 @@ Your own endpoints (e.g. Beacon routes) can call `WikiCollabService` directly �
 | `nested_table` | A table inside a table |
 | `table_caption`, `figure_caption` | The caption becomes text |
 | `embed_as_link` | An embedded video becomes a link to it (dialect) |
+
+## Comments (1.16)
+
+With `comments.enabled` (see [CONFIGURATION](CONFIGURATION.md#comments-116)), viewers with
+`WikiAction::ViewComments` see a **comments toggle** at the end of the page tab row — an icon button whose badge is
+the number of open threads they may read — on the read and edit views. It opens a right-side panel (the UiKit side
+panel: an inline column from 768 px, a full-height drawer below) holding the Milkdown 1.6 thread component: inline
+threads anchored in the text and page-level threads, replies, reactions, resolve / reopen, edit / delete. A highlight
+in the text opens the panel on its thread; a thread scrolls its text into view. The open state is remembered per user;
+`?comments=1` / `?comments=0` open or close it for one request (use `?comments=1` in notification links).
+
+On the read view, **editors** get the page as a read-only Milkdown editor (needed for the highlights and the thread
+component). Other viewers with `ViewComments` keep the server-rendered page and never receive its Markdown source:
+their panel lists the open threads rendered by the server (inline threads show their quote; at most 50, read only when
+the panel is opened) with a form for a page comment. The list offers no reply, reaction or resolve buttons: that is a
+user-interface limit, not an authorization one: the JSON endpoints accept those writes from any viewer with the
+matching right (`Comment`, `ResolveComment`), from the API or the edit view. `comments.read_view_source: true` gives them the read-only editor too, with the source (see SECURITY).
+Without JavaScript the toggle is a link, the panel lists the page-level threads and has the same form.
+
+### Endpoints
+
+Base URL: the `page_comments` route with an empty `path` (`/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments`),
+the Milkdown `comments.url`. JSON, same origin, header `X-CSRF-Token` (token id
+`WikiCommentService::csrfTokenId($page)`) on writes; answers are `Cache-Control: no-store, private`.
+
+| Method + path | Right | Answer |
+|---|---|---|
+| `GET /threads` | ViewComments | `{threads, page, truncated?}` (at most 2000) |
+| `GET /threads/{id}` | ViewComments | Thread |
+| `POST /threads` `{anchor \| null, body}` | Comment | 201 Thread (422 for a malformed anchor) |
+| `POST /threads/{id}/comments` `{body}` | Comment | 201 Thread |
+| `PATCH /threads/{id}` `{resolved}` | ResolveComment | Thread |
+| `PATCH /threads/{id}` `{anchor, base}` | Comment | Thread; 409 when `base` is not the thread's `updatedAt` |
+| `PATCH /comments/{cid}` `{body}` | own + Comment, or ModerateComments | Thread |
+| `DELETE /comments/{cid}` | own + Comment, or ModerateComments | Thread, or 204 when the thread is gone |
+| `PUT` / `DELETE /comments/{cid}/reactions/{emoji}` | Comment | Thread |
+
+Errors: `{"error": reason}` with 400 (JSON), 403 (right), 404 (page or thread not visible), 409, 413 (body over 16 KiB
+or more than 10 000 characters), 415, 422 (`invalid`, `invalid_anchor`, `limit_reached`), 429 (rate limit). Viewers
+who may not edit the page get anchors reduced to `{v: 1, quote: {exact}}`, with `exact` blank once the quoted text is no
+longer in the page. A CSRF or origin failure is a 403 from the firewall
+layer. `author.name` follows the history name policy; `author.avatarUrl` / `resolvedBy.avatarUrl` only beside a real
+name ([Avatars](CONFIGURATION.md#avatars-116)).
+
+### Notifications
+
+```php
+use Nowo\WikiBundle\Event\WikiCommentEvent;
+use Nowo\WikiBundle\Event\WikiEvents;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+
+#[AsEventListener(WikiEvents::COMMENT_CREATED)]
+#[AsEventListener(WikiEvents::COMMENT_REPLIED)]
+final class NotifyOnComment
+{
+    public function __invoke(WikiCommentEvent $event): void
+    {
+        // $event->page, $event->thread, $event->comment (null for resolve / reopen / a deleted thread),
+        // $event->actor, $event->mentions (handles). Check each recipient's ViewComments right on the page, link to
+        // the page with ?comments=1 and use WikiCommentService::renderBodyForNotification() (viewer-neutral: this runs
+        // in the actor's request). Never serialise $event itself (it carries entities); copy the ids.
+    }
+}
+```
+
+Events: `nowo_wiki.comment.created`, `.replied`, `.edited`, `.deleted`, `.resolved`, `.reopened`, after the flush.
+
+### Beacon
+
+What a host such as symfony-beacon configures:
+
+0. **Before enabling:** add the four new `WikiAction` cases to `BeaconWikiAccessChecker` (its exhaustive `match`
+   would otherwise throw a 500 on every page view).
+1. `nowo_wiki.comments: {enabled: true, rate_limiter: limiter.wiki_comments}` and the rate limiter (per user, across
+   pages); `editor.type:
+   milkdown` with `nowo-tech/milkdown-editor-bundle` ^1.6 and `nowo-tech/ui-kit-bundle` ^2.26.
+2. The migration of the three comment tables and of `content_text`, then `wiki:search:backfill-text` once.
+3. Its `WikiSpaceAccessCheckerInterface` maps `ViewComments` → `project.wiki.view` / `wiki.view`, `Comment` → edit,
+   `ResolveComment` and `ModerateComments` → manage (B-Q3).
+4. The two routes (`page_comments`, `space_panel_state`) behind the wiki firewall; tenant paths get them automatically.
+5. Optional: `comments.state_store` → its user-preferences store (`WikiPanelStateStoreInterface`), `comments.shortcut`.
+   Keep `comments.read_view_source: false` (the default) while `ViewComments` maps to view: readers then never get the
+   page source; editors keep inline highlights on the read view.
+6. Live updates come with co-editing (the comments topic shares the co-editing subscriber cookie).
+7. Notifications from `nowo_wiki.comment.*`; deep links with `?comments=1`.
+8. Avatars: alias `WikiUserAvatarResolverInterface` to its `WikiAvatarUrls` adapter of the core `AvatarUrls`
+   service; keep `history.show_names` as it is (pictures follow names).
+9. Search: switch `WikiPageSearchProvider`'s `LIKE` from `content_markdown` to `content_text`.
+10. Privacy: call `WikiCommentService::exportAuthor()` / `eraseAuthor()` (or `wiki:comments:erase-user`) from its
+    data-subject flows.
+11. No Twig override is needed: the tab row, the toggle and the panel are UiKit partials themed by Beacon's UiKit
+    theme (`tabs`, `side_panel`, `side_panel_toggle`, `side_panel_container`, `_avatar`); `nowo-wiki-*` classes are
+    hooks only.
 

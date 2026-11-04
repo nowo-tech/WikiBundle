@@ -32,6 +32,11 @@ services:
             - '../../Trash/'
             - '../../History/'
             - '../../Service/WikiPageMover.php'
+            # 1.16: registered by WikiExtension (comments only with comments.enabled; avatars always, by alias).
+            - '../../Comment/'
+            - '../../Panel/'
+            - '../../Avatar/'
+            - '../../Search/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
@@ -132,6 +137,15 @@ services:
         tags: ['controller.service_arguments', 'container.service_subscriber']
         arguments:
             $routes: '%nowo_wiki.routes%'
+
+    # 1.16: comment endpoints and the panel state (404 without comments.enabled: the service is then null).
+    Nowo\WikiBundle\Controller\WikiCommentController:
+        public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
+        arguments:
+            $routes: '%nowo_wiki.routes%'
+            $translator: '@?translator'
 
     Nowo\WikiBundle\Controller\WikiAttachmentController:
         public: true

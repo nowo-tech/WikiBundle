@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\DependencyInjection;
 
 use LogicException;
+use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
+use Nowo\MilkdownEditorBundle\ProfileRegistry;
 use Nowo\MilkdownEditorBundle\Twig\MilkdownEditorTwig;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
@@ -20,12 +22,19 @@ use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
+use Nowo\WikiBundle\Avatar\NullWikiUserAvatarResolver;
+use Nowo\WikiBundle\Avatar\WikiAvatars;
+use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
+use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
+use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
+use Nowo\WikiBundle\Comment\WikiCommentService;
+use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
@@ -40,9 +49,13 @@ use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
+use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
+use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
@@ -50,6 +63,7 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -66,6 +80,7 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
@@ -108,6 +123,7 @@ use function is_bool;
 use function is_string;
 use function rtrim;
 use function sprintf;
+use function str_ends_with;
 use function str_starts_with;
 
 /**
@@ -161,6 +177,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $config['trash']['enabled'] = $this->literalBool($config['trash']['enabled'], 'trash.enabled');
         if (!$config['trash']['enabled']) {
             unset($config['routes']['page_delete'], $config['routes']['space_trash'], $config['routes']['trash_restore'], $config['routes']['trash_purge']);
+        }
+        // 1.16: comments; their tables and routes exist only when they are on.
+        $config['comments']['enabled']          = $this->literalBool($config['comments']['enabled'], 'comments.enabled');
+        $config['comments']['read_view_source'] = $this->literalBool($config['comments']['read_view_source'], 'comments.read_view_source');
+        if (!$config['comments']['enabled']) {
+            unset($config['routes']['page_comments'], $config['routes']['space_panel_state']);
         }
         if ($config['security']['allow_unauthenticated']) {
             $this->refuseAllowUnauthenticatedInProduction($container);
@@ -300,6 +322,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$trashEnabled', $config['trash']['enabled'])
             ->setArgument('$revisionLabelsTableName', $prefix . '_revision_labels')
             ->setArgument('$historyTimeline', $config['history']['timeline'])
+            ->setArgument('$commentTablePrefix', $prefix)
+            ->setArgument('$commentsEnabled', $config['comments']['enabled'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
@@ -314,9 +338,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerCollaboration($container, $config);
         $this->registerTree($container, $config);
         $this->registerTrash($container, $config, $emProviderRef);
+        $this->registerAvatars($container, $config);
         $this->registerHistory($container, $config, $emProviderRef);
+        $this->registerComments($container, $config, $emProviderRef);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
+        // 1.16: wiki:search:backfill-text fills the revisions' plain-text column.
+        $container->getDefinition(WikiSearchBackfillTextCommand::class)->setArgument('$entityManager', $emProviderRef);
 
         $this->registerAiServices($container, $config['ai']);
     }
@@ -413,9 +441,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(DoctrineOrmWikiRevisionLabelRepository::class, (new Definition(DoctrineOrmWikiRevisionLabelRepository::class))
             ->setArgument('$entityManager', $entityManager));
         $container->setAlias(WikiRevisionLabelRepositoryInterface::class, DoctrineOrmWikiRevisionLabelRepository::class);
-        $container->setDefinition(WikiAuthorLabel::class, (new Definition(WikiAuthorLabel::class))
-            ->setArgument('$secret', '%kernel.secret%')
-            ->setArgument('$showNames', $history['show_names']));
         $container->setDefinition(WikiHistoryTimeline::class, (new Definition(WikiHistoryTimeline::class))
             ->setArgument('$labels', new Reference(WikiRevisionLabelRepositoryInterface::class))
             ->setArgument('$authors', new Reference(WikiAuthorLabel::class))
@@ -424,6 +449,100 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$entityManager', $entityManager)
             ->setArgument('$retentionDays', $history['retention_days'])
             ->setArgument('$sessionMinutes', $history['session_minutes']));
+    }
+
+    /**
+     * 1.16: the avatar hook (a null resolver by alias; the host aliases {@see WikiUserAvatarResolverInterface} to its
+     * service), the per-response memo and the author labels of the history and the comments, which only ever resolve
+     * the picture of an author shown under a real name (`history.show_names` and {@see WikiAuthorLabel}).
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerAvatars(ContainerBuilder $container, array $config): void
+    {
+        $container->setDefinition(NullWikiUserAvatarResolver::class, new Definition(NullWikiUserAvatarResolver::class));
+        $container->setAlias(WikiUserAvatarResolverInterface::class, NullWikiUserAvatarResolver::class);
+        $container->setDefinition(WikiAvatars::class, (new Definition(WikiAvatars::class))
+            ->setArgument('$resolver', new Reference(WikiUserAvatarResolverInterface::class))
+            ->addTag('kernel.reset', ['method' => 'reset']));
+        $container->setDefinition(WikiAuthorLabel::class, (new Definition(WikiAuthorLabel::class))
+            ->setArgument('$secret', '%kernel.secret%')
+            ->setArgument('$showNames', (bool) $config['history']['show_names'])
+            ->setArgument('$avatars', new Reference(WikiAvatars::class)));
+    }
+
+    /**
+     * 1.16: comments — the Doctrine store, the panel state store (the session unless `comments.state_store` names a
+     * service), the service behind the endpoints and the panel of the read and edit views.
+     *
+     * @param array<string, mixed> $config processed configuration
+     *
+     * @throws LogicException without the Milkdown editor (>= 1.6), without a rate limiter, or with a `page_comments` path
+     *                        that does not end with `/{path}`
+     */
+    private function registerComments(ContainerBuilder $container, array $config, Reference $entityManager, string $anchorClass = CommentAnchor::class): void
+    {
+        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, limits: array{threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
+        $comments = $config['comments'];
+        if (!$comments['enabled']) {
+            return;
+        }
+        if ($config['editor']['type'] !== Configuration::EDITOR_MILKDOWN) {
+            throw new LogicException('nowo_wiki.comments needs nowo_wiki.editor.type "milkdown".');
+        }
+        if (!class_exists($anchorClass)) {
+            throw new LogicException('nowo_wiki.comments needs nowo-tech/milkdown-editor-bundle >= 1.6 (comment anchors and the thread component): composer require nowo-tech/milkdown-editor-bundle:^1.6');
+        }
+        if (!is_string($comments['rate_limiter']) || $comments['rate_limiter'] === '') {
+            throw new LogicException('nowo_wiki.comments needs a rate limiter: set comments.rate_limiter to the service id of a Symfony RateLimiterFactory (e.g. limiter.wiki_comments from framework.rate_limiter.wiki_comments: {policy: sliding_window, limit: 60, interval: "1 minute"}). It limits the comment writes per user and page.');
+        }
+        if (!str_ends_with((string) $config['routes']['page_comments']['path'], '/{path}')) {
+            throw new LogicException('nowo_wiki.routes.page_comments.path must end with "/{path}" (the endpoints of the comment thread component live under it).');
+        }
+
+        $container->setDefinition(DoctrineOrmWikiCommentRepository::class, (new Definition(DoctrineOrmWikiCommentRepository::class))
+            ->setArgument('$entityManager', $entityManager));
+        $container->setAlias(WikiCommentRepositoryInterface::class, DoctrineOrmWikiCommentRepository::class);
+        // EI-L5: the trash purge deletes the comments of purged pages explicitly.
+        if ($container->hasDefinition(DoctrineOrmWikiTrashRepository::class)) {
+            $container->getDefinition(DoctrineOrmWikiTrashRepository::class)->setArgument('$comments', new Reference(WikiCommentRepositoryInterface::class));
+        }
+
+        $store = $comments['state_store'];
+        if (!is_string($store) || $store === '') {
+            $store = SessionWikiPanelStateStore::class;
+            $container->setDefinition($store, (new Definition(SessionWikiPanelStateStore::class))
+                ->setArgument('$requestStack', new Reference('request_stack')));
+        }
+        $container->setAlias(WikiPanelStateStoreInterface::class, $store);
+
+        $collab = $config['collaboration']['enabled'];
+        $container->setDefinition(WikiCommentService::class, (new Definition(WikiCommentService::class))
+            ->setArgument('$comments', new Reference(WikiCommentRepositoryInterface::class))
+            ->setArgument('$guard', new Reference(WikiSpaceGuard::class))
+            ->setArgument('$authors', new Reference(WikiAuthorLabel::class))
+            ->setArgument('$renderer', new Reference(WikiMarkdownRendererInterface::class))
+            ->setArgument('$sanitizer', new Reference(WikiHtmlSanitizerInterface::class))
+            ->setArgument('$references', new Reference(WikiMarkdownReferenceExtractor::class))
+            ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$collab', $collab ? new Reference(WikiCollabService::class) : null)
+            ->setArgument('$publisher', $collab ? new Reference(WikiCollabPublisherInterface::class) : null)
+            ->setArgument('$rateLimiter', new Reference($comments['rate_limiter']))
+            ->setArgument('$translator', new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$pageRateLimiter', is_string($comments['page_rate_limiter']) && $comments['page_rate_limiter'] !== '' ? new Reference($comments['page_rate_limiter']) : null)
+            ->setArgument('$accessChecker', new Reference(WikiAccessCheckerInterface::class))
+            ->setArgument('$readViewSource', $comments['read_view_source'])
+            ->setArgument('$limits', $comments['limits']));
+        $container->setDefinition(WikiCommentsPanel::class, (new Definition(WikiCommentsPanel::class))
+            ->setArgument('$comments', new Reference(WikiCommentService::class))
+            ->setArgument('$state', new Reference(WikiPanelStateStoreInterface::class))
+            ->setArgument('$urlGenerator', new Reference('router'))
+            ->setArgument('$csrf', new Reference('security.csrf.token_manager'))
+            ->setArgument('$routes', $config['routes'])
+            ->setArgument('$shortcut', $comments['shortcut'])
+            ->setArgument('$profiles', new Reference(ProfileRegistry::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$forms', new Reference('form.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$readViewSource', $comments['read_view_source']));
     }
 
     /**
@@ -537,6 +656,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 ->setArgument('$hub', $hub));
         }
 
+        // 1.16: the comment writes publish their thread ids through the same publisher.
+        $container->setAlias(WikiCollabPublisherInterface::class, $publisher);
         $container->setDefinition(WikiCollabService::class, (new Definition(WikiCollabService::class))
             ->setArgument('$store', new Reference($store))
             ->setArgument('$publisher', new Reference($publisher))

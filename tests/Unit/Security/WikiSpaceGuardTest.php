@@ -54,6 +54,11 @@ final class WikiSpaceGuardTest extends TestCase
         self::assertArrayNotHasKey('delete', $guard->grants(new TestUser(), $space, $page));
         self::assertArrayNotHasKey('purge', $guard->grants(new TestUser(), $space, $page));
         self::assertSame([WikiAction::Delete, WikiAction::Purge], WikiAction::trashActions());
+        // 1.16: neither are the comment actions.
+        self::assertSame([WikiAction::ViewComments, WikiAction::Comment, WikiAction::ResolveComment, WikiAction::ModerateComments], WikiAction::commentActions());
+        foreach (['view_comments', 'comment', 'resolve_comment', 'moderate_comments'] as $key) {
+            self::assertArrayNotHasKey($key, $guard->grants(new TestUser(), $space, $page));
+        }
 
         try {
             $guard->requireGranted(new TestUser(), WikiAction::View, $space, $page);

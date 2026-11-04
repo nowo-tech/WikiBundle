@@ -21,6 +21,9 @@ Sample content: **Engineering** and **Product** spaces with nested pages, images
 2. Edit a page with the Notion-style Tiptap editor (markdown shortcuts, no toolbar).
 3. Open version history and diff between revisions.
 4. Search within a space.
+5. Comments (1.16): open a page of the **Product** space and use the comments toggle at the end of the page tabs
+   (or `Alt+Shift+C`): page comments, comments on a text selection, replies, reactions, resolve. Narrow the window
+   below 768 px to get the drawer. The demo grants the comment rights in the Product space only.
 
 ## Commands
 

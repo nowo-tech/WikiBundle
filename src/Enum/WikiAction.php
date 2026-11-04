@@ -36,6 +36,14 @@ enum WikiAction: string
     case Delete = 'delete';
     /** 1.14 (`trash.enabled`): delete trashed pages for good. */
     case Purge = 'purge';
+    /** 1.16 (`comments.enabled`): see the comments toggle, the comments panel and the threads of a page. */
+    case ViewComments = 'view_comments';
+    /** 1.16: start a thread (inline or page-level), reply, react, refresh an anchor; edit and delete one's own comments. */
+    case Comment = 'comment';
+    /** 1.16: resolve and reopen a thread. */
+    case ResolveComment = 'resolve_comment';
+    /** 1.16: edit or delete any comment and delete a thread. */
+    case ModerateComments = 'moderate_comments';
 
     /**
      * Actions asked only when the trash is enabled (1.14): {@see WikiSpaceGuard::grants()} leaves them out, so a host
@@ -46,5 +54,16 @@ enum WikiAction: string
     public static function trashActions(): array
     {
         return [self::Delete, self::Purge];
+    }
+
+    /**
+     * Comment actions (1.16, `comments.enabled`): {@see WikiSpaceGuard::grants()} leaves them out and the 1.x legacy
+     * mapping denies them, so nobody gets a comment right unless the host's checker grants it (default deny).
+     *
+     * @return list<self>
+     */
+    public static function commentActions(): array
+    {
+        return [self::ViewComments, self::Comment, self::ResolveComment, self::ModerateComments];
     }
 }

@@ -8,7 +8,13 @@
   printed through nowo_wiki_safe_html), used_in (WikiPageFactory::usedIn(): {type, label, href, badge}), rich_content
   (1.13, editor.type milkdown: the body is rendered for the viewer and wiki.js draws its Mermaid / math with the
   Milkdown read-side script of nowo_wiki_rich_content_assets()).
-  Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the rich-content assets + wiki.js: scrolls the current page of the tree into view, draws rich content), nowo_ui_show_sections (sidebar tree + content + "Used in").
+  1.16: page.header.tabs (View\AreaNav: Page / Edit / History) renders as the tab row under the header
+  (_page_tabs.html.twig), always; comments (WikiCommentsPanel::panel(), only with comments.enabled and
+  WikiAction::ViewComments) adds the comments toggle at the end of that row and the comments side panel
+  (_comments_panel.html.twig) right of the content; comments_view ({markdown, options}) mounts the page read-only with
+  nowo_milkdown_view() for the Milkdown thread component (hidden until the editor is ready; the server-rendered body
+  stays the no-JavaScript view).
+  Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the rich-content assets + wiki.js: scrolls the current page of the tree into view, draws rich content; 1.16 + nowo-ui-side-panel.js with comments), nowo_ui_page_header (the UiKit header without its tabs + the tab row), nowo_ui_content (1.16: inside the side panel container with comments), nowo_ui_show_sections (sidebar tree + content + "Used in").
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
 {% trans_default_domain 'NowoWikiBundle' %}
@@ -23,7 +29,25 @@
     {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
     {% if rich_content|default(false) %}{{ nowo_wiki_rich_content_assets() }}{% endif %}
     {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
+    {% if comments|default(null) %}<script src="{{ asset('js/nowo-ui-side-panel.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
     <script src="{{ asset('wiki.js', 'nowo_wiki') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+{% endblock %}
+
+{% block nowo_ui_page_header %}
+    {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'show', extra_actions: [], header_actions: true}, false) }}
+    {% if page.header.tabs %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle}, false) }}{% endif %}
+{% endblock %}
+
+{% block nowo_ui_content %}
+    {% if comments|default(null) %}
+        {% set _wiki_content %}{{ parent() }}{% endset %}
+        {% embed nowo_ui_partial('side_panel_container', page.bundle) with {bundle: page.bundle, attr: {'data-testid': 'wiki-comments-layout'}} %}
+            {% block nowo_ui_side_panel_main %}{{ _wiki_content }}{% endblock %}
+            {% block nowo_ui_side_panel_panel %}{{ include('@NowoWikiBundle/manage/_comments_panel.html.twig', {comments: comments, bundle: bundle}, false) }}{% endblock %}
+        {% endembed %}
+    {% else %}
+        {{ parent() }}
+    {% endif %}
 {% endblock %}
 
 {% block nowo_ui_show_sections %}
@@ -35,7 +59,11 @@
         <div class="nowo-wiki-layout__main">
             {# 1.15: editors only; a separate template so pages without Milkdown 1.5 never compile the function #}
             {% if copy_markdown|default(null) %}{{ include('@NowoWikiBundle/manage/_copy_markdown.html.twig', {source: copy_markdown, bundle: _b}, false) }}{% endif %}
-            <article class="{{ nowo_ui_class('card', _b) }} nowo-wiki-page"{{ nowo_ui_attrs('card', _b) }}>
+            {# 1.16: commenters get the page as a read-only editor (highlights, the thread component); hidden until it is ready #}
+            {% if comments_view|default(null) %}
+                {{ include('@NowoWikiBundle/manage/_comments_view.html.twig', {comments_view: comments_view}, false) }}
+            {% endif %}
+            <article class="{{ nowo_ui_class('card', _b) }} nowo-wiki-page"{% if comments_view|default(null) %} data-nowo-wiki-server-body{% endif %}{{ nowo_ui_attrs('card', _b) }}>
                 <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-content{% if rich_content|default(false) %} nowo-md{% endif %}" data-testid="wiki-content"{% if rich_content|default(false) %} data-wiki-rich-content{% endif %}>
                     {{ content_html|default('')|nowo_wiki_safe_html }}
                 </div>

@@ -51,6 +51,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Planned as **1.16.0**: comments panel, avatars, plain-text search.
+
+### Added
+
+- **Page tabs (B-Q1).** The read and edit views get a tab row under the title: *Page* / *Edit* / *History* (UiKit
+  `PageHeader::tabs`, an `AreaNav` rendered by the UiKit `tabs` partial at the secondary level; the current view has
+  `aria-current="page"`; Edit and History only with those rights). It is always there, comments or not.
+- **Comments (opt-in, `nowo_wiki.comments.enabled`).** Inline threads anchored in the text (Milkdown 1.6 anchor v1,
+  validated with `CommentAnchor`) and page-level comments, in a right-side panel toggled from the end of the tab row:
+  - the toggle is the UiKit side-panel toggle as an icon button (`tabler:message-circle`) with a visible count badge
+    (open threads the viewer may read) that is also part of its accessible name; optional `comments.shortcut`
+    (`aria-keyshortcuts`), none by default;
+  - the panel is the UiKit 2.25 side panel (an inline column >= 768 px, a full-height drawer <= 767 px with the page
+    behind inert), named by its heading, Escape / close / toggle, focus in on open and back on close, polite live
+    region; the Milkdown thread component mounts into it (`panel: 'container'`), with two-way highlight / thread
+    focus and the `comments-count` badge;
+  - editors get the page as a read-only Milkdown mount on the read view (`nowo_milkdown_view()`) and the thread
+    component in the edit form; **other commenters never receive the Markdown source**: their panel lists the open
+    threads rendered by the server (inline threads with their quote and a muted *Reply from the editor* line, a link
+    to the editor for viewers who may edit) and the page-comment form.
+    `comments.read_view_source: true` (opt-in) gives them the mount and the source. Without JavaScript the toggle is
+    a link to `?comments=1`, the panel lists the page-level threads and a `WikiCommentType` form posts to
+    `…/comments/new`;
+  - open / closed state per user: `WikiPanelStateStoreInterface` (the session by default, `comments.state_store` for a
+    host store), `POST …/spaces/{spaceSlug}/panel-state`; `?comments=1|0` overrides it for one request;
+  - endpoints under the route key `page_comments` (`…/pages/{pageSlug}/comments/…`, the Milkdown 6.1 contract v1.2:
+    `updatedAt` / `base` and 409, `resolvedBy` / `resolvedAt`, deleted comments, `truncated`), JSON, same origin,
+    `X-CSRF-Token` per page, bodies <= 16 KiB, Markdown <= 10 000 characters, `comments.rate_limiter` (required, per
+    user across pages) and optional `comments.page_rate_limiter`, caps in `comments.limits` (422 `limit_reached`);
+  - viewers who may not edit get only the quote of an anchor, blanked once the text left the page;
+    `renderBodyForNotification()` (viewer-neutral) for notification bodies; privacy export / erasure
+    (`exportAuthor()`, `eraseAuthor()`, `wiki:comments:erase-user`); the trash purge deletes comment rows explicitly;
+    every response with the panel is `Cache-Control: private, no-store`;
+  - rights `WikiAction::ViewComments`, `Comment`, `ResolveComment`, `ModerateComments`: outside `grants()`, denied by
+    the 1.x legacy mapping (default deny); authors edit and delete their own comments with `Comment`;
+  - tables `<prefix>_comment_threads`, `<prefix>_comments`, `<prefix>_comment_reactions` (left out of the schema when
+    off; threads follow their page to the trash and are deleted with it);
+  - events `nowo_wiki.comment.created` / `.replied` / `.edited` / `.deleted` / `.resolved` / `.reopened`
+    (`WikiCommentEvent`: page, thread, comment, actor, mentions; never a body);
+  - with co-editing, live updates by thread id on the private topic `<collab topic>/comments`, granted with the
+    co-editing topic in one subscriber cookie (`WikiCollabTopicsAuthorizerInterface`).
+- **Avatars** (avatar contract v1.1 §10.2): `Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface` (keyed by
+  `WikiAvatarKey::of()`, size 32; `NullWikiUserAvatarResolver` by alias), batched once per response. History authors
+  and comment authors (`author.avatarUrl`, `resolvedBy.avatarUrl`) get the picture through the UiKit `_avatar`
+  partial and URL policy, **only beside a real name**: with `history.show_names: false` or a name that fails
+  `isSafeName()` nothing is resolved nor emitted. `WikiAuthorLabel::present()` / `presentAll()`.
+- **Plain-text search.** `content_text` column on the revision (public API), filled on save from the sanitized
+  HTML; `Nowo\WikiBundle\Search\WikiPlainText::fromHtml()` / `fromMarkdown()`; `wiki:search:backfill-text`
+  (`--all`, `--batch-size`, `--dry-run`).
+
+### Changed
+
+- **Search matches the plain text** of the current revision instead of its Markdown source (or HTML): directive
+  markers and attribute values (`:::callout{icon="bulb" type="info"}`), Markdown punctuation and tags are no longer
+  hits. Revisions not backfilled yet are still matched the 1.15 way. Excerpts come from the same text.
+- Requires `nowo-tech/ui-kit-bundle` `^2.26` (side panel, avatar partial and URL policy); dev requirement
+  `nowo-tech/milkdown-editor-bundle` `^1.6`.
+- `WikiAuthorLabel` is always registered (comments use it too) and takes the avatar memo.
+- The route loader passes `#[Route]` defaults through (the optional `{path}` of `page_comments`).
+
 ## [1.15.1] - 2026-11-04
 
 Empty space export, export index, front matter round trip

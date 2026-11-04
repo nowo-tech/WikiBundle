@@ -12,6 +12,12 @@ framework:
         fallbacks: [en]
     php_errors:
         log: true
+    # 1.16: nowo_wiki.comments.rate_limiter (comment writes per user and page).
+    rate_limiter:
+        wiki_comments:
+            policy: sliding_window
+            limit: 120
+            interval: '1 minute'
 
 when@test:
     framework:

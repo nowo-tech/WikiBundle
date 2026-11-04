@@ -1,0 +1,31 @@
+{#
+  Comments panel (1.16): the UiKit side panel (`side_panel` theme partial, >= 2.25) on the right — an inline column
+  >= 768 px, a full-height drawer <= 767 px — named by its heading "Comments". Open / closed comes from the server
+  (?comments=1|0, else the viewer's remembered state: no flash); js/nowo-ui-side-panel.js opens and closes it in place
+  and wiki.js stores the state (POST data-state-url, X-CSRF-Token data-state-token). The body is
+  _comments_panel_body.html.twig through content_template (never `content`: comment text is user content, UiKit
+  audit DU-I1).
+  Variables: comments (WikiCommentsPanel::panel()), bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _b = bundle|default(null) %}
+{% set _title = 'wiki.comments.title'|trans %}
+{{ include(nowo_ui_partial('side_panel', _b), {
+    id: comments.id,
+    title: _title,
+    open: comments.open,
+    side: 'end',
+    layout: 'inline',
+    close_href: comments.close_href,
+    labels: {close: 'wiki.comments.close'|trans, opened: 'wiki.comments.opened'|trans, closed: 'wiki.comments.closed'|trans},
+    content_template: '@NowoWikiBundle/manage/_comments_panel_body.html.twig',
+    content_context: {comments: comments, bundle: _b},
+    attr: {
+        'data-testid': 'wiki-comments-panel',
+        'data-nowo-wiki-comments': true,
+        'data-state-url': comments.state_url,
+        'data-state-token': comments.state_token,
+        'data-reload-href': comments.reload_href|default(null),
+    },
+    bundle: _b,
+}, false) }}

@@ -51,6 +51,9 @@ Root key: `nowo_wiki`.
 - [Page tree (1.14)](#page-tree-114)
 - [Trash (1.14)](#trash-114)
 - [History timeline (1.15)](#history-timeline-115)
+- [Comments (1.16)](#comments-116)
+- [Avatars (1.16)](#avatars-116)
+- [Search text (1.16)](#search-text-116)
 - [Sanitizer allowlist (1.11)](#sanitizer-allowlist-111)
 - [Space access and tenant paths (1.9)](#space-access-and-tenant-paths-19)
 - [Attachments (1.9)](#attachments-19)
@@ -233,6 +236,76 @@ label on one page and unrelated labels on other pages, and a label cannot be mat
 versions, the current revision and the newest revision are always kept. Revision numbers are never reused, so a thinned
 history has gaps. Run it from a single scheduler, e.g. `30 3 * * * bin/console wiki:history:thin`. Without the
 timeline the command does nothing.
+
+## Comments (1.16)
+
+```yaml
+framework:
+    rate_limiter:
+        wiki_comments: { policy: sliding_window, limit: 60, interval: '1 minute' }
+
+nowo_wiki:
+    editor:
+        type: milkdown                         # required (nowo-tech/milkdown-editor-bundle ^1.6)
+    comments:
+        enabled: true                          # literal boolean; off = no toggle, panel, route or comment table
+        rate_limiter: limiter.wiki_comments    # required when enabled: comment writes per user, across all pages
+        page_rate_limiter: null                # optional: a second budget per user and page
+        limits:                                # 422 limit_reached beyond these
+            threads_per_page: 500
+            comments_per_thread: 500
+            reactions_per_comment: 20          # distinct emoji on one comment
+            user_reactions_per_comment: 10
+        state_store: null                      # a WikiPanelStateStoreInterface service id (null: the session)
+        read_view_source: false                # true: non-editors get the page Markdown on the read view (see below)
+        shortcut: null                         # e.g. 'Alt+Shift+C' (aria-keyshortcuts); none by default
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `comments.enabled` | `false` | The comments toggle and panel, the endpoints and the three comment tables |
+| `comments.rate_limiter` | null (required when on) | `RateLimiterFactory` service id, keyed by **user identifier, across all pages**, on every write (429) |
+| `comments.page_rate_limiter` | null | Optional `RateLimiterFactory` service id keyed by user identifier + page id, on top of `rate_limiter` |
+| `comments.limits.*` | 500 / 500 / 20 / 10 | Threads per page, comments per thread, distinct emoji per comment, reactions of one user per comment (422 `limit_reached` beyond) |
+| `comments.state_store` | null | Service id of a `WikiPanelStateStoreInterface` (open / closed per user); the session by default |
+| `comments.read_view_source` | `false` | Literal boolean. `false`: on the read view only editors get the read-only Milkdown mount (inline highlights) and so the page source; other commenters get the threads rendered by the server. `true`: every viewer with `ViewComments` gets the mount **and the Markdown source** ([SECURITY](SECURITY.md#comments-threat-model-116)) |
+| `comments.shortcut` | null | Modifiers + one key (`Control`, `Alt`, `Shift`, `Meta`), e.g. `Alt+Shift+C` |
+| `routes.page_comments` | `…/pages/{pageSlug}/comments/{path}` | The thread component's endpoints (a custom path must end with `/{path}`) |
+| `routes.space_panel_state` | `…/spaces/{spaceSlug}/panel-state` | `POST {panel: "comments", open}` (204) |
+
+The tab row (*Page* / *Edit* / *History*) is rendered with or without comments. The toggle and the panel appear only
+for viewers with `WikiAction::ViewComments`. **Rights** are default deny: the host's `WikiSpaceAccessCheckerInterface`
+grants `ViewComments`, `Comment`, `ResolveComment` and `ModerateComments` (Beacon maps them to its View, Edit, manage
+and manage permissions); the 1.x legacy mapping denies them all. Every endpoint also applies the read rule (View on the
+page and every ancestor): an unreadable page answers 404, a missing right 403.
+
+Tables (`<prefix>` = `table_prefix` without its trailing `_`): `<prefix>_comment_threads` (page, opaque anchor JSON,
+quote copy, resolved by / at, created by / at, updated at), `<prefix>_comments` (thread, author, Markdown body,
+position, created / edited / deleted at), `<prefix>_comment_reactions` (comment, user, emoji). Threads are deleted with
+their page (purge) and hidden with it (archive, trash). A deleted user's comments stay, without an author name.
+
+## Avatars (1.16)
+
+```yaml
+# config/services.yaml
+services:
+    Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface: '@App\Wiki\WikiAvatarUrls'
+```
+
+`WikiUserAvatarResolverInterface::urlsFor(list<UserInterface>, int $size): array<string, ?string>` is called once per
+response, keyed by `WikiAvatarKey::of($user)` (`getId()` as a string, else the user identifier), with `$size` 32 (CSS
+pixels). Return a stable, access-checked URL: `https://` without userinfo, or a same-origin path starting with one `/`
+(the UiKit avatar URL policy drops anything else, and initials are shown). The default
+(`NullWikiUserAvatarResolver`) returns none. **Privacy:** pictures follow the names — only authors shown under their
+real name (`history.show_names: true`, and a name that passes the `isSafeName()` rule) are ever passed to the
+resolver; opaque "Editor xxxx" authors get no avatar and no resolution.
+
+## Search text (1.16)
+
+The search matches the revision's `content_text` (plain text of the sanitized HTML, filled on save). Fill it for
+revisions written before 1.16 with `bin/console wiki:search:backfill-text` (`--dry-run` counts, `--batch-size=N`,
+`--all` recomputes every revision). `content_text` is public API: filter on it in SQL, and use
+`Nowo\WikiBundle\Search\WikiPlainText::fromMarkdown()` for text you only have as Markdown.
 
 ## Sanitizer allowlist (1.11)
 

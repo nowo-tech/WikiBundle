@@ -1,4 +1,31 @@
 wiki:
+  tabs:
+    label: "Viste della pagina"
+    page: "Pagina"
+    edit: "Modifica"
+    history: "Cronologia"
+  comments:
+    title: "Commenti"
+    open_suffix: " aperti"
+    close: "Chiudi i commenti"
+    opened: "Commenti aperti"
+    closed: "Commenti chiusi"
+    empty: "Ancora nessun commento sulla pagina."
+    by: "Commento di %name%"
+    deleted: "Commento eliminato"
+    send: "Commenta"
+    new_label: "Commenta questa pagina"
+    new_help: "Markdown, al massimo 10.000 caratteri. Commentare una selezione richiede JavaScript."
+    added: "Il tuo commento è stato aggiunto."
+    reply_in_editor: "Rispondi dall’editor"
+    quote_gone: "Il testo commentato non è più nella pagina."
+    truncated: "Sono mostrate solo le prime %count% discussioni aperte."
+    unknown_author: "Utente eliminato"
+    error:
+      invalid: "Il commento è vuoto o non valido."
+      too_large: "Il commento è troppo lungo (al massimo 10.000 caratteri)."
+      limit_reached: "Questa pagina, discussione o commento ha raggiunto il limite."
+      rate_limited: "Troppi commenti in poco tempo: riprova tra un momento."
   collab:
     reset: "Reimposta la collaborazione"
     reset_confirm_title: "Reimpostare la sessione condivisa?"

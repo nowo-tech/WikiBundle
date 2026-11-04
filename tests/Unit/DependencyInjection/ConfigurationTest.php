@@ -288,6 +288,25 @@ final class ConfigurationTest extends TestCase
         (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'trash' => ['retention_days' => 0]]]);
     }
 
+    public function testCommentsDefaultsAndShortcutValidation(): void
+    {
+        $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
+        self::assertSame(['enabled' => false, 'rate_limiter' => null, 'page_rate_limiter' => null, 'limits' => ['threads_per_page' => 500, 'comments_per_thread' => 500, 'reactions_per_comment' => 20, 'user_reactions_per_comment' => 10], 'state_store' => null, 'read_view_source' => false, 'shortcut' => null], $defaults['comments']);
+        self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}', $defaults['routes']['page_comments']['path']);
+        self::assertSame('nowo_wiki_space_panel_state', $defaults['routes']['space_panel_state']['name']);
+        $ok = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'comments' => ['shortcut' => 'Control+Alt+M']]]);
+        self::assertSame('Control+Alt+M', $ok['comments']['shortcut']);
+
+        foreach (['C', 'Alt+', 'Alt+Shift+Enter', 'Hyper+C', ['Alt+C']] as $bad) {
+            try {
+                (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'comments' => ['shortcut' => $bad]]]);
+                self::fail('Accepted a bad shortcut.');
+            } catch (InvalidConfigurationException $exception) {
+                self::assertStringContainsString('comments', $exception->getMessage());
+            }
+        }
+    }
+
     public function testTreeDefaults(): void
     {
         $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);

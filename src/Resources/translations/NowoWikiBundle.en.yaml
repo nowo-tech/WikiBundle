@@ -1,4 +1,31 @@
 wiki:
+  tabs:
+    label: "Page views"
+    page: "Page"
+    edit: "Edit"
+    history: "History"
+  comments:
+    title: "Comments"
+    open_suffix: " open"
+    close: "Close comments"
+    opened: "Comments opened"
+    closed: "Comments closed"
+    empty: "No page comments yet."
+    by: "Comment by %name%"
+    deleted: "Comment deleted"
+    send: "Comment"
+    new_label: "Comment on this page"
+    new_help: "Markdown, up to 10,000 characters. Comments on a selection need JavaScript."
+    added: "Your comment was added."
+    reply_in_editor: "Reply from the editor"
+    quote_gone: "The commented text is no longer on the page."
+    truncated: "Only the first %count% open threads are shown."
+    unknown_author: "Deleted user"
+    error:
+      invalid: "The comment is empty or not valid."
+      too_large: "The comment is too long (10,000 characters at most)."
+      limit_reached: "This page, thread or comment has reached its limit."
+      rate_limited: "Too many comments in a short time: try again in a moment."
   collab:
     reset: "Reset collaboration"
     reset_confirm_title: "Reset the shared session?"

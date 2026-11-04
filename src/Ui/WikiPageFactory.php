@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\Ui;
 
 use DateTimeInterface;
 use Nowo\UiKitBundle\View\Action;
+use Nowo\UiKitBundle\View\AreaNav;
+use Nowo\UiKitBundle\View\AreaNavItem;
 use Nowo\UiKitBundle\View\BackLink;
 use Nowo\UiKitBundle\View\Column;
 use Nowo\UiKitBundle\View\Confirm;
@@ -225,7 +227,7 @@ final readonly class WikiPageFactory
         }
 
         return new ShowPage(
-            header: new PageHeader($page->getTitle(), $space->getName(), $actions, $this->crumbs($space, $page)),
+            header: (new PageHeader($page->getTitle(), $space->getName(), $actions, $this->crumbs($space, $page)))->withTabs($this->pageTabs($space, $page, $can, 'page')),
             meta: $meta,
             bundle: WikiPages::BUNDLE,
             layout: $this->pages->layout(),
@@ -236,7 +238,10 @@ final readonly class WikiPageFactory
     /**
      * Page create (no page) / edit form: title + Tiptap content, Save, Cancel back to the page (or the space).
      */
-    public function pageForm(WikiSpace $space, ?WikiPage $page, FormView $form, ?FormView $collabResetForm = null): FormPage
+    /**
+     * @param array{history?: bool} $can 1.16: what the user may do on the page (the History tab of an existing page)
+     */
+    public function pageForm(WikiSpace $space, ?WikiPage $page, FormView $form, ?FormView $collabResetForm = null, array $can = []): FormPage
     {
         $back = $page instanceof WikiPage
             ? $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()])
@@ -266,6 +271,8 @@ final readonly class WikiPageFactory
                 $space->getName(),
                 $actions,
                 breadcrumbs: $this->crumbs($space, $page, WikiPages::label($page instanceof WikiPage ? 'wiki.page.edit' : 'wiki.page.new')),
+                // 1.16 (B-Q1): the edit view of an existing page gets the tab row (Edit is the current tab).
+                tabs: $page instanceof WikiPage ? $this->pageTabs($space, $page, ['edit' => true, 'history' => $can['history'] ?? false], 'edit') : null,
                 back: new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
             ),
             form: $form,
@@ -279,14 +286,36 @@ final readonly class WikiPageFactory
     }
 
     /**
+     * The tab row of the read and edit views (1.16, B-Q1): Page (always), Edit (`can.edit`), History (`can.history`);
+     * the current view is the active tab (`aria-current="page"`). Rendered at the secondary level, with the comments
+     * toggle at the end of the same row when the viewer may see comments.
+     *
+     * @param array{edit?: bool, history?: bool} $can what the user may do on the page
+     * @param string $current page | edit
+     */
+    public function pageTabs(WikiSpace $space, WikiPage $page, array $can, string $current): AreaNav
+    {
+        $params = ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()];
+        $items  = [new AreaNavItem(WikiPages::label('wiki.tabs.page'), $this->url('page_view', $params), $current === 'page', ['data-testid' => 'wiki-tab-page'])];
+        if (($can['edit'] ?? false) && $this->has('page_edit')) {
+            $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.edit'), $this->url('page_edit', $params), $current === 'edit', ['data-testid' => 'wiki-tab-edit']);
+        }
+        if (($can['history'] ?? false) && $this->has('page_history')) {
+            $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.history'), $this->url('page_history', $params), false, ['data-testid' => 'wiki-tab-history']);
+        }
+
+        return new AreaNav($items, WikiPages::label('wiki.tabs.label'));
+    }
+
+    /**
      * Version history: revision number and date per row, Compare (diff with the next older revision) and Restore
      * (POST + CSRF behind a Confirm) per row, paginated.
      *
      * @param list<WikiPageRevision> $revisions revisions of the current page, newest first
      * @param WikiPageRevision|null $older first revision of the next page (compare target of the last row)
      * @param array<int|string, FormView> $restoreForms revision number => CSRF restore form
-     * @param array<int, array{author: string, label: string|null, saves: int}>|null $timeline 1.15 timeline rows per
-     *                                                                                         revision number (null: the 1.14 list)
+     * @param array<int, array{author: string, avatar?: string|null, named?: bool, label: string|null, saves: int}>|null $timeline 1.15
+     *                                                                                                                             timeline rows per revision number (null: the 1.14 list); 1.16: `avatar` / `named`
      * @param array<int|string, FormView> $copyForms 1.15 Copy to new page forms per revision number
      */
     public function history(WikiSpace $space, WikiPage $page, array $revisions, ?WikiPageRevision $older, array $restoreForms, ?Pagination $pagination, ?array $timeline = null, array $copyForms = []): ListPage
@@ -304,10 +333,13 @@ final readonly class WikiPageFactory
             ];
             // 1.15 (`history.timeline`): named version, author and the size of the session on its newest row.
             if ($timeline !== null) {
-                $entry = $timeline[$number] ?? ['author' => '', 'label' => null, 'saves' => 0];
+                $entry = $timeline[$number] ?? ['author' => '', 'avatar' => null, 'named' => false, 'label' => null, 'saves' => 0];
                 $row += [
                     'label'  => $entry['label'] ?? '',
                     'author' => $entry['author'],
+                    // 1.16: the author's picture, only beside a real name (else no avatar at all: avatar contract §11).
+                    'author_named'  => $entry['named'] ?? false,
+                    'author_avatar' => $entry['avatar'] ?? '',
                     // Rows hold scalars: the count of saves (2 or more) on the newest row of a session.
                     'session' => $entry['saves'] > 1 ? $entry['saves'] : '',
                 ];

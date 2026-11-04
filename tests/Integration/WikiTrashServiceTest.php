@@ -9,6 +9,9 @@ use DateTimeImmutable;
 use Doctrine\ORM\EntityManager;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Entity\WikiAttachment;
+use Nowo\WikiBundle\Entity\WikiComment;
+use Nowo\WikiBundle\Entity\WikiCommentReaction;
+use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -18,6 +21,7 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiTrashEvent;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
@@ -173,6 +177,34 @@ final class WikiTrashServiceTest extends TestCase
         self::assertNull($this->em->find(WikiPage::class, $late->getId())?->getParent());
         self::assertSame(WikiEvents::TRASH_PURGED, $this->events[1][0]);
         self::assertSame(0, $service->purge($this->space, $batch));
+    }
+
+    /** 1.16 (audit EI-L5): the comments of purged pages go too, even without enforced foreign keys (SQLite). */
+    public function testPurgeDeletesTheCommentsWithoutForeignKeys(): void
+    {
+        self::assertSame(0, (int) $this->em->getConnection()->fetchOne('PRAGMA foreign_keys'), 'This test needs FKs off.');
+        $ops     = $this->page('ops');
+        $keep    = $this->page('keep');
+        $thread  = new WikiCommentThread($ops, $this->user);
+        $comment = new WikiComment($thread, $this->user, 'Body with the quoted text');
+        $kept    = new WikiCommentThread($keep, $this->user);
+        foreach ([$thread, $comment, new WikiCommentReaction($comment, $this->user, '👍'), $kept, new WikiComment($kept, $this->user, 'Stays')] as $entity) {
+            $this->em->persist($entity);
+        }
+        $this->em->flush();
+
+        $comments = new DoctrineOrmWikiCommentRepository($this->em);
+        $service  = $this->service(repo: new DoctrineOrmWikiTrashRepository($this->em, $comments));
+        $batch    = $service->delete($ops);
+        self::assertSame(1, $service->purge($this->space, $batch, $this->user));
+        $this->em->clear();
+
+        $count = fn (string $table): int => (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM ' . $table);
+        self::assertSame([1, 1, 0], [$count('wiki_comment_threads'), $count('wiki_comments'), $count('wiki_comment_reactions')]);
+        $comments->deleteForPages([]);
+        $comments->deleteForPages(['no-such-page']);
+        $comments->deleteForPages([$keep->getId()]);
+        self::assertSame([0, 0], [$count('wiki_comment_threads'), $count('wiki_comments')]);
     }
 
     /** Audit DO-M1 (PoC): a restore that commits while a purge of the same batch runs keeps its pages. */

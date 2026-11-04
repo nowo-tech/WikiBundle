@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Doctrine\ORM\EntityManager;
 use Doctrine\Persistence\ManagerRegistry;
 use LogicException;
+use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -19,6 +20,7 @@ use Nowo\WikiBundle\History\WikiHistoryThinner;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Support\RecordingAvatarResolver;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
@@ -162,6 +164,51 @@ final class WikiHistoryTest extends TestCase
 
         $this->expectException(LogicException::class);
         (new WikiAuthorLabel(''))->label($this->ana, $this->page);
+    }
+
+    public function testAvatarsAreOnlyResolvedBesideRealNames(): void
+    {
+        // 1.16 (avatar contract §11, Beacon review): where the name is hidden the resolver is never called.
+        $maria   = (new TestUserEntity('id-17'))->withDisplayName('Maria Ruiz');
+        $leaky   = (new TestUserEntity('jdoe'))->withDisplayName('jdoe');
+        $carl    = (new TestUserEntity('id-18'))->withDisplayName('Carl Berg');
+        $authors = [$maria, $leaky, $maria, $carl, new stdClass()];
+
+        $resolver = new RecordingAvatarResolver(['id-17' => '/files/maria/s64', 'id-18' => 'http://insecure.test/c.png']);
+        $hidden   = new WikiAuthorLabel('secret', false, new WikiAvatars($resolver));
+        foreach ($hidden->presentAll($authors, $this->page) as $presented) {
+            self::assertFalse($presented['named']);
+            self::assertNull($presented['avatarUrl']);
+            self::assertMatchesRegularExpression('/^Editor [0-9a-f]{4}$/', $presented['name']);
+        }
+        self::assertSame(['name' => $hidden->label($maria, $this->page), 'named' => false, 'avatarUrl' => null], $hidden->present($maria, $this->page));
+        self::assertSame([], $resolver->calls, 'show_names off: the resolver is never called.');
+
+        $unsafe = new WikiAuthorLabel('secret', true, new WikiAvatars($resolver));
+        self::assertNull($unsafe->present($leaky, $this->page)['avatarUrl']);
+        self::assertSame([], $resolver->calls, 'A name that fails isSafeName(): the resolver is never called.');
+
+        $named     = new WikiAuthorLabel('secret', true, new WikiAvatars($resolver));
+        $presented = $named->presentAll($authors, $this->page);
+        self::assertSame([['id-17', 'id-18']], $resolver->calls, 'One call for the named authors of the response.');
+        self::assertSame(['name' => 'Maria Ruiz', 'named' => true, 'avatarUrl' => '/files/maria/s64'], $presented[0]);
+        self::assertFalse($presented[1]['named']);
+        self::assertNull($presented[1]['avatarUrl']);
+        // An http: URL fails the UiKit policy: initials only.
+        self::assertSame(['name' => 'Carl Berg', 'named' => true, 'avatarUrl' => null], $presented[3]);
+        self::assertFalse($presented[4]['named']);
+        // Without an avatar memo: names only.
+        self::assertNull((new WikiAuthorLabel('secret', true))->present($maria, $this->page)['avatarUrl']);
+
+        // The timeline rows carry them, primed once per page of rows.
+        $this->em->persist($maria);
+        $this->em->persist($leaky);
+        $calls = new RecordingAvatarResolver(['id-17' => '/files/maria/s64']);
+        $rows  = (new WikiHistoryTimeline(new DoctrineOrmWikiRevisionLabelRepository($this->em), new WikiAuthorLabel('secret', true, new WikiAvatars($calls))))
+            ->rows($this->page, [$this->revision(2, $maria, '-5 minutes'), $this->revision(1, $leaky, '-90 minutes')]);
+        self::assertSame(['Maria Ruiz', true, '/files/maria/s64'], [$rows[2]['author'], $rows[2]['named'], $rows[2]['avatar']]);
+        self::assertSame([false, null], [$rows[1]['named'], $rows[1]['avatar']]);
+        self::assertSame([['id-17']], $calls->calls);
     }
 
     public function testThinningKeepsOnePerSessionAndDayNamedVersionsAndTheNewest(): void

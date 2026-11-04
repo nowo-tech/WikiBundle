@@ -56,6 +56,24 @@ final class MercureWikiCollabTest extends TestCase
         self::assertSame(['subscribe' => ['urn:page:1']], $claims['mercure'], 'subscribe to this topic only, no publish');
     }
 
+    public function testSeveralTopicsShareOneGrant(): void
+    {
+        // 1.16: the comments topic rides on the co-editing grant (one cookie).
+        $factory = new LcobucciFactory(str_repeat('k', 32), protocolVersion: ProtocolVersion::Legacy);
+        $hub     = new MockHub('https://wiki.test/.well-known/mercure', new StaticTokenProvider('t'), static fn (): string => 'id', $factory, 'https://wiki.test/.well-known/mercure', protocolVersion: ProtocolVersion::Legacy);
+        $request = Request::create('https://wiki.test/page');
+
+        (new MercureWikiCollabSubscriberAuthorizer(new Authorization(new HubRegistry($hub))))->authorizeTopics($request, ['urn:page:1', 'urn:page:1/comments']);
+
+        $cookies = $request->attributes->get('_mercure_authorization_cookies');
+        self::assertIsArray($cookies);
+        $cookie = reset($cookies);
+        self::assertInstanceOf(Cookie::class, $cookie);
+        $claims = json_decode(base64_decode(strtr(explode('.', (string) $cookie->getValue())[1], '-_', '+/')), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($claims);
+        self::assertSame(['subscribe' => ['urn:page:1', 'urn:page:1/comments']], $claims['mercure']);
+    }
+
     public function testStateIsEmptyWithoutSnapshotAndUpdates(): void
     {
         self::assertTrue((new WikiCollabState())->isEmpty());

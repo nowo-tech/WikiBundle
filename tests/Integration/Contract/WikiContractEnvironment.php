@@ -52,5 +52,7 @@ trait WikiContractEnvironment
         $twig->addExtension(new WikiHtmlTwigExtension(new WikiHtmlSanitizer()));
         $twig->addFunction(new TwigFunction('nowo_tiptap_editor_asset_path', static fn (string $path): string => 'tiptap/' . $path));
         $twig->addFunction(new TwigFunction('nowo_tiptap_editor_asset_package', static fn (): ?string => null));
+        // 1.16: the read-only Milkdown mount of commenters (Milkdown >= 1.6).
+        $twig->addFunction(new TwigFunction('nowo_milkdown_view', static fn (?string $markdown, array $options = []): string => '<div class="nowo-milkdown" data-controller="nowo--milkdown-editor"></div>', ['is_safe' => ['html']]));
     }
 }

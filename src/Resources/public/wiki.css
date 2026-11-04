@@ -227,3 +227,83 @@
 .nowo-wiki-ai__text {
   line-height: 1.7;
 }
+
+/* 1.16: the page tab row (Page / Edit / History) with the comments toggle at its end (UiKit tabs + side panel toggle). */
+.nowo-wiki-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: 1rem;
+}
+
+.nowo-wiki-tabs > nav {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nowo-wiki-tabs__end {
+  margin-inline-start: auto;
+}
+
+/* 1.16: author with avatar (history, comments). */
+.nowo-wiki-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* 1.16: comments panel body (no-JavaScript list and form; the Milkdown thread component styles itself). */
+.nowo-wiki-comments__list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.nowo-wiki-comments__thread {
+  border-block-end: 1px solid var(--nowo-ui-border, #e2e8f0);
+  padding-block-end: 0.75rem;
+}
+
+.nowo-wiki-comment + .nowo-wiki-comment {
+  margin-block-start: 0.5rem;
+  padding-inline-start: 0.75rem;
+}
+
+.nowo-wiki-comment__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.nowo-wiki-comment__author {
+  font-weight: 600;
+}
+
+.nowo-wiki-comment__time,
+.nowo-wiki-comments__empty,
+.nowo-wiki-comment__deleted {
+  color: var(--nowo-ui-muted, #64748b);
+}
+
+.nowo-wiki-comment__body {
+  overflow-wrap: anywhere;
+}
+
+.nowo-wiki-comments__form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* 1.16: quote of an inline thread in the server-rendered comments list (no highlight without the page source). */
+.nowo-wiki-comment__quote {
+  margin: 0 0 0.375rem;
+  padding-inline-start: 0.5rem;
+  border-inline-start: 3px solid var(--nowo-ui-border, #e2e8f0);
+  color: var(--nowo-ui-muted, #64748b);
+  overflow-wrap: anywhere;
+}

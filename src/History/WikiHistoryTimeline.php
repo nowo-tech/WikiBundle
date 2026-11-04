@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+use function array_map;
 use function spl_object_id;
 
 /**
@@ -28,8 +29,9 @@ final readonly class WikiHistoryTimeline
     /**
      * @param list<WikiPageRevision> $revisions newest first (one page of the history)
      *
-     * @return array<int, array{author: string, label: string|null, saves: int}> per revision number; `saves` is the
-     *                                                                           size of the session on its newest row, 0 on the others
+     * @return array<int, array{author: string, named: bool, avatar: string|null, label: string|null, saves: int}> per revision
+     *                                                                                                             number; `saves` is the size of the session on its newest row, 0 on the others; `avatar` (1.16) the
+     *                                                                                                             author's picture URL, only beside a real name
      */
     public function rows(WikiPage $page, array $revisions): array
     {
@@ -46,11 +48,15 @@ final readonly class WikiHistoryTimeline
             $prev          = $revision;
         }
 
-        $rows = [];
-        foreach ($revisions as $revision) {
+        // 1.16: one avatar resolver call per page of rows, for the authors shown under their real name only.
+        $authors = $this->authors->presentAll(array_map(static fn (WikiPageRevision $revision): object => $revision->getAuthor(), $revisions), $page);
+        $rows    = [];
+        foreach ($revisions as $index => $revision) {
             $number        = $revision->getRevisionNumber();
             $rows[$number] = [
-                'author' => $this->authors->label($revision->getAuthor(), $page),
+                'author' => $authors[$index]['name'],
+                'named'  => $authors[$index]['named'],
+                'avatar' => $authors[$index]['avatarUrl'],
                 'label'  => $labels[$revision->getId()] ?? null,
                 'saves'  => $saves[$number] ?? 0,
             ];

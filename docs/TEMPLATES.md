@@ -42,6 +42,8 @@ Every page also receives `nowo_wiki_legacy_layout` / `nowo_wiki_legacy_blocks` (
 | `archived` | `{title, action: View\Action\|null}` | `WikiPageFactory::archived()` |
 | `sources` | `{title, space, excerpt, href}` | `WikiPageFactory::hits()` |
 | `used_in` | `{type, label, href, badge}` | `WikiPageFactory::usedIn()` |
+| `comments` (1.16) | `{id, open, count, shortcut, toggle_href, close_href, comments_url, csrf_token, state_url, state_token, can, page_threads, form}` (null: no toggle, no panel) | `WikiCommentsPanel::panel()` |
+| `comments_view` (1.16) | `{markdown, options}` (the read-only Milkdown mount of commenters) | `WikiManageController::viewPage()` |
 
 Only pages the user may **view** (`WikiAction::View` on the page, 1.9 access model) reach the tree, the archived list, the search rows, the AI sources and the AI context; a hidden page also hides its sub-pages in the tree.
 
@@ -51,8 +53,8 @@ Header actions per page:
 | --- | --- |
 | `index` | Ask the wiki (`custom`, opens the AI `<dialog>`), Back to dashboard (`prev`, with `dashboard_route`) |
 | `space` | New page (`create`), Export Outline / Notion (`export`), Back to dashboard |
-| `page_view` | Edit (`edit`), History (`view`), Archive (`delete` look, POST + CSRF behind a UiKit `Confirm`) |
-| `page_edit` | Back link to the page (or the space); Save / Cancel in the form |
+| `page_view` | Edit (`edit`), History (`view`), Archive (`delete` look, POST + CSRF behind a UiKit `Confirm`); 1.16: tab row *Page* (current) / *Edit* / *History* (`PageHeader::tabs`, `AreaNav`) |
+| `page_edit` | Back link to the page (or the space); Save / Cancel in the form; 1.16: the tab row (*Edit* current) on an existing page |
 | `page_history` | Back link; row actions Compare (`view`) and Restore (`restore`, POST + CSRF behind a `Confirm`) |
 | `page_diff` | Back link to the history |
 | `search`, `ai_ask` | Back to dashboard |
@@ -64,9 +66,9 @@ Header actions per page:
 | every page | `nowo_ui_styles` (`{{ parent() }}` + `wiki.css` from the `nowo_wiki` asset package); flashes come from the layout's `nowo_ui_flashes` (the controller translates them when it adds them) | — |
 | `index` | `nowo_ui_list_row` (name links to the space, slug in `code`), `nowo_ui_modals` (AI dialog) | `manage/_ai_dialog.html.twig` (UiKit `_dialog`: header, body, footer) |
 | `space` | `nowo_ui_scripts` (`{{ parent() }}` + `wiki.js`, with the request `csp_nonce`), `nowo_ui_show_sections` (sidebar + search, import, archived pages) | `manage/_sidebar.html.twig`, `manage/_page_tree.html.twig`, `manage/_page_tree_item.html.twig`; UiKit `action` partial for Restore page |
-| `page_view` | `nowo_ui_scripts` (`{{ parent() }}` + `wiki.js`), `nowo_ui_show_sections` (sidebar + sanitized content + "Used in") | same sidebar partials |
-| `page_edit` | `nowo_ui_scripts` (`{{ parent() }}` + the TiptapEditorBundle script, with the request attribute `csp_nonce` when set); `nowo_ui_form_body` keeps the UiKit child loop | — |
-| `page_history` | `nowo_ui_list_row` (current revision badge) | — |
+| `page_view` | `nowo_ui_scripts` (`{{ parent() }}` + `wiki.js`; 1.16 + UiKit `js/nowo-ui-side-panel.js` with comments), `nowo_ui_page_header` (1.16: the UiKit header without its tabs, then the tab row), `nowo_ui_content` (1.16: inside the UiKit side panel container with comments), `nowo_ui_show_sections` (sidebar + sanitized content + "Used in") | same sidebar partials; 1.16: `manage/_page_tabs.html.twig` (UiKit `tabs` at the secondary level + `side_panel_toggle`), `manage/_comments_panel.html.twig` (UiKit `side_panel`, body through `content_template`), `manage/_comments_panel_body.html.twig`, `manage/_comments_view.html.twig` (`nowo_milkdown_view()`) |
+| `page_edit` | `nowo_ui_scripts` (`{{ parent() }}` + the TiptapEditorBundle script, with the request attribute `csp_nonce` when set; 1.16 + the side panel script and `wiki.js` with comments); `nowo_ui_page_header` and `nowo_ui_content` as `page_view`; `nowo_ui_form_body` keeps the UiKit child loop | 1.16: `manage/_page_tabs.html.twig`, `manage/_comments_panel.html.twig` |
+| `page_history` | `nowo_ui_list_row` (current revision badge; 1.16: UiKit `_avatar`, `xs`, decorative, before a real author name only) | — |
 | `page_diff` | `nowo_ui_show_sections` (diff lines in a `code_block`) | — |
 | `search` | `nowo_ui_list_row` (title links to the page, space badge, excerpt) | — |
 | `ai_ask` | `nowo_ui_form_body` (error, `{{ parent() }}`, help), `nowo_ui_form_aside` (answer and sources) | — |
@@ -104,4 +106,4 @@ None: every wiki page extends a UiKit scaffold.
 
 ## Contract test
 
-`tests/Integration/Contract/PageContractTest.php` extends `Nowo\UiKitBundle\Test\PageContractTestCase` and renders every page (17 fixtures from `tests/Support/PageFixtures.php`, built with `WikiPageFactory` and the real form types) against the UiKit stub host layout and theme, for `none`, `bootstrap5` and `tailwind`, with the strict missing-translation rule. It also checks the page tree, the sanitized content, the AI `<dialog>`, the confirm contract of Restore / Archive and the CSP nonce of the editor script.
+`tests/Integration/Contract/PageContractTest.php` extends `Nowo\UiKitBundle\Test\PageContractTestCase` and renders every page (21 fixtures from `tests/Support/PageFixtures.php`, built with `WikiPageFactory` and the real form types) against the UiKit stub host layout and theme, for `none`, `bootstrap5` and `tailwind`, with the strict missing-translation rule. It also checks the page tree, the 1.16 tab row, comments toggle and panel (open, closed, edit view) and history avatars, the sanitized content, the AI `<dialog>`, the confirm contract of Restore / Archive and the CSP nonce of the editor script.

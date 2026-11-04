@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Controller;
 
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
@@ -59,6 +60,7 @@ final class WikiCollabController extends AbstractController
         private readonly ?WikiCollabService $collab = null,
         private readonly ?WikiTokenGuard $tokenGuard = null,
         private readonly array $routes = [],
+        private readonly ?WikiCommentService $comments = null,
     ) {
     }
 
@@ -94,7 +96,7 @@ final class WikiCollabController extends AbstractController
             return match ($action) {
                 'state'     => new JsonResponse($this->collab->state($page, $user, $request), Response::HTTP_OK, self::NO_STORE),
                 'corrupt'   => $this->noContent(fn () => $this->collab->corrupt($request, $page, $user)),
-                'token'     => $this->noContent(fn () => $this->collab->token($request, $page, $user)),
+                'token'     => $this->noContent(fn () => $this->collab->token($request, $page, $user, $this->commentTopics($user, $page))),
                 'update'    => $this->noContent(fn () => $this->collab->update($request, $page, $user)),
                 'awareness' => $this->noContent(fn () => $this->collab->awareness($request, $page, $user)),
                 default     => $this->noContent(fn () => $this->collab->compact($request, $page, $user)),
@@ -126,6 +128,21 @@ final class WikiCollabController extends AbstractController
         return $edit !== null
             ? $this->redirectToRoute($edit, ['spaceSlug' => $spaceSlug, 'pageSlug' => $page->getSlug()])
             : new Response(null, Response::HTTP_NO_CONTENT, self::NO_STORE);
+    }
+
+    /**
+     * 1.16: the page's private comments topic joins the co-editing grant for viewers with ViewComments.
+     *
+     * @return list<string>
+     */
+    private function commentTopics(UserInterface $user, WikiPage $page): array
+    {
+        if (!$this->comments instanceof WikiCommentService) {
+            return [];
+        }
+        $topic = $this->comments->topic($page);
+
+        return $topic !== null && $this->comments->rights($user, $page->getSpace(), $page)['view'] ? [$topic] : [];
     }
 
     /**

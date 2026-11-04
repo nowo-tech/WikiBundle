@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [To 1.16.0](#to-1160)
 - [To 1.15.1](#to-1151)
 - [To 1.15.0](#to-1150)
 - [To 1.14.1](#to-1141)
@@ -57,6 +58,117 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+### To 1.16.0
+
+From **1.15.1**:
+
+```bash
+composer require nowo-tech/ui-kit-bundle:^2.26 nowo-tech/wiki-bundle:^1.16
+```
+
+**Always (no switch):**
+
+- **The read and edit views have a tab row** (*Page* / *Edit* / *History*) under the title (B-Q1). If you override
+  `page_view.html.twig` or `page_edit.html.twig`, compare them with the bundle's: both now fill
+  `nowo_ui_page_header` (the UiKit header without its tabs, then `manage/_page_tabs.html.twig`) and, with comments,
+  `nowo_ui_content`. The header actions (Edit, History…) are unchanged. New strings `wiki.tabs.*`.
+- **Search matches plain text.** `<prefix>_page_revisions` gains a nullable `content_text` column (public API: filter
+  on it in SQL instead of `content_markdown`). Generate the migration, run it, then fill the column once:
+
+  ```bash
+  bin/console doctrine:migrations:diff && bin/console doctrine:migrations:migrate
+  bin/console wiki:search:backfill-text          # --dry-run to count, --batch-size=500, --all to recompute
+  ```
+
+  Until a revision is backfilled it is matched the 1.15 way (its Markdown or HTML). Searching for Markdown
+  punctuation or tags (`**bold**`, `<strong>`) or for directive attributes (`bulb`, `type="info"`) no longer finds
+  pages. Hosts with their own `LIKE` on `content_markdown` (Beacon's `WikiPageSearchProvider`) should switch to
+  `content_text`; `Nowo\WikiBundle\Search\WikiPlainText::fromMarkdown()` reduces Markdown the same way.
+- **Avatars.** Alias `Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface` to your service to show pictures
+  (history authors, comment authors). URLs must be `https://` without userinfo or a same-origin path starting with
+  one `/`, stable and access-checked when fetched (the UiKit avatar URL policy drops anything else). Pictures appear
+  only where the real name is shown (`history.show_names: true` and a name that passes `isSafeName()`); otherwise the
+  resolver is never called. If you override `page_history.html.twig`, the rows gain `author_named` / `author_avatar`.
+- UiKit `^2.26` is required (side panel, avatar partial and URL policy).
+
+**Comments (opt-in, `nowo_wiki.comments.enabled: true`, a literal boolean):**
+
+> [!WARNING]
+> **Exhaustive `match` checkers fail with a 500.** `WikiAction` gains four cases (`ViewComments`, `Comment`,
+> `ResolveComment`, `ModerateComments`). A host `WikiSpaceAccessCheckerInterface` whose `isGranted()` uses an exhaustive
+> `match ($action)` without a `default` arm (Beacon's `BeaconWikiAccessChecker`) throws `UnhandledMatchError` as soon
+> as comments are enabled — on every page view, since the page asks for `ViewComments`. Add the four cases (or a
+> `default => false` arm) **before** turning comments on. With comments off they are never asked.
+
+- Needs `editor.type: milkdown` and `nowo-tech/milkdown-editor-bundle` `^1.6` (the container refuses to build
+  otherwise), and a rate limiter:
+
+  ```yaml
+  framework:
+      rate_limiter:
+          wiki_comments: { policy: sliding_window, limit: 60, interval: '1 minute' }
+  nowo_wiki:
+      comments:
+          enabled: true
+          rate_limiter: limiter.wiki_comments   # per user, across all pages
+          # page_rate_limiter: limiter.wiki_comments_page   # optional: a second budget per user and page
+          # limits: {threads_per_page: 500, comments_per_thread: 500, reactions_per_comment: 20, user_reactions_per_comment: 10}
+          # state_store: app.wiki_panel_state   # a WikiPanelStateStoreInterface (default: the session)
+          # shortcut: 'Alt+Shift+C'              # none by default
+  ```
+
+- **Schema:** three tables, `<prefix>_comment_threads`, `<prefix>_comments` and `<prefix>_comment_reactions`
+  (`doctrine:migrations:diff` picks them up; they are not in the schema while comments are off).
+- **Routes:** two route keys, `page_comments` (`…/pages/{pageSlug}/comments/{path}`; a custom path must keep the
+  trailing `/{path}`) and `space_panel_state` (`…/spaces/{spaceSlug}/panel-state`). Put them behind the same firewall
+  and access rules as the other wiki routes.
+- **Rights (default deny):** nobody comments until your `WikiSpaceAccessCheckerInterface` grants
+  `WikiAction::ViewComments` (see the toggle, the panel, the threads), `Comment` (start, reply, react; edit / delete
+  own), `ResolveComment` and `ModerateComments`. The 1.x legacy mapping denies all four, and `WikiSpaceGuard::grants()`
+  never asks for them, so an existing checker is not asked until you turn comments on.
+- **Read view and the page source:** by default only viewers who may **edit** the page get the read-only Milkdown
+  mount on the read view (inline highlights, the thread component; the response carries the Markdown source and is
+  `Cache-Control: private, no-store`). Other viewers with `ViewComments` never receive the source: their panel lists
+  the open threads rendered by the server (inline threads with their quote, no highlight in the text) with the
+  page-comment form. That is a **user-interface** limit only: replying, reacting and resolving from the read view need
+  the editor mount, but the JSON endpoints still accept those writes from any viewer with the matching right
+  (`Comment`, `ResolveComment`), as the contract says; the server-rendered list simply offers no buttons for them
+  until the anchored read view of 1.17. `comments.read_view_source: true` (a literal boolean, default false) gives every commenter the mount,
+  **and the full Markdown source** (HTML comments, link targets, reference definitions, hidden blocks, front matter):
+  enable it only if everyone with `ViewComments` may read the source.
+- **Live updates** need co-editing: the thread component listens on `<collab topic>/comments`, granted in the
+  co-editing subscriber cookie. A custom `collaboration.subscriber_authorizer` must implement
+  `WikiCollabTopicsAuthorizerInterface` to grant both topics (otherwise comments refresh on the viewer's own actions
+  only).
+- **Notifications:** listen to `nowo_wiki.comment.*` (`WikiCommentEvent`). Check each recipient's `ViewComments` on
+  the page first, then use `WikiCommentService::renderBodyForNotification()`: it renders **viewer-neutral** (page links
+  show *Content not visible*, mentions stay `@handle`), because the listener runs in the actor's request and the
+  actor's rights are not the recipient's. To show titles, render the comment Markdown yourself in the recipient's
+  security context (e.g. a Messenger worker authenticated as the recipient). Do not serialise the event: it carries
+  entities (the comment holds its body).
+- **Rate limits and caps:** `comments.rate_limiter` is keyed **per user, across all pages**; add
+  `comments.page_rate_limiter` for a second budget per user and page. Writes beyond `comments.limits` (500 threads per
+  page, 500 comments per thread, 20 distinct emoji per comment, 10 reactions of one user per comment) answer 422
+  `limit_reached`.
+- **Anchors and quotes:** viewers who may edit the page (or everyone, with `read_view_source`) get the full anchor in
+  the thread JSON. Others get only `quote.exact`, and an empty one once that text is no longer in the page's current
+  revision (`content_text`). The stored `quote` is page text that outlives later edits of the page: treat it as
+  confidential page content in exports and erasure.
+- **Privacy:** `WikiCommentService::exportAuthor($user)` / `eraseAuthor($user, $deleteBodies)` and the command
+  `wiki:comments:erase-user <id> [--export] [--keep-bodies]`: erasure unlinks the user from their comments, threads
+  and resolutions, deletes their reactions and (by default) blanks their bodies into "Comment deleted" placeholders.
+  Ownership of a comment follows `getUserIdentifier()`: do not recycle identifiers.
+- **Deleting pages or spaces yourself:** the trash purge deletes comment rows explicitly. If your host deletes wiki
+  pages or spaces outside the trash, call `WikiCommentRepositoryInterface::deleteForPages($pageIds)` first (MySQL and
+  PostgreSQL cascade through the foreign keys; SQLite does not unless `foreign_keys` is on).
+- **Turning comments off later:** the comment tables leave the generated schema, so a `doctrine:migrations:diff`
+  run afterwards proposes `DROP TABLE` for them. Remove those lines from the migration unless you mean to delete the
+  comments.
+- **CSP:** the panel needs UiKit's `js/nowo-ui-side-panel.js` (loaded by the wiki pages that show the panel) and the
+  Milkdown module; no inline style or handler. Avatar origins must be in `img-src`.
+- New strings `wiki.comments.*`; new templates `manage/_page_tabs.html.twig`, `_comments_panel.html.twig`,
+  `_comments_panel_body.html.twig`, `_comments_view.html.twig`.
 
 ## To 1.15.1
 

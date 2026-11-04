@@ -9,25 +9,22 @@ use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Search\WikiPlainText;
 
-use function html_entity_decode;
 use function is_array;
 use function is_string;
-use function preg_replace;
-use function strip_tags;
 use function trim;
 
-use const ENT_HTML5;
-use const ENT_QUOTES;
-
 /**
- * Full-text search across page titles and current revision HTML (per space or all accessible spaces).
+ * Full-text search across page titles and the plain text of the current revisions (per space or all accessible
+ * spaces).
+ *
+ * 1.16: the body is matched on the revision's `content_text` ({@see WikiPlainText}), so Markdown punctuation, directive
+ * markers and attribute values (`:::callout{icon="bulb"}`) are never hits. A revision written before 1.16 and not
+ * backfilled yet (`content_text` null; run `wiki:search:backfill-text`) is still matched the 1.15 way.
  */
 final readonly class WikiSearchService
 {
-    /** Tags that start or end a block of text (a space is inserted before each one when the excerpt is built). */
-    private const BLOCK_BOUNDARY = '~</?(?:address|article|aside|blockquote|br|dd|div|dl|dt|figcaption|figure|footer|h[1-6]|header|hr|img|li|ol|p|pre|section|table|tbody|td|tfoot|th|thead|tr|ul)\b[^>]*>~i';
-
     /**
      * Stores the entity manager (or the provider resolving it on each call).
      *
@@ -83,16 +80,16 @@ final readonly class WikiSearchService
 
         $entityManager = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
 
-        /** @var list<array{0: WikiPage, contentHtml: string}> $rows */
+        /** @var list<array{0: WikiPage, contentHtml: string|null, contentText: string|null}> $rows */
         $rows = $entityManager->createQueryBuilder()
-            ->select('p', 's', 'r.contentHtml AS contentHtml')
+            ->select('p', 's', 'r.contentHtml AS contentHtml', 'r.contentText AS contentText')
             ->from(WikiPage::class, 'p')
             ->innerJoin('p.space', 's')
             ->leftJoin('p.currentRevision', 'r')
             ->where('p.space IN (:spaces)')
             ->andWhere('p.archivedAt IS NULL')
-            // 1.11: a Markdown revision is searched in its source, an HTML revision in its HTML.
-            ->andWhere("p.title LIKE :q ESCAPE '!' OR r.contentMarkdown LIKE :q ESCAPE '!' OR (r.contentMarkdown IS NULL AND r.contentHtml LIKE :q ESCAPE '!')")
+            // 1.16: the plain text; a revision not backfilled yet: its source (Markdown) or HTML, as in 1.11.
+            ->andWhere("p.title LIKE :q ESCAPE '!' OR r.contentText LIKE :q ESCAPE '!' OR (r.contentText IS NULL AND (r.contentMarkdown LIKE :q ESCAPE '!' OR (r.contentMarkdown IS NULL AND r.contentHtml LIKE :q ESCAPE '!')))")
             ->setParameter('spaces', $spaces)
             ->setParameter('q', $like)
             ->setMaxResults($limit)
@@ -111,20 +108,19 @@ final readonly class WikiSearchService
             }
 
             $page      = $row[0];
-            $content   = is_string($row['contentHtml'] ?? null) ? $row['contentHtml'] : '';
+            $text      = is_string($row['contentText'] ?? null) ? $row['contentText'] : WikiPlainText::fromHtml(is_string($row['contentHtml'] ?? null) ? $row['contentHtml'] : '');
             $results[] = [
                 'page'    => $page,
                 'space'   => $page->getSpace(),
-                'excerpt' => $this->excerpt($page->getTitle(), $content, $query),
+                'excerpt' => $this->excerpt($page->getTitle(), $text, $query),
             ];
         }
 
         return $results;
     }
 
-    private function excerpt(string $title, string $contentHtml, string $query): string
+    private function excerpt(string $title, string $text, string $query): string
     {
-        $text = $this->plainText($contentHtml);
         if ($text === '') {
             return $title;
         }
@@ -138,19 +134,5 @@ final readonly class WikiSearchService
         $snippet = mb_substr($text, $start, 120);
 
         return ($start > 0 ? '…' : '') . $snippet . (mb_strlen($text) > $start + 120 ? '…' : '');
-    }
-
-    /**
-     * The text of a revision body with one space between blocks (1.12): a line break, a block element boundary
-     * (paragraph, heading, list item, table cell, …) or an image becomes a space before the tags are stripped, so
-     * "<h2>Overview</h2><p>This runbook…" reads "Overview This runbook…"; entities are decoded and runs of
-     * whitespace (no-break spaces included) collapse to one space.
-     */
-    private function plainText(string $html): string
-    {
-        $spaced = preg_replace(self::BLOCK_BOUNDARY, ' $0', $html) ?? $html;
-        $text   = html_entity_decode(strip_tags($spaced), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-        return trim(preg_replace('/[\s\x{00A0}]+/u', ' ', $text) ?? $text);
     }
 }

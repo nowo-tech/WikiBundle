@@ -51,6 +51,17 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         self::assertFalse($this->checker($space, ['canEdit' => true])->isGranted(new TestUser(), WikiAction::Restore, $space));
     }
 
+    public function testCommentActionsAreDeniedByDefault(): void
+    {
+        // 1.16: default deny — even a user holding every 1.x role gets no comment right from the legacy mapping.
+        $space = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');
+        $all   = ['canAccess' => true, 'canList' => true, 'canCreate' => true, 'canEdit' => true, 'canViewHistory' => true, 'canArchive' => true, 'canAskAi' => true, 'canImport' => true, 'canExport' => true];
+
+        foreach (WikiAction::commentActions() as $action) {
+            self::assertFalse($this->checker($space, $all)->isGranted(new TestUser(), $action, $space), $action->value);
+        }
+    }
+
     public function testASpaceOutsideTheUsersSpacesIsDenied(): void
     {
         $space = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');

@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\Dto\WikiPageFormData;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -59,6 +60,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -133,6 +135,7 @@ final class WikiManageController extends AbstractController
      * @param WikiTreeStateStoreInterface|null $treeState fold state of the tree (1.14; null = tree disabled)
      * @param WikiTrashService|null $trash the trash (1.14; null = trash disabled)
      * @param WikiHistoryTimeline|null $timeline the history timeline (1.15; null = the 1.14 revision list)
+     * @param WikiCommentsPanel|null $commentsPanel the comments panel (1.16; null = comments disabled)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -169,6 +172,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiTreeStateStoreInterface $treeState = null,
         private readonly ?WikiTrashService $trash = null,
         private readonly ?WikiHistoryTimeline $timeline = null,
+        private readonly ?WikiCommentsPanel $commentsPanel = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -334,6 +338,25 @@ final class WikiManageController extends AbstractController
             $vars['copy_markdown'] = $source;
         }
 
+        // 1.16: the comments toggle and panel (viewers with ViewComments only). The read-only Milkdown mount that holds
+        // the thread component needs the page's Markdown, so only editors get it (they may read the source anyway,
+        // DN-I2), unless comments.read_view_source opts every commenter in; the others get the threads rendered by
+        // the server and never the source.
+        $mount    = $can['edit'] || $this->commentsPanel?->readViewSource() === true;
+        $editHref = $can['edit'] && isset($this->routes['page_edit']) ? $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug(), 'comments' => 1]) : null;
+        $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page, $mount, $editHref);
+        if ($comments !== null && $this->commentsPanel instanceof WikiCommentsPanel) {
+            $vars['comments'] = $comments;
+            if ($mount && $revision instanceof WikiPageRevision) {
+                $options = $this->editorOptions($user, $space, $page);
+                unset($options['collaboration'], $options['upload_url'], $options['upload_csrf_token']);
+                $vars['comments_view'] = [
+                    'markdown' => $this->editorBody($revision),
+                    'options'  => $this->commentsPanel->editorOptions($options, $comments, $page),
+                ];
+            }
+        }
+
         return $this->renderPage('page_view', $vars + [
             'page'             => $pages->pageView($space, $page, $can, $archiveForm, $deleteForm),
             'content_html'     => $this->revisionBody($page->getCurrentRevision()),
@@ -349,8 +372,9 @@ final class WikiManageController extends AbstractController
             'can_history'      => $can['history'],
             'can_archive'      => $can['archive'],
             'permissions'      => $permissions,
-        ], null, isset($vars['copy_markdown'])
-            // The page carries the editor-only Markdown source: never kept by a shared cache (audit DR-I1).
+        ], null, isset($vars['copy_markdown']) || isset($vars['comments'])
+            // The page carries the Markdown source (audit DR-I1) or the per-viewer comments panel and its tokens:
+            // never kept by any cache.
             ? ['Cache-Control' => 'private, no-store']
             : []);
     }
@@ -441,10 +465,17 @@ final class WikiManageController extends AbstractController
             $this->editorBody($page->getCurrentRevision()),
         );
 
+        // 1.16: the comments panel; the editor mounts the thread component into it (live with co-editing).
+        $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page);
+        $options  = $this->editorOptions($user, $space, $page);
+        if ($comments !== null && $this->commentsPanel instanceof WikiCommentsPanel) {
+            $options = $this->commentsPanel->editorOptions($options, $comments, $page, $this->collab instanceof WikiCollabService);
+        }
+
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_edit_<page id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
             'csrf_token_id'  => 'wiki_edit_' . $page->getId(),
-            'editor_options' => $this->editorOptions($user, $space, $page),
+            'editor_options' => $options,
         ] + $this->pageFormOptions());
         $form->handleRequest($request);
 
@@ -464,13 +495,16 @@ final class WikiManageController extends AbstractController
             ]);
         }
 
+        $canHistory = $this->accessChecker->canViewHistory($user) && $this->spaceGuard->isGranted($user, WikiAction::History, $space, $page);
+
         return $this->renderPage('page_edit', [
-            'page'            => $this->pages()->pageForm($space, $page, $form->createView(), $this->collabResetForm($space, $page)),
+            'comments'        => $comments,
+            'page'            => $this->pages()->pageForm($space, $page, $form->createView(), $this->collabResetForm($space, $page), ['history' => $canHistory]),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
             'editor_type'     => $this->editorType(),
-        ], $form);
+        ], $form, $comments !== null ? ['Cache-Control' => 'private, no-store'] : []);
     }
 
     /**
@@ -1442,6 +1476,14 @@ final class WikiManageController extends AbstractController
         $walk($tree, 0);
 
         return $choices;
+    }
+
+    /** The current request (null outside one). */
+    private function currentRequest(): ?Request
+    {
+        $stack = $this->container->has('request_stack') ? $this->container->get('request_stack') : null;
+
+        return $stack instanceof RequestStack ? $stack->getCurrentRequest() : null;
     }
 
     /**

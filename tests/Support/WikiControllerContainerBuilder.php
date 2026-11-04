@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Support;
 
 use Nowo\TiptapEditorBundle\Form\TiptapEditorType;
 use Nowo\WikiBundle\Form\WikiAiAskType;
+use Nowo\WikiBundle\Form\WikiCommentType;
 use Nowo\WikiBundle\Form\WikiImportType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
 use Nowo\WikiBundle\Form\WikiPageMoveType;
@@ -63,6 +64,7 @@ final class WikiControllerContainerBuilder
             FormKitTestSupport::withMerger(new WikiImportType()),
             FormKitTestSupport::withMerger(new WikiPageMoveType()),
             FormKitTestSupport::withMerger(new WikiVersionLabelType()),
+            FormKitTestSupport::withMerger(new WikiCommentType()),
         ];
         if (class_exists(TiptapEditorType::class)) {
             $formTypes[] = new TiptapEditorType([
