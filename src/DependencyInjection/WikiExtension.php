@@ -125,6 +125,8 @@ use function rtrim;
 use function sprintf;
 use function str_ends_with;
 use function str_starts_with;
+use function strtolower;
+use function trigger_deprecation;
 
 /**
  * Loads bundle configuration and registers services.
@@ -156,6 +158,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $config        = $this->processConfiguration($configuration, $configs);
         $roles         = Configuration::resolveRoles($config['security']);
         $config        = $this->milkdownDefaults($config);
+        $this->warnAboutHostIds($config['sanitizer']);
 
         // BB L1: the switches that open the wiki must be literal booleans (an env placeholder string would be truthy).
         $config['web_ui']['enabled']                 = $this->literalBool($config['web_ui']['enabled'], 'web_ui.enabled');
@@ -347,6 +350,27 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->getDefinition(WikiSearchBackfillTextCommand::class)->setArgument('$entityManager', $emProviderRef);
 
         $this->registerAiServices($container, $config['ai']);
+    }
+
+    /**
+     * 1.16.2 (audit EP-I4): the sanitizer keeps an `id` only when it is a renderer anchor (`nowo-h-…`, `nowo-fn-…`), so an
+     * `id` in the host allowlist no longer has any effect; say so once, at container build (`name` is refused outright).
+     *
+     * @param array<string, mixed> $sanitizer the processed `sanitizer` configuration
+     */
+    private function warnAboutHostIds(array $sanitizer): void
+    {
+        $attributes = $sanitizer['extra_allowed_attributes'] ?? [];
+        foreach ($sanitizer['extra_allowed_elements'] ?? [] as $elementAttributes) {
+            $attributes = array_merge($attributes, is_array($elementAttributes) ? $elementAttributes : []);
+        }
+        foreach ($attributes as $attribute) {
+            if (is_string($attribute) && strtolower($attribute) === 'id') {
+                trigger_deprecation('nowo-tech/wiki-bundle', '1.16.2', 'Allowing "id" in nowo_wiki.sanitizer.extra_allowed_elements / extra_allowed_attributes has no effect: the wiki sanitizer keeps only the "nowo-h-" / "nowo-fn-" anchors of the Markdown renderer and drops every other id (DOM clobbering). Remove "id" from the configuration.');
+
+                return;
+            }
+        }
     }
 
     /**

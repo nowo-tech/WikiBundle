@@ -8,14 +8,17 @@ use League\CommonMark\Environment\Environment;
 use League\CommonMark\Event\DocumentParsedEvent;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\ExtensionInterface;
+use League\CommonMark\Extension\Footnote\FootnoteExtension;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 use League\CommonMark\MarkdownConverter;
 use League\CommonMark\Parser\MarkdownParser;
 use Nowo\MilkdownEditorBundle\Markdown\DialectRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Directive\DirectiveRendererInterface;
 use Nowo\MilkdownEditorBundle\Markdown\DocumentProcessor;
+use Nowo\MilkdownEditorBundle\Markdown\FootnoteGuard;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownDialectExtension;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
+use Nowo\MilkdownEditorBundle\Markdown\Node\LeafDirective;
 use Nowo\MilkdownEditorBundle\Markdown\Node\Mention;
 use Nowo\MilkdownEditorBundle\Markdown\Node\TablerIcon;
 use Nowo\MilkdownEditorBundle\Markdown\Node\WikiLink;
@@ -61,9 +64,18 @@ use function trim;
  * cache that every reader, search excerpt and AI context share; the **viewer** one resolves page links, mentions and
  * host leaf directives for the current request ({@see self::renderForViewer()}). Task lists get the wiki markup
  * ({@see WikiTaskListNormalizer}) and icons the sanitizer-safe placeholder of {@see WikiTablerIconRenderer}.
+ *
+ * 1.16.2 (read view of what Milkdown writes): GFM footnotes (`[^1]`, unless `footnotes: false`; at most
+ * `max_footnote_refs` references, as in the Milkdown renderer) with the sanitizer-safe ids of {@see WikiFootnoteIds};
+ * heading ids `nowo-h-<slug>` with the editor's slugs ({@see WikiHeadingIds}); table alignment as the
+ * `nowo-wiki-align--left|center|right` class; leaf directives no host renders fall back to text or a safe link
+ * ({@see WikiLeafDirectiveRenderer}).
  */
 final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface, WikiMarkdownReferenceParserInterface, WikiMarkdownLimitsInterface
 {
+    /** 1.16.2: class of an aligned table cell (`:---:` → `nowo-wiki-align--center`). */
+    public const ALIGN_CLASS_PREFIX = 'nowo-wiki-align--';
+
     private MarkdownConverter $neutral;
 
     private MarkdownConverter $viewer;
@@ -81,7 +93,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      *
      * @param array<string, mixed> $options the `nowo_milkdown_editor.markdown` options (html_input, allow_remote_images,
      *                                      math, max_nesting_level, max_input_length, max_inline_markers, max_references,
-     *                                      mark_colors)
+     *                                      mark_colors, footnotes, max_footnote_refs)
      * @param PageResolverInterface $pages resolves page links for the viewer
      * @param UserResolverInterface $users resolves mentions for the viewer
      * @param IconResolverInterface $icons icon allowlist and sprite
@@ -196,9 +208,40 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
             'html_input'         => in_array($htmlInput, ['escape', 'strip'], true) ? $htmlInput : 'escape',
             'allow_unsafe_links' => false,
             'max_nesting_level'  => $this->intOption($options, 'max_nesting_level', 50),
+            // 1.16.2: a class, not the `align` attribute the sanitizer strips (and no inline style: CSP-safe).
+            'table' => [
+                'alignment_attributes' => [
+                    'left'   => ['class' => self::ALIGN_CLASS_PREFIX . 'left'],
+                    'center' => ['class' => self::ALIGN_CLASS_PREFIX . 'center'],
+                    'right'  => ['class' => self::ALIGN_CLASS_PREFIX . 'right'],
+                ],
+            ],
+            // 1.16.2: the Milkdown classes; ids are renamed by WikiFootnoteIds (sanitizer-safe, never user text).
+            // Inline `^[…]` footnotes are not GFM and Milkdown never writes them: they stay text.
+            'footnote' => [
+                'backref_class'           => 'nowo-md-footnote-backref',
+                'container_add_hr'        => true,
+                'container_class'         => 'nowo-md-footnotes',
+                'enable_inline_footnotes' => false,
+                'footnote_class'          => 'nowo-md-footnote',
+                'footnote_id_prefix'      => WikiFootnoteIds::FOOTNOTE_PREFIX,
+                'ref_class'               => 'nowo-md-footnote-ref',
+                'ref_id_prefix'           => WikiFootnoteIds::REF_PREFIX,
+            ],
         ]);
         $environment->addExtension(new CommonMarkCoreExtension());
         $environment->addExtension(new GithubFlavoredMarkdownExtension());
+        if (!in_array($options['footnotes'] ?? true, [false, 0, '0', 'false', ''], true)) {
+            $environment->addExtension(new FootnoteExtension());
+            // Before league's own (51): advances by characters, so a non-ASCII label keeps its note's text (EP-I6).
+            $environment->addBlockStartParser(new WikiFootnoteStartParser(), 52);
+            // Before the footnote listeners (40 … 10): case-insensitive labels and the reference cap (Milkdown CZ-L1).
+            $environment->addEventListener(DocumentParsedEvent::class, [new FootnoteGuard($this->intOption($options, 'max_footnote_refs', FootnoteGuard::DEFAULT_MAX_FOOTNOTE_REFS)), 'onDocumentParsed'], 50);
+            // After orphans become text (30), before numbering (20).
+            $environment->addEventListener(DocumentParsedEvent::class, (new WikiFootnoteIds())->onDocumentParsed(...), 25);
+        }
+        // Linear and capped (EP-L1); the same slugs as Milkdown's HeadingIds.
+        $environment->addEventListener(DocumentParsedEvent::class, (new WikiHeadingIds())->onDocumentParsed(...), 0);
         $environment->addExtension(new MilkdownDialectExtension(
             new DialectRenderer($icons, $directiveRenderers, is_array($markColors) ? array_values(array_filter($markColors, is_string(...))) : ['yellow'], $translator),
             new DocumentProcessor($pages, $users, $directiveRenderers, in_array($options['allow_remote_images'] ?? false, [true, 1, '1', 'true'], true), $logger, $this->maxReferences),
@@ -209,6 +252,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         }
 
         $environment->addRenderer(TablerIcon::class, new WikiTablerIconRenderer($icons), 10);
+        $environment->addRenderer(LeafDirective::class, new WikiLeafDirectiveRenderer($directiveRenderers), 10);
         $environment->addEventListener(DocumentParsedEvent::class, new WikiTaskListNormalizer(), -100);
 
         return $environment;

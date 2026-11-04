@@ -13,7 +13,7 @@ Root key: `nowo_wiki`.
 | `database.platform` | `mysql` | **Deprecated since 1.6, no effect** (the platform comes from the Doctrine connection); remove it from your config |
 | `firewall` | `main` | **Deprecated since 1.6, no effect** (the bundle trusts any secured firewall that handles the wiki routes); remove it from your config |
 | `sanitizer.extra_allowed_elements` | `{}` | 1.11: extra elements kept in page bodies, element => its extra attributes (e.g. `{details: [open], summary: []}`); see [Sanitizer allowlist](#sanitizer-allowlist-111) |
-| `sanitizer.extra_allowed_attributes` | `[]` | 1.11: attributes kept on every allowed element (e.g. `[data-callout]`) |
+| `sanitizer.extra_allowed_attributes` | `[]` | 1.11: attributes kept on every allowed element (e.g. `[data-callout]`). 1.16.2: an `id` listed here (or under `extra_allowed_elements`) has no effect — only the renderer anchors `nowo-h-…` / `nowo-fn-…` are kept, every other id is dropped, and a deprecation is logged at container build; `name` is refused (configuration error) |
 | `editor.type` | `tiptap` | `tiptap`: HTML pages edited with TiptapEditorType; `markdown` (1.11): Markdown pages (`content_markdown` is the source, `content_html` its sanitized render cache), see [Markdown pages](#markdown-pages-111); `milkdown` (1.13): Markdown pages in the nowo-tech/milkdown-editor-bundle dialect, see [Milkdown editor](#milkdown-editor-113) |
 | `editor.tiptap_config` | `notion` | TiptapEditorBundle config profile name |
 | `editor.markdown_form_type` | null | 1.11: form type FQCN of the page body when `editor.type` is `markdown` (e.g. a Markdown editor bundle); null = a plain textarea (`MilkdownEditorType` with `milkdown`) |
@@ -324,6 +324,7 @@ nowo_wiki:
 
 - Names must be plain element / attribute names. The container refuses to compile with `script`, `style`, `iframe`, `object`, `embed`, forms and form controls, `svg`, `math`, `template`, `link`, `meta`, `base`…, with the attributes `style`, `href`, `src`, `srcset`, `srcdoc`, `action`, `formaction`… or any `on*` handler (`WikiHtmlSanitizer::FORBIDDEN_ELEMENTS` / `FORBIDDEN_ATTRIBUTES`). `class` is already allowed on every element.
 - A blocked-by-default element (e.g. `section`) listed here is kept.
+- 1.16.2: `name` is refused too (it clobbers `document.<name>` and form controls). `id` is accepted but **has no effect**: the sanitizer keeps an `id` only when it is a Markdown renderer anchor — `nowo-h-<slug>` on `h1`…`h6`, `nowo-fn-<8 hex>-<n>` on `li`, `nowo-fn-ref-<8 hex>-<n>[__<k>]` on `sup` — and drops every other id on every element (DOM clobbering of globals, `Object.prototype` and host element ids). Listing `id` logs a deprecation at container build; remove it.
 
 ## Space access and tenant paths (1.9)
 

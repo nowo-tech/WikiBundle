@@ -173,6 +173,8 @@ final class WikiHtmlSanitizerTest extends TestCase
         yield 'not a string' => [[], [['a']]];
         yield 'not maps' => ['details', []];
         yield 'attributes not a list' => [[], 'data-x'];
+        yield 'name attribute' => [[], ['name']];
+        yield 'name on element' => [['img' => ['NAME']], []];
     }
 
     #[DataProvider('unsafeAllowlists')]
@@ -189,5 +191,65 @@ final class WikiHtmlSanitizerTest extends TestCase
         $this->expectExceptionMessage('The attribute "onerror" cannot be allowed by the wiki sanitizer.');
 
         new WikiHtmlSanitizer(WikiHtmlSanitizer::DEFAULT_EMBED_HOSTS, ['details' => ['onerror']]);
+    }
+
+    public function testKeepsOnlyPrefixedAnchorIds(): void
+    {
+        $sanitizer = new WikiHtmlSanitizer();
+
+        self::assertSame('<h2 id="nowo-h-getting-started">G</h2>', $sanitizer->sanitize('<h2 id="nowo-h-getting-started">G</h2>'));
+        self::assertSame('<p>t<sup id="nowo-fn-ref-0a1b2c3d-1"><a href="#nowo-fn-0a1b2c3d-1">1</a></sup></p>', $sanitizer->sanitize('<p>t<sup id="nowo-fn-ref-0a1b2c3d-1"><a href="#nowo-fn-0a1b2c3d-1">1</a></sup></p>'));
+        self::assertSame('<ol><li id="nowo-fn-0a1b2c3d-1">n</li></ol>', $sanitizer->sanitize('<ol><li id="nowo-fn-0a1b2c3d-1">n</li></ol>'));
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function clobberingIds(): iterable
+    {
+        yield 'proto heading' => ['<h2 id="__proto__">x</h2>', '<h2>x</h2>'];
+        yield 'location heading' => ['<h1 id="location">x</h1>', '<h1>x</h1>'];
+        yield 'cookie footnote' => ['<ol><li id="cookie">x</li></ol>', '<ol><li>x</li></ol>'];
+        yield 'unprefixed sup' => ['<sup id="fnref:1">1</sup>', '<sup>1</sup>'];
+        yield 'entity-encoded proto' => ['<h2 id="&#95;&#95;proto&#95;&#95;">x</h2>', '<h2>x</h2>'];
+        yield 'entity-encoded prefix' => ['<h2 id="&#110;owo-h-a&#32;b">x</h2>', '<h2>x</h2>'];
+        yield 'quote breakout' => ['<h2 id=\'nowo-h-a" onmouseover="alert(1)\'>x</h2>', '<h2>x</h2>'];
+        yield 'prefixed id on div' => ['<div id="nowo-h-a">x</div>', '<div>x</div>'];
+        yield 'prefixed id on a' => ['<a id="nowo-fn-ref-0a1b2c3d-1" href="/x">x</a>', '<a href="/x">x</a>'];
+        yield 'prefixed id on form' => ['<form id="nowo-h-a"><input name="x"></form>', ''];
+        yield 'name attribute' => ['<a name="location" href="/x">x</a>', '<a href="/x">x</a>'];
+    }
+
+    #[DataProvider('clobberingIds')]
+    public function testDropsClobberingIds(string $html, string $expected): void
+    {
+        self::assertSame($expected, (new WikiHtmlSanitizer())->sanitize($html));
+    }
+
+    public function testAHostAllowedIdIsStillLimitedToTheAnchors(): void
+    {
+        $sanitizer = new WikiHtmlSanitizer(WikiHtmlSanitizer::DEFAULT_EMBED_HOSTS, ['section' => ['id']], ['id']);
+
+        self::assertSame('<section>x</section><p>y</p>', $sanitizer->sanitize('<section id="location">x</section><p id="__proto__">y</p>'));
+        self::assertSame('<h3 id="nowo-h-x">x</h3>', $sanitizer->sanitize('<h3 id="nowo-h-x">x</h3>'));
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function alignInjections(): iterable
+    {
+        yield 'align attribute' => ['<table><tbody><tr><td align="center">x</td></tr></tbody></table>', '<table><tbody><tr><td>x</td></tr></tbody></table>'];
+        yield 'align on paragraph' => ['<p align="right">x</p>', '<p>x</p>'];
+        yield 'align quote breakout' => ['<table><tbody><tr><td align=\'center" onclick="alert(1)\'>x</td></tr></tbody></table>', '<table><tbody><tr><td>x</td></tr></tbody></table>'];
+        yield 'align with handler' => ['<table><tbody><tr><th align="left" onmouseover="alert(1)">x</th></tr></tbody></table>', '<table><tbody><tr><th>x</th></tr></tbody></table>'];
+        yield 'style beyond text-align' => ['<table><tbody><tr><td style="text-align:center;background:url(javascript:alert(1))">x</td></tr></tbody></table>', '<table><tbody><tr><td>x</td></tr></tbody></table>'];
+        yield 'alignment class' => ['<table><tbody><tr><td class="nowo-wiki-align--center">x</td></tr></tbody></table>', '<table><tbody><tr><td class="nowo-wiki-align--center">x</td></tr></tbody></table>'];
+    }
+
+    #[DataProvider('alignInjections')]
+    public function testAlignmentNeverCarriesMoreThanAClass(string $html, string $expected): void
+    {
+        self::assertSame($expected, (new WikiHtmlSanitizer())->sanitize($html));
     }
 }
