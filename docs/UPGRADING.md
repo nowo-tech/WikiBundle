@@ -60,6 +60,12 @@
 
 ## Unreleased
 
+No configuration or schema change. With `editor.type: milkdown` the read view now renders footnotes, heading ids
+(`nowo-h-<slug>`), table alignment classes (`nowo-wiki-align--*`) and a text / link fallback for leaf directives no
+host renders; a template that ships its own CSS instead of `wiki.css` may want to style `.nowo-wiki-align--*`,
+`.nowo-md-footnotes` and `.nowo-wiki-directive`. The sanitizer keeps an `id` only when it is one of those anchors: an
+`id` a host allowed through `sanitizer.extra_allowed_attributes` is now dropped.
+
 ## To 1.16.1
 
 From **1.16.0**: `composer update nowo-tech/wiki-bundle`. No schema change.

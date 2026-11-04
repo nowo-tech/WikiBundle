@@ -53,6 +53,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Milkdown read view** (`editor.type: milkdown`; reported by Symfony Beacon with Milkdown 1.6.0):
+  - **Footnotes** (`[^1]`) render instead of showing as literal text: CommonMark's `FootnoteExtension` is enabled
+    (unless `nowo_milkdown_editor.markdown.footnotes: false`; `max_footnote_refs` and case-insensitive labels as in
+    the Milkdown renderer, inline `^[…]` footnotes stay text). Ids never carry the user's label: they are
+    `nowo-fn-<salt>-<n>` / `nowo-fn-ref-<salt>-<n>[__<k>]` (`<salt>`: 8 hex of a hash of the Markdown, so a page and
+    its comments never share an id), the back-links are kept and the footnote content goes through the same
+    allowlist sanitizer.
+  - **Heading ids**: headings get `id="nowo-h-<slug>"` with the editor's slugs (Milkdown `HeadingIds`: lower-case,
+    runs of non letters/marks/digits become `-`, 80 characters, `section` when empty, `-2`, `-3`… for duplicates),
+    so anchors and in-page links written in the editor work in the read view.
+  - **Table column alignment** (`:---:`) is kept as the class `nowo-wiki-align--left|center|right` (styled by
+    `wiki.css`); no `align` attribute and no inline style (CSP-safe).
+  - **Leaf directives without a renderer** (`::beacon{…}`, any `::name{…}`) fall back to readable text (the label, or
+    `name · key: value…`), or to a link when a `url` / `href` / `link` attribute holds a safe URL (same-origin `/path`
+    or `https://` without userinfo: the Milkdown link policy and the UI kit URL policy must both accept it). Every
+    value is escaped; host directive renderers still win for the viewer.
+- **Sanitizer** (`WikiHtmlSanitizer`): `id` is kept only as one of those anchors — `nowo-h-<slug>` on `h1`…`h6`
+  (letters, marks, digits and single hyphens, at most 90 characters), `nowo-fn-<8 hex>-<n>` on `li`,
+  `nowo-fn-ref-<8 hex>-<n>[__<k>]` on `sup` — and dropped everywhere else, even when a host allowed `id` through
+  `sanitizer.extra_allowed_attributes` (DOM clobbering: `__proto__`, `location`, host ids). `align` and general
+  `style` stay refused.
+
 ## [1.16.1] - 2026-11-04
 
 The final Info items of the 1.16.0 security audit (appendix EI).

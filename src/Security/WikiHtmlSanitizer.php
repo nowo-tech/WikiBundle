@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Security;
 
 use InvalidArgumentException;
+use Nowo\WikiBundle\Security\AttributeSanitizer\AnchorIdAttributeSanitizer;
 use Nowo\WikiBundle\Security\AttributeSanitizer\EmbedIframeSrcAttributeSanitizer;
 use Nowo\WikiBundle\Security\AttributeSanitizer\TextAlignStyleAttributeSanitizer;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
@@ -37,6 +38,12 @@ use function strtolower;
  * / `<summary>` or the `data-*` attributes of a Markdown dialect. {@see self::assertSafeAllowlist()} refuses anything
  * that could run script or load content: script-capable or embedding elements, `style`, `on*` event handlers and URL
  * attributes stay refused even when configured.
+ *
+ * 1.16.2: headings, footnotes (`li`) and footnote references (`sup`) may carry an `id`, but only the prefixed anchors
+ * the Markdown renderer writes ({@see AnchorIdAttributeSanitizer}: `nowo-h-<slug>`, `nowo-fn-…`); every other `id` —
+ * on any element, even one allowed by a host — is dropped (DOM clobbering). Table cell alignment travels as the
+ * `nowo-wiki-align--left|center|right` class (no `align` attribute, no new `style`), so it works under a CSP without
+ * inline styles.
  */
 final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
 {
@@ -62,15 +69,15 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
         'u'          => [],
         's'          => [],
         'del'        => [],
-        'h1'         => ['style'],
-        'h2'         => ['style'],
-        'h3'         => ['style'],
-        'h4'         => ['style'],
-        'h5'         => ['style'],
-        'h6'         => ['style'],
+        'h1'         => ['style', 'id'],
+        'h2'         => ['style', 'id'],
+        'h3'         => ['style', 'id'],
+        'h4'         => ['style', 'id'],
+        'h5'         => ['style', 'id'],
+        'h6'         => ['style', 'id'],
         'ul'         => ['data-type'],
         'ol'         => ['start', 'type'],
-        'li'         => ['data-type', 'data-checked'],
+        'li'         => ['data-type', 'data-checked', 'id'],
         'blockquote' => [],
         'code'       => [],
         'pre'        => [],
@@ -89,7 +96,7 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
         'figure'     => [],
         'figcaption' => [],
         'sub'        => [],
-        'sup'        => [],
+        'sup'        => ['id'],
         'mark'       => [],
         'iframe'     => ['src', 'width', 'height', 'allowfullscreen', 'frameborder'],
     ];
@@ -138,7 +145,8 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
             ->allowRelativeMedias()
             ->withMaxInputLength(-1)
             ->withAttributeSanitizer(new EmbedIframeSrcAttributeSanitizer($allowedEmbedHosts))
-            ->withAttributeSanitizer(new TextAlignStyleAttributeSanitizer());
+            ->withAttributeSanitizer(new TextAlignStyleAttributeSanitizer())
+            ->withAttributeSanitizer(new AnchorIdAttributeSanitizer());
 
         $elements = self::ALLOWED_ELEMENTS;
         foreach ($extraAllowedElements as $element => $attributes) {

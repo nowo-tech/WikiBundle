@@ -135,6 +135,32 @@
   border: 1px solid var(--nowo-ui-border, #e2e8f0);
 }
 
+/* 1.16.2: GFM column alignment (`:---:`) as classes, so no inline style is needed (CSP). */
+.nowo-wiki-content .nowo-wiki-align--left { text-align: left; }
+.nowo-wiki-content .nowo-wiki-align--center { text-align: center; }
+.nowo-wiki-content .nowo-wiki-align--right { text-align: right; }
+
+/* 1.16.2: footnotes and leaf directives (`::beacon{…}`) no host renders. */
+.nowo-wiki-content .nowo-md-footnotes {
+  font-size: 0.9em;
+  color: var(--nowo-ui-muted, #475569);
+}
+
+.nowo-wiki-content .nowo-md-footnote-backref {
+  text-decoration: none;
+}
+
+.nowo-wiki-content [id^='nowo-h-'], .nowo-wiki-content [id^='nowo-fn-'] {
+  scroll-margin-top: 4rem;
+}
+
+.nowo-wiki-content .nowo-wiki-directive {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--nowo-ui-border, #e2e8f0);
+  border-radius: var(--nowo-ui-radius, 0.375rem);
+}
+
 /* Card titles of the wiki regions (sidebar, archived pages, "Used in", AI answer). */
 .nowo-wiki-region-title {
   font-size: 1.05rem;
