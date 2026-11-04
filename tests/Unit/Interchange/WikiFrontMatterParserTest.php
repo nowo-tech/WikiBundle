@@ -47,6 +47,17 @@ MD);
         self::assertStringContainsString('## Section', $content);
     }
 
+    public function testSerializedFrontMatterParsesBack(): void
+    {
+        // 1.15.1 (audit DV-I8): the closing delimiter used to follow the last value (`wiki_parent: ''---`).
+        $parser  = new WikiFrontMatterParser();
+        $meta    = ['title' => 'Setup: step 1', 'wiki_slug' => 'setup', 'wiki_parent' => ''];
+        $content = $parser->serialize($meta, "## Section\n\nText\n\n---\n\nAfter a rule");
+
+        self::assertStringStartsWith("---\ntitle: 'Setup: step 1'\nwiki_slug: setup\nwiki_parent: ''\n---\n\n## Section", $content);
+        self::assertSame(['meta' => $meta, 'body' => "## Section\n\nText\n\n---\n\nAfter a rule"], $parser->parse($content));
+    }
+
     public function testReturnsBodyWhenFrontMatterIsUnclosed(): void
     {
         $parsed = (new WikiFrontMatterParser())->parse("---\ntitle: Broken\nBody without closing delimiter");
