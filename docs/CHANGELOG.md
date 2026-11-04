@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.16.0] - 2026-11-04](#1160---2026-11-04)
 - [[1.15.1] - 2026-11-04](#1151---2026-11-04)
 - [[1.15.0] - 2026-11-04](#1150---2026-11-04)
 - [[1.14.1] - 2026-11-03](#1141---2026-11-03)
@@ -51,7 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Planned as **1.16.0**: comments panel, avatars, plain-text search.
+## [1.16.0] - 2026-11-04
+
+Comments panel, avatars, plain-text search.
 
 ### Added
 
@@ -877,7 +880,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.15.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.16.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
