@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 
 use function array_filter;
+use function array_key_last;
 use function array_map;
 use function array_slice;
 use function array_values;
@@ -420,7 +421,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
             ->getResult();
         $loaded = array_values(array_filter($entities, static fn (WikiComment|WikiCommentThread $entity): bool => !isset($managed[$entity->getId()])));
 
-        return new WikiCommentMentionBatch($entities, $loaded);
+        return new WikiCommentMentionBatch($entities, $loaded, count($ids), (string) $ids[array_key_last($ids)]);
     }
 
     /**

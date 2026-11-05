@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Comment;
 
 use DateTimeInterface;
 use InvalidArgumentException;
+use JsonException;
 use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Comment\InvalidCommentAnchorException;
@@ -71,6 +72,7 @@ use function strtolower;
 use function substr;
 use function trim;
 
+use const JSON_THROW_ON_ERROR;
 use const JSON_UNESCAPED_SLASHES;
 use const JSON_UNESCAPED_UNICODE;
 
@@ -625,6 +627,10 @@ final readonly class WikiCommentService
             throw new LogicException('The wiki comment store does not implement WikiCommentMentionRepositoryInterface: mentions cannot be erased.');
         }
         // Audit FG-L1: "@deleted-user" is a handle someone may own; "x" after an "@@handle" would become "@x".
+        if (preg_match('//u', $label) !== 1) {
+            // Audit FG3-I3: an invalid UTF-8 label would corrupt bodies and cannot be JSON-encoded into anchors.
+            throw new InvalidArgumentException('The erased-mention label is not valid UTF-8.');
+        }
         if (preg_match(self::MENTION_LIKE_LABEL, $label) === 1) {
             throw new InvalidArgumentException(sprintf('The erased-mention label "%s" could render as a mention: use a label such as "%s" or "[deleted user]".', $label, self::ERASED_MENTION));
         }
@@ -685,8 +691,7 @@ final readonly class WikiCommentService
             $batch   = $store->commentsMentioning($handle, self::ERASE_BATCH, $after);
             $rewrote = false;
             foreach ($batch->entities as $comment) {
-                $after = $comment->getId();
-                $body  = $scrub($comment->getBody());
+                $body = $scrub($comment->getBody());
                 if ($body === null) {
                     $rows[$comment->getId()] ??= false;
                 } elseif ($body !== $comment->getBody()) {
@@ -696,7 +701,9 @@ final readonly class WikiCommentService
                 }
             }
             $this->releaseBatch($store, $batch, $rewrote);
-        } while (count($batch->entities) === self::ERASE_BATCH);
+            // Audit FG3-L1: the id page decides, not the loaded rows (a candidate deleted meanwhile must not end the walk).
+            $after = $batch->lastId;
+        } while ($batch->scanned === self::ERASE_BATCH && $after !== null);
     }
 
     /**
@@ -712,7 +719,6 @@ final readonly class WikiCommentService
             $batch   = $store->threadsMentioning($handle, self::ERASE_BATCH, $after);
             $rewrote = false;
             foreach ($batch->entities as $thread) {
-                $after     = $thread->getId();
                 $quote     = $thread->getQuote();
                 $anchor    = $thread->getAnchor();
                 $newQuote  = $quote === null ? null : $scrub($quote);
@@ -726,7 +732,9 @@ final readonly class WikiCommentService
                 }
             }
             $this->releaseBatch($store, $batch, $rewrote);
-        } while (count($batch->entities) === self::ERASE_BATCH);
+            // Audit FG3-L1: the id page decides, not the loaded rows (a candidate deleted meanwhile must not end the walk).
+            $after = $batch->lastId;
+        } while ($batch->scanned === self::ERASE_BATCH && $after !== null);
     }
 
     /**
@@ -785,7 +793,15 @@ final readonly class WikiCommentService
             return null;
         }
 
-        return $changed ? (string) json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : $json;
+        if (!$changed) {
+            return $json;
+        }
+        try {
+            return json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } catch (JsonException) {
+            // Audit FG3-I3: never an empty anchor; the thread is skipped and reported.
+            return null;
+        }
     }
 
     /**

@@ -567,6 +567,10 @@ What a host such as symfony-beacon configures:
       erasure loaded itself are released from the entity manager after each batch; instances the caller already
       had (for example comments kept by `eraseAuthor()`) stay managed with their pending changes. The flushes write
       the entity manager's other pending changes too (as `eraseAuthor()` does).
+      If the call throws after a batch was flushed, the database is rolled back but instances the caller still holds
+      keep the redacted text: clear (or close) the entity manager after a failed call, as after any Doctrine rollback.
+      Instances the caller already held are scrubbed from their in-memory state, so run the erasure on a fresh entity
+      manager or with entities that are not stale.
     - **No row locks.** The erasure runs online: a comment edited at the same time can bring the mention back (or
       lose the concurrent edit), and a comment posted during the run may be missed. Both are picked up by running
       the erasure again; run it when nobody is writing comments for the strictest result.

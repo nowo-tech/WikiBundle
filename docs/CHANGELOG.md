@@ -94,8 +94,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `skipped()`), the event carries the skipped ids, and `wiki:comments:erase-user` lists them and fails.
 - **A failed commit is not hidden (audit FG2-I6).** If the erasure's commit fails, the rollback's own error is ignored
   and the original exception is rethrown.
+- **The mention walk never stops early (audit FG3-L1).** Paging follows the candidate id page
+  (`WikiCommentMentionBatch::$scanned` / `$lastId`), not the loaded rows, so a candidate hard-deleted between the id
+  query and the load no longer ends the walk and leaves later candidates untouched.
+- **Anchors are never blanked by a JSON encode failure (audit FG3-I3).** `eraseMentions()` refuses a label that is not
+  valid UTF-8, and an anchor that cannot be re-encoded skips the thread (reported) instead of being written empty.
 - USAGE documents the online erasure (no row locks), the re-runnable CLI, the paging contract for host stores and the
-  event firing before an outer transaction's commit (audit FG2-I2…I5).
+  event firing before an outer transaction's commit (audit FG2-I2…I5), and clearing the entity manager after a failed
+  call (audit FG3-I1, FG3-I2).
 
 ## [1.16.2] - 2026-11-04
 

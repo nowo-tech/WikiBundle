@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Comment;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManager;
 use InvalidArgumentException;
 use LogicException;
@@ -44,9 +45,11 @@ use Nowo\WikiBundle\Tests\Support\LegacyCommentRepository;
 use Nowo\WikiBundle\Tests\Support\RecordingAvatarResolver;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\AbstractLogger;
 use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
+use Stringable;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
@@ -61,8 +64,10 @@ use function array_slice;
 use function count;
 use function in_array;
 use function intdiv;
+use function is_string;
 use function ksort;
 use function sort;
+use function str_contains;
 use function str_repeat;
 use function strlen;
 
@@ -819,6 +824,17 @@ final class WikiCommentServiceTest extends TestCase
 
         // A JSON anchor whose string cannot be scanned: skipped too.
         self::assertNull((new ReflectionMethod(WikiCommentService::class, 'scrubJson'))->invoke($service, '{"exact":"@zed"}', static fn (string $text): ?string => null));
+        // Audit FG3-I3: a scrubbed value that cannot be JSON-encoded skips the thread instead of writing an empty anchor.
+        self::assertNull((new ReflectionMethod(WikiCommentService::class, 'scrubJson'))->invoke($service, '{"exact":"@zed"}', static fn (string $text): string => "\xFF"));
+        // A JSON anchor without the mention is kept byte for byte (not re-encoded).
+        self::assertSame('{"exact": "x"}', (new ReflectionMethod(WikiCommentService::class, 'scrubJson'))->invoke($service, '{"exact": "x"}', static fn (string $text): string => $text));
+        // ... and a label that is not valid UTF-8 is refused up front.
+        try {
+            $service->eraseMentions(['zed'], "[gone \xFF]");
+            self::fail('Refused.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertStringContainsString('not valid UTF-8', $exception->getMessage());
+        }
     }
 
     public function testErasingMentionsAfterTheAuthorKeepsTheCallersEntitiesManaged(): void
@@ -851,6 +867,46 @@ final class WikiCommentServiceTest extends TestCase
         $held->redactBody('host change');
         $this->em->flush();
         self::assertSame('host change', $this->em->getConnection()->fetchOne('SELECT body FROM wiki_comments WHERE id = ?', [$own->getId()]));
+    }
+
+    public function testARowDeletedBetweenTheIdAndLoadQueriesDoesNotEndTheWalk(): void
+    {
+        // Audit FG3-L1: a full id page whose load returns one row less (hard-deleted meanwhile) still pages on.
+        $logger = new class extends AbstractLogger {
+            public ?Connection $connection = null;
+
+            public bool $fired = false;
+
+            public function log($level, string|Stringable $message, array $context = []): void
+            {
+                $sql = $context['sql'] ?? '';
+                if ($this->fired || !$this->connection instanceof Connection || !is_string($sql) || !str_contains($sql, 'wiki_comments') || !str_contains($sql, ' IN (')) {
+                    return;
+                }
+                $this->fired = true;
+                $this->connection->executeStatement("DELETE FROM wiki_comments WHERE id = (SELECT MIN(id) FROM wiki_comments WHERE body LIKE '%@zed%')");
+            }
+        };
+        $this->em = SqliteWikiEntityManager::create($logger);
+        foreach ([$this->space, $this->page, $this->ana, $this->bob] as $entity) {
+            $this->em->persist($entity);
+        }
+        $thread = new WikiCommentThread($this->page, $this->bob);
+        $this->em->persist($thread);
+        $count = WikiCommentService::ERASE_BATCH + 5;
+        for ($i = 0; $i < $count; ++$i) {
+            $this->em->persist(new WikiComment($thread, $this->bob, 'cc @zed', $i));
+        }
+        $this->em->flush();
+        $this->em->clear();
+        $logger->connection = $this->em->getConnection();
+
+        $result = $this->service()->eraseMentions(['zed']);
+
+        self::assertTrue($logger->fired);
+        self::assertCount($count - 1, $result, 'Every remaining candidate, including those after the short page.');
+        self::assertSame(0, (int) $this->em->getConnection()->fetchOne("SELECT COUNT(*) FROM wiki_comments WHERE body LIKE '%@zed%'"));
+        self::assertSame($count - 1, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM wiki_comments'));
     }
 
     public function testResolvedThreadsNeverHideOpenOnesAndTheTotalIsCapped(): void
