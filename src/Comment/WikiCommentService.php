@@ -27,6 +27,7 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\WikiCommentAuthorRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
 use Nowo\WikiBundle\Repository\WikiCommentMentionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Search\WikiPlainText;
@@ -615,9 +616,9 @@ final readonly class WikiCommentService
      * @throws InvalidArgumentException when the label could render as a mention (audit FG-L1)
      * @throws LogicException when the comment store does not implement {@see WikiCommentMentionRepositoryInterface}
      *
-     * @return int the comments and threads that were changed
+     * @return WikiCommentMentionErasure what was rewritten (countable) and what was skipped
      */
-    public function eraseMentions(array $handles, string $label = self::ERASED_MENTION): int
+    public function eraseMentions(array $handles, string $label = self::ERASED_MENTION): WikiCommentMentionErasure
     {
         $store = $this->comments;
         if (!$store instanceof WikiCommentMentionRepositoryInterface) {
@@ -636,99 +637,112 @@ final readonly class WikiCommentService
             }
         }
         if ($valid === []) {
-            return 0;
+            return new WikiCommentMentionErasure();
         }
         $patterns = array_map($this->mentionPattern(...), array_values($valid));
-        $scrub    = static fn (string $text): string => (string) preg_replace($patterns, str_replace(['\\', '$'], ['\\\\', '\\$'], $label), $text);
+        // Audit FG2-I1: null on a regex failure (invalid UTF-8), never "" written over someone's comment.
+        $scrub = static fn (string $text): ?string => preg_replace($patterns, str_replace(['\\', '$'], ['\\\\', '\\$'], $label), $text);
 
-        /** @var array<string, true> $changedComments */
-        $changedComments = [];
-        /** @var array<string, true> $changedThreads */
-        $changedThreads = [];
+        /** @var array<string, bool> $comments id => rewritten (true) or skipped (false) */
+        $comments = [];
+        /** @var array<string, bool> $threads id => rewritten (true) or skipped (false) */
+        $threads = [];
         $store->begin();
         try {
             foreach ($valid as $handle) {
-                $this->eraseCommentMentions($store, $handle, $scrub, $changedComments);
-                $this->eraseThreadMentions($store, $handle, $scrub, $changedThreads);
+                $this->eraseCommentMentions($store, $handle, $scrub, $comments);
+                $this->eraseThreadMentions($store, $handle, $scrub, $threads);
             }
             $store->commit();
         } catch (Throwable $exception) {
-            $store->rollBack();
+            // Audit FG2-I6: a rollback that fails too (the commit already ended the transaction) never hides the cause.
+            try {
+                $store->rollBack();
+            } catch (Throwable) {
+            }
 
             throw $exception;
         }
-        if ($changedComments === [] && $changedThreads === []) {
-            return 0;
+        $ids     = static fn (array $rows, bool $rewritten): array => array_map(strval(...), array_keys(array_filter($rows, static fn (bool $row): bool => $row === $rewritten)));
+        $erasure = new WikiCommentMentionErasure(array_values($valid), $ids($comments, true), $ids($threads, true), $ids($comments, false), $ids($threads, false));
+        if ($comments !== [] || $threads !== []) {
+            $this->dispatcher?->dispatch(new WikiCommentMentionsErasedEvent($erasure->handles, $erasure->commentIds, $erasure->threadIds, $erasure->skippedCommentIds, $erasure->skippedThreadIds), WikiEvents::COMMENT_MENTIONS_ERASED);
         }
-        $this->dispatcher?->dispatch(new WikiCommentMentionsErasedEvent(array_values($valid), array_map(strval(...), array_keys($changedComments)), array_map(strval(...), array_keys($changedThreads))), WikiEvents::COMMENT_MENTIONS_ERASED);
 
-        return count($changedComments) + count($changedThreads);
+        return $erasure;
     }
 
     /**
      * The comment batches of one handle for {@see self::eraseMentions()}.
      *
-     * @param callable(string): string $scrub
-     * @param array<string, true> $changed the ids of the rewritten comments, added to
+     * @param callable(string): ?string $scrub
+     * @param array<string, bool> $rows id => rewritten (true) or skipped because it could not be scanned (false), added to
      */
-    private function eraseCommentMentions(WikiCommentMentionRepositoryInterface $store, string $handle, callable $scrub, array &$changed): void
+    private function eraseCommentMentions(WikiCommentMentionRepositoryInterface $store, string $handle, callable $scrub, array &$rows): void
     {
         $after = null;
         do {
             $batch   = $store->commentsMentioning($handle, self::ERASE_BATCH, $after);
             $rewrote = false;
-            foreach ($batch as $comment) {
+            foreach ($batch->entities as $comment) {
                 $after = $comment->getId();
                 $body  = $scrub($comment->getBody());
-                if ($body !== $comment->getBody()) {
+                if ($body === null) {
+                    $rows[$comment->getId()] ??= false;
+                } elseif ($body !== $comment->getBody()) {
                     $comment->redactBody($body);
-                    $changed[$comment->getId()] = true;
-                    $rewrote                    = true;
+                    $rows[$comment->getId()] = true;
+                    $rewrote                 = true;
                 }
             }
             $this->releaseBatch($store, $batch, $rewrote);
-        } while (count($batch) === self::ERASE_BATCH);
+        } while (count($batch->entities) === self::ERASE_BATCH);
     }
 
     /**
      * The inline-thread batches of one handle for {@see self::eraseMentions()} (stored quote and anchor).
      *
-     * @param callable(string): string $scrub
-     * @param array<string, true> $changed the ids of the rewritten threads, added to
+     * @param callable(string): ?string $scrub
+     * @param array<string, bool> $rows id => rewritten (true) or skipped because it could not be scanned (false), added to
      */
-    private function eraseThreadMentions(WikiCommentMentionRepositoryInterface $store, string $handle, callable $scrub, array &$changed): void
+    private function eraseThreadMentions(WikiCommentMentionRepositoryInterface $store, string $handle, callable $scrub, array &$rows): void
     {
         $after = null;
         do {
             $batch   = $store->threadsMentioning($handle, self::ERASE_BATCH, $after);
             $rewrote = false;
-            foreach ($batch as $thread) {
+            foreach ($batch->entities as $thread) {
                 $after     = $thread->getId();
                 $quote     = $thread->getQuote();
                 $anchor    = $thread->getAnchor();
                 $newQuote  = $quote === null ? null : $scrub($quote);
                 $newAnchor = $anchor === null ? null : $this->scrubJson($anchor, $scrub);
-                if ($newQuote !== $quote || $newAnchor !== $anchor) {
+                if (($quote !== null && $newQuote === null) || ($anchor !== null && $newAnchor === null)) {
+                    $rows[$thread->getId()] ??= false;
+                } elseif ($newQuote !== $quote || $newAnchor !== $anchor) {
                     $thread->redactQuote($newAnchor, $newQuote);
-                    $changed[$thread->getId()] = true;
-                    $rewrote                   = true;
+                    $rows[$thread->getId()] = true;
+                    $rewrote                = true;
                 }
             }
             $this->releaseBatch($store, $batch, $rewrote);
-        } while (count($batch) === self::ERASE_BATCH);
+        } while (count($batch->entities) === self::ERASE_BATCH);
     }
 
     /**
-     * Ends a batch of {@see self::eraseMentions()}: flushes it when it changed something, then releases it.
+     * Ends a batch of {@see self::eraseMentions()}: flushes it when it changed something, then releases only the entities
+     * the lookup loaded itself (audit FG2-L1: the caller's own instances stay managed, with their pending changes).
      *
-     * @param list<WikiComment|WikiCommentThread> $batch
+     * @param WikiCommentMentionBatch<WikiComment>|WikiCommentMentionBatch<WikiCommentThread> $batch
      */
-    private function releaseBatch(WikiCommentMentionRepositoryInterface $store, array $batch, bool $changed): void
+    private function releaseBatch(WikiCommentMentionRepositoryInterface $store, WikiCommentMentionBatch $batch, bool $changed): void
     {
         if ($changed) {
             $this->comments->flush();
         }
-        $store->release($batch);
+        if ($batch->loaded !== []) {
+            $store->release($batch->loaded);
+        }
     }
 
     /**
@@ -742,24 +756,34 @@ final readonly class WikiCommentService
     }
 
     /**
-     * The anchor JSON with every string value scrubbed; unchanged when it is not valid JSON.
+     * The anchor JSON with every string value scrubbed; scrubbed as text when it is not valid JSON; null when it could not
+     * be scanned (audit FG2-I1).
      *
-     * @param callable(string): string $scrub
+     * @param callable(string): ?string $scrub
      */
-    private function scrubJson(string $json, callable $scrub): string
+    private function scrubJson(string $json, callable $scrub): ?string
     {
         $data = json_decode($json, true);
         if (!is_array($data)) {
             return $scrub($json);
         }
         $changed = false;
-        array_walk_recursive($data, static function (mixed &$value) use ($scrub, &$changed): void {
+        $failed  = false;
+        array_walk_recursive($data, static function (mixed &$value) use ($scrub, &$changed, &$failed): void {
             if (is_string($value)) {
                 $scrubbed = $scrub($value);
-                $changed  = $changed || $scrubbed !== $value;
-                $value    = $scrubbed;
+                if ($scrubbed === null) {
+                    $failed = true;
+
+                    return;
+                }
+                $changed = $changed || $scrubbed !== $value;
+                $value   = $scrubbed;
             }
         });
+        if ($failed) {
+            return null;
+        }
 
         return $changed ? (string) json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : $json;
     }

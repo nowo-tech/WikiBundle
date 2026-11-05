@@ -556,13 +556,34 @@ What a host such as symfony-beacon configures:
       would link every erased mention to whoever owns that handle. `eraseMentions()` throws
       `InvalidArgumentException` for a label with `@` followed by a handle character, or starting with a handle
       character (an `@@handle` would complete it). Keep the default `@…` or use a text such as `[deleted user]`.
-    - **Large wikis.** Candidates are read in batches of `WikiCommentService::ERASE_BATCH` (200), each flushed and
-      released from the entity manager, inside one transaction: a failure rolls the whole call back, and a call that
-      succeeded leaves nothing for a second one. The flushes write the entity manager's other pending changes too
-      (as `eraseAuthor()` does).
+    - **Result.** `eraseMentions()` returns a `WikiCommentMentionErasure` (countable: the rewritten comments and
+      threads; `commentIds`, `threadIds`). A row whose text cannot be scanned (invalid UTF-8, or another regex
+      failure) is **never overwritten**: it is left as it is and listed in `skippedCommentIds` /
+      `skippedThreadIds` (`skipped()`), also on the event. It still holds the mention: fix or delete it, then run the
+      erasure again.
+    - **Large wikis.** Candidates are read in batches of `WikiCommentService::ERASE_BATCH` (200), each flushed, inside
+      one transaction: a failure rolls the whole call back (a failed commit is rethrown as it is, never hidden by the
+      rollback), and a call that succeeded leaves nothing for a second one. Only the comments and threads the
+      erasure loaded itself are released from the entity manager after each batch; instances the caller already
+      had (for example comments kept by `eraseAuthor()`) stay managed with their pending changes. The flushes write
+      the entity manager's other pending changes too (as `eraseAuthor()` does).
+    - **No row locks.** The erasure runs online: a comment edited at the same time can bring the mention back (or
+      lose the concurrent edit), and a comment posted during the run may be missed. Both are picked up by running
+      the erasure again; run it when nobody is writing comments for the strictest result.
+    - **Host stores.** A store that replaces the Doctrine one must honour the paging contract of
+      `WikiCommentMentionRepositoryInterface`: at most `$limit` rows, only ids strictly after `$afterId`, ascending id
+      order, and a superset (never a subset) of the matching rows. A store that ignores `$afterId` makes the erasure
+      loop; one that skips rows leaves mentions behind.
+    - **Outer transactions.** When the caller already holds a transaction, the erasure's own transaction is nested
+      and `nowo_wiki.comment.mentions_erased` fires after the nested commit, **before** the outer commit: a listener
+      may refresh indexes for changes that the outer transaction later rolls back. Listeners that must only see
+      committed data should defer their work (for example to `kernel.terminate` or a message).
     - **CLI.** `wiki:comments:erase-user <user> --handle=<handle>` (repeatable; the user's `getHandle()` is added when
       the user class has one, `--mention-label` changes the label) erases the mentions before the user's own
-      comments. Without any handle it erases the comments only and warns that mentions were kept.
+      comments. Without any handle it erases the comments only and warns that mentions were kept. Rows that could not
+      be scanned are listed and the command exits with a failure. Each step commits on its own: if the comments step
+      fails after the mentions were erased, the erasure is partial, and running the same command again completes it
+      (both steps are idempotent).
 
     ```php
     #[AsTaggedItem(priority: 91)] // before the eraser that rewrites the handle / display name
@@ -570,9 +591,12 @@ What a host such as symfony-beacon configures:
     {
         public function erase(ErasureRequest $request): void
         {
+            // Mentions first, as the CLI does. Not "@deleted-user": that is a handle someone could own (refused).
+            $mentions = $this->comments->eraseMentions([$request->user->getHandle()], '[deleted user]');
+            if ($mentions->skipped() > 0) { // text that could not be scanned: still holds the mention, review by hand
+                $this->logger->warning('Wiki rows to review', ['comments' => $mentions->skippedCommentIds, 'threads' => $mentions->skippedThreadIds]);
+            }
             $this->comments->eraseAuthor($request->user);
-            // Not "@deleted-user": that is a handle someone could own (the call refuses it).
-            $this->comments->eraseMentions([$request->user->getHandle()], '[deleted user]');
         }
         // getKey(), supports() …
     }

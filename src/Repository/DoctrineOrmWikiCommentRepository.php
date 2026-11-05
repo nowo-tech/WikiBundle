@@ -11,8 +11,10 @@ use Nowo\WikiBundle\Entity\WikiCommentReaction;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 
+use function array_filter;
 use function array_map;
 use function array_slice;
+use function array_values;
 use function count;
 use function explode;
 use function implode;
@@ -212,10 +214,10 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         return count($comments);
     }
 
-    public function commentsMentioning(string $handle, int $limit, ?string $afterId = null): array
+    public function commentsMentioning(string $handle, int $limit, ?string $afterId = null): WikiCommentMentionBatch
     {
         $query = $this->entityManager()->createQueryBuilder()
-            ->select('c')
+            ->select('c.id')
             ->from(WikiComment::class, 'c')
             ->where('c.deletedAt IS NULL')
             ->andWhere($this->mentionCondition('LOWER(c.body)', $handle, $parameters))
@@ -227,18 +229,16 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         foreach ($parameters as $name => $value) {
             $query->setParameter($name, $value);
         }
-        /** @var list<WikiComment> $comments */
-        $comments = $query->getQuery()->getResult();
 
-        return $comments;
+        return $this->batch(WikiComment::class, $query->getQuery()->getSingleColumnResult());
     }
 
-    public function threadsMentioning(string $handle, int $limit, ?string $afterId = null): array
+    public function threadsMentioning(string $handle, int $limit, ?string $afterId = null): WikiCommentMentionBatch
     {
         $quote  = $this->mentionCondition('LOWER(t.quote)', $handle, $parameters);
         $anchor = $this->mentionCondition('LOWER(t.anchor)', $handle, $parameters);
         $query  = $this->entityManager()->createQueryBuilder()
-            ->select('t')
+            ->select('t.id')
             ->from(WikiCommentThread::class, 't')
             ->where($quote . ' OR ' . $anchor)
             ->orderBy('t.id', 'ASC')
@@ -249,10 +249,8 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         foreach ($parameters as $name => $value) {
             $query->setParameter($name, $value);
         }
-        /** @var list<WikiCommentThread> $threads */
-        $threads = $query->getQuery()->getResult();
 
-        return $threads;
+        return $this->batch(WikiCommentThread::class, $query->getQuery()->getSingleColumnResult());
     }
 
     public function begin(): void
@@ -386,6 +384,43 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
     private function entityManager(): EntityManagerInterface
     {
         return $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
+    }
+
+    /**
+     * The entities of the ids, in id order, telling apart those this lookup loads from those already managed (audit
+     * FG2-L1: the caller's own instances, which must never be released).
+     *
+     * @template T of WikiComment|WikiCommentThread
+     *
+     * @param class-string<T> $class
+     * @param array<mixed> $ids
+     *
+     * @return WikiCommentMentionBatch<T>
+     */
+    private function batch(string $class, array $ids): WikiCommentMentionBatch
+    {
+        if ($ids === []) {
+            return new WikiCommentMentionBatch([]);
+        }
+        $em      = $this->entityManager();
+        $managed = [];
+        foreach ($ids as $id) {
+            if ($em->getUnitOfWork()->tryGetById($id, $class) !== false) {
+                $managed[(string) $id] = true;
+            }
+        }
+        /** @var list<T> $entities */
+        $entities = $em->createQueryBuilder()
+            ->select('e')
+            ->from($class, 'e')
+            ->where('e.id IN (:ids)')
+            ->setParameter('ids', $ids)
+            ->orderBy('e.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+        $loaded = array_values(array_filter($entities, static fn (WikiComment|WikiCommentThread $entity): bool => !isset($managed[$entity->getId()])));
+
+        return new WikiCommentMentionBatch($entities, $loaded);
     }
 
     /**

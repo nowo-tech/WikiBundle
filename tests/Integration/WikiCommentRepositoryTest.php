@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
+use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
@@ -126,7 +127,7 @@ final class WikiCommentRepositoryTest extends TestCase
         $em->persist($deleted);
         $em->flush();
 
-        $ids   = static fn (array $entities): array => array_map(static fn (WikiComment|WikiCommentThread $e): string => $e->getId(), $entities);
+        $ids   = static fn (WikiCommentMentionBatch $batch): array => array_map(static fn (WikiComment|WikiCommentThread $e): string => $e->getId(), $batch->entities);
         $found = $ids($repo->commentsMentioning('_bob', 10));
         sort($found);
         $expected = [$comments['plain']->getId(), $comments['escaped']->getId(), $comments['longer']->getId()];
@@ -135,22 +136,33 @@ final class WikiCommentRepositoryTest extends TestCase
         self::assertSame([$comments['many']->getId()], $ids($repo->commentsMentioning('a_b_c_d_e', 10)), 'More than 3 underscores: every part must be there.');
         self::assertSame([$comments['percent']->getId()], $ids($repo->commentsMentioning('%bob', 10)), '"%" is literal, not a wildcard.');
         self::assertSame([$thread->getId()], $ids($repo->threadsMentioning('_BOB', 10)));
-        self::assertSame([], $repo->threadsMentioning('_bob', 10, $thread->getId()));
+        self::assertSame([], $repo->threadsMentioning('_bob', 10, $thread->getId())->entities);
         self::assertSame([$other->getId()], $ids($repo->threadsMentioning('ana', 10)));
+        self::assertSame([], $repo->commentsMentioning('nobody', 10)->entities);
+        // Audit FG2-L1: instances managed before the lookup are never "loaded" (never released).
+        self::assertSame([], $repo->commentsMentioning('_bob', 10)->loaded);
 
-        // Keyset pages ordered by id, then released from the entity manager.
+        // Keyset pages ordered by id; only what the lookup loaded itself is released.
+        $em->clear();
+        $held   = $em->find(WikiComment::class, $comments['plain']->getId());
         $first  = $repo->commentsMentioning('_bob', 2);
-        $second = $repo->commentsMentioning('_bob', 2, $first[1]->getId());
-        self::assertCount(2, $first);
-        self::assertCount(1, $second);
-        self::assertLessThan(0, strcmp($first[1]->getId(), $second[0]->getId()));
-        $repo->release([...$first, ...$second]);
-        self::assertFalse($em->contains($first[0]));
-        self::assertTrue($em->contains($thread));
-        $repo->release($first);
+        $second = $repo->commentsMentioning('_bob', 2, $first->entities[1]->getId());
+        self::assertCount(2, $first->entities);
+        self::assertCount(1, $second->entities);
+        self::assertLessThan(0, strcmp($first->entities[1]->getId(), $second->entities[0]->getId()));
+        $all    = [...$first->entities, ...$second->entities];
+        $loaded = [...$first->loaded, ...$second->loaded];
+        self::assertContains($held, $all);
+        self::assertNotContains($held, $loaded);
+        self::assertCount(2, $loaded);
+        $repo->release($loaded);
+        self::assertFalse($em->contains($loaded[0]));
+        self::assertTrue($em->contains($held));
+        $repo->release($loaded);
 
         // One transaction: rolled back as a whole.
-        $kept = $comments['at'];
+        $kept = $em->find(WikiComment::class, $comments['at']->getId());
+        self::assertInstanceOf(WikiComment::class, $kept);
         $repo->begin();
         $kept->redactBody('changed');
         $repo->flush();

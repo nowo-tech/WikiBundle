@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Command;
 use InvalidArgumentException;
 use JsonException;
 use LogicException;
+use Nowo\WikiBundle\Comment\WikiCommentMentionErasure;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Service\WikiAuthorResolver;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -116,7 +117,7 @@ final class WikiCommentsEraseUserCommand extends Command
             return Command::SUCCESS;
         }
         // 1.17 (audit FG-L2): mentions first, so a store or label that cannot erase them stops before anything changed.
-        $mentions = 0;
+        $mentions = null;
         if ($handles !== []) {
             try {
                 $mentions = $this->comments->eraseMentions($handles, $label);
@@ -129,8 +130,14 @@ final class WikiCommentsEraseUserCommand extends Command
         $io->success(sprintf('%d comment(s) %s; reactions deleted, threads and resolutions unlinked.', $this->comments->eraseAuthor($user, !$keep), $keep ? 'unlinked' : 'erased'));
         if ($handles === []) {
             $io->warning('Mentions of the user in other people\'s comments were kept: pass --handle=<handle> (or give the user class a getHandle()) to erase them.');
-        } else {
-            $io->success(sprintf('%d comment(s) or thread(s) with mentions of @%s rewritten.', $mentions, implode(', @', $handles)));
+        } elseif ($mentions instanceof WikiCommentMentionErasure) {
+            $io->success(sprintf('%d comment(s) or thread(s) with mentions of @%s rewritten.', count($mentions), implode(', @', $handles)));
+            // Audit FG2-I1: rows whose text could not be scanned are left untouched, never blanked; say which.
+            if ($mentions->skipped() > 0) {
+                $io->warning(sprintf('%d row(s) could not be scanned (invalid UTF-8?) and still hold the mention: comments [%s], threads [%s]. Fix or delete them, then run the command again.', $mentions->skipped(), implode(', ', $mentions->skippedCommentIds), implode(', ', $mentions->skippedThreadIds)));
+
+                return Command::FAILURE;
+            }
         }
 
         return Command::SUCCESS;

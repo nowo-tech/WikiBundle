@@ -31,6 +31,7 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
+use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
 use Nowo\WikiBundle\Repository\WikiCommentMentionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
@@ -43,6 +44,7 @@ use Nowo\WikiBundle\Tests\Support\LegacyCommentRepository;
 use Nowo\WikiBundle\Tests\Support\RecordingAvatarResolver;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use ReflectionProperty;
 use RuntimeException;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -60,6 +62,7 @@ use function count;
 use function in_array;
 use function intdiv;
 use function ksort;
+use function sort;
 use function str_repeat;
 use function strlen;
 
@@ -626,7 +629,7 @@ final class WikiCommentServiceTest extends TestCase
         $service->create($this->ana, $this->space, $this->page, null, 'Ping @carol.');
         $service->create($this->ana, $this->space, $this->page, null, 'Ping @dave.');
 
-        self::assertSame(2, $service->eraseMentions(['@bob_lee', 'not a handle!', ''], '[deleted user]'));
+        self::assertCount(2, $service->eraseMentions(['@bob_lee', 'not a handle!', ''], '[deleted user]'));
 
         $this->em->clear();
         $comment = $this->em->find(WikiComment::class, $byAna['comments'][0]['id']);
@@ -647,14 +650,14 @@ final class WikiCommentServiceTest extends TestCase
         self::assertSame([$inline['id']], $erased[0]->threadIds);
 
         // Idempotent, and nothing to do for handles nobody mentioned or no valid handle at all.
-        self::assertSame(0, $service->eraseMentions(['bob_lee']));
-        self::assertSame(0, $service->eraseMentions(['nobody']));
-        self::assertSame(0, $service->eraseMentions(['-bad-', '@']));
+        self::assertCount(0, $service->eraseMentions(['bob_lee']));
+        self::assertCount(0, $service->eraseMentions(['nobody']));
+        self::assertCount(0, $service->eraseMentions(['-bad-', '@']));
         self::assertCount(1, $erased);
 
         // The default label; a label with "$1" and a backslash is written as is.
-        self::assertSame(1, $service->eraseMentions(['carol']));
-        self::assertSame(1, $service->eraseMentions(['dave'], '$1 \\ x'));
+        self::assertCount(1, $service->eraseMentions(['carol']));
+        self::assertCount(1, $service->eraseMentions(['dave'], '$1 \\ x'));
         $bodies = array_map(static fn (WikiComment $c): string => $c->getBody(), $this->em->getRepository(WikiComment::class)->findAll());
         self::assertContains('Ping ' . WikiCommentService::ERASED_MENTION . '.', $bodies);
         self::assertContains('Ping $1 \\ x.', $bodies);
@@ -674,7 +677,7 @@ final class WikiCommentServiceTest extends TestCase
         $comment->redactBody('kept @erin');
         $this->em->flush();
 
-        self::assertSame(1, $service->eraseMentions(['erin']));
+        self::assertCount(1, $service->eraseMentions(['erin']));
         $this->em->clear();
         $thread = $this->em->find(WikiCommentThread::class, $inline['id']);
         self::assertSame('not json @…', $thread?->getAnchor());
@@ -705,7 +708,7 @@ final class WikiCommentServiceTest extends TestCase
         }
         self::assertSame('Ping @bob and @@bob.', $this->em->find(WikiComment::class, $byAna['comments'][0]['id'])?->getBody(), 'Nothing changed.');
 
-        self::assertSame(1, $service->eraseMentions(['bob'], '@[deleted]'));
+        self::assertCount(1, $service->eraseMentions(['bob'], '@[deleted]'));
         $this->em->clear();
         self::assertSame('Ping @[deleted] and @@[deleted].', $this->em->find(WikiComment::class, $byAna['comments'][0]['id'])?->getBody());
     }
@@ -725,11 +728,11 @@ final class WikiCommentServiceTest extends TestCase
         $this->em->flush();
         $this->em->clear();
 
-        self::assertSame($count, $service->eraseMentions(['_zed']));
+        self::assertCount($count, $service->eraseMentions(['_zed']));
         $bodies = array_count_values(array_map(static fn (WikiComment $c): string => $c->getBody(), $this->em->getRepository(WikiComment::class)->findAll()));
         ksort($bodies);
         self::assertSame(['Hi @…' => 1, 'cc @ana and @carol' => 1, 'cc @… and @_zedd' => intdiv($count, 2), 'cc @….' => intdiv($count - 1, 2)], $bodies);
-        self::assertSame(0, $service->eraseMentions(['_zed']), 'Nothing left for a second run.');
+        self::assertCount(0, $service->eraseMentions(['_zed']), 'Nothing left for a second run.');
     }
 
     public function testAFailedMentionErasureIsRolledBack(): void
@@ -738,7 +741,7 @@ final class WikiCommentServiceTest extends TestCase
         $thread  = new WikiCommentThread($this->page, $this->ana);
         $comment = new WikiComment($thread, $this->ana, 'cc @zed');
         $store   = $this->createMockForIntersectionOfInterfaces([WikiCommentRepositoryInterface::class, WikiCommentMentionRepositoryInterface::class]);
-        $store->method('commentsMentioning')->willReturn([$comment]);
+        $store->method('commentsMentioning')->willReturn(new WikiCommentMentionBatch([$comment], [$comment]));
         $store->expects(self::once())->method('begin');
         $store->expects(self::once())->method('flush')->willThrowException(new RuntimeException('disk full'));
         $store->expects(self::once())->method('rollBack');
@@ -757,6 +760,97 @@ final class WikiCommentServiceTest extends TestCase
             self::assertSame('disk full', $exception->getMessage());
         }
         self::assertSame([], $erased);
+    }
+
+    public function testAFailedCommitIsNotHiddenByTheRollback(): void
+    {
+        // Audit FG2-I6: when commit() fails, the rollback fails too (no transaction left); the commit error surfaces.
+        $store = $this->createMockForIntersectionOfInterfaces([WikiCommentRepositoryInterface::class, WikiCommentMentionRepositoryInterface::class]);
+        $store->method('commentsMentioning')->willReturn(new WikiCommentMentionBatch([]));
+        $store->method('threadsMentioning')->willReturn(new WikiCommentMentionBatch([]));
+        $store->expects(self::once())->method('commit')->willThrowException(new RuntimeException('commit failed'));
+        $store->expects(self::once())->method('rollBack')->willThrowException(new LogicException('no active transaction'));
+        $service = new WikiCommentService($store, $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer());
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('commit failed');
+        $service->eraseMentions(['zed']);
+    }
+
+    public function testRowsThatCannotBeScannedAreSkippedNeverBlanked(): void
+    {
+        // Audit FG2-I1: invalid UTF-8 makes the /u regex fail; the row is left as it is and reported, not emptied.
+        $erased     = [];
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(WikiEvents::COMMENT_MENTIONS_ERASED, static function (WikiCommentMentionsErasedEvent $event) use (&$erased): void {
+            $erased[] = $event;
+        });
+        $service = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), dispatcher: $dispatcher);
+        $thread  = new WikiCommentThread($this->page, $this->bob, '{"exact":"@zed"}', "quote @zed \xFF");
+        $broken  = new WikiCommentThread($this->page, $this->bob, "not json @zed \xFF", 'quote @zed');
+        $inJson  = new WikiCommentThread($this->page, $this->bob, '{"exact":"@zed","prefix":"x"}', 'quote @zed');
+        $bad     = new WikiComment($thread, $this->bob, "cc @zed \xFF");
+        $good    = new WikiComment($thread, $this->bob, 'cc @zed', 1);
+        foreach ([$thread, $broken, $inJson, $bad, $good] as $entity) {
+            $this->em->persist($entity);
+        }
+        $this->em->flush();
+        $this->em->clear();
+
+        $result = $service->eraseMentions(['zed']);
+
+        self::assertCount(2, $result);
+        self::assertSame([$good->getId()], $result->commentIds);
+        self::assertSame([$inJson->getId()], $result->threadIds);
+        self::assertSame([$bad->getId()], $result->skippedCommentIds);
+        $skippedThreads = [$thread->getId(), $broken->getId()];
+        sort($skippedThreads);
+        $actual = $result->skippedThreadIds;
+        sort($actual);
+        self::assertSame($skippedThreads, $actual);
+        self::assertSame(3, $result->skipped());
+        self::assertSame("cc @zed \xFF", $this->em->getConnection()->fetchOne('SELECT body FROM wiki_comments WHERE id = ?', [$bad->getId()]));
+        self::assertSame("quote @zed \xFF", $this->em->getConnection()->fetchOne('SELECT quote FROM wiki_comment_threads WHERE id = ?', [$thread->getId()]));
+        self::assertSame('{"exact":"@zed"}', $this->em->getConnection()->fetchOne('SELECT anchor FROM wiki_comment_threads WHERE id = ?', [$thread->getId()]), 'Nothing of a skipped thread is written.');
+        self::assertSame('cc @…', $this->em->getConnection()->fetchOne('SELECT body FROM wiki_comments WHERE id = ?', [$good->getId()]));
+        self::assertCount(1, $erased);
+        self::assertSame([$bad->getId()], $erased[0]->skippedCommentIds);
+        self::assertSame($actual, $erased[0]->skippedThreadIds);
+
+        // A JSON anchor whose string cannot be scanned: skipped too.
+        self::assertNull((new ReflectionMethod(WikiCommentService::class, 'scrubJson'))->invoke($service, '{"exact":"@zed"}', static fn (string $text): ?string => null));
+    }
+
+    public function testErasingMentionsAfterTheAuthorKeepsTheCallersEntitiesManaged(): void
+    {
+        // Audit FG2-L1 (PoC release-detach): eraseAuthor() then eraseMentions() on one entity manager, more than one
+        // batch; the thread of a comment the caller still holds must stay managed, so later flushes still work.
+        $mine = new WikiCommentThread($this->page, $this->bob, '{"exact":"ping @zed"}', 'ping @zed');
+        $own  = new WikiComment($mine, $this->ana, 'my own comment');
+        $this->em->persist($mine);
+        $this->em->persist($own);
+        $count = WikiCommentService::ERASE_BATCH + 3;
+        for ($i = 1; $i < $count; ++$i) {
+            $this->em->persist(new WikiCommentThread($this->page, $this->bob, null, 'see @zed ' . $i));
+        }
+        $this->em->flush();
+        $this->em->clear();
+        $service = $this->service();
+        $ana     = $this->em->find(TestUserEntity::class, 'id-ana');
+        self::assertInstanceOf(TestUserEntity::class, $ana);
+        $service->eraseAuthor($ana, false);
+        $held = $this->em->find(WikiComment::class, $own->getId());
+        self::assertInstanceOf(WikiComment::class, $held);
+        $held->getThread()->getQuote();
+
+        self::assertCount($count, $service->eraseMentions(['zed']));
+
+        self::assertTrue($this->em->contains($held));
+        self::assertTrue($this->em->contains($held->getThread()), 'The caller\'s thread instance is not released.');
+        self::assertSame('ping @…', $held->getThread()->getQuote());
+        $held->redactBody('host change');
+        $this->em->flush();
+        self::assertSame('host change', $this->em->getConnection()->fetchOne('SELECT body FROM wiki_comments WHERE id = ?', [$own->getId()]));
     }
 
     public function testResolvedThreadsNeverHideOpenOnesAndTheTotalIsCapped(): void

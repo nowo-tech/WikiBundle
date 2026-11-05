@@ -26,6 +26,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function json_decode;
+use function str_replace;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -101,6 +102,15 @@ final class WikiCommentsEraseUserCommandTest extends TestCase
         self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--force' => true, '--handle' => ['@AnaG']]));
         self::assertStringContainsString('1 comment(s) or thread(s) with mentions of @AnaG, @ana_g rewritten.', $tester->getDisplay());
         self::assertSame('Ask @… or @…, not @ana_gx.', $body());
+
+        // Audit FG2-I1: a row that cannot be scanned is kept as it is, reported, and the command fails.
+        $bad = new WikiComment($thread, $bob, "cc @ana_g \xFF", 2);
+        $em->persist($bad);
+        $em->flush();
+        self::assertSame(Command::FAILURE, $tester->execute(['user' => 'ana', '--force' => true]));
+        self::assertStringContainsString('1 row(s) could not be scanned', $tester->getDisplay());
+        self::assertStringContainsString($bad->getId(), str_replace(["\n", ' '], '', $tester->getDisplay()));
+        self::assertSame("cc @ana_g \xFF", $em->getConnection()->fetchOne('SELECT body FROM wiki_comments WHERE id = ?', [$bad->getId()]));
 
         // Without any handle the erasure warns that mentions were kept.
         $ana->withHandle(null);

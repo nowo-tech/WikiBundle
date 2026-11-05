@@ -15,7 +15,10 @@ use Nowo\WikiBundle\Entity\WikiCommentThread;
  * {@see WikiCommentService::eraseMentions()} refuses to run (a privacy erasure must never
  * silently do nothing). The bundle's Doctrine store implements it.
  *
- * The lookups are paged by id (keyset): the eraser walks them in batches, so a large wiki is never loaded at once.
+ * The lookups are paged by id (keyset): the eraser walks them in batches, so a large wiki is never loaded at once. The
+ * eraser relies on that contract to finish (audit FG2-I4): a page holds at most `$limit` rows, only ids strictly after
+ * `$afterId`, in ascending id order; a store that ignores `$afterId` makes the eraser loop, one that skips rows leaves
+ * mentions behind.
  */
 interface WikiCommentMentionRepositoryInterface
 {
@@ -27,9 +30,9 @@ interface WikiCommentMentionRepositoryInterface
      * @param int $limit at most this many
      * @param string|null $afterId only comments whose id sorts after this one (the previous batch's last id)
      *
-     * @return list<WikiComment> ordered by id
+     * @return WikiCommentMentionBatch<WikiComment> ordered by id
      */
-    public function commentsMentioning(string $handle, int $limit, ?string $afterId = null): array;
+    public function commentsMentioning(string $handle, int $limit, ?string $afterId = null): WikiCommentMentionBatch;
 
     /**
      * Inline threads whose quote or anchor may mention `@handle` (same matching as {@see self::commentsMentioning()}).
@@ -38,9 +41,9 @@ interface WikiCommentMentionRepositoryInterface
      * @param int $limit at most this many
      * @param string|null $afterId only threads whose id sorts after this one
      *
-     * @return list<WikiCommentThread> ordered by id
+     * @return WikiCommentMentionBatch<WikiCommentThread> ordered by id
      */
-    public function threadsMentioning(string $handle, int $limit, ?string $afterId = null): array;
+    public function threadsMentioning(string $handle, int $limit, ?string $afterId = null): WikiCommentMentionBatch;
 
     /** Starts the transaction of one erasure (every batch is flushed inside it). */
     public function begin(): void;
@@ -52,7 +55,8 @@ interface WikiCommentMentionRepositoryInterface
     public function rollBack(): void;
 
     /**
-     * Stops tracking entities whose changes were flushed (frees memory between batches); never other entities.
+     * Stops tracking entities whose changes were flushed (frees memory between batches). Only called with a batch's
+     * `loaded` entities, never with instances that were managed before the lookup.
      *
      * @param list<WikiComment|WikiCommentThread> $entities
      */

@@ -82,8 +82,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   escaped `\_`; handles with more than 3 underscores require every part) instead of the part before the first `_`
   (just `@` for a handle starting with `_`), and is paged by id: `eraseMentions()` walks batches of
   `WikiCommentService::ERASE_BATCH` (200), flushing and releasing each, inside one transaction (all or nothing).
-  `WikiCommentMentionRepositoryInterface` is `commentsMentioning()` / `threadsMentioning()` (paged), `begin()` /
-  `commit()` / `rollBack()` and `release()`.
+  `WikiCommentMentionRepositoryInterface` is `commentsMentioning()` / `threadsMentioning()` (paged, returning a
+  `WikiCommentMentionBatch`), `begin()` / `commit()` / `rollBack()` and `release()`.
+- **Mention erasure keeps the caller's entities (audit FG2-L1).** Only the comments and threads a batch lookup loaded
+  itself are released; instances the caller already managed (for example comments kept by `eraseAuthor()` on the
+  same entity manager) stay managed with their pending changes, so later flushes no longer fail with "A new entity
+  was found through the relationship WikiComment#thread". USAGE now calls `eraseMentions()` before `eraseAuthor()`.
+- **Unscannable rows are never blanked (audit FG2-I1).** When the mention regex fails on a row (invalid UTF-8), the
+  row is left untouched instead of being overwritten with an empty text. `eraseMentions()` returns a
+  `WikiCommentMentionErasure` (countable; `commentIds`, `threadIds`, `skippedCommentIds`, `skippedThreadIds`,
+  `skipped()`), the event carries the skipped ids, and `wiki:comments:erase-user` lists them and fails.
+- **A failed commit is not hidden (audit FG2-I6).** If the erasure's commit fails, the rollback's own error is ignored
+  and the original exception is rethrown.
+- USAGE documents the online erasure (no row locks), the re-runnable CLI, the paging contract for host stores and the
+  event firing before an outer transaction's commit (audit FG2-I2…I5).
 
 ## [1.16.2] - 2026-11-04
 
