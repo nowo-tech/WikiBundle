@@ -1630,7 +1630,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             page_version?: scalar|Param|null, // Default: null
  *             trash_purge?: scalar|Param|null, // Default: null
  *         },
- *         tab_icons?: array{ // 1.18: icon of each page tab (Page / Edit / History), so the tab row follows the host tab style (text, icon and text, icon only). A UiKit icon name (tabler:* renders with the ux_icon or tabler-icons set); null or "" = no icon on that tab.
+ *         tab_icons?: array{ // 1.18: icon of each page tab (Page / Edit / History), so the tab row follows the host tab style (text, icon and text, icon only). A UiKit icon name, [prefix:]name in lowercase letters, digits and single hyphens (tabler:* renders with the ux_icon or tabler-icons set); null or "" = no icon on that tab.
  *             page?: scalar|Param|null, // Default: "tabler:file-text"
  *             edit?: scalar|Param|null, // Default: "tabler:pencil"
  *             history?: scalar|Param|null, // Default: "tabler:history"

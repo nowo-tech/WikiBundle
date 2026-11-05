@@ -71,6 +71,10 @@ Target: **1.18.0** (minor). See [UPGRADING](UPGRADING.md#unreleased).
   Edit `tabler:pencil`, History `tabler:history`; `web_ui.tab_icons.<tab>`, null or `''` = none) and
   `manage/_page_tabs.html.twig` passes it to the UiKit `tabs` partial, so the row follows the host's tab style.
   Hosts that overrode `_page_tabs.html.twig` only to add the icons (Symfony Beacon) can remove that override.
+- **Tab icon names are validated at container build.** `web_ui.tab_icons.<tab>` must be `[prefix:]name` with
+  lowercase letters, digits and single hyphens (the `symfony/ux-icons` name grammar, one prefix at most), or null / `''`;
+  anything else (spaces, uppercase, `..`, `/`, quotes) fails `cache:clear` with a clear message instead of a 500 at
+  render time with the `ux_icon` set.
 
 ### Dependencies
 

@@ -47,6 +47,13 @@ final class Configuration implements ConfigurationInterface
      */
     public const EDITOR_MILKDOWN = 'milkdown';
 
+    /**
+     * 1.18 `web_ui.tab_icons.<tab>`: an icon name as `symfony/ux-icons` accepts it (`Icon::isValidName()`), with at most
+     * one set prefix: `[prefix:]name`, each part lowercase letters / digits joined by single hyphens (`tabler:file-text`,
+     * `bi:clock-history`, `pencil`). The same names render with the UiKit font sets (`ti ti-<name>`, `bi bi-<name>`).
+     */
+    public const TAB_ICON_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*(?::[a-z0-9]+(?:-[a-z0-9]+)*)?$/';
+
     /** Form type of the page body with editor.type milkdown (nowo-tech/milkdown-editor-bundle). */
     public const MILKDOWN_FORM_TYPE = MilkdownEditorType::class;
 
@@ -656,7 +663,7 @@ final class Configuration implements ConfigurationInterface
                             ->end()
                         ->end()
                         ->arrayNode('tab_icons')
-                            ->info('1.18: icon of each page tab (Page / Edit / History), so the tab row follows the host tab style (text, icon and text, icon only). A UiKit icon name (tabler:* renders with the ux_icon or tabler-icons set); null or "" = no icon on that tab.')
+                            ->info('1.18: icon of each page tab (Page / Edit / History), so the tab row follows the host tab style (text, icon and text, icon only). A UiKit icon name, [prefix:]name in lowercase letters, digits and single hyphens (tabler:* renders with the ux_icon or tabler-icons set); null or "" = no icon on that tab.')
                             ->addDefaultsIfNotSet()
                             ->children()
                                 ->append($this->tabIconNode('page'))
@@ -701,7 +708,8 @@ final class Configuration implements ConfigurationInterface
     }
 
     /**
-     * 1.18 `web_ui.tab_icons.<tab>`: an icon name, or null / '' for no icon.
+     * 1.18 `web_ui.tab_icons.<tab>`: an icon name ({@see self::TAB_ICON_PATTERN}, checked when the container is built,
+     * so a malformed name never fails at render time), or null / '' for no icon.
      *
      * @param 'edit'|'history'|'page' $tab
      */
@@ -713,6 +721,10 @@ final class Configuration implements ConfigurationInterface
             ->validate()
                 ->ifTrue(static fn (mixed $value): bool => $value !== null && !is_string($value))
                 ->thenInvalid('Expected an icon name (string) or null, got %s.')
+            ->end()
+            ->validate()
+                ->ifTrue(static fn (mixed $value): bool => is_string($value) && $value !== '' && preg_match(self::TAB_ICON_PATTERN, $value) !== 1)
+                ->thenInvalid('Invalid icon name %s: expected "[prefix:]name" with lowercase letters, digits and single hyphens (e.g. "tabler:file-text", "bi:pencil"), or null / "" for no icon.')
             ->end();
 
         return $node;
