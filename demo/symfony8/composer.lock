@@ -2319,16 +2319,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.26.0",
+            "version": "v2.29.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "a75f28649f706875226753e7bd9be0309de6a8f8"
+                "reference": "4130f49ab8eccf51acf76e20550a5a3176d9c11d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/a75f28649f706875226753e7bd9be0309de6a8f8",
-                "reference": "a75f28649f706875226753e7bd9be0309de6a8f8",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/4130f49ab8eccf51acf76e20550a5a3176d9c11d",
+                "reference": "4130f49ab8eccf51acf76e20550a5a3176d9c11d",
                 "shasum": ""
             },
             "require": {
@@ -2409,8 +2409,8 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-11-04T11:10:05+00:00",
-            "published-time": "2026-11-04T11:13:49+00:00"
+            "time": "2026-11-05T13:12:29+00:00",
+            "published-time": "2026-11-05T13:14:49+00:00"
         },
         {
             "name": "nowo-tech/wiki-bundle",
@@ -2418,7 +2418,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "279c00cfb651fb2fe4a0b8a5d906df5e3a706bbb"
+                "reference": "a6f83e3ecdcf39070b0a35ad43f896211ea63a12"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -2429,7 +2429,7 @@
                 "league/html-to-markdown": "^5.1",
                 "nowo-tech/form-kit-bundle": "^2.0",
                 "nowo-tech/tiptap-editor-bundle": "^1.6",
-                "nowo-tech/ui-kit-bundle": "^2.26",
+                "nowo-tech/ui-kit-bundle": "^2.29",
                 "php": ">=8.2 <8.6",
                 "psr/log": "^1.1 || ^2.0 || ^3.0",
                 "symfony/config": "^7.4 || ^8.0",

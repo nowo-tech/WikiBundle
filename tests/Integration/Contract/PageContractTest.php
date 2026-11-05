@@ -87,7 +87,7 @@ final class PageContractTest extends PageContractTestCase
 
         // 1.18 (UiKit 2.29 dialog sizes): the medium size (no size modifier), the form in the scrolling body, the footer
         // outside it with Cancel then the one primary (last), bound to the form by form="…".
-        self::assertMatchesRegularExpression('#<dialog id="nowo-wiki-ai-dialog" class="nowo-ui-dialog"[ >]#', $html);
+        self::assertMatchesRegularExpression('#<dialog id="nowo-wiki-ai-dialog" class="nowo-ui-dialog(?: pc-dialog)?"[ >]#', $html);
         self::assertDoesNotMatchRegularExpression('#nowo-ui-dialog--(?:sm|lg|xl|wide)#', $html);
         self::assertSame(1, preg_match('#<dialog id="nowo-wiki-ai-dialog".*?</dialog>#s', $html, $dialog));
         self::assertSame(1, preg_match('#<div class="[^"]*nowo-ui-dialog__body[^"]*"[^>]*>(.*?)</div>\s*<footer class="[^"]*nowo-ui-dialog__footer[^"]*"[^>]*>(.*?)</footer>\s*</dialog>#s', $dialog[0], $parts));

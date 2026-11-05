@@ -87,6 +87,7 @@ use function array_diff_key;
 use function array_fill_keys;
 use function array_keys;
 use function is_array;
+use function ksort;
 
 use const E_USER_DEPRECATED;
 
@@ -776,7 +777,10 @@ final class WikiExtensionTest extends TestCase
             'web_ui'     => ['tab_icons' => ['edit' => 'bi:pencil', 'history' => null]],
         ]], $container);
 
-        self::assertSame(['page' => 'tabler:file-text', 'edit' => 'bi:pencil', 'history' => null], $container->getDefinition(WikiPageFactory::class)->getArgument('$tabIcons'));
+        $tabIcons = $container->getDefinition(WikiPageFactory::class)->getArgument('$tabIcons');
+        self::assertIsArray($tabIcons);
+        ksort($tabIcons);
+        self::assertSame(['edit' => 'bi:pencil', 'history' => null, 'page' => 'tabler:file-text'], $tabIcons);
     }
 
     public function testDeprecatedKeysStillApplyAndTheOldDefaultLayoutMeansUiKit(): void

@@ -55,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: **1.18.0** (minor). See [UPGRADING](UPGRADING.md#unreleased).
+
 ### Changed
 
 - **Dialog sizes (UiKit 2.29, platform rule).** The AI question dialog uses the UiKit `dialog` theme partial at the
@@ -68,6 +70,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Page tab icons (Beacon spec 177).** `WikiPageFactory::pageTabs()` sets an icon per tab (Page `tabler:file-text`,
   Edit `tabler:pencil`, History `tabler:history`; `web_ui.tab_icons.<tab>`, null or `''` = none) and
   `manage/_page_tabs.html.twig` passes it to the UiKit `tabs` partial, so the row follows the host's tab style.
+  Hosts that overrode `_page_tabs.html.twig` only to add the icons (Symfony Beacon) can remove that override.
+
+### Dependencies
+
+- `nowo-tech/ui-kit-bundle` `^2.29` (was `^2.26`); `composer.lock` of the bundle and of `demo/symfony8` updated to
+  UiKit 2.29.0.
 
 ## [1.17.0] - 2026-11-05
 

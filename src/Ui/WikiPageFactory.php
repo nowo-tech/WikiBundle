@@ -805,7 +805,7 @@ final readonly class WikiPageFactory
     /**
      * Icon of a page tab: the configured one (`web_ui.tab_icons.<tab>`), else the default; null or '' = no icon.
      *
-     * @param 'page'|'edit'|'history' $tab
+     * @param 'edit'|'history'|'page' $tab
      */
     private function tabIcon(string $tab): ?string
     {

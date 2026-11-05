@@ -703,7 +703,7 @@ final class Configuration implements ConfigurationInterface
     /**
      * 1.18 `web_ui.tab_icons.<tab>`: an icon name, or null / '' for no icon.
      *
-     * @param 'page'|'edit'|'history' $tab
+     * @param 'edit'|'history'|'page' $tab
      */
     private function tabIconNode(string $tab): ScalarNodeDefinition
     {

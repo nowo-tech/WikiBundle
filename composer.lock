@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "01bcbeda851ca1660a325426a4af27ac",
+    "content-hash": "83add70b2f8e1df8570a74858a0926a5",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -1915,16 +1915,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.26.0",
+            "version": "v2.29.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "a75f28649f706875226753e7bd9be0309de6a8f8"
+                "reference": "4130f49ab8eccf51acf76e20550a5a3176d9c11d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/a75f28649f706875226753e7bd9be0309de6a8f8",
-                "reference": "a75f28649f706875226753e7bd9be0309de6a8f8",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/4130f49ab8eccf51acf76e20550a5a3176d9c11d",
+                "reference": "4130f49ab8eccf51acf76e20550a5a3176d9c11d",
                 "shasum": ""
             },
             "require": {
@@ -2005,8 +2005,8 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-11-04T11:10:05+00:00",
-            "published-time": "2026-11-04T11:13:49+00:00"
+            "time": "2026-11-05T13:12:29+00:00",
+            "published-time": "2026-11-05T13:14:49+00:00"
         },
         {
             "name": "psr/cache",

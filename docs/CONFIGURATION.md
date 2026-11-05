@@ -39,6 +39,7 @@ Root key: `nowo_wiki`.
 | `web_ui.path_prefix` | null | Prefix of every wiki route path (e.g. `/admin`); null = the deprecated `route_prefix`, else none |
 | `web_ui.layout_template` | null | Layout the pages extend; null = `nowo_ui_kit.layouts.admin` (see [TEMPLATES](TEMPLATES.md#layout)) |
 | `web_ui.templates.<page>` | null | Per-page template override (`index`, `space`, `page_view`, `page_edit`, `page_history`, `page_diff`, `search`, `ai_ask`); null = the bundle page |
+| `web_ui.tab_icons.<tab>` | `page`: `tabler:file-text`, `edit`: `tabler:pencil`, `history`: `tabler:history` | 1.18: icon of each page tab (Page / Edit / History) passed to the UiKit `tabs` partial, so the row follows the host's tab style (text, icon and text, icon only); null or `''` = no icon on that tab |
 | `web_ui.css_framework` | null | **Deprecated since 1.10**: set `nowo_ui_kit.css_framework` once for every bundle (when set, it only seeds `nowo_ui_kit.css_framework` / `icon_set` if the host left them unset) |
 | `pagination.spaces_per_page` | `24` | Space cards per wiki index page (`?page=N`, 1–500) |
 | `pagination.revisions_per_page` | `25` | Revisions per page history page (`?page=N`, 1–500) |
@@ -382,6 +383,10 @@ nowo_wiki:
         layout_template: null              # wiki-only layout override; null = nowo_ui_kit.layouts.admin
         templates:
             page_view: 'wiki/page_view.html.twig'   # thin override: {% extends '@NowoWikiBundle/manage/page_view.html.twig' %} + one block
+        tab_icons:                         # 1.18: page tab icons; ~ or '' = no icon on that tab
+            page: 'tabler:file-text'
+            edit: 'tabler:pencil'
+            history: 'tabler:history'
 ```
 
 - **Layout:** a host layout that renders the canonical blocks (`nowo_ui_document_title`, `nowo_ui_styles`, `nowo_ui_page_header`, `nowo_ui_flashes`, `nowo_ui_content`, `nowo_ui_modals`, `nowo_ui_scripts`) is used as is — the reference is a one-file bridge that `{% use '@NowoUiKit/layout/_bridge.html.twig' %}` (see `demo/symfony8/templates/layouts/admin.html.twig`). A pre-1.10 layout that only renders `{% block body %}` keeps working through a **deprecated** bridge (removed in 2.0).
