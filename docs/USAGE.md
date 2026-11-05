@@ -547,7 +547,22 @@ What a host such as symfony-beacon configures:
     case-insensitive, accepts a Markdown-escaped `\_`, and never touches a longer handle (`@ana` leaves `@ana.b`) or
     an e-mail address. `nowo_wiki.comment.mentions_erased` (`WikiCommentMentionsErasedEvent`: handles, comment ids,
     thread ids) tells search indexes and notification history what to refresh. A host comment store must implement
-    `WikiCommentMentionRepositoryInterface` (the Doctrine store does), else the call throws `LogicException`:
+    `WikiCommentMentionRepositoryInterface` (the Doctrine store does), else the call throws `LogicException`.
+
+    - **Only comments are covered.** Mentions in the page content stay: the current and past revisions
+      (`content_markdown` / `content_html` / `content_text`), the page search index and the mention references the
+      extractor reports are editorial content. Edit the pages (or purge their history) if they must go too.
+    - **The label must not be a mention itself.** A label such as `@deleted-user` is a valid handle, so the viewer
+      would link every erased mention to whoever owns that handle. `eraseMentions()` throws
+      `InvalidArgumentException` for a label with `@` followed by a handle character, or starting with a handle
+      character (an `@@handle` would complete it). Keep the default `@…` or use a text such as `[deleted user]`.
+    - **Large wikis.** Candidates are read in batches of `WikiCommentService::ERASE_BATCH` (200), each flushed and
+      released from the entity manager, inside one transaction: a failure rolls the whole call back, and a call that
+      succeeded leaves nothing for a second one. The flushes write the entity manager's other pending changes too
+      (as `eraseAuthor()` does).
+    - **CLI.** `wiki:comments:erase-user <user> --handle=<handle>` (repeatable; the user's `getHandle()` is added when
+      the user class has one, `--mention-label` changes the label) erases the mentions before the user's own
+      comments. Without any handle it erases the comments only and warns that mentions were kept.
 
     ```php
     #[AsTaggedItem(priority: 91)] // before the eraser that rewrites the handle / display name
@@ -556,7 +571,8 @@ What a host such as symfony-beacon configures:
         public function erase(ErasureRequest $request): void
         {
             $this->comments->eraseAuthor($request->user);
-            $this->comments->eraseMentions([$request->user->getHandle()], '@deleted-user');
+            // Not "@deleted-user": that is a handle someone could own (the call refuses it).
+            $this->comments->eraseMentions([$request->user->getHandle()], '[deleted user]');
         }
         // getKey(), supports() …
     }

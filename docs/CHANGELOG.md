@@ -70,7 +70,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `WikiCommentMentionRepositoryInterface` (implemented by the Doctrine store; the call throws `LogicException` for a
   store without it), `WikiComment::redactBody()`, `WikiCommentThread::redactQuote()` and the
   `nowo_wiki.comment.mentions_erased` event (`WikiCommentMentionsErasedEvent`). Same contract as ChatKit's
-  DATA-CHAT-MENTION-ERASE.
+  DATA-CHAT-MENTION-ERASE. Only comments are covered: mentions in page content (revisions, search text) stay.
+- **Erased-mention label check (audit FG-L1).** `eraseMentions()` throws `InvalidArgumentException` for a label that
+  could render as a mention (`@` followed by a handle character, or a handle character first), such as
+  `@deleted-user`, which would link every erased mention to whoever owns that handle. USAGE now uses `[deleted user]`.
+- **`wiki:comments:erase-user` erases mentions (audit FG-L2).** New repeatable `--handle` option (the user's
+  `getHandle()` is added when the user class has one) and `--mention-label`: the user's mentions are erased through
+  `eraseMentions()` before their own comments; an invalid handle or label stops the command before anything changes.
+  Without any handle the command warns that mentions were kept.
+- **Bounded mention erasure (audit FG-L3).** The candidate lookup matches the whole handle (each `_` as `_` or the
+  escaped `\_`; handles with more than 3 underscores require every part) instead of the part before the first `_`
+  (just `@` for a handle starting with `_`), and is paged by id: `eraseMentions()` walks batches of
+  `WikiCommentService::ERASE_BATCH` (200), flushing and releasing each, inside one transaction (all or nothing).
+  `WikiCommentMentionRepositoryInterface` is `commentsMentioning()` / `threadsMentioning()` (paged), `begin()` /
+  `commit()` / `rollBack()` and `release()`.
 
 ## [1.16.2] - 2026-11-04
 

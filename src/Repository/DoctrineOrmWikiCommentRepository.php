@@ -12,7 +12,11 @@ use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 
 use function array_map;
+use function array_slice;
 use function count;
+use function explode;
+use function implode;
+use function max;
 use function mb_strtolower;
 use function strtr;
 
@@ -23,6 +27,9 @@ use function strtr;
  */
 final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface, WikiCommentAuthorRepositoryInterface, WikiCommentMentionRepositoryInterface
 {
+    /** Underscores in a handle up to which every `_` / `\_` spelling is queried (2^n LIKE terms). */
+    private const MAX_UNDERSCORE_VARIANTS = 3;
+
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
     ) {
@@ -205,36 +212,72 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         return count($comments);
     }
 
-    public function commentsContaining(string $text): array
+    public function commentsMentioning(string $handle, int $limit, ?string $afterId = null): array
     {
-        /** @var list<WikiComment> $comments */
-        $comments = $this->entityManager()->createQueryBuilder()
+        $query = $this->entityManager()->createQueryBuilder()
             ->select('c')
             ->from(WikiComment::class, 'c')
             ->where('c.deletedAt IS NULL')
-            ->andWhere("LOWER(c.body) LIKE :text ESCAPE '!'")
-            ->setParameter('text', self::likeContains($text))
+            ->andWhere($this->mentionCondition('LOWER(c.body)', $handle, $parameters))
             ->orderBy('c.id', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->setMaxResults(max(1, $limit));
+        if ($afterId !== null) {
+            $query->andWhere('c.id > :after')->setParameter('after', $afterId);
+        }
+        foreach ($parameters as $name => $value) {
+            $query->setParameter($name, $value);
+        }
+        /** @var list<WikiComment> $comments */
+        $comments = $query->getQuery()->getResult();
 
         return $comments;
     }
 
-    public function threadsQuoting(string $text): array
+    public function threadsMentioning(string $handle, int $limit, ?string $afterId = null): array
     {
-        /** @var list<WikiCommentThread> $threads */
-        $threads = $this->entityManager()->createQueryBuilder()
+        $quote  = $this->mentionCondition('LOWER(t.quote)', $handle, $parameters);
+        $anchor = $this->mentionCondition('LOWER(t.anchor)', $handle, $parameters);
+        $query  = $this->entityManager()->createQueryBuilder()
             ->select('t')
             ->from(WikiCommentThread::class, 't')
-            ->where("LOWER(t.quote) LIKE :text ESCAPE '!'")
-            ->orWhere("LOWER(t.anchor) LIKE :text ESCAPE '!'")
-            ->setParameter('text', self::likeContains($text))
+            ->where($quote . ' OR ' . $anchor)
             ->orderBy('t.id', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->setMaxResults(max(1, $limit));
+        if ($afterId !== null) {
+            $query->andWhere('t.id > :after')->setParameter('after', $afterId);
+        }
+        foreach ($parameters as $name => $value) {
+            $query->setParameter($name, $value);
+        }
+        /** @var list<WikiCommentThread> $threads */
+        $threads = $query->getQuery()->getResult();
 
         return $threads;
+    }
+
+    public function begin(): void
+    {
+        $this->entityManager()->beginTransaction();
+    }
+
+    public function commit(): void
+    {
+        $this->entityManager()->commit();
+    }
+
+    public function rollBack(): void
+    {
+        $this->entityManager()->rollback();
+    }
+
+    public function release(array $entities): void
+    {
+        $entityManager = $this->entityManager();
+        foreach ($entities as $entity) {
+            if ($entityManager->contains($entity)) {
+                $entityManager->detach($entity);
+            }
+        }
     }
 
     public function deleteForPages(array $pageIds): void
@@ -345,9 +388,52 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         return $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
     }
 
-    /** `%text%` in lower case, with `!` escaping the LIKE wildcards. */
-    private static function likeContains(string $text): string
+    /**
+     * DQL condition: the column contains `@handle` (lower case), each `_` of the handle stored as `_` or as the
+     * Markdown-escaped `\_` (audit FG-L3: the whole handle is matched, not a prefix). Up to
+     * {@see self::MAX_UNDERSCORE_VARIANTS} underscores every spelling is listed; beyond that the column must contain
+     * `@` + the first underscore-free part and every other part (a superset; the caller filters with the exact regex).
+     *
+     * @param array<string, string>|null $parameters the LIKE parameters, added to
+     *
+     * @param-out array<string, string> $parameters
+     */
+    private function mentionCondition(string $column, string $handle, ?array &$parameters): string
     {
-        return '%' . strtr(mb_strtolower($text, 'UTF-8'), ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
+        $parameters ??= [];
+        $parts = explode('_', strtr(mb_strtolower($handle, 'UTF-8'), ['!' => '!!', '%' => '!%']));
+        if (count($parts) - 1 <= self::MAX_UNDERSCORE_VARIANTS) {
+            $needles = [''];
+            foreach ($parts as $index => $part) {
+                $next = [];
+                foreach ($needles as $needle) {
+                    if ($index === 0) {
+                        $next[] = $part;
+                        continue;
+                    }
+                    $next[] = $needle . '!_' . $part;
+                    $next[] = $needle . '\\!_' . $part;
+                }
+                $needles = $next;
+            }
+            $glue    = ' OR ';
+            $needles = array_map(static fn (string $needle): string => '%@' . $needle . '%', $needles);
+        } else {
+            $needles = ['%@' . $parts[0] . '%'];
+            foreach (array_slice($parts, 1) as $part) {
+                if ($part !== '') {
+                    $needles[] = '%' . $part . '%';
+                }
+            }
+            $glue = ' AND ';
+        }
+        $conditions = [];
+        foreach ($needles as $needle) {
+            $name              = 'mention' . count($parameters);
+            $parameters[$name] = $needle;
+            $conditions[]      = $column . ' LIKE :' . $name . " ESCAPE '!'";
+        }
+
+        return '(' . implode($glue, $conditions) . ')';
     }
 }

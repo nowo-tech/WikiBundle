@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Comment;
 
 use DateTimeInterface;
+use InvalidArgumentException;
 use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Comment\InvalidCommentAnchorException;
@@ -37,16 +38,17 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Throwable;
 
 use function array_filter;
 use function array_key_exists;
 use function array_key_last;
+use function array_keys;
 use function array_map;
 use function array_slice;
 use function array_values;
 use function array_walk_recursive;
 use function count;
-use function explode;
 use function is_array;
 use function is_bool;
 use function is_string;
@@ -59,6 +61,7 @@ use function preg_quote;
 use function preg_replace;
 use function preg_split;
 use function spl_object_id;
+use function sprintf;
 use function str_contains;
 use function str_replace;
 use function str_starts_with;
@@ -130,8 +133,17 @@ final readonly class WikiCommentService
     /** Default label of an erased person's mention ({@see self::eraseMentions()}). */
     public const ERASED_MENTION = '@…';
 
+    /** Comments or threads loaded, rewritten and flushed at a time by {@see self::eraseMentions()} (audit FG-L3). */
+    public const ERASE_BATCH = 200;
+
+    /**
+     * An erased-mention label that could render as a mention (audit FG-L1): an `@` followed by a handle character, or a
+     * handle character first (a preceding `@`, as in `@@handle`, would complete it).
+     */
+    private const MENTION_LIKE_LABEL = '/^[a-zA-Z0-9_]|@[a-zA-Z0-9_]/';
+
     /** A mention handle (same characters as WikiMarkdownReferenceExtractor's mentions). */
-    private const HANDLE_PATTERN = '/^[a-zA-Z0-9_](?:[a-zA-Z0-9_.-]{0,38}[a-zA-Z0-9_])?$/';
+    public const HANDLE_PATTERN = '/^[a-zA-Z0-9_](?:[a-zA-Z0-9_.-]{0,38}[a-zA-Z0-9_])?$/';
 
     /**
      * @param WikiCollabService|null $collab co-editing (null: no live updates)
@@ -587,9 +599,20 @@ final readonly class WikiCommentService
      * Register it in the host's personal-data eraser with the person's handle(s), next to {@see self::eraseAuthor()}.
      * Dispatches {@see WikiEvents::COMMENT_MENTIONS_ERASED} when something changed.
      *
-     * @param list<string> $handles the person's handles, with or without `@`; invalid handles are ignored
-     * @param string $label what each mention becomes (the erased-subject label)
+     * Only comments are covered: the page content (current and past revisions, its search text) is editorial content
+     * and keeps its mentions.
      *
+     * The candidates are walked in batches of {@see self::ERASE_BATCH} (audit FG-L3), each flushed and then released
+     * from the entity manager, all inside one transaction: a failure rolls the whole erasure back, and a run that
+     * succeeded leaves nothing to do for a second one. A flush writes every pending change of the entity manager (host
+     * changes included), as {@see self::eraseAuthor()} does; a released comment or thread the caller held is no longer
+     * managed.
+     *
+     * @param list<string> $handles the person's handles, with or without `@`; invalid handles are ignored
+     * @param string $label what each mention becomes (the erased-subject label); it must not be able to render as a
+     *                      mention itself: no `@` followed by a handle character, and no handle character first
+     *
+     * @throws InvalidArgumentException when the label could render as a mention (audit FG-L1)
      * @throws LogicException when the comment store does not implement {@see WikiCommentMentionRepositoryInterface}
      *
      * @return int the comments and threads that were changed
@@ -599,6 +622,10 @@ final readonly class WikiCommentService
         $store = $this->comments;
         if (!$store instanceof WikiCommentMentionRepositoryInterface) {
             throw new LogicException('The wiki comment store does not implement WikiCommentMentionRepositoryInterface: mentions cannot be erased.');
+        }
+        // Audit FG-L1: "@deleted-user" is a handle someone may own; "x" after an "@@handle" would become "@x".
+        if (preg_match(self::MENTION_LIKE_LABEL, $label) === 1) {
+            throw new InvalidArgumentException(sprintf('The erased-mention label "%s" could render as a mention: use a label such as "%s" or "[deleted user]".', $label, self::ERASED_MENTION));
         }
         $valid = [];
         foreach ($handles as $handle) {
@@ -611,54 +638,103 @@ final readonly class WikiCommentService
         if ($valid === []) {
             return 0;
         }
-        $patterns = array_map(self::mentionPattern(...), array_values($valid));
+        $patterns = array_map($this->mentionPattern(...), array_values($valid));
         $scrub    = static fn (string $text): string => (string) preg_replace($patterns, str_replace(['\\', '$'], ['\\\\', '\\$'], $label), $text);
 
-        $comments = [];
-        $threads  = [];
-        foreach ($valid as $handle) {
-            // The LIKE needle stops before the first "_" (stored escaped as "\_" by some editors).
-            $needle = '@' . explode('_', $handle, 2)[0];
-            foreach ($store->commentsContaining($needle) as $comment) {
-                $comments[$comment->getId()] = $comment;
-            }
-            foreach ($store->threadsQuoting($needle) as $thread) {
-                $threads[$thread->getId()] = $thread;
-            }
-        }
-
+        /** @var array<string, true> $changedComments */
         $changedComments = [];
-        foreach ($comments as $id => $comment) {
-            $body = $scrub($comment->getBody());
-            if ($body !== $comment->getBody()) {
-                $comment->redactBody($body);
-                $changedComments[] = (string) $id;
-            }
-        }
+        /** @var array<string, true> $changedThreads */
         $changedThreads = [];
-        foreach ($threads as $id => $thread) {
-            $quote     = $thread->getQuote();
-            $anchor    = $thread->getAnchor();
-            $newQuote  = $quote === null ? null : $scrub($quote);
-            $newAnchor = $anchor === null ? null : self::scrubJson($anchor, $scrub);
-            if ($newQuote !== $quote || $newAnchor !== $anchor) {
-                $thread->redactQuote($newAnchor, $newQuote);
-                $changedThreads[] = (string) $id;
+        $store->begin();
+        try {
+            foreach ($valid as $handle) {
+                $this->eraseCommentMentions($store, $handle, $scrub, $changedComments);
+                $this->eraseThreadMentions($store, $handle, $scrub, $changedThreads);
             }
+            $store->commit();
+        } catch (Throwable $exception) {
+            $store->rollBack();
+
+            throw $exception;
         }
         if ($changedComments === [] && $changedThreads === []) {
             return 0;
         }
-        $this->comments->flush();
-        $this->dispatcher?->dispatch(new WikiCommentMentionsErasedEvent(array_values($valid), $changedComments, $changedThreads), WikiEvents::COMMENT_MENTIONS_ERASED);
+        $this->dispatcher?->dispatch(new WikiCommentMentionsErasedEvent(array_values($valid), array_map(strval(...), array_keys($changedComments)), array_map(strval(...), array_keys($changedThreads))), WikiEvents::COMMENT_MENTIONS_ERASED);
 
         return count($changedComments) + count($changedThreads);
     }
 
     /**
+     * The comment batches of one handle for {@see self::eraseMentions()}.
+     *
+     * @param callable(string): string $scrub
+     * @param array<string, true> $changed the ids of the rewritten comments, added to
+     */
+    private function eraseCommentMentions(WikiCommentMentionRepositoryInterface $store, string $handle, callable $scrub, array &$changed): void
+    {
+        $after = null;
+        do {
+            $batch   = $store->commentsMentioning($handle, self::ERASE_BATCH, $after);
+            $rewrote = false;
+            foreach ($batch as $comment) {
+                $after = $comment->getId();
+                $body  = $scrub($comment->getBody());
+                if ($body !== $comment->getBody()) {
+                    $comment->redactBody($body);
+                    $changed[$comment->getId()] = true;
+                    $rewrote                    = true;
+                }
+            }
+            $this->releaseBatch($store, $batch, $rewrote);
+        } while (count($batch) === self::ERASE_BATCH);
+    }
+
+    /**
+     * The inline-thread batches of one handle for {@see self::eraseMentions()} (stored quote and anchor).
+     *
+     * @param callable(string): string $scrub
+     * @param array<string, true> $changed the ids of the rewritten threads, added to
+     */
+    private function eraseThreadMentions(WikiCommentMentionRepositoryInterface $store, string $handle, callable $scrub, array &$changed): void
+    {
+        $after = null;
+        do {
+            $batch   = $store->threadsMentioning($handle, self::ERASE_BATCH, $after);
+            $rewrote = false;
+            foreach ($batch as $thread) {
+                $after     = $thread->getId();
+                $quote     = $thread->getQuote();
+                $anchor    = $thread->getAnchor();
+                $newQuote  = $quote === null ? null : $scrub($quote);
+                $newAnchor = $anchor === null ? null : $this->scrubJson($anchor, $scrub);
+                if ($newQuote !== $quote || $newAnchor !== $anchor) {
+                    $thread->redactQuote($newAnchor, $newQuote);
+                    $changed[$thread->getId()] = true;
+                    $rewrote                   = true;
+                }
+            }
+            $this->releaseBatch($store, $batch, $rewrote);
+        } while (count($batch) === self::ERASE_BATCH);
+    }
+
+    /**
+     * Ends a batch of {@see self::eraseMentions()}: flushes it when it changed something, then releases it.
+     *
+     * @param list<WikiComment|WikiCommentThread> $batch
+     */
+    private function releaseBatch(WikiCommentMentionRepositoryInterface $store, array $batch, bool $changed): void
+    {
+        if ($changed) {
+            $this->comments->flush();
+        }
+        $store->release($batch);
+    }
+
+    /**
      * Regex of one handle's mentions: not preceded by a handle or e-mail character, not followed by more of the handle.
      */
-    private static function mentionPattern(string $handle): string
+    private function mentionPattern(string $handle): string
     {
         $quoted = str_replace('_', '\\\\?_', preg_quote($handle, '/'));
 
@@ -670,7 +746,7 @@ final readonly class WikiCommentService
      *
      * @param callable(string): string $scrub
      */
-    private static function scrubJson(string $json, callable $scrub): string
+    private function scrubJson(string $json, callable $scrub): string
     {
         $data = json_decode($json, true);
         if (!is_array($data)) {
