@@ -18,6 +18,9 @@ class TestUserEntity implements UserInterface
      * hydrates entities loaded from the database without the constructor (PHP 8.4 native lazy objects). */
     private ?string $displayName = null;
 
+    /** 1.17: an unmapped mention handle (wiki:comments:erase-user reads getHandle() when it exists). */
+    private ?string $handle = null;
+
     public function __construct(
         #[ORM\Id]
         #[ORM\Column(type: 'string', length: 36)]
@@ -36,6 +39,19 @@ class TestUserEntity implements UserInterface
     public function getDisplayName(): ?string
     {
         return $this->displayName;
+    }
+
+    /** 1.17: sets the unmapped mention handle (fluent). */
+    public function withHandle(?string $handle): static
+    {
+        $this->handle = $handle;
+
+        return $this;
+    }
+
+    public function getHandle(): ?string
+    {
+        return $this->handle;
     }
 
     public function getId(): string

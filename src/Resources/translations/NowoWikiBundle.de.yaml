@@ -1,4 +1,5 @@
 wiki:
+  code_block: 'Codeblock'
   tabs:
     label: "Seitenansichten"
     page: "Seite"

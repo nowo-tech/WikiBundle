@@ -1,4 +1,5 @@
 import { bindWikiComments } from './wiki-comments';
+import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 
 /**
  * Wiki page tree: brings the current page (`aria-current="page"`) into view inside each scrollable tree
@@ -316,3 +317,4 @@ initWikiTrees();
 bindWikiTree();
 bindWikiComments();
 whenLoaded(() => void renderWikiRichContent());
+observeScrollableCode(codeLabel(document.currentScript));

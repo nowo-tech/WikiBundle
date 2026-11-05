@@ -541,7 +541,70 @@ What a host such as symfony-beacon configures:
    service; keep `history.show_names` as it is (pictures follow names).
 9. Search: switch `WikiPageSearchProvider`'s `LIKE` from `content_markdown` to `content_text`.
 10. Privacy: call `WikiCommentService::exportAuthor()` / `eraseAuthor()` (or `wiki:comments:erase-user`) from its
-    data-subject flows.
+    data-subject flows. Since 1.17 also call `eraseMentions([$handle], $erasedLabel)` from the same personal-data
+    eraser: every `@handle` of the erased person in **other people's** comments (body, quoted Markdown) and in inline
+    thread quotes becomes the label (`@…` by default), without marking the comments as edited. Matching is
+    case-insensitive, accepts a Markdown-escaped `\_`, and never touches a longer handle (`@ana` leaves `@ana.b`) or
+    an e-mail address. `nowo_wiki.comment.mentions_erased` (`WikiCommentMentionsErasedEvent`: handles, comment ids,
+    thread ids) tells search indexes and notification history what to refresh. A host comment store must implement
+    `WikiCommentMentionRepositoryInterface` (the Doctrine store does), else the call throws `LogicException`.
+
+    - **Only comments are covered.** Mentions in the page content stay: the current and past revisions
+      (`content_markdown` / `content_html` / `content_text`), the page search index and the mention references the
+      extractor reports are editorial content. Edit the pages (or purge their history) if they must go too.
+    - **The label must not be a mention itself.** A label such as `@deleted-user` is a valid handle, so the viewer
+      would link every erased mention to whoever owns that handle. `eraseMentions()` throws
+      `InvalidArgumentException` for a label with `@` followed by a handle character, or starting with a handle
+      character (an `@@handle` would complete it). Keep the default `@…` or use a text such as `[deleted user]`.
+    - **Result.** `eraseMentions()` returns a `WikiCommentMentionErasure` (countable: the rewritten comments and
+      threads; `commentIds`, `threadIds`). A row whose text cannot be scanned (invalid UTF-8, or another regex
+      failure) is **never overwritten**: it is left as it is and listed in `skippedCommentIds` /
+      `skippedThreadIds` (`skipped()`), also on the event. It still holds the mention: fix or delete it, then run the
+      erasure again.
+    - **Large wikis.** Candidates are read in batches of `WikiCommentService::ERASE_BATCH` (200), each flushed, inside
+      one transaction: a failure rolls the whole call back (a failed commit is rethrown as it is, never hidden by the
+      rollback), and a call that succeeded leaves nothing for a second one. Only the comments and threads the
+      erasure loaded itself are released from the entity manager after each batch; instances the caller already
+      had (for example comments kept by `eraseAuthor()`) stay managed with their pending changes. The flushes write
+      the entity manager's other pending changes too (as `eraseAuthor()` does).
+      If the call throws after a batch was flushed, the database is rolled back but instances the caller still holds
+      keep the redacted text: clear (or close) the entity manager after a failed call, as after any Doctrine rollback.
+      Instances the caller already held are scrubbed from their in-memory state, so run the erasure on a fresh entity
+      manager or with entities that are not stale.
+    - **No row locks.** The erasure runs online: a comment edited at the same time can bring the mention back (or
+      lose the concurrent edit), and a comment posted during the run may be missed. Both are picked up by running
+      the erasure again; run it when nobody is writing comments for the strictest result.
+    - **Host stores.** A store that replaces the Doctrine one must honour the paging contract of
+      `WikiCommentMentionRepositoryInterface`: at most `$limit` rows, only ids strictly after `$afterId`, ascending id
+      order, and a superset (never a subset) of the matching rows. A store that ignores `$afterId` makes the erasure
+      loop; one that skips rows leaves mentions behind.
+    - **Outer transactions.** When the caller already holds a transaction, the erasure's own transaction is nested
+      and `nowo_wiki.comment.mentions_erased` fires after the nested commit, **before** the outer commit: a listener
+      may refresh indexes for changes that the outer transaction later rolls back. Listeners that must only see
+      committed data should defer their work (for example to `kernel.terminate` or a message).
+    - **CLI.** `wiki:comments:erase-user <user> --handle=<handle>` (repeatable; the user's `getHandle()` is added when
+      the user class has one, `--mention-label` changes the label) erases the mentions before the user's own
+      comments. Without any handle it erases the comments only and warns that mentions were kept. Rows that could not
+      be scanned are listed and the command exits with a failure. Each step commits on its own: if the comments step
+      fails after the mentions were erased, the erasure is partial, and running the same command again completes it
+      (both steps are idempotent).
+
+    ```php
+    #[AsTaggedItem(priority: 91)] // before the eraser that rewrites the handle / display name
+    final readonly class WikiCommentsEraser implements PersonalDataEraserInterface
+    {
+        public function erase(ErasureRequest $request): void
+        {
+            // Mentions first, as the CLI does. Not "@deleted-user": that is a handle someone could own (refused).
+            $mentions = $this->comments->eraseMentions([$request->user->getHandle()], '[deleted user]');
+            if ($mentions->skipped() > 0) { // text that could not be scanned: still holds the mention, review by hand
+                $this->logger->warning('Wiki rows to review', ['comments' => $mentions->skippedCommentIds, 'threads' => $mentions->skippedThreadIds]);
+            }
+            $this->comments->eraseAuthor($request->user);
+        }
+        // getKey(), supports() …
+    }
+    ```
 11. No Twig override is needed: the tab row, the toggle and the panel are UiKit partials themed by Beacon's UiKit
     theme (`tabs`, `side_panel`, `side_panel_toggle`, `side_panel_container`, `_avatar`); `nowo-wiki-*` classes are
     hooks only.

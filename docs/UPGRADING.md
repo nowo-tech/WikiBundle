@@ -61,6 +61,20 @@
 
 ## Unreleased
 
+No breaking change, no migration. Run `assets:install` (new `wiki.js`).
+
+- **Mentions on erasure:** add `WikiCommentService::eraseMentions([$handle], $label)` to the personal-data eraser that
+  already calls `eraseAuthor()` (call it first), before the eraser that rewrites the person's handle. It returns a
+  countable `WikiCommentMentionErasure`; rows listed in `skippedCommentIds` / `skippedThreadIds` could not be scanned
+  and still hold the mention. A host comment store that
+  replaces the Doctrine one must implement `WikiCommentMentionRepositoryInterface` to use it. The label must not be
+  able to render as a mention (`@deleted-user` is refused; keep `@…` or use `[deleted user]`). Only comments are
+  covered: mentions in page content and history stay.
+- **CLI erasure:** `wiki:comments:erase-user` now also erases the user's mentions: pass `--handle=<handle>` (or give the
+  user class a `getHandle()`); without a handle it warns that mentions were kept.
+- **Code blocks:** a host script that made wiki `<pre>` elements focusable can be dropped; `wiki.js` now does it
+  (attributes the markup already sets are kept).
+
 ## To 1.16.2
 
 From **1.16.1**:

@@ -26,6 +26,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function json_decode;
+use function str_replace;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -67,6 +68,54 @@ final class WikiCommentsEraseUserCommandTest extends TestCase
 
         self::assertSame(Command::FAILURE, $tester->execute(['user' => 'nobody']));
         self::assertStringContainsString('not found', $tester->getDisplay());
+    }
+
+    public function testErasingAUserAlsoErasesTheirMentions(): void
+    {
+        // Audit FG-L2: the CLI erasure covers the user's @mentions in other people's comments too.
+        $em     = SqliteWikiEntityManager::create();
+        $space  = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');
+        $page   = new WikiPage($space, 'run', 'Run');
+        $ana    = (new TestUserEntity('ana'))->withHandle('@ana_g');
+        $bob    = new TestUserEntity('bob');
+        $thread = new WikiCommentThread($page, $bob);
+        $byBob  = new WikiComment($thread, $bob, 'Ask @ana_g or @AnaG, not @ana_gx.');
+        foreach ([$space, $page, $ana, $bob, $thread, $byBob, new WikiComment($thread, $ana, 'Mine', 1)] as $entity) {
+            $em->persist($entity);
+        }
+        $em->flush();
+        $service = new WikiCommentService(new DoctrineOrmWikiCommentRepository($em), new WikiSpaceGuard(new FixedSpaceLocator($space), CallbackSpaceAccessChecker::allowing()), new WikiAuthorLabel('s'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer());
+        $tester  = new CommandTester(new WikiCommentsEraseUserCommand(new WikiAuthorResolver($em, TestUserEntity::class), $service));
+        $body    = static fn (): mixed => $em->getConnection()->fetchOne('SELECT body FROM wiki_comments WHERE id = ?', [$byBob->getId()]);
+
+        // Refused before anything changes: a label that could render as a mention, a value that is not a handle.
+        self::assertSame(Command::FAILURE, $tester->execute(['user' => 'ana', '--force' => true, '--mention-label' => '@deleted-user']));
+        self::assertStringContainsString('could render as a mention', $tester->getDisplay());
+        self::assertSame(Command::FAILURE, $tester->execute(['user' => 'ana', '--force' => true, '--handle' => ['not a handle']]));
+        self::assertStringContainsString('"not a handle" is not a mention handle', $tester->getDisplay());
+        self::assertSame('Ask @ana_g or @AnaG, not @ana_gx.', $body());
+
+        // The question names the handles; getHandle() and --handle are both used.
+        $tester->setInputs(['no']);
+        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--handle' => ['@AnaG', 'ana_g']], ['interactive' => true]));
+        self::assertStringContainsString('and their mentions (@AnaG, @ana_g)?', $tester->getDisplay());
+        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--force' => true, '--handle' => ['@AnaG']]));
+        self::assertStringContainsString('1 comment(s) or thread(s) with mentions of @AnaG, @ana_g rewritten.', $tester->getDisplay());
+        self::assertSame('Ask @… or @…, not @ana_gx.', $body());
+
+        // Audit FG2-I1: a row that cannot be scanned is kept as it is, reported, and the command fails.
+        $bad = new WikiComment($thread, $bob, "cc @ana_g \xFF", 2);
+        $em->persist($bad);
+        $em->flush();
+        self::assertSame(Command::FAILURE, $tester->execute(['user' => 'ana', '--force' => true]));
+        self::assertStringContainsString('1 row(s) could not be scanned', $tester->getDisplay());
+        self::assertStringContainsString($bad->getId(), str_replace(["\n", ' '], '', $tester->getDisplay()));
+        self::assertSame("cc @ana_g \xFF", $em->getConnection()->fetchOne('SELECT body FROM wiki_comments WHERE id = ?', [$bad->getId()]));
+
+        // Without any handle the erasure warns that mentions were kept.
+        $ana->withHandle(null);
+        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--force' => true]));
+        self::assertStringContainsString('Mentions of the user in other people', $tester->getDisplay());
     }
 
     public function testWithoutCommentsThereIsNothingToDo(): void

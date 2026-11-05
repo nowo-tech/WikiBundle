@@ -1,4 +1,5 @@
 wiki:
+  code_block: 'Code block'
   tabs:
     label: "Page views"
     page: "Page"

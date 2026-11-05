@@ -54,6 +54,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Focusable code blocks (KIT-71).** `wiki.js` gives every rendered `<pre>` that overflows horizontally
+  `tabindex="0"`, `role="group"` and an `aria-label` (`wiki.code_block`, "Code block", in the 7 locales, passed as
+  the script's `data-code-label`), so keyboard users can scroll it (axe `scrollable-region-focusable`). Blocks
+  rendered after load (comments panel, page preview, read-only editor) are picked up by a `MutationObserver`; a
+  resize re-checks them; blocks that stop overflowing lose what was added; the markup's own `tabindex` /
+  `aria-label` / `role` and editable regions are never touched. Hosts can drop their own scroll-region script for
+  wiki code blocks.
+- **Erasure of a person's mentions (DATA-WIKI-COMMENT-MENTION-ERASE).** `WikiCommentService::eraseMentions(handles,
+  label = '@…')` rewrites every `@handle` of the erased person in other people's comments (bodies, quoted Markdown)
+  and inline thread quotes (stored quote and anchor) to the label, without marking comments as edited; case-insensitive,
+  Markdown-escaped `\_` accepted, never a longer handle or an e-mail address. New
+  `WikiCommentMentionRepositoryInterface` (implemented by the Doctrine store; the call throws `LogicException` for a
+  store without it), `WikiComment::redactBody()`, `WikiCommentThread::redactQuote()` and the
+  `nowo_wiki.comment.mentions_erased` event (`WikiCommentMentionsErasedEvent`). Same contract as ChatKit's
+  DATA-CHAT-MENTION-ERASE. Only comments are covered: mentions in page content (revisions, search text) stay.
+- **Erased-mention label check (audit FG-L1).** `eraseMentions()` throws `InvalidArgumentException` for a label that
+  could render as a mention (`@` followed by a handle character, or a handle character first), such as
+  `@deleted-user`, which would link every erased mention to whoever owns that handle. USAGE now uses `[deleted user]`.
+- **`wiki:comments:erase-user` erases mentions (audit FG-L2).** New repeatable `--handle` option (the user's
+  `getHandle()` is added when the user class has one) and `--mention-label`: the user's mentions are erased through
+  `eraseMentions()` before their own comments; an invalid handle or label stops the command before anything changes.
+  Without any handle the command warns that mentions were kept.
+- **Bounded mention erasure (audit FG-L3).** The candidate lookup matches the whole handle (each `_` as `_` or the
+  escaped `\_`; handles with more than 3 underscores require every part) instead of the part before the first `_`
+  (just `@` for a handle starting with `_`), and is paged by id: `eraseMentions()` walks batches of
+  `WikiCommentService::ERASE_BATCH` (200), flushing and releasing each, inside one transaction (all or nothing).
+  `WikiCommentMentionRepositoryInterface` is `commentsMentioning()` / `threadsMentioning()` (paged, returning a
+  `WikiCommentMentionBatch`), `begin()` / `commit()` / `rollBack()` and `release()`.
+- **Mention erasure keeps the caller's entities (audit FG2-L1).** Only the comments and threads a batch lookup loaded
+  itself are released; instances the caller already managed (for example comments kept by `eraseAuthor()` on the
+  same entity manager) stay managed with their pending changes, so later flushes no longer fail with "A new entity
+  was found through the relationship WikiComment#thread". USAGE now calls `eraseMentions()` before `eraseAuthor()`.
+- **Unscannable rows are never blanked (audit FG2-I1).** When the mention regex fails on a row (invalid UTF-8), the
+  row is left untouched instead of being overwritten with an empty text. `eraseMentions()` returns a
+  `WikiCommentMentionErasure` (countable; `commentIds`, `threadIds`, `skippedCommentIds`, `skippedThreadIds`,
+  `skipped()`), the event carries the skipped ids, and `wiki:comments:erase-user` lists them and fails.
+- **A failed commit is not hidden (audit FG2-I6).** If the erasure's commit fails, the rollback's own error is ignored
+  and the original exception is rethrown.
+- **The mention walk never stops early (audit FG3-L1).** Paging follows the candidate id page
+  (`WikiCommentMentionBatch::$scanned` / `$lastId`), not the loaded rows, so a candidate hard-deleted between the id
+  query and the load no longer ends the walk and leaves later candidates untouched.
+- **Anchors are never blanked by a JSON encode failure (audit FG3-I3).** `eraseMentions()` refuses a label that is not
+  valid UTF-8, and an anchor that cannot be re-encoded skips the thread (reported) instead of being written empty.
+- USAGE documents the online erasure (no row locks), the re-runnable CLI, the paging contract for host stores and the
+  event firing before an outer transaction's commit (audit FG2-I2…I5), and clearing the entity manager after a failed
+  call (audit FG3-I1, FG3-I2).
+
 ## [1.16.2] - 2026-11-04
 
 ### Fixed
