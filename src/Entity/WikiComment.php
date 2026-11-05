@@ -84,6 +84,15 @@ class WikiComment
         $this->editedAt = new DateTimeImmutable();
     }
 
+    /**
+     * Rewrites the body without marking the comment as edited (1.17, privacy erasure of another person's mention).
+     */
+    public function redactBody(string $body): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->body = $body;
+    }
+
     /** Forgets the author (privacy erasure): the comment shows no author name. */
     public function unlinkAuthor(): void
     {

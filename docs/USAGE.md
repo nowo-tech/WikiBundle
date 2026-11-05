@@ -541,7 +541,26 @@ What a host such as symfony-beacon configures:
    service; keep `history.show_names` as it is (pictures follow names).
 9. Search: switch `WikiPageSearchProvider`'s `LIKE` from `content_markdown` to `content_text`.
 10. Privacy: call `WikiCommentService::exportAuthor()` / `eraseAuthor()` (or `wiki:comments:erase-user`) from its
-    data-subject flows.
+    data-subject flows. Since 1.17 also call `eraseMentions([$handle], $erasedLabel)` from the same personal-data
+    eraser: every `@handle` of the erased person in **other people's** comments (body, quoted Markdown) and in inline
+    thread quotes becomes the label (`@…` by default), without marking the comments as edited. Matching is
+    case-insensitive, accepts a Markdown-escaped `\_`, and never touches a longer handle (`@ana` leaves `@ana.b`) or
+    an e-mail address. `nowo_wiki.comment.mentions_erased` (`WikiCommentMentionsErasedEvent`: handles, comment ids,
+    thread ids) tells search indexes and notification history what to refresh. A host comment store must implement
+    `WikiCommentMentionRepositoryInterface` (the Doctrine store does), else the call throws `LogicException`:
+
+    ```php
+    #[AsTaggedItem(priority: 91)] // before the eraser that rewrites the handle / display name
+    final readonly class WikiCommentsEraser implements PersonalDataEraserInterface
+    {
+        public function erase(ErasureRequest $request): void
+        {
+            $this->comments->eraseAuthor($request->user);
+            $this->comments->eraseMentions([$request->user->getHandle()], '@deleted-user');
+        }
+        // getKey(), supports() …
+    }
+    ```
 11. No Twig override is needed: the tab row, the toggle and the panel are UiKit partials themed by Beacon's UiKit
     theme (`tabs`, `side_panel`, `side_panel_toggle`, `side_panel_container`, `_avatar`); `nowo-wiki-*` classes are
     hooks only.

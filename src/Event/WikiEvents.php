@@ -77,4 +77,7 @@ final class WikiEvents
 
     /** 1.16.1: a user's comments were erased or unlinked (privacy). {@see WikiCommentAuthorErasedEvent} */
     public const COMMENT_AUTHOR_ERASED = 'nowo_wiki.comment.author_erased';
+
+    /** 1.17: the mentions of an erased person were rewritten in other people's comments. {@see WikiCommentMentionsErasedEvent} */
+    public const COMMENT_MENTIONS_ERASED = 'nowo_wiki.comment.mentions_erased';
 }

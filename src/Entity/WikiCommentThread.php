@@ -89,6 +89,18 @@ class WikiCommentThread
         return $this->anchor === null;
     }
 
+    /**
+     * Rewrites the stored anchor and quote copy without touching the thread's dates (1.17, privacy erasure of a
+     * mention quoted from the page).
+     */
+    public function redactQuote(?string $anchor, ?string $quote): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->anchor = $anchor;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->quote = $quote;
+    }
+
     /** Replaces the anchor of an inline thread (anchor refresh) and its quote copy. */
     public function moveAnchor(string $anchor, string $quote): void
     {

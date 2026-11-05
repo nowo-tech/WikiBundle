@@ -13,13 +13,15 @@ use Nowo\WikiBundle\Entity\WikiPage;
 
 use function array_map;
 use function count;
+use function mb_strtolower;
+use function strtr;
 
 /**
  * Doctrine comment storage (1.16): `<prefix>_comment_threads`, `<prefix>_comments` and `<prefix>_comment_reactions`,
  * part of the schema only with `comments.enabled`. Deleting a thread or a comment deletes its children explicitly (the
  * foreign keys cascade too, but a platform without enforced keys, such as SQLite by default, would keep orphans).
  */
-final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface, WikiCommentAuthorRepositoryInterface
+final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface, WikiCommentAuthorRepositoryInterface, WikiCommentMentionRepositoryInterface
 {
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
@@ -203,6 +205,38 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         return count($comments);
     }
 
+    public function commentsContaining(string $text): array
+    {
+        /** @var list<WikiComment> $comments */
+        $comments = $this->entityManager()->createQueryBuilder()
+            ->select('c')
+            ->from(WikiComment::class, 'c')
+            ->where('c.deletedAt IS NULL')
+            ->andWhere("LOWER(c.body) LIKE :text ESCAPE '!'")
+            ->setParameter('text', self::likeContains($text))
+            ->orderBy('c.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $comments;
+    }
+
+    public function threadsQuoting(string $text): array
+    {
+        /** @var list<WikiCommentThread> $threads */
+        $threads = $this->entityManager()->createQueryBuilder()
+            ->select('t')
+            ->from(WikiCommentThread::class, 't')
+            ->where("LOWER(t.quote) LIKE :text ESCAPE '!'")
+            ->orWhere("LOWER(t.anchor) LIKE :text ESCAPE '!'")
+            ->setParameter('text', self::likeContains($text))
+            ->orderBy('t.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $threads;
+    }
+
     public function deleteForPages(array $pageIds): void
     {
         if ($pageIds === []) {
@@ -309,5 +343,11 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
     private function entityManager(): EntityManagerInterface
     {
         return $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
+    }
+
+    /** `%text%` in lower case, with `!` escaping the LIKE wildcards. */
+    private static function likeContains(string $text): string
+    {
+        return '%' . strtr(mb_strtolower($text, 'UTF-8'), ['!' => '!!', '%' => '!%', '_' => '!_']) . '%';
     }
 }

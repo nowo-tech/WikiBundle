@@ -28,7 +28,7 @@
     {% endif %}
     {% if comments|default(null) %}
         <script src="{{ asset('js/nowo-ui-side-panel.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
-        <script src="{{ asset('wiki.js', 'nowo_wiki') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans({}, 'NowoWikiBundle') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
 {% endblock %}
 

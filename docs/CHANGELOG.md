@@ -54,6 +54,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Focusable code blocks (KIT-71).** `wiki.js` gives every rendered `<pre>` that overflows horizontally
+  `tabindex="0"`, `role="group"` and an `aria-label` (`wiki.code_block`, "Code block", in the 7 locales, passed as
+  the script's `data-code-label`), so keyboard users can scroll it (axe `scrollable-region-focusable`). Blocks
+  rendered after load (comments panel, page preview, read-only editor) are picked up by a `MutationObserver`; a
+  resize re-checks them; blocks that stop overflowing lose what was added; the markup's own `tabindex` /
+  `aria-label` / `role` and editable regions are never touched. Hosts can drop their own scroll-region script for
+  wiki code blocks.
+- **Erasure of a person's mentions (DATA-WIKI-COMMENT-MENTION-ERASE).** `WikiCommentService::eraseMentions(handles,
+  label = '@…')` rewrites every `@handle` of the erased person in other people's comments (bodies, quoted Markdown)
+  and inline thread quotes (stored quote and anchor) to the label, without marking comments as edited; case-insensitive,
+  Markdown-escaped `\_` accepted, never a longer handle or an e-mail address. New
+  `WikiCommentMentionRepositoryInterface` (implemented by the Doctrine store; the call throws `LogicException` for a
+  store without it), `WikiComment::redactBody()`, `WikiCommentThread::redactQuote()` and the
+  `nowo_wiki.comment.mentions_erased` event (`WikiCommentMentionsErasedEvent`). Same contract as ChatKit's
+  DATA-CHAT-MENTION-ERASE.
+
 ## [1.16.2] - 2026-11-04
 
 ### Fixed

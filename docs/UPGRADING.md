@@ -61,6 +61,14 @@
 
 ## Unreleased
 
+No breaking change, no migration. Run `assets:install` (new `wiki.js`).
+
+- **Mentions on erasure:** add `WikiCommentService::eraseMentions([$handle], $label)` to the personal-data eraser that
+  already calls `eraseAuthor()`, before the eraser that rewrites the person's handle. A host comment store that
+  replaces the Doctrine one must implement `WikiCommentMentionRepositoryInterface` to use it.
+- **Code blocks:** a host script that made wiki `<pre>` elements focusable can be dropped; `wiki.js` now does it
+  (attributes the markup already sets are kept).
+
 ## To 1.16.2
 
 From **1.16.1**:

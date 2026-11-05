@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Comment;
 
 use DateTimeInterface;
+use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Comment\InvalidCommentAnchorException;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
@@ -18,12 +19,14 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Event\WikiCommentAuthorErasedEvent;
 use Nowo\WikiBundle\Event\WikiCommentEvent;
+use Nowo\WikiBundle\Event\WikiCommentMentionsErasedEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\WikiCommentAuthorRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiCommentMentionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Search\WikiPlainText;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -41,18 +44,31 @@ use function array_key_last;
 use function array_map;
 use function array_slice;
 use function array_values;
+use function array_walk_recursive;
 use function count;
+use function explode;
+use function is_array;
 use function is_bool;
 use function is_string;
+use function json_decode;
+use function json_encode;
 use function max;
 use function mb_strlen;
 use function preg_match;
+use function preg_quote;
 use function preg_replace;
 use function preg_split;
 use function spl_object_id;
 use function str_contains;
+use function str_replace;
+use function str_starts_with;
 use function strlen;
+use function strtolower;
+use function substr;
 use function trim;
+
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * The comments of a page (1.16, `comments.enabled`): the Milkdown 1.6 thread component's host endpoints (contract
@@ -110,6 +126,12 @@ final readonly class WikiCommentService
 
     /** Format of `updatedAt` / `resolvedAt` / `createdAt` (ISO 8601). */
     private const DATE = DateTimeInterface::ATOM;
+
+    /** Default label of an erased person's mention ({@see self::eraseMentions()}). */
+    public const ERASED_MENTION = '@…';
+
+    /** A mention handle (same characters as WikiMarkdownReferenceExtractor's mentions). */
+    private const HANDLE_PATTERN = '/^[a-zA-Z0-9_](?:[a-zA-Z0-9_.-]{0,38}[a-zA-Z0-9_])?$/';
 
     /**
      * @param WikiCollabService|null $collab co-editing (null: no live updates)
@@ -554,6 +576,116 @@ final readonly class WikiCommentService
         $this->dispatcher?->dispatch(new WikiCommentAuthorErasedEvent($user, $changed, $deleteBodies), WikiEvents::COMMENT_AUTHOR_ERASED);
 
         return $changed;
+    }
+
+    /**
+     * Privacy erasure of a person's mentions (1.17, DATA-WIKI-COMMENT-MENTION-ERASE): every `@handle` of the given
+     * handles in other people's comments (bodies, quoted Markdown included) and in the quotes of inline threads (the
+     * stored quote and anchor) becomes `$label`. Bodies are rewritten without marking the comments as edited; deleted
+     * comments are already blank. A handle matches case-insensitively, also with Markdown-escaped underscores
+     * (`@ana\_b`), never inside a longer handle (`@ana` does not touch `@ana.b`) nor in an e-mail address.
+     * Register it in the host's personal-data eraser with the person's handle(s), next to {@see self::eraseAuthor()}.
+     * Dispatches {@see WikiEvents::COMMENT_MENTIONS_ERASED} when something changed.
+     *
+     * @param list<string> $handles the person's handles, with or without `@`; invalid handles are ignored
+     * @param string $label what each mention becomes (the erased-subject label)
+     *
+     * @throws LogicException when the comment store does not implement {@see WikiCommentMentionRepositoryInterface}
+     *
+     * @return int the comments and threads that were changed
+     */
+    public function eraseMentions(array $handles, string $label = self::ERASED_MENTION): int
+    {
+        $store = $this->comments;
+        if (!$store instanceof WikiCommentMentionRepositoryInterface) {
+            throw new LogicException('The wiki comment store does not implement WikiCommentMentionRepositoryInterface: mentions cannot be erased.');
+        }
+        $valid = [];
+        foreach ($handles as $handle) {
+            $handle = trim(str_replace('\\_', '_', $handle));
+            $handle = str_starts_with($handle, '@') ? substr($handle, 1) : $handle;
+            if (preg_match(self::HANDLE_PATTERN, $handle) === 1) {
+                $valid[strtolower($handle)] = $handle;
+            }
+        }
+        if ($valid === []) {
+            return 0;
+        }
+        $patterns = array_map(self::mentionPattern(...), array_values($valid));
+        $scrub    = static fn (string $text): string => (string) preg_replace($patterns, str_replace(['\\', '$'], ['\\\\', '\\$'], $label), $text);
+
+        $comments = [];
+        $threads  = [];
+        foreach ($valid as $handle) {
+            // The LIKE needle stops before the first "_" (stored escaped as "\_" by some editors).
+            $needle = '@' . explode('_', $handle, 2)[0];
+            foreach ($store->commentsContaining($needle) as $comment) {
+                $comments[$comment->getId()] = $comment;
+            }
+            foreach ($store->threadsQuoting($needle) as $thread) {
+                $threads[$thread->getId()] = $thread;
+            }
+        }
+
+        $changedComments = [];
+        foreach ($comments as $id => $comment) {
+            $body = $scrub($comment->getBody());
+            if ($body !== $comment->getBody()) {
+                $comment->redactBody($body);
+                $changedComments[] = (string) $id;
+            }
+        }
+        $changedThreads = [];
+        foreach ($threads as $id => $thread) {
+            $quote     = $thread->getQuote();
+            $anchor    = $thread->getAnchor();
+            $newQuote  = $quote === null ? null : $scrub($quote);
+            $newAnchor = $anchor === null ? null : self::scrubJson($anchor, $scrub);
+            if ($newQuote !== $quote || $newAnchor !== $anchor) {
+                $thread->redactQuote($newAnchor, $newQuote);
+                $changedThreads[] = (string) $id;
+            }
+        }
+        if ($changedComments === [] && $changedThreads === []) {
+            return 0;
+        }
+        $this->comments->flush();
+        $this->dispatcher?->dispatch(new WikiCommentMentionsErasedEvent(array_values($valid), $changedComments, $changedThreads), WikiEvents::COMMENT_MENTIONS_ERASED);
+
+        return count($changedComments) + count($changedThreads);
+    }
+
+    /**
+     * Regex of one handle's mentions: not preceded by a handle or e-mail character, not followed by more of the handle.
+     */
+    private static function mentionPattern(string $handle): string
+    {
+        $quoted = str_replace('_', '\\\\?_', preg_quote($handle, '/'));
+
+        return '/(?<![a-zA-Z0-9_.+\\\\-])@' . $quoted . '(?![a-zA-Z0-9_]|\\\\_|[.-]+[a-zA-Z0-9_])/iu';
+    }
+
+    /**
+     * The anchor JSON with every string value scrubbed; unchanged when it is not valid JSON.
+     *
+     * @param callable(string): string $scrub
+     */
+    private static function scrubJson(string $json, callable $scrub): string
+    {
+        $data = json_decode($json, true);
+        if (!is_array($data)) {
+            return $scrub($json);
+        }
+        $changed = false;
+        array_walk_recursive($data, static function (mixed &$value) use ($scrub, &$changed): void {
+            if (is_string($value)) {
+                $scrubbed = $scrub($value);
+                $changed  = $changed || $scrubbed !== $value;
+                $value    = $scrubbed;
+            }
+        });
+
+        return $changed ? (string) json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : $json;
     }
 
     /**

@@ -1,4 +1,5 @@
 wiki:
+  code_block: 'Bloque de código'
   tabs:
     label: "Vistas de la página"
     page: "Página"

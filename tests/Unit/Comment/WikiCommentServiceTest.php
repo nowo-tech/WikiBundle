@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Comment;
 
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManager;
+use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
@@ -22,6 +23,7 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiCommentAuthorErasedEvent;
 use Nowo\WikiBundle\Event\WikiCommentEvent;
+use Nowo\WikiBundle\Event\WikiCommentMentionsErasedEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
@@ -597,6 +599,87 @@ final class WikiCommentServiceTest extends TestCase
         $eraser = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), dispatcher: $dispatcher);
         self::assertSame(2, $eraser->eraseAuthor($this->bob, false));
         self::assertSame([[$this->bob, 2, false]], $erased);
+    }
+
+    public function testErasingAPersonRewritesTheirMentionsInOtherPeoplesComments(): void
+    {
+        // DATA-WIKI-COMMENT-MENTION-ERASE: a comment by Ana mentions Bob; erasing Bob leaves neither his handle nor id.
+        $this->revise('<p>Ask @bob_lee about the deploy.</p>');
+        $erased     = [];
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(WikiEvents::COMMENT_MENTIONS_ERASED, static function (WikiCommentMentionsErasedEvent $event) use (&$erased): void {
+            $erased[] = $event;
+        });
+        $service      = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), dispatcher: $dispatcher);
+        $byAna        = $service->create($this->ana, $this->space, $this->page, null, "Hi @bob_lee and @Bob\\_Lee, cc @bob_leeds.\n\n> @bob_lee wrote: ship it (@bob_lee)\n\nMail bob_lee@example.com or @bob_lee.");
+        $inline       = $service->create($this->ana, $this->space, $this->page, $this->anchor('@bob_lee', 4), 'Who is this?');
+        $other        = $service->create($this->ana, $this->space, $this->page, null, 'Nothing about him, @ana.');
+        $editedBefore = $this->em->find(WikiComment::class, $byAna['comments'][0]['id'])?->getEditedAt();
+        $service->create($this->ana, $this->space, $this->page, null, 'Ping @carol.');
+        $service->create($this->ana, $this->space, $this->page, null, 'Ping @dave.');
+
+        self::assertSame(2, $service->eraseMentions(['@bob_lee', 'not a handle!', ''], '[deleted user]'));
+
+        $this->em->clear();
+        $comment = $this->em->find(WikiComment::class, $byAna['comments'][0]['id']);
+        self::assertInstanceOf(WikiComment::class, $comment);
+        self::assertSame("Hi [deleted user] and [deleted user], cc @bob_leeds.\n\n> [deleted user] wrote: ship it ([deleted user])\n\nMail bob_lee@example.com or [deleted user].", $comment->getBody());
+        self::assertStringNotContainsStringIgnoringCase('@bob_lee ', $comment->getBody());
+        self::assertSame($editedBefore, $comment->getEditedAt(), 'Not marked as edited.');
+        $thread = $this->em->find(WikiCommentThread::class, $inline['id']);
+        self::assertInstanceOf(WikiCommentThread::class, $thread);
+        self::assertSame('[deleted user]', $thread->getQuote());
+        self::assertStringNotContainsString('bob_lee', (string) $thread->getAnchor());
+        self::assertStringContainsString('"exact":"[deleted user]"', (string) $thread->getAnchor());
+        self::assertSame('Nothing about him, @ana.', $this->em->find(WikiComment::class, $other['comments'][0]['id'])?->getBody());
+
+        self::assertCount(1, $erased);
+        self::assertSame(['bob_lee'], $erased[0]->handles);
+        self::assertSame([$byAna['comments'][0]['id']], $erased[0]->commentIds);
+        self::assertSame([$inline['id']], $erased[0]->threadIds);
+
+        // Idempotent, and nothing to do for handles nobody mentioned or no valid handle at all.
+        self::assertSame(0, $service->eraseMentions(['bob_lee']));
+        self::assertSame(0, $service->eraseMentions(['nobody']));
+        self::assertSame(0, $service->eraseMentions(['-bad-', '@']));
+        self::assertCount(1, $erased);
+
+        // The default label; a label with "$1" and a backslash is written as is.
+        self::assertSame(1, $service->eraseMentions(['carol']));
+        self::assertSame(1, $service->eraseMentions(['dave'], '$1 \\ x'));
+        $bodies = array_map(static fn (WikiComment $c): string => $c->getBody(), $this->em->getRepository(WikiComment::class)->findAll());
+        self::assertContains('Ping ' . WikiCommentService::ERASED_MENTION . '.', $bodies);
+        self::assertContains('Ping $1 \\ x.', $bodies);
+    }
+
+    public function testErasingMentionsInAThreadWithAnInvalidStoredAnchor(): void
+    {
+        $service = $this->service();
+        $inline  = $service->create($this->ana, $this->space, $this->page, $this->anchor(), 'Inline');
+        $thread  = $this->em->find(WikiCommentThread::class, $inline['id']);
+        self::assertInstanceOf(WikiCommentThread::class, $thread);
+        $thread->redactQuote('not json @erin', 'quote by @erin');
+        $deleted = $service->create($this->ana, $this->space, $this->page, null, 'Gone @erin');
+        $comment = $this->em->find(WikiComment::class, $deleted['comments'][0]['id']);
+        self::assertInstanceOf(WikiComment::class, $comment);
+        $comment->markDeleted();
+        $comment->redactBody('kept @erin');
+        $this->em->flush();
+
+        self::assertSame(1, $service->eraseMentions(['erin']));
+        $this->em->clear();
+        $thread = $this->em->find(WikiCommentThread::class, $inline['id']);
+        self::assertSame('not json @…', $thread?->getAnchor());
+        self::assertSame('quote by @…', $thread?->getQuote());
+        self::assertSame('kept @erin', $this->em->find(WikiComment::class, $deleted['comments'][0]['id'])?->getBody(), 'Deleted comments are skipped.');
+    }
+
+    public function testErasingMentionsNeedsTheMentionQueries(): void
+    {
+        $service = new WikiCommentService(new LegacyCommentRepository(new DoctrineOrmWikiCommentRepository($this->em)), $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer());
+
+        $this->expectException(LogicException::class);
+        $service->eraseMentions(['bob']);
     }
 
     public function testResolvedThreadsNeverHideOpenOnesAndTheTotalIsCapped(): void
