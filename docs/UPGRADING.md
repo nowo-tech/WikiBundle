@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.17.0](#to-1170)
 - [To 1.16.2](#to-1162)
 - [To 1.16.1](#to-1161)
 - [To 1.16.0](#to-1160)
@@ -60,6 +61,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.17.0
+
+From **1.16.2**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 No breaking change, no migration. Run `assets:install` (new `wiki.js`).
 
