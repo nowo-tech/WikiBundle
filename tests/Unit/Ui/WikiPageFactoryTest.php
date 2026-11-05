@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Ui;
 
 use Nowo\UiKitBundle\View\Action;
+use Nowo\UiKitBundle\View\AreaNavItem;
 use Nowo\UiKitBundle\View\Column;
 use Nowo\UiKitBundle\View\Label;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -97,6 +98,23 @@ final class WikiPageFactoryTest extends TestCase
         self::assertSame('wiki.tree.move_title', $this->label($move->header->title)->key);
         self::assertSame('/nowo_wiki_page_view?spaceSlug=eng&pageSlug=deploy', $move->cancelHref);
         self::assertSame('wiki.tree.move', $this->label($move->submitLabel)->key);
+    }
+
+    public function testThePageTabsCarryTheirIcons(): void
+    {
+        $routes   = PageFixtures::routes();
+        $space    = PageFixtures::space('eng', 'Engineering');
+        [, $page] = PageFixtures::pages($space);
+        $can      = ['edit' => true, 'history' => true];
+
+        $default = new WikiPageFactory(PageFixtures::urlGenerator(), $routes, new WikiPages(), '');
+        self::assertSame(['tabler:file-text', 'tabler:pencil', 'tabler:history'], array_map(static fn (AreaNavItem $item): ?string => $item->icon, $default->pageTabs($space, $page, $can, 'page')->items));
+
+        // Overridden, removed (null / ''), and a key the host left out falls back to the default.
+        $custom = new WikiPageFactory(PageFixtures::urlGenerator(), $routes, new WikiPages(), '', ['page' => 'bi:file-earmark', 'edit' => null, 'history' => '']);
+        self::assertSame(['bi:file-earmark', null, null], array_map(static fn (AreaNavItem $item): ?string => $item->icon, $custom->pageTabs($space, $page, $can, 'edit')->items));
+        $partial = new WikiPageFactory(PageFixtures::urlGenerator(), $routes, new WikiPages(), '', ['edit' => 'bi:pencil']);
+        self::assertSame(['tabler:file-text', 'bi:pencil', 'tabler:history'], array_map(static fn (AreaNavItem $item): ?string => $item->icon, $partial->pageTabs($space, $page, $can, 'page')->items));
     }
 
     public function testTheHistoryTimelineViewModels(): void

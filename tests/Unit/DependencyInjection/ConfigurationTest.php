@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
 
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
@@ -45,8 +46,86 @@ final class ConfigurationTest extends TestCase
         self::assertNull($config['templates']['layout']);
         self::assertNull($config['route_prefix']);
         self::assertTrue($config['web_ui']['enabled']);
+        self::assertSame(['page' => 'tabler:file-text', 'edit' => 'tabler:pencil', 'history' => 'tabler:history'], $config['web_ui']['tab_icons']);
         self::assertSame(['spaces_per_page' => 24, 'revisions_per_page' => 25, 'max_tree_pages' => 500], $config['pagination']);
         self::assertSame(WikiManageController::DEFAULT_PAGINATION, $config['pagination']);
+    }
+
+    public function testTabIconsCanBeRenamedOrRemoved(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['tab_icons' => ['page' => 'bi:file-earmark', 'edit' => null, 'history' => '']],
+        ]]);
+
+        self::assertSame(['page' => 'bi:file-earmark', 'edit' => null, 'history' => ''], $config['web_ui']['tab_icons']);
+    }
+
+    public function testTabIconsRejectANonString(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('Expected an icon name (string) or null');
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['tab_icons' => ['page' => 42]],
+        ]]);
+    }
+
+    #[DataProvider('validTabIcons')]
+    public function testTabIconsAcceptValidNames(?string $icon): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['tab_icons' => ['page' => $icon]],
+        ]]);
+
+        self::assertSame($icon, $config['web_ui']['tab_icons']['page']);
+    }
+
+    /**
+     * @return iterable<string, array{string|null}>
+     */
+    public static function validTabIcons(): iterable
+    {
+        yield 'tabler prefix' => ['tabler:file-text'];
+        yield 'bootstrap prefix' => ['bi:clock-history'];
+        yield 'demo bootstrap name' => ['bi:file-earmark-text'];
+        yield 'no prefix' => ['pencil'];
+        yield 'digits' => ['tabler:number-1'];
+        yield 'empty = no icon' => [''];
+        yield 'null = no icon' => [null];
+    }
+
+    #[DataProvider('invalidTabIcons')]
+    public function testTabIconsRejectMalformedNames(string $icon): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('Invalid icon name');
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['tab_icons' => ['edit' => $icon]],
+        ]]);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidTabIcons(): iterable
+    {
+        yield 'space' => ['tabler:file text'];
+        yield 'uppercase' => ['tabler:File-Text'];
+        yield 'dot dot' => ['tabler:..'];
+        yield 'traversal' => ['tabler:../x'];
+        yield 'slash' => ['tabler/pencil'];
+        yield 'two prefixes' => ['a:b:c'];
+        yield 'empty prefix' => [':pencil'];
+        yield 'empty name' => ['tabler:'];
+        yield 'double hyphen' => ['file--text'];
+        yield 'leading hyphen' => ['-pencil'];
+        yield 'trailing hyphen' => ['pencil-'];
+        yield 'underscore' => ['chevron_up'];
+        yield 'quote' => ['bi:pencil"'];
+        yield 'whitespace only' => [' '];
     }
 
     public function testPaginationRejectsZeroPageSize(): void

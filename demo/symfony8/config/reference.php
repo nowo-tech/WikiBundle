@@ -1424,7 +1424,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user, across all pages, to every comment write (e.g. limiter.wiki_comments). Required when comments are enabled. // Default: null
  *         page_rate_limiter?: scalar|Param|null, // Optional service id of a Symfony RateLimiterFactory applied per user and page to every comment write, on top of rate_limiter (null: none). // Default: null
  *         limits?: array{ // Caps per page, thread and comment; a write beyond them answers 422 limit_reached.
- *             threads_per_page?: int|Param, // Default: 500
+ *             threads_per_page?: int|Param, // Open threads of one page (resolved ones do not count). // Default: 500
+ *             total_threads_per_page?: int|Param, // 1.16.1: every thread of one page, resolved ones included (they are kept until a moderator deletes them or the page is purged). // Default: 1000
+ *             user_threads_per_page?: int|Param, // 1.16.1: open threads one user started on one page. // Default: 50
  *             comments_per_thread?: int|Param, // Default: 500
  *             reactions_per_comment?: int|Param, // Distinct emoji on one comment. // Default: 20
  *             user_reactions_per_comment?: int|Param, // Reactions of one user on one comment. // Default: 10
@@ -1628,6 +1630,11 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             page_version?: scalar|Param|null, // Default: null
  *             trash_purge?: scalar|Param|null, // Default: null
  *         },
+ *         tab_icons?: array{ // 1.18: icon of each page tab (Page / Edit / History), so the tab row follows the host tab style (text, icon and text, icon only). A UiKit icon name, [prefix:]name in lowercase letters, digits and single hyphens (tabler:* renders with the ux_icon or tabler-icons set); null or "" = no icon on that tab.
+ *             page?: scalar|Param|null, // Default: "tabler:file-text"
+ *             edit?: scalar|Param|null, // Default: "tabler:pencil"
+ *             history?: scalar|Param|null, // Default: "tabler:history"
+ *         },
  *         css_framework?: null|"bootstrap"|"bootstrap4"|"bootstrap5"|"tabler"|"tailwind"|"foundation"|"custom"|"none"|Param, // Deprecated: The "nowo_wiki.web_ui.css_framework.css_framework" option is deprecated: set nowo_ui_kit.css_framework once for every bundle. It only seeds nowo_ui_kit.css_framework when the host leaves it unset. // Deprecated since 1.10: set nowo_ui_kit.css_framework once for every bundle. Only seeds nowo_ui_kit.css_framework (and icon_set) when the host leaves them unset. // Default: null
  *     },
  *     firewall?: scalar|Param|null, // Deprecated: The "nowo_wiki.firewall.firewall" option is deprecated and has no effect: access uses whichever secured firewall handles the wiki routes (see WikiTokenGuard). It will be removed in 2.0. // Default: "main"
@@ -1717,6 +1724,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         collection?: scalar|Param|null, // BreadcrumbKit collection code (null = its default collection). PageHeader::breadcrumbCollection overrides it. // Default: null
  *         enabled?: bool|Param, // 2.3.1: false drops the breadcrumb trail (BreadcrumbKit and PageHeader::breadcrumbs) from every page header, e.g. when the host layout renders its own. // Default: true
  *     },
+ *     header?: array{ // 2.27 compact header: the default page-header presentation (a request attribute _nowo_ui_header_presentation overrides it per request) and where PageHeader::actions go in the compact presentation.
+ *         presentation?: "standard"|"compact"|Param, // standard (default) | compact: in compact the page header keeps a visually hidden h1 and leaves its intro, breadcrumbs and back link to the top bar (header_context). // Default: "standard"
+ *         compact_actions?: "page"|"bar"|Param, // page (default): header.actions stay in the page header; bar: in the compact presentation the page header leaves them out (the host shows them in the top bar through the page_actions partial). extra_actions always stay. // Default: "page"
+ *     },
+ *     remote_dialog?: array{ // 2.28 remote form dialog (X-Nowo-Dialog requests).
+ *         convert_redirects?: bool|Param, // Turn a RedirectResponse answered to a dialog request (X-Nowo-Dialog: 1, main request) into 204 + X-Nowo-Redirect when its Location is a same-origin path, so redirectToRoute() controllers work in the dialog without code changes. // Default: false
+ *     },
  *     theme?: array{ // Global theme (REQ-UI-003): semantic slot classes / attributes, partial overrides and --nowo-ui-* tokens, configured once for every bundle.
  *         framework_defaults?: bool|Param, // false = slots print the semantic nowo-ui-* class and the host classes only (no UiKit framework defaults such as btn / badge / card). Per slot: classes.<slot>: {value: …, framework_defaults: false}. // Default: true
  *         classes?: array<string, mixed>,
@@ -1727,6 +1741,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         confirm_message_in_header?: bool|Param, // Confirm dialogs and the full-page confirm render the message inside the header, under the title (hosts whose dialog header is title + message). View\Confirm::messageInHeader wins when set. // Default: false
  *         popover_menus?: bool|Param, // 2.4: menu / kebab / row-action menus render their panel as a native [popover] (browser top layer: never clipped by table scrollers or cards; nowo-ui-popover.js places it). The partial option `popover` wins. // Default: false
  *         form_errors_after_widget?: bool|Param, // 2.10: the UiKit form theme (form/nowo_ui_layout.html.twig) prints a field's errors after its widget (and before the help), instead of Symfony's order (label, errors, widget, help). // Default: false
+ *         menu_semantics?: null|"menu"|"disclosure"|Param, // 2.28: ARIA of popover menus with items. null (default) = as 2.27; menu = APG menu button (role="menu" / menuitem, arrow keys in nowo-ui-popover.js); disclosure = no aria-haspopup. The menu partial option `menu_semantics` wins. // Default: null
  *         bundles?: array<string, array{ // Default: []
  *             framework_defaults?: bool|Param, // Override of theme.framework_defaults for this bundle (unset = inherit).
  *             classes?: array<string, mixed>,

@@ -28,6 +28,13 @@ nowo_wiki:
         enabled: true
         agent: wiki_assistant
         context_injection: true
+    # 1.18: page tab icons. The defaults are Tabler names (ux_icon / tabler-icons); this demo uses the bootstrap-icons
+    # set, so it names Bootstrap icons. They show when the host sets data-tab-style="icon-text" or "icon" (UiKit 2.29).
+    web_ui:
+        tab_icons:
+            page: 'bi:file-earmark-text'
+            edit: 'bi:pencil'
+            history: 'bi:clock-history'
     routes:
         index:
             path: /tools/wiki

@@ -62,6 +62,22 @@
 
 ## Unreleased
 
+Target: **1.18.0**. From **1.17.0**; no breaking PHP API change, no migration.
+
+```bash
+composer update nowo-tech/ui-kit-bundle nowo-tech/wiki-bundle   # UiKit ^2.29 is required
+php bin/console assets:install
+```
+
+- **Visual change:** the AI question dialog is the medium dialog (it was `lg`, now the UiKit 2.29 medium size). A host
+  that styled `#nowo-wiki-ai-dialog` (width / height) should drop that and set the shared tokens
+  `--nowo-dialog-width-md` / `--nowo-dialog-height-md` instead.
+- **Page tab icons:** the Page / Edit / History tabs now carry icons; set `nowo_wiki.web_ui.tab_icons.<tab>` to rename
+  them or to `~` to drop one. A host that overrode `manage/_page_tabs.html.twig` only to add icons can remove its copy
+  (Symfony Beacon: drop its `_page_tabs` override once it requires this release).
+- **Custom `WikiPageFactory` wiring:** the constructor has a new last argument `$tabIcons` (defaults to
+  `WikiPageFactory::TAB_ICONS`); a host that builds the service by hand needs no change.
+
 ## To 1.17.0
 
 From **1.16.2**:

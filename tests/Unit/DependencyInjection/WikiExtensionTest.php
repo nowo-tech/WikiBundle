@@ -87,6 +87,7 @@ use function array_diff_key;
 use function array_fill_keys;
 use function array_keys;
 use function is_array;
+use function ksort;
 
 use const E_USER_DEPRECATED;
 
@@ -764,6 +765,22 @@ final class WikiExtensionTest extends TestCase
         self::assertSame('layouts/admin.html.twig', $container->getDefinition(WikiPages::class)->getArgument('$layoutTemplate'));
         self::assertArrayNotHasKey('layout', $container->getDefinition(WikiPages::class)->getArgument('$templates'));
         self::assertEquals(new Reference(WikiPages::class), $container->getDefinition(WikiPageFactory::class)->getArgument('$pages'));
+        self::assertSame(WikiPageFactory::TAB_ICONS, $container->getDefinition(WikiPageFactory::class)->getArgument('$tabIcons'));
+    }
+
+    public function testTabIconsReachThePageFactory(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['tab_icons' => ['edit' => 'bi:pencil', 'history' => null]],
+        ]], $container);
+
+        $tabIcons = $container->getDefinition(WikiPageFactory::class)->getArgument('$tabIcons');
+        self::assertIsArray($tabIcons);
+        ksort($tabIcons);
+        self::assertSame(['edit' => 'bi:pencil', 'history' => null, 'page' => 'tabler:file-text'], $tabIcons);
     }
 
     public function testDeprecatedKeysStillApplyAndTheOldDefaultLayoutMeansUiKit(): void

@@ -27,6 +27,6 @@
 
 {% block nowo_ui_modals %}
     {% if ai_form|default(null) %}
-        {{ include('@NowoWikiBundle/manage/_ai_dialog.html.twig', {ai_form: ai_form, bundle: page.bundle}, false) }}
+        {{ include('@NowoWikiBundle/manage/_ai_dialog.html.twig', {ai_form: ai_form, bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
     {% endif %}
 {% endblock %}
