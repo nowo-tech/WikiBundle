@@ -55,6 +55,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Dialog sizes (UiKit 2.29, platform rule).** The AI question dialog uses the UiKit `dialog` theme partial at the
+  medium size (`--nowo-dialog-width-md` × `--nowo-dialog-height-md`) instead of the old `lg` width; the body is the only
+  scroller and the footer (Cancel, then the one primary *Ask*, bound with `form="…"`) stays outside it. The confirm
+  dialogs (delete, archive, restore, co-editing reset, purge) are UiKit `View\Confirm` dialogs and follow the sizes as
+  they are. Requires `nowo-tech/ui-kit-bundle` `^2.29`.
+
+### Added
+
+- **Page tab icons (Beacon spec 177).** `WikiPageFactory::pageTabs()` sets an icon per tab (Page `tabler:file-text`,
+  Edit `tabler:pencil`, History `tabler:history`; `web_ui.tab_icons.<tab>`, null or `''` = none) and
+  `manage/_page_tabs.html.twig` passes it to the UiKit `tabs` partial, so the row follows the host's tab style.
+
 ## [1.17.0] - 2026-11-05
 
 Minor release. See [UPGRADING](UPGRADING.md#to-1170).

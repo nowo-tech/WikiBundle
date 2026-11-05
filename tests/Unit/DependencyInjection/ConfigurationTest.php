@@ -45,8 +45,29 @@ final class ConfigurationTest extends TestCase
         self::assertNull($config['templates']['layout']);
         self::assertNull($config['route_prefix']);
         self::assertTrue($config['web_ui']['enabled']);
+        self::assertSame(['page' => 'tabler:file-text', 'edit' => 'tabler:pencil', 'history' => 'tabler:history'], $config['web_ui']['tab_icons']);
         self::assertSame(['spaces_per_page' => 24, 'revisions_per_page' => 25, 'max_tree_pages' => 500], $config['pagination']);
         self::assertSame(WikiManageController::DEFAULT_PAGINATION, $config['pagination']);
+    }
+
+    public function testTabIconsCanBeRenamedOrRemoved(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['tab_icons' => ['page' => 'bi:file-earmark', 'edit' => null, 'history' => '']],
+        ]]);
+
+        self::assertSame(['page' => 'bi:file-earmark', 'edit' => null, 'history' => ''], $config['web_ui']['tab_icons']);
+    }
+
+    public function testTabIconsRejectANonString(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('Expected an icon name (string) or null');
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['tab_icons' => ['page' => 42]],
+        ]]);
     }
 
     public function testPaginationRejectsZeroPageSize(): void

@@ -29,6 +29,7 @@ use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 use function array_fill_keys;
+use function array_key_exists;
 use function count;
 use function is_array;
 
@@ -51,14 +52,28 @@ final readonly class WikiPageFactory
     public const AI_DIALOG_ID = 'nowo-wiki-ai-dialog';
 
     /**
+     * 1.18 (Beacon spec 177): default icon of each page tab (`web_ui.tab_icons`), so the tab row follows the host's tab
+     * style (text / icon and text / icon only). An icon name of the UiKit `icon` component (`tabler:*` renders with the
+     * `ux_icon` or `tabler-icons` set, else the label alone).
+     */
+    public const TAB_ICONS = [
+        'page'    => 'tabler:file-text',
+        'edit'    => 'tabler:pencil',
+        'history' => 'tabler:history',
+    ];
+
+    /**
      * @param array<string, array{path: string, name: string}> $routes `nowo_wiki.routes` (route key => path / name)
      * @param string|null $dashboardRoute `nowo_wiki.dashboard_route` (a "Back to dashboard" header action)
+     * @param array<string, string|null> $tabIcons 1.18 `web_ui.tab_icons` (page | edit | history => icon name; null or
+     *                                             '' = no icon on that tab)
      */
     public function __construct(
         private UrlGeneratorInterface $urlGenerator,
         private array $routes,
         private WikiPages $pages = new WikiPages(),
         private ?string $dashboardRoute = null,
+        private array $tabIcons = self::TAB_ICONS,
     ) {
     }
 
@@ -288,7 +303,8 @@ final readonly class WikiPageFactory
     /**
      * The tab row of the read and edit views (1.16, B-Q1): Page (always), Edit (`can.edit`), History (`can.history`);
      * the current view is the active tab (`aria-current="page"`). Rendered at the secondary level, with the comments
-     * toggle at the end of the same row when the viewer may see comments.
+     * toggle at the end of the same row when the viewer may see comments. 1.18: each tab carries its icon
+     * (`web_ui.tab_icons`, {@see self::TAB_ICONS}).
      *
      * @param array{edit?: bool, history?: bool} $can what the user may do on the page
      * @param string $current page | edit
@@ -296,12 +312,12 @@ final readonly class WikiPageFactory
     public function pageTabs(WikiSpace $space, WikiPage $page, array $can, string $current): AreaNav
     {
         $params = ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()];
-        $items  = [new AreaNavItem(WikiPages::label('wiki.tabs.page'), $this->url('page_view', $params), $current === 'page', ['data-testid' => 'wiki-tab-page'])];
+        $items  = [new AreaNavItem(WikiPages::label('wiki.tabs.page'), $this->url('page_view', $params), $current === 'page', ['data-testid' => 'wiki-tab-page'], $this->tabIcon('page'))];
         if (($can['edit'] ?? false) && $this->has('page_edit')) {
-            $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.edit'), $this->url('page_edit', $params), $current === 'edit', ['data-testid' => 'wiki-tab-edit']);
+            $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.edit'), $this->url('page_edit', $params), $current === 'edit', ['data-testid' => 'wiki-tab-edit'], $this->tabIcon('edit'));
         }
         if (($can['history'] ?? false) && $this->has('page_history')) {
-            $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.history'), $this->url('page_history', $params), false, ['data-testid' => 'wiki-tab-history']);
+            $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.history'), $this->url('page_history', $params), false, ['data-testid' => 'wiki-tab-history'], $this->tabIcon('history'));
         }
 
         return new AreaNav($items, WikiPages::label('wiki.tabs.label'));
@@ -784,6 +800,18 @@ final readonly class WikiPageFactory
         }
 
         return $crumbs;
+    }
+
+    /**
+     * Icon of a page tab: the configured one (`web_ui.tab_icons.<tab>`), else the default; null or '' = no icon.
+     *
+     * @param 'page'|'edit'|'history' $tab
+     */
+    private function tabIcon(string $tab): ?string
+    {
+        $icon = array_key_exists($tab, $this->tabIcons) ? $this->tabIcons[$tab] : self::TAB_ICONS[$tab];
+
+        return $icon === null || $icon === '' ? null : $icon;
     }
 
     private function has(string $route): bool

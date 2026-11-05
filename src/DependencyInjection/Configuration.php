@@ -10,6 +10,8 @@ use Nowo\WikiBundle\Attachment\WikiAttachmentLimits;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
+use Nowo\WikiBundle\Ui\WikiPageFactory;
+use Symfony\Component\Config\Definition\Builder\ScalarNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\Builder\VariableNodeDefinition;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
@@ -653,6 +655,15 @@ final class Configuration implements ConfigurationInterface
                                 ->scalarNode('trash_purge')->defaultNull()->end()
                             ->end()
                         ->end()
+                        ->arrayNode('tab_icons')
+                            ->info('1.18: icon of each page tab (Page / Edit / History), so the tab row follows the host tab style (text, icon and text, icon only). A UiKit icon name (tabler:* renders with the ux_icon or tabler-icons set); null or "" = no icon on that tab.')
+                            ->addDefaultsIfNotSet()
+                            ->children()
+                                ->append($this->tabIconNode('page'))
+                                ->append($this->tabIconNode('edit'))
+                                ->append($this->tabIconNode('history'))
+                            ->end()
+                        ->end()
                         ->enumNode('css_framework')
                             ->values([null, 'bootstrap', 'bootstrap4', 'bootstrap5', 'tabler', 'tailwind', 'foundation', 'custom', 'none'])
                             ->defaultNull()
@@ -687,6 +698,24 @@ final class Configuration implements ConfigurationInterface
         }
 
         return $roles;
+    }
+
+    /**
+     * 1.18 `web_ui.tab_icons.<tab>`: an icon name, or null / '' for no icon.
+     *
+     * @param 'page'|'edit'|'history' $tab
+     */
+    private function tabIconNode(string $tab): ScalarNodeDefinition
+    {
+        $node = new ScalarNodeDefinition($tab);
+        $node
+            ->defaultValue(WikiPageFactory::TAB_ICONS[$tab])
+            ->validate()
+                ->ifTrue(static fn (mixed $value): bool => $value !== null && !is_string($value))
+                ->thenInvalid('Expected an icon name (string) or null, got %s.')
+            ->end();
+
+        return $node;
     }
 
     /**

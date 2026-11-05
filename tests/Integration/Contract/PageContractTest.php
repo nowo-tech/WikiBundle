@@ -11,6 +11,9 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Twig\Environment;
 
+use function preg_match;
+use function substr_count;
+
 /**
  * REQ-UI-003 page contract: every wiki page extends a UiKit scaffold (list, show, form); no <html>, CDN, inline handler
  * or confirm(); framework classes only through theme slots; the stub theme is reflected; no raw or missing translation
@@ -81,6 +84,39 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringContainsString('form="nowo-wiki-ai-dialog-form"', $html);
         self::assertStringContainsString('autofocus', $html);
         self::assertStringNotContainsString('data-bs-toggle', $html);
+
+        // 1.18 (UiKit 2.29 dialog sizes): the medium size (no size modifier), the form in the scrolling body, the footer
+        // outside it with Cancel then the one primary (last), bound to the form by form="…".
+        self::assertMatchesRegularExpression('#<dialog id="nowo-wiki-ai-dialog" class="nowo-ui-dialog"[ >]#', $html);
+        self::assertDoesNotMatchRegularExpression('#nowo-ui-dialog--(?:sm|lg|xl|wide)#', $html);
+        self::assertSame(1, preg_match('#<dialog id="nowo-wiki-ai-dialog".*?</dialog>#s', $html, $dialog));
+        self::assertSame(1, preg_match('#<div class="[^"]*nowo-ui-dialog__body[^"]*"[^>]*>(.*?)</div>\s*<footer class="[^"]*nowo-ui-dialog__footer[^"]*"[^>]*>(.*?)</footer>\s*</dialog>#s', $dialog[0], $parts));
+        self::assertStringContainsString('id="nowo-wiki-ai-dialog-form"', $parts[1]);
+        self::assertStringNotContainsString('<button', $parts[1]);
+        self::assertSame(2, substr_count($parts[2], '<button'));
+        self::assertSame(1, substr_count($parts[2], 'nowo-ui-btn--primary'));
+        self::assertMatchesRegularExpression('#data-nowo-ui-dialog-close>Cancel</button>\s*<button type="submit" class="[^"]*nowo-ui-btn--primary[^"]*" form="nowo-wiki-ai-dialog-form"[^>]*>[^<]+</button>\s*$#', $parts[2]);
+    }
+
+    public function testThePageTabsCarryTheirIconsForTheHostTabStyle(): void
+    {
+        $context = PageFixtures::pageView();
+        $twig    = $this->createTwig();
+        // UiKit draws a `tabler:*` icon with the ux_icon or tabler-icons set (else the label alone, as before 1.18).
+        $twig->addGlobal('nowo_ui_kit_icon_set', 'tabler-icons');
+        $html = $twig->render('@NowoWikiBundle/manage/_page_tabs.html.twig', ['tabs' => $context['page']->header->tabs, 'comments' => null, 'bundle' => 'NowoWikiBundle']);
+
+        self::assertSame(3, substr_count($html, 'nowo-ui-tabs__icon'));
+        self::assertSame(3, substr_count($html, 'nowo-ui-tabs__label'));
+        foreach (['file-text', 'pencil', 'history'] as $icon) {
+            self::assertStringContainsString('ti-' . $icon, $html);
+        }
+        self::assertStringContainsString('data-rail-label="Page"', $html);
+
+        // The default bootstrap-icons set has no tabler names: the tabs keep their labels only.
+        $plain = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $context))->html;
+        self::assertStringContainsString('data-testid="wiki-tab-page"', $plain);
+        self::assertStringNotContainsString('nowo-ui-tabs__icon', $plain);
     }
 
     public function testRestoreAndArchiveGoThroughTheConfirmContract(): void

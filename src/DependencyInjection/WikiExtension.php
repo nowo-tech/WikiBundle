@@ -742,7 +742,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$urlGenerator', new Reference('router'))
             ->setArgument('$routes', $config['routes'])
             ->setArgument('$pages', new Reference(WikiPages::class))
-            ->setArgument('$dashboardRoute', $config['dashboard_route']));
+            ->setArgument('$dashboardRoute', $config['dashboard_route'])
+            ->setArgument('$tabIcons', $config['web_ui']['tab_icons']));
     }
 
     /**
