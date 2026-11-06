@@ -1,0 +1,47 @@
+{#
+  Import & export dialog of the space home (1.21, web_ui.import_export: dialog): the UiKit `dialog` theme partial
+  (native <dialog>, opened by the "Import & export" header action through data-nowo-ui-dialog-open, closed by Escape /
+  the close button / Cancel), medium size. The body has the intro, the Outline / Notion export links (users who may
+  export) and the import form (users who may import); the footer has Cancel then Import, bound to the form by
+  form="…". Without the import form the footer has Cancel only.
+  Variables: import_form (WikiImportType view or null), export_links (WikiPageFactory::exportLinks(): {format, label,
+  href}), bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _form_id = 'nowo-wiki-import-export-form' %}
+{% set _footer %}
+    <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
+    {% if import_form %}
+        <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="{{ _form_id }}" data-testid="wiki-import-submit">{{ 'wiki.import.submit'|trans }}</button>
+    {% endif %}
+{% endset %}
+{% set _body %}
+    <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.import_export.intro'|trans }}</p>
+    {% if export_links is not empty %}
+        <p class="nowo-wiki-import-export__export" data-testid="wiki-export-links">
+            {% for link in export_links %}
+                <a href="{{ link.href }}" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-testid="wiki-export-{{ link.format }}">{{ link.label|trans }}</a>
+            {% endfor %}
+        </p>
+    {% endif %}
+    {% if import_form %}
+        {{ form_start(import_form, {attr: {id: _form_id, class: nowo_ui_class('form', bundle) ~ ' nowo-wiki-import-export__import', 'data-testid': 'wiki-import-form'}}) }}
+            {% for child in import_form %}
+                {% if not child.rendered %}
+                    {{ form_row(child) }}
+                {% endif %}
+            {% endfor %}
+        {{ form_end(import_form) }}
+        <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.import.help'|trans }}</p>
+    {% endif %}
+{% endset %}
+{{ include(nowo_ui_partial('dialog', bundle), {
+    id: 'nowo-wiki-import-export-dialog',
+    title: 'wiki.import_export.title'|trans,
+    size: 'md',
+    body: _body,
+    footer: _footer,
+    bundle: bundle,
+    nowo_ui_page_type: nowo_ui_page_type|default(null),
+    attr: {'data-testid': 'wiki-import-export-dialog'},
+}, false) }}

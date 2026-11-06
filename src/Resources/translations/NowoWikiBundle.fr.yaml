@@ -28,6 +28,18 @@ wiki:
       too_large: "Le commentaire est trop long (10 000 caractères au plus)."
       limit_reached: "Cette page, ce fil ou ce commentaire a atteint sa limite."
       rate_limited: "Trop de commentaires en peu de temps : réessayez dans un instant."
+    moderation:
+      title: "Modérer les fils"
+      help: "Tous les fils de cette page, y compris les résolus. Supprimer un fil supprime tous ses commentaires."
+      page_comment: "Commentaire de la page"
+      resolved: "résolu"
+      count: "%count% commentaire(s)"
+      delete: "Supprimer le fil"
+      deleted: "Fil supprimé."
+      failed: "Les fils n'ont pas pu être chargés ou modifiés. Réessayez."
+      empty: "Cette page n'a aucun fil."
+      confirm: "Supprimer ce fil et tous ses commentaires ? Cette action est irréversible."
+      confirm_title: "Supprimer le fil ?"
   collab:
     reset: "Réinitialiser la collaboration"
     reset_confirm_title: "Réinitialiser la session partagée ?"
@@ -206,6 +218,8 @@ wiki:
     previous: "Précédent"
     next: "Suivant"
     page_of: "Page %page% sur %pages%"
+  quota:
+    denied: "Cela dépasserait une limite de votre offre."
 wiki_page_form:
   title:
     placeholder: "Titre de la page"

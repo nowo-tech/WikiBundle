@@ -28,6 +28,18 @@ wiki:
       too_large: "De opmerking is te lang (maximaal 10.000 tekens)."
       limit_reached: "Deze pagina, discussie of opmerking heeft de limiet bereikt."
       rate_limited: "Te veel opmerkingen in korte tijd: probeer het zo opnieuw."
+    moderation:
+      title: "Discussies modereren"
+      help: "Alle discussies van deze pagina, ook de opgeloste. Als je een discussie verwijdert, worden al haar opmerkingen verwijderd."
+      page_comment: "Opmerking bij de pagina"
+      resolved: "opgelost"
+      count: "%count% opmerking(en)"
+      delete: "Discussie verwijderen"
+      deleted: "Discussie verwijderd."
+      failed: "De discussies konden niet worden geladen of gewijzigd. Probeer het opnieuw."
+      empty: "Deze pagina heeft geen discussies."
+      confirm: "Deze discussie en al haar opmerkingen verwijderen? Dit kan niet ongedaan worden gemaakt."
+      confirm_title: "Discussie verwijderen?"
   collab:
     reset: "Samenwerking opnieuw instellen"
     reset_confirm_title: "Gedeelde sessie opnieuw instellen?"
@@ -206,6 +218,8 @@ wiki:
     previous: "Vorige"
     next: "Volgende"
     page_of: "Pagina %page% van %pages%"
+  quota:
+    denied: "Hiermee zou een limiet van je abonnement worden overschreden."
 wiki_page_form:
   title:
     placeholder: "Paginatitel"

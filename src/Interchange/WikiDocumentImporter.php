@@ -18,6 +18,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
+use function count;
 use function sprintf;
 
 /**
@@ -111,6 +112,27 @@ final readonly class WikiDocumentImporter
         ]);
 
         return $report;
+    }
+
+    /**
+     * The Markdown documents of a ZIP archive, as {@see self::import()} would read them (1.21, for the quota check). An
+     * upper bound of the pages it creates: a document may later be skipped, update an existing page or fail.
+     *
+     * @param string $zipPath ZIP archive path
+     * @param WikiInterchangeFormat $format source format (Auto detects it)
+     *
+     * @throws InvalidArgumentException when the archive cannot be read, as in {@see self::import()}
+     */
+    public function countDocuments(string $zipPath, WikiInterchangeFormat $format): int
+    {
+        $workingPath = $this->archiveHelper->extractZip($zipPath);
+
+        try {
+            return count($this->treeReader->read($workingPath, $format === WikiInterchangeFormat::Auto ? $this->formatDetector->detect($workingPath) : $format));
+        } finally {
+            // @igor-ignore - Not shared worker service state.
+            $this->archiveHelper->removeDirectory($workingPath);
+        }
     }
 
     /**

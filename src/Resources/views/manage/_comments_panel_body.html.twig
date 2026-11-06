@@ -8,6 +8,10 @@
   Without JavaScript: the open page-level threads (comment bodies rendered per viewer by the safe renderer and printed
   through nowo_wiki_safe_html) and, for commenters, the WikiCommentType form posting to …/comments/new; inline threads
   need the editor. Authors follow the history name policy; a picture only beside a real name (UiKit `_avatar`).
+  1.21 (each off by default): comments.error_notices adds the notice of refused writes (422 limit_reached / 429
+  rate limit; a UiKit toast when the toast script is loaded, from the <template>s below, else the polite live region);
+  comments.moderation (comments.moderation_panel and WikiAction::ModerateComments) adds *Moderate threads*: every
+  thread of the page with *Delete thread* behind a confirm dialog (wiki.js, wiki-comments-moderation.ts).
   Variables: comments (WikiCommentsPanel::panel()), bundle.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
@@ -62,3 +66,42 @@
         {{ form_end(comments.form) }}
     {% endif %}
 </div>
+{% if comments.error_notices|default(false) %}
+    <p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-comments__notice" data-nowo-wiki-comments-notice role="status" aria-live="polite" hidden
+       data-limit-reached="{{ 'wiki.comments.error.limit_reached'|trans }}"
+       data-rate-limited="{{ 'wiki.comments.error.rate_limited'|trans }}"
+       data-testid="wiki-comments-notice"></p>
+    {% for _tone in ['error', 'success'] %}
+        <template data-nowo-wiki-comments-toast="{{ _tone }}">{{ include(nowo_ui_partial('toasts', _b), {flashes: {(_tone): ['-']}, bundle: _b}, false) }}</template>
+    {% endfor %}
+{% endif %}
+{% if comments.moderation|default(false) %}
+    <details class="nowo-wiki-moderation" data-nowo-wiki-moderation data-testid="wiki-comments-moderation"
+             data-url="{{ comments.comments_url }}"
+             data-token="{{ comments.csrf_token }}"
+             data-button-class="{{ nowo_ui_class('btn_secondary', _b) }}"
+             data-labels="{{ {
+                 page_comment: 'wiki.comments.moderation.page_comment'|trans,
+                 resolved: 'wiki.comments.moderation.resolved'|trans,
+                 count: 'wiki.comments.moderation.count'|trans,
+                 delete: 'wiki.comments.moderation.delete'|trans,
+                 deleted: 'wiki.comments.moderation.deleted'|trans,
+                 failed: 'wiki.comments.moderation.failed'|trans,
+                 empty: 'wiki.comments.moderation.empty'|trans,
+                 rate_limited: 'wiki.comments.error.rate_limited'|trans,
+                 confirm: 'wiki.comments.moderation.confirm'|trans,
+             }|json_encode }}">
+        <summary class="nowo-wiki-moderation__summary">{{ 'wiki.comments.moderation.title'|trans }}</summary>
+        <p class="{{ nowo_ui_class('muted', _b) }}">{{ 'wiki.comments.moderation.help'|trans }}</p>
+        <p class="{{ nowo_ui_class('muted', _b) }}" data-nowo-wiki-moderation-status aria-live="polite"></p>
+        <ul class="nowo-wiki-moderation__list" data-nowo-wiki-moderation-list data-testid="wiki-comments-moderation-list"></ul>
+        <dialog class="nowo-wiki-moderation__confirm" data-nowo-wiki-moderation-confirm aria-labelledby="nowo-wiki-moderation-confirm-title" data-testid="wiki-comments-moderation-confirm">
+            <p class="nowo-wiki-region-title" id="nowo-wiki-moderation-confirm-title">{{ 'wiki.comments.moderation.confirm_title'|trans }}</p>
+            <p>{{ 'wiki.comments.moderation.confirm'|trans }}</p>
+            <p class="{{ nowo_ui_class('form_actions', _b) }}">
+                <button type="button" class="{{ nowo_ui_class('btn_secondary', _b) }}" data-nowo-wiki-moderation-cancel>{{ 'wiki.action.cancel'|trans }}</button>
+                <button type="button" class="{{ nowo_ui_class('btn_danger', _b) }}" data-nowo-wiki-moderation-accept data-testid="wiki-comments-moderation-accept">{{ 'wiki.comments.moderation.delete'|trans }}</button>
+            </p>
+        </dialog>
+    </details>
+{% endif %}

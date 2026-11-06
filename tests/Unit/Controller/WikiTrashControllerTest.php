@@ -12,11 +12,14 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
@@ -151,6 +154,21 @@ final class WikiTrashControllerTest extends TestCase
         $this->assertThrows(NotFoundHttpException::class, fn (): RedirectResponse => $controller->restore($this->post('x'), 'eng', 'not-a-uuid'));
     }
 
+    public function testARestoreTheQuotaRefusesLeavesThePagesInTheTrash(): void
+    {
+        $batch = $this->trash->delete($this->ops);
+        $seen  = [];
+
+        $response = $this->controller(quota: $this->refusingQuota($seen))->restore($this->post('wiki_trash_restore_' . $batch), 'eng', $batch);
+
+        self::assertSame('/nowo_wiki_space_trash?spaceSlug=eng', $response->getTargetUrl());
+        self::assertSame(['Plan limit reached.'], $this->errors());
+        self::assertTrue($this->ops->isArchived());
+        self::assertSame(WikiQuotaCheckEvent::TRASH_RESTORE, $seen[0]->action);
+        self::assertSame(2, $seen[0]->count);
+        self::assertSame($this->ops, $seen[0]->page);
+    }
+
     public function testWithoutAPageViewRouteRestoreGoesBackToTheTrash(): void
     {
         $batch = $this->trash->delete($this->ops);
@@ -243,6 +261,35 @@ final class WikiTrashControllerTest extends TestCase
     }
 
     /**
+     * 1.21: a quota gate whose listener refuses every check, recording the events.
+     *
+     * @param list<WikiQuotaCheckEvent> $seen
+     */
+    private function refusingQuota(array &$seen): WikiQuotaGate
+    {
+        $events = new EventDispatcher();
+        $events->addListener(WikiEvents::QUOTA_CHECK, static function (WikiQuotaCheckEvent $event) use (&$seen): void {
+            $seen[] = $event;
+            $event->deny('Plan limit reached.');
+        });
+
+        return new WikiQuotaGate($events);
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function errors(): array
+    {
+        /** @var RequestStack $stack */
+        $stack = $this->container->get('request_stack');
+        /** @var FlashBagAwareSessionInterface $session */
+        $session = $stack->getSession();
+
+        return $session->getFlashBag()->get('error');
+    }
+
+    /**
      * @return array{0: string, 1: array<string, mixed>}
      */
     private function flash(): array
@@ -277,7 +324,7 @@ final class WikiTrashControllerTest extends TestCase
      * @param (Closure(WikiAction, WikiSpace, ?WikiPage): bool)|null $decide
      * @param array<string, array{path: string, name: string}>|null $routes
      */
-    private function controller(bool $enabled = true, bool $user = true, ?WikiTokenGuard $guard = null, ?Closure $decide = null, bool $canArchive = true, ?array $routes = null, bool $translator = false): WikiTrashController
+    private function controller(bool $enabled = true, bool $user = true, ?WikiTokenGuard $guard = null, ?Closure $decide = null, bool $canArchive = true, ?array $routes = null, bool $translator = false, ?WikiQuotaGate $quota = null): WikiTrashController
     {
         $roles = $this->createStub(WikiAccessCheckerInterface::class);
         $roles->method('canArchive')->willReturn($canArchive);
@@ -307,6 +354,7 @@ final class WikiTrashControllerTest extends TestCase
                     return 'en';
                 }
             } : null,
+            $quota,
         );
         $this->container = WikiControllerContainerBuilder::bind($controller, $user ? new TestUser() : null, ['twig' => $this->twig]);
         $this->container->set('router', PageFixtures::urlGenerator());

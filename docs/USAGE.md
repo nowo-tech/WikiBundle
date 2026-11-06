@@ -76,6 +76,9 @@ Results show a **snippet** centered on the first match in the body (or a title f
 
 Example: `/tools/wiki/search?q=deploy&space=engineering`
 
+With `search.scope: space` (1.21) the search is always inside one space: a request without a valid `?space=` is 404
+and the form has no space choice ([CONFIGURATION › Host hooks](CONFIGURATION.md#host-hooks-121)).
+
 ## Application integration
 
 1. Implement `WikiAccessCheckerInterface` (or use role-based defaults).
@@ -187,13 +190,16 @@ The page → scaffold map, the view models, the data blocks and the value-free p
 [TEMPLATES.md](TEMPLATES.md).
 
 The wiki-specific regions carry semantic hooks styled by `wiki.css` with the UiKit tokens (no `--nowo-wiki-*` token
-tree any more):
+tree any more; 1.21 adds a few `--nowo-wiki-tree-*` tokens for the nested list, see
+[CONFIGURATION › Tree tokens](CONFIGURATION.md#tree-tokens)):
 
 | Block | Elements and modifiers |
 |-------|------------------------|
 | `nowo-wiki-layout` | `__aside`, `__main` (sidebar + content grid, one column under 62 rem) |
 | `nowo-wiki-sidebar` | `__header`, `__body` (`data-wiki-sidebar`) |
 | `nowo-wiki-tree` | `--nested`, `__item`, `__item--depth-0` … `__item--depth-6` (capped; `data-wiki-depth` has the real depth), `__item--parent`, `__link`, `__link--current` (`aria-current="page"`), `__truncated`; root `data-wiki-tree` |
+| `nowo-wiki-import-export` | `__export`, `__import` (1.21, `web_ui.import_export: dialog`) |
+| `nowo-wiki-moderation` | `__summary`, `__list`, `__item`, `__text`, `__label`, `__meta`, `__confirm` (1.21, `comments.moderation_panel`); `nowo-wiki-comments__notice` (`comments.error_notices`) |
 | `nowo-wiki-content` | the sanitized page body (`data-testid="wiki-content"`) |
 | `nowo-wiki-diff` | `__lines`, `__line`, `__line--add`, `__line--remove`, `__line--same` (`data-wiki-diff`) |
 | `nowo-wiki-archived`, `nowo-wiki-used-in` | `__list`, `__item`, `__title` / `__link` |
@@ -202,7 +208,7 @@ tree any more):
 
 **Blocks.** Use `nowo_wiki.web_ui.templates.<page>` with a template that extends the bundle page and overrides one
 UiKit data block (`nowo_ui_list_row`, `nowo_ui_show_sections`, `nowo_ui_show_after`, `nowo_ui_form_body`,
-`nowo_ui_form_aside`, `nowo_ui_modals`, …):
+`nowo_ui_form_aside`, `nowo_ui_modals`, …, or 1.21 `wiki_sidebar`, `wiki_space_intro`, `wiki_page_header_extra`):
 
 ```twig
 {# templates/wiki/page_view.html.twig, set as nowo_wiki.web_ui.templates.page_view #}
@@ -243,8 +249,9 @@ To add a locale the bundle does not ship (e.g. `ca`), create `translations/NowoW
 
 ## Events
 
-Dispatched after the change is flushed.
+Dispatched after the change is flushed, except `nowo_wiki.quota.check`.
 
+- `nowo_wiki.quota.check` — `WikiQuotaCheckEvent` (`action`, `space`, `user`, `count`, `bytes`, `page`, `deny(reason)`; 1.21): **before** a new page, unarchive, trash restore, import or attachment upload; a listener may refuse the write ([CONFIGURATION › Quota event](CONFIGURATION.md#quota-event))
 - `nowo_wiki.page.saved` — `WikiPageSavedEvent` (`page`, `revision`, `previousRevision`, `actor`; also after create and restore)
 - `nowo_wiki.page.archived` — `WikiPageArchivedEvent` (`page`, `actor`)
 - `nowo_wiki.page.created` / `.unarchived` — `WikiPageCreatedEvent` / `WikiPageUnarchivedEvent` (1.9)
@@ -252,7 +259,7 @@ Dispatched after the change is flushed.
 - `nowo_wiki.page.linked` / `.unlinked` — `WikiPageLinkEvent` (`objectType`, `objectId`, 1.9)
 - `nowo_wiki.attachment.uploaded` / `.deleted` — `WikiAttachmentEvent` (1.9)
 - `nowo_wiki.page.trashed` / `nowo_wiki.trash.restored` / `nowo_wiki.trash.purged` — `WikiTrashEvent` (`space`, `batchId`, `rootTitle`, `pageIds`, `actor`; 1.14, `trash.enabled`; after a purge the pages no longer exist)
-- `nowo_wiki.page.files_purged` — `WikiPageFilesPurgedEvent` (`space`, `batchId`, `pageIds`, `files` = list of `PageFile\WikiPageFile`, `actor`; unreleased, `page_files.purge_event`): the files every revision of the purged pages referred to, for the host to delete from its storage (see [CONFIGURATION › Page files](CONFIGURATION.md#page-files-unreleased))
+- `nowo_wiki.page.files_purged` — `WikiPageFilesPurgedEvent` (`space`, `batchId`, `pageIds`, `files` = list of `PageFile\WikiPageFile`, `actor`; 1.20, `page_files.purge_event`): the files every revision of the purged pages referred to, for the host to delete from its storage (see [CONFIGURATION › Page files](CONFIGURATION.md#page-files-120))
 - `nowo_wiki.page.moved` — `WikiPageMovedEvent` (`page`, `fromParent`, `toParent`, `index`, `actor`, `movedAt`; 1.14, `tree.enabled`): the audit entry of a move
 - `nowo_wiki.editor.options` — `WikiEditorOptionsEvent`: add TiptapEditorType options (e.g. the suggestion hook's candidate URLs) for the space and page being edited (1.9)
 
@@ -533,6 +540,8 @@ What a host such as symfony-beacon configures:
 3. Its `WikiSpaceAccessCheckerInterface` maps `ViewComments` → `project.wiki.view` / `wiki.view`, `Comment` → edit,
    `ResolveComment` and `ModerateComments` → manage (B-Q3).
 4. The two routes (`page_comments`, `space_panel_state`) behind the wiki firewall; tenant paths get them automatically.
+5. 1.21: `comments.moderation_panel: true` and `comments.error_notices: true` replace a forked panel body and Stimulus
+   controller.
 5. Optional: `comments.state_store` → its user-preferences store (`WikiPanelStateStoreInterface`), `comments.shortcut`.
    Keep `comments.read_view_source: false` (the default) while `ViewComments` maps to view: readers then never get the
    page source; editors keep inline highlights on the read view.

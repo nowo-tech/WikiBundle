@@ -8,29 +8,57 @@
   Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + wiki.js: scrolls the current page of the tree into view), nowo_ui_show_sections (sidebar tree + search, import, archived
   pages). The bundle-specific regions use the UiKit theme slots (card, card_header, card_title, card_body,
   form, form_actions, btn_primary, muted).
+  1.21: export_links (WikiPageFactory::exportLinks()); blocks wiki_sidebar (the tree card) and wiki_space_intro (the
+  search card) for templates that extend this one, filled by the web_ui.slots.sidebar / space_intro templates when set
+  (included with the page variables); web_ui.import_export: dialog moves the exports and the import form into the
+  Import & export dialog (nowo_ui_modals, _import_export_dialog.html.twig); web_ui.assets.styles / scripts: false
+  leave nowo_ui_styles / nowo_ui_scripts empty (Twig global nowo_wiki_web_ui).
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
 {% trans_default_domain 'NowoWikiBundle' %}
 
 {% block nowo_ui_styles %}
-    {{ parent() }}
-    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {#- 1.21 web_ui.assets.styles: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.styles ?? true %}
+        {{ parent() }}
+        <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {% endif %}
 {% endblock %}
 
 {% block nowo_ui_scripts %}
+    {#- 1.21 web_ui.assets.scripts: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.scripts ?? true %}
+        {{ parent() }}
+        {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+        {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
+        <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+    {% endif %}
+{% endblock %}
+
+{% block nowo_ui_modals %}
     {{ parent() }}
-    {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
-    {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
-    <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+    {% if (nowo_wiki_web_ui.import_export ?? 'page') == 'dialog' and (import_form|default(null) or export_links|default([]) is not empty) %}
+        {{ include('@NowoWikiBundle/manage/_import_export_dialog.html.twig', {import_form: import_form|default(null), export_links: export_links|default([]), bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
+    {% endif %}
 {% endblock %}
 
 {% block nowo_ui_show_sections %}
     {% set _b = page.bundle %}
     <div class="nowo-wiki-layout">
         <div class="nowo-wiki-layout__aside">
-            {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), bundle: _b}, false) }}
+            {% block wiki_sidebar %}
+                {%- if nowo_wiki_web_ui.slots.sidebar ?? null -%}
+                    {{ include(nowo_wiki_web_ui.slots.sidebar) }}
+                {%- else -%}
+                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), bundle: _b}, false) }}
+                {%- endif -%}
+            {% endblock %}
         </div>
         <div class="nowo-wiki-layout__main">
+            {% block wiki_space_intro %}
+            {% if nowo_wiki_web_ui.slots.space_intro ?? null %}
+                {{ include(nowo_wiki_web_ui.slots.space_intro) }}
+            {% else %}
             <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-search" data-testid="wiki-space-search"{{ nowo_ui_attrs('card', _b) }}>
                 <div class="{{ nowo_ui_class('card_body', _b) }}">
                     {{ form_start(search_form, {attr: {class: nowo_ui_class('form', _b), role: 'search'}}) }}
@@ -45,8 +73,11 @@
                     {{ form_end(search_form) }}
                 </div>
             </section>
+            {% endif %}
+            {% endblock %}
 
-            {% if import_form|default(null) %}
+            {#- 1.21 web_ui.import_export: dialog = the import form is in the Import & export dialog (nowo_ui_modals) -#}
+            {% if import_form|default(null) and (nowo_wiki_web_ui.import_export ?? 'page') != 'dialog' %}
                 <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-import" data-testid="wiki-import"{{ nowo_ui_attrs('card', _b) }}>
                     <header class="{{ nowo_ui_class('card_header', _b) }}">
                         <h2 class="{{ nowo_ui_class('card_title', _b) }} nowo-wiki-region-title">{{ 'wiki.import_export.title'|trans }}</h2>

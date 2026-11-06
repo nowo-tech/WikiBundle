@@ -32,11 +32,25 @@ test.describe('Wiki demo', () => {
     await expect(results.getByText(/^\d+ results?$/)).toBeVisible();
   });
 
+  test('1.21: the page_header_extra slot draws the host template after the page header, before the tabs', async ({ page }) => {
+    await page.goto('/tools/wiki/spaces/engineering/pages/deploy');
+    const extra = page.getByTestId('demo-header-extra');
+    await expect(extra).toBeVisible();
+    const box = await extra.boundingBox();
+    const tabs = await page.getByTestId('wiki-tabs').boundingBox();
+    expect(box && tabs && box.y < tabs.y).toBe(true);
+  });
+
   test('space page shows the tree, search, exports and archived pages (no import for a ROLE_USER)', async ({ page }) => {
     await page.goto('/tools/wiki/spaces/engineering');
     await expect(page.getByTestId('wiki-new-page')).toBeVisible();
     await expect(page.getByTestId('wiki-space-search')).toBeVisible();
+    // 1.21 web_ui.import_export: dialog (the demo turns it on): one action, the exports inside the dialog.
+    await page.getByTestId('wiki-import-export-open').click();
+    await expect(page.getByTestId('wiki-import-export-dialog')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Export (Outline ZIP)' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('wiki-import-export-dialog')).toBeHidden();
     await expect(page.getByTestId('wiki-import')).toHaveCount(0);
     await expect(page.getByTestId('wiki-archived')).toContainText('Legacy deploy (Capistrano)');
   });

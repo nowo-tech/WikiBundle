@@ -6,9 +6,15 @@ namespace Nowo\WikiBundle\Tests\Integration\Routing;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
+use Nowo\WikiBundle\Controller\WikiAttachmentController;
+use Nowo\WikiBundle\Controller\WikiHistoryController;
+use Nowo\WikiBundle\Controller\WikiManageController;
+use Nowo\WikiBundle\Controller\WikiTrashController;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use ReflectionProperty;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\KernelInterface;
@@ -16,6 +22,7 @@ use Symfony\Component\Routing\Loader\AttributeServicesLoader;
 use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 use function array_filter;
 use function array_keys;
@@ -75,6 +82,20 @@ final class BundleRoutesOptInTest extends TestCase
         self::assertNotNull($response);
         self::assertSame(200, $response->getStatusCode());
         self::assertStringContainsString('/tools/wiki', (string) $response->getContent());
+    }
+
+    /** 1.21: the real container gives the four controllers the quota gate, and the gate the host's dispatcher. */
+    public function testTheControllersGetTheQuotaGate(): void
+    {
+        $this->bundleRouteNames(true);
+        $testContainer = $this->kernel?->getContainer()->get('test.service_container');
+        self::assertInstanceOf(ContainerInterface::class, $testContainer);
+
+        foreach ([WikiManageController::class, WikiHistoryController::class, WikiTrashController::class, WikiAttachmentController::class] as $class) {
+            $gate = (new ReflectionProperty($class, 'quota'))->getValue($testContainer->get($class));
+            self::assertInstanceOf(WikiQuotaGate::class, $gate, $class);
+            self::assertInstanceOf(EventDispatcherInterface::class, (new ReflectionProperty(WikiQuotaGate::class, 'eventDispatcher'))->getValue($gate));
+        }
     }
 
     /** @return list<string> */

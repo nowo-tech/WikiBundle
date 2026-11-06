@@ -14,7 +14,7 @@ nowo_wiki:
     # 1.14 (T065): Delete moves a page and its sub-pages to the trash (restore, purge, 30-day retention).
     trash:
         enabled: true
-    # Unreleased: a "Files" card on the page view (Milkdown file cards and images of the page) and, on trash purge,
+    # 1.20: a "Files" card on the page view (Milkdown file cards and images of the page) and, on trash purge,
     # nowo_wiki.page.files_purged for the host's storage (the demo stores no files: the event has no listener).
     page_files:
         enabled: true
@@ -29,6 +29,9 @@ nowo_wiki:
         enabled: true
         rate_limiter: limiter.wiki_comments
         shortcut: 'Alt+Shift+C'
+        # 1.21: "Moderate threads" for ModerateComments, and own texts for writes refused with 422 / 429.
+        moderation_panel: true
+        error_notices: true
     ai:
         enabled: true
         agent: wiki_assistant
@@ -36,6 +39,10 @@ nowo_wiki:
     # 1.18: page tab icons. The defaults are Tabler names (ux_icon / tabler-icons); this demo uses the bootstrap-icons
     # set, so it names Bootstrap icons. They show when the host sets data-tab-style="icon-text" or "icon" (UiKit 2.29).
     web_ui:
+        # 1.21: exports and import in one dialog; a host template after the page header.
+        import_export: dialog
+        slots:
+            page_header_extra: 'wiki/_header_extra.html.twig'
         tab_icons:
             page: 'bi:file-earmark-text'
             edit: 'bi:pencil'

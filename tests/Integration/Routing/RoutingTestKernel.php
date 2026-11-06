@@ -8,7 +8,10 @@ use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
+use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Support\KnownValueCsrfTokenManager;
+use Nowo\WikiBundle\Tests\Support\RecordingQuotaListener;
 use Nowo\WikiBundle\WikiBundle;
 use Psr\Log\NullLogger;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
@@ -18,6 +21,7 @@ use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
+use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Twig\Extra\TwigExtraBundle\TwigExtraBundle;
 
 use function dirname;
@@ -34,7 +38,10 @@ final class RoutingTestKernel extends Kernel
 {
     use MicroKernelTrait;
 
-    public function __construct(private readonly bool $importBundleRoutes)
+    /**
+     * @param array<string, mixed> $wikiConfig extra nowo_wiki options (1.21 hooks test), with $variant naming its cache
+     */
+    public function __construct(private readonly bool $importBundleRoutes, private readonly array $wikiConfig = [], private readonly string $variant = '')
     {
         parent::__construct('test', true);
     }
@@ -60,7 +67,7 @@ final class RoutingTestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return $this->getProjectDir() . '/' . ($this->importBundleRoutes ? 'imported' : 'controllers-only') . '/cache';
+        return $this->getProjectDir() . '/' . ($this->importBundleRoutes ? 'imported' : 'controllers-only') . $this->variant . '/cache';
     }
 
     public function getLogDir(): string
@@ -100,7 +107,14 @@ final class RoutingTestKernel extends Kernel
         $container->extension('nowo_wiki', [
             'user_class' => TestUserEntity::class,
             'security'   => ['allow_unauthenticated' => true],
-        ]);
+        ] + $this->wikiConfig);
+        if ($this->variant !== '') {
+            $container->extension('twig', ['paths' => [__DIR__ . '/templates' => null]]);
+            $services = $container->services();
+            $services->set('security.csrf.token_manager', KnownValueCsrfTokenManager::class)->public();
+            $services->alias(CsrfTokenManagerInterface::class, 'security.csrf.token_manager');
+            $services->set(RecordingQuotaListener::class)->tag('kernel.event_listener', ['event' => WikiEvents::QUOTA_CHECK, 'method' => 'onCheck']);
+        }
     }
 
     private function configureRoutes(RoutingConfigurator $routes): void

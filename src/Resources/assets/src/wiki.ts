@@ -1,4 +1,5 @@
 import { bindWikiComments } from './wiki-comments';
+import { bindCommentsModeration } from './wiki-comments-moderation';
 import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 
 /**
@@ -316,5 +317,6 @@ document.documentElement.classList.add('wiki-ready');
 initWikiTrees();
 bindWikiTree();
 bindWikiComments();
+bindCommentsModeration();
 whenLoaded(() => void renderWikiRichContent());
 observeScrollableCode(codeLabel(document.currentScript));

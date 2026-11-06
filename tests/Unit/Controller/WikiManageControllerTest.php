@@ -26,6 +26,8 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
@@ -45,12 +47,14 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
+use Nowo\WikiBundle\Search\WikiSearchScopeListener;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
@@ -177,6 +181,26 @@ final class WikiManageControllerTest extends TestCase
             self::assertSame('wiki.search.query', $filters->children['q']->vars['label']);
             self::assertSame('wiki.search.placeholder', $filters->children['q']->vars['attr']['placeholder']);
         }
+    }
+
+    /** 1.21 search.scope: space (the listener set spaceSlug): no "all spaces" choice, the space stays a hidden field. */
+    public function testSearchSpaceIsHiddenWithTheSpaceScope(): void
+    {
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        WikiControllerContainerBuilder::bind($controller, new TestUser('user-1'), ['twig' => $twig]);
+
+        $request = Request::create('/search?space=eng&q=deploy');
+        $request->attributes->set(WikiSearchScopeListener::ATTRIBUTE, 'eng');
+        $controller->search($request);
+        $filters = $twig->context['page']->filters;
+        self::assertInstanceOf(FormView::class, $filters);
+        self::assertContains('hidden', $filters->children['space']->vars['block_prefixes']);
+        self::assertSame('eng', $filters->children['space']->vars['value']);
     }
 
     public function testIndexPaginatesSpaces(): void
@@ -1889,6 +1913,108 @@ MD);
         }
     }
 
+    public function testNewPageRefusedByTheQuotaShowsTheReasonAndWritesNothing(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('countBySpaceAndSlug')->willReturn(0);
+        $pageRepo->expects(self::never())->method('save');
+
+        $seen       = [];
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, quota: $this->refusingQuota('Your plan allows 10 pages.', $seen));
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $response = $controller->newPage($this->createWikiPageFormRequest($container, 'wiki_new_' . $space->getId(), ['title' => 'New doc']), 'eng');
+
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $response->getStatusCode());
+        self::assertSame(['Your plan allows 10 pages.'], $this->flashes($container, 'error'));
+        self::assertCount(1, $seen);
+        self::assertSame(WikiQuotaCheckEvent::PAGE_CREATE, $seen[0]->action);
+        self::assertSame($space, $seen[0]->space);
+        self::assertSame(1, $seen[0]->count);
+        self::assertNull($seen[0]->page);
+    }
+
+    public function testImportSpaceRefusedByTheQuotaFlashesTheReasonAndImportsNothing(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->expects(self::never())->method('save');
+
+        $seen       = [];
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, quota: $this->refusingQuota('No more pages on this plan.', $seen));
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'wiki-quota-');
+        $zip     = new ZipArchive();
+        self::assertTrue($zip->open($zipPath, ZipArchive::OVERWRITE));
+        $zip->addFromString('one.md', "# One\n");
+        $zip->addFromString('two.md', "# Two\n");
+        $zip->addFromString('notes.txt', 'not a document');
+        $zip->close();
+        $bytes   = (int) filesize($zipPath);
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        try {
+            $response = $controller->importSpace($request, 'eng');
+        } finally {
+            @unlink($zipPath);
+        }
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        self::assertSame(['No more pages on this plan.'], $this->flashes($container, 'error'));
+        self::assertSame(WikiQuotaCheckEvent::IMPORT, $seen[0]->action);
+        // Audit GV-M1: every Markdown document of the archive.
+        self::assertSame(2, $seen[0]->count);
+        self::assertSame($bytes, $seen[0]->bytes);
+    }
+
+    /** With a listener the archive is read before the check: a broken one fails as it does without one, unasked. */
+    public function testImportSpaceWithABrokenArchiveNeverAsksTheQuota(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $seen       = [];
+        $controller = $this->controller(spaceAccessResolver: $resolver, quota: $this->refusingQuota('No.', $seen));
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'wiki-quota-');
+        file_put_contents($zipPath, str_repeat('x', 300));
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        try {
+            $response = $controller->importSpace($request, 'eng');
+        } finally {
+            @unlink($zipPath);
+        }
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        self::assertSame([], $seen);
+        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.import.failed', ['%reason%' => 'Unable to open ZIP archive.']);
+    }
+
     public function testImportSpaceRejectsInvalidCsrf(): void
     {
         $user  = new TestUser('user-1');
@@ -2064,6 +2190,7 @@ MD);
         ?WikiCollabService $collab = null,
         ?WikiHistoryTimeline $timeline = null,
         ?WikiCommentsPanel $commentsPanel = null,
+        ?WikiQuotaGate $quota = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -2113,7 +2240,24 @@ MD);
             collab: $collab,
             timeline: $timeline,
             commentsPanel: $commentsPanel,
+            quota: $quota,
         );
+    }
+
+    /**
+     * 1.21: a quota gate whose listener refuses every check with the reason, recording what it was asked.
+     *
+     * @param list<WikiQuotaCheckEvent> $seen
+     */
+    private function refusingQuota(string $reason, array &$seen): WikiQuotaGate
+    {
+        $events = new EventDispatcher();
+        $events->addListener(WikiEvents::QUOTA_CHECK, static function (WikiQuotaCheckEvent $event) use ($reason, &$seen): void {
+            $seen[] = $event;
+            $event->deny($reason);
+        });
+
+        return new WikiQuotaGate($events);
     }
 
     /**

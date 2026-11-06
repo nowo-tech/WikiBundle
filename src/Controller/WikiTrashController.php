@@ -8,12 +8,14 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Form\WikiPostActionType;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
@@ -33,6 +35,7 @@ use function array_filter;
 use function array_map;
 use function array_values;
 use function count;
+use function max;
 use function preg_match;
 
 /**
@@ -65,6 +68,7 @@ final class WikiTrashController extends AbstractController
         private readonly ?WikiTrashService $trash = null,
         private readonly ?WikiTokenGuard $tokenGuard = null,
         private readonly ?TranslatorInterface $translator = null,
+        private readonly ?WikiQuotaGate $quota = null,
     ) {
     }
 
@@ -154,6 +158,13 @@ final class WikiTrashController extends AbstractController
         $this->spaceGuard->requireGranted($user, WikiAction::Delete, $space, $root->getPage());
         if (!$this->isValidCsrf($request, 'wiki_trash_restore_' . $batchId)) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
+        }
+        // 1.21: the pages come back, so the host may refuse them (plan limits).
+        $refusal = $this->quota?->refusal(WikiQuotaCheckEvent::TRASH_RESTORE, $user, $space, max(1, count($trash->batch($space, $batchId))), 0, $root->getPage());
+        if ($refusal !== null) {
+            $this->addFlash('error', $refusal);
+
+            return $this->redirectToRoute($this->routes['space_trash']['name'], ['spaceSlug' => $space->getSlug()]);
         }
 
         $page = $trash->restore($space, $batchId, $user);

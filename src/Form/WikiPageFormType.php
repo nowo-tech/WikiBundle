@@ -39,6 +39,8 @@ final class WikiPageFormType extends AbstractType
         $this->withBuilder($builder, function () use ($options): void {
             $this->addTextField('title', [
                 'label' => 'wiki.form.title',
+                // An empty title reaches the slug check (a flash), not the string property as null (a 500).
+                'empty_data' => '',
             ]);
             if (Configuration::storesMarkdown($options['editor_type'])) {
                 $this->addMarkdownContent($options);

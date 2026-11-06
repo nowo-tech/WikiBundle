@@ -13,6 +13,8 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Form\WikiVersionLabelType;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
@@ -22,6 +24,7 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
@@ -215,6 +218,24 @@ final class WikiHistoryControllerTest extends TestCase
         self::assertSame('Before the move', $this->labels->findForRevision($this->md)?->getLabel());
     }
 
+    public function testACopyTheQuotaRefusesIsNotMade(): void
+    {
+        $seen     = [];
+        $response = $this->controller(quota: $this->refusingQuota($seen))->copyVersion($this->post(WikiHistoryController::copyTokenId($this->md)), 'eng', 'run', 2);
+
+        self::assertSame('/nowo_wiki_page_history?spaceSlug=eng&pageSlug=run', $response->getTargetUrl());
+        self::assertSame(['Plan limit reached.'], $this->errors());
+        self::assertNull((new DoctrineOrmWikiPageRepository($this->em))->findBySlug($this->space, 'run-v2'));
+        self::assertSame(WikiQuotaCheckEvent::PAGE_CREATE, $seen[0]->action);
+        self::assertSame('run', $seen[0]->page?->getSlug());
+
+        // Without a history route the refusal goes back to the page.
+        $routes = PageFixtures::routes();
+        unset($routes['page_history']);
+        $response = $this->controller(routes: $routes, quota: $this->refusingQuota($seen))->copyVersion($this->post(WikiHistoryController::copyTokenId($this->md)), 'eng', 'run', 2);
+        self::assertSame('/nowo_wiki_page_view?spaceSlug=eng&pageSlug=run', $response->getTargetUrl());
+    }
+
     public function testCopyRefusals(): void
     {
         $token = WikiHistoryController::copyTokenId($this->md);
@@ -265,6 +286,35 @@ final class WikiHistoryControllerTest extends TestCase
     }
 
     /**
+     * 1.21: a quota gate whose listener refuses every check, recording the events.
+     *
+     * @param list<WikiQuotaCheckEvent> $seen
+     */
+    private function refusingQuota(array &$seen): WikiQuotaGate
+    {
+        $events = new EventDispatcher();
+        $events->addListener(WikiEvents::QUOTA_CHECK, static function (WikiQuotaCheckEvent $event) use (&$seen): void {
+            $seen[] = $event;
+            $event->deny('Plan limit reached.');
+        });
+
+        return new WikiQuotaGate($events);
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function errors(): array
+    {
+        /** @var RequestStack $stack */
+        $stack = $this->container->get('request_stack');
+        /** @var FlashBagAwareSessionInterface $session */
+        $session = $stack->getSession();
+
+        return $session->getFlashBag()->get('error');
+    }
+
+    /**
      * @return array{0: string, 1: array<string, mixed>}
      */
     private function flash(): array
@@ -299,7 +349,7 @@ final class WikiHistoryControllerTest extends TestCase
      * @param (Closure(WikiAction, WikiSpace, ?WikiPage): bool)|null $decide
      * @param array<string, array{path: string, name: string}>|null $routes
      */
-    private function controller(bool $enabled = true, bool $user = true, ?WikiTokenGuard $guard = null, ?Closure $decide = null, bool $roles = true, ?array $routes = null, bool $translator = false): WikiHistoryController
+    private function controller(bool $enabled = true, bool $user = true, ?WikiTokenGuard $guard = null, ?Closure $decide = null, bool $roles = true, ?array $routes = null, bool $translator = false, ?WikiQuotaGate $quota = null): WikiHistoryController
     {
         $checker = $this->createStub(WikiAccessCheckerInterface::class);
         $checker->method('canEdit')->willReturn($roles);
@@ -331,6 +381,7 @@ final class WikiHistoryControllerTest extends TestCase
                     return 'en';
                 }
             } : null,
+            $quota,
         );
         $this->container = WikiControllerContainerBuilder::bind($controller, $user ? $this->author : null, ['twig' => $this->twig]);
         $this->container->set('router', PageFixtures::urlGenerator());

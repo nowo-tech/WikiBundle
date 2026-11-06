@@ -15,20 +15,26 @@
 {% extends '@NowoUiKit/page/form.html.twig' %}
 
 {% block nowo_ui_styles %}
-    {{ parent() }}
-    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {#- 1.21 web_ui.assets.styles: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.styles ?? true %}
+        {{ parent() }}
+        <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {% endif %}
 {% endblock %}
 
 {% block nowo_ui_scripts %}
-    {{ parent() }}
-    {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
-    {# 1.13.1: the Tiptap script only for the Tiptap editor (the Milkdown widget adds its own module; Markdown needs none). #}
-    {% if editor_type|default('tiptap') == 'tiptap' %}
-        <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
-    {% endif %}
-    {% if comments|default(null) %}
-        <script src="{{ asset('js/nowo-ui-side-panel.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
-        <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans({}, 'NowoWikiBundle') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+    {#- 1.21 web_ui.assets.scripts: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.scripts ?? true %}
+        {{ parent() }}
+        {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+        {# 1.13.1: the Tiptap script only for the Tiptap editor (the Milkdown widget adds its own module; Markdown needs none). #}
+        {% if editor_type|default('tiptap') == 'tiptap' %}
+            <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        {% endif %}
+        {% if comments|default(null) %}
+            <script src="{{ asset('js/nowo-ui-side-panel.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+            <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans({}, 'NowoWikiBundle') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        {% endif %}
     {% endif %}
 {% endblock %}
 

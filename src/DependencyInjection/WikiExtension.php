@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\DependencyInjection;
 
+use ArrayObject;
 use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
@@ -73,6 +74,7 @@ use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
+use Nowo\WikiBundle\Search\WikiSearchScopeListener;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
@@ -106,6 +108,7 @@ use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -128,12 +131,16 @@ use function str_ends_with;
 use function str_starts_with;
 use function strtolower;
 use function trigger_deprecation;
+use function trim;
 
 /**
  * Loads bundle configuration and registers services.
  */
 final class WikiExtension extends Extension implements PrependExtensionInterface
 {
+    /** 1.21: service id of the Twig global `nowo_wiki_web_ui` (an ArrayObject of %nowo_wiki.web_ui%). */
+    public const WEB_UI_GLOBAL = 'nowo_wiki.web_ui_global';
+
     /** 1.13: elements of the Milkdown dialect markup kept by the sanitizer with editor.type milkdown. */
     public const MILKDOWN_SANITIZER_ELEMENTS = ['details' => ['open'], 'summary' => []];
 
@@ -192,6 +199,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if (!$config['ai']['enabled']) {
             unset($config['routes']['ai_ask']);
         }
+        // 1.21: without the space index its route is not registered (404, no link). Decided at compile time, so literal.
+        if (!$this->literalBool($config['web_ui']['space_index'], 'web_ui.space_index')) {
+            unset($config['routes']['index']);
+        }
         if ($config['security']['allow_unauthenticated']) {
             $this->refuseAllowUnauthenticatedInProduction($container);
         }
@@ -249,7 +260,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'layout_template' => $templates['layout'],
             'path_prefix'     => self::pathPrefix($config),
             'templates'       => array_diff_key($templates, ['layout' => true]),
-        ]);
+            // 1.21: read by the page templates through the Twig global nowo_wiki_web_ui.
+            'space_index' => (bool) $config['web_ui']['space_index'],
+        ] + self::ui($config['web_ui']));
+        // 1.21 (audit GV-L1): the Twig global. A service, not %nowo_wiki.web_ui%: TwigExtension resolves a parameter while it
+        // loads, so with TwigBundle registered first the global would hold the prepend() defaults, not this config.
+        $container->setDefinition(self::WEB_UI_GLOBAL, new Definition(ArrayObject::class, ['%nowo_wiki.web_ui%']));
+        $container->setParameter('nowo_wiki.search.scope', $config['search']['scope']);
         $container->setParameter('nowo_wiki.web_ui.enabled', (bool) $config['web_ui']['enabled']);
         $container->setParameter('nowo_wiki.web_ui.css_framework', $config['web_ui']['css_framework']);
         $container->setParameter('nowo_wiki.security.roles', $roles);
@@ -512,7 +529,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     private function registerComments(ContainerBuilder $container, array $config, Reference $entityManager, string $anchorClass = CommentAnchor::class): void
     {
-        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, limits: array{threads_per_page: int, total_threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
+        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, moderation_panel: mixed, error_notices: bool, limits: array{threads_per_page: int, total_threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
         $comments = $config['comments'];
         if (!$comments['enabled']) {
             return;
@@ -572,7 +589,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$shortcut', $comments['shortcut'])
             ->setArgument('$profiles', new Reference(ProfileRegistry::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$forms', new Reference('form.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$readViewSource', $comments['read_view_source']));
+            ->setArgument('$readViewSource', $comments['read_view_source'])
+            ->setArgument('$moderationPanel', $this->literalBool($comments['moderation_panel'], 'comments.moderation_panel'))
+            ->setArgument('$errorNotices', $comments['error_notices']));
     }
 
     /**
@@ -775,7 +794,42 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$routes', $config['routes'])
             ->setArgument('$pages', new Reference(WikiPages::class))
             ->setArgument('$dashboardRoute', $config['dashboard_route'])
-            ->setArgument('$tabIcons', $config['web_ui']['tab_icons']));
+            ->setArgument('$tabIcons', $config['web_ui']['tab_icons'])
+            ->setArgument('$importExportDialog', $config['web_ui']['import_export'] === 'dialog'));
+        // 1.21 (search.scope: space): the search page answers inside one space only.
+        if ($config['search']['scope'] === 'space' && isset($config['routes']['search'])) {
+            $container->setDefinition(WikiSearchScopeListener::class, (new Definition(WikiSearchScopeListener::class))
+                ->setArgument('$routeName', $config['routes']['search']['name'])
+                ->addTag('kernel.event_listener', ['event' => KernelEvents::REQUEST, 'priority' => 30]));
+        }
+    }
+
+    /**
+     * 1.21: the page options of the templates (Twig global `nowo_wiki_web_ui`): assets, slots and the import / export
+     * placement.
+     *
+     * @param array<string, mixed> $webUi processed `web_ui` node
+     *
+     * @throws InvalidConfigurationException when a slot is not a template name
+     *
+     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string}
+     */
+    public static function ui(array $webUi): array
+    {
+        $slots = [];
+        foreach (WikiPages::SLOTS as $slot) {
+            $template = $webUi['slots'][$slot] ?? null;
+            if ($template !== null && (!is_string($template) || trim($template) === '')) {
+                throw new InvalidConfigurationException(sprintf('nowo_wiki.web_ui.slots.%s must be a template name or null.', $slot));
+            }
+            $slots[$slot] = $template;
+        }
+
+        return [
+            'assets'        => ['styles' => (bool) ($webUi['assets']['styles'] ?? true), 'scripts' => (bool) ($webUi['assets']['scripts'] ?? true)],
+            'slots'         => $slots,
+            'import_export' => ($webUi['import_export'] ?? 'page') === 'dialog' ? 'dialog' : 'page',
+        ];
     }
 
     /**
@@ -948,7 +1002,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     public function prepend(ContainerBuilder $container): void
     {
-        // Parameter must exist before Twig globals resolve during container build.
+        // Defaults for host config that reads %nowo_wiki.web_ui% before load(); the Twig global is a service (see load()).
         if (!$container->hasParameter('nowo_wiki.web_ui')) {
             $container->setParameter('nowo_wiki.web_ui', [
                 'enabled'         => true,
@@ -962,7 +1016,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if ($container->hasExtension('twig')) {
             $container->prependExtensionConfig('twig', [
                 'globals' => [
-                    'nowo_wiki_web_ui' => '%nowo_wiki.web_ui%',
+                    'nowo_wiki_web_ui' => '@' . self::WEB_UI_GLOBAL,
                 ],
             ]);
         }

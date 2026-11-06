@@ -66,6 +66,29 @@
 
 ## Unreleased
 
+From **1.20.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+php bin/console assets:install
+```
+
+- No BC break: every new option defaults to the 1.20 behaviour, `nowo_wiki.quota.check` changes nothing without a
+  listener, and the new tree tokens default to the 1.20 values. Refresh the installed `wiki.js` and `wiki.css`.
+- A host overriding `manage/space.html.twig` or `manage/_comments_panel_body.html.twig` under
+  `templates/bundles/NowoWikiBundle/` does not get the new parts until it merges them. Prefer the new blocks and
+  `web_ui.slots` over a copy ([CONFIGURATION › Host hooks](CONFIGURATION.md#host-hooks-121)).
+- Plan limits: replace a `kernel.controller` listener with one on `nowo_wiki.quota.check`. It also covers `trash_restore`
+  and the copy of a version (`page_create`); an import reports its Markdown documents as `count`. The CLI commands
+  (`wiki:import`) do not dispatch it, and page edits, revision restore and comments are not metered.
+- The Twig global `nowo_wiki_web_ui` is now an `ArrayObject` service with the same keys. Templates read it as before; a
+  host passing it to PHP code that type-hints `array` must convert it.
+- A route guard that hides the index or the search without a space: replace it with `web_ui.space_index: false` and
+  `search.scope: space`. `space_index` must be a literal boolean (an env placeholder is refused at compile time).
+- A forked comments panel: delete it and set `comments.moderation_panel: true` and `comments.error_notices: true`.
+- Hosts that bundle the assets (`web_ui.assets: false`) must add `wiki-comments-moderation.ts` through `wiki.ts`, and the
+  UiKit scripts the pages no longer print (see [CONFIGURATION › Host hooks](CONFIGURATION.md#host-hooks-121)).
+
 ## To 1.20.0
 
 From **1.19.1**:

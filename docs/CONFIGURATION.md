@@ -51,7 +51,7 @@ Root key: `nowo_wiki`.
 - [Milkdown editor (1.13)](#milkdown-editor-113)
 - [Page tree (1.14)](#page-tree-114)
 - [Trash (1.14)](#trash-114)
-- [Page files (unreleased)](#page-files-unreleased)
+- [Page files (1.20)](#page-files-120)
 - [History timeline (1.15)](#history-timeline-115)
 - [Comments (1.16)](#comments-116)
 - [Avatars (1.16)](#avatars-116)
@@ -60,6 +60,7 @@ Root key: `nowo_wiki`.
 - [Space access and tenant paths (1.9)](#space-access-and-tenant-paths-19)
 - [Attachments (1.9)](#attachments-19)
 - [Web UI (REQ-UI-001 / REQ-UI-003)](#web-ui-req-ui-001--req-ui-003)
+- [Host hooks (1.21)](#host-hooks-121)
 - [Roles per action (REQ-UI-003)](#roles-per-action-req-ui-003)
 - [Pagination (REQ-PERF-001)](#pagination-req-perf-001)
 - [Import / export](#import--export)
@@ -200,7 +201,7 @@ Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): a delete 
 and a restore brings them back together (D-W29); pages archived before the delete stay archived (D-W30); a restored
 page whose parent is gone meanwhile comes back at the top level (D-W31).
 
-## Page files (unreleased)
+## Page files (1.20)
 
 The files a page refers to: Milkdown 1.8 file cards `::file[name]{href="…" size="…" type="…"}` (uploads that are not
 images, MilkdownEditorBundle feature `file_cards`) and images `![alt](url)`. The host owns their storage (its
@@ -332,6 +333,8 @@ nowo_wiki:
 | `comments.limits.*` | 500 / 50 / 1000 / 500 / 20 / 10 | Open threads per page, open threads one user starts on one page (1.16.1), every thread of a page including resolved ones (1.16.1), comments per thread, distinct emoji per comment, reactions of one user per comment (422 `limit_reached` beyond) |
 | `comments.state_store` | null | Service id of a `WikiPanelStateStoreInterface` (open / closed per user); the session by default |
 | `comments.read_view_source` | `false` | Literal boolean. `false`: on the read view only editors get the read-only Milkdown mount (inline highlights) and so the page source; other commenters get the threads rendered by the server. `true`: every viewer with `ViewComments` gets the mount **and the Markdown source** ([SECURITY](SECURITY.md#comments-threat-model-116)) |
+| `comments.moderation_panel` | `false` | 1.21, literal boolean. `true`: users with `ModerateComments` get *Moderate threads* in the panel: the threads of the page (at most the 50 of `GET …/threads`), each with *Delete thread* behind a confirm dialog (`DELETE …/threads/{id}`). The endpoint exists either way |
+| `comments.error_notices` | `false` | 1.21. `true`: a write refused with 422 or 429 shows its own text (a UiKit toast when the toast script is loaded, else a notice in the panel). The Milkdown event only carries the status, so every 422 reads as `wiki.comments.error.limit_reached` |
 | `comments.shortcut` | null | Modifiers + one key (`Control`, `Alt`, `Shift`, `Meta`), e.g. `Alt+Shift+C` |
 | `routes.page_comments` | `…/pages/{pageSlug}/comments/{path}` | The thread component's endpoints (a custom path must end with `/{path}`) |
 | `routes.space_panel_state` | `…/spaces/{spaceSlug}/panel-state` | `POST {panel: "comments", open}` (204) |
@@ -456,6 +459,75 @@ nowo_wiki:
 - **Dialogs:** the AI question of the index is a UiKit `<dialog>` (`data-nowo-ui-dialog-open`); Archive and Restore go through the UiKit confirm `<dialog>` (POST + CSRF). Load the UiKit runtime scripts in the host layout (`{{ include(nowo_ui_partial('scripts')) }}`, done by the UiKit layouts and the bridge).
 - **Flashes:** messages are translated in the `NowoWikiBundle` domain when they are added, so the layout's `nowo_ui_flashes` prints them as given.
 - **CSRF (fail closed):** with `web_ui.enabled: true` the container refuses to compile without `framework.csrf_protection` / `framework.form.csrf_protection` (`symfony/security-csrf`).
+
+## Host hooks (1.21)
+
+Options for a host that keeps its own shell around the wiki. Every default is the 1.20 behaviour.
+
+```yaml
+# config/packages/nowo_wiki.yaml
+nowo_wiki:
+    web_ui:
+        space_index: true          # false: the index route is not registered (404, no breadcrumb link); literal boolean
+        import_export: page        # dialog: one "Import & export" header action opens a dialog with both
+        assets: true               # false, or {styles: false} / {scripts: false}
+        slots:                     # host templates, included with the page variables; null = the bundle part
+            sidebar: null          # the page tree card (space home, page view)
+            space_intro: null      # the search card (space home)
+            page_header_extra: null  # after the page header, before the tab row (page view)
+    search:
+        scope: all                 # space: a request without a valid ?space= is 404
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `web_ui.space_index` | `true` | `false`: `routes.index` is unset, so `/tools/wiki` is 404 and the breadcrumbs lose its link. For hosts whose spaces live under their own pages (`tenant_paths`). Literal boolean |
+| `search.scope` | `all` | `space`: `WikiSearchScopeListener` (`kernel.request`, priority 30, registered only with this value) answers 404 without a valid `?space=` and sets the request attribute `spaceSlug`, for host listeners, tabs and breadcrumbs. Access to the space is still checked by the controller. The search page has no space choice and the index search form no "all spaces" choice |
+| `web_ui.import_export` | `page` | `dialog`: the exports leave the header and the import card leaves the page, into `manage/_import_export_dialog.html.twig` (UiKit `dialog`; users who may neither import nor export get neither the action nor the dialog) |
+| `web_ui.assets` | `true` | `false` or `{styles: false, scripts: false}`: the `nowo_ui_styles` / `nowo_ui_scripts` blocks of every page print nothing. That also leaves out what the scaffold prints there: the UiKit stylesheet and tokens, and the UiKit runtime scripts. A host bundling the assets loads `src/Resources/assets/src/wiki.css`, `wiki.ts` and the UiKit equivalents itself. Literal booleans (an env placeholder counts as `true`) |
+| `web_ui.slots.*` | null | A template name; the bundle part is not drawn. The same places are the blocks `wiki_sidebar`, `wiki_space_intro` and `wiki_page_header_extra`, for a `web_ui.templates.<page>` that extends the bundle page. Slot templates are trusted host code; escape what they print |
+
+### Quota event
+
+`nowo_wiki.quota.check` (`WikiEvents::QUOTA_CHECK`, `WikiQuotaCheckEvent`) runs **before** a metered write, after the
+access and CSRF checks. `deny(reason)` refuses it and stops the other listeners. Without a listener nothing changes.
+
+| `action` | When | `count` | `bytes` | Refusal |
+|----------|------|---------|---------|---------|
+| `page_create` | New page; *Copy to new page* of a version | 1 | 0 | Error flash on the form, 422 (the copy: error flash, redirect to the history) |
+| `page_unarchive` | An archived page comes back | 1 | 0 | Error flash, redirect to the space |
+| `trash_restore` | A deletion comes back from the trash | Pages of the deletion | 0 | Error flash, redirect to the trash |
+| `import` | An import archive | Markdown documents of the archive | Archive size | Error flash, redirect to the space; nothing is written |
+| `attachment_upload` | A file attached to a page | 1 | File size | 422 `{"error": "quota_exceeded", "reason": "…"}` |
+
+The event also has `space`, `user` and `page` (the page concerned, null for a new page or an import). `reason` is plain
+text: control and format characters are removed (invalid UTF-8 is scrubbed), it is cut at 500 characters and escaped
+wherever it is shown; an empty one becomes `wiki.quota.denied`. A listener that throws fails the request.
+
+An import's `count` is an upper bound of the new pages: a document that later updates an existing page, is skipped or
+fails still counts. The archive is read for it only when a listener exists.
+
+Limits: the check and the write are not one transaction, so a strict quota must also be enforced where the host counts
+(two parallel requests can both pass). `wiki:import` and direct calls to `WikiPageService` do not dispatch the event.
+**Not metered:** page edits (a body can grow), revision restore, comments and co-editing updates. `page_create` reports
+`bytes: 0` and an import the compressed size, so the event is no hook for a quota on page bytes.
+
+### Tree tokens
+
+`wiki.css` reads these on `.nowo-wiki-tree` (set them on `.nowo-wiki-sidebar` or any ancestor); the defaults are the 1.20
+values. They style the nested list; `tree.enabled` draws the UiKit `tree` partial, which has its own tokens.
+
+| Token | Default |
+|-------|---------|
+| `--nowo-wiki-tree-gap` | `0` |
+| `--nowo-wiki-tree-indent` | `0.85rem` |
+| `--nowo-wiki-tree-guide` | `var(--nowo-ui-border, #e2e8f0)` |
+| `--nowo-wiki-tree-link-padding` | `0.25rem 0.5rem` |
+| `--nowo-wiki-tree-font-size` / `--nowo-wiki-tree-line-height` | `inherit` |
+| `--nowo-wiki-tree-radius` | `var(--nowo-ui-radius, 0.375rem)` |
+| `--nowo-wiki-tree-hover-bg` | `var(--nowo-ui-surface-muted, #f6f8fb)` |
+| `--nowo-wiki-tree-current-bg` | `var(--nowo-ui-surface-muted, #f6f8fb)` |
+| `--nowo-wiki-tree-current-fg` | `var(--nowo-ui-primary, #2563eb)` |
 
 ## Roles per action (REQ-UI-003)
 
