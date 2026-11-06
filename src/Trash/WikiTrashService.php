@@ -11,9 +11,13 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiPageFilesPurgedEvent;
 use Nowo\WikiBundle\Event\WikiTrashEvent;
+use Nowo\WikiBundle\PageFile\WikiPageFile;
+use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\ValueObject\Uuid;
@@ -47,6 +51,9 @@ final readonly class WikiTrashService
     /** Expired deletions read per round of the retention. */
     private const EXPIRED_PAGE = 100;
 
+    /** Revisions read per round when the purged pages' files are listed (1.20). */
+    private const REVISION_PAGE = 200;
+
     /** Pages read at most for one deletion (the space's pages, archived included). */
     private const MAX_PAGES = 100000;
 
@@ -59,6 +66,8 @@ final readonly class WikiTrashService
         private ?WikiAttachmentRepositoryInterface $attachmentRepository = null,
         private int $retentionDays = 30,
         private LoggerInterface $logger = new NullLogger(),
+        private ?WikiPageFileExtractor $pageFiles = null,
+        private ?WikiPageRevisionRepositoryInterface $revisions = null,
     ) {
     }
 
@@ -196,7 +205,8 @@ final readonly class WikiTrashService
                     }
                 }
             }
-            $ids = array_map(static fn (WikiPage $p): string => $p->getId(), $pages);
+            $ids   = array_map(static fn (WikiPage $p): string => $p->getId(), $pages);
+            $files = $this->referencedFiles($pages);
             $this->trash->deletePages($pages);
             $this->writer->commitSpaceTransaction();
         } catch (Throwable $exception) {
@@ -215,8 +225,42 @@ final readonly class WikiTrashService
         }
         $this->logger->info('Wiki trash purged.', ['bundle' => 'nowo_wiki', 'action' => 'trash_purge', 'space' => $space->getSlug(), 'pages' => count($ids)]);
         $this->dispatcher->dispatch(new WikiTrashEvent($space, $batchId, $title, $ids, $actor), WikiEvents::TRASH_PURGED);
+        if ($files !== []) {
+            // 1.20 (`page_files.purge_event`): the host deletes the files it stores for these pages.
+            $this->dispatcher->dispatch(new WikiPageFilesPurgedEvent($space, $batchId, $ids, $files, $actor), WikiEvents::PAGE_FILES_PURGED);
+        }
 
         return count($ids);
+    }
+
+    /**
+     * The files every revision of the pages refers to (1.20), read before the rows go; empty without
+     * `page_files.purge_event`.
+     *
+     * @param list<WikiPage> $pages pages being purged
+     *
+     * @return list<WikiPageFile>
+     */
+    private function referencedFiles(array $pages): array
+    {
+        if (!$this->pageFiles instanceof WikiPageFileExtractor || !$this->revisions instanceof WikiPageRevisionRepositoryInterface) {
+            return [];
+        }
+        $files = [];
+        foreach ($pages as $page) {
+            $offset = 0;
+            do {
+                $revisions = $this->revisions->findByPage($page, self::REVISION_PAGE, $offset);
+                $offset += self::REVISION_PAGE;
+                foreach ($revisions as $revision) {
+                    foreach ($this->pageFiles->files($revision->getContentMarkdown()) as $file) {
+                        $files[$file->url] ??= $file;
+                    }
+                }
+            } while (count($revisions) === self::REVISION_PAGE);
+        }
+
+        return array_values($files);
     }
 
     /**

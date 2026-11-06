@@ -64,6 +64,23 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringContainsString('Ticket #42', $html);
     }
 
+    /** 1.20 (page_files): the "Files" card lists the files of the page, escaped, links with rel="noopener noreferrer". */
+    public function testPageViewListsThePageFiles(): void
+    {
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView()))->html;
+
+        self::assertStringContainsString('aria-labelledby="nowo-wiki-files-title" data-testid="wiki-page-files"', $html);
+        self::assertStringContainsString('id="nowo-wiki-files-title">Files</h2>', $html);
+        self::assertStringContainsString('<a href="/files/q3?a=1&amp;b=2" class="nowo-wiki-files__link" rel="noopener noreferrer">Q3 &lt;report&gt;.pdf</a>', $html);
+        self::assertStringContainsString('File · 1.2 MB', $html);
+        // An image without alt text shows its URL.
+        self::assertStringContainsString('rel="noopener noreferrer">/files/flow.png</a>', $html);
+        self::assertStringContainsString('data-kind="image"', $html);
+
+        $readOnly = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(false)))->html;
+        self::assertStringNotContainsString('wiki-page-files', $readOnly);
+    }
+
     public function testPageViewSanitizesTheContent(): void
     {
         $context                 = PageFixtures::pageView();

@@ -52,6 +52,7 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
@@ -345,6 +346,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerCollaboration($container, $config);
         $this->registerTree($container, $config);
         $this->registerTrash($container, $config, $emProviderRef);
+        $this->registerPageFiles($container, $config);
         $this->registerAvatars($container, $config);
         $this->registerHistory($container, $config, $emProviderRef);
         $this->registerComments($container, $config, $emProviderRef);
@@ -600,6 +602,31 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$retentionDays', $trash['retention_days'])
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+    }
+
+    /**
+     * 1.20: the files a page refers to — the page view lists them (`page_files.enabled`, the controller gets the
+     * extractor) and the trash purge reports them to the host (`page_files.purge_event`, needs the trash).
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerPageFiles(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool, purge_event: bool, max_files: int} $files */
+        $files = $config['page_files'];
+        if ($files['enabled']) {
+            $container->setDefinition(WikiPageFileExtractor::class, (new Definition(WikiPageFileExtractor::class))
+                ->setArgument('$maxFiles', $files['max_files']));
+        }
+        if (!$files['purge_event']) {
+            return;
+        }
+        if (!$container->hasDefinition(WikiTrashService::class)) {
+            throw new LogicException('nowo_wiki.page_files.purge_event needs nowo_wiki.trash.enabled: files are reported when the trash purges pages.');
+        }
+        $container->getDefinition(WikiTrashService::class)
+            ->setArgument('$pageFiles', (new Definition(WikiPageFileExtractor::class))->setArgument('$maxFiles', $files['max_files']))
+            ->setArgument('$revisions', new Reference(WikiPageRevisionRepositoryInterface::class));
     }
 
     /**

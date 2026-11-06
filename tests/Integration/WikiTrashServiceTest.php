@@ -19,10 +19,14 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiPageFilesPurgedEvent;
 use Nowo\WikiBundle\Event\WikiTrashEvent;
+use Nowo\WikiBundle\PageFile\WikiPageFile;
+use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
@@ -177,6 +181,59 @@ final class WikiTrashServiceTest extends TestCase
         self::assertNull($this->em->find(WikiPage::class, $late->getId())?->getParent());
         self::assertSame(WikiEvents::TRASH_PURGED, $this->events[1][0]);
         self::assertSame(0, $service->purge($this->space, $batch));
+    }
+
+    /** 1.20 (`page_files.purge_event`): the purge reports the files every revision of the purged pages referred to. */
+    public function testPurgeReportsTheFilesOfEveryRevisionToTheHost(): void
+    {
+        $ops = $this->page('ops');
+        $run = $this->page('run', $ops);
+        $this->em->persist(new WikiPageRevision($ops, 1, '<p>x</p>', $this->user, "::file[a.pdf]{href=\"/files/a\" size=\"5\" type=\"application/pdf\"}\n\n![shot](/files/b.png)"));
+        $this->em->persist($current = new WikiPageRevision($ops, 2, '<p>x</p>', $this->user, "![shot](/files/b.png)\n\n::file[c.csv]{href=\"/files/c\"}"));
+        $ops->setCurrentRevision($current);
+        $this->em->persist(new WikiPageRevision($run, 1, '<p>html only</p>', $this->user));
+        $keep = $this->page('keep');
+        $this->em->persist(new WikiPageRevision($keep, 1, '<p>x</p>', $this->user, '![kept](/files/kept.png)'));
+        $this->em->flush();
+
+        $files   = [];
+        $service = $this->service(pageFiles: true, onFiles: static function (WikiPageFilesPurgedEvent $event) use (&$files): void {
+            $files[] = $event;
+        });
+        $batch = $service->delete($ops, $this->user);
+        self::assertSame([], $files, 'Delete keeps the files (a restore needs them).');
+
+        self::assertSame(2, $service->purge($this->space, $batch, $this->user));
+        self::assertCount(1, $files);
+        self::assertSame($batch, $files[0]->batchId);
+        self::assertSame($this->user, $files[0]->actor);
+        self::assertCount(2, $files[0]->pageIds);
+        // Every revision, newest first, each URL once.
+        self::assertSame(['/files/b.png', '/files/c', '/files/a'], array_map(static fn (WikiPageFile $f): string => $f->url, $files[0]->files));
+        self::assertSame(5, $files[0]->files[2]->size);
+
+    }
+
+    /** 1.20: no event without files, nor without `page_files.purge_event`. */
+    public function testPurgeReportsNothingWithoutFilesOrWithoutTheOption(): void
+    {
+        $plain = $this->page('plain');
+        $other = $this->page('other');
+        $this->em->persist(new WikiPageRevision($other, 1, '<p>x</p>', $this->user, '![x](/files/x.png)'));
+        $this->em->flush();
+        $events = [];
+        $record = static function () use (&$events): void {
+            $events[] = 'files';
+        };
+
+        $quiet  = $this->service(pageFiles: true, onFiles: $record);
+        $first  = $quiet->delete($plain);
+        $off    = $this->service(onFiles: $record);
+        $second = $off->delete($other);
+        $quiet->purge($this->space, $first);
+        $off->purge($this->space, $second);
+
+        self::assertSame([], $events);
     }
 
     /** 1.16 (audit EI-L5): the comments of purged pages go too, even without enforced foreign keys (SQLite). */
@@ -353,9 +410,12 @@ final class WikiTrashServiceTest extends TestCase
         }
     }
 
-    private function service(bool $attachments = true, int $retention = 30, ?WikiTrashRepositoryInterface $repo = null, bool $failUnlink = false, ?LoggerInterface $logger = null): WikiTrashService
+    private function service(bool $attachments = true, int $retention = 30, ?WikiTrashRepositoryInterface $repo = null, bool $failUnlink = false, ?LoggerInterface $logger = null, bool $pageFiles = false, ?Closure $onFiles = null): WikiTrashService
     {
         $dispatcher = new EventDispatcher();
+        if ($onFiles instanceof Closure) {
+            $dispatcher->addListener(WikiEvents::PAGE_FILES_PURGED, $onFiles);
+        }
         foreach ([WikiEvents::PAGE_TRASHED, WikiEvents::TRASH_RESTORED, WikiEvents::TRASH_PURGED] as $name) {
             $dispatcher->addListener($name, function (WikiTrashEvent $event) use ($name): void {
                 $this->events[] = [$name, $event];
@@ -401,6 +461,8 @@ final class WikiTrashServiceTest extends TestCase
             $attachments ? $attachmentRepository : null,
             $retention,
             $logger ?? new NullLogger(),
+            $pageFiles ? new WikiPageFileExtractor() : null,
+            $pageFiles ? new DoctrineOrmWikiPageRevisionRepository($this->em) : null,
         );
     }
 

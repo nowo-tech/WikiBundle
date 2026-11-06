@@ -31,6 +31,7 @@ use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
+use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
@@ -136,6 +137,7 @@ final class WikiManageController extends AbstractController
      * @param WikiTrashService|null $trash the trash (1.14; null = trash disabled)
      * @param WikiHistoryTimeline|null $timeline the history timeline (1.15; null = the 1.14 revision list)
      * @param WikiCommentsPanel|null $commentsPanel the comments panel (1.16; null = comments disabled)
+     * @param WikiPageFileExtractor|null $pageFiles the files of the page view (1.20, `page_files.enabled`; null = off)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -173,6 +175,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiTrashService $trash = null,
         private readonly ?WikiHistoryTimeline $timeline = null,
         private readonly ?WikiCommentsPanel $commentsPanel = null,
+        private readonly ?WikiPageFileExtractor $pageFiles = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -366,12 +369,14 @@ final class WikiManageController extends AbstractController
             'max_tree_pages'   => $this->pagination['max_tree_pages'],
             'tree_search_href' => $this->treeSearchHref($space),
             'used_in'          => $pages->usedIn($this->linkService?->usedIn($page, $user) ?? []),
-            'routes'           => $this->routes,
-            'dashboard_route'  => $this->dashboardRoute,
-            'can_edit'         => $can['edit'],
-            'can_history'      => $can['history'],
-            'can_archive'      => $can['archive'],
-            'permissions'      => $permissions,
+            // 1.20 (page_files.enabled): the files the current revision refers to (file cards and images).
+            'page_files'      => $this->pageFiles?->files($revision?->getContentMarkdown()) ?? [],
+            'routes'          => $this->routes,
+            'dashboard_route' => $this->dashboardRoute,
+            'can_edit'        => $can['edit'],
+            'can_history'     => $can['history'],
+            'can_archive'     => $can['archive'],
+            'permissions'     => $permissions,
         ], null, isset($vars['copy_markdown']) || isset($vars['comments'])
             // The page carries the Markdown source (audit DR-I1) or the per-viewer comments panel and its tokens:
             // never kept by any cache.

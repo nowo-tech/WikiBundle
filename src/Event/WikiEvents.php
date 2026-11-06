@@ -45,6 +45,12 @@ final class WikiEvents
     /** {@see WikiTrashEvent}: a deletion was purged for good (1.14; by a user or the retention). */
     public const TRASH_PURGED = 'nowo_wiki.trash.purged';
 
+    /**
+     * {@see WikiPageFilesPurgedEvent}: the files the purged pages referred to, for the host to delete from its storage
+     * (1.20, only with `page_files.purge_event`).
+     */
+    public const PAGE_FILES_PURGED = 'nowo_wiki.page.files_purged';
+
     /** {@see WikiAttachmentEvent}: an attachment was uploaded (1.9). */
     public const ATTACHMENT_UPLOADED = 'nowo_wiki.attachment.uploaded';
 

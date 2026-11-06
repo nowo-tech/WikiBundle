@@ -58,6 +58,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Beacon request 2026-11-06 (ME-3, WikiBundle part): the files a page refers to. Everything is off by default.
+
+### Added
+
+- **`page_files.enabled`** (default `false`): the page view gets a **Files** card listing the files the current revision
+  refers to — Milkdown 1.8 file cards (`::file[name]{href size type}`) and images (`![alt](url)`), outside code, in
+  order, once — with the name, *File* / *Image* and the size. Only relative and http(s) URLs are listed; names lose
+  control and bidi-override characters. HTML revisions list nothing. Template variable `page_files`
+  (`PageFile\WikiPageFile`), service `PageFile\WikiPageFileExtractor`.
+- **`page_files.purge_event`** (default `false`, needs `trash.enabled`): when the trash purges pages for good, the bundle
+  dispatches **`nowo_wiki.page.files_purged`** (`WikiEvents::PAGE_FILES_PURGED`, `WikiPageFilesPurgedEvent`: `space`,
+  `batchId`, `pageIds`, `files`, `actor`) with the files every revision of those pages referred to, after the commit,
+  so the host (which owns the storage behind its `upload_url`) deletes them. Never on *Delete*: the trash keeps files
+  for a restore. `page_files.max_files` (default 200) caps the list per page and per revision.
+- Translations `wiki.page.files`, `wiki.page.file`, `wiki.page.file_image` (7 locales).
+
 ## [1.19.1] - 2026-11-06
 
 With the AI disabled, the AI question route is no longer registered.

@@ -26,6 +26,8 @@ use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
+use Nowo\WikiBundle\PageFile\WikiPageFile;
+use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -136,6 +138,19 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
         self::assertTrue($this->twig->context['can_history']);
         self::assertSame('BEACON-1', $this->twig->context['used_in'][0]['label']);
         self::assertSame('issue', $this->twig->context['used_in'][0]['type']);
+        // 1.20: no page files without page_files.enabled.
+        self::assertSame([], $this->twig->context['page_files']);
+    }
+
+    /** 1.20 (page_files.enabled): the view lists the files of the current Markdown revision. */
+    public function testPageViewListsTheFilesOfTheCurrentRevision(): void
+    {
+        $markdown = new WikiPageRevision($this->page, 4, '<p>x</p>', new TestUser(), "::file[a.pdf]{href=\"/files/a\"}\n\n![b](/files/b.png)");
+        $this->page->setCurrentRevision($markdown);
+        [$controller] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View), pageFiles: new WikiPageFileExtractor());
+        $controller->viewPage('eng', 'runbook');
+
+        self::assertSame(['/files/a', '/files/b.png'], array_map(static fn (WikiPageFile $f): string => $f->url, $this->twig->context['page_files']));
     }
 
     public function testWriteRoutesAnswer403ToReaders(): void
@@ -520,7 +535,7 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
      *
      * @return array{0: WikiManageController, 1: Container}
      */
-    private function controller(CallbackSpaceAccessChecker $checker, ?callable $onEditorOptions = null, bool $dispatcher = true, ?array $tree = null, ?WikiDocumentExporter $exporter = null, ?array $spaces = null, int $pagination = 500): array
+    private function controller(CallbackSpaceAccessChecker $checker, ?callable $onEditorOptions = null, bool $dispatcher = true, ?array $tree = null, ?WikiDocumentExporter $exporter = null, ?array $spaces = null, int $pagination = 500, ?WikiPageFileExtractor $pageFiles = null): array
     {
         $spaceResolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
         $spaceResolver->method('listSpacesForUser')->willReturn($spaces ?? []);
@@ -605,6 +620,7 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
                     return 'en';
                 }
             },
+            pageFiles: $pageFiles,
         );
         $container = WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $this->twig]);
 

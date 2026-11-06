@@ -22,6 +22,21 @@ test.describe('Milkdown wiki pages', () => {
     await expect(page.getByTestId('wiki-copy-markdown')).toHaveCount(0);
   });
 
+  test('page_files: the page view lists the files the page refers to (file cards and images)', async ({ page }) => {
+    await page.goto(showcase);
+    const files = page.getByTestId('wiki-page-files');
+    await expect(files.getByRole('heading', { name: 'Files' })).toBeVisible();
+    const items = files.locator('.nowo-wiki-files__item');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0).getByRole('link', { name: 'Release checklist.pdf' })).toHaveAttribute('href', '/files/release-checklist.pdf');
+    await expect(items.nth(0)).toContainText('File · 47 KB');
+    await expect(items.nth(1).getByRole('link', { name: 'Icon sprite' })).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(items.nth(1)).toContainText('Image');
+    // HTML pages have no Markdown: no card.
+    await page.goto(`${space}/pages/welcome`);
+    await expect(page.getByTestId('wiki-page-files')).toHaveCount(0);
+  });
+
   test('the dialect is rendered on the server for the viewer, never as raw tokens', async ({ page }) => {
     await page.goto(showcase);
     const content = page.getByTestId('wiki-content');

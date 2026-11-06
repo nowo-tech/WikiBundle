@@ -36,6 +36,8 @@ services:
             - '../../Comment/'
             - '../../Panel/'
             - '../../Avatar/'
+            # 1.20: registered by WikiExtension only with page_files.enabled (the page view gets null otherwise).
+            - '../../PageFile/'
             - '../../Search/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:

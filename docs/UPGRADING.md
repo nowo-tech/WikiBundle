@@ -65,6 +65,16 @@
 
 ## Unreleased
 
+- No BC break; the new options are off by default and the page view is unchanged without them.
+- To list a page's files (Milkdown 1.8 file cards and images) set `page_files.enabled: true`; the card uses the
+  existing "Used in" list classes plus `.nowo-wiki-files*` (copy `wiki.css` with `assets:install`).
+- To delete stored files when pages leave the trash for good, set `page_files.purge_event: true` (with
+  `trash.enabled`) and listen to `nowo_wiki.page.files_purged`. The event lists every URL the purged pages' revisions
+  referred to: **check that no other page, template or object still refers to a file** before deleting it (copied
+  pages and pasted blocks keep the same URL), and map URLs to your storage keys yourself.
+- Hosts that override `page_view.html.twig` and want the list: render `page_files` like `used_in` (see the bundle
+  template).
+
 ## To 1.19.1
 
 From **1.19.0**:

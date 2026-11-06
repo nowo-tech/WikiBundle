@@ -98,6 +98,10 @@ final class WikiDemoSeeder
             graph LR
               Edit --> Save --> Render
             ```
+
+            ::file[Release checklist.pdf]{href="/files/release-checklist.pdf" size="48213" type="application/pdf"}
+
+            ![Icon sprite](/tabler-sprite.svg)
             MD;
     }
 

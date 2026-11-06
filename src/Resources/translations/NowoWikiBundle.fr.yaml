@@ -94,6 +94,9 @@ wiki:
     history: Historique
     unarchive: 'Rétablir la page'
     used_in: 'Utilisée dans'
+    files: 'Fichiers'
+    file: 'Fichier'
+    file_image: 'Image'
     edit_title: "Modifier %title%"
     archive: "Archiver"
     archive_confirm_title: "Archiver cette page ?"
