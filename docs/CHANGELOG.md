@@ -59,6 +59,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Host hooks requested by Beacon (2026-11-06, WK-1 to WK-5), so it can drop its template forks and kernel listeners. Every option is off (or at the 1.20 value) by default: without them the pages, routes and responses are the same.
+
+### Added
+
+- **Quota event (WK-3):** `WikiEvents::QUOTA_CHECK` (`nowo_wiki.quota.check`, `WikiQuotaCheckEvent`: `action`, `space`, `user`, `count`, `bytes`, `page`, `deny(reason)`), dispatched before a metered write: `page_create` (new page, copy of a version), `page_unarchive`, `trash_restore`, `import`, `attachment_upload`. A refused upload answers 422 `{"error": "quota_exceeded", "reason": "…"}`; the page form shows the reason as a form error (422); the others redirect with an error flash. No listener: no change.
+- **Navigation scope (WK-4):** `web_ui.space_index: false` does not register the space index route (literal boolean); `search.scope: space` answers 404 to a search without a valid `?space=`, sets the request attribute `spaceSlug` and keeps the space as a hidden field of the form. (`ai_ask` is already not registered while `ai.enabled` is false, since 1.19.1.)
+- **Page slots and asset switch (WK-2):** blocks `wiki_sidebar`, `wiki_space_intro` and `wiki_page_header_extra`, each also fillable by a host template (`web_ui.slots.sidebar`, `.space_intro`, `.page_header_extra`); `web_ui.import_export: dialog` puts the exports and the import form in one *Import & export* dialog (template `manage/_import_export_dialog.html.twig`); `web_ui.assets` (`false`, or `{styles, scripts}`) leaves `nowo_ui_styles` / `nowo_ui_scripts` empty on every page, for hosts that bundle the assets themselves.
+- **Comments panel extras (WK-1):** `comments.moderation_panel` (literal boolean): users with `ModerateComments` get *Moderate threads*, with *Delete thread* behind a confirm dialog, on the existing `DELETE …/comments/threads/{id}`. `comments.error_notices`: a write refused with 422 or 429 shows its own translated text (a UiKit toast when the toast script is loaded, else a notice in the panel). New `wiki-comments-moderation.ts` in `wiki.js`.
+- **Tree tokens (WK-5):** `--nowo-wiki-tree-gap`, `-indent`, `-guide`, `-link-padding`, `-font-size`, `-line-height`, `-radius`, `-hover-bg`, `-current-bg`, `-current-fg` in `wiki.css`; their defaults are the 1.20 values.
+
 ## [1.20.0] - 2026-11-06
 
 Optional page files list (`page_files.enabled`) and a purge event listing a purged page's files for host clean-up (`page_files.purge_event`); both off by default.

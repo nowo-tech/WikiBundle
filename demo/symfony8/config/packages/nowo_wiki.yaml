@@ -29,6 +29,9 @@ nowo_wiki:
         enabled: true
         rate_limiter: limiter.wiki_comments
         shortcut: 'Alt+Shift+C'
+        # 1.21: "Moderate threads" for ModerateComments, and own texts for writes refused with 422 / 429.
+        moderation_panel: true
+        error_notices: true
     ai:
         enabled: true
         agent: wiki_assistant

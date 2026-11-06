@@ -47,6 +47,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
+use Nowo\WikiBundle\Search\WikiSearchScopeListener;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
@@ -180,6 +181,26 @@ final class WikiManageControllerTest extends TestCase
             self::assertSame('wiki.search.query', $filters->children['q']->vars['label']);
             self::assertSame('wiki.search.placeholder', $filters->children['q']->vars['attr']['placeholder']);
         }
+    }
+
+    /** 1.21 search.scope: space (the listener set spaceSlug): no "all spaces" choice, the space stays a hidden field. */
+    public function testSearchSpaceIsHiddenWithTheSpaceScope(): void
+    {
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        WikiControllerContainerBuilder::bind($controller, new TestUser('user-1'), ['twig' => $twig]);
+
+        $request = Request::create('/search?space=eng&q=deploy');
+        $request->attributes->set(WikiSearchScopeListener::ATTRIBUTE, 'eng');
+        $controller->search($request);
+        $filters = $twig->context['page']->filters;
+        self::assertInstanceOf(FormView::class, $filters);
+        self::assertContains('hidden', $filters->children['space']->vars['block_prefixes']);
+        self::assertSame('eng', $filters->children['space']->vars['value']);
     }
 
     public function testIndexPaginatesSpaces(): void

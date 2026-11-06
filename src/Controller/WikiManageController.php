@@ -37,6 +37,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
+use Nowo\WikiBundle\Search\WikiSearchScopeListener;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
@@ -804,9 +805,9 @@ final class WikiManageController extends AbstractController
         }
 
         // 1.12: with tenant_only every page lives under a tenant path, so there is no "all spaces" to pick: the space
-        // stays a hidden field (the searched space).
+        // stays a hidden field (the searched space). 1.21: the same with search.scope: space (WikiSearchScopeListener).
         $form = $this->createSearchForm(
-            $this->tenantPaths?->isTenantOnly() === true ? null : $spaces,
+            $this->tenantPaths?->isTenantOnly() === true || $request->attributes->has(WikiSearchScopeListener::ATTRIBUTE) ? null : $spaces,
             ['space' => $space?->getSlug(), 'q' => $query],
             ['space' => 'wiki-search-space', 'q' => 'wiki-search-q'],
         );

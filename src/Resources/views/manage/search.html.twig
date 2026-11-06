@@ -17,6 +17,13 @@
     {% endif %}
 {% endblock %}
 
+{% block nowo_ui_scripts %}
+    {#- 1.21 web_ui.assets.scripts: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.scripts ?? true %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}
+
 {% block nowo_ui_list_row %}
     {% set _cell = nowo_ui_class('table_cell', page.bundle) %}
     <td class="{{ _cell }}" data-label="{{ 'wiki.search.result_title'|trans }}" data-required="1">

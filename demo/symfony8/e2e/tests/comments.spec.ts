@@ -106,6 +106,48 @@ test.describe('Wiki comments panel', () => {
     await Promise.all([stored(page), page.keyboard.press('Escape')]);
   });
 
+  test('1.21: a moderator deletes a thread from the panel; a 429 shows the rate-limit text', async ({ page }) => {
+    await startClosed(page);
+    const toggle = page.getByTestId('wiki-comments-toggle');
+    const panel = page.locator('#nowo-wiki-comments');
+    await expect(page.getByTestId('wiki-comments-view')).toBeVisible({ timeout: 15_000 });
+    await Promise.all([stored(page), toggle.click()]);
+    const component = panel.locator('.nowo-milkdown-comments--container');
+    await expect(component).toBeVisible();
+    await component.getByRole('button', { name: 'Add a page comment' }).click();
+    await page.keyboard.type(`To be moderated ${Date.now()}`);
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/comments/threads') && r.request().method() === 'POST' && r.ok()),
+      component.getByRole('button', { name: 'Send' }).first().click(),
+    ]);
+
+    // The list is read when it is first opened.
+    const moderation = page.getByTestId('wiki-comments-moderation');
+    await moderation.locator('summary').click();
+    const rows = page.getByTestId('wiki-comments-moderation-list').locator('li');
+    await expect(rows.first()).toBeVisible();
+    const before = await rows.count();
+    expect(await seriousViolations(page, '#nowo-wiki-comments')).toEqual([]);
+
+    await rows.last().getByTestId('wiki-comments-delete-thread').click();
+    const confirm = page.getByTestId('wiki-comments-moderation-confirm');
+    await expect(confirm).toBeVisible();
+    await Promise.all([
+      page.waitForResponse((r) => /\/comments\/threads\/[^/]+$/.test(r.url()) && r.request().method() === 'DELETE' && r.status() === 204),
+      page.getByTestId('wiki-comments-moderation-accept').click(),
+    ]);
+    await expect(rows).toHaveCount(before - 1);
+    await expect(confirm).toBeHidden();
+
+    // The thread component reports the status of a refused write; the panel gives it words.
+    await page.evaluate(() => document.body.dispatchEvent(new CustomEvent('nowo-milkdown:comment-error', { bubbles: true, detail: { status: 429 } })));
+    await expect(page.getByText('Too many comments in a short time: try again in a moment.').first()).toBeVisible();
+
+    await page.goto(roadmap);
+    await page.locator('#nowo-wiki-comments-title').focus();
+    await Promise.all([stored(page), page.keyboard.press('Escape')]);
+  });
+
   test('phone: a full-height drawer over the page, which is inert while it is open', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 740 });
     await startClosed(page);

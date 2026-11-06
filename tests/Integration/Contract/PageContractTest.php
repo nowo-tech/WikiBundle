@@ -7,11 +7,16 @@ namespace Nowo\WikiBundle\Tests\Integration\Contract;
 use Nowo\UiKitBundle\Test\PageContractTestCase;
 use Nowo\UiKitBundle\Test\PageFixture;
 use Nowo\WikiBundle\Tests\Support\PageFixtures;
+use Nowo\WikiBundle\Ui\WikiPageFactory;
+use Nowo\WikiBundle\Ui\WikiPages;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Twig\Environment;
+use Twig\Loader\ArrayLoader;
+use Twig\Loader\ChainLoader;
 
 use function preg_match;
+use function strpos;
 use function substr_count;
 
 /**
@@ -185,6 +190,12 @@ final class PageContractTest extends PageContractTestCase
     protected function configureTwig(Environment $twig): void
     {
         $this->configureWikiTwig($twig);
+        // 1.21: the host templates of the web_ui.slots test.
+        $twig->setLoader(new ChainLoader([new ArrayLoader([
+            'slots/sidebar.html.twig'           => '<aside data-testid="host-sidebar">{{ page.bundle }}</aside>',
+            'slots/space_intro.html.twig'       => '<p data-testid="host-intro">{{ page.bundle }}</p>',
+            'slots/page_header_extra.html.twig' => '<p data-testid="host-header-extra">{{ page.bundle }}</p>',
+        ]), $twig->getLoader()]));
         if ($this->nonce === null) {
             return;
         }
@@ -254,6 +265,114 @@ final class PageContractTest extends PageContractTestCase
         self::assertMatchesRegularExpression('#data-testid="wiki-tab-edit"[^>]*aria-current="page"|aria-current="page"[^>]*data-testid="wiki-tab-edit"#', $edit);
         self::assertStringContainsString('<aside id="nowo-wiki-comments"', $edit);
         self::assertStringContainsString('wiki.js', $edit);
+    }
+
+    /**
+     * 1.21 web_ui.assets: every page prints its styles and scripts by default; with the switches off, none of the
+     * bundle or the scaffold (a host that bundles the assets, e.g. with Vite).
+     */
+    public function testTheAssetSwitchesEmptyTheStyleAndScriptBlocks(): void
+    {
+        foreach (self::pageFixtures() as $name => $fixture) {
+            $default = $this->renderPage($fixture)->html;
+            self::assertStringContainsString('wiki.css', $default, $name);
+
+            $context                     = $fixture->context;
+            $context['nowo_wiki_web_ui'] = ['assets' => ['styles' => false, 'scripts' => false]];
+            $html                        = $this->renderPage(new PageFixture($fixture->template, $context))->html;
+            self::assertStringNotContainsString('wiki.css', $html, $name);
+            self::assertStringNotContainsString('wiki.js', $html, $name);
+            self::assertStringNotContainsString('nowo-ui-tree.js', $html, $name);
+            self::assertStringNotContainsString('nowo-ui-side-panel.js', $html, $name);
+            self::assertStringNotContainsString('tiptap-editor.js', $html, $name);
+
+            // One at a time.
+            $context['nowo_wiki_web_ui'] = ['assets' => ['styles' => true, 'scripts' => false]];
+            $styles                      = $this->renderPage(new PageFixture($fixture->template, $context))->html;
+            self::assertStringContainsString('wiki.css', $styles, $name);
+            self::assertStringNotContainsString('wiki.js', $styles, $name);
+        }
+    }
+
+    /** 1.21 web_ui.slots: host templates in place of the tree card and the search card, and after the page header. */
+    public function testTheSlotsDrawTheHostTemplates(): void
+    {
+        $slots = ['slots' => ['sidebar' => 'slots/sidebar.html.twig', 'space_intro' => 'slots/space_intro.html.twig', 'page_header_extra' => 'slots/page_header_extra.html.twig']];
+
+        $default = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', PageFixtures::spaceHome()))->html;
+        self::assertStringContainsString('data-wiki-sidebar', $default);
+        self::assertStringContainsString('data-testid="wiki-space-search"', $default);
+        self::assertStringNotContainsString('data-testid="host-', $default);
+
+        $space = PageFixtures::spaceHome();
+        $html  = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', ['nowo_wiki_web_ui' => $slots] + $space))->html;
+        self::assertStringContainsString('<aside data-testid="host-sidebar">NowoWikiBundle</aside>', $html);
+        self::assertStringContainsString('<p data-testid="host-intro">NowoWikiBundle</p>', $html);
+        self::assertStringNotContainsString('data-wiki-sidebar', $html);
+        self::assertStringNotContainsString('data-testid="wiki-space-search"', $html);
+        // The rest of the page stays.
+        self::assertStringContainsString('data-testid="wiki-import"', $html);
+
+        $view = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', ['nowo_wiki_web_ui' => $slots] + PageFixtures::pageView()))->html;
+        self::assertStringContainsString('<aside data-testid="host-sidebar">NowoWikiBundle</aside>', $view);
+        self::assertStringNotContainsString('data-wiki-sidebar', $view);
+        // Between the page header and the tab row.
+        self::assertLessThan(strpos($view, 'data-testid="wiki-tabs"'), strpos($view, 'data-testid="host-header-extra"'));
+    }
+
+    /** 1.21 web_ui.import_export: dialog: one header action; the exports and the import form move into the dialog. */
+    public function testTheImportExportDialog(): void
+    {
+        $default = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', PageFixtures::spaceHome()))->html;
+        self::assertStringNotContainsString('nowo-wiki-import-export-dialog', $default);
+        self::assertStringContainsString('data-testid="wiki-import"', $default);
+
+        $factory                 = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), null, WikiPageFactory::TAB_ICONS, true);
+        $context                 = ['nowo_wiki_web_ui' => ['import_export' => 'dialog']] + PageFixtures::spaceHome(true, $factory);
+        $context['export_links'] = $factory->exportLinks(PageFixtures::space('engineering', 'Engineering'), ['export' => true]);
+
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', $context))->html;
+        self::assertStringContainsString('data-nowo-ui-dialog-open="nowo-wiki-import-export-dialog"', $html);
+        self::assertStringNotContainsString('data-testid="wiki-import"', $html);
+        self::assertSame(1, preg_match('#<dialog id="nowo-wiki-import-export-dialog".*?</dialog>#s', $html, $dialog));
+        self::assertStringContainsString('data-testid="wiki-export-outline"', $dialog[0]);
+        self::assertStringContainsString('data-testid="wiki-export-notion"', $dialog[0]);
+        self::assertStringContainsString('id="nowo-wiki-import-export-form"', $dialog[0]);
+        self::assertStringContainsString('form="nowo-wiki-import-export-form"', $dialog[0]);
+        // No export action left in the header beside the dialog.
+        self::assertSame(1, substr_count($html, 'data-testid="wiki-export-outline"'));
+
+        // Read only: neither the action nor the dialog.
+        $readOnly = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', ['nowo_wiki_web_ui' => ['import_export' => 'dialog']] + PageFixtures::spaceHome(false, $factory)))->html;
+        self::assertStringNotContainsString('nowo-wiki-import-export-dialog', $readOnly);
+
+        // Export only: the links, Cancel, no submit.
+        $context['import_form'] = null;
+        $export                 = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', $context))->html;
+        self::assertSame(1, preg_match('#<dialog id="nowo-wiki-import-export-dialog".*?</dialog>#s', $export, $dialog));
+        self::assertStringContainsString('data-testid="wiki-export-outline"', $dialog[0]);
+        self::assertStringNotContainsString('wiki-import-submit', $dialog[0]);
+    }
+
+    /** 1.21 comments.error_notices / comments.moderation_panel: nothing unless on; the labels are attribute-escaped. */
+    public function testTheCommentsPanelExtras(): void
+    {
+        $default = PageFixtures::pageView(true, null, true);
+        $html    = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $default))->html;
+        self::assertStringNotContainsString('data-nowo-wiki-comments-notice', $html);
+        self::assertStringNotContainsString('data-nowo-wiki-comments-toast', $html);
+        self::assertStringNotContainsString('data-nowo-wiki-moderation', $html);
+
+        $context             = $default;
+        $context['comments'] = ['moderation' => true, 'error_notices' => true] + $default['comments'];
+        $html                = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $context))->html;
+        self::assertStringContainsString('data-limit-reached="This page, thread or comment has reached its limit."', $html);
+        self::assertStringContainsString('data-rate-limited="Too many comments in a short time: try again in a moment."', $html);
+        self::assertSame(1, substr_count($html, 'data-nowo-wiki-comments-toast="error"'));
+        self::assertSame(1, substr_count($html, 'data-nowo-wiki-comments-toast="success"'));
+        self::assertMatchesRegularExpression('#<details class="nowo-wiki-moderation" data-nowo-wiki-moderation[^>]*data-url="/p/comments"[^>]*data-token="token"#s', $html);
+        self::assertStringContainsString('&quot;delete&quot;:&quot;Delete thread&quot;', $html);
+        self::assertStringContainsString('<dialog class="nowo-wiki-moderation__confirm"', $html);
     }
 
     public function testHistoryAvatarsOnlyBesideRealNames(): void

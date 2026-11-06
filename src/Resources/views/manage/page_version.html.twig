@@ -13,3 +13,10 @@
         <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
     {% endif %}
 {% endblock %}
+
+{% block nowo_ui_scripts %}
+    {#- 1.21 web_ui.assets.scripts: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.scripts ?? true %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}

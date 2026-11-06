@@ -16,6 +16,13 @@
     {% endif %}
 {% endblock %}
 
+{% block nowo_ui_scripts %}
+    {#- 1.21 web_ui.assets.scripts: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.scripts ?? true %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}
+
 {% block nowo_ui_show_sections %}
     {% set _b = page.bundle %}
     <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-diff"{{ nowo_ui_attrs('card', _b) }}>

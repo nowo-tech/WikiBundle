@@ -683,10 +683,6 @@ final class WikiExtensionTest extends TestCase
     }
 
     /**
-     * 1.19.1: with nowo_wiki.ai.enabled false (default) the ai_ask route is not registered and the null assistant
-     * answers.
-     */
-    /**
      * 1.21: the page options (Twig global nowo_wiki_web_ui), the space index switch, the search scope and the comments
      * panel extras.
      */
@@ -713,6 +709,7 @@ final class WikiExtensionTest extends TestCase
             'web_ui'     => ['space_index' => false, 'import_export' => 'dialog', 'assets' => false, 'slots' => ['sidebar' => 'wiki/_sidebar.html.twig', 'space_intro' => 'wiki/_intro.html.twig']],
             'search'     => ['scope' => 'space'],
             'routes'     => ['search' => ['name' => 'app_wiki_search']],
+            'editor'     => ['type' => 'milkdown'],
             'comments'   => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'moderation_panel' => true, 'error_notices' => true],
         ]], $container);
 
@@ -742,18 +739,34 @@ final class WikiExtensionTest extends TestCase
         WikiExtension::ui(['slots' => ['sidebar' => ' ']]);
     }
 
+    public function testTheSpaceIndexSwitchIsALiteralBoolean(): void
+    {
+        $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $container->registerExtension(new WikiExtension());
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'web_ui' => ['space_index' => '%env(bool:WIKI_INDEX)%']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.web_ui.space_index must be a literal boolean');
+        (new MergeExtensionConfigurationPass())->process($container);
+    }
+
     public function testTheModerationPanelSwitchIsALiteralBoolean(): void
     {
         $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         $container->registerExtension(new WikiExtension());
-        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'moderation_panel' => '%env(bool:WIKI_MOD)%']]);
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'moderation_panel' => '%env(bool:WIKI_MOD)%']]);
 
         $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('nowo_wiki.comments.moderation_panel must be a literal boolean');
         (new MergeExtensionConfigurationPass())->process($container);
     }
 
+    /**
+     * 1.19.1: with nowo_wiki.ai.enabled false (default) the ai_ask route is not registered and the null assistant
+     * answers.
+     */
     public function testTheAiRouteIsNotRegisteredWhileTheAiIsOff(): void
     {
         foreach ([[], ['ai' => ['enabled' => false]]] as $ai) {

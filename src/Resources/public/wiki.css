@@ -47,9 +47,6 @@
    --nowo-wiki-tree-font-size / --nowo-wiki-tree-line-height (inherit), --nowo-wiki-tree-radius,
    --nowo-wiki-tree-hover-bg, --nowo-wiki-tree-current-bg, --nowo-wiki-tree-current-fg. */
 .nowo-wiki-tree {
-  display: flex;
-  flex-direction: column;
-  gap: var(--nowo-wiki-tree-gap, 0);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -65,6 +62,10 @@
 .nowo-wiki-tree__item {
   margin: 0;
   padding: 0;
+}
+
+.nowo-wiki-tree__item + .nowo-wiki-tree__item {
+  margin-block-start: var(--nowo-wiki-tree-gap, 0);
 }
 
 .nowo-wiki-tree__link {
@@ -356,6 +357,13 @@
    comments.moderation_panel). */
 .nowo-wiki-comments__notice[data-tone='error'] {
   color: var(--nowo-ui-danger, #b91c1c);
+}
+
+/* 1.21 web_ui.import_export: dialog: the export links of the dialog. */
+.nowo-wiki-import-export__export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .nowo-wiki-moderation {

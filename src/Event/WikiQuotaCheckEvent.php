@@ -73,6 +73,7 @@ final class WikiQuotaCheckEvent extends Event
      */
     public function deny(string $reason = ''): void
     {
+        // @igor-ignore - Request-scoped event, created per dispatch and excluded from the services; no worker state.
         $this->reason = mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $reason)), 0, self::MAX_REASON);
         $this->stopPropagation();
     }

@@ -68,6 +68,11 @@ This file proves that **every production source artifact** under `src/` is refer
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
 | `Event/WikiEvents.php` | Domain events | FR-EVT-001 |
+| `Event/WikiQuotaCheckEvent.php` | Cancellable check before a metered write (1.21) | FR-EVT-003 |
+| `Service/WikiQuotaGate.php` | Dispatches the quota check, resolves the refusal text (1.21) | FR-EVT-003 |
+| `Search/WikiSearchScopeListener.php` | `search.scope: space` (1.21) | FR-SEARCH-002 |
+| `Resources/assets/src/wiki-comments-moderation.ts` | Comments panel extras: moderation list, error notices (1.21) | FR-UI-012 |
+| `Resources/views/manage/_import_export_dialog.html.twig` | Import & export dialog (1.21) | FR-UI-012 |
 | `Resources/assets/src/wiki.css` | Wiki editor styles | FR-UI-011 |
 | `Service/WikiAuthorResolver.php` | Author display name | FR-PAGE-002 |
 | `Service/WikiPageArchivedEvent.php` | Page archived event | FR-EVT-002 |
@@ -291,7 +296,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | Persistence | 9 | 9 |
 | Forms | 1 | 1 |
 | Domain models | 5 | 5 |
-| Application services | 12 | 12 |
+| Application services | 17 | 17 |
 | Security | 10 | 10 |
 | AI | 7 | 7 |
 | Routing | 1 | 1 |
@@ -303,6 +308,6 @@ This file proves that **every production source artifact** under `src/` is refer
 | Co-editing | 14 | 14 |
 | Translations | 7 | 7 |
 | Twig views | 16 | 16 |
-| **Total production sources** | **93** | **93** |
+| **Total production sources** | **98** | **98** |
 
 Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l`

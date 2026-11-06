@@ -74,6 +74,9 @@ As a user, I ask questions grounded in wiki content when Symfony AI is configure
 - **FR-WORKER-001**: Safe without kernel / `services_resetter` reset (FrankenPHP worker): `WikiEntityManagerProvider` resolves the configured entity manager on every call and resets a closed one; `WikiTokenGuard` refuses to trust a token left in storage by a previous request. `AllowAllWikiAccessChecker` (FR-SEC-001) is only used when `security.allow_unauthenticated` is true (demo/dev).
 - **FR-FORM-001**: Page form with slug and content fields.
 - **FR-EVT-001 / FR-EVT-002**: Domain events for list/access and page lifecycle.
+- **FR-EVT-003**: `nowo_wiki.quota.check` (1.21) before a new page, unarchive, trash restore, import or attachment upload; a listener refuses with a plain-text reason; no listener, no change.
+- **FR-SEARCH-002**: `search.scope: space` (1.21): the search page answers inside one space (404 without a valid `?space=`, request attribute `spaceSlug`); `web_ui.space_index: false` does not register the index route.
+- **FR-UI-012**: Host hooks of the pages (1.21), all opt-in: `web_ui.slots` and blocks `wiki_sidebar` / `wiki_space_intro` / `wiki_page_header_extra`, `web_ui.import_export: dialog`, `web_ui.assets`, `comments.moderation_panel`, `comments.error_notices`, `--nowo-wiki-tree-*` tokens.
 
 ### Interchange & AI
 

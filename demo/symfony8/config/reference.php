@@ -1438,6 +1438,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             user_reactions_per_comment?: int|Param, // Reactions of one user on one comment. // Default: 10
  *         },
  *         state_store?: scalar|Param|null, // Service id of a WikiPanelStateStoreInterface keeping the open / closed state of the panel per user (null: the session). // Default: null
+ *         moderation_panel?: bool|Param, // 1.21, literal boolean. true: users with ModerateComments get "Moderate threads" in the comments panel: every thread of the page with "Delete thread" behind a confirm dialog (DELETE …/comments/threads/{id}). false (default): no such section (the endpoint stays). // Default: false
+ *         error_notices?: bool|Param, // 1.21. true: a comment write refused for a cap (422 limit_reached) or the rate limit (429) shows its own text (a UiKit toast when the UiKit toast script is loaded, else a notice in the panel). false (default): only the editor's "could not be saved". // Default: false
  *         read_view_source?: bool|Param, // Literal boolean. true: on the read view, viewers with ViewComments who may not edit the page also get its Markdown source (the read-only Milkdown mount with inline highlights; HTML comments, link targets, reference definitions and directive arguments included). false (default): only editors do; the others see the threads rendered by the server. // Default: false
  *         shortcut?: scalar|Param|null, // Keyboard shortcut of the comments toggle, e.g. "Alt+Shift+C" (exposed as aria-keyshortcuts); null: none. // Default: null
  *     },
@@ -1478,6 +1480,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         import_roles?: mixed, // Deprecated: The "nowo_wiki.security.import_roles.import_roles" option is deprecated, use "nowo_wiki.security.roles.import" instead. // Deprecated since 1.10: use security.roles.import. // Default: null
  *         export_roles?: mixed, // Deprecated: The "nowo_wiki.security.export_roles.export_roles" option is deprecated, use "nowo_wiki.security.roles.export" instead. // Deprecated since 1.10: use security.roles.export. // Default: null
  *         allow_unauthenticated?: bool|Param, // DEV / DEMO ONLY: allow every wiki action without a role check. Literal boolean; refused in the prod environment and in non-debug kernels (test* environments excepted). // Default: false
+ *     },
+ *     search?: array{ // 1.21: the search page (routes.search).
+ *         scope?: "all"|"space"|Param, // all (default): one space (?space=) or every space the user may read. space: always one space — a request without a valid ?space= is 404, and the space becomes the request attribute spaceSlug (as on the space pages, for host listeners, tabs and breadcrumbs). // Default: "all"
  *     },
  *     import_export?: array{
  *         enabled?: bool|Param, // Default: true
@@ -1620,6 +1625,18 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     },
  *     web_ui?: array{ // Wiki Web UI (REQ-UI-001 / REQ-UI-003): the pages extend the UiKit page scaffolds; the CSS stack, icons and row actions come from nowo_ui_kit.
  *         enabled?: bool|Param, // false: the nowo_wiki route loader registers no route. // Default: true
+ *         space_index?: bool|Param, // 1.21: false = the tenant-less space index (routes.index, /tools/wiki) is not registered (no route, so 404), for hosts whose spaces live under their own pages (tenant_paths). Its breadcrumb link disappears with it. // Default: true
+ *         import_export?: "page"|"dialog"|Param, // 1.21: where the space home offers import and export. page (default) = the Outline / Notion exports in the header and the import card on the page; dialog = one "Import & export" header action that opens a dialog with both. // Default: "page"
+ *         assets?: array{ // 1.21: the bundle's own wiki.css / wiki.js tags in nowo_ui_styles / nowo_ui_scripts. false (or styles: false / scripts: false) for hosts that bundle the sources themselves (Vite, AssetMapper): the block then prints nothing of the bundle (styles: false also leaves out the UiKit stylesheet the scaffold adds, scripts: false the UiKit / rich-content scripts the page adds).
+ *             styles?: bool|Param, // Default: true
+ *             scripts?: bool|Param, // Default: true
+ *             ...<string, mixed>
+ *         },
+ *         slots?: array{ // 1.21: host templates drawn in place of a part of the pages (included with the page variables; null = the bundle part). sidebar: the page tree card of the space home and the page view; space_intro: the search card of the space home; page_header_extra: after the page header of the page view (before the tab row).
+ *             sidebar?: scalar|Param|null, // Default: null
+ *             space_intro?: scalar|Param|null, // Default: null
+ *             page_header_extra?: scalar|Param|null, // Default: null
+ *         },
  *         path_prefix?: scalar|Param|null, // Prefix of every wiki route path (e.g. /admin). null = the deprecated route_prefix, else none. // Default: null
  *         layout_template?: scalar|Param|null, // Layout the pages extend. null = nowo_ui_kit.layouts.admin. A pre-1.10 layout without the UiKit canonical blocks is wrapped in a deprecated bridge. // Default: null
  *         templates?: array{ // Per-page template overrides (page id => template); null = the bundle template.

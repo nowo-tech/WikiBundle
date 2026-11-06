@@ -195,8 +195,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if (!$config['ai']['enabled']) {
             unset($config['routes']['ai_ask']);
         }
-        // 1.21: without the space index its route is not registered (404, no link).
-        if (!$config['web_ui']['space_index']) {
+        // 1.21: without the space index its route is not registered (404, no link). Decided at compile time, so literal.
+        if (!$this->literalBool($config['web_ui']['space_index'], 'web_ui.space_index')) {
             unset($config['routes']['index']);
         }
         if ($config['security']['allow_unauthenticated']) {
@@ -521,7 +521,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     private function registerComments(ContainerBuilder $container, array $config, Reference $entityManager, string $anchorClass = CommentAnchor::class): void
     {
-        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, limits: array{threads_per_page: int, total_threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
+        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, moderation_panel: mixed, error_notices: bool, limits: array{threads_per_page: int, total_threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
         $comments = $config['comments'];
         if (!$comments['enabled']) {
             return;
@@ -583,7 +583,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$forms', new Reference('form.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$readViewSource', $comments['read_view_source'])
             ->setArgument('$moderationPanel', $this->literalBool($comments['moderation_panel'], 'comments.moderation_panel'))
-            ->setArgument('$errorNotices', (bool) $comments['error_notices']));
+            ->setArgument('$errorNotices', $comments['error_notices']));
     }
 
     /**
@@ -797,7 +797,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
-     * 1.21: the page options of the templates (`nowo_wiki_ui`): assets, slots and the import / export placement.
+     * 1.21: the page options of the templates (Twig global `nowo_wiki_web_ui`): assets, slots and the import / export
+     * placement.
      *
      * @param array<string, mixed> $webUi processed `web_ui` node
      *
