@@ -137,13 +137,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     public const MILKDOWN_SANITIZER_ELEMENTS = ['details' => ['open'], 'summary' => []];
 
     /**
-     * 1.19 (dialog rule v2): the UiKit `confirm` partial of the wiki pages — View\Confirm dialogs with the platform
-     * dialog anatomy (header title + ×, body, footer Cancel + one primary). Prepended as
-     * nowo_ui_kit.theme.bundles.NowoWikiBundle.partials.confirm, so a host value wins.
-     */
-    public const CONFIRM_PARTIAL = '@NowoWikiBundle/manage/_confirm_dialog.html.twig';
-
-    /**
      * 1.13: attributes of the Milkdown dialect markup kept on every allowed element with editor.type milkdown
      * (callout / icon roles and labels, math and directive markers, icon placeholders).
      */
@@ -969,27 +962,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
         $this->prependFormKitDefaults($container);
         $this->prependUiKitDefaults($container);
-        $this->prependUiKitConfirmPartial($container);
-    }
-
-    /**
-     * 1.19 (dialog rule v2): the wiki pages render their View\Confirm dialogs with {@see self::CONFIRM_PARTIAL}. A host
-     * that sets nowo_ui_kit.theme.bundles.NowoWikiBundle.partials.confirm itself (e.g. back to the kit's
-     * `@NowoUiKitBundle/partials/_confirm.html.twig`) keeps its value: prepended config has the lowest priority.
-     */
-    private function prependUiKitConfirmPartial(ContainerBuilder $container): void
-    {
-        if (!$container->hasExtension('nowo_ui_kit')) {
-            return;
-        }
-
-        $container->prependExtensionConfig('nowo_ui_kit', [
-            'theme' => [
-                'bundles' => [
-                    WikiPages::BUNDLE => ['partials' => ['confirm' => self::CONFIRM_PARTIAL]],
-                ],
-            ],
-        ]);
     }
 
     /**

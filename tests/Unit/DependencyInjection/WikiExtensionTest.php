@@ -848,27 +848,7 @@ final class WikiExtensionTest extends TestCase
 
         $extension->prepend($container);
 
-        // Only the 1.19 confirm partial of the wiki pages: no css_framework / icon_set seed.
-        self::assertSame([['theme' => ['bundles' => ['NowoWikiBundle' => ['partials' => ['confirm' => WikiExtension::CONFIRM_PARTIAL]]]]]], $container->getExtensionConfig('nowo_ui_kit'));
-    }
-
-    public function testPrependRegistersTheConfirmPartialBelowTheHostConfig(): void
-    {
-        $container = new ContainerBuilder();
-        $this->registerStubExtension($container, 'nowo_ui_kit');
-        $container->prependExtensionConfig('nowo_ui_kit', [
-            'theme' => ['bundles' => ['NowoWikiBundle' => ['partials' => ['confirm' => '@NowoUiKitBundle/partials/_confirm.html.twig']]]],
-        ]);
-        $extension = new WikiExtension();
-        $container->registerExtension($extension);
-        $container->prependExtensionConfig('nowo_wiki', ['user_class' => 'App\\Entity\\User']);
-
-        $extension->prepend($container);
-
-        $configs = $container->getExtensionConfig('nowo_ui_kit');
-        // Prepended first (lowest priority): the host's later value wins when the configs merge.
-        self::assertSame('@NowoWikiBundle/manage/_confirm_dialog.html.twig', $configs[0]['theme']['bundles']['NowoWikiBundle']['partials']['confirm']);
-        self::assertSame('@NowoUiKitBundle/partials/_confirm.html.twig', $configs[array_key_last($configs)]['theme']['bundles']['NowoWikiBundle']['partials']['confirm']);
+        self::assertSame([], $container->getExtensionConfig('nowo_ui_kit'));
     }
 
     public function testSecuritySwitchesMustBeLiteralBooleans(): void
