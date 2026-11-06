@@ -223,7 +223,7 @@ Channel `nowo_wiki` (PSR-3, see [CONFIGURATION.md](CONFIGURATION.md#logging-req-
 
 | Date | Version | Grade / residual risk | Record |
 | --- | --- | --- | --- |
-| 2026-11-06 | PR #100 → 1.21.0 (not released) | Re-verification pending: the findings of Appendix GV (audited at `5009d15`) are fixed in the PR and have not been re-audited | `BUNDLES_SECURITY_ANALYSIS`, Appendix GV |
+| 2026-11-06 | PR #100 → 1.21.0 | Pass (good) / Low at `6c32c6c`. M1, L1, L2, I1 and I3-I7 of the audit at `5009d15` fixed or documented and re-verified. Open residual: GV-L3, also in 1.20.0: an `Import` user can leave up to 512 MiB in the temp dir with a small archive when the read exceeds `memory_limit` | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix GV |
 | 2026-10-30 | PR #71 → 1.10.0 | Pass (conditional) / Medium at `4fad654`; M1, L1, L2, L3 and the cheap info items fixed in this PR (Pass (good) / Low once confirmed) | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix BR |
 | 2026-10-29 | 1.8.0 | Pass (good) / Low | Appendix BB |
 | 2026-07-29 | 1.x | Pass (conditional) / Medium | AI audit + remedia |
