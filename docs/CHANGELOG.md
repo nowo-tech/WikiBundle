@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.21.0] - 2026-11-06](#1210---2026-11-06)
 - [[1.20.0] - 2026-11-06](#1200---2026-11-06)
 - [[1.19.1] - 2026-11-06](#1191---2026-11-06)
 - [[1.19.0] - 2026-11-06](#1190---2026-11-06)
@@ -58,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.21.0] - 2026-11-06
 
 Host hooks requested by Beacon (2026-11-06, WK-1 to WK-5), so it can drop its template forks and kernel listeners. Every option is off (or at the 1.20 value) by default: without them the pages, routes and responses are the same.
 
@@ -1113,7 +1116,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.20.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.21.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
