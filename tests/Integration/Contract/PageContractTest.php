@@ -130,6 +130,19 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringContainsString('name="_token" value="token-wiki_archive_', $view);
     }
 
+    public function testConfirmsUseTheUiKitConfirmAnatomy(): void
+    {
+        // Dialog rule v2 (1.19): the confirms are UiKit's View\Confirm dialogs (UiKit 2.31 gives them the dialog
+        // anatomy in CSS): header with the title and ×, body with the message, footer with Cancel then one primary.
+        $view = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView()))->html;
+
+        self::assertSame(1, preg_match('#<dialog\s+id="[^"]+"\s+class="nowo-ui-confirm[^"]*"[^>]*>(?:(?!</dialog>).)*Archive this page\?(?:(?!</dialog>).)*</dialog>#s', $view, $archive));
+        self::assertMatchesRegularExpression('#<header class="nowo-ui-confirm__header[^"]*">\s*<h2 [^>]*>Archive this page\?</h2>\s*<button type="button" class="nowo-ui-confirm__close[^"]*" data-nowo-confirm-close#', $archive[0]);
+        self::assertMatchesRegularExpression('#<div class="nowo-ui-confirm__footer[^"]*">\s*<button type="button" class="[^"]*nowo-ui-btn--secondary[^"]*" data-nowo-confirm-close>\s*Cancel\s*</button>#', $archive[0]);
+        self::assertSame(1, substr_count($archive[0], 'nowo-ui-confirm__submit'));
+        self::assertStringNotContainsString('wiki-confirm-dialog', $view, 'no bundle confirm partial (removed before 1.19.0)');
+    }
+
     public function testEditorScriptCarriesTheRequestCspNonce(): void
     {
         $page = new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm());

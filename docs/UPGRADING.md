@@ -63,6 +63,18 @@
 
 ## Unreleased
 
+From **1.18.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/ui-kit-bundle   # ui-kit-bundle ^2.31 is required
+php bin/console assets:install
+```
+
+- **Visual change, no configuration needed.** UiKit 2.31 gives the wiki's confirm dialogs (delete, archive, restore,
+  co-editing reset, purge) the dialog anatomy and every dialog its content's height (capped). The markup of the wiki
+  is unchanged. A host that wants the 2.29 / 2.30 fixed height back sets `nowo_ui_kit.theme.dialog.height: size`
+  (UiKit UPGRADING).
+
 ## To 1.18.0
 
 From **1.17.0**; no breaking PHP API change, no migration.
