@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Interchange;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 
 use function basename;
@@ -25,9 +26,11 @@ final readonly class WikiDocumentTreeReader
      * Stores the front matter parser used to read Markdown files.
      *
      * @param WikiFrontMatterParser $frontMatterParser front matter parser
+     * @param WikiMarkdownFileReader $fileReader bounded reader of the Markdown files (audit GV-L3)
      */
     public function __construct(
         private WikiFrontMatterParser $frontMatterParser,
+        private WikiMarkdownFileReader $fileReader = new WikiMarkdownFileReader(),
     ) {
     }
 
@@ -51,6 +54,8 @@ final readonly class WikiDocumentTreeReader
      *
      * @param string $rootDir root directory of the export
      * @param WikiInterchangeFormat $format export layout (Outline or Notion)
+     *
+     * @throws InvalidArgumentException when a Markdown file is over the per-document limit
      *
      * @return list<WikiDocumentNode>
      */
@@ -79,7 +84,7 @@ final readonly class WikiDocumentTreeReader
         $markdownFiles = $this->collectMarkdownFiles($currentDir, $format, $currentDir === $rootDir);
 
         foreach ($markdownFiles as $markdownFile) {
-            $parsed     = $this->frontMatterParser->parse((string) file_get_contents($markdownFile));
+            $parsed     = $this->frontMatterParser->parse($this->fileReader->read($markdownFile));
             $meta       = $parsed['meta'];
             $title      = $this->stringMeta($meta, 'title');
             $slug       = $this->stringMeta($meta, 'wiki_slug') ?? $this->stringMeta($meta, 'slug');

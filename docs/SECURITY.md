@@ -37,7 +37,7 @@
 | **Slug injection** | Path traversal or invalid URLs. | Route requirements `[a-z0-9]+(?:-[a-z0-9]+)*`; `WikiSlugger` validation. |
 | **Revision tampering** | Delete or overwrite history. | Revisions are append-only; pages are soft-archived only (`BR-WIKI-002`). |
 | **Search abuse** | Expensive LIKE queries. | `setMaxResults(25)` default; scope limited to accessible space. |
-| **Malicious import** | ZIP bomb or oversized upload. | `import_export.max_upload_bytes` (default 50 MB); `WikiArchiveHelper` rejects archives with more than 10 000 entries or more than 512 MiB declared uncompressed size before extracting; archive extracted to temp dir; import requires `import_roles`. |
+| **Malicious import** | ZIP bomb or oversized upload. | `import_export.max_upload_bytes` (default 50 MB); `WikiArchiveHelper` rejects archives with more than 10 000 entries, more than 512 MiB declared uncompressed size, a Markdown document over `import_export.max_document_bytes` (default 8 MiB) or Markdown that cannot be read within `memory_limit` before extracting; archive extracted to temp dir and removed as soon as the documents are read, and leftovers of a killed request removed by the next import; import requires `import_roles`. Memory use during the import is not bounded by these limits: it keeps every document in memory, so a sum of documents can still exceed `memory_limit` (measured with `editor.type: milkdown` under 256M: 16 MiB in total passed, 32 MiB did not). That ends the request with a fatal error and may leave the pages written so far and, until the next import an hour later, the upload's copy (`max_upload_bytes`). |
 | **AI prompt injection** | User steers agent via page content. | Context limited by `max_context_pages` / `max_context_chars`; restrict `ai_roles`; review agent system prompt. |
 | **SSRF / outbound HTTP** | The only outbound call is the host-configured AI platform. | Endpoint comes from host config (`config/packages/ai.yaml`), never from user input; bounded by `nowo_wiki.ai.http_client` (`ai.http_timeout`). |
 | **Path traversal on import** | ZIP entries such as `../../etc`. | `WikiArchiveHelper` rejects absolute / `..` entries before extracting into a fresh `0700` temp directory, removed afterwards. |
@@ -209,7 +209,7 @@ Channel `nowo_wiki` (PSR-3, see [CONFIGURATION.md](CONFIGURATION.md#logging-req-
 | Resource | Limit |
 | -------- | ----- |
 | LLM call | `ai.http_timeout` (default 30 s, timeout + max duration); PHP / Caddy / FrankenPHP layers above it ([timeout hierarchy](CONFIGURATION.md#timeout-hierarchy-req-runtime-001)) |
-| Upload | `import_export.max_upload_bytes` (default 50 MB); ZIP: ≤ 10 000 entries, ≤ 512 MiB declared uncompressed size |
+| Upload | `import_export.max_upload_bytes` (default 50 MB); ZIP: ≤ 10 000 entries, ≤ 512 MiB declared uncompressed size, each `.md` ≤ `import_export.max_document_bytes` (default 8 MiB) |
 | Lists | `pagination.*`: 24 spaces / page, 25 revisions / page, 500 pages in the tree; search capped at 25 hits |
 | AI context | `max_context_pages` (8), `max_context_chars` (12 000) |
 | Markdown (1.13, `milkdown`) | Milkdown's `max_input_length` (100 000 bytes), `max_inline_markers` (10 000), `max_references` (500), `max_nesting_level` (50): over the first two the page is shown as escaped text, unparsed |
@@ -223,6 +223,7 @@ Channel `nowo_wiki` (PSR-3, see [CONFIGURATION.md](CONFIGURATION.md#logging-req-
 
 | Date | Version | Grade / residual risk | Record |
 | --- | --- | --- | --- |
+| 2026-11-06 | Unreleased (patch on 1.21.0) | Re-verification pending. GV-L3 addressed: per-document limit, memory check, bounded reads, extraction removed before the import writes, sweep of what a killed request left | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix GV |
 | 2026-11-06 | PR #100 → 1.21.0 | Pass (good) / Low at `6c32c6c`. M1, L1, L2, I1 and I3-I7 of the audit at `5009d15` fixed or documented and re-verified. Open residual: GV-L3, also in 1.20.0: an `Import` user can leave up to 512 MiB in the temp dir with a small archive when the read exceeds `memory_limit` | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix GV |
 | 2026-10-30 | PR #71 → 1.10.0 | Pass (conditional) / Medium at `4fad654`; M1, L1, L2, L3 and the cheap info items fixed in this PR (Pass (good) / Low once confirmed) | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix BR |
 | 2026-10-29 | 1.8.0 | Pass (good) / Low | Appendix BB |

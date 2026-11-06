@@ -98,6 +98,13 @@ final class WikiQuotaGateTest extends TestCase
         // Audit GV-I3: C1 controls become a space; bidi overrides and zero-width characters go.
         $reason = "a\u{85}b\u{202E}c\u{200B}d";
         self::assertSame('a bcd', (new WikiQuotaGate($events))->refusal(WikiQuotaCheckEvent::IMPORT, new TestUser(), $space));
+        // Audit GV-I8: line separators become a space; the joiners of emoji and Persian text stay, but are no text alone.
+        $reason = "a\u{2028}b\u{2029}c";
+        self::assertSame('a b c', (new WikiQuotaGate($events))->refusal(WikiQuotaCheckEvent::IMPORT, new TestUser(), $space));
+        $reason = "\u{1F468}\u{200D}\u{1F4BB} \u{0645}\u{06CC}\u{200C}\u{062E}";
+        self::assertSame($reason, (new WikiQuotaGate($events))->refusal(WikiQuotaCheckEvent::IMPORT, new TestUser(), $space));
+        $reason = "\u{200D} \u{200C}";
+        self::assertSame(WikiQuotaGate::DEFAULT_REASON, (new WikiQuotaGate($events))->refusal(WikiQuotaCheckEvent::IMPORT, new TestUser(), $space));
         // Audit GV-I4: invalid UTF-8 keeps the listener's text.
         $reason = "Plan \xFF limit";
         self::assertSame('Plan ? limit', (new WikiQuotaGate($events))->refusal(WikiQuotaCheckEvent::IMPORT, new TestUser(), $space));

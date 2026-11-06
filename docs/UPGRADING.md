@@ -67,6 +67,14 @@
 
 ## Unreleased
 
+- An import now refuses a Markdown document over 8 MiB, with the usual import error and nothing written. To accept
+  larger ones, raise `import_export.max_document_bytes`. A larger document needs far more memory than its size: 8 MiB
+  peaked at about 130 MiB and 16 MiB at about 200 MiB, with `editor.type: milkdown`.
+- An archive whose Markdown documents, read twice over, do not fit in what is left of `memory_limit` is refused the same
+  way. Such an import could not finish: it needs several times that.
+- Nothing else to do. An import removes its extraction as soon as it has read the documents, and removes what a killed
+  request left in the temp dir (`wiki-import-<hex>` and `wiki-upload-<hex>.zip`, older than one hour).
+
 ## To 1.21.0
 
 From **1.20.0**:
@@ -84,8 +92,9 @@ php bin/console assets:install
 - Plan limits: replace a `kernel.controller` listener with one on `nowo_wiki.quota.check`. It also covers `trash_restore`
   and the copy of a version (`page_create`); an import reports its Markdown documents as `count`. The CLI commands
   (`wiki:import`) do not dispatch it, and page edits, revision restore and comments are not metered.
-- The Twig global `nowo_wiki_web_ui` is now an `ArrayObject` service with the same keys. Templates read it as before; a
-  host passing it to PHP code that type-hints `array` must convert it.
+- The Twig global `nowo_wiki_web_ui` is now an `ArrayObject` service with the same keys. Templates read it as before,
+  except `|slice`, which loses the keys; a host passing it to PHP code that type-hints `array` must convert it. It is one
+  shared object: do not write to it, since in worker mode the change stays across requests.
 - A route guard that hides the index or the search without a space: replace it with `web_ui.space_index: false` and
   `search.scope: space`. `space_index` must be a literal boolean (an env placeholder is refused at compile time).
 - A forked comments panel: delete it and set `comments.moderation_panel: true` and `comments.error_notices: true`.

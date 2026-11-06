@@ -31,8 +31,10 @@ use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\History\WikiHistoryThinner;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
+use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Interchange\WikiMarkdownFileReader;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
@@ -98,6 +100,18 @@ use const E_USER_DEPRECATED;
 
 final class WikiExtensionTest extends TestCase
 {
+    public function testMaxDocumentBytesReachesTheArchiveHelperAndTheFileReader(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'import_export' => ['max_document_bytes' => 4096]]], $container);
+
+        self::assertSame(4096, $container->getParameter('nowo_wiki.import_export.max_document_bytes'));
+        foreach ([WikiArchiveHelper::class, WikiMarkdownFileReader::class] as $service) {
+            self::assertSame('%nowo_wiki.import_export.max_document_bytes%', $container->getDefinition($service)->getArgument('$maxDocumentBytes'), $service);
+        }
+    }
+
     public function testRegistersHtmlSanitizerAlias(): void
     {
         $container = new ContainerBuilder();

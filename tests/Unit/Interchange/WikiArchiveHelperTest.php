@@ -6,9 +6,12 @@ namespace Nowo\WikiBundle\Tests\Unit\Interchange;
 
 use InvalidArgumentException;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use ZipArchive;
+
+use function ini_get;
 
 final class WikiArchiveHelperTest extends TestCase
 {
@@ -289,6 +292,153 @@ final class WikiArchiveHelperTest extends TestCase
             self::assertFileExists($extracted . '/b.md');
             $helper->removeDirectory($extracted);
         } finally {
+            unlink($zipPath);
+        }
+    }
+
+    /**
+     * Audit GV-L3: a tiny archive declaring one huge document is refused before anything reaches the temp dir.
+     *
+     * @param non-empty-string $name
+     */
+    #[DataProvider('markdownNames')]
+    public function testExtractZipRefusesMarkdownOverTheDocumentLimitBeforeExtracting(string $name): void
+    {
+        $zipPath = $this->createZip([$name => str_repeat('a', 2048), 'ok.md' => 'ok']);
+        $helper  = new WikiArchiveHelper(maxDocumentBytes: 2047);
+        $before  = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
+
+        try {
+            $helper->extractZip($zipPath);
+            self::fail('Expected the document to be refused.');
+        } catch (InvalidArgumentException $e) {
+            self::assertStringContainsString('exceeds the limit of 2047 bytes per document', $e->getMessage());
+            self::assertSame($before, glob(sys_get_temp_dir() . '/wiki-import-*') ?: []);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function markdownNames(): iterable
+    {
+        yield 'root' => ['big.md'];
+        yield 'nested' => ['a/b/big.md'];
+        yield 'upper case: the format detector reads it too' => ['BIG.MD'];
+        yield 'backslash path' => ['a\\big.md'];
+    }
+
+    public function testDocumentLimitIsInclusiveAndLeavesOtherFilesAlone(): void
+    {
+        $zipPath = $this->createZip(['exact.md' => str_repeat('a', 2048), 'image.png' => str_repeat('b', 4096)]);
+        $helper  = new WikiArchiveHelper(maxDocumentBytes: 2048);
+
+        try {
+            $extracted = $helper->extractZip($zipPath);
+            self::assertFileExists($extracted . '/exact.md');
+            self::assertFileExists($extracted . '/image.png');
+            $helper->removeDirectory($extracted);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    public function testDefaultDocumentLimitIsEightMebibytes(): void
+    {
+        self::assertSame(8 * 1024 * 1024, WikiArchiveHelper::DEFAULT_MAX_DOCUMENT_BYTES);
+
+        $zipPath = $this->createZip(['big.md' => str_repeat("\0", WikiArchiveHelper::DEFAULT_MAX_DOCUMENT_BYTES + 1)]);
+
+        try {
+            $this->expectExceptionMessage('per document');
+            $this->helper->extractZip($zipPath);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    /** Audit GV-L3: what a killed request left is removed by the next import, and nothing else is. */
+    public function testExtractZipSweepsStaleTempFilesOnly(): void
+    {
+        $tmp         = sys_get_temp_dir();
+        $staleDir    = $tmp . '/wiki-import-' . bin2hex(random_bytes(8));
+        $staleUpload = $tmp . '/wiki-upload-' . bin2hex(random_bytes(8)) . '.zip';
+        $freshDir    = $tmp . '/wiki-import-' . bin2hex(random_bytes(8));
+        $foreignDir  = $tmp . '/wiki-import-keep-' . bin2hex(random_bytes(8));
+        $victim      = $tmp . '/wiki-victim-' . bin2hex(random_bytes(8));
+        $staleLink   = $tmp . '/wiki-import-' . bin2hex(random_bytes(8));
+        foreach ([$staleDir . '/sub', $freshDir, $foreignDir, $victim] as $dir) {
+            mkdir($dir, 0700, true);
+        }
+        file_put_contents($staleDir . '/sub/page.md', 'x');
+        file_put_contents($staleUpload, 'x');
+        file_put_contents($victim . '/keep.txt', 'x');
+        symlink($victim, $staleLink);
+        $old = time() - 3700;
+        foreach ([$staleDir, $staleUpload, $foreignDir, $victim] as $path) {
+            touch($path, $old);
+        }
+        clearstatcache();
+
+        $zipPath = $this->createZip(['a.md' => 'a']);
+
+        try {
+            $extracted = $this->helper->extractZip($zipPath);
+            clearstatcache();
+            self::assertDirectoryDoesNotExist($staleDir);
+            self::assertFileDoesNotExist($staleUpload);
+            self::assertDirectoryExists($freshDir, 'A recent directory may be a live import.');
+            self::assertDirectoryExists($foreignDir, 'Only the exact names of the bundle are removed.');
+            self::assertFileExists($victim . '/keep.txt', 'A link is never followed.');
+            self::assertTrue(is_link($staleLink));
+            self::assertFileExists($extracted . '/a.md');
+            $this->helper->removeDirectory($extracted);
+        } finally {
+            unlink($zipPath);
+            unlink($staleLink);
+            foreach ([$freshDir, $foreignDir, $victim, $staleDir] as $dir) {
+                $this->helper->removeDirectory($dir);
+            }
+        }
+    }
+
+    /** Audit GV-L3: documents that cannot be read within memory_limit are refused; each one alone is within its limit. */
+    public function testExtractZipRefusesDocumentsThatDoNotFitInMemory(): void
+    {
+        // Big enough for any gap between the real and the used memory, which depends on the tests that ran before.
+        $size    = (int) ((memory_get_usage(true) - memory_get_usage()) / 2) + 4 * 1024 * 1024;
+        $zipPath = $this->createZip(['a.md' => str_repeat('a', $size), 'b.md' => str_repeat('a', $size)]);
+        $helper  = new WikiArchiveHelper(maxDocumentBytes: $size);
+        $before  = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
+        $limit   = (string) ini_get('memory_limit');
+        ini_set('memory_limit', (string) (memory_get_usage(true) + 3 * 1024 * 1024));
+
+        try {
+            $helper->extractZip($zipPath);
+            self::fail('Expected the documents to be refused.');
+        } catch (InvalidArgumentException $e) {
+            self::assertStringContainsString('do not fit in the memory limit', $e->getMessage());
+            self::assertSame($before, glob(sys_get_temp_dir() . '/wiki-import-*') ?: []);
+        } finally {
+            ini_set('memory_limit', $limit);
+            unlink($zipPath);
+        }
+    }
+
+    public function testNoMemoryLimitSkipsTheMemoryCheck(): void
+    {
+        $zipPath = $this->createZip(['a.md' => 'a']);
+        $limit   = (string) ini_get('memory_limit');
+        ini_set('memory_limit', '-1');
+
+        try {
+            $extracted = $this->helper->extractZip($zipPath);
+            self::assertFileExists($extracted . '/a.md');
+            $this->helper->removeDirectory($extracted);
+        } finally {
+            ini_set('memory_limit', $limit);
             unlink($zipPath);
         }
     }

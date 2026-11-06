@@ -171,6 +171,12 @@ final readonly class WikiDocumentImporter
                 $report->addMessage(sprintf('%s: wiki export index, skipped.', $index));
             }
 
+            // Audit GV-L3: everything is in memory now. A fatal error below skips the finally: leave nothing behind.
+            if ($cleanupDir !== null) {
+                // @igor-ignore - Not shared worker service state.
+                $this->archiveHelper->removeDirectory($cleanupDir);
+            }
+
             if ($nodes === []) {
                 $report->addMessage('No Markdown documents found in import source.');
 

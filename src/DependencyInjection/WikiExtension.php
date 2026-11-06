@@ -253,6 +253,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.attachments', $config['attachments']);
         $container->setParameter('nowo_wiki.tenant_paths', $config['tenant_paths']);
         $container->setParameter('nowo_wiki.import_export.enabled', (bool) $config['import_export']['enabled']);
+        $container->setParameter('nowo_wiki.import_export.max_document_bytes', $config['import_export']['max_document_bytes']);
         $templates = self::templates($config);
         $container->setParameter('nowo_wiki.web_ui', [
             'enabled'         => (bool) $config['web_ui']['enabled'],

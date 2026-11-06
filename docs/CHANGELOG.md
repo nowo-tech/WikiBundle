@@ -60,6 +60,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Imports: per-document limit and no extraction left behind (audit GV-L3).** `import_export.max_document_bytes` (default 8 MiB) refuses a larger `.md` entry of a ZIP from its declared size, before anything is extracted, and an archive whose Markdown does not fit in `memory_limit` is refused too. The two whole-file reads of an import are bounded by the same limit, which also covers directory sources of `wiki:import`. An import removes its extraction once the documents are read, so a fatal error in the memory-hungry part (memory, time limit), which skips `finally`, leaves it no longer. Each import also removes the bundle's own temp files older than one hour, left by a killed request. Many documents within the limits can still exhaust `memory_limit` while they are imported, as before.
+
+### Fixed
+
+- `WikiQuotaCheckEvent::deny()` turns U+2028 and U+2029 into a space and keeps ZWJ and ZWNJ, so emoji sequences and Persian text stay joined (audit GV-I8).
+
+### Documentation
+
+- `web_ui.assets: false` does not remove what form widgets print (audit GV-I9). `nowo_wiki_web_ui`: `|slice` and the shared object in worker mode (audit GV-I10).
+
 ## [1.21.0] - 2026-11-06
 
 Host hooks requested by Beacon (2026-11-06, WK-1 to WK-5), so it can drop its template forks and kernel listeners. Every option is off (or at the 1.20 value) by default: without them the pages, routes and responses are the same.

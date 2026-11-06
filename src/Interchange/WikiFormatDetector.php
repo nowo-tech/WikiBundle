@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Interchange;
 
 use FilesystemIterator;
+use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -19,9 +20,11 @@ final readonly class WikiFormatDetector
      * Stores the front matter parser used to inspect Markdown files.
      *
      * @param WikiFrontMatterParser $frontMatterParser front matter parser
+     * @param WikiMarkdownFileReader $fileReader bounded reader of the Markdown files (audit GV-L3)
      */
     public function __construct(
         private WikiFrontMatterParser $frontMatterParser,
+        private WikiMarkdownFileReader $fileReader = new WikiMarkdownFileReader(),
     ) {
     }
 
@@ -31,6 +34,8 @@ final readonly class WikiFormatDetector
      * Files named after their directory count for Notion, slug/parent front matter for Outline; ties resolve to Outline.
      *
      * @param string $rootDir root directory of the export
+     *
+     * @throws InvalidArgumentException when a Markdown file is over the per-document limit
      *
      * @return WikiInterchangeFormat Notion or Outline
      */
@@ -55,7 +60,7 @@ final readonly class WikiFormatDetector
                 ++$notionScore;
             }
 
-            $parsed = $this->frontMatterParser->parse((string) file_get_contents($file->getPathname()));
+            $parsed = $this->frontMatterParser->parse($this->fileReader->read($file->getPathname()));
             $meta   = $parsed['meta'];
             if (isset($meta['wiki_slug']) || isset($meta['wiki_parent']) || isset($meta['slug']) || isset($meta['parent'])) {
                 ++$outlineScore;

@@ -103,6 +103,35 @@ MD);
         }
     }
 
+    /** Audit GV-L3: a fatal error skips the finally, so the extraction is gone before the part that needs the memory. */
+    public function testExtractionIsRemovedBeforeThePagesAreImported(): void
+    {
+        $zipPath = sys_get_temp_dir() . '/wiki-gvl3-' . bin2hex(random_bytes(4)) . '.zip';
+        $zip     = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFromString('intro.md', "# Intro\n");
+        $zip->close();
+
+        $before         = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
+        $whileWriting   = null;
+        $pageRepository = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepository->method('findActiveBySpace')->willReturnCallback(static function () use (&$whileWriting): array {
+            $whileWriting = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
+
+            return [];
+        });
+        $pageRepository->method('countBySpaceAndSlug')->willReturn(0);
+
+        try {
+            $report = $this->importer($pageRepository)->import(new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 'team-1'), $zipPath, WikiInterchangeFormat::Outline, new TestUser());
+
+            self::assertSame(1, $report->created);
+            self::assertSame($before, $whileWriting);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
     public function testAutoDetectsFormat(): void
     {
         $root = sys_get_temp_dir() . '/wiki-import-' . bin2hex(random_bytes(4));
