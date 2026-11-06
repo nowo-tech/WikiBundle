@@ -14,6 +14,11 @@ nowo_wiki:
     # 1.14 (T065): Delete moves a page and its sub-pages to the trash (restore, purge, 30-day retention).
     trash:
         enabled: true
+    # Unreleased: a "Files" card on the page view (Milkdown file cards and images of the page) and, on trash purge,
+    # nowo_wiki.page.files_purged for the host's storage (the demo stores no files: the event has no listener).
+    page_files:
+        enabled: true
+        purge_event: true
     # 1.15: the history timeline (sessions, author labels, Save version, Copy to new page; wiki:history:thin).
     history:
         timeline: true

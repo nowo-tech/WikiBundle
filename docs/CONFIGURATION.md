@@ -51,6 +51,7 @@ Root key: `nowo_wiki`.
 - [Milkdown editor (1.13)](#milkdown-editor-113)
 - [Page tree (1.14)](#page-tree-114)
 - [Trash (1.14)](#trash-114)
+- [Page files (unreleased)](#page-files-unreleased)
 - [History timeline (1.15)](#history-timeline-115)
 - [Comments (1.16)](#comments-116)
 - [Avatars (1.16)](#avatars-116)
@@ -198,6 +199,65 @@ read are counted, not named. Schedule the retention, e.g. with cron: `0 3 * * * 
 Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): a delete takes the page and its whole sub-tree,
 and a restore brings them back together (D-W29); pages archived before the delete stay archived (D-W30); a restored
 page whose parent is gone meanwhile comes back at the top level (D-W31).
+
+## Page files (unreleased)
+
+The files a page refers to: Milkdown 1.8 file cards `::file[name]{href="…" size="…" type="…"}` (uploads that are not
+images, MilkdownEditorBundle feature `file_cards`) and images `![alt](url)`. The host owns their storage (its
+`upload_url`); the bundle only reads the Markdown.
+
+```yaml
+nowo_wiki:
+    page_files:
+        enabled: false        # a "Files" card in the page view (current revision, everyone who may read the page)
+        purge_event: false    # nowo_wiki.page.files_purged when the trash purges pages for good (needs trash.enabled)
+        max_files: 200        # files listed at most per page (and per revision for the event)
+        max_purge_files: 5000 # files one purge event carries at most (then truncated: true and a warning)
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `page_files.enabled` | `false` | The page view lists the files of the current revision (variable `page_files`, list of `PageFile\WikiPageFile` with `url`, `name`, `kind` = `file` / `image`, `size`, `type`, `sizeLabel()`) |
+| `page_files.purge_event` | `false` | After a purge commits, dispatch `WikiEvents::PAGE_FILES_PURGED` (`WikiPageFilesPurgedEvent`: `space`, `batchId`, `pageIds`, `files`, `actor`) with the files of **every revision** of the purged pages, once each |
+| `page_files.max_files` | 200 | Cap per page / revision (1–1000) |
+| `page_files.max_purge_files` | 5000 | Cap of distinct files per purge event (1–100000); beyond it the event has `truncated: true` and a warning is logged |
+
+Only relative and http(s) URLs are listed (no `javascript:`, `data:` or `//host`); names lose control and invisible
+format characters and are cut at 200 characters; code blocks, code spans and HTML comments are ignored; HTML
+revisions list nothing. The event is not sent on *Delete* (a restore needs the files) nor when the purged pages
+referred to no file; it is sent after the purge committed, also when a `nowo_wiki.trash.purged` listener throws.
+
+The list is **best effort** (a pattern match, not a CommonMark parser): cards on their own line, also in block quotes
+and list items; a repeated attribute keeps its last value, as the renderer does; reference-style images
+`![alt][ref]` and `<img>` in raw HTML are not listed. Keep `page_files.enabled` off if a host
+`DirectiveRendererInterface` renders `::file` differently from Milkdown (e.g. hides some files from some readers):
+the list reads the Markdown, not the host's rendering.
+
+**`files` are untrusted, editor-supplied URLs.** Any editor of a purged page could have written any URL into one of
+its revisions — including a file of another space or user. Map URLs to your files by **lookup** (never build a path
+from a URL: relative URLs may contain `..`), delete only files recorded for **this space / these pages** at upload
+time, and skip files something else still refers to:
+
+```php
+// A host listener (Beacon owns the storage of its upload endpoint)
+#[AsEventListener(WikiEvents::PAGE_FILES_PURGED)]
+public function onFilesPurged(WikiPageFilesPurgedEvent $event): void
+{
+    foreach ($event->files as $file) {
+        $stored = $this->files->findOneByPublicUrl($file->url);   // lookup only: no path built from the URL
+        if ($stored === null
+            || $stored->getSpaceId() !== $event->space->getId()     // ownership recorded at upload time
+            || !\in_array($stored->getPageId(), $event->pageIds, true)
+            || $this->references->isReferencedElsewhere($stored, $event->pageIds)) {
+            continue;
+        }
+        $this->storage->delete($stored);
+    }
+    if ($event->truncated) {
+        $this->logger->notice('Wiki purge reported only part of its files; run the orphan sweep.');
+    }
+}
+```
 
 ## History timeline (1.15)
 

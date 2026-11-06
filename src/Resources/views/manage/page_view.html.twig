@@ -5,7 +5,9 @@
   Also (value-free): tree, tree_truncated, max_tree_pages, tree_search_href, tree_ui (1.14, null without tree.enabled;
   adds js/nowo-ui-tree.js; the header gets Move), copy_markdown (1.15, editors with editor.milkdown.copy_markdown: the
   source for the "Copy as Markdown" button), content_html (current revision body,
-  printed through nowo_wiki_safe_html), used_in (WikiPageFactory::usedIn(): {type, label, href, badge}), rich_content
+  printed through nowo_wiki_safe_html), used_in (WikiPageFactory::usedIn(): {type, label, href, badge}), page_files
+  (1.20, page_files.enabled: list of PageFile\WikiPageFile {url, name, kind, size, type} the current revision refers
+  to, shown as the "Files" card; URLs are relative or http(s) only), rich_content
   (1.13, editor.type milkdown: the body is rendered for the viewer and wiki.js draws its Mermaid / math with the
   Milkdown read-side script of nowo_wiki_rich_content_assets()).
   1.16: page.header.tabs (View\AreaNav: Page / Edit / History) renders as the tab row under the header
@@ -78,6 +80,21 @@
                             <li class="nowo-wiki-used-in__item" data-object-type="{{ object.type }}">
                                 <a href="{{ object.href }}" class="nowo-wiki-used-in__link">{{ object.label }}</a>
                                 {% if object.badge %}<span class="{{ nowo_ui_class('badge_neutral', _b) }}">{{ object.badge }}</span>{% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+            {% endif %}
+            {% if page_files|default([]) is not empty %}
+                <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-files" aria-labelledby="nowo-wiki-files-title" data-testid="wiki-page-files"{{ nowo_ui_attrs('card', _b) }}>
+                    <header class="{{ nowo_ui_class('card_header', _b) }}">
+                        <h2 class="{{ nowo_ui_class('card_title', _b) }} nowo-wiki-region-title" id="nowo-wiki-files-title">{{ 'wiki.page.files'|trans }}</h2>
+                    </header>
+                    <ul class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-used-in__list nowo-wiki-files__list">
+                        {% for file in page_files %}
+                            <li class="nowo-wiki-used-in__item nowo-wiki-files__item" data-kind="{{ file.kind }}">
+                                <a href="{{ file.url }}" class="nowo-wiki-files__link" rel="noopener noreferrer">{{ file.name is not empty ? file.name : file.url }}</a>
+                                <span class="{{ nowo_ui_class('badge_neutral', _b) }}">{{ (file.kind == 'image' ? 'wiki.page.file_image' : 'wiki.page.file')|trans }}{% if file.sizeLabel %} · {{ file.sizeLabel }}{% endif %}</span>
                             </li>
                         {% endfor %}
                     </ul>

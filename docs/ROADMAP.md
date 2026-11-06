@@ -166,6 +166,8 @@ confirmation*.
   and day after `history.retention_days`; named, current and newest revisions kept), opt-in `history.timeline`. The
   server-rendered diff and co-authors from the collab session follow once Milkdown 1.6 lands; there is no "published"
   revision yet (drafts are 1.17), so the retention has no such floor for now.
+- [x] Page files (Beacon request 2026-11-06, ME-3): opt-in *Files* card of the page view (`page_files.enabled`) and
+  `nowo_wiki.page.files_purged` on trash purge (`page_files.purge_event`) for host-owned storage — unreleased
 
 ## Plans
 

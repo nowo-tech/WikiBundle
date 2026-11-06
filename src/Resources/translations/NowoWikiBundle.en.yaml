@@ -94,6 +94,9 @@ wiki:
     history: History
     unarchive: 'Restore page'
     used_in: 'Used in'
+    files: 'Files'
+    file: 'File'
+    file_image: 'Image'
     edit_title: "Edit %title%"
     archive: "Archive"
     archive_confirm_title: "Archive this page?"

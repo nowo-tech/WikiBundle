@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Form\WikiPageFormType;
 use Nowo\WikiBundle\Form\WikiPostActionType;
 use Nowo\WikiBundle\Form\WikiSearchType;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
+use Nowo\WikiBundle\PageFile\WikiPageFile;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
@@ -114,12 +115,14 @@ final class PageFixtures
             'max_tree_pages'   => 500,
             'tree_search_href' => null,
             'used_in'          => $full ? $factory->usedIn(['ticket' => [new WikiLinkedObject('ticket', '42', 'Ticket #42', '/tickets/42', 'open'), new WikiLinkedObject('ticket', '43', 'Ticket #43', '/tickets/43')]]) : [],
-            'routes'           => self::routes(),
-            'dashboard_route'  => null,
-            'can_edit'         => $full,
-            'can_history'      => $full,
-            'can_archive'      => $full,
-            'permissions'      => [],
+            // 1.20 (page_files): a file card and an image of the current revision.
+            'page_files'      => $full ? [new WikiPageFile('/files/q3?a=1&b=2', 'Q3 <report>.pdf', WikiPageFile::KIND_FILE, 1258291, 'application/pdf'), new WikiPageFile('/files/flow.png', '', WikiPageFile::KIND_IMAGE)] : [],
+            'routes'          => self::routes(),
+            'dashboard_route' => null,
+            'can_edit'        => $full,
+            'can_history'     => $full,
+            'can_archive'     => $full,
+            'permissions'     => [],
         ] + ($commentsOpen === null ? [] : [
             'comments' => self::comments($page, $commentsOpen, $mounted, $editHref),
         ] + ($mounted ? ['comments_view' => ['markdown' => '## Deploy', 'options' => ['features' => ['comments']]]] : [])));

@@ -94,6 +94,9 @@ wiki:
     history: Cronologia
     unarchive: 'Ripristina pagina'
     used_in: 'Usata in'
+    files: 'File'
+    file: 'File'
+    file_image: 'Immagine'
     edit_title: "Modifica %title%"
     archive: "Archivia"
     archive_confirm_title: "Archiviare questa pagina?"

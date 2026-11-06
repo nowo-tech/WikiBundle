@@ -94,6 +94,9 @@ wiki:
     history: Geschiedenis
     unarchive: 'Pagina terugzetten'
     used_in: 'Gebruikt in'
+    files: 'Bestanden'
+    file: 'Bestand'
+    file_image: 'Afbeelding'
     edit_title: "%title% bewerken"
     archive: "Archiveren"
     archive_confirm_title: "Deze pagina archiveren?"

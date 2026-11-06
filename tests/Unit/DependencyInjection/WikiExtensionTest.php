@@ -40,6 +40,7 @@ use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
@@ -47,6 +48,7 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
@@ -74,6 +76,7 @@ use Symfony\Component\Config\Definition\Processor;
 use Symfony\Component\DependencyInjection\Compiler\MergeExtensionConfigurationPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
@@ -222,6 +225,40 @@ final class WikiExtensionTest extends TestCase
         self::assertSame(DoctrineOrmWikiTrashRepository::class, (string) $container->getAlias(WikiTrashRepositoryInterface::class));
         self::assertSame('kb_page_trash', $container->getDefinition(WikiMetadataListener::class)->getArgument('$trashTableName'));
         self::assertTrue($container->getDefinition(WikiMetadataListener::class)->getArgument('$trashEnabled'));
+    }
+
+    public function testPageFilesAreOffByDefaultAndWiredWhenOn(): void
+    {
+        $load = static function (array $config): ContainerBuilder {
+            $container = new ContainerBuilder();
+            $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+            (new WikiExtension())->load([['user_class' => 'App\\Entity\\User'] + $config], $container);
+
+            return $container;
+        };
+
+        $off = $load(['trash' => ['enabled' => true]]);
+        self::assertFalse($off->hasDefinition(WikiPageFileExtractor::class));
+        self::assertNull($off->getDefinition(WikiTrashService::class)->getArguments()['$pageFiles'] ?? null);
+
+        $on    = $load(['trash' => ['enabled' => true], 'page_files' => ['enabled' => true, 'purge_event' => true, 'max_files' => 50]]);
+        $trash = $on->getDefinition(WikiTrashService::class);
+        self::assertSame(50, $on->getDefinition(WikiPageFileExtractor::class)->getArgument('$maxFiles'));
+        $inline = $trash->getArgument('$pageFiles');
+        self::assertInstanceOf(Definition::class, $inline);
+        self::assertSame(WikiPageFileExtractor::class, $inline->getClass());
+        self::assertSame(50, $inline->getArgument('$maxFiles'));
+        self::assertSame(WikiPageRevisionRepositoryInterface::class, (string) $trash->getArgument('$revisions'));
+        self::assertSame(5000, $trash->getArgument('$maxPurgeFiles'));
+
+        // The purge hook alone (no list in the page view).
+        $hookOnly = $load(['trash' => ['enabled' => true], 'page_files' => ['purge_event' => true]]);
+        self::assertFalse($hookOnly->hasDefinition(WikiPageFileExtractor::class));
+        self::assertInstanceOf(Definition::class, $hookOnly->getDefinition(WikiTrashService::class)->getArgument('$pageFiles'));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('nowo_wiki.page_files.purge_event needs nowo_wiki.trash.enabled');
+        $load(['page_files' => ['purge_event' => true]]);
     }
 
     public function testTheHistoryTimelineIsOffByDefaultAndWiresItsServicesWhenOn(): void

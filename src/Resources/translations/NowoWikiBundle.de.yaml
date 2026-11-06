@@ -94,6 +94,9 @@ wiki:
     history: Verlauf
     unarchive: 'Seite wiederherstellen'
     used_in: 'Verwendet in'
+    files: 'Dateien'
+    file: 'Datei'
+    file_image: 'Bild'
     edit_title: "%title% bearbeiten"
     archive: "Archivieren"
     archive_confirm_title: "Diese Seite archivieren?"
