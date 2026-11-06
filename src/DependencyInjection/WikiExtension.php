@@ -801,6 +801,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if ($config['search']['scope'] === 'space' && isset($config['routes']['search'])) {
             $container->setDefinition(WikiSearchScopeListener::class, (new Definition(WikiSearchScopeListener::class))
                 ->setArgument('$routeName', $config['routes']['search']['name'])
+                ->setArgument('$slugRequirements', array_column($config['tenant_paths'], 'slug_requirement'))
                 ->addTag('kernel.event_listener', ['event' => KernelEvents::REQUEST, 'priority' => 30]));
         }
     }

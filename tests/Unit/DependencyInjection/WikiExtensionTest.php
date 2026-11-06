@@ -112,6 +112,19 @@ final class WikiExtensionTest extends TestCase
         }
     }
 
+    public function testSearchScopeListenerGetsTheTenantSlugRequirements(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class'   => 'App\\Entity\\User',
+            'search'       => ['scope' => 'space'],
+            'tenant_paths' => [['path' => '/orgs/{spaceSlug}/wiki', 'name_prefix' => 'org_', 'slug_requirement' => 'org-[a-z]+--[a-z]+']],
+        ]], $container);
+
+        self::assertSame(['org-[a-z]+--[a-z]+'], $container->getDefinition(WikiSearchScopeListener::class)->getArgument('$slugRequirements'));
+    }
+
     public function testRegistersHtmlSanitizerAlias(): void
     {
         $container = new ContainerBuilder();
@@ -737,6 +750,7 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->getDefinition(WikiPageFactory::class)->getArgument('$importExportDialog'));
         $listener = $container->getDefinition(WikiSearchScopeListener::class);
         self::assertSame('app_wiki_search', $listener->getArgument('$routeName'));
+        self::assertSame([], $listener->getArgument('$slugRequirements'));
         self::assertSame([['event' => KernelEvents::REQUEST, 'priority' => 30]], $listener->getTag('kernel.event_listener'));
         self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$moderationPanel'));
         self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$errorNotices'));
