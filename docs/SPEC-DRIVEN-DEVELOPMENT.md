@@ -31,11 +31,13 @@ Versionable internal wiki for Symfony apps: runbooks, ADRs, and team documentati
 
 | In scope (v1) | Out of scope (v1) |
 |---------------|-------------------|
-| Spaces (team/user), page tree, revisions, diff, search | Real-time collaborative editing |
-| Tiptap HTML editor, archive pages | Public/anonymous wiki |
-| Markdown/Obsidian import-export (CLI + interchange services) | Built-in multi-tenant billing |
-| Optional Symfony AI assistant (`WikiAiAssistantInterface`) | Full CSP / rate-limit middleware in bundle |
-| `WikiAccessCheckerInterface`, team membership resolver | |
+| Spaces (team/user), page tree, revisions, diff, search | Public/anonymous wiki |
+| Tiptap or Milkdown editor, Markdown storage, archive pages | Built-in billing or plan limits (the host decides, `nowo_wiki.quota.check`) |
+| Markdown/Obsidian import-export (CLI + interchange services) | Full CSP / rate-limit middleware in bundle |
+| Optional Symfony AI assistant (`WikiAiAssistantInterface`) | |
+| `WikiAccessCheckerInterface`, space- and page-aware checker, team membership resolver, tenant paths | |
+| Opt-in: co-editing (Mercure), page tree moves, trash, history timeline, comments, page files | |
+| Attachments and links to host objects | |
 | CSRF + HTML sanitization on save | |
 
 ## User stories

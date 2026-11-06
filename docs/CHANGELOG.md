@@ -112,7 +112,7 @@ With the AI disabled, the AI question route is no longer registered.
 
 Minor release: dialog rule v2 (owner decision D-20261105-54, Symfony Beacon DIALOG-INVENTORY
 "waiting on kit": Wiki — trash purge, page view / history dialogs). Requires `nowo-tech/ui-kit-bundle` **^2.31**. See
-[UPGRADING](UPGRADING.md#unreleased).
+[UPGRADING](UPGRADING.md#to-1190).
 
 ### Changed
 

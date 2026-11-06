@@ -51,7 +51,7 @@ Root key: `nowo_wiki`.
 - [Milkdown editor (1.13)](#milkdown-editor-113)
 - [Page tree (1.14)](#page-tree-114)
 - [Trash (1.14)](#trash-114)
-- [Page files (unreleased)](#page-files-unreleased)
+- [Page files (1.20)](#page-files-120)
 - [History timeline (1.15)](#history-timeline-115)
 - [Comments (1.16)](#comments-116)
 - [Avatars (1.16)](#avatars-116)
@@ -201,7 +201,7 @@ Decisions (2026-11-03, see [ROADMAP › Decided](ROADMAP.md#decided)): a delete 
 and a restore brings them back together (D-W29); pages archived before the delete stay archived (D-W30); a restored
 page whose parent is gone meanwhile comes back at the top level (D-W31).
 
-## Page files (unreleased)
+## Page files (1.20)
 
 The files a page refers to: Milkdown 1.8 file cards `::file[name]{href="…" size="…" type="…"}` (uploads that are not
 images, MilkdownEditorBundle feature `file_cards`) and images `![alt](url)`. The host owns their storage (its

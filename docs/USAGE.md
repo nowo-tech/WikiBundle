@@ -259,7 +259,7 @@ Dispatched after the change is flushed, except `nowo_wiki.quota.check`.
 - `nowo_wiki.page.linked` / `.unlinked` — `WikiPageLinkEvent` (`objectType`, `objectId`, 1.9)
 - `nowo_wiki.attachment.uploaded` / `.deleted` — `WikiAttachmentEvent` (1.9)
 - `nowo_wiki.page.trashed` / `nowo_wiki.trash.restored` / `nowo_wiki.trash.purged` — `WikiTrashEvent` (`space`, `batchId`, `rootTitle`, `pageIds`, `actor`; 1.14, `trash.enabled`; after a purge the pages no longer exist)
-- `nowo_wiki.page.files_purged` — `WikiPageFilesPurgedEvent` (`space`, `batchId`, `pageIds`, `files` = list of `PageFile\WikiPageFile`, `actor`; unreleased, `page_files.purge_event`): the files every revision of the purged pages referred to, for the host to delete from its storage (see [CONFIGURATION › Page files](CONFIGURATION.md#page-files-unreleased))
+- `nowo_wiki.page.files_purged` — `WikiPageFilesPurgedEvent` (`space`, `batchId`, `pageIds`, `files` = list of `PageFile\WikiPageFile`, `actor`; 1.20, `page_files.purge_event`): the files every revision of the purged pages referred to, for the host to delete from its storage (see [CONFIGURATION › Page files](CONFIGURATION.md#page-files-120))
 - `nowo_wiki.page.moved` — `WikiPageMovedEvent` (`page`, `fromParent`, `toParent`, `index`, `actor`, `movedAt`; 1.14, `tree.enabled`): the audit entry of a move
 - `nowo_wiki.editor.options` — `WikiEditorOptionsEvent`: add TiptapEditorType options (e.g. the suggestion hook's candidate URLs) for the space and page being edited (1.9)
 
