@@ -187,6 +187,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if (!$config['comments']['enabled']) {
             unset($config['routes']['page_comments'], $config['routes']['space_panel_state']);
         }
+        // 1.19.1: with the AI off (default) its question route is not registered, so no endpoint or link exists.
+        if (!$config['ai']['enabled']) {
+            unset($config['routes']['ai_ask']);
+        }
         if ($config['security']['allow_unauthenticated']) {
             $this->refuseAllowUnauthenticatedInProduction($container);
         }

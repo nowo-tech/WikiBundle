@@ -965,12 +965,17 @@ final class WikiManageController extends AbstractController
      * @param Request $request current request (reads {@code q} and {@code space} from the body or query)
      *
      * @throws AccessDeniedHttpException when a POST carries an invalid CSRF token
+     * @throws NotFoundHttpException when the AI is disabled (no {@code ai_ask} route)
      *
      * @return Response rendered AI question page
      */
     #[Route(path: '/tools/wiki/ask', name: 'nowo_wiki_ai_ask', options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'ai_ask'], methods: ['GET', 'POST'])]
     public function askAi(Request $request): Response
     {
+        // 1.19.1: the route is not registered while nowo_wiki.ai.enabled is false; a host that routes here anyway gets 404.
+        if (!isset($this->routes['ai_ask'])) {
+            throw new NotFoundHttpException('Wiki AI is disabled.');
+        }
         $this->denyUnlessFeature('ai');
         $user      = $this->requireUser();
         $spaces    = $this->readableSpaces($user, WikiAction::AskAi);
