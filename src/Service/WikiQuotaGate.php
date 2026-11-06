@@ -8,6 +8,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface as ListeningDispatcher;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -28,6 +29,19 @@ final readonly class WikiQuotaGate
         private ?EventDispatcherInterface $eventDispatcher = null,
         private ?TranslatorInterface $translator = null,
     ) {
+    }
+
+    /**
+     * Whether a listener may answer, so a caller can skip costly work for the event's `count` (reading an archive). A
+     * dispatcher that cannot tell counts as active.
+     */
+    public function isActive(): bool
+    {
+        if (!$this->eventDispatcher instanceof EventDispatcherInterface) {
+            return false;
+        }
+
+        return !$this->eventDispatcher instanceof ListeningDispatcher || $this->eventDispatcher->hasListeners(WikiEvents::QUOTA_CHECK);
     }
 
     /**

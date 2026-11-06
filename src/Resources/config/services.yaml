@@ -111,6 +111,7 @@ services:
             $attachments: '%nowo_wiki.attachments%'
             $pageFactory: '@Nowo\WikiBundle\Ui\WikiPageFactory'
             $translator: '@?translator'
+            $searchScope: '%nowo_wiki.search.scope%'
 
     Nowo\WikiBundle\Controller\WikiHistoryController:
         public: true

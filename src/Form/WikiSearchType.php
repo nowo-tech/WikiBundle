@@ -37,7 +37,7 @@ final class WikiSearchType extends AbstractType
      * Adds the `space` field (select when `space_choices` is given, hidden otherwise) and the `q` search field.
      *
      * @param FormBuilderInterface<array<string, mixed>|null> $builder form builder
-     * @param array<string, mixed> $options resolved options (`space_choices`, `query_required`)
+     * @param array<string, mixed> $options resolved options (`space_choices`, `query_required`, `all_spaces`)
      */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
@@ -48,9 +48,10 @@ final class WikiSearchType extends AbstractType
             $builder->add('space', HiddenType::class);
         } else {
             $builder->add('space', ChoiceType::class, [
-                'required'                  => false,
-                'label'                     => 'wiki.search.pick_space',
-                'placeholder'               => 'wiki.search.all_spaces',
+                'required' => !$options['all_spaces'],
+                'label'    => 'wiki.search.pick_space',
+                // 1.21: without "all spaces" with search.scope: space (a search without a space is 404 there).
+                'placeholder'               => $options['all_spaces'] ? 'wiki.search.all_spaces' : false,
                 'choices'                   => array_keys($spaces),
                 'choice_label'              => static fn (string $slug): string => $spaces[$slug] ?? $slug,
                 'choice_translation_domain' => false,
@@ -92,10 +93,12 @@ final class WikiSearchType extends AbstractType
             'translation_domain' => WikiBundle::TRANSLATION_DOMAIN,
             'space_choices'      => null,
             'query_required'     => true,
+            'all_spaces'         => true,
             'element_ids'        => [],
         ]);
         $resolver->setAllowedTypes('space_choices', ['null', 'array']);
         $resolver->setAllowedTypes('query_required', 'bool');
+        $resolver->setAllowedTypes('all_spaces', 'bool');
         $resolver->setAllowedTypes('element_ids', 'array');
     }
 

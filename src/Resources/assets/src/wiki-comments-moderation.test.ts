@@ -252,6 +252,15 @@ describe('comments panel extras', () => {
             expect(document.querySelectorAll('#list li')).toHaveLength(1);
         });
 
+        it('says so on a 200 that is not JSON (a login page) and may try again', async () => {
+            document.body.innerHTML = moderation();
+            respond(new Response('<html>login</html>', { status: 200 }));
+            await loadModeration(document, root());
+            expect(document.getElementById('status')?.textContent).toBe('Failed.');
+            expect(root().dataset.loaded).toBeUndefined();
+            expect(document.querySelectorAll('#list li')).toHaveLength(0);
+        });
+
         it('survives markup without list, status, URL, token or labels', async () => {
             document.body.innerHTML = '<details id="mod" data-nowo-wiki-moderation></details>';
             respond(json({ threads: [thread('t1', { count: 2 })] }, 200));

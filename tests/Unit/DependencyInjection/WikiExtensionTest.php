@@ -1059,7 +1059,8 @@ final class WikiExtensionTest extends TestCase
 
         $configs = $container->getExtensionConfig('twig');
         self::assertNotEmpty($configs);
-        self::assertSame('%nowo_wiki.web_ui%', $configs[0]['globals']['nowo_wiki_web_ui'] ?? null);
+        // 1.21 (audit GV-L1): a service, so the value does not depend on the bundle order.
+        self::assertSame('@' . WikiExtension::WEB_UI_GLOBAL, $configs[0]['globals']['nowo_wiki_web_ui'] ?? null);
     }
 
     public function testLoadThrowsWhenSecurityBundleMissingAndUnauthenticatedDisallowed(): void

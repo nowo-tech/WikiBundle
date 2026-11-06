@@ -39,6 +39,10 @@ nowo_wiki:
     # 1.18: page tab icons. The defaults are Tabler names (ux_icon / tabler-icons); this demo uses the bootstrap-icons
     # set, so it names Bootstrap icons. They show when the host sets data-tab-style="icon-text" or "icon" (UiKit 2.29).
     web_ui:
+        # 1.21: exports and import in one dialog; a host template after the page header.
+        import_export: dialog
+        slots:
+            page_header_extra: 'wiki/_header_extra.html.twig'
         tab_icons:
             page: 'bi:file-earmark-text'
             edit: 'bi:pencil'

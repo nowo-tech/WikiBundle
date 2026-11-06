@@ -25,7 +25,7 @@ Since **1.10** every wiki page extends a [UiKitBundle](https://github.com/nowo-t
 | `search` | `@NowoWikiBundle/manage/search.html.twig` | `@NowoUiKit/page/list.html.twig` | `ListPage` from `WikiPageFactory::search()` | `query`, `global_search`, `routes`, `dashboard_route` |
 | `ai_ask` | `@NowoWikiBundle/manage/ai_ask.html.twig` | `@NowoUiKit/page/form.html.twig` | `FormPage` from `WikiPageFactory::aiAsk()` | `question`, `answer`, `sources`, `error`, `csrf_token_id`, `routes`, `dashboard_route` |
 
-Every page also reads the Twig global `nowo_wiki_web_ui` (1.21: `assets`, `slots`, `import_export`, `space_index`; see [CONFIGURATION › Host hooks](CONFIGURATION.md#host-hooks-121)). Every page also receives `nowo_wiki_legacy_layout` / `nowo_wiki_legacy_blocks` (the deprecated pre-1.10 layout bridge, see [Layout](#layout)).
+Every page also reads the Twig global `nowo_wiki_web_ui` (1.21: a service, so any bundle order works; `assets`, `slots`, `import_export`, `space_index`; see [CONFIGURATION › Host hooks](CONFIGURATION.md#host-hooks-121)). Every page also receives `nowo_wiki_legacy_layout` / `nowo_wiki_legacy_blocks` (the deprecated pre-1.10 layout bridge, see [Layout](#layout)).
 
 ## View models
 

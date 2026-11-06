@@ -183,7 +183,9 @@ test.describe('Wiki comments panel', () => {
     await expect(fallback).toBeVisible();
     const text = `No-JS note ${Date.now()}`;
     await fallback.getByLabel('Comment on this page').fill(text);
-    await fallback.getByRole('button', { name: 'Comment' }).click();
+    // By keyboard: the debug toolbar of the demo can cover the button at the bottom of the page.
+    await fallback.getByRole('button', { name: 'Comment' }).focus();
+    await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\?comments=1#nowo-wiki-comments$/);
     await expect(page.getByText('Your comment was added.')).toBeVisible();
     await expect(page.getByTestId('wiki-comments-fallback')).toContainText(text);

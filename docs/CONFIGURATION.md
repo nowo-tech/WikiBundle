@@ -482,7 +482,7 @@ nowo_wiki:
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `web_ui.space_index` | `true` | `false`: `routes.index` is unset, so `/tools/wiki` is 404 and the breadcrumbs lose its link. For hosts whose spaces live under their own pages (`tenant_paths`). Literal boolean |
-| `search.scope` | `all` | `space`: `WikiSearchScopeListener` (`kernel.request`, priority 30, registered only with this value) answers 404 without a valid `?space=` and sets the request attribute `spaceSlug`, for host listeners, tabs and breadcrumbs. Access to the space is still checked by the controller. The search form has no space choice |
+| `search.scope` | `all` | `space`: `WikiSearchScopeListener` (`kernel.request`, priority 30, registered only with this value) answers 404 without a valid `?space=` and sets the request attribute `spaceSlug`, for host listeners, tabs and breadcrumbs. Access to the space is still checked by the controller. The search page has no space choice and the index search form no "all spaces" choice |
 | `web_ui.import_export` | `page` | `dialog`: the exports leave the header and the import card leaves the page, into `manage/_import_export_dialog.html.twig` (UiKit `dialog`; users who may neither import nor export get neither the action nor the dialog) |
 | `web_ui.assets` | `true` | `false` or `{styles: false, scripts: false}`: the `nowo_ui_styles` / `nowo_ui_scripts` blocks of every page print nothing. That also leaves out what the scaffold prints there: the UiKit stylesheet and tokens, and the UiKit runtime scripts. A host bundling the assets loads `src/Resources/assets/src/wiki.css`, `wiki.ts` and the UiKit equivalents itself. Literal booleans (an env placeholder counts as `true`) |
 | `web_ui.slots.*` | null | A template name; the bundle part is not drawn. The same places are the blocks `wiki_sidebar`, `wiki_space_intro` and `wiki_page_header_extra`, for a `web_ui.templates.<page>` that extends the bundle page. Slot templates are trusted host code; escape what they print |
@@ -494,18 +494,23 @@ access and CSRF checks. `deny(reason)` refuses it and stops the other listeners.
 
 | `action` | When | `count` | `bytes` | Refusal |
 |----------|------|---------|---------|---------|
-| `page_create` | New page; *Copy to new page* of a version | 1 | 0 | Form error, 422 (the copy: error flash, redirect to the history) |
+| `page_create` | New page; *Copy to new page* of a version | 1 | 0 | Error flash on the form, 422 (the copy: error flash, redirect to the history) |
 | `page_unarchive` | An archived page comes back | 1 | 0 | Error flash, redirect to the space |
 | `trash_restore` | A deletion comes back from the trash | Pages of the deletion | 0 | Error flash, redirect to the trash |
-| `import` | An import archive (its pages are unknown before it is read) | 1 | Archive size | Error flash, redirect to the space |
+| `import` | An import archive | Markdown documents of the archive | Archive size | Error flash, redirect to the space; nothing is written |
 | `attachment_upload` | A file attached to a page | 1 | File size | 422 `{"error": "quota_exceeded", "reason": "…"}` |
 
 The event also has `space`, `user` and `page` (the page concerned, null for a new page or an import). `reason` is plain
-text: control characters are removed, it is cut at 500 characters and escaped wherever it is shown; an empty one becomes
-`wiki.quota.denied`. A listener that throws fails the request. The check and the write are not one transaction, so a
-strict quota must also be enforced where the host counts (two parallel requests can both pass). `wiki:import` and direct
-calls to `WikiPageService` do not dispatch the event, and an import counts as one page: meter the result with
-`nowo_wiki.page.created` if that matters.
+text: control and format characters are removed (invalid UTF-8 is scrubbed), it is cut at 500 characters and escaped
+wherever it is shown; an empty one becomes `wiki.quota.denied`. A listener that throws fails the request.
+
+An import's `count` is an upper bound of the new pages: a document that later updates an existing page, is skipped or
+fails still counts. The archive is read for it only when a listener exists.
+
+Limits: the check and the write are not one transaction, so a strict quota must also be enforced where the host counts
+(two parallel requests can both pass). `wiki:import` and direct calls to `WikiPageService` do not dispatch the event.
+**Not metered:** page edits (a body can grow), revision restore, comments and co-editing updates. `page_create` reports
+`bytes: 0` and an import the compressed size, so the event is no hook for a quota on page bytes.
 
 ### Tree tokens
 

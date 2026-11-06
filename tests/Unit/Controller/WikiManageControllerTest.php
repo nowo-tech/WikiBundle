@@ -1932,6 +1932,7 @@ MD);
         $response = $controller->newPage($this->createWikiPageFormRequest($container, 'wiki_new_' . $space->getId(), ['title' => 'New doc']), 'eng');
 
         self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $response->getStatusCode());
+        self::assertSame(['Your plan allows 10 pages.'], $this->flashes($container, 'error'));
         self::assertCount(1, $seen);
         self::assertSame(WikiQuotaCheckEvent::PAGE_CREATE, $seen[0]->action);
         self::assertSame($space, $seen[0]->space);
@@ -1955,7 +1956,13 @@ MD);
         $container  = WikiControllerContainerBuilder::bind($controller, $user);
 
         $zipPath = tempnam(sys_get_temp_dir(), 'wiki-quota-');
-        file_put_contents($zipPath, str_repeat('x', 300));
+        $zip     = new ZipArchive();
+        self::assertTrue($zip->open($zipPath, ZipArchive::OVERWRITE));
+        $zip->addFromString('one.md', "# One\n");
+        $zip->addFromString('two.md', "# Two\n");
+        $zip->addFromString('notes.txt', 'not a document');
+        $zip->close();
+        $bytes   = (int) filesize($zipPath);
         $request = Request::create('/import', 'POST', [
             '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
         ], [], [
@@ -1971,8 +1978,41 @@ MD);
         self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
         self::assertSame(['No more pages on this plan.'], $this->flashes($container, 'error'));
         self::assertSame(WikiQuotaCheckEvent::IMPORT, $seen[0]->action);
-        self::assertSame(1, $seen[0]->count);
-        self::assertSame(300, $seen[0]->bytes);
+        // Audit GV-M1: every Markdown document of the archive.
+        self::assertSame(2, $seen[0]->count);
+        self::assertSame($bytes, $seen[0]->bytes);
+    }
+
+    /** With a listener the archive is read before the check: a broken one fails as it does without one, unasked. */
+    public function testImportSpaceWithABrokenArchiveNeverAsksTheQuota(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $seen       = [];
+        $controller = $this->controller(spaceAccessResolver: $resolver, quota: $this->refusingQuota('No.', $seen));
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'wiki-quota-');
+        file_put_contents($zipPath, str_repeat('x', 300));
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ]);
+
+        try {
+            $response = $controller->importSpace($request, 'eng');
+        } finally {
+            @unlink($zipPath);
+        }
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        self::assertSame([], $seen);
+        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.import.failed', ['%reason%' => 'Unable to open ZIP archive.']);
     }
 
     public function testImportSpaceRejectsInvalidCsrf(): void

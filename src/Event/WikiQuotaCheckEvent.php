@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\EventDispatcher\Event;
 
+use function mb_scrub;
 use function mb_substr;
 use function preg_replace;
 use function trim;
@@ -24,10 +25,10 @@ use function trim;
  * | `page_create` | a new page (form, or a copy of a version) | 1 | 0 |
  * | `page_unarchive` | an archived page comes back | 1 | 0 |
  * | `trash_restore` | a deletion comes back from the trash | pages of the deletion | 0 |
- * | `import` | an import archive (pages are unknown before it is read: at least one) | 1 | archive size |
+ * | `import` | an import archive | Markdown documents of the archive (an upper bound of the new pages) | archive size |
  * | `attachment_upload` | a file attached to a page | 1 | file size |
  *
- * The refusal: the page form shows the reason as a form error (422), unarchive / restore / import redirect with an
+ * The refusal: the page form answers 422 with the reason as an error flash, unarchive / restore / import redirect with an
  * error flash, an upload answers 422 `{"error": "quota_exceeded", "reason": "…"}`. The reason is plain text (escaped
  * wherever it is shown); an empty one becomes the bundle's `wiki.quota.denied`.
  */
@@ -73,8 +74,11 @@ final class WikiQuotaCheckEvent extends Event
      */
     public function deny(string $reason = ''): void
     {
+        // Audit GV-I3 / I4: invalid UTF-8 is scrubbed so the text survives; controls become a space, format characters
+        // (bidi overrides, zero-width) go.
+        $text = preg_replace(['/\p{Cc}+/u', '/\p{Cf}+/u'], [' ', ''], mb_scrub($reason, 'UTF-8'));
         // @igor-ignore - Request-scoped event, created per dispatch and excluded from the services; no worker state.
-        $this->reason = mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $reason)), 0, self::MAX_REASON);
+        $this->reason = mb_substr(trim((string) $text), 0, self::MAX_REASON);
         $this->stopPropagation();
     }
 
@@ -83,7 +87,7 @@ final class WikiQuotaCheckEvent extends Event
         return $this->reason !== null;
     }
 
-    /** The reason given to {@see self::deny()} (control characters removed, at most 500 characters), else null. */
+    /** The reason given to {@see self::deny()} (control and format characters removed, at most 500 characters), else null. */
     public function getReason(): ?string
     {
         return $this->reason;

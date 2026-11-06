@@ -1,5 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
+import { RECHECK_DELAY_MS } from './wiki-code-blocks';
 import { currentNonce, initWikiTrees, renderWikiRichContent, whenLoaded } from './wiki';
+
+// wiki.ts watches the document on import: let its queued code-block pass run before the test environment goes away.
+afterAll(() => new Promise<void>((resolve) => {
+    setTimeout(resolve, RECHECK_DELAY_MS + 50);
+}));
 
 describe('wiki page tree', () => {
     afterEach(() => {

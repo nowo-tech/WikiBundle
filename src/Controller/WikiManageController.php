@@ -58,7 +58,6 @@ use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -143,6 +142,7 @@ final class WikiManageController extends AbstractController
      * @param WikiCommentsPanel|null $commentsPanel the comments panel (1.16; null = comments disabled)
      * @param WikiPageFileExtractor|null $pageFiles the files of the page view (1.20, `page_files.enabled`; null = off)
      * @param WikiQuotaGate|null $quota asks the host before a new page, an unarchive or an import (1.21, `nowo_wiki.quota.check`)
+     * @param string $searchScope `search.scope` (1.21): `space` leaves the "all spaces" choice out of the index search form
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -182,6 +182,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiCommentsPanel $commentsPanel = null,
         private readonly ?WikiPageFileExtractor $pageFiles = null,
         private readonly ?WikiQuotaGate $quota = null,
+        private readonly string $searchScope = 'all',
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -219,7 +220,7 @@ final class WikiManageController extends AbstractController
                 array_slice($spaces, ($current - 1) * $perPage, $perPage),
                 // 1.12: no pagination region (empty card / "1 of 1") when everything fits on one page.
                 $total > $perPage ? Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $this->routes['index']['name']) : null,
-                $this->createSearchForm($spaces, [], ['space' => 'wiki-index-search-space', 'q' => 'wiki-index-search-q']),
+                $this->createSearchForm($spaces, [], ['space' => 'wiki-index-search-space', 'q' => 'wiki-index-search-q'], true, $this->searchScope !== 'space'),
                 $canAskAi,
             ),
             'ai_form'         => $canAskAi ? $this->createAiAskForm($spaces, [], ['space' => 'wiki-ai-modal-space', 'q' => 'wiki-ai-modal-question'], ['autofocus' => true])->createView() : null,
@@ -499,12 +500,16 @@ final class WikiManageController extends AbstractController
                 $request->attributes->set(WikiCollabService::SESSION_SAVE_ATTRIBUTE, $page->getId());
             }
 
-            $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
+            // An empty title stays a message on the form: it is never saved.
+            if ($payload->title !== '') {
+                $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
 
-            return $this->redirectToRoute($this->routes['page_view']['name'], [
-                'spaceSlug' => $space->getSlug(),
-                'pageSlug'  => $page->getSlug(),
-            ]);
+                return $this->redirectToRoute($this->routes['page_view']['name'], [
+                    'spaceSlug' => $space->getSlug(),
+                    'pageSlug'  => $page->getSlug(),
+                ]);
+            }
+            $this->flash('error', 'wiki.page.error.invalid_slug');
         }
 
         $canHistory = $this->accessChecker->canViewHistory($user) && $this->spaceGuard->isGranted($user, WikiAction::History, $space, $page);
@@ -548,12 +553,12 @@ final class WikiManageController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
-            // 1.21: the host may refuse the new page (plan limits): the form shows why, nothing is written.
+            // 1.21: the host may refuse the new page (plan limits): 422 with the reason as a flash, nothing is written.
             $refusal = $this->quota?->refusal(WikiQuotaCheckEvent::PAGE_CREATE, $user, $space);
             if ($refusal !== null) {
-                $form->addError(new FormError($refusal));
+                $this->addFlash('error', $refusal);
 
-                return $this->renderNewPage($space, $form);
+                return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
             try {
@@ -939,14 +944,6 @@ final class WikiManageController extends AbstractController
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
 
-        // 1.21: the pages are only known once the archive is read, so the host is asked for at least one.
-        $refusal = $this->quota?->refusal(WikiQuotaCheckEvent::IMPORT, $user, $space, 1, (int) $upload->getSize());
-        if ($refusal !== null) {
-            $this->addFlash('error', $refusal);
-
-            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
-        }
-
         $zipTempPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(8)) . '.zip';
         if (!copy($upload->getPathname(), $zipTempPath)) {
             $this->flash('error', 'wiki.import.invalid_archive');
@@ -955,6 +952,17 @@ final class WikiManageController extends AbstractController
         }
 
         try {
+            // 1.21 (audit GV-M1): the host is asked for every Markdown document of the archive; a refusal writes nothing.
+            // Read only when a listener exists: without one the archive is extracted once, as before.
+            if ($this->quota?->isActive() === true) {
+                $refusal = $this->quota->refusal(WikiQuotaCheckEvent::IMPORT, $user, $space, $this->documentImporter->countDocuments($zipTempPath, $format), (int) $upload->getSize());
+                if ($refusal !== null) {
+                    $this->addFlash('error', $refusal);
+
+                    return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+                }
+            }
+
             $report = $this->documentImporter->import(
                 $space,
                 $zipTempPath,
@@ -1069,13 +1077,14 @@ final class WikiManageController extends AbstractController
      * @param array<string, mixed> $data
      * @param array<string, string> $ids
      */
-    private function createSearchForm(?array $spaces, array $data, array $ids, bool $queryRequired = true): FormView
+    private function createSearchForm(?array $spaces, array $data, array $ids, bool $queryRequired = true, bool $allSpaces = true): FormView
     {
         return $this->createForm(WikiSearchType::class, $data, [
             'action'         => $this->generateUrl($this->routes['search']['name']),
             'space_choices'  => $spaces === null ? null : $this->spaceChoices($spaces),
             'element_ids'    => $ids,
             'query_required' => $queryRequired,
+            'all_spaces'     => $allSpaces,
         ])->createView();
     }
 

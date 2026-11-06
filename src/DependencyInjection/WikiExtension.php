@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\DependencyInjection;
 
+use ArrayObject;
 use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
@@ -137,6 +138,9 @@ use function trim;
  */
 final class WikiExtension extends Extension implements PrependExtensionInterface
 {
+    /** 1.21: service id of the Twig global `nowo_wiki_web_ui` (an ArrayObject of %nowo_wiki.web_ui%). */
+    public const WEB_UI_GLOBAL = 'nowo_wiki.web_ui_global';
+
     /** 1.13: elements of the Milkdown dialect markup kept by the sanitizer with editor.type milkdown. */
     public const MILKDOWN_SANITIZER_ELEMENTS = ['details' => ['open'], 'summary' => []];
 
@@ -259,6 +263,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             // 1.21: read by the page templates through the Twig global nowo_wiki_web_ui.
             'space_index' => (bool) $config['web_ui']['space_index'],
         ] + self::ui($config['web_ui']));
+        // 1.21 (audit GV-L1): the Twig global. A service, not %nowo_wiki.web_ui%: TwigExtension resolves a parameter while it
+        // loads, so with TwigBundle registered first the global would hold the prepend() defaults, not this config.
+        $container->setDefinition(self::WEB_UI_GLOBAL, new Definition(ArrayObject::class, ['%nowo_wiki.web_ui%']));
+        $container->setParameter('nowo_wiki.search.scope', $config['search']['scope']);
         $container->setParameter('nowo_wiki.web_ui.enabled', (bool) $config['web_ui']['enabled']);
         $container->setParameter('nowo_wiki.web_ui.css_framework', $config['web_ui']['css_framework']);
         $container->setParameter('nowo_wiki.security.roles', $roles);
@@ -994,7 +1002,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     public function prepend(ContainerBuilder $container): void
     {
-        // Parameter must exist before Twig globals resolve during container build.
+        // Defaults for host config that reads %nowo_wiki.web_ui% before load(); the Twig global is a service (see load()).
         if (!$container->hasParameter('nowo_wiki.web_ui')) {
             $container->setParameter('nowo_wiki.web_ui', [
                 'enabled'         => true,
@@ -1008,7 +1016,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if ($container->hasExtension('twig')) {
             $container->prependExtensionConfig('twig', [
                 'globals' => [
-                    'nowo_wiki_web_ui' => '%nowo_wiki.web_ui%',
+                    'nowo_wiki_web_ui' => '@' . self::WEB_UI_GLOBAL,
                 ],
             ]);
         }

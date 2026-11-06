@@ -175,13 +175,14 @@ export async function loadModeration(doc: Document, root: HTMLElement): Promise<
     root.dataset.loaded = '1';
     const labels = labelsOf(root);
     const response = await request(root, 'GET', '/threads').catch(() => null);
-    if (!response?.ok) {
+    // Not JSON (e.g. a login page after a redirect) counts as a failed read.
+    const data = response?.ok ? ((await response.json().catch(() => null)) as { threads?: ModerationThread[]; page?: ModerationThread[] } | null) : null;
+    if (data === null) {
         delete root.dataset.loaded;
         status(root, labels.failed);
 
         return;
     }
-    const data = (await response.json()) as { threads?: ModerationThread[]; page?: ModerationThread[] };
     const threads = [...(data.threads ?? []), ...(data.page ?? [])];
     status(root, 0 === threads.length ? labels.empty : '');
     list(root)?.replaceChildren(...threads.map((thread) => moderationItem(doc, thread, labels)));
