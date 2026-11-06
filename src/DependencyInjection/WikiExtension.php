@@ -612,7 +612,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     private function registerPageFiles(ContainerBuilder $container, array $config): void
     {
-        /** @var array{enabled: bool, purge_event: bool, max_files: int} $files */
+        /** @var array{enabled: bool, purge_event: bool, max_files: int, max_purge_files: int} $files */
         $files = $config['page_files'];
         if ($files['enabled']) {
             $container->setDefinition(WikiPageFileExtractor::class, (new Definition(WikiPageFileExtractor::class))
@@ -626,7 +626,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
         $container->getDefinition(WikiTrashService::class)
             ->setArgument('$pageFiles', (new Definition(WikiPageFileExtractor::class))->setArgument('$maxFiles', $files['max_files']))
-            ->setArgument('$revisions', new Reference(WikiPageRevisionRepositoryInterface::class));
+            ->setArgument('$revisions', new Reference(WikiPageRevisionRepositoryInterface::class))
+            ->setArgument('$maxPurgeFiles', $files['max_purge_files']);
     }
 
     /**

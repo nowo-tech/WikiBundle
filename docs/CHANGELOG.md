@@ -71,7 +71,12 @@ Beacon request 2026-11-06 (ME-3, WikiBundle part): the files a page refers to. E
   dispatches **`nowo_wiki.page.files_purged`** (`WikiEvents::PAGE_FILES_PURGED`, `WikiPageFilesPurgedEvent`: `space`,
   `batchId`, `pageIds`, `files`, `actor`) with the files every revision of those pages referred to, after the commit,
   so the host (which owns the storage behind its `upload_url`) deletes them. Never on *Delete*: the trash keeps files
-  for a restore. `page_files.max_files` (default 200) caps the list per page and per revision.
+  for a restore, and also sent when a `nowo_wiki.trash.purged` listener throws. `page_files.max_files` (default 200)
+  caps the list per page and per revision; `page_files.max_purge_files` (default 5000) caps one event (`truncated`
+  flag and a warning beyond it). The event's `files` are untrusted, editor-supplied URLs: the documented listener
+  checks ownership by lookup before deleting.
+- The extractor is best effort: cards on their own line, also in block quotes and list items, a repeated attribute
+  keeps its last value (as the renderer), code and HTML comments skipped, escaped `\![…]` ignored.
 - Translations `wiki.page.files`, `wiki.page.file`, `wiki.page.file_image` (7 locales).
 
 ## [1.19.1] - 2026-11-06

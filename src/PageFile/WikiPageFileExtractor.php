@@ -20,13 +20,20 @@ use const ENT_HTML5;
 use const ENT_QUOTES;
 use const PREG_OFFSET_CAPTURE;
 use const PREG_SET_ORDER;
+use const PREG_UNMATCHED_AS_NULL;
 
 /**
  * Lists the files a page's Markdown refers to (1.20, `page_files`): Milkdown 1.8 file cards
  * `::file[name]{href="…" size="…" type="…"}` and images `![alt](url)`, outside code, in order of first appearance,
  * without duplicates. Only relative and http(s) URLs are kept (no `javascript:`, `data:` or protocol-relative ones);
- * names lose control and bidi-override characters and are cut at 200 characters. HTML revisions have no Markdown: the
- * list is empty.
+ * names lose control and invisible format characters (Unicode Cc / Cf) and are cut at 200 characters. HTML revisions
+ * have no Markdown: the list is empty.
+ *
+ * Best effort, not a CommonMark parser (audit GR-I9): cards are found on their own line, also inside block quotes and
+ * list items (`> `, `- `, `1. ` prefixes); attributes are read like Milkdown's `DirectiveAttributes` (a repeated key
+ * keeps its **last** value, as the renderer does); code blocks, code spans and HTML comments are skipped, and escaped
+ * `\![…](…)` is not an image. Not listed: reference-style images `![alt][ref]`, images in raw HTML (`<img>`), and
+ * cards a host renders differently. Treat the result as editor-supplied, untrusted data.
  */
 final readonly class WikiPageFileExtractor
 {
@@ -43,14 +50,20 @@ final readonly class WikiPageFileExtractor
         '/(`+)(?!`).+?(?<!`)\1(?!`)/s',
     ];
 
-    /** A file card on its own line (possessive: no backtracking on long lines). */
-    private const CARD = '/^[ \t]*+::file(?:\[([^\]\n]*+)\])?+[ \t]*+\{([^}\n]*+)\}[ \t]*+$/m';
+    /**
+     * A file card on its own line, after optional block quote / list item markers (possessive: no backtracking on
+     * long lines).
+     */
+    private const CARD = '/^(?:[ \t]{0,3}+(?:>[ \t]?+|[-*+][ \t]++|\d{1,9}+[.)][ \t]++))*+[ \t]*+::file(?:\[([^\]\n]*+)\])?+[ \t]*+\{([^}\n]*+)\}[ \t]*+$/m';
 
-    /** An image: `![alt](url)` or `![alt](url "title")`, the URL without spaces or `<…>` wrapped. */
-    private const IMAGE = '/!\[([^\]\n]{0,500})\]\(\s*(?:<([^>\n]{1,2048})>|([^\s()<>]{1,2048}))(?:\s+(?:"[^"\n]*"|\'[^\'\n]*\'))?\s*\)/';
+    /** An image: `![alt](url)` or `![alt](url "title")`, the URL without spaces or `<…>` wrapped; not after `\`. */
+    private const IMAGE = '/(?<!\\\\)!\[([^\]\n]{0,500})\]\(\s*(?:<([^>\n]{1,2048})>|([^\s()<>]{1,2048}))(?:\s+(?:"[^"\n]*"|\'[^\'\n]*\'))?\s*\)/';
 
-    /** `key="value"`, `key='value'` or `key=value` inside a directive's braces. */
-    private const ATTRIBUTE = '/([a-z][a-z0-9_-]{0,40})\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'=<>`}]+))/';
+    /** HTML comments (skipped like code). */
+    private const COMMENT = '/<!--.*?-->/s';
+
+    /** One attribute token, anchored at the offset (Milkdown's `DirectiveAttributes::TOKEN`). */
+    private const TOKEN = '/\G\s*(?:([#.])([^\s"\'=<>`#.}]+)|([a-z][a-z0-9_-]{0,40})(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'=<>`}]+)))?)/';
 
     /**
      * @param int $maxFiles most files listed per page
@@ -71,7 +84,7 @@ final readonly class WikiPageFileExtractor
         if ($markdown === null || trim($markdown) === '') {
             return [];
         }
-        $text  = (string) preg_replace(self::CODE, '', str_replace(["\r\n", "\r"], "\n", $markdown));
+        $text  = (string) preg_replace([...self::CODE, self::COMMENT], '', str_replace(["\r\n", "\r"], "\n", $markdown));
         $found = [];
 
         if (preg_match_all(self::CARD, $text, $cards, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) > 0) {
@@ -133,25 +146,34 @@ final readonly class WikiPageFileExtractor
     }
 
     /**
-     * The shown name: no control, bidi-override or isolate characters, single spaces, at most 200 characters.
+     * The shown name: no control or invisible format characters (Cc / Cf: bidi overrides, zero-width, BOM), single spaces, at most 200 characters.
      */
     public static function name(string $value): string
     {
         $clean = (string) preg_replace('/\s+/u', ' ', $value);
-        $clean = trim((string) preg_replace('/[\x{0000}-\x{001F}\x{007F}-\x{009F}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', '', $clean));
+        $clean = trim((string) preg_replace('/[\p{Cc}\p{Cf}]/u', '', $clean));
 
         return trim(mb_substr($clean, 0, self::MAX_NAME));
     }
 
     /**
+     * The attributes of a directive, parsed like Milkdown's `DirectiveAttributes::parse()` so the list keeps the URL the
+     * page shows: tokens from the start, the first unparsable one ends the list, a repeated key keeps its last value.
+     *
      * @return array<string, string>
      */
     private function attributes(string $source): array
     {
-        $out = [];
-        if (preg_match_all(self::ATTRIBUTE, $source, $matches, PREG_SET_ORDER) > 0) {
-            foreach ($matches as $m) {
-                $out[$m[1]] ??= ($m[2] ?? '') !== '' ? $m[2] : (($m[3] ?? '') !== '' ? $m[3] : ($m[4] ?? ''));
+        $out    = [];
+        $offset = 0;
+        $length = strlen($source);
+        while ($offset < $length && count($out) < 20) {
+            if (preg_match(self::TOKEN, $source, $m, PREG_UNMATCHED_AS_NULL, $offset) !== 1) {
+                break;
+            }
+            $offset += strlen($m[0]);
+            if ($m[3] !== null) {
+                $out[$m[3]] = mb_substr($m[4] ?? $m[5] ?? $m[6] ?? '', 0, 500);
             }
         }
 

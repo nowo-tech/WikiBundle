@@ -1423,6 +1423,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // List them in a "Files" section of the page view (current revision, viewers of the page). // Default: false
  *         purge_event?: bool|Param, // When the trash purges pages for good, dispatch nowo_wiki.page.files_purged (WikiPageFilesPurgedEvent) with the files every revision of those pages referred to, so the host deletes them from its storage. Needs trash.enabled. // Default: false
  *         max_files?: int|Param, // Files listed at most per page (and per revision for the purge event). // Default: 200
+ *         max_purge_files?: int|Param, // Distinct files one purge event carries at most; beyond it the event is truncated (truncated: true) and a warning is logged. // Default: 5000
  *     },
  *     comments?: array{ // 1.16: comments of a page (Milkdown 1.6 inline threads and page-level comments) in a right-side panel toggled from the page tabs. Needs editor.type milkdown and nowo-tech/milkdown-editor-bundle >= 1.6. Off: no toggle, no panel, no route, no comment table in the schema. Rights: WikiAction::ViewComments, Comment, ResolveComment, ModerateComments (granted only by a host access checker).
  *         enabled?: bool|Param, // Default: false

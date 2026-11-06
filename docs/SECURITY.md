@@ -137,12 +137,16 @@ either (audit DJ-I2).
 ### Page files (unreleased)
 
 `page_files` reads file cards and images from Markdown that any editor writes. The list keeps relative and http(s)
-URLs only (entities decoded first, protocol-relative and over-long URLs dropped), cleans names (control, bidi-override
-and isolate characters), and Twig escapes every value; links carry `rel="noopener noreferrer"`. The list shows the
-current revision to readers of the page only, so it reveals nothing the rendered page does not. The purge event hands
-URLs, not storage keys: a host must map them to its own files and check the file still belongs to the purged pages
-(and no other page refers to it) before deleting anything — a page body can name any URL, including another page's
-file.
+URLs only (entities decoded first, protocol-relative and over-long URLs dropped), cleans names (control and invisible
+format characters), and Twig escapes every value; links carry `rel="noopener noreferrer"`. The list shows the
+current revision to readers of the page only. It reads the **Markdown**, not the rendered page: with Milkdown's own
+`::file` cards it shows what the page shows, but a host `DirectiveRendererInterface` that renders `::file` itself
+(e.g. hides a file from some readers) is not consulted — keep `page_files.enabled` off in that case.
+
+The purge event hands **untrusted, editor-supplied URLs**, not storage keys: a page body can name any URL, including
+another space's file. A host must map each URL to its own records by lookup (never by building a path: relative URLs
+may contain `..`), delete only files recorded for the purged pages' space / pages at upload time, and skip files
+another page still refers to. The event carries at most `page_files.max_purge_files` files (`truncated` otherwise).
 
 ## Co-editing threat model (1.13)
 

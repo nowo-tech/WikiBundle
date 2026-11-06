@@ -214,6 +214,31 @@ final class WikiTrashServiceTest extends TestCase
 
     }
 
+    /** Audit GR-I8: a cap per event (truncated + warning), and the files event survives a throwing TRASH_PURGED listener. */
+    public function testThePurgeFilesEventIsCappedAndSurvivesAFailingTrashListener(): void
+    {
+        $page = $this->page('many');
+        $this->em->persist(new WikiPageRevision($page, 1, '<p>x</p>', $this->user, "![a](/files/a)\n\n![b](/files/b)\n\n![c](/files/c)"));
+        $this->em->flush();
+        $events  = [];
+        $logger  = new RecordingLogger();
+        $service = $this->service(logger: $logger, pageFiles: true, onFiles: static function (WikiPageFilesPurgedEvent $event) use (&$events): void {
+            $events[] = $event;
+        }, maxPurgeFiles: 2, failPurgedListener: true);
+        $batch = $service->delete($page);
+
+        try {
+            $service->purge($this->space, $batch);
+            self::fail('The TRASH_PURGED listener exception is rethrown.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('listener', $exception->getMessage());
+        }
+        self::assertCount(1, $events);
+        self::assertTrue($events[0]->truncated);
+        self::assertSame(['/files/a', '/files/b'], array_map(static fn (WikiPageFile $f): string => $f->url, $events[0]->files));
+        self::assertNotSame([], $logger->records);
+    }
+
     /** 1.20: no event without files, nor without `page_files.purge_event`. */
     public function testPurgeReportsNothingWithoutFilesOrWithoutTheOption(): void
     {
@@ -410,11 +435,16 @@ final class WikiTrashServiceTest extends TestCase
         }
     }
 
-    private function service(bool $attachments = true, int $retention = 30, ?WikiTrashRepositoryInterface $repo = null, bool $failUnlink = false, ?LoggerInterface $logger = null, bool $pageFiles = false, ?Closure $onFiles = null): WikiTrashService
+    private function service(bool $attachments = true, int $retention = 30, ?WikiTrashRepositoryInterface $repo = null, bool $failUnlink = false, ?LoggerInterface $logger = null, bool $pageFiles = false, ?Closure $onFiles = null, int $maxPurgeFiles = WikiTrashService::DEFAULT_MAX_PURGE_FILES, bool $failPurgedListener = false): WikiTrashService
     {
         $dispatcher = new EventDispatcher();
         if ($onFiles instanceof Closure) {
             $dispatcher->addListener(WikiEvents::PAGE_FILES_PURGED, $onFiles);
+        }
+        if ($failPurgedListener) {
+            $dispatcher->addListener(WikiEvents::TRASH_PURGED, static function (): never {
+                throw new RuntimeException('listener');
+            });
         }
         foreach ([WikiEvents::PAGE_TRASHED, WikiEvents::TRASH_RESTORED, WikiEvents::TRASH_PURGED] as $name) {
             $dispatcher->addListener($name, function (WikiTrashEvent $event) use ($name): void {
@@ -463,6 +493,7 @@ final class WikiTrashServiceTest extends TestCase
             $logger ?? new NullLogger(),
             $pageFiles ? new WikiPageFileExtractor() : null,
             $pageFiles ? new DoctrineOrmWikiPageRevisionRepository($this->em) : null,
+            $maxPurgeFiles,
         );
     }
 

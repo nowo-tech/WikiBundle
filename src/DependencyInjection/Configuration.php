@@ -239,6 +239,7 @@ final class Configuration implements ConfigurationInterface
                         ->booleanNode('enabled')->info('List them in a "Files" section of the page view (current revision, viewers of the page).')->defaultFalse()->end()
                         ->booleanNode('purge_event')->info('When the trash purges pages for good, dispatch nowo_wiki.page.files_purged (WikiPageFilesPurgedEvent) with the files every revision of those pages referred to, so the host deletes them from its storage. Needs trash.enabled.')->defaultFalse()->end()
                         ->integerNode('max_files')->info('Files listed at most per page (and per revision for the purge event).')->min(1)->max(1000)->defaultValue(200)->end()
+                        ->integerNode('max_purge_files')->info('Distinct files one purge event carries at most; beyond it the event is truncated (truncated: true) and a warning is logged.')->min(1)->max(100000)->defaultValue(5000)->end()
                     ->end()
                 ->end()
                 ->arrayNode('comments')

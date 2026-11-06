@@ -96,4 +96,28 @@ final class WikiPageFileExtractorTest extends TestCase
         ]);
         self::assertNull($label(-1));
     }
+
+    /** Audit GR-I6 / GR-I9: the renderer's attribute rules, cards in containers, comments and escaped images. */
+    public function testItReadsCardsLikeTheRenderer(): void
+    {
+        $markdown = <<<'MD'
+            ::file[dup]{href="/files/first" href="/files/last"}
+
+            > ::file[quoted]{href="/files/quoted"}
+
+            - ::file[listed]{href='/files/listed'}
+            1. ::file[ordered]{href=/files/ordered}
+
+            ::file[stop]{href="/files/stop" "broken" href="/files/after"}
+
+            <!-- ![hidden](/files/comment.png) -->
+            \![escaped](/files/escaped.png) ![ref][r]
+
+            [r]: /files/ref.png
+            MD;
+        $files = (new WikiPageFileExtractor())->files($markdown);
+
+        self::assertSame(['/files/last', '/files/quoted', '/files/listed', '/files/ordered', '/files/stop'], array_map(static fn (WikiPageFile $f): string => $f->url, $files));
+        self::assertSame('abcdef.pdf', WikiPageFileExtractor::name("a\u{061C}b\u{200B}c\u{200D}d\u{2060}e\u{FEFF}f.pdf"));
+    }
 }

@@ -249,6 +249,7 @@ final class WikiExtensionTest extends TestCase
         self::assertSame(WikiPageFileExtractor::class, $inline->getClass());
         self::assertSame(50, $inline->getArgument('$maxFiles'));
         self::assertSame(WikiPageRevisionRepositoryInterface::class, (string) $trash->getArgument('$revisions'));
+        self::assertSame(5000, $trash->getArgument('$maxPurgeFiles'));
 
         // The purge hook alone (no list in the page view).
         $hookOnly = $load(['trash' => ['enabled' => true], 'page_files' => ['purge_event' => true]]);
