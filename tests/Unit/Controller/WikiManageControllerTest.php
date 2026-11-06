@@ -59,6 +59,7 @@ use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
+use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -612,6 +613,61 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('ai_ask', (string) $response->getContent());
+    }
+
+    /**
+     * 1.19.1: with nowo_wiki.ai.enabled false the extension drops the ai_ask route; the action answers 404 before
+     * asking the access checker, the spaces or the assistant.
+     */
+    public function testAskAiIsNotFoundWhenTheAiIsDisabled(): void
+    {
+        unset($this->routes['ai_ask']);
+        $assistant = $this->createMock(WikiAiAssistantInterface::class);
+        $assistant->expects(self::never())->method('isAvailable');
+        $assistant->expects(self::never())->method('ask');
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->expects(self::never())->method('listSpacesForUser');
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $assistant);
+        WikiControllerContainerBuilder::bind($controller, new TestUser('user-1'));
+
+        $this->expectException(NotFoundHttpException::class);
+        $controller->askAi(Request::create('/ask', 'POST', ['q' => 'question']));
+    }
+
+    /**
+     * 1.19.1: the index renders no Ask AI action nor dialog form when the AI is off (null assistant, no ai_ask
+     * route), and none either when an assistant is available but the route is not registered.
+     */
+    public function testIndexRendersNoAiDialogWhenTheAiIsDisabled(): void
+    {
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1')]);
+        $available = $this->createConfiguredMock(WikiAiAssistantInterface::class, ['isAvailable' => true]);
+
+        foreach ([[new NullWikiAiAssistant(), true], [$available, false]] as [$assistant, $keepRoute]) {
+            if (!$keepRoute) {
+                unset($this->routes['ai_ask']);
+            }
+            $twig       = $this->capturingTwig();
+            $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $assistant);
+            WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $twig]);
+            $controller->index();
+
+            self::assertNull($twig->context['ai_form']);
+            self::assertInstanceOf(ListPage::class, $twig->context['page']);
+            foreach ($twig->context['page']->actions as $action) {
+                self::assertNotSame(WikiPageFactory::AI_DIALOG_ID, $action->dialogId);
+            }
+        }
+
+        // Control: AI available and its route registered offer the dialog.
+        $this->setUp();
+        $twig       = $this->capturingTwig();
+        $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $available);
+        WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $twig]);
+        $controller->index();
+        self::assertNotNull($twig->context['ai_form']);
     }
 
     public function testPageHistoryRendersRevisions(): void

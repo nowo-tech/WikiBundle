@@ -633,9 +633,28 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->hasDefinition(SymfonyAiWikiAssistant::class));
         self::assertTrue($container->hasDefinition(WikiKnowledgeSearchTool::class));
         self::assertSame(SymfonyAiWikiAssistant::class, (string) $container->getAlias(WikiAiAssistantInterface::class));
+        // 1.19.1: the AI question route exists only when the AI is on.
+        self::assertArrayHasKey('ai_ask', (array) $container->getParameter('nowo_wiki.routes'));
 
         $httpClient = $container->getDefinition('nowo_wiki.ai.http_client');
         self::assertSame([['timeout' => 30.0, 'max_duration' => 30.0]], $httpClient->getArguments());
+    }
+
+    /**
+     * 1.19.1: with nowo_wiki.ai.enabled false (default) the ai_ask route is not registered and the null assistant
+     * answers.
+     */
+    public function testTheAiRouteIsNotRegisteredWhileTheAiIsOff(): void
+    {
+        foreach ([[], ['ai' => ['enabled' => false]]] as $ai) {
+            $container = new ContainerBuilder();
+            $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+            (new WikiExtension())->load([['user_class' => 'App\\Entity\\User'] + $ai], $container);
+
+            self::assertArrayNotHasKey('ai_ask', (array) $container->getParameter('nowo_wiki.routes'));
+            self::assertSame(NullWikiAiAssistant::class, (string) $container->getAlias(WikiAiAssistantInterface::class));
+            self::assertFalse($container->hasDefinition(SymfonyAiWikiAssistant::class));
+        }
     }
 
     public function testAiHttpClientUsesConfiguredTimeout(): void

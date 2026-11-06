@@ -57,6 +57,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The `ai_ask` route is no longer registered while the AI is off.** With `nowo_wiki.ai.enabled: false` (the
+  default) the route loader still added `nowo_wiki_ai_ask` (`/tools/wiki/ask`), which rendered an "AI unavailable"
+  page after the access and space checks. The extension now drops `routes.ai_ask` when the AI is disabled, like the
+  tree, history, trash and comment routes, so the loader registers no AI route; `askAi()` also answers 404 before any
+  work when it has no `ai_ask` route (a host routing to it by hand). The index already rendered no Ask AI action nor
+  dialog without an available assistant; with no route it renders none either. Hosts that link to
+  `nowo_wiki_ai_ask` with the AI off must drop the link.
+
 ## [1.19.0] - 2026-11-06
 
 Minor release: dialog rule v2 (owner decision D-20261105-54, Symfony Beacon DIALOG-INVENTORY
