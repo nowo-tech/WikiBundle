@@ -35,7 +35,7 @@ Root key: `nowo_wiki`.
 | `ai.http_timeout` | `30` | Timeout and max duration (seconds, 1–600) of `nowo_wiki.ai.http_client`; set it as `http_client` of your AI platform |
 | `import_export.enabled` | `true` | Enable import/export UI and console commands |
 | `import_export.max_upload_bytes` | `52428800` | Max upload size for space import (bytes) |
-| `import_export.max_document_bytes` | `8388608` | Largest Markdown document an import accepts (bytes, 1024 to 536870912). A ZIP entry over it is refused before anything is extracted, a file over it in a directory source (`wiki:import`) before anything is written. It bounds one document, not the sum: the sum is checked against `memory_limit`, see [SECURITY](SECURITY.md) |
+| `import_export.max_document_bytes` | `8388608` | Largest Markdown document an import accepts (bytes, 1024 to 536870912). A ZIP entry that declares more is refused before anything is extracted, one that holds more while it is written, and a file over it in a directory source (`wiki:import`) before anything is written. It bounds one document, not the sum: the sum is checked against `memory_limit`, see [SECURITY](SECURITY.md) |
 | `web_ui.enabled` | `true` | `false`: the `nowo_wiki` route loader registers no route |
 | `web_ui.path_prefix` | null | Prefix of every wiki route path (e.g. `/admin`); null = the deprecated `route_prefix`, else none |
 | `web_ui.layout_template` | null | Layout the pages extend; null = `nowo_ui_kit.layouts.admin` (see [TEMPLATES](TEMPLATES.md#layout)) |

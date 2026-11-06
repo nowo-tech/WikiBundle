@@ -30,11 +30,15 @@ final readonly class WikiMarkdownFileReader
      *
      * @param string $path Markdown file path
      *
-     * @throws InvalidArgumentException when the file is over the limit
+     * @throws InvalidArgumentException when the file cannot be read (never an empty document, audit GV-I14) or is over the limit
      */
     public function read(string $path): string
     {
-        $content = (string) file_get_contents($path, false, null, 0, $this->maxDocumentBytes + 1);
+        $content = @file_get_contents($path, false, null, 0, $this->maxDocumentBytes + 1);
+        if ($content === false) {
+            throw new InvalidArgumentException(sprintf('Markdown document "%s" cannot be read.', basename($path)));
+        }
+
         if (strlen($content) > $this->maxDocumentBytes) {
             throw new InvalidArgumentException(sprintf('Markdown document "%s" exceeds the limit of %d bytes per document.', basename($path), $this->maxDocumentBytes));
         }

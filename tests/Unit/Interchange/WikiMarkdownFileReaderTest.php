@@ -66,6 +66,27 @@ final class WikiMarkdownFileReaderTest extends TestCase
         }
     }
 
+    /** Audit GV-I14: a failed read is not an empty document. */
+    public function testRefusesAFileThatCannotBeRead(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('"gone.md" cannot be read');
+
+        (new WikiMarkdownFileReader())->read($this->root . '/gone.md');
+    }
+
+    /** Audit GV-I14: a directory named like a document is a folder, not an empty page. */
+    public function testTreeReaderSkipsADirectoryNamedLikeADocument(): void
+    {
+        unlink($this->root . '/big.md');
+        mkdir($this->root . '/folder.md');
+        file_put_contents($this->root . '/folder.md/page.md', "# Page\n");
+
+        $nodes = (new WikiDocumentTreeReader(new WikiFrontMatterParser()))->read($this->root, WikiInterchangeFormat::Outline);
+
+        self::assertSame(['Page'], array_map(static fn ($node) => $node->title, $nodes));
+    }
+
     public function testFormatDetectorUsesTheBoundedRead(): void
     {
         $this->expectExceptionMessage('per document');

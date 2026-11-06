@@ -475,7 +475,7 @@ final class Configuration implements ConfigurationInterface
                     ->children()
                         ->booleanNode('enabled')->defaultTrue()->end()
                         ->integerNode('max_upload_bytes')->defaultValue(52428800)->min(1048576)->max(524288000)->end()
-                        ->integerNode('max_document_bytes')->defaultValue(WikiArchiveHelper::DEFAULT_MAX_DOCUMENT_BYTES)->min(1024)->max(WikiArchiveHelper::DEFAULT_MAX_UNCOMPRESSED_BYTES)->info('1.21.1: largest Markdown document an import accepts, in bytes. A ZIP entry over it is refused before anything is extracted, and a file over it in a directory source (wiki:import) before anything is written.')->end()
+                        ->integerNode('max_document_bytes')->defaultValue(WikiArchiveHelper::DEFAULT_MAX_DOCUMENT_BYTES)->min(1024)->max(WikiArchiveHelper::DEFAULT_MAX_UNCOMPRESSED_BYTES)->info('1.21.1: largest Markdown document an import accepts, in bytes. A ZIP entry over it is refused before anything is extracted (or as soon as a lying entry passes it), and a file over it in a directory source (wiki:import) before anything is written.')->end()
                     ->end()
                 ->end()
                 ->arrayNode('pagination')
