@@ -63,6 +63,26 @@
 
 ## Unreleased
 
+From **1.18.0**: `composer update nowo-tech/wiki-bundle`. No configuration change; the constraint stays
+`nowo-tech/ui-kit-bundle ^2.29`.
+
+- **Confirm dialogs (visual / markup change).** Delete, archive, restore, co-editing reset and purge confirmations of
+  the wiki pages now use `@NowoWikiBundle/manage/_confirm_dialog.html.twig` (UiKit dialog anatomy: `nowo-ui-dialog`,
+  `nowo-ui-dialog__header` / `__body` / `__footer`, class `nowo-wiki-confirm`, `data-testid="wiki-confirm-dialog"`)
+  instead of the kit's `nowo-ui-confirm` panel. Ids, buttons, labels, CSRF forms and the open / close runtime are the
+  same. Host CSS written for `.nowo-ui-confirm__header` / `__footer` on wiki pages should target the dialog sections
+  (already styled for every other dialog). To keep the kit's partial, set it in your UiKit config:
+
+  ```yaml
+  nowo_ui_kit:
+      theme:
+          bundles:
+              NowoWikiBundle:
+                  partials:
+                      confirm: '@NowoUiKitBundle/partials/_confirm.html.twig'
+  ```
+- **Dialog height** is UiKit's: update to UiKit **2.31** for the content height of the AI dialog (dialog rule v2).
+
 ## To 1.18.0
 
 From **1.17.0**; no breaking PHP API change, no migration.

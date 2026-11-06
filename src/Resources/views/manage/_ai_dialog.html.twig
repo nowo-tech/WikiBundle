@@ -1,8 +1,9 @@
 {#
   AI question dialog of the wiki index: the UiKit `dialog` theme partial (native <dialog>, opened by the page-header
   action through data-nowo-ui-dialog-open, closed by Escape / the close button / Cancel). 1.18 (UiKit 2.29 dialog
-  sizes): the medium size (a short form: space + question), so width and height are the platform's
-  (--nowo-dialog-width-md / --nowo-dialog-height-md), never the content's; the body is the only part that scrolls and
+  sizes): the medium size (a short form: space + question): the width is the platform's (--nowo-dialog-width-md); the
+  height is UiKit's (1.19, dialog rule v2: from UiKit 2.31 the content's, capped at --nowo-dialog-height-md; the
+  bundle sets none); the body is the only part that scrolls and
   the footer stays outside it, with Cancel then the one primary (Ask) bound to the form by form="…". The question
   field has autofocus, so showModal() focuses it. Variables: ai_form (WikiAiAskType view, POST to the ai_ask route),
   bundle.

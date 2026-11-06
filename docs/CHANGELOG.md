@@ -56,6 +56,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Minor release (planned **1.19.0**): dialog rule v2 (owner decision D-20261105-54, Symfony Beacon DIALOG-INVENTORY
+"waiting on kit": Wiki). See [UPGRADING](UPGRADING.md#unreleased).
+
+### Changed
+
+- **Confirm dialogs on the dialog anatomy.** The wiki's `View\Confirm` dialogs — delete (move to the trash), archive,
+  restore a revision (history), co-editing reset, purge (trash) — render with the new
+  `manage/_confirm_dialog.html.twig` instead of the kit's `partials/_confirm.html.twig`: the platform dialog anatomy
+  (UiKit `dialog_header` / `dialog_body` / `dialog_footer` slots, the classes hosts already chrome for every dialog):
+  header with the title and the × close button, body with the message, footer outside the body with **Cancel**
+  (secondary) then the **one primary** (danger solid for delete / archive / reset / purge, primary for restore). Same
+  ids, same runtime (`js/nowo-ui-confirm.js`), same CSRF forms and actions; medium width (`--nowo-dialog-width-md`),
+  natural height (no height of the bundle's own). `WikiExtension::prepend()` registers it as
+  `nowo_ui_kit.theme.bundles.NowoWikiBundle.partials.confirm` (`WikiExtension::CONFIRM_PARTIAL`); a host value wins.
+  A type-to-confirm `View\Confirm` (`expectedValue`) and 1.x includes keep the kit partial.
+- **AI dialog:** no change of markup (header × / body / footer Cancel + Ask); its height is UiKit's — from UiKit 2.31
+  the content's, capped at `--nowo-dialog-height-md` (the template comment no longer promises the fixed height).
+
 ## [1.18.0] - 2026-11-05
 
 Minor release. See [UPGRADING](UPGRADING.md#to-1180).

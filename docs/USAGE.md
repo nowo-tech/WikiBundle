@@ -143,9 +143,10 @@ Paths are relative to `src/Resources/views` (`@NowoWikiBundle/<subpath>`):
 | `manage/_page_tree.html.twig` | One level of the tree (`<ul class="nowo-wiki-tree">`) |
 | `manage/_page_tree_item.html.twig` | One page of the tree: link, depth class, `aria-current`, its children |
 | `manage/_ai_dialog.html.twig` | AI question `<dialog>` of the index (UiKit `_dialog`) |
+| `manage/_confirm_dialog.html.twig` | 1.19: the UiKit `confirm` partial of the wiki pages (delete, archive, restore, co-editing reset, purge) with the dialog anatomy; registered as `nowo_ui_kit.theme.bundles.NowoWikiBundle.partials.confirm` |
 | `manage/_legacy_layout.html.twig` | Deprecated bridge around a pre-1.10 layout (removed in 2.0) |
 
-Page header, pagination, flashes, empty states, confirm dialogs and row actions are UiKit partials: re-skin them in UiKit (`templates/bundles/NowoUiKitBundle/…` or `nowo_ui_kit.theme.partials`), once for every bundle.
+Page header, pagination, flashes, empty states, confirm dialogs and row actions are UiKit partials: re-skin them in UiKit (`templates/bundles/NowoUiKitBundle/…` or `nowo_ui_kit.theme.partials`), once for every bundle. Since 1.19 the wiki prepends its own `confirm` partial for its pages (`manage/_confirm_dialog.html.twig`: the UiKit dialog anatomy — header title + ×, body, footer Cancel then one primary); set `nowo_ui_kit.theme.bundles.NowoWikiBundle.partials.confirm` to keep another one (e.g. `@NowoUiKitBundle/partials/_confirm.html.twig`).
 
 Renaming or removing one of these `<subpath>` values (or a stable `{% block %}`) is a breaking change and is announced in [UPGRADING.md](UPGRADING.md).
 

@@ -6,6 +6,9 @@ namespace Nowo\WikiBundle\Tests\Integration\Contract;
 
 use Nowo\UiKitBundle\Test\PageContractTestCase;
 use Nowo\UiKitBundle\Test\PageFixture;
+use Nowo\UiKitBundle\View\Action;
+use Nowo\UiKitBundle\View\Confirm;
+use Nowo\UiKitBundle\View\Label;
 use Nowo\WikiBundle\Tests\Support\PageFixtures;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -128,6 +131,53 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringContainsString('name="_token" value="token-wiki_restore_', $history);
         self::assertStringContainsString('data-nowo-ui-confirm', $view);
         self::assertStringContainsString('name="_token" value="token-wiki_archive_', $view);
+    }
+
+    public function testConfirmPartialHasTheDialogAnatomy(): void
+    {
+        $twig    = $this->createTwig();
+        $actions = PageFixtures::pageView()['page']->header->actions;
+        $archive = null;
+        foreach ($actions as $action) {
+            if ($action instanceof Action && $action->confirm instanceof Confirm && $action->label instanceof Label && $action->label->key === 'wiki.page.archive') {
+                $archive = $action;
+            }
+        }
+        self::assertInstanceOf(Action::class, $archive);
+        $html = $twig->render('@NowoWikiBundle/manage/_confirm_dialog.html.twig', [
+            'id'          => 'wiki-archive-confirm',
+            'confirm'     => $archive->confirm,
+            'action'      => $archive,
+            'action_href' => $archive->href,
+            'bundle'      => 'NowoWikiBundle',
+        ]);
+
+        // Dialog rule v2: header (title + ×), body (message), footer outside the body (Cancel, then one primary).
+        self::assertMatchesRegularExpression('#^\s*<dialog id="wiki-archive-confirm" class="nowo-ui-dialog[^"]*nowo-wiki-confirm" data-nowo-ui-confirm data-testid="wiki-confirm-dialog" aria-labelledby="wiki-archive-confirm-title">\s*<header class="nowo-ui-dialog__header[^"]*"[^>]*>\s*<h2 class="nowo-ui-dialog__title[^"]*" id="wiki-archive-confirm-title"[^>]*>Archive this page\?</h2>\s*<button type="button" class="nowo-ui-dialog__close" data-nowo-confirm-close aria-label="Close"#', $html);
+        self::assertMatchesRegularExpression('#</header>\s*<div class="nowo-ui-dialog__body[^"]*"[^>]*><p class="nowo-ui-confirm__message">[^<]+</p></div>\s*<footer class="nowo-ui-dialog__footer[^"]*"[^>]*>\s*<button type="button" class="[^"]*nowo-ui-btn--secondary[^"]*" data-nowo-confirm-close>Cancel</button>\s*<form [^>]*method="post"#', $html);
+        self::assertSame(1, substr_count($html, 'nowo-ui-confirm__submit'));
+        self::assertMatchesRegularExpression('#<button type="submit" class="[^"]*nowo-ui-btn--danger[^"]*nowo-ui-btn--solid[^"]*nowo-ui-confirm__submit"[^>]*>\s*Archive\s*</button>#', $html);
+        self::assertStringContainsString('name="_token" value="token-wiki_archive_', $html);
+        self::assertStringNotContainsString('nowo-ui-btn--primary', $html);
+
+        // A primary View\Confirm (restore a revision) gets the primary button; no message, no confirm label: kit defaults.
+        $plain = $twig->render('@NowoWikiBundle/manage/_confirm_dialog.html.twig', [
+            'confirm' => new Confirm('Restore?', null, null, 'primary', null, 'wiki-restore-confirm'),
+            'bundle'  => 'NowoWikiBundle',
+        ]);
+        self::assertStringContainsString('<dialog id="wiki-restore-confirm"', $plain);
+        self::assertStringNotContainsString('nowo-ui-confirm__message', $plain);
+        self::assertMatchesRegularExpression('#data-nowo-confirm-close>Cancel</button>\s*</footer>#', $plain);
+
+        // Type-to-confirm and the 1.x inputs keep the kit partial.
+        $typed = $twig->render('@NowoWikiBundle/manage/_confirm_dialog.html.twig', [
+            'confirm' => new Confirm('Purge?', 'Gone for good.', 'Purge', id: 'wiki-typed-confirm', expectedValue: 'purge'),
+            'bundle'  => 'NowoWikiBundle',
+        ]);
+        self::assertMatchesRegularExpression('#class="nowo-ui-confirm[ "]#', $typed);
+        self::assertStringContainsString('data-nowo-confirm-expected="purge"', $typed);
+        $legacy = $twig->render('@NowoWikiBundle/manage/_confirm_dialog.html.twig', ['id' => 'wiki-legacy', 'title' => 'Sure?']);
+        self::assertMatchesRegularExpression('#<dialog\s+id="wiki-legacy"\s+class="nowo-ui-confirm[ "]#', $legacy);
     }
 
     public function testEditorScriptCarriesTheRequestCspNonce(): void
