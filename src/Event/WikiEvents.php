@@ -8,7 +8,8 @@ use Nowo\WikiBundle\Service\WikiPageArchivedEvent;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 
 /**
- * Wiki bundle event names. Every event is dispatched after the change is flushed.
+ * Wiki bundle event names. Every event is dispatched after the change is flushed, except {@see self::QUOTA_CHECK}
+ * (1.21), dispatched before the write so a listener can refuse it.
  */
 final class WikiEvents
 {
@@ -53,6 +54,12 @@ final class WikiEvents
 
     /** {@see WikiAttachmentEvent}: an attachment was uploaded (1.9). */
     public const ATTACHMENT_UPLOADED = 'nowo_wiki.attachment.uploaded';
+
+    /**
+     * {@see WikiQuotaCheckEvent}: BEFORE a metered write (new page, unarchive, trash restore, import, attachment upload);
+     * a listener may refuse it (1.21).
+     */
+    public const QUOTA_CHECK = 'nowo_wiki.quota.check';
 
     /** {@see WikiEditorOptionsEvent}: before the page editor is built (1.9). */
     public const EDITOR_OPTIONS = 'nowo_wiki.editor.options';

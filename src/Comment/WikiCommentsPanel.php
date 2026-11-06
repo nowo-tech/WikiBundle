@@ -32,7 +32,7 @@ use function strtok;
  * remembered state), the badge count, the no-JavaScript URLs and the Milkdown options that mount the thread
  * component into the panel (`panel: container`). Viewers without the right get null: no toggle, no panel, no count.
  *
- * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, truncated: bool, reload_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null}
+ * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, truncated: bool, reload_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null, moderation: bool, error_notices: bool}
  */
 final readonly class WikiCommentsPanel
 {
@@ -47,6 +47,8 @@ final readonly class WikiCommentsPanel
      * @param string|null $shortcut `comments.shortcut` (e.g. `Alt+Shift+C`; null: none)
      * @param ProfileRegistry|null $profiles Milkdown profiles (the features the comments feature is added to)
      * @param FormFactoryInterface|null $forms builds the no-JavaScript comment form
+     * @param bool $moderationPanel 1.21 `comments.moderation_panel`: "Moderate threads" for users with ModerateComments
+     * @param bool $errorNotices 1.21 `comments.error_notices`: own texts for writes refused with 422 / 429
      */
     public function __construct(
         private WikiCommentService $comments,
@@ -58,6 +60,8 @@ final readonly class WikiCommentsPanel
         private ?ProfileRegistry $profiles = null,
         private ?FormFactoryInterface $forms = null,
         private bool $readViewSource = false,
+        private bool $moderationPanel = false,
+        private bool $errorNotices = false,
     ) {
     }
 
@@ -117,6 +121,9 @@ final readonly class WikiCommentsPanel
             'truncated'    => count($threads) > WikiCommentService::LIST_CAP,
             'reload_href'  => !$mounted && !$open ? $here . '?comments=1' : null,
             'form'         => $open && $can['comment'] ? $this->form($space, $page) : null,
+            // 1.21: the panel extras (each off by default); the moderation list only for moderators.
+            'moderation'    => $this->moderationPanel && $can['moderate'],
+            'error_notices' => $this->errorNotices,
         ];
     }
 

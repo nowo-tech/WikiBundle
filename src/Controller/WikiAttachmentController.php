@@ -9,12 +9,14 @@ use Nowo\WikiBundle\Attachment\WikiAttachmentService;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\HeaderUtils;
@@ -40,6 +42,9 @@ use function preg_replace;
  */
 final class WikiAttachmentController extends AbstractController
 {
+    /** 1.21: `error` of an upload refused by a `nowo_wiki.quota.check` listener. */
+    public const QUOTA_EXCEEDED = 'quota_exceeded';
+
     /**
      * @param WikiSpaceGuard $spaceGuard space resolution and access
      * @param WikiPageRepositoryInterface $pageRepository page lookups
@@ -49,6 +54,7 @@ final class WikiAttachmentController extends AbstractController
      * @param array{enabled: bool} $attachments attachment options
      * @param WikiTokenGuard|null $tokenGuard firewall-trust check of the security token
      * @param WikiAccessCheckerInterface|null $accessChecker role gate of the wiki (1.10): uploads need canEdit(), downloads canList()
+     * @param WikiQuotaGate|null $quota asks the host before an upload (1.21, `nowo_wiki.quota.check`)
      */
     public function __construct(
         private readonly WikiSpaceGuard $spaceGuard,
@@ -59,6 +65,7 @@ final class WikiAttachmentController extends AbstractController
         private readonly array $attachments = ['enabled' => false],
         private readonly ?WikiTokenGuard $tokenGuard = null,
         private readonly ?WikiAccessCheckerInterface $accessChecker = null,
+        private readonly ?WikiQuotaGate $quota = null,
     ) {
     }
 
@@ -72,7 +79,8 @@ final class WikiAttachmentController extends AbstractController
 
     /**
      * Stores the uploaded {@code file} for the page and answers its JSON description; a refused file answers 422
-     * with {@code {"error": "<reason>"}} and stores nothing.
+     * with {@code {"error": "<reason>"}} and stores nothing (1.21: a file the host refuses through
+     * `nowo_wiki.quota.check` answers {@code {"error": "quota_exceeded", "reason": "<text>"}}).
      *
      * @param Request $request multipart request with the {@code file} field
      * @param string $spaceSlug space slug from the route
@@ -108,6 +116,12 @@ final class WikiAttachmentController extends AbstractController
         $file = $request->files->get('file');
         if (!$file instanceof UploadedFile || !$file->isValid()) {
             return new JsonResponse(['error' => WikiAttachmentRejectedException::EMPTY], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // 1.21: the host may refuse the file (storage quota); nothing is stored.
+        $refusal = $this->quota?->refusal(WikiQuotaCheckEvent::ATTACHMENT_UPLOAD, $user, $space, 1, (int) $file->getSize(), $page);
+        if ($refusal !== null) {
+            return new JsonResponse(['error' => self::QUOTA_EXCEEDED, 'reason' => $refusal], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         try {

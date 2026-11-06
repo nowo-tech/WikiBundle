@@ -28,6 +28,18 @@ wiki:
       too_large: "El comentario es demasiado largo (10.000 caracteres como máximo)."
       limit_reached: "Esta página, hilo o comentario ha llegado a su límite."
       rate_limited: "Demasiados comentarios en poco tiempo: inténtalo de nuevo en un momento."
+    moderation:
+      title: "Moderar hilos"
+      help: "Todos los hilos de esta página, también los resueltos. Al eliminar un hilo se eliminan todos sus comentarios."
+      page_comment: "Comentario de la página"
+      resolved: "resuelto"
+      count: "%count% comentario(s)"
+      delete: "Eliminar hilo"
+      deleted: "Hilo eliminado."
+      failed: "No se han podido cargar o cambiar los hilos. Inténtalo de nuevo."
+      empty: "Esta página no tiene hilos."
+      confirm: "¿Eliminar este hilo y todos sus comentarios? No se puede deshacer."
+      confirm_title: "¿Eliminar el hilo?"
   collab:
     reset: "Reiniciar la colaboración"
     reset_confirm_title: "¿Reiniciar la sesión compartida?"
@@ -206,6 +218,8 @@ wiki:
     previous: "Anterior"
     next: "Siguiente"
     page_of: "Página %page% de %pages%"
+  quota:
+    denied: "Esto superaría un límite de tu plan."
 wiki_page_form:
   title:
     placeholder: "Título de la página"

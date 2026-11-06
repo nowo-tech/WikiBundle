@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Event\WikiEditorOptionsEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Form\WikiAiAskType;
 use Nowo\WikiBundle\Form\WikiImportType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
@@ -46,6 +47,7 @@ use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageMoveScope;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
@@ -55,6 +57,7 @@ use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -138,6 +141,7 @@ final class WikiManageController extends AbstractController
      * @param WikiHistoryTimeline|null $timeline the history timeline (1.15; null = the 1.14 revision list)
      * @param WikiCommentsPanel|null $commentsPanel the comments panel (1.16; null = comments disabled)
      * @param WikiPageFileExtractor|null $pageFiles the files of the page view (1.20, `page_files.enabled`; null = off)
+     * @param WikiQuotaGate|null $quota asks the host before a new page, an unarchive or an import (1.21, `nowo_wiki.quota.check`)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -176,6 +180,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiHistoryTimeline $timeline = null,
         private readonly ?WikiCommentsPanel $commentsPanel = null,
         private readonly ?WikiPageFileExtractor $pageFiles = null,
+        private readonly ?WikiQuotaGate $quota = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -271,6 +276,7 @@ final class WikiManageController extends AbstractController
             ])),
             'search_form'     => $this->createSearchForm(null, ['space' => $space->getSlug()], ['q' => 'wiki-space-search'], false),
             'import_form'     => $can['import'] ? $this->createImportForm($space)->createView() : null,
+            'export_links'    => $pages->exportLinks($space, $can),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'can_create'      => $can['create'],
@@ -541,6 +547,13 @@ final class WikiManageController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
+            // 1.21: the host may refuse the new page (plan limits): the form shows why, nothing is written.
+            $refusal = $this->quota?->refusal(WikiQuotaCheckEvent::PAGE_CREATE, $user, $space);
+            if ($refusal !== null) {
+                $form->addError(new FormError($refusal));
+
+                return $this->renderNewPage($space, $form);
+            }
 
             try {
                 $page = $this->pageService->create($space, $payload->title, $payload->content, $user, null, null, $this->editorFormat());
@@ -712,6 +725,12 @@ final class WikiManageController extends AbstractController
         $this->spaceGuard->requireGranted($user, WikiAction::Archive, $space, $page);
         if (!$this->isValidCsrf($request, 'wiki_unarchive_' . $page->getId())) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
+        }
+        $refusal = $this->quota?->refusal(WikiQuotaCheckEvent::PAGE_UNARCHIVE, $user, $space, 1, 0, $page);
+        if ($refusal !== null) {
+            $this->addFlash('error', $refusal);
+
+            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
 
         $this->pageService->unarchive($page, $user);
@@ -915,6 +934,14 @@ final class WikiManageController extends AbstractController
 
         if (strtolower($upload->getClientOriginalExtension()) !== 'zip') {
             $this->flash('error', 'wiki.import.invalid_archive');
+
+            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+        }
+
+        // 1.21: the pages are only known once the archive is read, so the host is asked for at least one.
+        $refusal = $this->quota?->refusal(WikiQuotaCheckEvent::IMPORT, $user, $space, 1, (int) $upload->getSize());
+        if ($refusal !== null) {
+            $this->addFlash('error', $refusal);
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }

@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use PHPUnit\Framework\TestCase;
 
+use function array_column;
 use function array_diff_key;
 use function array_map;
 use function is_scalar;
@@ -27,6 +28,30 @@ use function is_scalar;
  */
 final class WikiPageFactoryTest extends TestCase
 {
+    public function testTheImportExportDialogReplacesTheExportActions(): void
+    {
+        $space   = PageFixtures::space('eng', 'Engineering');
+        $factory = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), null, WikiPageFactory::TAB_ICONS, true);
+
+        $full = $factory->space($space, ['create' => true, 'import' => true, 'export' => true]);
+        self::assertSame(['create', 'custom'], $this->kinds($full->header->actions));
+        self::assertSame(WikiPageFactory::IMPORT_EXPORT_DIALOG_ID, $full->header->actions[1]->dialogId);
+        self::assertSame('wiki.import_export.title', $this->label($full->header->actions[1]->label)->key);
+        // Import only, export only, neither.
+        self::assertSame(['custom'], $this->kinds($factory->space($space, ['create' => false, 'import' => true, 'export' => false])->header->actions));
+        self::assertSame(['custom'], $this->kinds($factory->space($space, ['create' => false, 'import' => false, 'export' => true])->header->actions));
+        self::assertSame([], $this->kinds($factory->space($space, ['create' => false, 'import' => false, 'export' => false])->header->actions));
+
+        $links = $factory->exportLinks($space, ['export' => true]);
+        self::assertSame(['outline', 'notion'], array_column($links, 'format'));
+        self::assertSame('wiki.export.notion', $links[1]['label']);
+        self::assertStringContainsString('format=notion', $links[1]['href']);
+        self::assertSame([], $factory->exportLinks($space, ['export' => false]));
+        $routes = PageFixtures::routes();
+        unset($routes['space_export']);
+        self::assertSame([], (new WikiPageFactory(PageFixtures::urlGenerator(), $routes))->exportLinks($space, ['export' => true]));
+    }
+
     public function testHeaderActionsFollowThePermissionsAndTheDashboardRoute(): void
     {
         $factory  = PageFixtures::factory(null, 'app_dashboard');

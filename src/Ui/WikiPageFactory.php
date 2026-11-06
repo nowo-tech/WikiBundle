@@ -51,6 +51,12 @@ final readonly class WikiPageFactory
     /** Id of the AI question dialog of the index (opened by the header action). */
     public const AI_DIALOG_ID = 'nowo-wiki-ai-dialog';
 
+    /** 1.21: id of the Import & export dialog of the space home (`web_ui.import_export: dialog`). */
+    public const IMPORT_EXPORT_DIALOG_ID = 'nowo-wiki-import-export-dialog';
+
+    /** Formats of the space export links. */
+    public const EXPORT_FORMATS = ['outline', 'notion'];
+
     /**
      * 1.18 (Beacon spec 177): default icon of each page tab (`web_ui.tab_icons`), so the tab row follows the host's tab
      * style (text / icon and text / icon only). An icon name of the UiKit `icon` component (`tabler:*` renders with the
@@ -67,6 +73,8 @@ final readonly class WikiPageFactory
      * @param string|null $dashboardRoute `nowo_wiki.dashboard_route` (a "Back to dashboard" header action)
      * @param array<string, string|null> $tabIcons 1.18 `web_ui.tab_icons` (page | edit | history => icon name; null or
      *                                             '' = no icon on that tab)
+     * @param bool $importExportDialog 1.21 `web_ui.import_export: dialog`: one header action opens the Import & export
+     *                                 dialog instead of the export actions (and the import card)
      */
     public function __construct(
         private UrlGeneratorInterface $urlGenerator,
@@ -74,6 +82,7 @@ final readonly class WikiPageFactory
         private WikiPages $pages = new WikiPages(),
         private ?string $dashboardRoute = null,
         private array $tabIcons = self::TAB_ICONS,
+        private bool $importExportDialog = false,
     ) {
     }
 
@@ -152,9 +161,13 @@ final readonly class WikiPageFactory
         if ($can['create'] && $this->has('page_new')) {
             $actions[] = new Action('create', WikiPages::label('wiki.space.new_page'), $this->url('page_new', ['spaceSlug' => $space->getSlug()]), variant: 'primary', attributes: ['data-testid' => 'wiki-new-page']);
         }
-        if ($can['export'] && $this->has('space_export')) {
-            foreach (['outline', 'notion'] as $format) {
-                $actions[] = new Action('export', WikiPages::label('wiki.export.' . $format), $this->url('space_export', ['spaceSlug' => $space->getSlug(), 'format' => $format]));
+        $exports = $this->exportLinks($space, $can);
+        if ($this->importExportDialog && ($exports !== [] || $can['import'])) {
+            // 1.21: one secondary action; the dialog (space template, nowo_ui_modals) holds the exports and the import form.
+            $actions[] = new Action('custom', WikiPages::label('wiki.import_export.title'), attributes: ['data-testid' => 'wiki-import-export-open'], dialogId: self::IMPORT_EXPORT_DIALOG_ID);
+        } elseif (!$this->importExportDialog) {
+            foreach ($exports as $export) {
+                $actions[] = new Action('export', WikiPages::label($export['label']), $export['href']);
             }
         }
         // 1.14: the trash of the space, for users who may delete pages (`trash.enabled`).
@@ -174,6 +187,27 @@ final readonly class WikiPageFactory
             layout: $this->pages->layout(),
             attributes: ['data-testid' => 'wiki-space'],
         );
+    }
+
+    /**
+     * The space export links (Outline, Notion) for a user who may export, else none.
+     *
+     * @param array{export?: bool} $can what the user may do in the space
+     *
+     * @return list<array{format: string, label: string, href: string}> label = catalogue key of the bundle domain
+     */
+    public function exportLinks(WikiSpace $space, array $can): array
+    {
+        if (!($can['export'] ?? false) || !$this->has('space_export')) {
+            return [];
+        }
+
+        $links = [];
+        foreach (self::EXPORT_FORMATS as $format) {
+            $links[] = ['format' => $format, 'label' => 'wiki.export.' . $format, 'href' => $this->url('space_export', ['spaceSlug' => $space->getSlug(), 'format' => $format])];
+        }
+
+        return $links;
     }
 
     /**

@@ -54,6 +54,25 @@ final class WikiCommentsPanelTest extends TestCase
         self::assertSame(['features' => ['a']], $panel->editorOptions(['features' => ['a']], null, $page));
     }
 
+    public function testTheModerationListAndTheErrorNoticesAreOptIn(): void
+    {
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments, WikiAction::ModerateComments]);
+        $default                       = $panel->panel(null, $user, $space, $page);
+        self::assertNotNull($default);
+        self::assertFalse($default['moderation']);
+        self::assertFalse($default['error_notices']);
+
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments, WikiAction::ModerateComments], moderationPanel: true, errorNotices: true);
+        $on                            = $panel->panel(null, $user, $space, $page);
+        self::assertNotNull($on);
+        self::assertTrue($on['moderation']);
+        self::assertTrue($on['error_notices']);
+
+        // The list is for moderators only.
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments], moderationPanel: true);
+        self::assertFalse($panel->panel(null, $user, $space, $page)['moderation'] ?? true);
+    }
+
     public function testThePanelOfAViewer(): void
     {
         [$panel, $user, $space, $page, $service] = $this->panel([WikiAction::ViewComments, WikiAction::Comment]);
@@ -158,7 +177,7 @@ final class WikiCommentsPanelTest extends TestCase
      *
      * @return array{0: WikiCommentsPanel, 1: UserInterface, 2: WikiSpace, 3: WikiPage, 4: WikiCommentService}
      */
-    private function panel(array $granted, bool $profiles = true, bool $readViewSource = false): array
+    private function panel(array $granted, bool $profiles = true, bool $readViewSource = false, bool $moderationPanel = false, bool $errorNotices = false): array
     {
         $this->granted = $granted;
         $em            = SqliteWikiEntityManager::create();
@@ -205,6 +224,8 @@ final class WikiCommentsPanelTest extends TestCase
             $profiles ? new ProfileRegistry(['wiki' => ['features' => ['toolbar', 'table'], 'theme' => 'auto', 'min_height' => '1rem', 'icon_sprite_url' => null, 'icons' => [], 'upload_max_size' => 1, 'upload_accept' => []]], 'wiki') : null,
             $forms,
             $readViewSource,
+            $moderationPanel,
+            $errorNotices,
         );
 
         return [$panel, $user, $space, $page, $service];

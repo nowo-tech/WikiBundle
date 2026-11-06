@@ -14,10 +14,13 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
@@ -77,6 +80,27 @@ final class WikiAttachmentControllerTest extends TestCase
         self::assertSame('shot.png', $data['name']);
         self::assertTrue($data['image']);
         self::assertCount(1, $this->repo->rows);
+    }
+
+    public function testAnUploadTheQuotaRefusesAnswers422WithTheReasonAndStoresNothing(): void
+    {
+        $seen   = [];
+        $events = new EventDispatcher();
+        $events->addListener(WikiEvents::QUOTA_CHECK, static function (WikiQuotaCheckEvent $event) use (&$seen): void {
+            $seen[] = $event;
+            $event->deny('Storage full <b>(1 GB)</b>');
+        });
+        [$controller, $container] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit), quota: new WikiQuotaGate($events));
+        $png                      = (string) base64_decode(self::PNG, true);
+
+        $response = $controller->upload($this->uploadRequest($container, $png, 'shot.png'), 'eng', 'runbook');
+
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $response->getStatusCode());
+        self::assertSame(['error' => WikiAttachmentController::QUOTA_EXCEEDED, 'reason' => 'Storage full <b>(1 GB)</b>'], json_decode((string) $response->getContent(), true));
+        self::assertSame([], $this->repo->rows);
+        self::assertSame(WikiQuotaCheckEvent::ATTACHMENT_UPLOAD, $seen[0]->action);
+        self::assertSame(strlen($png), $seen[0]->bytes);
+        self::assertSame($this->page, $seen[0]->page);
     }
 
     public function testRefusedAndMissingFilesAnswer422(): void
@@ -242,7 +266,7 @@ final class WikiAttachmentControllerTest extends TestCase
     /**
      * @return array{0: WikiAttachmentController, 1: Container}
      */
-    private function controller(CallbackSpaceAccessChecker $checker, bool $enabled = true, bool $user = true, ?WikiTokenGuard $tokenGuard = null, ?WikiAccessCheckerInterface $roles = null): array
+    private function controller(CallbackSpaceAccessChecker $checker, bool $enabled = true, bool $user = true, ?WikiTokenGuard $tokenGuard = null, ?WikiAccessCheckerInterface $roles = null, ?WikiQuotaGate $quota = null): array
     {
         $pages = $this->createStub(WikiPageRepositoryInterface::class);
         $pages->method('findBySlug')->willReturnCallback(fn (WikiSpace $space, string $slug): ?WikiPage => $slug === 'runbook' ? $this->page : null);
@@ -256,6 +280,7 @@ final class WikiAttachmentControllerTest extends TestCase
             ['enabled' => $enabled],
             $tokenGuard,
             $roles,
+            $quota,
         );
         $container = WikiControllerContainerBuilder::bind($controller, $user ? new TestUser() : null);
 

@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiRevisionLabel;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Form\WikiVersionLabelType;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -18,6 +19,7 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Nowo\WikiBundle\Util\WikiSlugger;
@@ -78,6 +80,7 @@ final class WikiHistoryController extends AbstractController
         private readonly ?WikiRevisionLabelRepositoryInterface $labels = null,
         private readonly ?WikiTokenGuard $tokenGuard = null,
         private readonly ?TranslatorInterface $translator = null,
+        private readonly ?WikiQuotaGate $quota = null,
     ) {
     }
 
@@ -157,6 +160,13 @@ final class WikiHistoryController extends AbstractController
         }
         if (!$this->isValidCsrf($request, self::copyTokenId($revision))) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
+        }
+        // 1.21: a copy is a new page, so the host may refuse it (plan limits).
+        $refusal = $this->quota?->refusal(WikiQuotaCheckEvent::PAGE_CREATE, $user, $space, 1, 0, $page);
+        if ($refusal !== null) {
+            $this->addFlash('error', $refusal);
+
+            return $this->redirectToRoute($this->routes['page_history']['name'] ?? $this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
         }
 
         // The copy keeps the "(vN)" suffix within the title column (audit DT-I2).

@@ -51,6 +51,7 @@ use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
+use Nowo\WikiBundle\Search\WikiSearchScopeListener;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
@@ -83,6 +84,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
@@ -483,6 +485,9 @@ final class WikiExtensionTest extends TestCase
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'state_store' => 'app.panel_state', 'read_view_source' => true]]], $container);
         self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$readViewSource'));
+        // 1.21: the panel extras are off unless the host turns them on.
+        self::assertFalse($container->getDefinition(WikiCommentsPanel::class)->getArgument('$moderationPanel'));
+        self::assertFalse($container->getDefinition(WikiCommentsPanel::class)->getArgument('$errorNotices'));
         self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$collab'));
         self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$publisher'));
         self::assertNull($container->getDefinition(WikiCommentService::class)->getArgument('$pageRateLimiter'));
@@ -681,6 +686,74 @@ final class WikiExtensionTest extends TestCase
      * 1.19.1: with nowo_wiki.ai.enabled false (default) the ai_ask route is not registered and the null assistant
      * answers.
      */
+    /**
+     * 1.21: the page options (Twig global nowo_wiki_web_ui), the space index switch, the search scope and the comments
+     * panel extras.
+     */
+    public function testTheHostHooksOfTheWebUi(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+
+        /** @var array<string, mixed> $webUi */
+        $webUi = $container->getParameter('nowo_wiki.web_ui');
+        self::assertTrue($webUi['space_index']);
+        self::assertSame(['styles' => true, 'scripts' => true], $webUi['assets']);
+        self::assertSame(['sidebar' => null, 'space_intro' => null, 'page_header_extra' => null], $webUi['slots']);
+        self::assertSame('page', $webUi['import_export']);
+        self::assertArrayHasKey('index', (array) $container->getParameter('nowo_wiki.routes'));
+        self::assertFalse($container->hasDefinition(WikiSearchScopeListener::class));
+        self::assertFalse($container->getDefinition(WikiPageFactory::class)->getArgument('$importExportDialog'));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['space_index' => false, 'import_export' => 'dialog', 'assets' => false, 'slots' => ['sidebar' => 'wiki/_sidebar.html.twig', 'space_intro' => 'wiki/_intro.html.twig']],
+            'search'     => ['scope' => 'space'],
+            'routes'     => ['search' => ['name' => 'app_wiki_search']],
+            'comments'   => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'moderation_panel' => true, 'error_notices' => true],
+        ]], $container);
+
+        /** @var array<string, mixed> $webUi */
+        $webUi = $container->getParameter('nowo_wiki.web_ui');
+        self::assertFalse($webUi['space_index']);
+        self::assertSame(['styles' => false, 'scripts' => false], $webUi['assets']);
+        self::assertSame(['sidebar' => 'wiki/_sidebar.html.twig', 'space_intro' => 'wiki/_intro.html.twig', 'page_header_extra' => null], $webUi['slots']);
+        self::assertSame('dialog', $webUi['import_export']);
+        self::assertArrayNotHasKey('index', (array) $container->getParameter('nowo_wiki.routes'));
+        self::assertTrue($container->getDefinition(WikiPageFactory::class)->getArgument('$importExportDialog'));
+        $listener = $container->getDefinition(WikiSearchScopeListener::class);
+        self::assertSame('app_wiki_search', $listener->getArgument('$routeName'));
+        self::assertSame([['event' => KernelEvents::REQUEST, 'priority' => 30]], $listener->getTag('kernel.event_listener'));
+        self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$moderationPanel'));
+        self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$errorNotices'));
+
+        // Styles and scripts apart.
+        self::assertSame(['styles' => false, 'scripts' => true], WikiExtension::ui(['assets' => ['styles' => false, 'scripts' => true]])['assets']);
+        self::assertSame(['styles' => true, 'scripts' => true], WikiExtension::ui([])['assets']);
+    }
+
+    public function testASlotMustBeATemplateName(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.web_ui.slots.sidebar');
+        WikiExtension::ui(['slots' => ['sidebar' => ' ']]);
+    }
+
+    public function testTheModerationPanelSwitchIsALiteralBoolean(): void
+    {
+        $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $container->registerExtension(new WikiExtension());
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'moderation_panel' => '%env(bool:WIKI_MOD)%']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.comments.moderation_panel must be a literal boolean');
+        (new MergeExtensionConfigurationPass())->process($container);
+    }
+
     public function testTheAiRouteIsNotRegisteredWhileTheAiIsOff(): void
     {
         foreach ([[], ['ai' => ['enabled' => false]]] as $ai) {

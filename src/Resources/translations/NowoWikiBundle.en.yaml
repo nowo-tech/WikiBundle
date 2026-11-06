@@ -28,6 +28,18 @@ wiki:
       too_large: "The comment is too long (10,000 characters at most)."
       limit_reached: "This page, thread or comment has reached its limit."
       rate_limited: "Too many comments in a short time: try again in a moment."
+    moderation:
+      title: "Moderate threads"
+      help: "Every thread of this page, resolved ones included. Deleting a thread removes all its comments."
+      page_comment: "Page comment"
+      resolved: "resolved"
+      count: "%count% comment(s)"
+      delete: "Delete thread"
+      deleted: "Thread deleted."
+      failed: "The threads could not be loaded or changed. Try again."
+      empty: "This page has no threads."
+      confirm: "Delete this thread and all its comments? This cannot be undone."
+      confirm_title: "Delete thread?"
   collab:
     reset: "Reset collaboration"
     reset_confirm_title: "Reset the shared session?"
@@ -206,6 +218,8 @@ wiki:
     previous: "Previous"
     next: "Next"
     page_of: "Page %page% of %pages%"
+  quota:
+    denied: "This would go over a limit of your plan."
 wiki_page_form:
   title:
     placeholder: "Page title"

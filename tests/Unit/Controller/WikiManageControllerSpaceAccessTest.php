@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEditorOptionsEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
@@ -35,6 +36,7 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
+use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
@@ -463,6 +465,26 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
         $controller->unarchivePage(Request::create('/u', 'POST', ['_token' => $token]), 'eng', 'runbook');
     }
 
+    public function testAnUnarchiveTheQuotaRefusesKeepsThePageArchived(): void
+    {
+        $seen   = [];
+        $events = new EventDispatcher();
+        $events->addListener(WikiEvents::QUOTA_CHECK, static function (WikiQuotaCheckEvent $event) use (&$seen): void {
+            $seen[] = $event;
+            $event->deny();
+        });
+        [$controller, $container] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Archive), quota: new WikiQuotaGate($events));
+        $token                    = WikiControllerContainerBuilder::csrfToken($container, 'wiki_unarchive_' . $this->archived->getId());
+
+        $response = $controller->unarchivePage(Request::create('/u', 'POST', ['_token' => $token]), 'eng', 'old');
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        self::assertTrue($this->archived->isArchived());
+        self::assertSame([WikiQuotaGate::DEFAULT_REASON], $this->errorFlashes($container));
+        self::assertSame(WikiQuotaCheckEvent::PAGE_UNARCHIVE, $seen[0]->action);
+        self::assertSame($this->archived, $seen[0]->page);
+    }
+
     public function testTheEditorOptionsEventSeesTheUploadHook(): void
     {
         $seen         = [];
@@ -529,13 +551,26 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
     }
 
     /**
+     * @return list<mixed>
+     */
+    private function errorFlashes(Container $container): array
+    {
+        /** @var RequestStack $stack */
+        $stack = $container->get('request_stack');
+        /** @var FlashBagAwareSessionInterface $session */
+        $session = $stack->getSession();
+
+        return $session->getFlashBag()->get('error');
+    }
+
+    /**
      * @param (callable(WikiEditorOptionsEvent): void)|null $onEditorOptions
      * @param list<WikiPage>|null $tree active pages of the space (default: the runbook)
      * @param list<WikiSpace>|null $spaces spaces of the user's resolver (default: none)
      *
      * @return array{0: WikiManageController, 1: Container}
      */
-    private function controller(CallbackSpaceAccessChecker $checker, ?callable $onEditorOptions = null, bool $dispatcher = true, ?array $tree = null, ?WikiDocumentExporter $exporter = null, ?array $spaces = null, int $pagination = 500, ?WikiPageFileExtractor $pageFiles = null): array
+    private function controller(CallbackSpaceAccessChecker $checker, ?callable $onEditorOptions = null, bool $dispatcher = true, ?array $tree = null, ?WikiDocumentExporter $exporter = null, ?array $spaces = null, int $pagination = 500, ?WikiPageFileExtractor $pageFiles = null, ?WikiQuotaGate $quota = null): array
     {
         $spaceResolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
         $spaceResolver->method('listSpacesForUser')->willReturn($spaces ?? []);
@@ -621,6 +656,7 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
                 }
             },
             pageFiles: $pageFiles,
+            quota: $quota,
         );
         $container = WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $this->twig]);
 

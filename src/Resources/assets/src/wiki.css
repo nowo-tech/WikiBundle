@@ -41,16 +41,25 @@
 }
 
 /* Page tree: nested lists, indentation from the nesting. */
+/* 1.21 tree tokens (defaults = the 1.20 look; set them on .nowo-wiki-sidebar or any ancestor):
+   --nowo-wiki-tree-gap (space between rows, 0), --nowo-wiki-tree-indent (nested list offset, 0.85rem),
+   --nowo-wiki-tree-guide (nesting line colour), --nowo-wiki-tree-link-padding (0.25rem 0.5rem),
+   --nowo-wiki-tree-font-size / --nowo-wiki-tree-line-height (inherit), --nowo-wiki-tree-radius,
+   --nowo-wiki-tree-hover-bg, --nowo-wiki-tree-current-bg, --nowo-wiki-tree-current-fg. */
 .nowo-wiki-tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nowo-wiki-tree-gap, 0);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .nowo-wiki-tree--nested {
-  margin-inline-start: 0.85rem;
+  margin-block-start: var(--nowo-wiki-tree-gap, 0);
+  margin-inline-start: var(--nowo-wiki-tree-indent, 0.85rem);
   padding-inline-start: 0.5rem;
-  border-inline-start: 1px solid var(--nowo-ui-border, #e2e8f0);
+  border-inline-start: 1px solid var(--nowo-wiki-tree-guide, var(--nowo-ui-border, #e2e8f0));
 }
 
 .nowo-wiki-tree__item {
@@ -60,20 +69,22 @@
 
 .nowo-wiki-tree__link {
   display: block;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--nowo-ui-radius, 0.375rem);
+  padding: var(--nowo-wiki-tree-link-padding, 0.25rem 0.5rem);
+  border-radius: var(--nowo-wiki-tree-radius, var(--nowo-ui-radius, 0.375rem));
   color: var(--nowo-ui-text, inherit);
+  font-size: var(--nowo-wiki-tree-font-size, inherit);
+  line-height: var(--nowo-wiki-tree-line-height, inherit);
   text-decoration: none;
   overflow-wrap: anywhere;
 }
 
 .nowo-wiki-tree__link:hover, .nowo-wiki-tree__link:focus-visible {
-  background: var(--nowo-ui-surface-muted, #f6f8fb);
+  background: var(--nowo-wiki-tree-hover-bg, var(--nowo-ui-surface-muted, #f6f8fb));
 }
 
 .nowo-wiki-tree__link--current {
-  background: var(--nowo-ui-surface-muted, #f6f8fb);
-  color: var(--nowo-ui-primary, #2563eb);
+  background: var(--nowo-wiki-tree-current-bg, var(--nowo-ui-surface-muted, #f6f8fb));
+  color: var(--nowo-wiki-tree-current-fg, var(--nowo-ui-primary, #2563eb));
   font-weight: 600;
 }
 
@@ -339,4 +350,48 @@
 /* 1.20 (page_files): the files the page refers to. */
 .nowo-wiki-files__link {
   overflow-wrap: anywhere;
+}
+
+/* 1.21 comments panel extras: the notice of a refused write and the moderation list (comments.error_notices /
+   comments.moderation_panel). */
+.nowo-wiki-comments__notice[data-tone='error'] {
+  color: var(--nowo-ui-danger, #b91c1c);
+}
+
+.nowo-wiki-moderation {
+  margin-block-start: 1rem;
+}
+
+.nowo-wiki-moderation__summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.nowo-wiki-moderation__list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.nowo-wiki-moderation__item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-block-start: 1px solid var(--nowo-ui-border, #e2e8f0);
+}
+
+.nowo-wiki-moderation__label, .nowo-wiki-moderation__meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.nowo-wiki-moderation__meta {
+  color: var(--nowo-ui-muted, #64748b);
+  font-size: 0.875em;
+}
+
+.nowo-wiki-moderation__confirm {
+  max-width: min(28rem, calc(100vw - 2rem));
 }

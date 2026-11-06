@@ -8,8 +8,11 @@
 {% trans_default_domain 'NowoWikiBundle' %}
 
 {% block nowo_ui_styles %}
-    {{ parent() }}
-    <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {#- 1.21 web_ui.assets.styles: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.styles ?? true %}
+        {{ parent() }}
+        <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {% endif %}
 {% endblock %}
 
 {% block nowo_ui_show_sections %}

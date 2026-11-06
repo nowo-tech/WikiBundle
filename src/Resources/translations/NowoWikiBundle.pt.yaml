@@ -28,6 +28,18 @@ wiki:
       too_large: "O comentário é demasiado longo (10 000 caracteres no máximo)."
       limit_reached: "Esta página, tópico ou comentário atingiu o limite."
       rate_limited: "Demasiados comentários em pouco tempo: tente novamente daqui a pouco."
+    moderation:
+      title: "Moderar conversas"
+      help: "Todas as conversas desta página, incluindo as resolvidas. Eliminar uma conversa elimina todos os seus comentários."
+      page_comment: "Comentário da página"
+      resolved: "resolvida"
+      count: "%count% comentário(s)"
+      delete: "Eliminar conversa"
+      deleted: "Conversa eliminada."
+      failed: "Não foi possível carregar ou alterar as conversas. Tente novamente."
+      empty: "Esta página não tem conversas."
+      confirm: "Eliminar esta conversa e todos os seus comentários? Não é possível anular."
+      confirm_title: "Eliminar a conversa?"
   collab:
     reset: "Reiniciar a colaboração"
     reset_confirm_title: "Reiniciar a sessão partilhada?"
@@ -206,6 +218,8 @@ wiki:
     previous: "Anterior"
     next: "Seguinte"
     page_of: "Página %page% de %pages%"
+  quota:
+    denied: "Isto ultrapassaria um limite do seu plano."
 wiki_page_form:
   title:
     placeholder: "Título da página"
