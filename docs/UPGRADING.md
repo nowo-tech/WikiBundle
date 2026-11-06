@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.20.0](#to-1200)
 - [To 1.19.1](#to-1191)
 - [To 1.19.0](#to-1190)
 - [To 1.18.0](#to-1180)
@@ -64,6 +65,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.20.0
+
+From **1.19.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 - No BC break; the new options are off by default and the page view is unchanged without them.
 - To list a page's files (Milkdown 1.8 file cards and images) set `page_files.enabled: true`; the card uses the
