@@ -126,6 +126,7 @@ wiki:
       slug_exists: "In diesem Bereich gibt es bereits eine Seite mit diesem Titel."
       save_failed: "Die Seite konnte nicht gespeichert werden: %reason%"
       save_collision: "Nicht gespeichert: Jemand anderes hat diese Seite im selben Moment gespeichert. Dein Text ist noch hier; speichere erneut."
+      restore_collision: "Nicht wiederhergestellt: Jemand anderes hat diese Seite im selben Moment gespeichert. Öffne den Verlauf und stelle die Version erneut wieder her."
   form:
     title: Titel
     content: Inhalt

@@ -126,6 +126,7 @@ wiki:
       slug_exists: "Ya existe una página con este título en este espacio."
       save_failed: "No se pudo guardar la página: %reason%"
       save_collision: "No guardado: otra persona guardó esta página en ese mismo momento. Tu texto sigue aquí; guarda de nuevo."
+      restore_collision: "No restaurado: otra persona guardó esta página en ese mismo momento. Abre el historial y restaura de nuevo la revisión."
   form:
     title: Título
     content: Contenido

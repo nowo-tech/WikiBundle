@@ -126,6 +126,7 @@ wiki:
       slug_exists: "Une page avec ce titre existe déjà dans cet espace."
       save_failed: "La page n'a pas pu être enregistrée : %reason%"
       save_collision: "Non enregistré : quelqu'un d'autre a enregistré cette page au même moment. Votre texte est toujours ici ; enregistrez à nouveau."
+      restore_collision: "Non restauré : quelqu'un d'autre a enregistré cette page au même moment. Ouvrez l'historique et restaurez à nouveau la révision."
   form:
     title: Titre
     content: Contenu

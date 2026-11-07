@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Collaboration;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
+use Doctrine\DBAL\Exception\DeadlockException;
 use LogicException;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabLockingStoreInterface;
@@ -17,6 +19,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Stub\TestUserBase;
 use Nowo\WikiBundle\Tests\Support\CountingInMemoryCollabStateStore;
@@ -655,6 +658,48 @@ final class WikiCollabServiceTest extends TestCase
         self::assertSame([false], $lockedAtPublish);
         self::assertTrue($store->info($this->page->getId())->isEmpty(), 'The log is reset under the lock.');
         self::assertFalse($request->attributes->has(WikiCollabService::LOG_HANDLED_ATTRIBUTE));
+    }
+
+    /** The audit's surviving mutant: an outside save empties a log with saved updates, and does so under the lock. */
+    public function testAnOutsideSaveEmptiesTheLogUnderTheLock(): void
+    {
+        $store = new class extends InMemoryCollabStateStore implements WikiCollabLockingStoreInterface {
+            public ?bool $emptyAtUnlock = null;
+
+            public function whileLocked(string $pageId, callable $work): mixed
+            {
+                $result              = $work();
+                $this->emptyAtUnlock = $this->info($pageId)->isEmpty();
+
+                return $result;
+            }
+        };
+        $collab = new WikiCollabService($store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
+        $store->append($this->page->getId(), 'dQ==');
+        $store->markSaved($this->page->getId(), 'rev-1');
+        self::assertFalse($store->info($this->page->getId())->isEmpty());
+
+        self::assertTrue($collab->saveOutsideSession(new Request(), $this->page, static function (): void {}));
+
+        self::assertTrue($store->emptyAtUnlock, 'The log is empty when the lock is released.');
+        self::assertSame($this->page->getCurrentRevision()?->getId(), $store->info($this->page->getId())->baseRevisionId);
+    }
+
+    /** A race lost under the lock rolled back, so it is a collision for the caller. */
+    public function testADeadlockUnderTheLockIsACollision(): void
+    {
+        $driver = new class('deadlock') extends RuntimeException implements DriverExceptionInterface {
+            public function getSQLState(): ?string
+            {
+                return null;
+            }
+        };
+        $collab = new WikiCollabService($this->store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
+
+        $this->expectException(WikiRevisionCollisionException::class);
+        $collab->saveOutsideSession(new Request(), $this->page, static function () use ($driver): void {
+            throw new DeadlockException($driver, null);
+        });
     }
 
     /** Audit HO-M1: a hub that fails does not undo the save, on any path that resets the log, and it is logged. */

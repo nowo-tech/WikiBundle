@@ -126,6 +126,7 @@ wiki:
       slug_exists: "A page with this title already exists in this space."
       save_failed: "The page could not be saved: %reason%"
       save_collision: "Not saved: someone else saved this page at the same moment. Your text is still here; save again."
+      restore_collision: "Not restored: someone else saved this page at the same moment. Open the history and restore the revision again."
   form:
     title: Title
     content: Content

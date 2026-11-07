@@ -946,7 +946,47 @@ final class WikiManageControllerTest extends TestCase
         $token = WikiControllerContainerBuilder::csrfToken($container, 'wiki_restore_' . $page->getId());
 
         self::assertSame(Response::HTTP_FOUND, $controller->restoreRevision(Request::create('/r', 'POST', ['_token' => $token]), 'eng', 'welcome', 1)->getStatusCode());
-        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.page.error.save_collision');
+        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.page.error.restore_collision');
+    }
+
+    /**
+     * Audit HO-L5: a host listener that throws one of these after the revision is written must not say "Not saved".
+     *
+     * @return iterable<string, array{bool, string}>
+     */
+    public static function savesWrittenBeforeTheListener(): iterable
+    {
+        yield 'co-editing off' => [false, 'none'];
+        yield 'Replace for everyone' => [true, 'replace'];
+        yield 'session save' => [true, 'session'];
+    }
+
+    #[DataProvider('savesWrittenBeforeTheListener')]
+    public function testAListenerFailureAfterTheWriteIsNotCalledALostRace(bool $collaboration, string $path): void
+    {
+        $driver = new class('from a listener') extends RuntimeException implements DriverException {
+            public function getSQLState(): ?string
+            {
+                return null;
+            }
+        };
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(WikiEvents::PAGE_SAVED, static function () use ($driver): void {
+            throw new UniqueConstraintViolationException($driver, null);
+        });
+        [$controller, $page, , , $post, , $collab, $container] = $this->collabEditPage(collaboration: $collaboration, dispatcher: $dispatcher);
+        $fields                                                = match ($path) {
+            'replace' => [WikiCollabService::REPLACE_FIELD => '1'],
+            'session' => [WikiCollabService::SESSION_FIELD => $collab->topic($page)],
+            default   => [],
+        };
+
+        try {
+            $controller->editPage($post($fields), 'eng', 'welcome');
+            self::fail('The listener error must reach the kernel, as a 500.');
+        } catch (UniqueConstraintViolationException) {
+            self::assertSame([], $this->flashes($container, 'error'));
+        }
     }
 
     public function testARestoreWithNothingUnsavedDoesNotAsk(): void
@@ -1023,7 +1063,7 @@ final class WikiManageControllerTest extends TestCase
      *
      * @return array{WikiManageController, WikiPage, InMemoryCollabStateStore, object, callable(array<string, string>): Request, MockObject&WikiCollabPublisherInterface, WikiCollabService, Container}
      */
-    private function collabEditPage(array $options = [], bool $collaboration = true, ?WikiPageRevisionRepositoryInterface $revisions = null): array
+    private function collabEditPage(array $options = [], bool $collaboration = true, ?WikiPageRevisionRepositoryInterface $revisions = null, ?EventDispatcher $dispatcher = null): array
     {
         $user  = new TestUser('user-1');
         $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
@@ -1046,7 +1086,7 @@ final class WikiManageControllerTest extends TestCase
             $revisions->method('getNextRevisionNumber')->willReturn(2);
         }
 
-        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisions, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null);
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisions, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null, pageService: $dispatcher instanceof EventDispatcher ? new WikiPageService($pageRepo, $revisions, new WikiSlugger(), new WikiHtmlSanitizer(), $dispatcher) : null);
         $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $post       = static fn (array $fields): Request => Request::create('/edit', 'POST', [
             'wiki_page_form' => ['title' => 'Welcome', 'content' => 'Hi there', '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_edit_' . $page->getId())],

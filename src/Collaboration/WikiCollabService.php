@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Collaboration;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Exception\RetryableException;
 use JsonException;
 use LogicException;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -313,6 +315,8 @@ final readonly class WikiCollabService
      * @param Request $request the request: {@see WikiCollabSaveListener} leaves the log to this method
      * @param callable(): mixed $save
      *
+     * @throws WikiRevisionCollisionException when the save lost a race with another one: nothing was written
+     *
      * @return bool false: nothing was saved, the person has to confirm
      */
     public function saveOutsideSession(Request $request, WikiPage $page, callable $save): bool
@@ -336,6 +340,9 @@ final readonly class WikiCollabService
 
         try {
             $saved = $this->store instanceof WikiCollabLockingStoreInterface ? $this->store->whileLocked($page->getId(), $work) : $work();
+        } catch (RetryableException $exception) {
+            // Lost a race under the lock: the transaction rolled back, so nothing was written.
+            throw new WikiRevisionCollisionException('The save lost a race with another one.', 0, $exception);
         } finally {
             $request->attributes->remove(self::LOG_HANDLED_ATTRIBUTE);
         }

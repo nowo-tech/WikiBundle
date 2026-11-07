@@ -126,6 +126,7 @@ wiki:
       slug_exists: "Er bestaat al een pagina met deze titel in deze ruimte."
       save_failed: "De pagina kon niet worden opgeslagen: %reason%"
       save_collision: "Niet opgeslagen: iemand anders heeft deze pagina op hetzelfde moment opgeslagen. Je tekst staat er nog; sla opnieuw op."
+      restore_collision: "Niet hersteld: iemand anders heeft deze pagina op hetzelfde moment opgeslagen. Open de geschiedenis en herstel de revisie opnieuw."
   form:
     title: Titel
     content: Inhoud

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Service;
 
+use Doctrine\DBAL\Exception\RetryableException;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -280,7 +282,11 @@ final readonly class WikiPageService
     {
         $number   = $this->revisionRepository->getNextRevisionNumber($page);
         $revision = $this->newRevision($page, $number, $content, $format, $author);
-        $this->revisionRepository->save($revision);
+        try {
+            $this->revisionRepository->save($revision);
+        } catch (RetryableException|UniqueConstraintViolationException $exception) {
+            throw new WikiRevisionCollisionException('The revision could not be written: another save got there first.', 0, $exception);
+        }
 
         $page->setCurrentRevision($revision);
         $this->pageRepository->save($page);

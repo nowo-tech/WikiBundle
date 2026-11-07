@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Controller;
 
-use Doctrine\DBAL\Exception\RetryableException;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
@@ -51,6 +49,7 @@ use Nowo\WikiBundle\Service\WikiPageMoveScope;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiQuotaGate;
+use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
@@ -513,7 +512,7 @@ final class WikiManageController extends AbstractController
                     if (!$this->saveUnlessItMustAsk($request, $page, $inSession, $save)) {
                         return $this->saveConflict($user, $space, $page, $comments, $payload);
                     }
-                } catch (RetryableException|UniqueConstraintViolationException) {
+                } catch (WikiRevisionCollisionException) {
                     // Audit HO-L4: lost a race with another save. Nothing was written; the text stays with the person.
                     $this->flash('error', 'wiki.page.error.save_collision');
 
@@ -878,9 +877,9 @@ final class WikiManageController extends AbstractController
             if (!$this->saveUnlessItMustAsk($request, $page, false, fn () => $this->pageService->restore($page, $revision, $user))) {
                 return $this->restoreConflict($space, $page, $revisionNumber);
             }
-        } catch (RetryableException|UniqueConstraintViolationException) {
+        } catch (WikiRevisionCollisionException) {
             // Audit HO-L4: lost a race with another save. Nothing was written, and the person can press Restore again.
-            $this->flash('error', 'wiki.page.error.save_collision');
+            $this->flash('error', 'wiki.page.error.restore_collision');
 
             return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
         }
