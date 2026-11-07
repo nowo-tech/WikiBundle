@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.23.0](#to-1230)
 - [To 1.22.0](#to-1220)
 - [To 1.21.1](#to-1211)
 - [To 1.21.0](#to-1210)
@@ -68,6 +69,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.23.0
+
+From **1.22.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 > **Upgrade if you use co-editing.** In every earlier version, with every Milkdown, a tab that came back after the shared log was dropped could undo newer text, including a confirmed "Replace for everyone", and nobody was asked. Every revision stays in the history. This release closes it, with Milkdown 1.12 or later (audit HV-M1). No GHSA.
 
