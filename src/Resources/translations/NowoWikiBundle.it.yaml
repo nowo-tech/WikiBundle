@@ -50,6 +50,8 @@ wiki:
     conflict_message: "Il tuo testo è ancora qui e nulla è stato sovrascritto. Quelle modifiche possono essere di qualcun altro, o tue di prima della perdita di connessione. Apri la versione in tempo reale in una nuova scheda, unisci lì ciò che ti serve e salvala. Oppure sostituiscila con il tuo testo: le modifiche non salvate della sessione condivisa andranno perse per tutti."
     conflict_open: "Apri la versione in tempo reale"
     conflict_replace: "Sostituisci per tutti"
+    restore_conflict_title: "Sostituire la sessione condivisa?"
+    restore_conflict_message: "La sessione condivisa contiene modifiche che non sono ancora in nessuna versione. Il ripristino le sostituisce per tutti e vanno perse. Annulla per conservarle e salvale prima dall'editor in tempo reale."
   trash:
     title: "Cestino"
     intro: "Le pagine eliminate restano qui %days% giorni, poi vengono eliminate definitivamente."

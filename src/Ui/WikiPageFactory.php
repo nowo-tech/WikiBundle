@@ -337,6 +337,27 @@ final readonly class WikiPageFactory
     }
 
     /**
+     * The confirmation of a restore while the shared session has unsaved changes (audit HO-L3).
+     */
+    public function restoreConflict(WikiSpace $space, WikiPage $page, FormView $form, ?string $cancelHref): FormPage
+    {
+        return new FormPage(
+            header: new PageHeader(
+                WikiPages::label('wiki.collab.restore_conflict_title'),
+                WikiPages::label('wiki.collab.restore_conflict_message'),
+                breadcrumbs: $this->crumbs($space, $page, WikiPages::label('wiki.collab.restore_conflict_title')),
+            ),
+            form: $form,
+            submitLabel: WikiPages::label('wiki.collab.conflict_replace'),
+            cancelHref: $cancelHref,
+            cancelLabel: WikiPages::label('wiki.action.cancel'),
+            bundle: WikiPages::BUNDLE,
+            layout: $this->pages->layout(),
+            attributes: ['data-testid' => 'wiki-collab-restore-conflict'],
+        );
+    }
+
+    /**
      * The tab row of the read and edit views (1.16, B-Q1): Page (always), Edit (`can.edit`), History (`can.history`);
      * the current view is the active tab (`aria-current="page"`). Rendered at the secondary level, with the comments
      * toggle at the end of the same row when the viewer may see comments. 1.18: each tab carries its icon

@@ -1,0 +1,20 @@
+{#
+  Confirmation of a restore while the shared session has unsaved changes (audit HO-L3). UiKit form scaffold; the form
+  holds the token and the confirmation field, and its button posts the restore again.
+#}
+{% extends '@NowoUiKit/page/form.html.twig' %}
+
+{% block nowo_ui_styles %}
+    {#- web_ui.assets.styles: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.styles ?? true %}
+        {{ parent() }}
+        <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {% endif %}
+{% endblock %}
+
+{% block nowo_ui_scripts %}
+    {#- web_ui.assets.scripts: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.scripts ?? true %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}

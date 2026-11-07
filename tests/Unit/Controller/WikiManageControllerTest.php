@@ -867,6 +867,44 @@ final class WikiManageControllerTest extends TestCase
         self::assertSame(1, $page->getCurrentRevision()?->getRevisionNumber(), 'Nothing is saved.');
     }
 
+    /** Audit HO-L2: the reason reaches any layout, also under a host template that prints no banner. */
+    public function testAConflictAddsAFlashWithTheReason(): void
+    {
+        [$controller, $page, $store, , $post, , , $container] = $this->collabEditPage();
+        $store->append($page->getId(), 'dQ==');
+
+        $controller->editPage($post([]), 'eng', 'welcome');
+
+        $this->assertTranslatable($this->flashes($container, 'warning')[0], 'wiki.collab.conflict_title');
+    }
+
+    /** Audit HO-L3: a restore over unsaved updates asks first, on a page of its own, and writes nothing until confirmed. */
+    public function testARestoreOverUnsavedUpdatesAsksFirst(): void
+    {
+        [$controller, $page, $store, $twig, , , , $container] = $this->collabEditPage();
+        $store->append($page->getId(), 'dQ==');
+        $token = WikiControllerContainerBuilder::csrfToken($container, 'wiki_restore_' . $page->getId());
+
+        $response = $controller->restoreRevision(Request::create('/r', 'POST', ['_token' => $token]), 'eng', 'welcome', 1);
+
+        self::assertSame(Response::HTTP_CONFLICT, $response->getStatusCode());
+        self::assertTrue($response->headers->hasCacheControlDirective('no-store'));
+        self::assertArrayHasKey(WikiCollabService::REPLACE_FIELD, $twig->context['page']->form->children);
+        self::assertFalse($store->info($page->getId())->isEmpty(), 'The log stays.');
+        self::assertSame(1, $page->getCurrentRevision()?->getRevisionNumber());
+
+        $confirmed = $controller->restoreRevision(Request::create('/r', 'POST', ['_token' => $token, WikiCollabService::REPLACE_FIELD => '1']), 'eng', 'welcome', 1);
+        self::assertSame(Response::HTTP_FOUND, $confirmed->getStatusCode());
+    }
+
+    public function testARestoreWithNothingUnsavedDoesNotAsk(): void
+    {
+        [$controller, $page, , , , , , $container] = $this->collabEditPage();
+        $token                                     = WikiControllerContainerBuilder::csrfToken($container, 'wiki_restore_' . $page->getId());
+
+        self::assertSame(Response::HTTP_FOUND, $controller->restoreRevision(Request::create('/r', 'POST', ['_token' => $token]), 'eng', 'welcome', 1)->getStatusCode());
+    }
+
     public function testReplaceForEveryoneSavesAndDropsTheLog(): void
     {
         [$controller, $page, $store, , $post] = $this->collabEditPage();
@@ -931,7 +969,7 @@ final class WikiManageControllerTest extends TestCase
     /**
      * @param array<string, mixed> $options
      *
-     * @return array{WikiManageController, WikiPage, InMemoryCollabStateStore, object, callable(array<string, string>): Request, MockObject&WikiCollabPublisherInterface, WikiCollabService}
+     * @return array{WikiManageController, WikiPage, InMemoryCollabStateStore, object, callable(array<string, string>): Request, MockObject&WikiCollabPublisherInterface, WikiCollabService, Container}
      */
     private function collabEditPage(array $options = [], bool $collaboration = true): array
     {
@@ -943,19 +981,24 @@ final class WikiManageControllerTest extends TestCase
         $resolver->method('listSpacesForUser')->willReturn([$space]);
         $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
         $pageRepo->method('findBySlug')->willReturn($page);
-        $store                       = new InMemoryCollabStateStore();
-        $publisher                   = $this->createMock(WikiCollabPublisherInterface::class);
-        $collab                      = new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), $options, secret: 'test-secret');
-        $this->routes['page_collab'] = ['path' => '/collab/{action}', 'name' => 'nowo_wiki_page_collab'];
-        $twig                        = $this->capturingTwig();
+        $store                        = new InMemoryCollabStateStore();
+        $publisher                    = $this->createMock(WikiCollabPublisherInterface::class);
+        $collab                       = new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), $options, secret: 'test-secret');
+        $this->routes['page_collab']  = ['path' => '/collab/{action}', 'name' => 'nowo_wiki_page_collab'];
+        $this->routes['page_restore'] = ['path' => '/restore', 'name' => 'nowo_wiki_page_restore'];
+        $twig                         = $this->capturingTwig();
 
-        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null);
+        $revisions = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisions->method('findByPageAndNumber')->willReturn($page->getCurrentRevision());
+        $revisions->method('getNextRevisionNumber')->willReturn(2);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisions, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null);
         $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $post       = static fn (array $fields): Request => Request::create('/edit', 'POST', [
             'wiki_page_form' => ['title' => 'Welcome', 'content' => 'Hi there', '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_edit_' . $page->getId())],
         ] + $fields);
 
-        return [$controller, $page, $store, $twig, $post, $publisher, $collab];
+        return [$controller, $page, $store, $twig, $post, $publisher, $collab, $container];
     }
 
     public function testDenyWhenCannotEdit(): void

@@ -44,16 +44,7 @@
 {% endblock %}
 
 {% block nowo_ui_content %}
-    {% if collab_conflict|default(null) %}
-        <div class="{{ nowo_ui_class('flash_warning', page.bundle) }}" role="alert" data-testid="wiki-collab-conflict">
-            <p><strong>{{ 'wiki.collab.conflict_title'|trans({}, 'NowoWikiBundle') }}</strong></p>
-            <p>{{ 'wiki.collab.conflict_message'|trans({}, 'NowoWikiBundle') }}</p>
-            <p>
-                <a class="{{ nowo_ui_class('btn_secondary', page.bundle) }}" href="{{ collab_conflict.live_url }}" target="_blank" rel="noopener" data-testid="wiki-collab-conflict-open">{{ 'wiki.collab.conflict_open'|trans({}, 'NowoWikiBundle') }}</a>
-                <button type="submit" form="{{ collab_conflict.form_id }}" name="{{ collab_conflict.replace_name }}" value="1" class="{{ nowo_ui_class('btn_danger', page.bundle) }}" data-testid="wiki-collab-conflict-replace">{{ 'wiki.collab.conflict_replace'|trans({}, 'NowoWikiBundle') }}</button>
-            </p>
-        </div>
-    {% endif %}
+    {% if collab_conflict|default(null) %}{{ include('@NowoWikiBundle/manage/_collab_conflict.html.twig', {collab_conflict: collab_conflict, bundle: page.bundle}, false) }}{% endif %}
     {% if comments|default(null) %}
         {% set _wiki_content %}{{ parent() }}{% endset %}
         {% embed nowo_ui_partial('side_panel_container', page.bundle) with {bundle: page.bundle, attr: {'data-testid': 'wiki-comments-layout'}} %}

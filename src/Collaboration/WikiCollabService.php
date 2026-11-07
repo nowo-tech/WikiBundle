@@ -298,6 +298,29 @@ final readonly class WikiCollabService
     }
 
     /**
+     * Runs a save made outside the live session unless it has to ask first; the check, the save and the drop that
+     * follows it happen with the log locked, so an update waits and is not lost between them (audit HO-L1). A host's
+     * store without {@see WikiCollabLockingStoreInterface} runs them unlocked.
+     *
+     * @param callable(): mixed $save
+     *
+     * @return bool false: nothing was saved, the person has to confirm
+     */
+    public function saveOutsideSession(WikiPage $page, callable $save): bool
+    {
+        $work = function () use ($page, $save): bool {
+            if ($this->blocksSaveOutsideSession($page)) {
+                return false;
+            }
+            $save();
+
+            return true;
+        };
+
+        return $this->store instanceof WikiCollabLockingStoreInterface ? $this->store->whileLocked($page->getId(), $work) : $work();
+    }
+
+    /**
      * Whether a save from the page form outside the live session has to ask first: the log holds updates no revision
      * has, which {@see self::replaced()} would drop (audit HF-M1). False with `collaboration.save_conflict: false`.
      */

@@ -293,6 +293,32 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
     }
 
     /** Appends like the service does after the token request created the page's document. */
+    /** Audit HO-L1: the work is one transaction, with the reset inside it; a failure undoes everything. */
+    public function testWhileLockedCommitsAndRollsBack(): void
+    {
+        $this->store->reset('p8', 'rev-1');
+        $this->store->append('p8', 'dQ==');
+
+        try {
+            $this->store->whileLocked('p8', function (): void {
+                $this->store->reset('p8', 'rev-2');
+
+                throw new RuntimeException('save failed');
+            });
+            self::fail('Expected the exception.');
+        } catch (RuntimeException $e) {
+            self::assertSame('save failed', $e->getMessage());
+        }
+        self::assertFalse($this->store->info('p8')->isEmpty(), 'Rolled back: the log is still there.');
+
+        self::assertSame('done', $this->store->whileLocked('p8', function (): string {
+            $this->store->reset('p8', 'rev-3');
+
+            return 'done';
+        }));
+        self::assertTrue($this->store->info('p8')->isEmpty());
+    }
+
     /** Audit HF-M1: what no revision holds yet, through every step of a log's life. */
     public function testUnsavedUpdatesFollowSavesCompactionAndReset(): void
     {

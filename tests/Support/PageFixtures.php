@@ -22,6 +22,7 @@ use Nowo\WikiBundle\PageFile\WikiPageFile;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Csrf\CsrfExtension;
 use Symfony\Component\Form\Extension\Validator\ValidatorExtension;
 use Symfony\Component\Form\FormFactoryInterface;
@@ -179,7 +180,22 @@ final class PageFixtures
     /**
      * @return array<string, mixed>
      */
-    public static function pageForm(bool $edit = true, ?WikiPageFactory $factory = null, bool $comments = false): array
+    public static function restoreConflict(): array
+    {
+        $factory  = self::factory();
+        $space    = self::space('engineering', 'Engineering');
+        [, $page] = self::pages($space);
+        $form     = self::formFactory()->createNamed('', WikiPostActionType::class, null, ['action' => '/restore', 'csrf_token_id' => 'wiki_restore_1'])
+            ->add('_nowo_wiki_collab_replace', HiddenType::class, ['data' => '1'])
+            ->createView();
+
+        return $factory->context(['page' => $factory->restoreConflict($space, $page, $form, '/history')]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function pageForm(bool $edit = true, ?WikiPageFactory $factory = null, bool $comments = false, array $formAttributes = []): array
     {
         $factory ??= self::factory();
         $space    = self::space('engineering', 'Engineering');
@@ -189,7 +205,7 @@ final class PageFixtures
         ])->createView();
 
         return $factory->context([
-            'page'            => $factory->pageForm($space, $edit ? $page : null, $form, null, ['history' => true]),
+            'page'            => $factory->pageForm($space, $edit ? $page : null, $form, null, ['history' => true], $formAttributes),
             'routes'          => self::routes(),
             'dashboard_route' => null,
             'csrf_token_id'   => $edit ? 'wiki_edit_1' : 'wiki_new_1',

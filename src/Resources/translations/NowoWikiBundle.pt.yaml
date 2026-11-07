@@ -50,6 +50,8 @@ wiki:
     conflict_message: "O seu texto continua aqui e nada foi substituído. Essas alterações podem ser de outra pessoa, ou suas de antes de perder a ligação. Abra a versão em direto noutro separador, junte lá o que precisar e guarde-a. Ou substitua-a pelo seu texto: as alterações por guardar da sessão partilhada perdem-se para todos."
     conflict_open: "Abrir a versão em direto"
     conflict_replace: "Substituir para todos"
+    restore_conflict_title: "Substituir a sessão partilhada?"
+    restore_conflict_message: "A sessão partilhada tem alterações que ainda não estão em nenhuma versão. Restaurar substitui-as para todos e perdem-se. Cancele para as manter e guarde-as primeiro no editor em direto."
   trash:
     title: "Lixo"
     intro: "As páginas eliminadas ficam aqui %days% dias e depois são eliminadas definitivamente."

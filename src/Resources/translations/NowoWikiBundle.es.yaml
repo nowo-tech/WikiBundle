@@ -50,6 +50,8 @@ wiki:
     conflict_message: "Tu texto sigue aquí y no se ha sobrescrito nada. Esos cambios pueden ser de otra persona, o tuyos de antes de perder la conexión. Abre la versión en vivo en otra pestaña, combina allí lo que necesites y guárdala. O reemplázala por tu texto: los cambios sin guardar de la sesión compartida se perderán para todos."
     conflict_open: "Abrir la versión en vivo"
     conflict_replace: "Reemplazar para todos"
+    restore_conflict_title: "¿Reemplazar la sesión compartida?"
+    restore_conflict_message: "La sesión compartida tiene cambios que aún no están en ninguna versión. Restaurar los reemplaza para todos y se pierden. Cancela para conservarlos y guárdalos antes desde el editor en vivo."
   trash:
     title: "Papelera"
     intro: "Las páginas eliminadas se quedan aquí %days% días; después se borran definitivamente."

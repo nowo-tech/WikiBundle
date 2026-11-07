@@ -50,6 +50,8 @@ wiki:
     conflict_message: "Je tekst staat er nog en er is niets overschreven. Die wijzigingen kunnen van iemand anders zijn, of van jou van voordat de verbinding wegviel. Open de live versie in een nieuw tabblad, voeg daar samen wat je nodig hebt en sla die op. Of vervang die door jouw tekst: de niet-opgeslagen wijzigingen in de gedeelde sessie gaan dan voor iedereen verloren."
     conflict_open: "Live versie openen"
     conflict_replace: "Voor iedereen vervangen"
+    restore_conflict_title: "Gedeelde sessie vervangen?"
+    restore_conflict_message: "De gedeelde sessie bevat wijzigingen die nog in geen enkele versie staan. Herstellen vervangt ze voor iedereen en ze gaan verloren. Annuleer om ze te behouden en sla ze eerst op vanuit de live editor."
   trash:
     title: "Prullenbak"
     intro: "Verwijderde pagina’s blijven hier %days% dagen en worden daarna definitief verwijderd."

@@ -1,0 +1,12 @@
+{#
+  What a save conflict offers (audit HF-M1): open the live version, or replace it for everyone. A host template that
+  replaces nowo_ui_content includes this and passes page.formAttributes to form_start: the button targets the form by id.
+  Variables: collab_conflict (form_id, replace_name, live_url), bundle.
+#}
+<div class="{{ nowo_ui_class('flash_warning', bundle) }}" role="alert" data-testid="wiki-collab-conflict">
+    <p>{{ 'wiki.collab.conflict_message'|trans({}, 'NowoWikiBundle') }}</p>
+    <p>
+        <a class="{{ nowo_ui_class('btn_secondary', bundle) }}" href="{{ collab_conflict.live_url }}" target="_blank" rel="noopener" data-testid="wiki-collab-conflict-open">{{ 'wiki.collab.conflict_open'|trans({}, 'NowoWikiBundle') }}</a>
+        <button type="submit" form="{{ collab_conflict.form_id }}" name="{{ collab_conflict.replace_name }}" value="1" class="{{ nowo_ui_class('btn_danger', bundle) }}" data-testid="wiki-collab-conflict-replace">{{ 'wiki.collab.conflict_replace'|trans({}, 'NowoWikiBundle') }}</button>
+    </p>
+</div>

@@ -34,7 +34,7 @@ use const PHP_INT_MAX;
  * Appends are single inserts, the seed claim is a conditional update (one winner), compaction inserts the snapshot
  * before deleting what it covers — no read-modify-write, so concurrent requests never lose an update.
  */
-final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface
+final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface, WikiCollabLockingStoreInterface
 {
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki entity manager (or its provider)
@@ -71,6 +71,27 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
         }
 
         return new WikiCollabState($snapshot, $updates, $info->seq, $info->baseRevisionId, $info->seededAt, $info->seededBy, $info->updatedAt, $info->updateCount, $info->bytes, $info->snapshotSeq, $info->savedSeq);
+    }
+
+    public function whileLocked(string $pageId, callable $work): mixed
+    {
+        $em         = $this->em();
+        $connection = $em->getConnection();
+        $connection->beginTransaction();
+        try {
+            $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+            $result = $work();
+            $connection->commit();
+
+            return $result;
+        } catch (Throwable $exception) {
+            $connection->rollBack();
+
+            throw $exception;
+        }
     }
 
     public function info(string $pageId): WikiCollabState

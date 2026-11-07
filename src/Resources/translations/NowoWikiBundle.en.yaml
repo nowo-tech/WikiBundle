@@ -50,6 +50,8 @@ wiki:
     conflict_message: "Your text is still here, and nothing has been overwritten. Those changes may be someone else's, or your own from before the connection dropped. Open the live version in a new tab, merge what you need there and save it. Or replace it with your text: the unsaved changes in the shared session are then lost for everyone."
     conflict_open: "Open the live version"
     conflict_replace: "Replace for everyone"
+    restore_conflict_title: "Replace the shared session?"
+    restore_conflict_message: "The shared session has changes that no version holds yet. Restoring replaces them for everyone, and they are lost. Cancel to keep them, and save them from the live editor first."
   trash:
     title: "Trash"
     intro: "Deleted pages stay here for %days% days, then they are deleted for good."

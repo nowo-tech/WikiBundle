@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Collaboration;
 use DateTimeImmutable;
 use LogicException;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
+use Nowo\WikiBundle\Collaboration\WikiCollabLockingStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
@@ -564,6 +565,63 @@ final class WikiCollabServiceTest extends TestCase
         $publisher->expects(self::never())->method('publish');
         $authorizer = $this->createMock(WikiCollabSubscriberAuthorizerInterface::class);
         self::assertSame(2, (new WikiCollabService($plain, $publisher, $authorizer))->purge(new DateTimeImmutable()));
+    }
+
+    /**
+     * Audit HO-L1, forced interleaving: a peer's update arriving between the check and the drop waits for the lock, as a
+     * row lock makes it, and is still there afterwards. Without the lock the drop takes it.
+     */
+    public function testAnUpdateArrivingDuringASaveOutsideTheSessionIsNotLost(): void
+    {
+        $store = new class extends InMemoryCollabStateStore implements WikiCollabLockingStoreInterface {
+            /** @var list<string> */
+            public array $waiting = [];
+            public bool $locked   = false;
+
+            public function whileLocked(string $pageId, callable $work): mixed
+            {
+                $this->locked = true;
+                $result       = $work();
+                $this->locked = false;
+                foreach ($this->waiting as $update) {
+                    parent::append($pageId, $update);
+                }
+
+                return $result;
+            }
+
+            public function append(string $pageId, string $update): int
+            {
+                if ($this->locked) {
+                    $this->waiting[] = $update;
+
+                    return 0;
+                }
+
+                return parent::append($pageId, $update);
+            }
+        };
+        $collab = new WikiCollabService($store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
+        $page   = $this->page;
+        $user   = $this->user;
+        $store->reset($page->getId(), 'rev-1');
+
+        $saved = $collab->saveOutsideSession($page, static function () use ($collab, $store, $page, $user): void {
+            self::assertTrue($store->locked, 'The save runs inside the lock.');
+            $store->append($page->getId(), 'cGVlcg==');
+            $collab->replaced($page, new WikiPageRevision($page, 2, '<p>x</p>', $user, 'x'));
+        });
+
+        self::assertTrue($saved);
+        self::assertTrue($store->info($page->getId())->hasUnsavedUpdates(), 'The update is in the log after the drop.');
+    }
+
+    public function testASaveOutsideTheSessionOverUnsavedUpdatesRunsNothing(): void
+    {
+        $collab = new WikiCollabService($this->store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
+        $this->store->append($this->page->getId(), 'dQ==');
+
+        self::assertFalse($collab->saveOutsideSession($this->page, static fn () => self::fail('Must not save.')));
     }
 
     /**

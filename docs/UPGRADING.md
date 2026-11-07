@@ -72,7 +72,10 @@ With co-editing enabled:
 
 - **Schema:** one column, `saved_seq`, on `<prefix>_page_collab_documents`. Run `doctrine:migrations:diff`. Until a log is saved from a session or reset, its updates count as unsaved, which errs towards asking.
 - **Behaviour:** a page form saved outside the live session while the shared log holds updates no version has now answers 409 and saves nothing, with the text kept in the form and a way to resolve it. A log that only holds the seed counts as unsaved, because its update cannot be told apart from text typed with it; the person chooses "Replace for everyone" and nothing is lost. `collaboration.save_conflict: false` keeps the old behaviour, which loses those updates.
-- A host with its own `collaboration.store` needs nothing: without `savedSeq` every update counts as unsaved. To avoid asking after a session save, fill `savedSeq` in `WikiCollabState` and record it in `markSaved()`.
+- **Templates:** a host template that replaces `nowo_ui_content` without `parent()` must print `collab_conflict` (the banner and the "Replace for everyone" button: include `@NowoWikiBundle/manage/_collab_conflict.html.twig` with `collab_conflict` and `bundle`) and pass `page.formAttributes` to `form_start`; otherwise the person gets a 409 with no message beyond the flash and no way out.
+- **Order:** add the column before deploying the code.
+- **Restore:** a restore over unsaved updates now asks on a page of its own, also a 409, and `restoreRevision()` returns `Response`.
+- A host with its own `collaboration.store` needs nothing: without `savedSeq` every update counts as unsaved. To avoid asking after a session save, fill `savedSeq` in `WikiCollabState` and record it in `markSaved()`; implement `WikiCollabLockingStoreInterface` so an update cannot land between the check and the drop.
 
 ## To 1.21.1
 

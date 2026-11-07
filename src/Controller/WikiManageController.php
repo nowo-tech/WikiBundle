@@ -58,6 +58,7 @@ use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -504,12 +505,11 @@ final class WikiManageController extends AbstractController
 
             // An empty title stays a message on the form: it is never saved.
             if ($payload->title !== '') {
+                $save = fn () => $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
                 // Audit HF-M1: outside the session this save would drop text others have only in the shared log.
-                if (!$inSession && !$request->request->has(WikiCollabService::REPLACE_FIELD) && $this->collab?->blocksSaveOutsideSession($page) === true) {
+                if (!$this->saveUnlessItMustAsk($request, $page, $inSession, $save)) {
                     return $this->saveConflict($user, $space, $page, $comments, $payload);
                 }
-
-                $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
 
                 return $this->redirectToRoute($this->routes['page_view']['name'], [
                     'spaceSlug' => $space->getSlug(),
@@ -532,14 +532,34 @@ final class WikiManageController extends AbstractController
     }
 
     /**
+     * Runs a page write, unless it is outside the live session over unsaved updates and not confirmed.
+     *
+     * @param callable(): mixed $save
+     *
+     * @return bool false: nothing was written
+     */
+    private function saveUnlessItMustAsk(Request $request, WikiPage $page, bool $inSession, callable $save): bool
+    {
+        if ($inSession || !$this->collab instanceof WikiCollabService || $request->request->has(WikiCollabService::REPLACE_FIELD)) {
+            $save();
+
+            return true;
+        }
+
+        return $this->collab->saveOutsideSession($page, $save);
+    }
+
+    /**
      * The page form again, nothing saved (audit HF-M1): the person's title and text, in an editor outside the shared
      * session, since binding it would replace their text with the log. They choose: Save again, open the live version
-     * to merge by hand, or replace it for everyone. Any editor may: the same right as "Reset collaboration".
+     * to merge by hand, or replace it for everyone. Any editor may: the same right as "Reset collaboration". The flash
+     * tells why in any layout, also under a host template that prints no banner (audit HO-L2).
      *
      * @param Panel|null $comments the comments panel
      */
     private function saveConflict(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload): Response
     {
+        $this->flash('warning', 'wiki.collab.conflict_title');
         $form = $this->createForm(WikiPageFormType::class, $payload, [
             'csrf_token_id'  => 'wiki_edit_' . $page->getId(),
             'editor_options' => $this->pageEditorOptions($user, $space, $page, $comments, false),
@@ -811,10 +831,10 @@ final class WikiManageController extends AbstractController
      * @throws NotFoundHttpException when the page or the revision is missing
      * @throws AccessDeniedHttpException when the action is denied or the CSRF token is invalid
      *
-     * @return RedirectResponse redirect to the page
+     * @return Response redirect to the page, or 409 with a confirmation while the shared log holds unsaved updates
      */
     #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/restore', name: 'nowo_wiki_page_restore', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG, 'revisionNumber' => '\d+'], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_restore'], methods: ['POST'])]
-    public function restoreRevision(Request $request, string $spaceSlug, string $pageSlug, int $revisionNumber): RedirectResponse
+    public function restoreRevision(Request $request, string $spaceSlug, string $pageSlug, int $revisionNumber): Response
     {
         $this->denyUnlessFeature('edit');
         $user  = $this->requireUser();
@@ -832,10 +852,36 @@ final class WikiManageController extends AbstractController
             throw new NotFoundHttpException('Revision not found.');
         }
 
-        $this->pageService->restore($page, $revision, $user);
+        // Audit HO-L3: a restore replaces the document, so it asks as a save outside the session does.
+        if (!$this->saveUnlessItMustAsk($request, $page, false, fn () => $this->pageService->restore($page, $revision, $user))) {
+            return $this->restoreConflict($space, $page, $revisionNumber);
+        }
         $this->flash('success', 'wiki.history.restored');
 
         return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+    }
+
+    /**
+     * Asks before a restore over unsaved updates (audit HO-L3): a page of its own, so no host template can hide the way
+     * out. Its button posts the restore again with its token and {@see WikiCollabService::REPLACE_FIELD}.
+     */
+    private function restoreConflict(WikiSpace $space, WikiPage $page, int $revisionNumber): Response
+    {
+        $form = $this->container->get('form.factory')
+            ->createNamed('', WikiPostActionType::class, null, [
+                'action'        => $this->generateUrl($this->routes['page_restore']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug(), 'revisionNumber' => $revisionNumber]),
+                'csrf_token_id' => 'wiki_restore_' . $page->getId(),
+            ])
+            ->add(WikiCollabService::REPLACE_FIELD, HiddenType::class, ['data' => '1'])
+            ->createView();
+        $history = isset($this->routes['page_history']) ? $this->generateUrl($this->routes['page_history']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]) : null;
+        $pages   = $this->pages();
+
+        return new Response(
+            $this->renderView('@NowoWikiBundle/manage/page_restore_conflict.html.twig', $pages->context(['page' => $pages->restoreConflict($space, $page, $form, $history)])),
+            Response::HTTP_CONFLICT,
+            ['Cache-Control' => 'private, no-store'],
+        );
     }
 
     /**
