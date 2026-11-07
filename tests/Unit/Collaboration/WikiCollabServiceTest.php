@@ -995,7 +995,7 @@ final class WikiCollabServiceTest extends TestCase
     {
         $this->store = new EpochInMemoryCollabStateStore();
 
-        foreach ([['x y'], 'x y', str_repeat('a', 65), ''] as $bad) {
+        foreach (['x y', str_repeat('a', 65), '', ['x y']] as $bad) {
             try {
                 $this->service()->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=', 'e' => $bad]), $this->page, $this->user);
                 self::fail('Accepted ' . json_encode($bad));

@@ -1176,6 +1176,24 @@ final class WikiManageControllerTest extends TestCase
         self::assertSame(Response::HTTP_FOUND, $controller->editPage($post($e), 'eng', 'welcome')->getStatusCode());
     }
 
+    /** A session save naming its log is written under the lock its name was compared under, or a Replace could land between. */
+    public function testASessionSaveInItsLogWritesUnderTheLock(): void
+    {
+        $store     = new EpochInMemoryCollabStateStore();
+        $lockedAt  = [];
+        $revisions = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisions->method('getNextRevisionNumber')->willReturn(2);
+        $revisions->method('save')->willReturnCallback(static function () use ($store, &$lockedAt): void {
+            $lockedAt[] = $store->locked;
+        });
+        [$controller, $page, , , $post, , $collab] = $this->collabEditPage(revisions: $revisions, store: $store);
+        $e                                         = [WikiCollabService::SESSION_EPOCH_FIELD => $store->epoch($page->getId())];
+
+        $controller->editPage($post($e + [WikiCollabService::SESSION_FIELD => $collab->topic($page)]), 'eng', 'welcome');
+
+        self::assertSame([true], $lockedAt);
+    }
+
     public function testAMalformedNameOnTheFormIsIgnored(): void
     {
         [$controller, $page, $store, , $post] = $this->collabEditPage(store: new EpochInMemoryCollabStateStore());

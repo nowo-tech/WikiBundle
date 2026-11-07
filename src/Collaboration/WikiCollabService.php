@@ -350,6 +350,7 @@ final readonly class WikiCollabService
         if ($sent !== null && $this->store instanceof WikiCollabEpochStoreInterface) {
             // A snapshot of another log must not land on this one, and its numbers mean nothing here.
             $store = $this->store;
+            // @igor-ignore - Runs and ends inside this call; the store keeps no reference to it.
             $store->whileLocked($page->getId(), static function () use ($store, $page, $sent, $write): void {
                 if ($store->currentEpoch($page->getId()) !== $sent) {
                     throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_epoch');
@@ -436,6 +437,7 @@ final readonly class WikiCollabService
         }
 
         try {
+            // @igor-ignore - Runs and ends inside this call; the store keeps no reference to it.
             return $this->store->whileLocked($page->getId(), function () use ($page, $epoch, $save): bool {
                 if ($this->store->currentEpoch($page->getId()) !== $epoch) {
                     return false;
