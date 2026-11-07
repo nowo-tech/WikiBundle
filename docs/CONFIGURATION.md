@@ -128,6 +128,7 @@ nowo_milkdown_editor:
 | `collaboration.rate_limiter` | null | **Required** with `enabled`: service id of a `RateLimiterFactory` per user and page, applied to every request (token, state, update, awareness, compact) |
 | `collaboration.update_rate_limiter` / `awareness_rate_limiter` | null | 1.14.1: per user and page budgets for `update` and `awareness` requests instead of `rate_limiter` (e.g. `limiter.wiki_collab_update`, `limiter.wiki_collab_awareness`) |
 | `collaboration.user_rate_limiter` | null | 1.13.1 (CW-I9): service id of a `RateLimiterFactory` per **user** across all pages (optional, on top of `rate_limiter`) |
+| `collaboration.save_conflict` | `true` | A page form saved outside the live session (hub down, editor standalone or offline), or a restore, while the shared log holds updates no version has: `true` saves nothing, answers 409 and keeps the text in the form, with the live version and "Replace for everyone" (any editor; the same right as "Reset collaboration"). `false`: saves and drops the log, so those updates are lost |
 | `collaboration.show_names` | `false` | 1.13.1 (CW-I2): co-editors see display names instead of "Editor xxxx" (never an identifier or e-mail-shaped value) |
 | `collaboration.store` / `publisher` / `subscriber_authorizer` | null | Your services instead of the Doctrine store and the Mercure defaults |
 | `collaboration.mercure_hub` | null | Mercure hub name of the defaults |
@@ -483,6 +484,7 @@ nowo_wiki:
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `web_ui.space_index` | `true` | `false`: `routes.index` is unset, so `/tools/wiki` is 404 and the breadcrumbs lose its link. For hosts whose spaces live under their own pages (`tenant_paths`). Literal boolean |
+| `search.excluded_spaces` | `[]` | With `search.scope: space` (anything else is a compile error): these exact space slugs have no search page (404) |
 | `search.scope` | `all` | `space`: `WikiSearchScopeListener` (`kernel.request`, priority 30, registered only with this value) answers 404 without a valid `?space=` and sets the request attribute `spaceSlug`, for host listeners, tabs and breadcrumbs. Access to the space is still checked by the controller. The search page has no space choice and the index search form no "all spaces" choice |
 | `web_ui.import_export` | `page` | `dialog`: the exports leave the header and the import card leaves the page, into `manage/_import_export_dialog.html.twig` (UiKit `dialog`; users who may neither import nor export get neither the action nor the dialog) |
 | `web_ui.assets` | `true` | `false` or `{styles: false, scripts: false}`: the `nowo_ui_styles` / `nowo_ui_scripts` blocks of every page print nothing. That also leaves out what the scaffold prints there: the UiKit stylesheet and tokens, and the UiKit runtime scripts. A host bundling the assets loads `src/Resources/assets/src/wiki.css`, `wiki.ts` and the UiKit equivalents itself. Form widgets print their own assets, which this does not remove: on the page view and edit with Milkdown, `milkdown-editor.js` and its CSS stay, so a host bundling Milkdown as well loads it twice. Literal booleans (an env placeholder counts as `true`) |

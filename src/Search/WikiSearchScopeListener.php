@@ -8,6 +8,7 @@ use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
+use function in_array;
 use function is_array;
 use function is_string;
 use function preg_match;
@@ -28,10 +29,12 @@ final readonly class WikiSearchScopeListener
     /**
      * @param string $routeName name of the search route (`routes.search.name`)
      * @param list<string> $slugRequirements the `slug_requirement` of each `tenant_paths` row
+     * @param list<string> $excludedSpaces `search.excluded_spaces`: spaces with no search page
      */
     public function __construct(
         private string $routeName,
         private array $slugRequirements = [],
+        private array $excludedSpaces = [],
     ) {
     }
 
@@ -44,7 +47,7 @@ final readonly class WikiSearchScopeListener
 
         // all(): a ?space[]= array never reaches a string check (InputBag::get() would throw a 400).
         $space = $request->query->all()['space'] ?? null;
-        if (!is_string($space) || !$this->isSlug($space)) {
+        if (!is_string($space) || !$this->isSlug($space) || in_array($space, $this->excludedSpaces, true)) {
             throw new NotFoundHttpException('Not found.');
         }
 

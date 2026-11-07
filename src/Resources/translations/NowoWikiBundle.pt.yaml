@@ -46,6 +46,12 @@ wiki:
     reset_confirm_message: "Todas as pessoas que editam esta página voltam a carregá-la a partir da última versão guardada; as alterações não guardadas da sessão partilhada perdem-se."
     reset_capped: "A sessão partilhada foi reiniciada demasiadas vezes nos últimos minutos: não foi reiniciada agora. Tente mais tarde ou guarde a página."
     rate_limited: "Demasiados pedidos: a sessão partilhada não foi reiniciada. Tente novamente daqui a pouco."
+    conflict_title: "Não guardado: a sessão partilhada tem alterações que ainda não estão em nenhuma versão"
+    conflict_message: "O seu texto continua aqui e nada foi substituído. Essas alterações podem ser de outra pessoa, ou suas de antes de perder a ligação. Abra a versão em direto noutro separador, junte lá o que precisar e guarde-a. Ou substitua-a pelo seu texto: as alterações por guardar da sessão partilhada perdem-se para todos."
+    conflict_open: "Abrir a versão em direto"
+    conflict_replace: "Substituir para todos"
+    restore_conflict_title: "Substituir a sessão partilhada?"
+    restore_conflict_message: "A sessão partilhada tem alterações que ainda não estão em nenhuma versão. Restaurar substitui-as para todos e perdem-se. Cancele para as manter e guarde-as primeiro no editor em direto."
   trash:
     title: "Lixo"
     intro: "As páginas eliminadas ficam aqui %days% dias e depois são eliminadas definitivamente."
@@ -119,6 +125,8 @@ wiki:
       invalid_slug: "O título da página gera um endereço inválido; use letras ou números."
       slug_exists: "Já existe uma página com este título neste espaço."
       save_failed: "Não foi possível guardar a página: %reason%"
+      save_collision: "Não guardado: outra pessoa guardou esta página no mesmo momento. O seu texto continua aqui; guarde novamente."
+      restore_collision: "Não restaurado: outra pessoa guardou esta página no mesmo momento. Abra o histórico e restaure novamente a revisão."
   form:
     title: Título
     content: Conteúdo

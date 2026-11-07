@@ -49,6 +49,7 @@ use Nowo\WikiBundle\Service\WikiPageMoveScope;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiQuotaGate;
+use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
@@ -58,6 +59,7 @@ use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -97,11 +99,15 @@ use const PHP_INT_MAX;
  *
  * Soft-gated via {@see WikiAccessCheckerInterface}; set security.allow_unauthenticated
  * for trusted demos only (never in production).
+ *
+ * @phpstan-import-type Panel from WikiCommentsPanel
  */
 final class WikiManageController extends AbstractController
 {
     use WikiCsrfTrait;
     use WikiTreeMoveTrait;
+    /** The `id` of the page form when it answers a save conflict: the replace button sits outside it. */
+    private const CONFLICT_FORM_ID = 'wiki-page-form-conflict';
 
     /** Catalogue keys of the {@see WikiPageService} errors a page form can hit (1.12). */
     private const PAGE_ERROR_KEYS = [
@@ -480,10 +486,7 @@ final class WikiManageController extends AbstractController
 
         // 1.16: the comments panel; the editor mounts the thread component into it (live with co-editing).
         $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page);
-        $options  = $this->editorOptions($user, $space, $page);
-        if ($comments !== null && $this->commentsPanel instanceof WikiCommentsPanel) {
-            $options = $this->commentsPanel->editorOptions($options, $comments, $page, $this->collab instanceof WikiCollabService);
-        }
+        $options  = $this->pageEditorOptions($user, $space, $page, $comments, $this->collab instanceof WikiCollabService);
 
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_edit_<page id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
@@ -496,13 +499,25 @@ final class WikiManageController extends AbstractController
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
             // 1.13: a save from the live collaborative session keeps the Yjs log (WikiCollabSaveListener).
-            if ($this->collab instanceof WikiCollabService && $request->request->get(WikiCollabService::SESSION_FIELD) === $this->collab->topic($page)) {
+            $inSession = $this->collab instanceof WikiCollabService && $request->request->get(WikiCollabService::SESSION_FIELD) === $this->collab->topic($page);
+            if ($inSession) {
                 $request->attributes->set(WikiCollabService::SESSION_SAVE_ATTRIBUTE, $page->getId());
             }
 
             // An empty title stays a message on the form: it is never saved.
             if ($payload->title !== '') {
-                $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
+                $save = fn () => $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
+                // Audit HF-M1: outside the session this save would drop text others have only in the shared log.
+                try {
+                    if (!$this->saveUnlessItMustAsk($request, $page, $inSession, $save)) {
+                        return $this->saveConflict($user, $space, $page, $comments, $payload);
+                    }
+                } catch (WikiRevisionCollisionException) {
+                    // Audit HO-L4: lost a race with another save. Nothing was written; the text stays with the person.
+                    $this->flash('error', 'wiki.page.error.save_collision');
+
+                    return $this->pageFormAgain($user, $space, $page, $comments, $payload, null);
+                }
 
                 return $this->redirectToRoute($this->routes['page_view']['name'], [
                     'spaceSlug' => $space->getSlug(),
@@ -522,6 +537,87 @@ final class WikiManageController extends AbstractController
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
             'editor_type'     => $this->editorType(),
         ], $form, $comments !== null ? ['Cache-Control' => 'private, no-store'] : []);
+    }
+
+    /**
+     * Runs a page write, unless it is outside the live session over unsaved updates and not confirmed.
+     *
+     * @param callable(): mixed $save
+     *
+     * @return bool false: nothing was written
+     */
+    private function saveUnlessItMustAsk(Request $request, WikiPage $page, bool $inSession, callable $save): bool
+    {
+        if ($inSession || !$this->collab instanceof WikiCollabService || $request->request->has(WikiCollabService::REPLACE_FIELD)) {
+            $save();
+
+            return true;
+        }
+
+        return $this->collab->saveOutsideSession($request, $page, $save);
+    }
+
+    /**
+     * The page form again, nothing saved (audit HF-M1): the person's title and text, in an editor outside the shared
+     * session, since binding it would replace their text with the log. They choose: Save again, open the live version
+     * to merge by hand, or replace it for everyone. Any editor may: the same right as "Reset collaboration". The flash
+     * tells why in any layout, also under a host template that prints no banner (audit HO-L2).
+     *
+     * @param Panel|null $comments the comments panel
+     */
+    private function saveConflict(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload): Response
+    {
+        $this->flash('warning', 'wiki.collab.conflict_title');
+
+        return $this->pageFormAgain($user, $space, $page, $comments, $payload, [
+            'form_id'      => self::CONFLICT_FORM_ID,
+            'replace_name' => WikiCollabService::REPLACE_FIELD,
+            'live_url'     => $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]),
+        ]);
+    }
+
+    /**
+     * The page form with what the person submitted, in an editor outside the shared session, nothing saved.
+     *
+     * @param Panel|null $comments the comments panel
+     * @param array{form_id: string, replace_name: string, live_url: string}|null $conflict the way out of a save conflict
+     */
+    private function pageFormAgain(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload, ?array $conflict): Response
+    {
+        $form = $this->createForm(WikiPageFormType::class, $payload, [
+            'csrf_token_id'  => 'wiki_edit_' . $page->getId(),
+            'editor_options' => $this->pageEditorOptions($user, $space, $page, $comments, false),
+        ] + $this->pageFormOptions());
+        $canHistory = $this->accessChecker->canViewHistory($user) && $this->spaceGuard->isGranted($user, WikiAction::History, $space, $page);
+
+        return $this->renderPage('page_edit', [
+            'comments'        => $comments,
+            'page'            => $this->pages()->pageForm($space, $page, $form->createView(), null, ['history' => $canHistory], $conflict !== null ? ['id' => $conflict['form_id']] : []),
+            'routes'          => $this->routes,
+            'dashboard_route' => $this->dashboardRoute,
+            'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
+            'editor_type'     => $this->editorType(),
+            'collab_conflict' => $conflict,
+        ], null, ['Cache-Control' => 'private, no-store'], Response::HTTP_CONFLICT);
+    }
+
+    /**
+     * The options of the page editor, with the comments panel; without `collaboration` unless asked for.
+     *
+     * @param Panel|null $comments the comments panel
+     *
+     * @return array<string, mixed>
+     */
+    private function pageEditorOptions(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, bool $collaboration): array
+    {
+        $options = $this->editorOptions($user, $space, $page);
+        if (!$collaboration) {
+            unset($options['collaboration']);
+        }
+
+        return $comments !== null && $this->commentsPanel instanceof WikiCommentsPanel
+            ? $this->commentsPanel->editorOptions($options, $comments, $page, $collaboration)
+            : $options;
     }
 
     /**
@@ -755,10 +851,10 @@ final class WikiManageController extends AbstractController
      * @throws NotFoundHttpException when the page or the revision is missing
      * @throws AccessDeniedHttpException when the action is denied or the CSRF token is invalid
      *
-     * @return RedirectResponse redirect to the page
+     * @return Response redirect to the page, or 409 with a confirmation while the shared log holds unsaved updates
      */
     #[Route(path: '/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/restore', name: 'nowo_wiki_page_restore', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG, 'pageSlug' => WikiRouteLoader::PAGE_SLUG, 'revisionNumber' => '\d+'], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'page_restore'], methods: ['POST'])]
-    public function restoreRevision(Request $request, string $spaceSlug, string $pageSlug, int $revisionNumber): RedirectResponse
+    public function restoreRevision(Request $request, string $spaceSlug, string $pageSlug, int $revisionNumber): Response
     {
         $this->denyUnlessFeature('edit');
         $user  = $this->requireUser();
@@ -776,10 +872,43 @@ final class WikiManageController extends AbstractController
             throw new NotFoundHttpException('Revision not found.');
         }
 
-        $this->pageService->restore($page, $revision, $user);
+        // Audit HO-L3: a restore replaces the document, so it asks as a save outside the session does.
+        try {
+            if (!$this->saveUnlessItMustAsk($request, $page, false, fn () => $this->pageService->restore($page, $revision, $user))) {
+                return $this->restoreConflict($space, $page, $revisionNumber);
+            }
+        } catch (WikiRevisionCollisionException) {
+            // Audit HO-L4: lost a race with another save. Nothing was written, and the person can press Restore again.
+            $this->flash('error', 'wiki.page.error.restore_collision');
+
+            return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+        }
         $this->flash('success', 'wiki.history.restored');
 
         return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+    }
+
+    /**
+     * Asks before a restore over unsaved updates (audit HO-L3): a page of its own, so no host template can hide the way
+     * out. Its button posts the restore again with its token and {@see WikiCollabService::REPLACE_FIELD}.
+     */
+    private function restoreConflict(WikiSpace $space, WikiPage $page, int $revisionNumber): Response
+    {
+        $form = $this->container->get('form.factory')
+            ->createNamed('', WikiPostActionType::class, null, [
+                'action'        => $this->generateUrl($this->routes['page_restore']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug(), 'revisionNumber' => $revisionNumber]),
+                'csrf_token_id' => 'wiki_restore_' . $page->getId(),
+            ])
+            ->add(WikiCollabService::REPLACE_FIELD, HiddenType::class, ['data' => '1'])
+            ->createView();
+        $history = isset($this->routes['page_history']) ? $this->generateUrl($this->routes['page_history']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]) : null;
+        $pages   = $this->pages();
+
+        return new Response(
+            $this->renderView('@NowoWikiBundle/manage/page_restore_conflict.html.twig', $pages->context(['page' => $pages->restoreConflict($space, $page, $form, $history)])),
+            Response::HTTP_CONFLICT,
+            ['Cache-Control' => 'private, no-store'],
+        );
     }
 
     /**
@@ -1557,14 +1686,14 @@ final class WikiManageController extends AbstractController
      * @param FormInterface<mixed>|null $form form of the page
      * @param array<string, string> $headers response headers
      */
-    private function renderPage(string $page, array $vars, ?FormInterface $form = null, array $headers = []): Response
+    private function renderPage(string $page, array $vars, ?FormInterface $form = null, array $headers = [], ?int $status = null): Response
     {
         $pages   = $this->pages();
         $invalid = $form instanceof FormInterface && $form->isSubmitted() && !$form->isValid();
 
         return new Response(
             $this->renderView($pages->template($page), $pages->context($vars)),
-            $invalid ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK,
+            $status ?? ($invalid ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK),
             $headers,
         );
     }

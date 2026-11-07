@@ -78,6 +78,17 @@ final class WikiSearchScopeListenerTest extends TestCase
         (new WikiSearchScopeListener('nowo_wiki_search'))($this->event($this->request('/tools/wiki/search?space=org-abc1--handbook', 'nowo_wiki_search')));
     }
 
+    public function testAnExcludedSpaceHasNoSearchPage(): void
+    {
+        $listener = new WikiSearchScopeListener('nowo_wiki_search', [], ['general']);
+        $other    = $this->request('/tools/wiki/search?space=eng', 'nowo_wiki_search');
+        $listener($this->event($other));
+        self::assertSame('eng', $other->attributes->get('spaceSlug'));
+
+        $this->expectException(NotFoundHttpException::class);
+        $listener($this->event($this->request('/tools/wiki/search?space=general', 'nowo_wiki_search')));
+    }
+
     private function request(string $uri, string $route): Request
     {
         $request = Request::create($uri);

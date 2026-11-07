@@ -46,6 +46,12 @@ wiki:
     reset_confirm_message: "Chi modifica questa pagina la ricarica dall'ultima versione salvata; le modifiche non salvate della sessione condivisa vanno perse."
     reset_capped: "La sessione condivisa è stata reimpostata troppe volte negli ultimi minuti: ora non è stata reimpostata. Riprova più tardi o salva la pagina."
     rate_limited: "Troppe richieste: la sessione condivisa non è stata reimpostata. Riprova tra un momento."
+    conflict_title: "Non salvato: la sessione condivisa contiene modifiche che non sono ancora in nessuna versione"
+    conflict_message: "Il tuo testo è ancora qui e nulla è stato sovrascritto. Quelle modifiche possono essere di qualcun altro, o tue di prima della perdita di connessione. Apri la versione in tempo reale in una nuova scheda, unisci lì ciò che ti serve e salvala. Oppure sostituiscila con il tuo testo: le modifiche non salvate della sessione condivisa andranno perse per tutti."
+    conflict_open: "Apri la versione in tempo reale"
+    conflict_replace: "Sostituisci per tutti"
+    restore_conflict_title: "Sostituire la sessione condivisa?"
+    restore_conflict_message: "La sessione condivisa contiene modifiche che non sono ancora in nessuna versione. Il ripristino le sostituisce per tutti e vanno perse. Annulla per conservarle e salvale prima dall'editor in tempo reale."
   trash:
     title: "Cestino"
     intro: "Le pagine eliminate restano qui %days% giorni, poi vengono eliminate definitivamente."
@@ -119,6 +125,8 @@ wiki:
       invalid_slug: "Il titolo della pagina genera un indirizzo non valido; usa lettere o numeri."
       slug_exists: "In questo spazio esiste già una pagina con questo titolo."
       save_failed: "Impossibile salvare la pagina: %reason%"
+      save_collision: "Non salvato: qualcun altro ha salvato questa pagina nello stesso momento. Il tuo testo è ancora qui; salva di nuovo."
+      restore_collision: "Non ripristinato: qualcun altro ha salvato questa pagina nello stesso momento. Apri la cronologia e ripristina di nuovo la revisione."
   form:
     title: Titolo
     content: Contenuto

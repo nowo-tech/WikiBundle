@@ -53,6 +53,19 @@ final class WikiCollabSaveListenerTest extends TestCase
         self::assertSame(['{"t":"r","c":0,"d":""}'], $this->published);
     }
 
+    /** Audit HO-M1: inside saveOutsideSession() the listener leaves the log alone: no publish inside the transaction. */
+    public function testASaveWhoseLogIsHandledByTheCallerTouchesNothing(): void
+    {
+        [$page, $previous, $revision, $store] = $this->session();
+        $request                              = new Request();
+        $request->attributes->set(WikiCollabService::LOG_HANDLED_ATTRIBUTE, $page->getId());
+
+        (new WikiCollabSaveListener($this->service($store), new RequestStack([$request])))(new WikiPageSavedEvent($page, $revision, $previous, new TestUser()));
+
+        self::assertSame(['AQ=='], $store->load($page->getId())->updates);
+        self::assertSame([], $this->published);
+    }
+
     public function testASaveOutsideTheSessionResets(): void
     {
         [$page, $previous, $revision, $store] = $this->session();

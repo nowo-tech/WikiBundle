@@ -289,8 +289,9 @@ final readonly class WikiPageFactory
      */
     /**
      * @param array{history?: bool} $can 1.16: what the user may do on the page (the History tab of an existing page)
+     * @param array<string, string> $formAttributes extra `<form>` attributes
      */
-    public function pageForm(WikiSpace $space, ?WikiPage $page, FormView $form, ?FormView $collabResetForm = null, array $can = []): FormPage
+    public function pageForm(WikiSpace $space, ?WikiPage $page, FormView $form, ?FormView $collabResetForm = null, array $can = [], array $formAttributes = []): FormPage
     {
         $back = $page instanceof WikiPage
             ? $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()])
@@ -331,6 +332,28 @@ final readonly class WikiPageFactory
             bundle: WikiPages::BUNDLE,
             layout: $this->pages->layout(),
             attributes: ['data-testid' => 'wiki-page-form'],
+            formAttributes: $formAttributes,
+        );
+    }
+
+    /**
+     * The confirmation of a restore while the shared session has unsaved changes (audit HO-L3).
+     */
+    public function restoreConflict(WikiSpace $space, WikiPage $page, FormView $form, ?string $cancelHref): FormPage
+    {
+        return new FormPage(
+            header: new PageHeader(
+                WikiPages::label('wiki.collab.restore_conflict_title'),
+                WikiPages::label('wiki.collab.restore_conflict_message'),
+                breadcrumbs: $this->crumbs($space, $page, WikiPages::label('wiki.collab.restore_conflict_title')),
+            ),
+            form: $form,
+            submitLabel: WikiPages::label('wiki.collab.conflict_replace'),
+            cancelHref: $cancelHref,
+            cancelLabel: WikiPages::label('wiki.action.cancel'),
+            bundle: WikiPages::BUNDLE,
+            layout: $this->pages->layout(),
+            attributes: ['data-testid' => 'wiki-collab-restore-conflict'],
         );
     }
 

@@ -735,6 +735,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         // 1.16: the comment writes publish their thread ids through the same publisher.
         $container->setAlias(WikiCollabPublisherInterface::class, $publisher);
         $container->setDefinition(WikiCollabService::class, (new Definition(WikiCollabService::class))
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
             ->setArgument('$store', new Reference($store))
             ->setArgument('$publisher', new Reference($publisher))
             ->setArgument('$authorizer', new Reference($authorizer))
@@ -797,11 +799,16 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$dashboardRoute', $config['dashboard_route'])
             ->setArgument('$tabIcons', $config['web_ui']['tab_icons'])
             ->setArgument('$importExportDialog', $config['web_ui']['import_export'] === 'dialog'));
+        if ($config['search']['excluded_spaces'] !== [] && $config['search']['scope'] !== 'space') {
+            throw new LogicException('nowo_wiki.search.excluded_spaces needs search.scope: space.');
+        }
+
         // 1.21 (search.scope: space): the search page answers inside one space only.
         if ($config['search']['scope'] === 'space' && isset($config['routes']['search'])) {
             $container->setDefinition(WikiSearchScopeListener::class, (new Definition(WikiSearchScopeListener::class))
                 ->setArgument('$routeName', $config['routes']['search']['name'])
                 ->setArgument('$slugRequirements', array_column($config['tenant_paths'], 'slug_requirement'))
+                ->setArgument('$excludedSpaces', array_values($config['search']['excluded_spaces']))
                 ->addTag('kernel.event_listener', ['event' => KernelEvents::REQUEST, 'priority' => 30]));
         }
     }

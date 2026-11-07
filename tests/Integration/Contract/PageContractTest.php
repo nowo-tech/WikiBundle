@@ -45,6 +45,8 @@ final class PageContractTest extends PageContractTestCase
         yield 'history (timeline)' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', PageFixtures::history(false, null, true));
         yield 'page edit' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm());
         yield 'page new' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm(false));
+        yield 'restore confirmation' => new PageFixture('@NowoWikiBundle/manage/page_restore_conflict.html.twig', PageFixtures::restoreConflict());
+        yield 'page edit (save conflict)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', ['collab_conflict' => ['form_id' => 'wiki-page-form-conflict', 'replace_name' => '_nowo_wiki_collab_replace', 'live_url' => '/tools/wiki/spaces/engineering/pages/deploy/edit']] + PageFixtures::pageForm());
         yield 'history' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', PageFixtures::history());
         yield 'history (empty)' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', PageFixtures::history(true));
         yield 'diff' => new PageFixture('@NowoWikiBundle/manage/page_diff.html.twig', PageFixtures::diff());
@@ -165,6 +167,25 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringNotContainsString('wiki-confirm-dialog', $view, 'no bundle confirm partial (removed before 1.19.0)');
     }
 
+    public function testAHostTemplateReplacingTheContentBlockCanOfferTheWayOut(): void
+    {
+        $context = ['collab_conflict' => ['form_id' => 'wiki-page-form-conflict', 'replace_name' => '_nowo_wiki_collab_replace', 'live_url' => '/live']] + PageFixtures::pageForm(formAttributes: ['id' => 'wiki-page-form-conflict']);
+        $html    = $this->renderPage(new PageFixture('host/page_edit_bare.html.twig', $context))->html;
+
+        self::assertMatchesRegularExpression('#<form[^>]+id="wiki-page-form-conflict"#', $html);
+        self::assertMatchesRegularExpression('#<button type="submit" form="wiki-page-form-conflict" name="_nowo_wiki_collab_replace"#', $html);
+        self::assertStringContainsString('href="/live"', $html);
+    }
+
+    public function testTheRestoreConfirmationHoldsTokenAndField(): void
+    {
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_restore_conflict.html.twig', PageFixtures::restoreConflict()))->html;
+
+        self::assertMatchesRegularExpression('#name="_nowo_wiki_collab_replace"[^>]*value="1"|value="1"[^>]*name="_nowo_wiki_collab_replace"#', $html);
+        self::assertStringContainsString('name="_token"', $html);
+        self::assertStringContainsString('data-testid="wiki-collab-restore-conflict"', $html);
+    }
+
     public function testEditorScriptCarriesTheRequestCspNonce(): void
     {
         $page = new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm());
@@ -195,6 +216,8 @@ final class PageContractTest extends PageContractTestCase
             'slots/sidebar.html.twig'           => '<aside data-testid="host-sidebar">{{ page.bundle }}</aside>',
             'slots/space_intro.html.twig'       => '<p data-testid="host-intro">{{ page.bundle }}</p>',
             'slots/page_header_extra.html.twig' => '<p data-testid="host-header-extra">{{ page.bundle }}</p>',
+            // Audit HO-L2: the shape of a host template that replaces the block with no parent().
+            'host/page_edit_bare.html.twig' => "{% extends '@NowoWikiBundle/manage/page_edit.html.twig' %}{% block nowo_ui_content %}{% if collab_conflict|default(null) %}{{ include('@NowoWikiBundle/manage/_collab_conflict.html.twig', {collab_conflict: collab_conflict, bundle: page.bundle}, false) }}{% endif %}{{ form_start(page.form, {attr: page.formAttributes}) }}{{ form_end(page.form) }}{% endblock %}",
         ]), $twig->getLoader()]));
         if ($this->nonce === null) {
             return;

@@ -322,7 +322,7 @@ final readonly class WikiArchiveHelper
     private function countDirectories(string $name, array &$directories): void
     {
         $parts = array_values(array_filter(explode('/', $name), static fn (string $part): bool => $part !== '' && $part !== '.'));
-        $depth = str_ends_with($name, '/') ? count($parts) : count($parts) - 1;
+        $depth = str_ends_with($name, '/') || str_ends_with($name, '/.') ? count($parts) : count($parts) - 1;
 
         for (; $depth > 0; --$depth) {
             $key = hash('sha256', implode('/', array_slice($parts, 0, $depth)), true);

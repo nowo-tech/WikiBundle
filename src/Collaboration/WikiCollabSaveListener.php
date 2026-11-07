@@ -30,6 +30,10 @@ final readonly class WikiCollabSaveListener
     public function __invoke(WikiPageSavedEvent $event): void
     {
         $request = $this->requestStack?->getCurrentRequest();
+        if ($request instanceof Request && $request->attributes->get(WikiCollabService::LOG_HANDLED_ATTRIBUTE) === $event->page->getId()) {
+            return;
+        }
+
         if ($request instanceof Request && $request->attributes->get(WikiCollabService::SESSION_SAVE_ATTRIBUTE) === $event->page->getId()) {
             $this->collab->saved($event->page, $event->revision, $event->previousRevision);
 

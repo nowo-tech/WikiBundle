@@ -46,6 +46,12 @@ wiki:
     reset_confirm_message: "Toutes les personnes qui modifient cette page la rechargent depuis la dernière version enregistrée ; les modifications non enregistrées de la session partagée sont perdues."
     reset_capped: "La session partagée a été réinitialisée trop souvent ces dernières minutes : elle n'a pas été réinitialisée. Réessayez plus tard ou enregistrez la page."
     rate_limited: "Trop de requêtes : la session partagée n'a pas été réinitialisée. Réessayez dans un instant."
+    conflict_title: "Non enregistré : la session partagée contient des modifications qui ne figurent encore dans aucune version"
+    conflict_message: "Votre texte est toujours ici et rien n'a été écrasé. Ces modifications peuvent venir de quelqu'un d'autre, ou de vous avant la perte de connexion. Ouvrez la version en direct dans un nouvel onglet, fusionnez-y ce dont vous avez besoin et enregistrez-la. Ou remplacez-la par votre texte : les modifications non enregistrées de la session partagée seront alors perdues pour tout le monde."
+    conflict_open: "Ouvrir la version en direct"
+    conflict_replace: "Remplacer pour tout le monde"
+    restore_conflict_title: "Remplacer la session partagée ?"
+    restore_conflict_message: "La session partagée contient des modifications qui ne figurent encore dans aucune version. La restauration les remplace pour tout le monde et elles sont perdues. Annulez pour les conserver et enregistrez-les d'abord depuis l'éditeur en direct."
   trash:
     title: "Corbeille"
     intro: "Les pages supprimées restent ici %days% jours, puis elles sont supprimées définitivement."
@@ -119,6 +125,8 @@ wiki:
       invalid_slug: "Le titre de la page donne une adresse invalide ; utilisez des lettres ou des chiffres."
       slug_exists: "Une page avec ce titre existe déjà dans cet espace."
       save_failed: "La page n'a pas pu être enregistrée : %reason%"
+      save_collision: "Non enregistré : quelqu'un d'autre a enregistré cette page au même moment. Votre texte est toujours ici ; enregistrez à nouveau."
+      restore_collision: "Non restauré : quelqu'un d'autre a enregistré cette page au même moment. Ouvrez l'historique et restaurez à nouveau la révision."
   form:
     title: Titre
     content: Contenu

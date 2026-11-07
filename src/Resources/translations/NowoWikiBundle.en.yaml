@@ -46,6 +46,12 @@ wiki:
     reset_confirm_message: "Everyone editing this page reloads it from the last saved version; unsaved changes in the shared session are lost."
     reset_capped: "The shared session was reset too often in the last minutes: it was not reset now. Try again later, or save the page."
     rate_limited: "Too many requests: the shared session was not reset. Try again in a moment."
+    conflict_title: "Not saved: the shared session has changes that no version holds yet"
+    conflict_message: "Your text is still here, and nothing has been overwritten. Those changes may be someone else's, or your own from before the connection dropped. Open the live version in a new tab, merge what you need there and save it. Or replace it with your text: the unsaved changes in the shared session are then lost for everyone."
+    conflict_open: "Open the live version"
+    conflict_replace: "Replace for everyone"
+    restore_conflict_title: "Replace the shared session?"
+    restore_conflict_message: "The shared session has changes that no version holds yet. Restoring replaces them for everyone, and they are lost. Cancel to keep them, and save them from the live editor first."
   trash:
     title: "Trash"
     intro: "Deleted pages stay here for %days% days, then they are deleted for good."
@@ -119,6 +125,8 @@ wiki:
       invalid_slug: "The page title gives an invalid address; use letters or numbers."
       slug_exists: "A page with this title already exists in this space."
       save_failed: "The page could not be saved: %reason%"
+      save_collision: "Not saved: someone else saved this page at the same moment. Your text is still here; save again."
+      restore_collision: "Not restored: someone else saved this page at the same moment. Open the history and restore the revision again."
   form:
     title: Title
     content: Content

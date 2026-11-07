@@ -46,6 +46,12 @@ wiki:
     reset_confirm_message: "Iedereen die deze pagina bewerkt, laadt hem opnieuw vanaf de laatst opgeslagen versie; niet-opgeslagen wijzigingen in de gedeelde sessie gaan verloren."
     reset_capped: "De gedeelde sessie is de afgelopen minuten te vaak opnieuw ingesteld: dat is nu niet gebeurd. Probeer het later opnieuw of sla de pagina op."
     rate_limited: "Te veel verzoeken: de gedeelde sessie is niet opnieuw ingesteld. Probeer het zo meteen opnieuw."
+    conflict_title: "Niet opgeslagen: de gedeelde sessie bevat wijzigingen die nog in geen enkele versie staan"
+    conflict_message: "Je tekst staat er nog en er is niets overschreven. Die wijzigingen kunnen van iemand anders zijn, of van jou van voordat de verbinding wegviel. Open de live versie in een nieuw tabblad, voeg daar samen wat je nodig hebt en sla die op. Of vervang die door jouw tekst: de niet-opgeslagen wijzigingen in de gedeelde sessie gaan dan voor iedereen verloren."
+    conflict_open: "Live versie openen"
+    conflict_replace: "Voor iedereen vervangen"
+    restore_conflict_title: "Gedeelde sessie vervangen?"
+    restore_conflict_message: "De gedeelde sessie bevat wijzigingen die nog in geen enkele versie staan. Herstellen vervangt ze voor iedereen en ze gaan verloren. Annuleer om ze te behouden en sla ze eerst op vanuit de live editor."
   trash:
     title: "Prullenbak"
     intro: "Verwijderde pagina’s blijven hier %days% dagen en worden daarna definitief verwijderd."
@@ -119,6 +125,8 @@ wiki:
       invalid_slug: "De paginatitel levert een ongeldig adres op; gebruik letters of cijfers."
       slug_exists: "Er bestaat al een pagina met deze titel in deze ruimte."
       save_failed: "De pagina kon niet worden opgeslagen: %reason%"
+      save_collision: "Niet opgeslagen: iemand anders heeft deze pagina op hetzelfde moment opgeslagen. Je tekst staat er nog; sla opnieuw op."
+      restore_collision: "Niet hersteld: iemand anders heeft deze pagina op hetzelfde moment opgeslagen. Open de geschiedenis en herstel de revisie opnieuw."
   form:
     title: Titel
     content: Inhoud

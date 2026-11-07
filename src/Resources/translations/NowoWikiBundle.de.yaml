@@ -46,6 +46,12 @@ wiki:
     reset_confirm_message: "Alle, die diese Seite bearbeiten, laden sie aus der zuletzt gespeicherten Version neu; ungespeicherte Änderungen der gemeinsamen Sitzung gehen verloren."
     reset_capped: "Die gemeinsame Sitzung wurde in den letzten Minuten zu oft zurückgesetzt: Sie wurde jetzt nicht zurückgesetzt. Versuchen Sie es später erneut oder speichern Sie die Seite."
     rate_limited: "Zu viele Anfragen: Die gemeinsame Sitzung wurde nicht zurückgesetzt. Versuchen Sie es gleich noch einmal."
+    conflict_title: "Nicht gespeichert: Die gemeinsame Sitzung enthält Änderungen, die noch in keiner Version stehen"
+    conflict_message: "Dein Text ist noch hier, und nichts wurde überschrieben. Diese Änderungen können von jemand anderem stammen oder von dir, bevor die Verbindung abbrach. Öffne die Live-Version in einem neuen Tab, führe dort zusammen, was du brauchst, und speichere sie. Oder ersetze sie durch deinen Text: Die ungespeicherten Änderungen der gemeinsamen Sitzung gehen dann für alle verloren."
+    conflict_open: "Live-Version öffnen"
+    conflict_replace: "Für alle ersetzen"
+    restore_conflict_title: "Gemeinsame Sitzung ersetzen?"
+    restore_conflict_message: "Die gemeinsame Sitzung enthält Änderungen, die noch in keiner Version stehen. Das Wiederherstellen ersetzt sie für alle, und sie gehen verloren. Brich ab, um sie zu behalten, und speichere sie zuerst im Live-Editor."
   trash:
     title: "Papierkorb"
     intro: "Gelöschte Seiten bleiben %days% Tage hier und werden danach endgültig gelöscht."
@@ -119,6 +125,8 @@ wiki:
       invalid_slug: "Der Seitentitel ergibt keine gültige Adresse; verwenden Sie Buchstaben oder Ziffern."
       slug_exists: "In diesem Bereich gibt es bereits eine Seite mit diesem Titel."
       save_failed: "Die Seite konnte nicht gespeichert werden: %reason%"
+      save_collision: "Nicht gespeichert: Jemand anderes hat diese Seite im selben Moment gespeichert. Dein Text ist noch hier; speichere erneut."
+      restore_collision: "Nicht wiederhergestellt: Jemand anderes hat diese Seite im selben Moment gespeichert. Öffne den Verlauf und stelle die Version erneut wieder her."
   form:
     title: Titel
     content: Inhalt

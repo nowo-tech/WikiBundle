@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Service;
 
+use Doctrine\DBAL\Exception\RetryableException;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -130,6 +132,7 @@ final readonly class WikiPageService
      *                       {@see WikiPageRevision::FORMAT_MARKDOWN} (1.11)
      *
      * @throws InvalidArgumentException when the page is archived or the format is unknown
+     * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
      *
      * @return WikiPageRevision the new revision
      */
@@ -163,6 +166,7 @@ final readonly class WikiPageService
      * @param object $actor user who restores it
      *
      * @throws InvalidArgumentException when the page is archived or the revision belongs to another page
+     * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
      *
      * @return WikiPageRevision the new revision
      */
@@ -204,6 +208,8 @@ final readonly class WikiPageService
      * @param WikiPage $page page to convert
      * @param string $markdown Markdown of the current HTML revision
      * @param object $actor user recorded as revision author
+     *
+     * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
      *
      * @return WikiPageRevision the new Markdown revision
      */
@@ -280,7 +286,11 @@ final readonly class WikiPageService
     {
         $number   = $this->revisionRepository->getNextRevisionNumber($page);
         $revision = $this->newRevision($page, $number, $content, $format, $author);
-        $this->revisionRepository->save($revision);
+        try {
+            $this->revisionRepository->save($revision);
+        } catch (RetryableException|UniqueConstraintViolationException $exception) {
+            throw new WikiRevisionCollisionException('The revision could not be written: another save got there first.', 0, $exception);
+        }
 
         $page->setCurrentRevision($revision);
         $this->pageRepository->save($page);

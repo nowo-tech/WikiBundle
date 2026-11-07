@@ -46,6 +46,12 @@ wiki:
     reset_confirm_message: "Todas las personas que editan esta página la recargan desde la última versión guardada; se pierden los cambios no guardados de la sesión compartida."
     reset_capped: "La sesión compartida se ha reiniciado demasiadas veces en los últimos minutos: no se ha reiniciado ahora. Vuelve a intentarlo más tarde o guarda la página."
     rate_limited: "Demasiadas solicitudes: no se ha reiniciado la sesión compartida. Vuelve a intentarlo en un momento."
+    conflict_title: "No guardado: la sesión compartida tiene cambios que aún no están en ninguna versión"
+    conflict_message: "Tu texto sigue aquí y no se ha sobrescrito nada. Esos cambios pueden ser de otra persona, o tuyos de antes de perder la conexión. Abre la versión en vivo en otra pestaña, combina allí lo que necesites y guárdala. O reemplázala por tu texto: los cambios sin guardar de la sesión compartida se perderán para todos."
+    conflict_open: "Abrir la versión en vivo"
+    conflict_replace: "Reemplazar para todos"
+    restore_conflict_title: "¿Reemplazar la sesión compartida?"
+    restore_conflict_message: "La sesión compartida tiene cambios que aún no están en ninguna versión. Restaurar los reemplaza para todos y se pierden. Cancela para conservarlos y guárdalos antes desde el editor en vivo."
   trash:
     title: "Papelera"
     intro: "Las páginas eliminadas se quedan aquí %days% días; después se borran definitivamente."
@@ -119,6 +125,8 @@ wiki:
       invalid_slug: "El título de la página da una dirección no válida; usa letras o números."
       slug_exists: "Ya existe una página con este título en este espacio."
       save_failed: "No se pudo guardar la página: %reason%"
+      save_collision: "No guardado: otra persona guardó esta página en ese mismo momento. Tu texto sigue aquí; guarda de nuevo."
+      restore_collision: "No restaurado: otra persona guardó esta página en ese mismo momento. Abre el historial y restaura de nuevo la revisión."
   form:
     title: Título
     content: Contenido

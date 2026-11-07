@@ -112,6 +112,25 @@ final class WikiExtensionTest extends TestCase
         }
     }
 
+    public function testExcludedSpacesReachTheListenerAndNeedTheSpaceScope(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'search' => ['scope' => 'space', 'excluded_spaces' => ['general']]]], $container);
+        self::assertSame(['general'], $container->getDefinition(WikiSearchScopeListener::class)->getArgument('$excludedSpaces'));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+        self::assertFalse($container->hasDefinition(WikiSearchScopeListener::class));
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('excluded_spaces needs search.scope: space');
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'search' => ['excluded_spaces' => ['general']]]], $container);
+    }
+
     public function testSearchScopeListenerGetsTheTenantSlugRequirements(): void
     {
         $container = new ContainerBuilder();

@@ -34,6 +34,10 @@ class WikiCollabDocument
     #[ORM\Column(name: 'snapshot_seq', type: 'integer', options: ['default' => 0])]
     private int $snapshotSeq = 0;
 
+    /** Sequence number when a live session last saved the page: later updates are not in any revision. */
+    #[ORM\Column(name: 'saved_seq', type: 'integer', options: ['default' => 0])]
+    private int $savedSeq = 0;
+
     /**
      * @param string $pageId id of the page (one document per page)
      * @param string|null $baseRevisionId revision the log started from or was last saved as
@@ -108,6 +112,11 @@ class WikiCollabDocument
     public function getLastSeq(): int
     {
         return $this->lastSeq;
+    }
+
+    public function getSavedSeq(): int
+    {
+        return $this->savedSeq;
     }
 
     public function getSnapshotSeq(): int

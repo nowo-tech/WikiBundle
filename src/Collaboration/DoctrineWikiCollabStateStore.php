@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Collaboration;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception as DbalException;
+use Doctrine\DBAL\Exception\DeadlockException;
+use Doctrine\DBAL\Exception\DriverException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\LockMode;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
@@ -34,8 +38,11 @@ use const PHP_INT_MAX;
  * Appends are single inserts, the seed claim is a conditional update (one winner), compaction inserts the snapshot
  * before deleting what it covers — no read-modify-write, so concurrent requests never lose an update.
  */
-final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface
+final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface, WikiCollabLockingStoreInterface
 {
+    /** MySQL and MariaDB: `SAVEPOINT ... does not exist`. */
+    private const MYSQL_SAVEPOINT_MISSING = 1305;
+
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki entity manager (or its provider)
      */
@@ -70,7 +77,49 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             $this->em()->detach($row);
         }
 
-        return new WikiCollabState($snapshot, $updates, $info->seq, $info->baseRevisionId, $info->seededAt, $info->seededBy, $info->updatedAt, $info->updateCount, $info->bytes, $info->snapshotSeq);
+        return new WikiCollabState($snapshot, $updates, $info->seq, $info->baseRevisionId, $info->seededAt, $info->seededBy, $info->updatedAt, $info->updateCount, $info->bytes, $info->snapshotSeq, $info->savedSeq);
+    }
+
+    public function whileLocked(string $pageId, callable $work): mixed
+    {
+        $em         = $this->em();
+        $connection = $em->getConnection();
+        $connection->beginTransaction();
+        try {
+            $em->createQueryBuilder()
+                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                ->where('d.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+            $result = $work();
+            $connection->commit();
+
+            return $result;
+        } catch (Throwable $exception) {
+            $this->abandonTransaction($connection);
+
+            // MySQL ends the whole transaction on a deadlock, savepoints too, so an inner rollback fails with this code
+            // and hides the deadlock: name it again for the caller (audit HO-L4).
+            if ($exception instanceof DriverException && $exception->getCode() === self::MYSQL_SAVEPOINT_MISSING) {
+                throw new DeadlockException($exception, $exception->getQuery());
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * Leaves no open transaction on the connection, which a worker reuses. When a savepoint is gone a rollback cannot
+     * count the nesting down; closing resets it, the server has already rolled back, and the next query reconnects.
+     */
+    private function abandonTransaction(Connection $connection): void
+    {
+        try {
+            while ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+        } catch (DbalException) {
+            $connection->close();
+        }
     }
 
     public function info(string $pageId): WikiCollabState
@@ -93,6 +142,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             $document?->getUpdateCount() ?? 0,
             $document?->getLogBytes() ?? 0,
             $document?->getSnapshotSeq() ?? 0,
+            $document?->getSavedSeq() ?? 0,
         );
     }
 
@@ -180,7 +230,8 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             if ($locked === []) {
                 throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
             }
-            $compacted = $upToSeq >= $this->info($pageId)->snapshotSeq;
+            $before    = $this->info($pageId);
+            $compacted = $upToSeq >= $before->snapshotSeq;
             if ($compacted) {
                 $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_SNAPSHOT, $snapshot, $upToSeq);
                 $em->persist($row);
@@ -195,6 +246,15 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                     ->setParameter('snapshot', $row->getId())
                     ->getQuery()->execute();
                 $this->recount($pageId);
+                // The snapshot row moves the last sequence number but adds no text: a saved log stays saved.
+                if (!$before->hasUnsavedUpdates()) {
+                    $em->createQueryBuilder()
+                        ->update(WikiCollabDocument::class, 'd')
+                        ->set('d.savedSeq', 'd.lastSeq')
+                        ->where('d.pageId = :page')
+                        ->setParameter('page', $pageId)
+                        ->getQuery()->execute();
+                }
             }
 
             $connection->commit();
@@ -296,6 +356,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                 ->set('d.logBytes', 0)
                 ->set('d.lastSeq', 0)
                 ->set('d.snapshotSeq', 0)
+                ->set('d.savedSeq', 0)
                 ->set('d.updatedAt', ':now')
                 ->where('d.pageId = :page')
                 ->setParameter('base', $baseRevisionId)
@@ -316,6 +377,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
         $this->em()->createQueryBuilder()
             ->update(WikiCollabDocument::class, 'd')
             ->set('d.baseRevisionId', ':base')
+            ->set('d.savedSeq', 'd.lastSeq')
             ->where('d.pageId = :page')
             ->setParameter('base', $revisionId)
             ->setParameter('page', $pageId)

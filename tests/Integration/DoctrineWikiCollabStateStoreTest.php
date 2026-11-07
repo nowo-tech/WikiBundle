@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Integration;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
+use Doctrine\DBAL\Exception\DeadlockException;
+use Doctrine\DBAL\Exception\DriverException;
+use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Platforms\MariaDBPlatform;
 use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Platforms\OraclePlatform;
@@ -195,6 +199,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
     public function testSavesMoveTheBaseAndCorruptResetsAreCapped(): void
     {
         $this->store->markSaved('p1', 'rev-7');
+        self::assertFalse($this->store->info('p1')->hasUnsavedUpdates(), 'A session save takes in what the log holds.');
         self::assertSame('rev-7', $this->store->info('p1')->baseRevisionId);
 
         $window = new DateTimeImmutable('-10 minutes');
@@ -292,6 +297,88 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
     }
 
     /** Appends like the service does after the token request created the page's document. */
+    /** Audit HO-L1: the work is one transaction, with the reset inside it; a failure undoes everything. */
+    public function testWhileLockedCommitsAndRollsBack(): void
+    {
+        $this->store->reset('p8', 'rev-1');
+        $this->store->append('p8', 'dQ==');
+
+        try {
+            $this->store->whileLocked('p8', function (): void {
+                $this->store->reset('p8', 'rev-2');
+
+                throw new RuntimeException('save failed');
+            });
+            self::fail('Expected the exception.');
+        } catch (RuntimeException $e) {
+            self::assertSame('save failed', $e->getMessage());
+        }
+        self::assertFalse($this->store->info('p8')->isEmpty(), 'Rolled back: the log is still there.');
+
+        self::assertSame('done', $this->store->whileLocked('p8', function (): string {
+            $this->store->reset('p8', 'rev-3');
+
+            return 'done';
+        }));
+        self::assertTrue($this->store->info('p8')->isEmpty());
+    }
+
+    /**
+     * Audit HO-L4: a MySQL deadlock ends the whole transaction, so an inner rollback fails with 1305 and hides it. The
+     * caller gets a deadlock, and the connection, which a worker reuses, is left with no open transaction. The server
+     * side is forced here: a real ROLLBACK under an open savepoint.
+     */
+    public function testALostTransactionIsADeadlockAndLeavesTheConnectionClean(): void
+    {
+        $this->store->reset('p7', 'rev-1');
+        $connection = $this->em->getConnection();
+        $driver     = new class('SAVEPOINT DOCTRINE_2 does not exist', 1305) extends RuntimeException implements DriverExceptionInterface {
+            public function getSQLState(): string
+            {
+                return '42000';
+            }
+        };
+
+        try {
+            $this->store->whileLocked('p7', static function () use ($connection, $driver): void {
+                $connection->beginTransaction();
+                $connection->executeStatement('ROLLBACK');
+
+                throw new DriverException($driver, null);
+            });
+            self::fail('Expected the exception.');
+        } catch (RetryableException $e) {
+            self::assertInstanceOf(DeadlockException::class, $e);
+        }
+
+        self::assertFalse($connection->isTransactionActive());
+        self::assertSame(0, $connection->getTransactionNestingLevel());
+    }
+
+    /** Audit HF-M1: what no revision holds yet, through every step of a log's life. */
+    public function testUnsavedUpdatesFollowSavesCompactionAndReset(): void
+    {
+        $this->store->reset('p9', 'rev-1');
+        self::assertFalse($this->store->info('p9')->hasUnsavedUpdates(), 'An empty log.');
+
+        $seq = $this->store->append('p9', 'dQ==');
+        self::assertTrue($this->store->info('p9')->hasUnsavedUpdates());
+
+        $this->store->markSaved('p9', 'rev-2');
+        self::assertFalse($this->store->info('p9')->hasUnsavedUpdates());
+
+        $this->store->compact('p9', 'c25hcA==', $seq);
+        self::assertFalse($this->store->info('p9')->hasUnsavedUpdates(), 'A compaction adds no text.');
+        self::assertSame($this->store->info('p9')->seq, $this->store->load('p9')->savedSeq, 'load() carries it too.');
+
+        $this->store->append('p9', 'dg==');
+        self::assertTrue($this->store->info('p9')->hasUnsavedUpdates(), 'Typed after the save.');
+
+        $this->store->reset('p9', 'rev-3');
+        self::assertFalse($this->store->info('p9')->hasUnsavedUpdates());
+        self::assertSame(0, $this->store->info('p9')->savedSeq);
+    }
+
     private function append(string $pageId, string $update): int
     {
         (new ReflectionMethod($this->store, 'ensureDocument'))->invoke($this->store, $pageId);
