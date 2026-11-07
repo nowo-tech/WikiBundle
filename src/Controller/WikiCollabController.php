@@ -97,7 +97,7 @@ final class WikiCollabController extends AbstractController
                 'state'     => new JsonResponse($this->collab->state($page, $user, $request), Response::HTTP_OK, self::NO_STORE),
                 'corrupt'   => $this->noContent(fn () => $this->collab->corrupt($request, $page, $user)),
                 'token'     => $this->noContent(fn () => $this->collab->token($request, $page, $user, $this->commentTopics($user, $page))),
-                'update'    => $this->noContent(fn () => $this->collab->update($request, $page, $user)),
+                'update'    => $this->stored($this->collab->update($request, $page, $user)),
                 'awareness' => $this->noContent(fn () => $this->collab->awareness($request, $page, $user)),
                 default     => $this->noContent(fn () => $this->collab->compact($request, $page, $user)),
             };
@@ -143,6 +143,16 @@ final class WikiCollabController extends AbstractController
         $topic = $this->comments->topic($page);
 
         return $topic !== null && $this->comments->rights($user, $page->getSpace(), $page)['view'] ? [$topic] : [];
+    }
+
+    /**
+     * The answer to a stored update: its numbers when the store has them, otherwise nothing. Older clients read neither.
+     *
+     * @param array{s: int, p: int}|null $numbers
+     */
+    private function stored(?array $numbers): Response
+    {
+        return $numbers === null ? new Response(null, Response::HTTP_NO_CONTENT, self::NO_STORE) : new JsonResponse($numbers, Response::HTTP_OK, self::NO_STORE);
     }
 
     /**

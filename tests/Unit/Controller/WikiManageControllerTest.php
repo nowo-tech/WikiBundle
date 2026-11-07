@@ -1095,6 +1095,46 @@ final class WikiManageControllerTest extends TestCase
         return [$controller, $page, $store, $twig, $post, $publisher, $collab, $container];
     }
 
+    /**
+     * Audit HO-L1 window 2: only digits count; anything else keeps today's behaviour.
+     *
+     * @return iterable<string, array{mixed, int|null}>
+     */
+    public static function sessionNumbers(): iterable
+    {
+        yield 'digits' => ['42', 42];
+        yield 'zero' => ['0', 0];
+        yield 'missing' => [null, null];
+        yield 'empty' => ['', null];
+        yield 'negative' => ['-1', null];
+        yield 'letters' => ['12a', null];
+        yield 'exponent' => ['1e3', null];
+        yield 'space' => [' 42', null];
+        yield 'too long' => ['1234567890123456789', null];
+        yield 'array' => [['42'], null];
+    }
+
+    #[DataProvider('sessionNumbers')]
+    public function testASessionSaveReadsTheNumberOnlyWhenItIsDigits(mixed $value, ?int $expected): void
+    {
+        [$controller, $page, , , $post, , $collab] = $this->collabEditPage();
+        $request                                   = $post([WikiCollabService::SESSION_FIELD => $collab->topic($page)] + ($value !== null ? [WikiCollabService::SESSION_SEQ_FIELD => $value] : []));
+
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($request, 'eng', 'welcome')->getStatusCode());
+
+        self::assertSame($expected, $request->attributes->get(WikiCollabService::SESSION_SEQ_ATTRIBUTE));
+    }
+
+    public function testASaveOutsideTheSessionIgnoresTheNumber(): void
+    {
+        [$controller, , , , $post] = $this->collabEditPage();
+        $request                   = $post([WikiCollabService::SESSION_SEQ_FIELD => '42']);
+
+        $controller->editPage($request, 'eng', 'welcome');
+
+        self::assertFalse($request->attributes->has(WikiCollabService::SESSION_SEQ_ATTRIBUTE));
+    }
+
     public function testDenyWhenCannotEdit(): void
     {
         $checker = $this->createMock(WikiAccessCheckerInterface::class);

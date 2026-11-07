@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
+use Nowo\WikiBundle\Tests\Support\NumberedInMemoryCollabStateStore;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -64,6 +65,23 @@ final class WikiCollabSaveListenerTest extends TestCase
 
         self::assertSame(['AQ=='], $store->load($page->getId())->updates);
         self::assertSame([], $this->published);
+    }
+
+    /** Audit HO-L1 window 2: the number the controller validated reaches the service. */
+    public function testASessionSavePassesOnTheNumberItsTextIncludes(): void
+    {
+        [$page, $previous, $revision] = $this->session();
+        $store                        = new NumberedInMemoryCollabStateStore();
+        $store->reset($page->getId(), $previous->getId());
+        $s       = $store->appendNumbered($page->getId(), 'AQ==', 10, 1000)['s'];
+        $request = new Request();
+        $request->attributes->set(WikiCollabService::SESSION_SAVE_ATTRIBUTE, $page->getId());
+        $request->attributes->set(WikiCollabService::SESSION_SEQ_ATTRIBUTE, $s - 1);
+
+        (new WikiCollabSaveListener($this->service($store), new RequestStack([$request])))(new WikiPageSavedEvent($page, $revision, $previous, new TestUser()));
+
+        self::assertSame($s - 1, $store->savedSeq[$page->getId()]);
+        self::assertTrue($store->info($page->getId())->hasUnsavedUpdates());
     }
 
     public function testASaveOutsideTheSessionResets(): void

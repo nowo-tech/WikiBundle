@@ -9,6 +9,8 @@ use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 
+use function is_int;
+
 /**
  * Listener of {@see WikiEvents::PAGE_SAVED} with collaboration on (1.13, "reset only when needed"): a save the page
  * form made from the live session (marked with {@see WikiCollabService::SESSION_SAVE_ATTRIBUTE}) keeps the Yjs log
@@ -35,7 +37,8 @@ final readonly class WikiCollabSaveListener
         }
 
         if ($request instanceof Request && $request->attributes->get(WikiCollabService::SESSION_SAVE_ATTRIBUTE) === $event->page->getId()) {
-            $this->collab->saved($event->page, $event->revision, $event->previousRevision);
+            $included = $request->attributes->get(WikiCollabService::SESSION_SEQ_ATTRIBUTE);
+            $this->collab->saved($event->page, $event->revision, $event->previousRevision, is_int($included) ? $included : null);
 
             return;
         }

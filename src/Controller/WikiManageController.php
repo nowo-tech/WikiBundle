@@ -85,6 +85,7 @@ use function array_slice;
 use function array_values;
 use function ceil;
 use function count;
+use function ctype_digit;
 use function is_string;
 use function max;
 use function min;
@@ -502,6 +503,11 @@ final class WikiManageController extends AbstractController
             $inSession = $this->collab instanceof WikiCollabService && $request->request->get(WikiCollabService::SESSION_FIELD) === $this->collab->topic($page);
             if ($inSession) {
                 $request->attributes->set(WikiCollabService::SESSION_SAVE_ATTRIBUTE, $page->getId());
+                // Audit HO-L1 window 2: missing or malformed keeps counting everything stored so far as saved.
+                $included = $request->request->all()[WikiCollabService::SESSION_SEQ_FIELD] ?? null;
+                if (is_string($included) && strlen($included) < 19 && ctype_digit($included)) {
+                    $request->attributes->set(WikiCollabService::SESSION_SEQ_ATTRIBUTE, (int) $included);
+                }
             }
 
             // An empty title stays a message on the form: it is never saved.

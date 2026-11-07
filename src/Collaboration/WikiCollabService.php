@@ -71,6 +71,12 @@ final readonly class WikiCollabService
     /** Request attribute (page id): the save is inside {@see self::saveOutsideSession()}, which handles the log itself. */
     public const LOG_HANDLED_ATTRIBUTE = '_nowo_wiki_collab_log_handled';
 
+    /** Form field a client adds next to {@see self::SESSION_FIELD} (Milkdown >= 1.11): the number the save's text includes. */
+    public const SESSION_SEQ_FIELD = '_nowo_milkdown_collab_seq';
+
+    /** Request attribute: that number, validated; absent when the client sent none or a malformed one. */
+    public const SESSION_SEQ_ATTRIBUTE = '_nowo_wiki_collab_session_seq';
+
     /** Request attribute (the page id) of a save made from a live session; read by {@see WikiCollabSaveListener}. */
     public const SESSION_SAVE_ATTRIBUTE = '_nowo_wiki_collab_session_save';
 
@@ -233,14 +239,23 @@ final readonly class WikiCollabService
      *
      * @throws WikiCollabException on an invalid, too large or rate-limited request, a full log (429 `log_full`:
      *                             compact first) or a log over its byte budget (409 `log_reset`: dropped, editors reload)
+     *
+     * @return array{s: int, p: int}|null the update's number and the one before it, with a {@see WikiCollabNumberedStoreInterface}
      */
-    public function update(Request $request, WikiPage $page, UserInterface $user): void
+    public function update(Request $request, WikiPage $page, UserInterface $user): ?array
     {
         [$client, $data] = $this->payload($request, $page, $user, $this->options['max_update_bytes'], 'update');
         // 1.14.1: the caps and the append in one locked write (no size read before and after), then the relay.
-        if ($this->store instanceof WikiCollabCountingStoreInterface) {
-            // @igor-ignore - Persists the update through the store (database write); the service keeps no state
-            $refused = $this->store->appendWithin($page->getId(), $data, $this->options['max_log_entries'], $this->options['max_log_bytes']);
+        if ($this->store instanceof WikiCollabNumberedStoreInterface || $this->store instanceof WikiCollabCountingStoreInterface) {
+            $numbers = null;
+            if ($this->store instanceof WikiCollabNumberedStoreInterface) {
+                // @igor-ignore - Persists the update through the store (database write); the service keeps no state
+                ['refused' => $refused, 's' => $stored, 'p' => $previous] = $this->store->appendNumbered($page->getId(), $data, $this->options['max_log_entries'], $this->options['max_log_bytes']);
+                $numbers                                                  = ['s' => $stored, 'p' => $previous];
+            } else {
+                // @igor-ignore - Persists the update through the store (database write); the service keeps no state
+                $refused = $this->store->appendWithin($page->getId(), $data, $this->options['max_log_entries'], $this->options['max_log_bytes']);
+            }
             if ($refused === 'log_full') {
                 throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'log_full');
             }
@@ -249,9 +264,9 @@ final readonly class WikiCollabService
 
                 throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
             }
-            $this->publisher->publish($this->topic($page), json_encode(['t' => 'u', 'c' => $client, 'd' => $data], JSON_THROW_ON_ERROR));
+            $this->publisher->publish($this->topic($page), json_encode(['t' => 'u', 'c' => $client, 'd' => $data] + ($numbers ?? []), JSON_THROW_ON_ERROR));
 
-            return;
+            return $numbers;
         }
 
         $info = $this->store->info($page->getId());
@@ -275,6 +290,8 @@ final readonly class WikiCollabService
         }
 
         $this->publisher->publish($this->topic($page), json_encode(['t' => 'u', 'c' => $client, 'd' => $data], JSON_THROW_ON_ERROR));
+
+        return null;
     }
 
     /**
@@ -367,11 +384,15 @@ final readonly class WikiCollabService
      * A save from the live session: when the log's base is the revision this save replaced, the log stays and records
      * the new revision (no reload); otherwise the save is treated as a replacement.
      */
-    public function saved(WikiPage $page, WikiPageRevision $revision, ?WikiPageRevision $previous): void
+    public function saved(WikiPage $page, WikiPageRevision $revision, ?WikiPageRevision $previous, ?int $includedSeq = null): void
     {
         $info = $this->store->info($page->getId());
         if ($info->updatedAt instanceof DateTimeImmutable && $previous instanceof WikiPageRevision && $info->baseRevisionId === $previous->getId()) {
-            $this->store->markSaved($page->getId(), $revision->getId());
+            if ($includedSeq !== null && $this->store instanceof WikiCollabNumberedStoreInterface) {
+                $this->markSavedUpTo($this->store, $page, $revision, $includedSeq);
+            } else {
+                $this->store->markSaved($page->getId(), $revision->getId());
+            }
 
             return;
         }
@@ -468,6 +489,19 @@ final readonly class WikiCollabService
     {
         $this->store->reset($page->getId(), $revisionId);
         $this->publishReset($page);
+    }
+
+    /**
+     * The save is committed by now, so losing a race for the log's row must not answer an error. The number stays where it
+     * was, which only makes a later save outside the session ask (audit HO-L1 window 2).
+     */
+    private function markSavedUpTo(WikiCollabNumberedStoreInterface $store, WikiPage $page, WikiPageRevision $revision, int $includedSeq): void
+    {
+        try {
+            $store->markSavedUpTo($page->getId(), $revision->getId(), $includedSeq);
+        } catch (RetryableException $exception) {
+            $this->logger?->warning('Wiki co-editing save could not record what it includes.', ['bundle' => 'nowo_wiki', 'page' => $page->getId(), 'exception_class' => $exception::class]);
+        }
     }
 
     /**

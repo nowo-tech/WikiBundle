@@ -69,6 +69,13 @@
 
 ## Unreleased
 
+With co-editing enabled:
+
+- **`POST <url>/update`** answers `200` with JSON `{"s": n, "p": m}` instead of `204` with the bundled store, and each published update carries `s` and `p`. Milkdown before 1.11 ignores both. A host that checks for `204`, or a custom publisher or relay that rebuilds the message, must allow them.
+- **To close the window** where an update landing during a session save counts as saved, use Milkdown 1.11 or later. Without it nothing changes. A save made right after typing, before the server has answered the last update, counts that update as unsaved, so the next save outside the session asks once: a false alarm that loses nothing.
+- **A host's own `collaboration.store`** keeps working, with `204` and the window open. Implement `WikiCollabNumberedStoreInterface` to close it.
+- **`state.seq`** after a compaction is now the last update's number, not the snapshot row's. Nothing to do; a client reloads its state on connect.
+
 ## To 1.22.0
 
 From **1.21.1**:

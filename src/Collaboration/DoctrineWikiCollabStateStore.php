@@ -38,7 +38,7 @@ use const PHP_INT_MAX;
  * Appends are single inserts, the seed claim is a conditional update (one winner), compaction inserts the snapshot
  * before deleting what it covers — no read-modify-write, so concurrent requests never lose an update.
  */
-final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface, WikiCollabLockingStoreInterface
+final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface, WikiCollabLockingStoreInterface, WikiCollabNumberedStoreInterface
 {
     /** MySQL and MariaDB: `SAVEPOINT ... does not exist`. */
     private const MYSQL_SAVEPOINT_MISSING = 1305;
@@ -166,20 +166,27 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
      */
     public function appendWithin(string $pageId, string $update, int $maxEntries, int $maxBytes): ?string
     {
+        return $this->appendNumbered($pageId, $update, $maxEntries, $maxBytes)['refused'];
+    }
+
+    public function appendNumbered(string $pageId, string $update, int $maxEntries, int $maxBytes): array
+    {
         $em         = $this->em();
         $connection = $em->getConnection();
         $connection->beginTransaction();
         try {
             // No ensureDocument() here: the token request created the document; a missing one was purged (409).
-            /** @var list<array{updateCount: int|string, logBytes: int|string}> $locked */
+            /** @var list<array{updateCount: int|string, logBytes: int|string, lastSeq: int|string, snapshotSeq: int|string}> $locked */
             $locked = $em->createQueryBuilder()
-                ->select('d.updateCount AS updateCount', 'd.logBytes AS logBytes')->from(WikiCollabDocument::class, 'd')
+                ->select('d.updateCount AS updateCount', 'd.logBytes AS logBytes', 'd.lastSeq AS lastSeq', 'd.snapshotSeq AS snapshotSeq')->from(WikiCollabDocument::class, 'd')
                 ->where('d.pageId = :page')->setParameter('page', $pageId)
                 ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
             if ($locked === []) {
                 throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
             }
-            $refused = match (true) {
+            $previous = max((int) $locked[0]['lastSeq'], (int) $locked[0]['snapshotSeq']);
+            $stored   = $previous;
+            $refused  = match (true) {
                 (int) $locked[0]['updateCount'] >= $maxEntries             => 'log_full',
                 (int) $locked[0]['logBytes'] + strlen($update) > $maxBytes => 'log_reset',
                 default                                                    => null,
@@ -189,6 +196,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                 $em->persist($row);
                 $em->flush();
                 $em->detach($row);
+                $stored = (int) $row->getId();
                 $em->createQueryBuilder()
                     ->update(WikiCollabDocument::class, 'd')
                     ->set('d.updateCount', 'd.updateCount + 1')
@@ -197,7 +205,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                     ->set('d.updatedAt', ':now')
                     ->where('d.pageId = :page')
                     ->setParameter('bytes', strlen($update))
-                    ->setParameter('seq', (int) $row->getId())
+                    ->setParameter('seq', $stored)
                     ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
                     ->setParameter('page', $pageId)
                     ->getQuery()->execute();
@@ -209,7 +217,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             throw $exception;
         }
 
-        return $refused;
+        return ['refused' => $refused, 's' => $stored, 'p' => $previous];
     }
 
     /**
@@ -384,6 +392,29 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             ->getQuery()->execute();
     }
 
+    public function markSavedUpTo(string $pageId, string $revisionId, int $includedSeq): void
+    {
+        $this->whileLocked($pageId, function () use ($pageId, $revisionId, $includedSeq): void {
+            /** @var list<array{lastSeq: int|string, savedSeq: int|string}> $current */
+            $current = $this->em()->createQueryBuilder()
+                ->select('d.lastSeq AS lastSeq', 'd.savedSeq AS savedSeq')->from(WikiCollabDocument::class, 'd')
+                ->where('d.pageId = :page')->setParameter('page', $pageId)
+                ->getQuery()->getArrayResult();
+            if ($current === []) {
+                return;
+            }
+            $this->em()->createQueryBuilder()
+                ->update(WikiCollabDocument::class, 'd')
+                ->set('d.baseRevisionId', ':base')
+                ->set('d.savedSeq', ':saved')
+                ->where('d.pageId = :page')
+                ->setParameter('base', $revisionId)
+                ->setParameter('saved', max((int) $current[0]['savedSeq'], min($includedSeq, (int) $current[0]['lastSeq'])))
+                ->setParameter('page', $pageId)
+                ->getQuery()->execute();
+        });
+    }
+
     public function noteReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool
     {
         $this->ensureDocument($pageId);
@@ -440,11 +471,12 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
         $cover = 0;
         foreach ($rows as $row) {
             $bytes += (int) $row['b'];
-            $seq = max($seq, (int) $row['m']);
             if ($row['kind'] === WikiCollabUpdate::KIND_SNAPSHOT) {
                 $cover = (int) $row['c'];
+                $seq   = max($seq, $cover);
             } else {
                 $count = (int) $row['n'];
+                $seq   = max($seq, (int) $row['m']);
             }
         }
         $em->createQueryBuilder()

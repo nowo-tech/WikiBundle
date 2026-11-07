@@ -355,6 +355,71 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertSame(0, $connection->getTransactionNestingLevel());
     }
 
+    /**
+     * Audit HO-L1 window 2: each update names the one before it, and a compaction takes no number of its own: a client
+     * following along must not lose the thread when another client compacts.
+     */
+    public function testNumbersFormAChainThroughACompaction(): void
+    {
+        $this->store->reset('p6', 'rev-1');
+        $first = $this->store->appendNumbered('p6', 'dQ==', 100, 100000);
+        self::assertNull($first['refused']);
+        self::assertSame(0, $first['p']);
+        $second = $this->store->appendNumbered('p6', 'dg==', 100, 100000);
+        self::assertSame($first['s'], $second['p']);
+        self::assertGreaterThan($second['p'], $second['s']);
+
+        self::assertTrue($this->store->compact('p6', 'c25hcA==', $first['s']));
+        self::assertSame($second['s'], $this->store->info('p6')->seq, 'The snapshot row is not a number.');
+        self::assertSame($second['s'], $this->store->load('p6')->seq, 'A new joiner starts from the same number.');
+        $third = $this->store->appendNumbered('p6', 'dw==', 100, 100000);
+        self::assertSame($second['s'], $third['p']);
+
+        self::assertTrue($this->store->compact('p6', 'c25hcDI=', $third['s']));
+        self::assertSame($third['s'], $this->store->info('p6')->seq);
+        self::assertSame($third['s'], $this->store->appendNumbered('p6', 'eA==', 100, 100000)['p'], 'All updates compacted: the cover is the number.');
+    }
+
+    public function testARefusedAppendKeepsItsNumber(): void
+    {
+        $this->store->reset('p5', 'rev-1');
+        $s = $this->store->appendNumbered('p5', 'dQ==', 1, 100000)['s'];
+
+        self::assertSame(['refused' => 'log_full', 's' => $s, 'p' => $s], $this->store->appendNumbered('p5', 'dg==', 1, 100000));
+        self::assertSame(['refused' => 'log_reset', 's' => $s, 'p' => $s], $this->store->appendNumbered('p5', 'dg==', 100, 1));
+    }
+
+    public function testAnAppendToAPurgedLogIsRefused(): void
+    {
+        $this->expectException(WikiCollabException::class);
+
+        $this->store->appendNumbered('never-opened', 'dQ==', 100, 100000);
+    }
+
+    /** Audit HO-L1 window 2: `max(savedSeq, min(seq, lastSeq))`. */
+    public function testMarkSavedUpToCountsWhatTheTextIncludes(): void
+    {
+        $this->store->reset('p4', 'rev-1');
+        $first  = $this->store->appendNumbered('p4', 'dQ==', 100, 100000)['s'];
+        $second = $this->store->appendNumbered('p4', 'dg==', 100, 100000)['s'];
+
+        $this->store->markSavedUpTo('p4', 'rev-2', $first);
+        self::assertSame($first, $this->store->info('p4')->savedSeq);
+        self::assertSame('rev-2', $this->store->info('p4')->baseRevisionId);
+        self::assertTrue($this->store->info('p4')->hasUnsavedUpdates(), 'The second update is in no revision.');
+
+        $this->store->markSavedUpTo('p4', 'rev-3', 0);
+        self::assertSame($first, $this->store->info('p4')->savedSeq, 'A slower save never lowers it.');
+        self::assertSame('rev-3', $this->store->info('p4')->baseRevisionId);
+
+        $this->store->markSavedUpTo('p4', 'rev-4', $second + 1000);
+        self::assertSame($second, $this->store->info('p4')->savedSeq, 'Never past the end of the log.');
+        self::assertFalse($this->store->info('p4')->hasUnsavedUpdates());
+
+        $this->store->markSavedUpTo('never-opened', 'rev-1', 5);
+        self::assertSame(0, $this->store->info('never-opened')->savedSeq);
+    }
+
     /** Audit HF-M1: what no revision holds yet, through every step of a log's life. */
     public function testUnsavedUpdatesFollowSavesCompactionAndReset(): void
     {

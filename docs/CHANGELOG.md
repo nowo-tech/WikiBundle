@@ -62,6 +62,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Co-editing: an update stored while a session save is in flight stays unsaved (audit HO-L1 window 2).** A session save that sends `_nowo_milkdown_collab_seq` (Milkdown 1.11 or later) records only the updates its text includes, under the log's row lock, so a later save outside the session asks instead of dropping that update. A client that sends no number, or a malformed one, counts as before.
+- The numbers clients follow no longer jump at a compaction: the snapshot row takes no number of its own.
+
+### Added
+
+- `WikiCollabNumberedStoreInterface`, optional: `appendNumbered()` and `markSavedUpTo()`. `POST <url>/update` answers `200` with `{"s","p"}` with such a store, the bundled one included, and the published update carries `s` and `p`. A host's own store without it keeps `204` and the old message.
+
 ## [1.22.0] - 2026-11-07
 
 ### Fixed

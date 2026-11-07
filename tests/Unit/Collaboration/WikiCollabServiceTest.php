@@ -10,6 +10,7 @@ use Doctrine\DBAL\Exception\DeadlockException;
 use LogicException;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabLockingStoreInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabNumberedStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
@@ -24,6 +25,7 @@ use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Stub\TestUserBase;
 use Nowo\WikiBundle\Tests\Support\CountingInMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
+use Nowo\WikiBundle\Tests\Support\NumberedInMemoryCollabStateStore;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -702,6 +704,128 @@ final class WikiCollabServiceTest extends TestCase
         });
     }
 
+    /** Audit HO-L1 window 2: the numbers go back to the sender and out to the others. */
+    public function testAStoredUpdateTellsItsNumbers(): void
+    {
+        $this->store = new NumberedInMemoryCollabStateStore();
+        $service     = $this->service();
+
+        $first  = $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+        $second = $service->update($this->jsonRequest(['c' => 7, 'd' => 'AwQ=']), $this->page, $this->user);
+
+        self::assertSame(['s' => 1, 'p' => 0], $first);
+        self::assertSame(['s' => 2, 'p' => 1], $second);
+        self::assertSame('{"t":"u","c":7,"d":"AwQ=","s":2,"p":1}', $this->published[1][1]);
+    }
+
+    public function testAStoreWithoutNumbersAnswersAndPublishesAsBefore(): void
+    {
+        $service = $this->service();
+
+        self::assertNull($service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user));
+        self::assertSame('{"t":"u","c":7,"d":"AQI="}', $this->published[0][1]);
+    }
+
+    public function testANumberedStoreRefusesAFullLog(): void
+    {
+        $this->store = new NumberedInMemoryCollabStateStore();
+        $service     = $this->service(['max_log_entries' => 1]);
+        $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+
+        try {
+            $service->update($this->jsonRequest(['c' => 7, 'd' => 'AwQ=']), $this->page, $this->user);
+            self::fail('Expected log_full.');
+        } catch (WikiCollabException $e) {
+            self::assertSame('log_full', $e->reason);
+        }
+        self::assertCount(1, $this->published);
+    }
+
+    public function testANumberedStoreDropsALogOverItsBudget(): void
+    {
+        $this->store = new NumberedInMemoryCollabStateStore();
+        $service     = $this->service(['max_log_bytes' => 4]);
+
+        try {
+            $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQIDBAU=']), $this->page, $this->user);
+            self::fail('Expected log_reset.');
+        } catch (WikiCollabException $e) {
+            self::assertSame('log_reset', $e->reason);
+        }
+        self::assertSame('{"t":"r","c":0,"d":""}', $this->published[0][1]);
+    }
+
+    /** Audit HO-L1 window 2: an update stored while the save was in flight stays unsaved; before this it counted as saved. */
+    public function testASessionSaveCountsOnlyWhatItsTextIncludes(): void
+    {
+        $this->store = new NumberedInMemoryCollabStateStore();
+        $service     = $this->service();
+        $previous    = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $this->store->reset($this->page->getId(), $previous->getId());
+        $included = $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+        self::assertIsArray($included);
+        $service->update($this->jsonRequest(['c' => 9, 'd' => 'AwQ=']), $this->page, $this->user);
+        $revision = new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y');
+
+        $service->saved($this->page, $revision, $previous, $included['s']);
+
+        self::assertTrue($service->blocksSaveOutsideSession($this->page));
+        self::assertSame($revision->getId(), $this->store->info($this->page->getId())->baseRevisionId);
+    }
+
+    public function testASessionSaveWithNoNumberCountsEverythingAsBefore(): void
+    {
+        $this->store = new NumberedInMemoryCollabStateStore();
+        $service     = $this->service();
+        $previous    = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $this->store->reset($this->page->getId(), $previous->getId());
+        $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+
+        $service->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous);
+
+        self::assertFalse($service->blocksSaveOutsideSession($this->page));
+    }
+
+    public function testAHostStoreWithoutNumbersIgnoresTheNumber(): void
+    {
+        $service  = $this->service();
+        $previous = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $this->store->reset($this->page->getId(), $previous->getId());
+        $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+
+        $service->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous, 0);
+
+        self::assertFalse($service->blocksSaveOutsideSession($this->page));
+    }
+
+    /** The save is committed by then: losing the race for the row costs a later question, not an error. */
+    public function testLosingTheRowAfterTheSaveDoesNotFailIt(): void
+    {
+        $driver = new class('deadlock') extends RuntimeException implements DriverExceptionInterface {
+            public function getSQLState(): ?string
+            {
+                return null;
+            }
+        };
+        $store    = $this->createMock(WikiCollabNumberedStoreInterface::class);
+        $previous = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $store->method('info')->willReturn(new WikiCollabState(baseRevisionId: $previous->getId(), updatedAt: new DateTimeImmutable()));
+        $store->expects(self::once())->method('markSavedUpTo')->willThrowException(new DeadlockException($driver, null));
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('warning');
+        $service = new WikiCollabService($store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret', logger: $logger);
+
+        try {
+            $service->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous, 5);
+        } catch (DeadlockException) {
+            self::fail('The save is committed: this must not answer an error.');
+        }
+    }
+
     /** Audit HO-M1: a hub that fails does not undo the save, on any path that resets the log, and it is logged. */
     public function testAHubFailureDoesNotUndoTheSave(): void
     {
@@ -737,6 +861,14 @@ final class WikiCollabServiceTest extends TestCase
             self::assertSame('listener failed', $e->getMessage());
         }
         self::assertFalse($request->attributes->has(WikiCollabService::LOG_HANDLED_ATTRIBUTE));
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    private function jsonRequest(array $body): Request
+    {
+        return Request::create('/', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], (string) json_encode($body));
     }
 
     /**
