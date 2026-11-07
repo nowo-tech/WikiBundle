@@ -48,6 +48,7 @@ wiki:
     rate_limited: "Demasiados pedidos: a sessão partilhada não foi reiniciada. Tente novamente daqui a pouco."
     conflict_title: "Não guardado: a sessão partilhada tem alterações que ainda não estão em nenhuma versão"
     conflict_message: "O seu texto continua aqui e nada foi substituído. Essas alterações podem ser de outra pessoa, ou suas de antes de perder a ligação. Abra a versão em direto noutro separador, junte lá o que precisar e guarde-a. Ou substitua-a pelo seu texto: as alterações por guardar da sessão partilhada perdem-se para todos."
+    conflict_replaced_message: "Esta página foi substituída enquanto estava ausente e o seu texto parte da versão anterior. Abra a versão em direto ou substitua-a para todos."
     conflict_open: "Abrir a versão em direto"
     conflict_replace: "Substituir para todos"
     restore_conflict_title: "Substituir a sessão partilhada?"

@@ -38,6 +38,10 @@ class WikiCollabDocument
     #[ORM\Column(name: 'saved_seq', type: 'integer', options: ['default' => 0])]
     private int $savedSeq = 0;
 
+    /** Audit HV-M1: names the log; every reset changes it (null: not named yet). Written by the store's queries. */
+    #[ORM\Column(name: 'log_epoch', type: 'string', length: 32, nullable: true)]
+    private ?string $logEpoch = null; // @phpstan-ignore property.unusedType (written by the store's queries)
+
     /**
      * @param string $pageId id of the page (one document per page)
      * @param string|null $baseRevisionId revision the log started from or was last saved as
@@ -122,5 +126,10 @@ class WikiCollabDocument
     public function getSnapshotSeq(): int
     {
         return $this->snapshotSeq;
+    }
+
+    public function getLogEpoch(): ?string
+    {
+        return $this->logEpoch;
     }
 }

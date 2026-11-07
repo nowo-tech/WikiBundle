@@ -48,6 +48,7 @@ wiki:
     rate_limited: "Trop de requêtes : la session partagée n'a pas été réinitialisée. Réessayez dans un instant."
     conflict_title: "Non enregistré : la session partagée contient des modifications qui ne figurent encore dans aucune version"
     conflict_message: "Votre texte est toujours ici et rien n'a été écrasé. Ces modifications peuvent venir de quelqu'un d'autre, ou de vous avant la perte de connexion. Ouvrez la version en direct dans un nouvel onglet, fusionnez-y ce dont vous avez besoin et enregistrez-la. Ou remplacez-la par votre texte : les modifications non enregistrées de la session partagée seront alors perdues pour tout le monde."
+    conflict_replaced_message: "Cette page a été remplacée pendant votre absence et votre texte part de l’ancienne version. Ouvrez la version en direct ou remplacez-la pour tout le monde."
     conflict_open: "Ouvrir la version en direct"
     conflict_replace: "Remplacer pour tout le monde"
     restore_conflict_title: "Remplacer la session partagée ?"

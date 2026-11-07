@@ -64,6 +64,7 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Support\EpochInMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
@@ -1063,7 +1064,7 @@ final class WikiManageControllerTest extends TestCase
      *
      * @return array{WikiManageController, WikiPage, InMemoryCollabStateStore, object, callable(array<string, string>): Request, MockObject&WikiCollabPublisherInterface, WikiCollabService, Container}
      */
-    private function collabEditPage(array $options = [], bool $collaboration = true, ?WikiPageRevisionRepositoryInterface $revisions = null, ?EventDispatcher $dispatcher = null): array
+    private function collabEditPage(array $options = [], bool $collaboration = true, ?WikiPageRevisionRepositoryInterface $revisions = null, ?EventDispatcher $dispatcher = null, ?InMemoryCollabStateStore $store = null): array
     {
         $user  = new TestUser('user-1');
         $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
@@ -1073,7 +1074,7 @@ final class WikiManageControllerTest extends TestCase
         $resolver->method('listSpacesForUser')->willReturn([$space]);
         $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
         $pageRepo->method('findBySlug')->willReturn($page);
-        $store                        = new InMemoryCollabStateStore();
+        $store ??= new InMemoryCollabStateStore();
         $publisher                    = $this->createMock(WikiCollabPublisherInterface::class);
         $collab                       = new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), $options, secret: 'test-secret');
         $this->routes['page_collab']  = ['path' => '/collab/{action}', 'name' => 'nowo_wiki_page_collab'];
@@ -1133,6 +1134,68 @@ final class WikiManageControllerTest extends TestCase
         $controller->editPage($request, 'eng', 'welcome');
 
         self::assertFalse($request->attributes->has(WikiCollabService::SESSION_SEQ_ATTRIBUTE));
+    }
+
+    /** Audit HV-M1: text from a replaced log asks, in or out of the session, even with nothing unsaved on the new log. */
+    public function testASaveFromAReplacedLogAsks(): void
+    {
+        [$controller, $page, $store, $twig, $post, , $collab, $container] = $this->collabEditPage(store: new EpochInMemoryCollabStateStore());
+        self::assertInstanceOf(EpochInMemoryCollabStateStore::class, $store);
+        $old = $store->epoch($page->getId());
+        $store->reset($page->getId(), 'rev');
+        $e = [WikiCollabService::SESSION_EPOCH_FIELD => $old];
+
+        foreach ([$e, $e + [WikiCollabService::SESSION_FIELD => $collab->topic($page)]] as $fields) {
+            self::assertSame(Response::HTTP_CONFLICT, $controller->editPage($post($fields), 'eng', 'welcome')->getStatusCode());
+            self::assertTrue($twig->context['collab_conflict']['replaced']);
+        }
+        self::assertSame(1, $page->getCurrentRevision()?->getRevisionNumber());
+        $this->assertTranslatable($this->flashes($container, 'warning')[0], 'wiki.collab.conflict_title');
+    }
+
+    /** The conflict form carries the name in its action, so a second Save asks again: read from the query string too. */
+    public function testTheNameInTheFormsActionCounts(): void
+    {
+        [$controller, $page, $store, , $post] = $this->collabEditPage(store: new EpochInMemoryCollabStateStore());
+        self::assertInstanceOf(EpochInMemoryCollabStateStore::class, $store);
+        $old = $store->epoch($page->getId());
+        $store->reset($page->getId(), 'rev');
+        $request = $post([]);
+        $request->query->set(WikiCollabService::SESSION_EPOCH_FIELD, $old);
+
+        self::assertSame(Response::HTTP_CONFLICT, $controller->editPage($request, 'eng', 'welcome')->getStatusCode());
+    }
+
+    public function testASaveOnTheCurrentLogGoesThrough(): void
+    {
+        [$controller, $page, $store, , $post, , $collab] = $this->collabEditPage(store: new EpochInMemoryCollabStateStore());
+        self::assertInstanceOf(EpochInMemoryCollabStateStore::class, $store);
+        $e = [WikiCollabService::SESSION_EPOCH_FIELD => $store->epoch($page->getId())];
+
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($post($e + [WikiCollabService::SESSION_FIELD => $collab->topic($page)]), 'eng', 'welcome')->getStatusCode());
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($post($e), 'eng', 'welcome')->getStatusCode());
+    }
+
+    public function testAMalformedNameOnTheFormIsIgnored(): void
+    {
+        [$controller, $page, $store, , $post] = $this->collabEditPage(store: new EpochInMemoryCollabStateStore());
+        self::assertInstanceOf(EpochInMemoryCollabStateStore::class, $store);
+        $store->reset($page->getId(), 'rev');
+
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($post([WikiCollabService::SESSION_EPOCH_FIELD => 'not valid!']), 'eng', 'welcome')->getStatusCode());
+    }
+
+    /** A confirmed Replace from a replaced log is what the person chose, and it runs under the lock. */
+    public function testReplaceFromAReplacedLogSaves(): void
+    {
+        [$controller, $page, $store, , $post] = $this->collabEditPage(store: new EpochInMemoryCollabStateStore());
+        self::assertInstanceOf(EpochInMemoryCollabStateStore::class, $store);
+        $old = $store->epoch($page->getId());
+        $store->reset($page->getId(), 'rev');
+        $current = $store->currentEpoch($page->getId());
+
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($post([WikiCollabService::SESSION_EPOCH_FIELD => $old, WikiCollabService::REPLACE_FIELD => '1']), 'eng', 'welcome')->getStatusCode());
+        self::assertNotSame($current, $store->currentEpoch($page->getId()), 'The replacement starts another log.');
     }
 
     public function testDenyWhenCannotEdit(): void

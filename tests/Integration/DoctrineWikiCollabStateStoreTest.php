@@ -21,6 +21,11 @@ use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
+use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
@@ -422,6 +427,86 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
 
         $this->store->markSavedUpTo('never-opened', 'rev-1', 5);
         self::assertSame(0, $this->store->info('never-opened')->savedSeq);
+    }
+
+    /** Audit HV-M1: named once, stable until a reset, new after every reset. */
+    public function testALogKeepsItsNameUntilAReset(): void
+    {
+        self::assertNull($this->store->currentEpoch('e1'));
+        $name = $this->store->epoch('e1');
+        self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $name);
+        self::assertSame($name, $this->store->epoch('e1'));
+        self::assertSame($name, $this->store->currentEpoch('e1'));
+
+        $this->store->append('e1', 'dQ==');
+        $this->store->markSaved('e1', 'rev-2');
+        self::assertTrue($this->store->compact('e1', 'c25hcA==', $this->store->info('e1')->seq));
+        self::assertSame($name, $this->store->currentEpoch('e1'), 'Only a reset changes it.');
+
+        $this->store->reset('e1', 'rev-3');
+        self::assertNotSame($name, $this->store->currentEpoch('e1'));
+        self::assertNotNull($this->store->currentEpoch('e1'));
+        $document = $this->em->find(WikiCollabDocument::class, 'e1');
+        self::assertInstanceOf(WikiCollabDocument::class, $document);
+        $this->em->refresh($document);
+        self::assertSame($this->store->currentEpoch('e1'), $document->getLogEpoch());
+    }
+
+    public function testAnAppendComparesTheNameUnderItsLock(): void
+    {
+        $this->store->reset('e2', 'rev-1');
+        $name = (string) $this->store->currentEpoch('e2');
+
+        $first = $this->store->appendInEpoch('e2', 'dQ==', 100, 100000, $name);
+        self::assertNull($first['refused']);
+        self::assertSame($name, $first['e']);
+
+        $refused = $this->store->appendInEpoch('e2', 'dg==', 100, 100000, 'old');
+        self::assertSame('log_epoch', $refused['refused']);
+        self::assertSame(1, $this->store->info('e2')->updateCount);
+
+        self::assertNull($this->store->appendInEpoch('e2', 'dw==', 100, 100000, null)['refused'], 'A client that names none is not compared.');
+    }
+
+    /** A log row deleted (purge) and recreated: the old name is no good, and the new row gets its own. */
+    public function testADeletedAndRecreatedRowIsAnotherLog(): void
+    {
+        $this->store->reset('e3', 'rev-1');
+        $name = (string) $this->store->currentEpoch('e3');
+        $this->em->createQueryBuilder()->delete(WikiCollabDocument::class, 'd')->where('d.pageId = :p')->setParameter('p', 'e3')->getQuery()->execute();
+
+        try {
+            $this->store->appendInEpoch('e3', 'dQ==', 100, 100000, $name);
+            self::fail('Expected log_epoch.');
+        } catch (WikiCollabException $e) {
+            self::assertSame('log_epoch', $e->reason);
+        }
+
+        self::assertNotSame($name, $this->store->epoch('e3'));
+        self::assertSame('log_epoch', $this->store->appendInEpoch('e3', 'dQ==', 100, 100000, $name)['refused']);
+    }
+
+    /** Audit HV-I4: two saves can record in the reverse order of their commits: the base is what is current. */
+    public function testTheBaseIsTheCurrentRevisionReadUnderTheLock(): void
+    {
+        $user  = new TestUserEntity('e4-user');
+        $space = new WikiSpace('e4', 'E4', WikiSpaceOwnerScope::Team, 't');
+        $page  = new WikiPage($space, 'p', 'P');
+        $older = new WikiPageRevision($page, 1, '<p>1</p>', $user, '1');
+        $newer = new WikiPageRevision($page, 2, '<p>2</p>', $user, '2');
+        foreach ([$user, $space, $page, $older, $newer] as $entity) {
+            $this->em->persist($entity);
+        }
+        $page->setCurrentRevision($newer);
+        $this->em->flush();
+        $this->store->reset($page->getId(), $older->getId());
+
+        $this->store->markSavedUpTo($page->getId(), $older->getId(), 0);
+        self::assertSame($newer->getId(), $this->store->info($page->getId())->baseRevisionId);
+
+        $this->store->reset($page->getId(), $older->getId());
+        $this->store->moveBase($page->getId(), $older->getId());
+        self::assertSame($newer->getId(), $this->store->info($page->getId())->baseRevisionId);
     }
 
     /** Audit HF-M1: what no revision holds yet, through every step of a log's life. */

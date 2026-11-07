@@ -25,6 +25,7 @@ use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Stub\TestUserBase;
 use Nowo\WikiBundle\Tests\Support\CountingInMemoryCollabStateStore;
+use Nowo\WikiBundle\Tests\Support\EpochInMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\NumberedInMemoryCollabStateStore;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -937,6 +938,304 @@ final class WikiCollabServiceTest extends TestCase
                 return $this->state;
             }
         };
+    }
+
+    /** Audit HV-M1: `state` names the log; a store that cannot keeps today's answer. */
+    public function testStateNamesTheLogWhenTheStoreCan(): void
+    {
+        self::assertArrayNotHasKey('epoch', $this->service()->state($this->page, $this->user));
+
+        $this->store = new EpochInMemoryCollabStateStore();
+        $first       = $this->service()->state($this->page, $this->user);
+        self::assertIsString($first['epoch'] ?? null);
+        self::assertSame($first['epoch'], $this->service()->state($this->page, $this->user)['epoch']);
+    }
+
+    /** Audit HV-M1: the old document of a tab that was away never reaches the new log. */
+    public function testAnUpdateFromAnotherLogIsRefusedAndStoresNothing(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $old         = $service->state($this->page, $this->user)['epoch'];
+        $this->store->reset($this->page->getId(), 'rev');
+
+        try {
+            $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=', 'e' => $old]), $this->page, $this->user);
+            self::fail('Expected log_epoch.');
+        } catch (WikiCollabException $e) {
+            self::assertSame(409, $e->status);
+            self::assertSame('log_epoch', $e->reason);
+        }
+        self::assertTrue($this->store->info($this->page->getId())->isEmpty());
+        self::assertSame([], $this->published);
+    }
+
+    public function testAnUpdateOnTheCurrentLogCarriesItsNameOnTheHub(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $epoch       = $service->state($this->page, $this->user)['epoch'];
+
+        self::assertSame(['s' => 1, 'p' => 0], $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=', 'e' => $epoch]), $this->page, $this->user));
+        self::assertSame(['t' => 'u', 'c' => 7, 'd' => 'AQI=', 's' => 1, 'p' => 0, 'e' => $epoch], json_decode($this->published[0][1], true));
+    }
+
+    /** A client that names no log (before Milkdown 1.12) behaves as today. */
+    public function testAnUpdateThatNamesNoLogIsStored(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $service->state($this->page, $this->user);
+        $this->store->reset($this->page->getId(), 'rev');
+
+        self::assertSame(['s' => 1, 'p' => 0], $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user));
+    }
+
+    public function testAMalformedNameIsRefused(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+
+        foreach ([['x y'], 'x y', str_repeat('a', 65), ''] as $bad) {
+            try {
+                $this->service()->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=', 'e' => $bad]), $this->page, $this->user);
+                self::fail('Accepted ' . json_encode($bad));
+            } catch (WikiCollabException $e) {
+                self::assertSame('invalid_payload', $e->reason);
+            }
+        }
+    }
+
+    public function testAStoreWithoutNamesIgnoresTheName(): void
+    {
+        $this->store = new NumberedInMemoryCollabStateStore();
+
+        self::assertSame(['s' => 1, 'p' => 0], $this->service()->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=', 'e' => 'anything']), $this->page, $this->user));
+        self::assertArrayNotHasKey('e', (array) json_decode($this->published[0][1], true));
+    }
+
+    /** A snapshot of another log must not land on this one, whatever its numbers. */
+    public function testACompactionFromAnotherLogIsRefused(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $old         = $service->state($this->page, $this->user)['epoch'];
+        $this->store->reset($this->page->getId(), 'rev');
+        $s = $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+        self::assertIsArray($s);
+
+        foreach ([$s['s'], $s['s'] + 100] as $seq) {
+            try {
+                $service->compact($this->jsonRequest(['c' => 7, 'd' => 'AwQ=', 's' => $seq, 'e' => $old]), $this->page, $this->user);
+                self::fail('Expected log_epoch.');
+            } catch (WikiCollabException $e) {
+                self::assertSame('log_epoch', $e->reason);
+            }
+        }
+        self::assertNull($this->store->load($this->page->getId())->snapshot);
+
+        $service->compact($this->jsonRequest(['c' => 7, 'd' => 'AwQ=', 's' => $s['s'], 'e' => $this->store->currentEpoch($this->page->getId())]), $this->page, $this->user);
+        self::assertSame('AwQ=', $this->store->load($this->page->getId())->snapshot);
+    }
+
+    public function testACompactionNamingTheLogStillChecksItsNumber(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $epoch       = $service->state($this->page, $this->user)['epoch'];
+
+        $this->expectExceptionObject(new WikiCollabException(400, 'invalid_payload'));
+        $service->compact($this->jsonRequest(['c' => 7, 'd' => 'AwQ=', 's' => 99, 'e' => $epoch]), $this->page, $this->user);
+    }
+
+    /** A report about another log changes nothing. */
+    public function testACorruptReportFromAnotherLogIsIgnored(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $old         = $service->state($this->page, $this->user)['epoch'];
+        $this->store->reset($this->page->getId(), 'rev');
+        $s = $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+        self::assertIsArray($s);
+        $current = $this->store->currentEpoch($this->page->getId());
+
+        $service->corrupt($this->jsonRequest(['c' => 7, 's' => $s['s'], 'e' => $old]), $this->page, $this->user);
+
+        self::assertSame($current, $this->store->currentEpoch($this->page->getId()));
+        self::assertFalse($this->store->info($this->page->getId())->isEmpty());
+    }
+
+    /** A client on an old log must not hold the seed of the new one. */
+    public function testAClientOnAnotherLogGetsNoSeed(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $old         = $service->state($this->page, $this->user)['epoch'];
+        $this->store->reset($this->page->getId(), $this->page->getCurrentRevision()?->getId());
+        $stale = Request::create('/', 'POST');
+        $stale->headers->set(WikiCollabService::CLIENT_EPOCH_HEADER, $old);
+        $stale->headers->set('X-Nowo-Collab-Client', '7');
+
+        $service->token($stale, $this->page, $this->user);
+        self::assertFalse($service->state($this->page, $this->user, $stale)['seed']);
+        self::assertNull($this->store->info($this->page->getId())->seededAt, 'token() claimed nothing.');
+
+        $fresh = Request::create('/', 'POST');
+        $fresh->headers->set('X-Nowo-Collab-Client', '7');
+        $service->token($fresh, $this->page, $this->user);
+        self::assertTrue($service->state($this->page, $this->user, $fresh)['seed']);
+        self::assertFalse($service->state($this->page, $this->user, $stale)['seed'], 'state() answers no seed either.');
+    }
+
+    /** Audit HV-M1: every way of dropping a log changes its name. */
+    public function testEveryResetPathChangesTheName(): void
+    {
+        $paths = [
+            'replaced'     => fn (WikiCollabService $s) => $s->replaced($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y')),
+            'manual reset' => fn (WikiCollabService $s) => $s->reset($this->page, $this->user),
+            'corrupt'      => fn (WikiCollabService $s) => $s->corrupt($this->jsonRequest(['c' => 7, 's' => $this->store->info($this->page->getId())->seq]), $this->page, $this->user),
+            'outside save' => fn (WikiCollabService $s) => $s->saveOutsideSession(new Request(), $this->page, static fn () => null, true),
+        ];
+        foreach ($paths as $name => $path) {
+            $this->store = new EpochInMemoryCollabStateStore();
+            $service     = $this->service();
+            $service->state($this->page, $this->user);
+            $this->store->append($this->page->getId(), 'AQ==');
+            $before = $this->store->currentEpoch($this->page->getId());
+
+            $path($service);
+
+            self::assertNotSame($before, $this->store->currentEpoch($this->page->getId()), $name);
+        }
+    }
+
+    public function testAResetNamesTheNewLogOnTheHub(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $service->state($this->page, $this->user);
+        $this->store->append($this->page->getId(), 'AQ==');
+
+        $service->replaced($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'));
+
+        self::assertSame(['t' => 'r', 'c' => 0, 'd' => '', 'e' => $this->store->currentEpoch($this->page->getId())], json_decode($this->published[0][1], true));
+    }
+
+    /** Audit HV-M1: a session save with the old log's name writes nothing, and the comparison shares the save's lock. */
+    public function testASessionSaveInAnotherLogRunsNothing(): void
+    {
+        $store       = new EpochInMemoryCollabStateStore();
+        $this->store = $store;
+        $service     = $this->service();
+        $old         = $service->state($this->page, $this->user)['epoch'];
+
+        $ran = false;
+        self::assertTrue($service->saveInEpoch($this->page, $old, static function () use ($store, &$ran): void {
+            self::assertTrue($store->locked, 'The save runs inside the lock.');
+            $ran = true;
+        }));
+        self::assertTrue($ran);
+
+        $store->reset($this->page->getId(), 'rev');
+        self::assertFalse($service->saveInEpoch($this->page, $old, static fn () => self::fail('Must not save.')));
+        self::assertFalse($service->epochIsCurrent($this->page, $old));
+    }
+
+    public function testAStoreWithoutNamesAlwaysBelongs(): void
+    {
+        $service = $this->service();
+        $ran     = false;
+
+        self::assertTrue($service->saveInEpoch($this->page, 'anything', static function () use (&$ran): void {
+            $ran = true;
+        }));
+        self::assertTrue($ran);
+        self::assertTrue($service->epochIsCurrent($this->page, 'anything'));
+    }
+
+    public function testTheOptOutNeverAsksAboutTheLog(): void
+    {
+        $store       = new EpochInMemoryCollabStateStore();
+        $this->store = $store;
+        $service     = $this->service(['save_conflict' => false]);
+        $store->reset($this->page->getId(), 'rev');
+
+        self::assertTrue($service->epochIsCurrent($this->page, 'old'));
+        self::assertTrue($service->saveInEpoch($this->page, 'old', static fn () => null));
+    }
+
+    public function testARaceLostInASessionSaveIsACollision(): void
+    {
+        $store       = new EpochInMemoryCollabStateStore();
+        $this->store = $store;
+        $service     = $this->service();
+        $epoch       = $service->state($this->page, $this->user)['epoch'];
+
+        $this->expectException(WikiRevisionCollisionException::class);
+        $service->saveInEpoch($this->page, $epoch, function (): void {
+            throw $this->lockLost();
+        });
+    }
+
+    /** A confirmed save skips the question and still resets under the lock, publishing after it. */
+    public function testAConfirmedSaveResetsUnderTheLockWithoutAsking(): void
+    {
+        $store       = new EpochInMemoryCollabStateStore();
+        $this->store = $store;
+        $service     = $this->service();
+        $service->state($this->page, $this->user);
+        $store->append($this->page->getId(), 'AQ==');
+        self::assertTrue($service->blocksSaveOutsideSession($this->page));
+
+        self::assertTrue($service->saveOutsideSession(new Request(), $this->page, static function () use ($store): void {
+            self::assertTrue($store->locked);
+        }, true));
+
+        self::assertTrue($store->info($this->page->getId())->isEmpty());
+        self::assertCount(1, $this->published);
+    }
+
+    /** Audit HV-L4: the save is committed: a lost row in replaced() is retried, and logged, never an error. */
+    public function testReplacedRetriesALostRow(): void
+    {
+        $previous = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $store = $this->createMock(WikiCollabNumberedStoreInterface::class);
+        $store->method('info')->willReturn(new WikiCollabState(updatedAt: new DateTimeImmutable()));
+        $calls = 0;
+        $store->expects(self::exactly(2))->method('reset')->willReturnCallback(function () use (&$calls): void {
+            if (++$calls === 1) {
+                throw $this->lockLost();
+            }
+        });
+        $publisher = $this->createMock(WikiCollabPublisherInterface::class);
+        $publisher->expects(self::once())->method('publish');
+        $service = new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
+
+        try {
+            $service->replaced($this->page, $previous);
+        } catch (DeadlockException) {
+            self::fail('The save is committed: this must not answer an error.');
+        }
+    }
+
+    public function testReplacedLosingTheRowTwiceTellsNobody(): void
+    {
+        $previous = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $store = $this->createMock(WikiCollabNumberedStoreInterface::class);
+        $store->method('info')->willReturn(new WikiCollabState(updatedAt: new DateTimeImmutable()));
+        $store->method('reset')->willThrowException($this->lockLost());
+        $publisher = $this->createMock(WikiCollabPublisherInterface::class);
+        $publisher->expects(self::never())->method('publish');
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::once())->method('warning');
+        $service = new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret', logger: $logger);
+
+        try {
+            $service->replaced($this->page, $previous);
+        } catch (DeadlockException) {
+            self::fail('The save is committed: this must not answer an error.');
+        }
     }
 
     /** Audit HO-M1: a hub that fails does not undo the save, on any path that resets the log, and it is logged. */

@@ -69,6 +69,29 @@
 
 ## Unreleased
 
+> **Upgrade if you use co-editing.** In every earlier version, with every Milkdown, a tab that came back after the shared log was dropped could undo newer text, including a confirmed "Replace for everyone", and nobody was asked. Every revision stays in the history. This release closes it, with Milkdown 1.12 or later (audit HV-M1). No GHSA.
+
+**Before you deploy the code, with co-editing on, add the column:**
+
+```sql
+-- MySQL, MariaDB, SQLite
+ALTER TABLE wiki_page_collab_documents ADD log_epoch VARCHAR(32) DEFAULT NULL;
+-- PostgreSQL
+ALTER TABLE wiki_page_collab_documents ADD log_epoch VARCHAR(32) DEFAULT NULL;
+-- SQL Server
+ALTER TABLE wiki_page_collab_documents ADD log_epoch NVARCHAR(32);
+-- Oracle
+ALTER TABLE wiki_page_collab_documents ADD (log_epoch VARCHAR2(32) DEFAULT NULL);
+```
+
+Use your `table_prefix`. Existing logs are named the first time a client reads their state. Rolling back is safe: the old code ignores the column.
+
+- **Milkdown:** `conflict` on `<1.12.0`. A tab still open with older JavaScript behaves as before until it reloads.
+- **`nowo_wiki.page.saved` listeners** now also run inside the transaction of a session save from Milkdown 1.12, with the log locked, and of a confirmed Replace. Keep them fast. If one throws, nothing is saved.
+- **`state`** answers `epoch`, and hub messages `u` and `r` carry `e`. A custom relay that rebuilds messages must keep it.
+- **A host's own `collaboration.store`** keeps today's behaviour. Implement `WikiCollabEpochStoreInterface` to close it.
+- **Residual:** a tab that never bound (hub down, standalone), opened before a Replace, with nothing unsaved on the new log, saves with no ask: plain last-write-wins, to be closed by `base_revision` in the REST API.
+
 With co-editing enabled:
 
 - **`POST <url>/update`** answers `200` with JSON `{"s": n, "p": m}` instead of `204` with the bundled store, and each published update carries `s` and `p`. Milkdown before 1.11 ignores both. A host that checks for `204`, or a custom publisher or relay that rebuilds the message, must allow them.

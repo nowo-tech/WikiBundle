@@ -75,6 +75,12 @@ final readonly class WikiCollabService
     /** Form field a client adds next to {@see self::SESSION_FIELD} (Milkdown >= 1.11): the number the save's text includes. */
     public const SESSION_SEQ_FIELD = '_nowo_milkdown_collab_seq';
 
+    /** Form field of a client that was bound (Milkdown >= 1.12), online or not: the log its text came from (audit HV-M1). */
+    public const SESSION_EPOCH_FIELD = '_nowo_milkdown_collab_epoch';
+
+    /** Header of a client already on a log (Milkdown >= 1.12), on `token` and `state`. */
+    public const CLIENT_EPOCH_HEADER = 'X-Nowo-Collab-Epoch';
+
     /** Request attribute: that number, validated; absent when the client sent none or a malformed one. */
     public const SESSION_SEQ_ATTRIBUTE = '_nowo_wiki_collab_session_seq';
 
@@ -202,7 +208,8 @@ final readonly class WikiCollabService
             $info = $this->store->info($id);
         }
 
-        if ($info->isEmpty()) {
+        // A client on an old log is about to find out and leave: it must not hold the seed of this one for 30 s.
+        if ($info->isEmpty() && !$this->clientIsOnAnotherLog($request, $id)) {
             $this->store->claimSeed($id, $this->staleBefore(), $this->claimant($request, $user));
         }
 
@@ -228,13 +235,14 @@ final readonly class WikiCollabService
         $state = $this->store->load($page->getId());
         $me    = $request instanceof Request ? $this->claimant($request, $user) : $user->getUserIdentifier();
 
-        return [
+        return ($this->store instanceof WikiCollabEpochStoreInterface ? ['epoch' => $this->store->epoch($page->getId())] : []) + [
             'state'   => $state->snapshot ?? self::EMPTY_STATE,
             'updates' => $state->updates,
             'seq'     => $state->seq,
             'compact' => $state->updateCount >= $this->options['compact_after'],
             'seed'    => $state->isEmpty() && $state->seededBy === $me
-                && $state->seededAt instanceof DateTimeImmutable && $state->seededAt >= $this->staleBefore(),
+                && $state->seededAt instanceof DateTimeImmutable && $state->seededAt >= $this->staleBefore()
+                && !($request instanceof Request && $this->clientIsOnAnotherLog($request, $page->getId())),
         ];
     }
 
@@ -248,17 +256,27 @@ final readonly class WikiCollabService
      */
     public function update(Request $request, WikiPage $page, UserInterface $user): ?array
     {
-        [$client, $data] = $this->payload($request, $page, $user, $this->options['max_update_bytes'], 'update');
+        [$client, $data, $body] = $this->payload($request, $page, $user, $this->options['max_update_bytes'], 'update');
+        $sent                   = $this->sentEpoch($body);
         // 1.14.1: the caps and the append in one locked write (no size read before and after), then the relay.
         if ($this->store instanceof WikiCollabNumberedStoreInterface || $this->store instanceof WikiCollabCountingStoreInterface) {
             $numbers = null;
-            if ($this->store instanceof WikiCollabNumberedStoreInterface) {
+            $named   = [];
+            if ($this->store instanceof WikiCollabEpochStoreInterface) {
+                // @igor-ignore - Persists the update through the store (database write); the service keeps no state
+                ['refused' => $refused, 's' => $stored, 'p' => $previous, 'e' => $epoch] = $this->store->appendInEpoch($page->getId(), $data, $this->options['max_log_entries'], $this->options['max_log_bytes'], $sent);
+                $numbers                                                                 = ['s' => $stored, 'p' => $previous];
+                $named                                                                   = $epoch === null ? [] : ['e' => $epoch];
+            } elseif ($this->store instanceof WikiCollabNumberedStoreInterface) {
                 // @igor-ignore - Persists the update through the store (database write); the service keeps no state
                 ['refused' => $refused, 's' => $stored, 'p' => $previous] = $this->store->appendNumbered($page->getId(), $data, $this->options['max_log_entries'], $this->options['max_log_bytes']);
                 $numbers                                                  = ['s' => $stored, 'p' => $previous];
             } else {
                 // @igor-ignore - Persists the update through the store (database write); the service keeps no state
                 $refused = $this->store->appendWithin($page->getId(), $data, $this->options['max_log_entries'], $this->options['max_log_bytes']);
+            }
+            if ($refused === 'log_epoch') {
+                throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_epoch');
             }
             if ($refused === 'log_full') {
                 throw new WikiCollabException(Response::HTTP_TOO_MANY_REQUESTS, 'log_full');
@@ -268,7 +286,7 @@ final readonly class WikiCollabService
 
                 throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
             }
-            $this->publisher->publish($this->topic($page), json_encode(['t' => 'u', 'c' => $client, 'd' => $data] + ($numbers ?? []), JSON_THROW_ON_ERROR));
+            $this->publisher->publish($this->topic($page), json_encode(['t' => 'u', 'c' => $client, 'd' => $data] + ($numbers ?? []) + $named, JSON_THROW_ON_ERROR));
 
             return $numbers;
         }
@@ -318,13 +336,31 @@ final readonly class WikiCollabService
     public function compact(Request $request, WikiPage $page, UserInterface $user): void
     {
         [, $data, $body] = $this->payload($request, $page, $user, $this->options['max_snapshot_bytes']);
+        $sent            = $this->sentEpoch($body);
         $seq             = $body['s'] ?? null;
-        $info            = $this->store->info($page->getId());
-        if (!is_int($seq) || $seq < 1 || $seq < $info->snapshotSeq || $seq > $info->seq) {
-            throw new WikiCollabException(Response::HTTP_BAD_REQUEST, 'invalid_payload');
+        $write           = function () use ($page, $data, $seq): void {
+            $info = $this->store->info($page->getId());
+            if (!is_int($seq) || $seq < 1 || $seq < $info->snapshotSeq || $seq > $info->seq) {
+                throw new WikiCollabException(Response::HTTP_BAD_REQUEST, 'invalid_payload');
+            }
+
+            $this->store->compact($page->getId(), $data, $seq);
+        };
+
+        if ($sent !== null && $this->store instanceof WikiCollabEpochStoreInterface) {
+            // A snapshot of another log must not land on this one, and its numbers mean nothing here.
+            $store = $this->store;
+            $store->whileLocked($page->getId(), static function () use ($store, $page, $sent, $write): void {
+                if ($store->currentEpoch($page->getId()) !== $sent) {
+                    throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_epoch');
+                }
+                $write();
+            });
+
+            return;
         }
 
-        $this->store->compact($page->getId(), $data, $seq);
+        $write();
     }
 
     /**
@@ -335,17 +371,18 @@ final readonly class WikiCollabService
      *
      * @param Request $request the request: {@see WikiCollabSaveListener} leaves the log to this method
      * @param callable(): mixed $save
+     * @param bool $confirmed the person chose to replace it for everyone: nothing to ask, the same lock and reset
      *
      * @throws WikiRevisionCollisionException when the save lost a race with another one: nothing was written
      *
      * @return bool false: nothing was saved, the person has to confirm
      */
-    public function saveOutsideSession(Request $request, WikiPage $page, callable $save): bool
+    public function saveOutsideSession(Request $request, WikiPage $page, callable $save, bool $confirmed = false): bool
     {
         $request->attributes->set(self::LOG_HANDLED_ATTRIBUTE, $page->getId());
         $reset = false;
-        $work  = function () use ($page, $save, &$reset): bool {
-            if ($this->blocksSaveOutsideSession($page)) {
+        $work  = function () use ($page, $save, $confirmed, &$reset): bool {
+            if (!$confirmed && $this->blocksSaveOutsideSession($page)) {
                 return false;
             }
 
@@ -373,6 +410,80 @@ final readonly class WikiCollabService
         }
 
         return $saved;
+    }
+
+    /**
+     * Whether a client's save still belongs to the current log. A store without names belongs, and so does anything with
+     * `collaboration.save_conflict: false`, which never asks.
+     */
+    public function epochIsCurrent(WikiPage $page, string $epoch): bool
+    {
+        return !$this->options['save_conflict'] || !$this->store instanceof WikiCollabEpochStoreInterface || $this->store->currentEpoch($page->getId()) === $epoch;
+    }
+
+    /**
+     * A session save from a client that names its log: compared and saved under one lock, so that a Replace cannot land
+     * between them. False: another log, nothing written; the person is asked.
+     *
+     * @param callable(): mixed $save
+     */
+    public function saveInEpoch(WikiPage $page, string $epoch, callable $save): bool
+    {
+        if (!$this->options['save_conflict'] || !$this->store instanceof WikiCollabEpochStoreInterface) {
+            $save();
+
+            return true;
+        }
+
+        try {
+            return $this->store->whileLocked($page->getId(), function () use ($page, $epoch, $save): bool {
+                if ($this->store->currentEpoch($page->getId()) !== $epoch) {
+                    return false;
+                }
+                $save();
+
+                return true;
+            });
+        } catch (RetryableException $exception) {
+            throw new WikiRevisionCollisionException('The save lost a race with another one.', 0, $exception);
+        }
+    }
+
+    /**
+     * Whether the client says it is on a log that is no longer the current one (Milkdown >= 1.12, on `token` and `state`):
+     * it is about to find out and leave, so it must not hold the seed of this one.
+     */
+    private function clientIsOnAnotherLog(Request $request, string $pageId): bool
+    {
+        $on = $request->headers->get(self::CLIENT_EPOCH_HEADER);
+
+        return $on !== null && $this->store instanceof WikiCollabEpochStoreInterface && $this->store->currentEpoch($pageId) !== $on;
+    }
+
+    /**
+     * The field `e` of a request's body, when it is one; a malformed one is refused.
+     *
+     * @param array<mixed> $body
+     */
+    private function sentEpoch(array $body): ?string
+    {
+        $sent = $body['e'] ?? null;
+        if ($sent === null) {
+            return null;
+        }
+        if (!is_string($sent) || preg_match('/^[A-Za-z0-9_-]{1,64}$/', $sent) !== 1) {
+            throw new WikiCollabException(Response::HTTP_BAD_REQUEST, 'invalid_payload');
+        }
+
+        return $sent;
+    }
+
+    /** @return array{e?: string} */
+    private function epochField(WikiPage $page): array
+    {
+        $epoch = $this->store instanceof WikiCollabEpochStoreInterface ? $this->store->currentEpoch($page->getId()) : null;
+
+        return $epoch === null ? [] : ['e' => $epoch];
     }
 
     /**
@@ -432,6 +543,12 @@ final readonly class WikiCollabService
             return;
         }
 
+        // A report about another log changes nothing.
+        $sent = $this->sentEpoch($body);
+        if ($sent !== null && $this->store instanceof WikiCollabEpochStoreInterface && $this->store->currentEpoch($page->getId()) !== $sent) {
+            return;
+        }
+
         $this->capReset($page);
         $this->drop($page, $page->getCurrentRevision()?->getId());
     }
@@ -461,8 +578,14 @@ final readonly class WikiCollabService
      */
     public function replaced(WikiPage $page, WikiPageRevision $revision): void
     {
-        if ($this->store->info($page->getId())->updatedAt instanceof DateTimeImmutable) {
-            $this->drop($page, $revision->getId());
+        if (!$this->store->info($page->getId())->updatedAt instanceof DateTimeImmutable) {
+            return;
+        }
+
+        // Audit HV-L4: the save is committed, so losing the row must not answer an error.
+        $reset = fn () => $this->store->reset($page->getId(), $revision->getId());
+        if ($this->recordSave($page, $reset, $reset)) {
+            $this->publishReset($page);
         }
     }
 
@@ -509,22 +632,28 @@ final readonly class WikiCollabService
      *
      * @param callable(): void $record
      * @param callable(): void $retry
+     *
+     * @return bool false: both lost the row
      */
-    private function recordSave(WikiPage $page, callable $record, callable $retry): void
+    private function recordSave(WikiPage $page, callable $record, callable $retry): bool
     {
         try {
             $record();
 
-            return;
+            return true;
         } catch (Throwable $exception) {
             $this->rethrowUnlessLockLost($exception);
         }
 
         try {
             $retry();
+
+            return true;
         } catch (Throwable $exception) {
             $this->rethrowUnlessLockLost($exception);
             $this->logger?->warning('Wiki co-editing save could not update the log.', ['bundle' => 'nowo_wiki', 'page' => $page->getId(), 'exception_class' => $exception::class]);
+
+            return false;
         }
     }
 
@@ -545,7 +674,7 @@ final readonly class WikiCollabService
     private function publishReset(WikiPage $page): void
     {
         try {
-            $this->publisher->publish($this->topic($page), json_encode(['t' => 'r', 'c' => 0, 'd' => ''], JSON_THROW_ON_ERROR));
+            $this->publisher->publish($this->topic($page), json_encode(['t' => 'r', 'c' => 0, 'd' => ''] + $this->epochField($page), JSON_THROW_ON_ERROR));
         } catch (Throwable $exception) {
             $this->logger?->error('Wiki co-editing reset could not be published.', ['bundle' => 'nowo_wiki', 'page' => $page->getId(), 'exception_class' => $exception::class]);
         }

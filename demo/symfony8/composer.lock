@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "907ba2c3521eb4face85bc4712b043d8",
+    "content-hash": "93d090e8a1ae20545e3c7e3c2dd41ee7",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -2129,16 +2129,16 @@
         },
         {
             "name": "nowo-tech/milkdown-editor-bundle",
-            "version": "v1.7.0",
+            "version": "dev-feat/collab-log-epoch",
             "source": {
                 "type": "git",
-                "url": "https://github.com/nowo-tech/MilkdownEditorBundle.git",
-                "reference": "96bbeb9a0e4cea5a8b11cc3052912c94b18172e8"
+                "url": "https://github.com/nowo-tech/MilkdownEditorBundle",
+                "reference": "c400a3463fca81e76f719a1128508c35d7a2d454"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/96bbeb9a0e4cea5a8b11cc3052912c94b18172e8",
-                "reference": "96bbeb9a0e4cea5a8b11cc3052912c94b18172e8",
+                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/c400a3463fca81e76f719a1128508c35d7a2d454",
+                "reference": "c400a3463fca81e76f719a1128508c35d7a2d454",
                 "shasum": ""
             },
             "require": {
@@ -2189,7 +2189,66 @@
                     "Nowo\\MilkdownEditorBundle\\": "src/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "autoload-dev": {
+                "psr-4": {
+                    "Nowo\\MilkdownEditorBundle\\Tests\\": "tests/"
+                }
+            },
+            "archive": {
+                "exclude": [
+                    "/demo",
+                    "/.cursor",
+                    "/.github",
+                    "/.specify",
+                    "/specs",
+                    "/tests",
+                    "/node_modules",
+                    "/src/Resources/assets/tests"
+                ]
+            },
+            "scripts": {
+                "test": [
+                    "phpunit --colors=always"
+                ],
+                "test-coverage": [
+                    "phpunit --colors=always --coverage-html coverage --coverage-clover coverage.xml --coverage-text"
+                ],
+                "coverage-check": [
+                    "phpunit --colors=always --coverage-text --coverage-clover=coverage.xml"
+                ],
+                "cs-check": [
+                    "php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.dist.php"
+                ],
+                "cs-fix": [
+                    "php-cs-fixer fix --config=.php-cs-fixer.dist.php"
+                ],
+                "rector": [
+                    "rector process"
+                ],
+                "rector-dry": [
+                    "rector process --dry-run --no-progress-bar"
+                ],
+                "phpstan": [
+                    "phpstan analyse --memory-limit=1G"
+                ],
+                "twig:lint": [
+                    "twig-cs-fixer lint --config=.twig-cs-fixer.php"
+                ],
+                "twig:fix": [
+                    "twig-cs-fixer fix --config=.twig-cs-fixer.php"
+                ],
+                "composer-validate": [
+                    "composer validate --strict"
+                ],
+                "qa": [
+                    "@cs-check",
+                    "@phpstan",
+                    "@test"
+                ],
+                "igor": [
+                    "igor-php --no-agent ."
+                ]
+            },
             "license": [
                 "MIT"
             ],
@@ -2222,13 +2281,12 @@
                 "wysiwyg"
             ],
             "support": {
-                "changelog": "https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/CHANGELOG.md",
-                "docs": "https://github.com/nowo-tech/MilkdownEditorBundle/tree/main/docs",
                 "issues": "https://github.com/nowo-tech/MilkdownEditorBundle/issues",
-                "source": "https://github.com/nowo-tech/MilkdownEditorBundle"
+                "source": "https://github.com/nowo-tech/MilkdownEditorBundle",
+                "docs": "https://github.com/nowo-tech/MilkdownEditorBundle/tree/main/docs",
+                "changelog": "https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/CHANGELOG.md"
             },
-            "time": "2026-11-04T10:06:53+00:00",
-            "published-time": "2026-11-04T10:09:42+00:00"
+            "time": "2026-11-07T12:22:08+00:00"
         },
         {
             "name": "nowo-tech/tiptap-editor-bundle",
@@ -2418,7 +2476,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "f7ada2020df944875a1d113856c054dda17c67d7"
+                "reference": "99c214702c6c5a39276420b52e6816795328faed"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -2450,12 +2508,12 @@
                 "twig/string-extra": "^3.12"
             },
             "conflict": {
-                "nowo-tech/milkdown-editor-bundle": "<1.2.0"
+                "nowo-tech/milkdown-editor-bundle": "<1.12.0"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
                 "igor-php/igor-php": "^0.10.0",
-                "nowo-tech/milkdown-editor-bundle": "^1.6",
+                "nowo-tech/milkdown-editor-bundle": "dev-feat/collab-log-epoch as 1.12.0",
                 "nowo-tech/phpstan-frankenphp": "^1.0",
                 "phpstan/extension-installer": "^1.0",
                 "phpstan/phpstan": "^2.0",
@@ -2475,7 +2533,7 @@
             },
             "suggest": {
                 "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
-                "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.2): page links, mentions, icons, math and Mermaid.",
+                "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.12): page links, mentions, icons, math and Mermaid.",
                 "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales.",
                 "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
                 "symfony/mercure-bundle": "Co-editing of Milkdown pages (nowo_wiki.collaboration): private Mercure updates and the subscriber cookie.",
@@ -11392,9 +11450,18 @@
             "time": "2025-11-17T20:03:58+00:00"
         }
     ],
-    "aliases": [],
+    "aliases": [
+        {
+            "package": "nowo-tech/milkdown-editor-bundle",
+            "version": "dev-feat/collab-log-epoch",
+            "alias": "1.12.0",
+            "alias_normalized": "1.12.0.0"
+        }
+    ],
     "minimum-stability": "dev",
-    "stability-flags": {},
+    "stability-flags": {
+        "nowo-tech/milkdown-editor-bundle": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

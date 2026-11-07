@@ -48,6 +48,7 @@ wiki:
     rate_limited: "Too many requests: the shared session was not reset. Try again in a moment."
     conflict_title: "Not saved: the shared session has changes that no version holds yet"
     conflict_message: "Your text is still here, and nothing has been overwritten. Those changes may be someone else's, or your own from before the connection dropped. Open the live version in a new tab, merge what you need there and save it. Or replace it with your text: the unsaved changes in the shared session are then lost for everyone."
+    conflict_replaced_message: "This page was replaced while you were away, and your text is based on the older version. Open the live version, or replace it for everyone."
     conflict_open: "Open the live version"
     conflict_replace: "Replace for everyone"
     restore_conflict_title: "Replace the shared session?"

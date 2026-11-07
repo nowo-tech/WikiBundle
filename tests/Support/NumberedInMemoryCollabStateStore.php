@@ -14,7 +14,7 @@ use function strlen;
 /**
  * {@see InMemoryCollabStateStore} that tells its numbers, as the bundled store does.
  */
-final class NumberedInMemoryCollabStateStore extends InMemoryCollabStateStore implements WikiCollabNumberedStoreInterface
+class NumberedInMemoryCollabStateStore extends InMemoryCollabStateStore implements WikiCollabNumberedStoreInterface
 {
     /** @var array<string, int> */
     private array $last = [];
