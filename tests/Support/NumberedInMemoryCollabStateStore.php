@@ -36,6 +36,17 @@ final class NumberedInMemoryCollabStateStore extends InMemoryCollabStateStore im
         return ['refused' => null, 's' => $this->last[$pageId], 'p' => $previous];
     }
 
+    public function moveBase(string $pageId, string $revisionId): void
+    {
+        $saved = $this->savedSeq[$pageId] ?? null;
+        $this->markSaved($pageId, $revisionId);
+        if ($saved === null) {
+            unset($this->savedSeq[$pageId]);
+        } else {
+            $this->savedSeq[$pageId] = $saved;
+        }
+    }
+
     public function markSavedUpTo(string $pageId, string $revisionId, int $includedSeq): void
     {
         $saved = $this->savedSeq[$pageId] ?? 0;

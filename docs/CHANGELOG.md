@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Co-editing: an update stored while a session save is in flight stays unsaved (audit HO-L1 window 2).** A session save that sends `_nowo_milkdown_collab_seq` (Milkdown 1.11 or later) records only the updates its text includes, under the log's row lock, so a later save outside the session asks instead of dropping that update. A client that sends no number, or a malformed one, counts as before.
 - The numbers clients follow no longer jump at a compaction: the snapshot row takes no number of its own.
+- With a client's number, two session saves at once keep the log instead of dropping it (audit HV-L2). A session save that loses the log's row still moves its base, and a committed save answers no error, also on PostgreSQL's `lock_timeout` (audit HV-L1, HV-I3).
 
 ### Added
 

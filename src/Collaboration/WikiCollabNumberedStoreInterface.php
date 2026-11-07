@@ -27,4 +27,10 @@ interface WikiCollabNumberedStoreInterface extends WikiCollabStateStoreInterface
      * counts for nothing more, and a slower save never lowers what an earlier one recorded.
      */
     public function markSavedUpTo(string $pageId, string $revisionId, int $includedSeq): void;
+
+    /**
+     * Moves only the log's base to the revision, leaving `savedSeq` as it is: what is left of a session save that lost
+     * the row in {@see self::markSavedUpTo()}, so the next session save does not see a stale base.
+     */
+    public function moveBase(string $pageId, string $revisionId): void;
 }

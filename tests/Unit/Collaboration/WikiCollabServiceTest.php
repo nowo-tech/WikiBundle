@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Collaboration;
 use DateTimeImmutable;
 use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
 use Doctrine\DBAL\Exception\DeadlockException;
+use Doctrine\DBAL\Exception\DriverException;
 use LogicException;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabLockingStoreInterface;
@@ -33,6 +34,7 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
+use Throwable;
 
 use function base64_encode;
 use function json_encode;
@@ -801,29 +803,140 @@ final class WikiCollabServiceTest extends TestCase
         self::assertFalse($service->blocksSaveOutsideSession($this->page));
     }
 
-    /** The save is committed by then: losing the race for the row costs a later question, not an error. */
-    public function testLosingTheRowAfterTheSaveDoesNotFailIt(): void
+    /** Audit HV-L1: after a lost row the base still moves, so the next session save keeps the log; what is saved does not. */
+    public function testLosingTheRowStillMovesTheBase(): void
     {
-        $driver = new class('deadlock') extends RuntimeException implements DriverExceptionInterface {
-            public function getSQLState(): ?string
-            {
-                return null;
-            }
-        };
-        $store    = $this->createMock(WikiCollabNumberedStoreInterface::class);
         $previous = $this->page->getCurrentRevision();
         self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $revision = new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y');
+        $store    = $this->createMock(WikiCollabNumberedStoreInterface::class);
         $store->method('info')->willReturn(new WikiCollabState(baseRevisionId: $previous->getId(), updatedAt: new DateTimeImmutable()));
-        $store->expects(self::once())->method('markSavedUpTo')->willThrowException(new DeadlockException($driver, null));
+        $store->expects(self::once())->method('markSavedUpTo')->willThrowException($this->lockLost());
+        $store->expects(self::once())->method('moveBase')->with($this->page->getId(), $revision->getId());
+        $store->expects(self::never())->method('reset');
+
+        $this->numberedService($store)->saved($this->page, $revision, $previous, 5);
+    }
+
+    /** The save is committed by then: losing the row twice costs a later question, not an error. */
+    public function testLosingTheRowTwiceIsLoggedNotAnError(): void
+    {
+        $previous = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $store = $this->createMock(WikiCollabNumberedStoreInterface::class);
+        $store->method('info')->willReturn(new WikiCollabState(baseRevisionId: $previous->getId(), updatedAt: new DateTimeImmutable()));
+        $store->method('markSavedUpTo')->willThrowException($this->lockLost());
+        $store->method('moveBase')->willThrowException($this->lockLost());
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())->method('warning');
-        $service = new WikiCollabService($store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret', logger: $logger);
 
         try {
-            $service->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous, 5);
-        } catch (DeadlockException) {
-            self::fail('The save is committed: this must not answer an error.');
+            $this->numberedService($store, $logger)->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous, 5);
+        } catch (Throwable $e) {
+            self::fail('The save is committed: this must not answer an error, got ' . $e::class);
         }
+    }
+
+    /** Audit HV-I3: PostgreSQL's `lock_timeout` arrives as a plain driver exception; only that one is swallowed. */
+    public function testALockTimeoutOnPostgresIsALostRowAndOtherDriverErrorsAreNot(): void
+    {
+        $previous = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $revision = new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y');
+        $store    = $this->createMock(WikiCollabNumberedStoreInterface::class);
+        $store->method('info')->willReturn(new WikiCollabState(baseRevisionId: $previous->getId(), updatedAt: new DateTimeImmutable()));
+        $store->expects(self::exactly(2))->method('markSavedUpTo')->willReturnOnConsecutiveCalls(
+            self::throwException(new DriverException($this->driverError('55P03'), null)),
+            self::throwException(new DriverException($this->driverError('42000'), null)),
+        );
+        $store->expects(self::once())->method('moveBase');
+
+        try {
+            $this->numberedService($store)->saved($this->page, $revision, $previous, 5);
+        } catch (DriverException) {
+            self::fail('55P03 after the commit must not answer an error.');
+        }
+
+        $this->expectException(DriverException::class);
+        $this->numberedService($store)->saved($this->page, $revision, $previous, 5);
+    }
+
+    /** With no number, a lost row is retried too, and a committed save still answers no error. */
+    public function testASaveWithNoNumberRetriesALostRow(): void
+    {
+        $previous = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $store = $this->createMock(WikiCollabNumberedStoreInterface::class);
+        $store->method('info')->willReturn(new WikiCollabState(baseRevisionId: $previous->getId(), updatedAt: new DateTimeImmutable()));
+        $calls = 0;
+        $store->expects(self::exactly(2))->method('markSaved')->willReturnCallback(function () use (&$calls): void {
+            if (++$calls === 1) {
+                throw $this->lockLost();
+            }
+        });
+
+        $this->numberedService($store)->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous);
+    }
+
+    /** Audit HV-L2: two session saves at once. The slower one has a stale `previous`; its number keeps the log. */
+    public function testASessionSaveWithAStaleBaseAndANumberKeepsTheLog(): void
+    {
+        $this->store = new NumberedInMemoryCollabStateStore();
+        $service     = $this->service();
+        $previous    = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $this->store->reset($this->page->getId(), 'another-revision');
+        $included = $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+        self::assertIsArray($included);
+        $service->update($this->jsonRequest(['c' => 9, 'd' => 'AwQ=']), $this->page, $this->user);
+        $this->published = [];
+        $revision        = new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y');
+
+        $service->saved($this->page, $revision, $previous, $included['s']);
+
+        self::assertFalse($this->store->info($this->page->getId())->isEmpty(), 'The log stays.');
+        self::assertSame([], $this->published, 'Nobody reloads.');
+        self::assertSame($revision->getId(), $this->store->info($this->page->getId())->baseRevisionId);
+        self::assertTrue($service->blocksSaveOutsideSession($this->page), 'What the save does not hold stays unsaved.');
+    }
+
+    public function testASessionSaveWithAStaleBaseAndNoNumberReplacesAsToday(): void
+    {
+        $this->store = new NumberedInMemoryCollabStateStore();
+        $service     = $this->service();
+        $previous    = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $this->store->reset($this->page->getId(), 'another-revision');
+        $service->update($this->jsonRequest(['c' => 7, 'd' => 'AQI=']), $this->page, $this->user);
+
+        $service->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous);
+
+        self::assertTrue($this->store->info($this->page->getId())->isEmpty());
+    }
+
+    private function numberedService(WikiCollabNumberedStoreInterface $store, ?LoggerInterface $logger = null): WikiCollabService
+    {
+        return new WikiCollabService($store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret', logger: $logger);
+    }
+
+    private function lockLost(): DeadlockException
+    {
+        return new DeadlockException($this->driverError('40001'), null);
+    }
+
+    private function driverError(string $sqlState): DriverExceptionInterface
+    {
+        return new class($sqlState) extends RuntimeException implements DriverExceptionInterface {
+            public function __construct(private readonly string $state)
+            {
+                parent::__construct('lock');
+            }
+
+            public function getSQLState(): string
+            {
+                return $this->state;
+            }
+        };
     }
 
     /** Audit HO-M1: a hub that fails does not undo the save, on any path that resets the log, and it is logged. */

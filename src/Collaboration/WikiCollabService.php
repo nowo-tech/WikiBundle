@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Collaboration;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Exception\DriverException;
 use Doctrine\DBAL\Exception\RetryableException;
 use JsonException;
 use LogicException;
@@ -85,6 +86,9 @@ final readonly class WikiCollabService
 
     /** An empty Yjs update (`Y.encodeStateAsUpdate(new Y.Doc())`), base64. */
     public const EMPTY_STATE = 'AAA=';
+
+    /** PostgreSQL: `lock_not_available`, from a host-set `lock_timeout`. */
+    private const POSTGRES_LOCK_NOT_AVAILABLE = '55P03';
 
     /** Defaults of `nowo_wiki.collaboration`. */
     public const DEFAULTS = [
@@ -386,13 +390,20 @@ final readonly class WikiCollabService
      */
     public function saved(WikiPage $page, WikiPageRevision $revision, ?WikiPageRevision $previous, ?int $includedSeq = null): void
     {
-        $info = $this->store->info($page->getId());
-        if ($info->updatedAt instanceof DateTimeImmutable && $previous instanceof WikiPageRevision && $info->baseRevisionId === $previous->getId()) {
-            if ($includedSeq !== null && $this->store instanceof WikiCollabNumberedStoreInterface) {
-                $this->markSavedUpTo($this->store, $page, $revision, $includedSeq);
-            } else {
-                $this->store->markSaved($page->getId(), $revision->getId());
-            }
+        $info   = $this->store->info($page->getId());
+        $hasLog = $info->updatedAt instanceof DateTimeImmutable && $previous instanceof WikiPageRevision;
+        // Audit HV-L2: with a client's number a stale base (two session saves at once) is no reason to drop the log: the
+        // number says what this save holds, and the rest stays unsaved.
+        if ($hasLog && $includedSeq !== null && $this->store instanceof WikiCollabNumberedStoreInterface) {
+            $store = $this->store;
+            $this->recordSave($page, static fn () => $store->markSavedUpTo($page->getId(), $revision->getId(), $includedSeq), static fn () => $store->moveBase($page->getId(), $revision->getId()));
+
+            return;
+        }
+
+        if ($hasLog && $info->baseRevisionId === $previous->getId()) {
+            $mark = fn () => $this->store->markSaved($page->getId(), $revision->getId());
+            $this->recordSave($page, $mark, $mark);
 
             return;
         }
@@ -492,15 +503,38 @@ final readonly class WikiCollabService
     }
 
     /**
-     * The save is committed by now, so losing a race for the log's row must not answer an error. The number stays where it
-     * was, which only makes a later save outside the session ask (audit HO-L1 window 2).
+     * The save is committed by now, so losing a race for the log's row must not answer an error (audit HV-I3). One more
+     * try with the least that keeps the next session save from dropping the log: a stale base would (audit HV-L1). What
+     * this save includes stays unrecorded, which only makes a later save outside the session ask.
+     *
+     * @param callable(): void $record
+     * @param callable(): void $retry
      */
-    private function markSavedUpTo(WikiCollabNumberedStoreInterface $store, WikiPage $page, WikiPageRevision $revision, int $includedSeq): void
+    private function recordSave(WikiPage $page, callable $record, callable $retry): void
     {
         try {
-            $store->markSavedUpTo($page->getId(), $revision->getId(), $includedSeq);
-        } catch (RetryableException $exception) {
-            $this->logger?->warning('Wiki co-editing save could not record what it includes.', ['bundle' => 'nowo_wiki', 'page' => $page->getId(), 'exception_class' => $exception::class]);
+            $record();
+
+            return;
+        } catch (Throwable $exception) {
+            $this->rethrowUnlessLockLost($exception);
+        }
+
+        try {
+            $retry();
+        } catch (Throwable $exception) {
+            $this->rethrowUnlessLockLost($exception);
+            $this->logger?->warning('Wiki co-editing save could not update the log.', ['bundle' => 'nowo_wiki', 'page' => $page->getId(), 'exception_class' => $exception::class]);
+        }
+    }
+
+    /**
+     * A deadlock or lock timeout. PostgreSQL's `lock_timeout` (55P03) arrives as a plain driver exception.
+     */
+    private function rethrowUnlessLockLost(Throwable $exception): void
+    {
+        if (!$exception instanceof RetryableException && !($exception instanceof DriverException && $exception->getSQLState() === self::POSTGRES_LOCK_NOT_AVAILABLE)) {
+            throw $exception;
         }
     }
 

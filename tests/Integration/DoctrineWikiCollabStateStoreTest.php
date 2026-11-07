@@ -416,6 +416,10 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertSame($second, $this->store->info('p4')->savedSeq, 'Never past the end of the log.');
         self::assertFalse($this->store->info('p4')->hasUnsavedUpdates());
 
+        $this->store->moveBase('p4', 'rev-5');
+        self::assertSame('rev-5', $this->store->info('p4')->baseRevisionId);
+        self::assertSame($second, $this->store->info('p4')->savedSeq, 'moveBase() leaves what is saved.');
+
         $this->store->markSavedUpTo('never-opened', 'rev-1', 5);
         self::assertSame(0, $this->store->info('never-opened')->savedSeq);
     }

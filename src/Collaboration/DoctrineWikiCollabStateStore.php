@@ -415,6 +415,17 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
         });
     }
 
+    public function moveBase(string $pageId, string $revisionId): void
+    {
+        $this->em()->createQueryBuilder()
+            ->update(WikiCollabDocument::class, 'd')
+            ->set('d.baseRevisionId', ':base')
+            ->where('d.pageId = :page')
+            ->setParameter('base', $revisionId)
+            ->setParameter('page', $pageId)
+            ->getQuery()->execute();
+    }
+
     public function noteReset(string $pageId, DateTimeImmutable $windowStart, int $cap): bool
     {
         $this->ensureDocument($pageId);
