@@ -289,8 +289,9 @@ final readonly class WikiPageFactory
      */
     /**
      * @param array{history?: bool} $can 1.16: what the user may do on the page (the History tab of an existing page)
+     * @param array<string, string> $formAttributes extra `<form>` attributes
      */
-    public function pageForm(WikiSpace $space, ?WikiPage $page, FormView $form, ?FormView $collabResetForm = null, array $can = []): FormPage
+    public function pageForm(WikiSpace $space, ?WikiPage $page, FormView $form, ?FormView $collabResetForm = null, array $can = [], array $formAttributes = []): FormPage
     {
         $back = $page instanceof WikiPage
             ? $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()])
@@ -331,6 +332,7 @@ final readonly class WikiPageFactory
             bundle: WikiPages::BUNDLE,
             layout: $this->pages->layout(),
             attributes: ['data-testid' => 'wiki-page-form'],
+            formAttributes: $formAttributes,
         );
     }
 

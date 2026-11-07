@@ -61,6 +61,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Co-editing: a save outside the shared session no longer loses the others' text (audit HF-M1).** A page form saved with no live session (hub down, editor standalone or offline) while the shared log holds updates no version has now saves nothing and answers 409: the person's title and text stay in the form, in an editor outside the session, with a link to the live version and a "Replace for everyone" button. Before, the save dropped the log. New option `collaboration.save_conflict` (default `true`; `false` keeps the old behaviour). Restores, imports, conversions, host calls and the console still replace the document, as before.
+- `countDirectories()` counts the whole path of an entry ending in `/.` (audit GV-I17).
+
+### Added
+
+- `search.excluded_spaces` (default none, with `search.scope: space`): those spaces have no search page (404).
+
 ## [1.21.1] - 2026-11-07
 
 ### Security

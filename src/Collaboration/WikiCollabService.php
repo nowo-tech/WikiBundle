@@ -53,11 +53,16 @@ use const PREG_SPLIT_NO_EMPTY;
  *   for a save outside the session or with a stale base, a restore, an import, a conversion ({@see self::replaced()}),
  *   a client report that the log cannot be applied ({@see self::corrupt()}, capped per page and window), an editor's
  *   explicit reset ({@see self::reset()}) and a log over `max_log_bytes` (CW-M1).
+ * - A save from the page form outside the session, while the log holds unsaved updates, is not made at all unless the
+ *   person confirms it ({@see self::blocksSaveOutsideSession()}, audit HF-M1): dropping the log would lose the others' text.
  */
 final readonly class WikiCollabService
 {
     /** Form field the Milkdown client (≥ 1.2) adds to the page form when it saves from a live session: the page topic. */
     public const SESSION_FIELD = '_nowo_milkdown_collab';
+
+    /** Field of the "Replace for everyone" button: a save outside the session that may drop unsaved updates. */
+    public const REPLACE_FIELD = '_nowo_wiki_collab_replace';
 
     /** Request attribute (the page id) of a save made from a live session; read by {@see WikiCollabSaveListener}. */
     public const SESSION_SAVE_ATTRIBUTE = '_nowo_wiki_collab_session_save';
@@ -82,9 +87,10 @@ final readonly class WikiCollabService
         'corrupt_resets'     => 3,
         'corrupt_window'     => 600,
         'show_names'         => false,
+        'save_conflict'      => true,
     ];
 
-    /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool} */
+    /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool, save_conflict: bool} */
     private array $options;
 
     /**
@@ -109,7 +115,7 @@ final readonly class WikiCollabService
         private ?RateLimiterFactory $updateRateLimiter = null,
         private ?RateLimiterFactory $awarenessRateLimiter = null,
     ) {
-        /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool} $merged */
+        /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool, save_conflict: bool} $merged */
         $merged        = $options + self::DEFAULTS;
         $this->options = $merged;
     }
@@ -289,6 +295,15 @@ final readonly class WikiCollabService
         }
 
         $this->store->compact($page->getId(), $data, $seq);
+    }
+
+    /**
+     * Whether a save from the page form outside the live session has to ask first: the log holds updates no revision
+     * has, which {@see self::replaced()} would drop (audit HF-M1). False with `collaboration.save_conflict: false`.
+     */
+    public function blocksSaveOutsideSession(WikiPage $page): bool
+    {
+        return $this->options['save_conflict'] && $this->store->info($page->getId())->hasUnsavedUpdates();
     }
 
     /**

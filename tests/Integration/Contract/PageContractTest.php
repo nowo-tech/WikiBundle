@@ -45,6 +45,7 @@ final class PageContractTest extends PageContractTestCase
         yield 'history (timeline)' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', PageFixtures::history(false, null, true));
         yield 'page edit' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm());
         yield 'page new' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', PageFixtures::pageForm(false));
+        yield 'page edit (save conflict)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', ['collab_conflict' => ['form_id' => 'wiki-page-form-conflict', 'replace_name' => '_nowo_wiki_collab_replace', 'live_url' => '/tools/wiki/spaces/engineering/pages/deploy/edit']] + PageFixtures::pageForm());
         yield 'history' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', PageFixtures::history());
         yield 'history (empty)' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', PageFixtures::history(true));
         yield 'diff' => new PageFixture('@NowoWikiBundle/manage/page_diff.html.twig', PageFixtures::diff());

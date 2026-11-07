@@ -70,7 +70,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             $this->em()->detach($row);
         }
 
-        return new WikiCollabState($snapshot, $updates, $info->seq, $info->baseRevisionId, $info->seededAt, $info->seededBy, $info->updatedAt, $info->updateCount, $info->bytes, $info->snapshotSeq);
+        return new WikiCollabState($snapshot, $updates, $info->seq, $info->baseRevisionId, $info->seededAt, $info->seededBy, $info->updatedAt, $info->updateCount, $info->bytes, $info->snapshotSeq, $info->savedSeq);
     }
 
     public function info(string $pageId): WikiCollabState
@@ -93,6 +93,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             $document?->getUpdateCount() ?? 0,
             $document?->getLogBytes() ?? 0,
             $document?->getSnapshotSeq() ?? 0,
+            $document?->getSavedSeq() ?? 0,
         );
     }
 
@@ -180,7 +181,8 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             if ($locked === []) {
                 throw new WikiCollabException(Response::HTTP_CONFLICT, 'log_reset');
             }
-            $compacted = $upToSeq >= $this->info($pageId)->snapshotSeq;
+            $before    = $this->info($pageId);
+            $compacted = $upToSeq >= $before->snapshotSeq;
             if ($compacted) {
                 $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_SNAPSHOT, $snapshot, $upToSeq);
                 $em->persist($row);
@@ -195,6 +197,15 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                     ->setParameter('snapshot', $row->getId())
                     ->getQuery()->execute();
                 $this->recount($pageId);
+                // The snapshot row moves the last sequence number but adds no text: a saved log stays saved.
+                if (!$before->hasUnsavedUpdates()) {
+                    $em->createQueryBuilder()
+                        ->update(WikiCollabDocument::class, 'd')
+                        ->set('d.savedSeq', 'd.lastSeq')
+                        ->where('d.pageId = :page')
+                        ->setParameter('page', $pageId)
+                        ->getQuery()->execute();
+                }
             }
 
             $connection->commit();
@@ -296,6 +307,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                 ->set('d.logBytes', 0)
                 ->set('d.lastSeq', 0)
                 ->set('d.snapshotSeq', 0)
+                ->set('d.savedSeq', 0)
                 ->set('d.updatedAt', ':now')
                 ->where('d.pageId = :page')
                 ->setParameter('base', $baseRevisionId)
@@ -316,6 +328,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
         $this->em()->createQueryBuilder()
             ->update(WikiCollabDocument::class, 'd')
             ->set('d.baseRevisionId', ':base')
+            ->set('d.savedSeq', 'd.lastSeq')
             ->where('d.pageId = :page')
             ->setParameter('base', $revisionId)
             ->setParameter('page', $pageId)

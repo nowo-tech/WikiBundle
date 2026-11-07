@@ -46,6 +46,10 @@ wiki:
     reset_confirm_message: "Alle, die diese Seite bearbeiten, laden sie aus der zuletzt gespeicherten Version neu; ungespeicherte Änderungen der gemeinsamen Sitzung gehen verloren."
     reset_capped: "Die gemeinsame Sitzung wurde in den letzten Minuten zu oft zurückgesetzt: Sie wurde jetzt nicht zurückgesetzt. Versuchen Sie es später erneut oder speichern Sie die Seite."
     rate_limited: "Zu viele Anfragen: Die gemeinsame Sitzung wurde nicht zurückgesetzt. Versuchen Sie es gleich noch einmal."
+    conflict_title: "Nicht gespeichert: Die gemeinsame Sitzung enthält Änderungen, die noch in keiner Version stehen"
+    conflict_message: "Dein Text ist noch hier, und nichts wurde überschrieben. Diese Änderungen können von jemand anderem stammen oder von dir, bevor die Verbindung abbrach. Öffne die Live-Version in einem neuen Tab, führe dort zusammen, was du brauchst, und speichere sie. Oder ersetze sie durch deinen Text: Die ungespeicherten Änderungen der gemeinsamen Sitzung gehen dann für alle verloren."
+    conflict_open: "Live-Version öffnen"
+    conflict_replace: "Für alle ersetzen"
   trash:
     title: "Papierkorb"
     intro: "Gelöschte Seiten bleiben %days% Tage hier und werden danach endgültig gelöscht."

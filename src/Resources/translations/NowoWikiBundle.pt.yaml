@@ -46,6 +46,10 @@ wiki:
     reset_confirm_message: "Todas as pessoas que editam esta página voltam a carregá-la a partir da última versão guardada; as alterações não guardadas da sessão partilhada perdem-se."
     reset_capped: "A sessão partilhada foi reiniciada demasiadas vezes nos últimos minutos: não foi reiniciada agora. Tente mais tarde ou guarde a página."
     rate_limited: "Demasiados pedidos: a sessão partilhada não foi reiniciada. Tente novamente daqui a pouco."
+    conflict_title: "Não guardado: a sessão partilhada tem alterações que ainda não estão em nenhuma versão"
+    conflict_message: "O seu texto continua aqui e nada foi substituído. Essas alterações podem ser de outra pessoa, ou suas de antes de perder a ligação. Abra a versão em direto noutro separador, junte lá o que precisar e guarde-a. Ou substitua-a pelo seu texto: as alterações por guardar da sessão partilhada perdem-se para todos."
+    conflict_open: "Abrir a versão em direto"
+    conflict_replace: "Substituir para todos"
   trash:
     title: "Lixo"
     intro: "As páginas eliminadas ficam aqui %days% dias e depois são eliminadas definitivamente."

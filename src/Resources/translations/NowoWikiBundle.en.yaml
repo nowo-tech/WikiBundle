@@ -46,6 +46,10 @@ wiki:
     reset_confirm_message: "Everyone editing this page reloads it from the last saved version; unsaved changes in the shared session are lost."
     reset_capped: "The shared session was reset too often in the last minutes: it was not reset now. Try again later, or save the page."
     rate_limited: "Too many requests: the shared session was not reset. Try again in a moment."
+    conflict_title: "Not saved: the shared session has changes that no version holds yet"
+    conflict_message: "Your text is still here, and nothing has been overwritten. Those changes may be someone else's, or your own from before the connection dropped. Open the live version in a new tab, merge what you need there and save it. Or replace it with your text: the unsaved changes in the shared session are then lost for everyone."
+    conflict_open: "Open the live version"
+    conflict_replace: "Replace for everyone"
   trash:
     title: "Trash"
     intro: "Deleted pages stay here for %days% days, then they are deleted for good."

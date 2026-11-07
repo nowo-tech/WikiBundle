@@ -68,6 +68,12 @@
 
 ## Unreleased
 
+With co-editing enabled:
+
+- **Schema:** one column, `saved_seq`, on `<prefix>_page_collab_documents`. Run `doctrine:migrations:diff`. Until a log is saved from a session or reset, its updates count as unsaved, which errs towards asking.
+- **Behaviour:** a page form saved outside the live session while the shared log holds updates no version has now answers 409 and saves nothing, with the text kept in the form and a way to resolve it. A log that only holds the seed counts as unsaved, because its update cannot be told apart from text typed with it; the person chooses "Replace for everyone" and nothing is lost. `collaboration.save_conflict: false` keeps the old behaviour, which loses those updates.
+- A host with its own `collaboration.store` needs nothing: without `savedSeq` every update counts as unsaved. To avoid asking after a session save, fill `savedSeq` in `WikiCollabState` and record it in `markSaved()`.
+
 ## To 1.21.1
 
 From **1.21.0**:

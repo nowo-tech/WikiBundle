@@ -730,6 +730,19 @@ final class WikiArchiveHelperTest extends TestCase
         }
     }
 
+    /** Audit GV-I17: `a/b/.` makes the directory a/b, so it counts both levels. */
+    public function testAnEntryEndingInADotCountsItsWholePath(): void
+    {
+        $zipPath = $this->lyingZip(['a/b/.' => ['', 0]]);
+
+        try {
+            $this->expectExceptionMessage('too many directories (max 1)');
+            (new WikiArchiveHelper(maxEntries: 1))->extractZip($zipPath);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
     /** A shared ancestor counts once, spelling does not matter, and a file is not a directory. */
     public function testDirectoriesExactlyAtTheLimitPassAndEachCountsOnce(): void
     {

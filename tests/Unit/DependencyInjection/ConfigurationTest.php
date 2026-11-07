@@ -34,6 +34,8 @@ final class ConfigurationTest extends TestCase
         self::assertSame('wiki_assistant', $config['ai']['agent']);
         self::assertSame(30, $config['ai']['http_timeout']);
         self::assertTrue($config['import_export']['enabled']);
+        self::assertSame([], $config['search']['excluded_spaces']);
+        self::assertTrue($config['collaboration']['save_conflict']);
         self::assertSame(8388608, $config['import_export']['max_document_bytes']);
         self::assertNull($config['security']['import_roles']);
         self::assertNull($config['security']['roles']['import']);

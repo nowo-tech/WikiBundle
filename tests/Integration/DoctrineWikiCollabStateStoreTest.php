@@ -195,6 +195,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
     public function testSavesMoveTheBaseAndCorruptResetsAreCapped(): void
     {
         $this->store->markSaved('p1', 'rev-7');
+        self::assertFalse($this->store->info('p1')->hasUnsavedUpdates(), 'A session save takes in what the log holds.');
         self::assertSame('rev-7', $this->store->info('p1')->baseRevisionId);
 
         $window = new DateTimeImmutable('-10 minutes');
@@ -292,6 +293,30 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
     }
 
     /** Appends like the service does after the token request created the page's document. */
+    /** Audit HF-M1: what no revision holds yet, through every step of a log's life. */
+    public function testUnsavedUpdatesFollowSavesCompactionAndReset(): void
+    {
+        $this->store->reset('p9', 'rev-1');
+        self::assertFalse($this->store->info('p9')->hasUnsavedUpdates(), 'An empty log.');
+
+        $seq = $this->store->append('p9', 'dQ==');
+        self::assertTrue($this->store->info('p9')->hasUnsavedUpdates());
+
+        $this->store->markSaved('p9', 'rev-2');
+        self::assertFalse($this->store->info('p9')->hasUnsavedUpdates());
+
+        $this->store->compact('p9', 'c25hcA==', $seq);
+        self::assertFalse($this->store->info('p9')->hasUnsavedUpdates(), 'A compaction adds no text.');
+        self::assertSame($this->store->info('p9')->seq, $this->store->load('p9')->savedSeq, 'load() carries it too.');
+
+        $this->store->append('p9', 'dg==');
+        self::assertTrue($this->store->info('p9')->hasUnsavedUpdates(), 'Typed after the save.');
+
+        $this->store->reset('p9', 'rev-3');
+        self::assertFalse($this->store->info('p9')->hasUnsavedUpdates());
+        self::assertSame(0, $this->store->info('p9')->savedSeq);
+    }
+
     private function append(string $pageId, string $update): int
     {
         (new ReflectionMethod($this->store, 'ensureDocument'))->invoke($this->store, $pageId);

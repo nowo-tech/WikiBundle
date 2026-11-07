@@ -23,6 +23,9 @@ class InMemoryCollabStateStore implements WikiCollabStateStoreInterface, WikiCol
 
     public int $loads = 0;
 
+    /** @var array<string, int> */
+    public array $savedSeq = [];
+
     private int $seq = 0;
 
     public function load(string $pageId): WikiCollabState
@@ -42,7 +45,7 @@ class InMemoryCollabStateStore implements WikiCollabStateStoreInterface, WikiCol
             $bytes += strlen($update);
         }
 
-        return new WikiCollabState(null, [], $this->seq, $page['base'], $page['seededAt'], $page['seededBy'], $page['updated'], count($page['updates']), $bytes, $page['covers']);
+        return new WikiCollabState(null, [], $this->seq, $page['base'], $page['seededAt'], $page['seededBy'], $page['updated'], count($page['updates']), $bytes, $page['covers'], $this->savedSeq[$pageId] ?? 0);
     }
 
     public function append(string $pageId, string $update): int
@@ -107,6 +110,7 @@ class InMemoryCollabStateStore implements WikiCollabStateStoreInterface, WikiCol
 
     public function reset(string $pageId, ?string $baseRevisionId): void
     {
+        unset($this->savedSeq[$pageId]);
         $this->pages[$pageId] = ['snapshot' => null, 'covers' => 0, 'updates' => [], 'base' => $baseRevisionId, 'seededAt' => null, 'seededBy' => null, 'updated' => new DateTimeImmutable()];
     }
 
@@ -114,6 +118,7 @@ class InMemoryCollabStateStore implements WikiCollabStateStoreInterface, WikiCol
     {
         $this->page($pageId);
         $this->pages[$pageId]['base'] = $revisionId;
+        $this->savedSeq[$pageId]      = $this->seq;
     }
 
     /** @var array<string, array{0: int, 1: DateTimeImmutable}> page id => recent corrupt resets, last one */

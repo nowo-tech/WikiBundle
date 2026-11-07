@@ -155,6 +155,8 @@ another page still refers to. The event carries at most `page_files.max_purge_fi
 
 ## Co-editing threat model (1.13)
 
+A page form saved outside the live session (hub down, editor standalone or offline) while the log holds updates no version has saves nothing and answers 409, keeping the person's text (`collaboration.save_conflict`, default on). "Replace for everyone" needs the edit right, the form's CSRF token and a deliberate click: the same right as "Reset collaboration". Residuals: a restore, import, conversion, host call or console save still replaces the document; an update arriving between the check and the save is dropped; after a replace, a peer whose reset never arrived can save its session text over it, and the history keeps both.
+
 | Question | Answer |
 |----------|--------|
 | Who can subscribe? | Only a browser that got the `mercureAuthorization` cookie from `POST …/collab/token`, which needs a firewall-trusted user, `canEdit()` and `View` + `Edit` on the space and the page. The JWT lists that one topic and grants no publish right; every message is a **private** Mercure update, so the hub drops it for anyone else. Readers never get the editor option nor the cookie. The cookie lives as long as symfony/mercure's `cookie_lifetime`: revoking edit rights stops new tokens, updates and state reads at once, but an open subscription only ends when the connection drops or the hub ends it at the subscriber JWT's expiry (the Mercure.rocks hub disconnects subscribers whose JWT expired); the client then reconnects through `POST token`, which checks the edit right again — keep `mercure.cookie_lifetime` short (e.g. 600 s). |
@@ -223,6 +225,7 @@ Channel `nowo_wiki` (PSR-3, see [CONFIGURATION.md](CONFIGURATION.md#logging-req-
 
 | Date | Version | Grade / residual risk | Record |
 | --- | --- | --- | --- |
+| 2026-11-07 | Unreleased | Re-verification pending. HF-M1 addressed: a page form saved outside the live session no longer drops updates no version has, unless the person confirms it or the host opts out | Appendix HF |
 | 2026-11-07 | PR #101 → 1.21.1 | Pass (good) / Low at `eb54a9d`. GV-L3, GV-M2 and GV-L4 fixed and re-verified: extraction counts real bytes, takes only Markdown and caps directories, front matter is capped, and a fatal error leaves nothing. Open residual: many documents within the limits can exhaust `memory_limit` during the import and leave the pages written so far; a process killed outright leaves its temp files until a later import | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix GV |
 | 2026-11-06 | PR #100 → 1.21.0 | Pass (good) / Low at `6c32c6c`. M1, L1, L2, I1 and I3-I7 of the audit at `5009d15` fixed or documented and re-verified. Open residual: GV-L3, also in 1.20.0: an `Import` user can leave up to 512 MiB in the temp dir with a small archive when the read exceeds `memory_limit` | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix GV |
 | 2026-10-30 | PR #71 → 1.10.0 | Pass (conditional) / Medium at `4fad654`; M1, L1, L2, L3 and the cheap info items fixed in this PR (Pass (good) / Low once confirmed) | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix BR |

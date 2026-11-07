@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Controller;
 
+use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
@@ -66,6 +67,7 @@ use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 use RuntimeException;
@@ -843,6 +845,117 @@ final class WikiManageControllerTest extends TestCase
         $outside = $post('urn:other');
         $controller->editPage($outside, 'eng', 'welcome');
         self::assertFalse($outside->attributes->has(WikiCollabService::SESSION_SAVE_ATTRIBUTE));
+    }
+
+    /**
+     * Audit HF-M1: a save outside the session while the log holds unsaved updates writes nothing and drops nothing.
+     */
+    public function testASaveOutsideTheSessionOverUnsavedUpdatesIsAConflict(): void
+    {
+        [$controller, $page, $store, $twig, $post, $publisher] = $this->collabEditPage();
+        $store->append($page->getId(), 'dQ==');
+        $publisher->expects(self::never())->method('publish');
+
+        $response = $controller->editPage($post([]), 'eng', 'welcome');
+
+        self::assertSame(Response::HTTP_CONFLICT, $response->getStatusCode());
+        self::assertTrue($response->headers->hasCacheControlDirective('no-store'));
+        self::assertSame('Hi there', $twig->context['page']->form->children['content']->vars['value'], 'The text stays in the form.');
+        self::assertSame(WikiCollabService::REPLACE_FIELD, $twig->context['collab_conflict']['replace_name']);
+        self::assertSame($twig->context['collab_conflict']['form_id'], $twig->context['page']->formAttributes['id']);
+        self::assertFalse($store->info($page->getId())->isEmpty(), 'The log stays.');
+        self::assertSame(1, $page->getCurrentRevision()?->getRevisionNumber(), 'Nothing is saved.');
+    }
+
+    public function testReplaceForEveryoneSavesAndDropsTheLog(): void
+    {
+        [$controller, $page, $store, , $post] = $this->collabEditPage();
+        $store->append($page->getId(), 'dQ==');
+
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($post([WikiCollabService::REPLACE_FIELD => '1']), 'eng', 'welcome')->getStatusCode());
+    }
+
+    /**
+     * @return iterable<string, array{callable(InMemoryCollabStateStore, string): void, array<string, string>}>
+     */
+    public static function savesWithoutConflict(): iterable
+    {
+        yield 'no log' => [static function (): void {}, []];
+        yield 'empty log, seed claimed' => [static function (InMemoryCollabStateStore $store, string $id): void {
+            $store->claimSeed($id, new DateTimeImmutable('-1 hour'), 'someone');
+        }, []];
+        yield 'updates a session save took in' => [static function (InMemoryCollabStateStore $store, string $id): void {
+            $store->append($id, 'dQ==');
+            $store->markSaved($id, 'rev-2');
+        }, []];
+    }
+
+    /**
+     * @param callable(InMemoryCollabStateStore, string): void $arrange
+     * @param array<string, string> $fields
+     */
+    #[DataProvider('savesWithoutConflict')]
+    public function testASaveOutsideTheSessionWithNothingUnsavedGoesThrough(callable $arrange, array $fields): void
+    {
+        [$controller, $page, $store, , $post] = $this->collabEditPage();
+        $arrange($store, $page->getId());
+
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($post($fields), 'eng', 'welcome')->getStatusCode());
+    }
+
+    public function testASaveFromTheSessionIsNeverAConflict(): void
+    {
+        [$controller, $page, $store, , $post, , $collab] = $this->collabEditPage();
+        $store->append($page->getId(), 'dQ==');
+
+        $request = $post([WikiCollabService::SESSION_FIELD => $collab->topic($page)]);
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($request, 'eng', 'welcome')->getStatusCode());
+        self::assertSame($page->getId(), $request->attributes->get(WikiCollabService::SESSION_SAVE_ATTRIBUTE));
+    }
+
+    public function testTheOptOutSavesAsBefore(): void
+    {
+        [$controller, $page, $store, , $post] = $this->collabEditPage(['save_conflict' => false]);
+        $store->append($page->getId(), 'dQ==');
+
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($post([]), 'eng', 'welcome')->getStatusCode());
+    }
+
+    public function testWithoutCollaborationThereIsNoConflict(): void
+    {
+        [$controller, , , , $post] = $this->collabEditPage(collaboration: false);
+
+        self::assertSame(Response::HTTP_FOUND, $controller->editPage($post([]), 'eng', 'welcome')->getStatusCode());
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @return array{WikiManageController, WikiPage, InMemoryCollabStateStore, object, callable(array<string, string>): Request, MockObject&WikiCollabPublisherInterface, WikiCollabService}
+     */
+    private function collabEditPage(array $options = [], bool $collaboration = true): array
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hi</p>', $user, 'Hi'));
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $store                       = new InMemoryCollabStateStore();
+        $publisher                   = $this->createMock(WikiCollabPublisherInterface::class);
+        $collab                      = new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), $options, secret: 'test-secret');
+        $this->routes['page_collab'] = ['path' => '/collab/{action}', 'name' => 'nowo_wiki_page_collab'];
+        $twig                        = $this->capturingTwig();
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $post       = static fn (array $fields): Request => Request::create('/edit', 'POST', [
+            'wiki_page_form' => ['title' => 'Welcome', 'content' => 'Hi there', '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_edit_' . $page->getId())],
+        ] + $fields);
+
+        return [$controller, $page, $store, $twig, $post, $publisher, $collab];
     }
 
     public function testDenyWhenCannotEdit(): void

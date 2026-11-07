@@ -97,11 +97,15 @@ use const PHP_INT_MAX;
  *
  * Soft-gated via {@see WikiAccessCheckerInterface}; set security.allow_unauthenticated
  * for trusted demos only (never in production).
+ *
+ * @phpstan-import-type Panel from WikiCommentsPanel
  */
 final class WikiManageController extends AbstractController
 {
     use WikiCsrfTrait;
     use WikiTreeMoveTrait;
+    /** The `id` of the page form when it answers a save conflict: the replace button sits outside it. */
+    private const CONFLICT_FORM_ID = 'wiki-page-form-conflict';
 
     /** Catalogue keys of the {@see WikiPageService} errors a page form can hit (1.12). */
     private const PAGE_ERROR_KEYS = [
@@ -480,10 +484,7 @@ final class WikiManageController extends AbstractController
 
         // 1.16: the comments panel; the editor mounts the thread component into it (live with co-editing).
         $comments = $this->commentsPanel?->panel($this->currentRequest(), $user, $space, $page);
-        $options  = $this->editorOptions($user, $space, $page);
-        if ($comments !== null && $this->commentsPanel instanceof WikiCommentsPanel) {
-            $options = $this->commentsPanel->editorOptions($options, $comments, $page, $this->collab instanceof WikiCollabService);
-        }
+        $options  = $this->pageEditorOptions($user, $space, $page, $comments, $this->collab instanceof WikiCollabService);
 
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_edit_<page id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
@@ -496,12 +497,18 @@ final class WikiManageController extends AbstractController
             /** @var WikiPageFormData $payload */
             $payload = $form->getData();
             // 1.13: a save from the live collaborative session keeps the Yjs log (WikiCollabSaveListener).
-            if ($this->collab instanceof WikiCollabService && $request->request->get(WikiCollabService::SESSION_FIELD) === $this->collab->topic($page)) {
+            $inSession = $this->collab instanceof WikiCollabService && $request->request->get(WikiCollabService::SESSION_FIELD) === $this->collab->topic($page);
+            if ($inSession) {
                 $request->attributes->set(WikiCollabService::SESSION_SAVE_ATTRIBUTE, $page->getId());
             }
 
             // An empty title stays a message on the form: it is never saved.
             if ($payload->title !== '') {
+                // Audit HF-M1: outside the session this save would drop text others have only in the shared log.
+                if (!$inSession && !$request->request->has(WikiCollabService::REPLACE_FIELD) && $this->collab?->blocksSaveOutsideSession($page) === true) {
+                    return $this->saveConflict($user, $space, $page, $comments, $payload);
+                }
+
                 $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
 
                 return $this->redirectToRoute($this->routes['page_view']['name'], [
@@ -522,6 +529,55 @@ final class WikiManageController extends AbstractController
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
             'editor_type'     => $this->editorType(),
         ], $form, $comments !== null ? ['Cache-Control' => 'private, no-store'] : []);
+    }
+
+    /**
+     * The page form again, nothing saved (audit HF-M1): the person's title and text, in an editor outside the shared
+     * session, since binding it would replace their text with the log. They choose: Save again, open the live version
+     * to merge by hand, or replace it for everyone. Any editor may: the same right as "Reset collaboration".
+     *
+     * @param Panel|null $comments the comments panel
+     */
+    private function saveConflict(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload): Response
+    {
+        $form = $this->createForm(WikiPageFormType::class, $payload, [
+            'csrf_token_id'  => 'wiki_edit_' . $page->getId(),
+            'editor_options' => $this->pageEditorOptions($user, $space, $page, $comments, false),
+        ] + $this->pageFormOptions());
+        $canHistory = $this->accessChecker->canViewHistory($user) && $this->spaceGuard->isGranted($user, WikiAction::History, $space, $page);
+
+        return $this->renderPage('page_edit', [
+            'comments'        => $comments,
+            'page'            => $this->pages()->pageForm($space, $page, $form->createView(), null, ['history' => $canHistory], ['id' => self::CONFLICT_FORM_ID]),
+            'routes'          => $this->routes,
+            'dashboard_route' => $this->dashboardRoute,
+            'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
+            'editor_type'     => $this->editorType(),
+            'collab_conflict' => [
+                'form_id'      => self::CONFLICT_FORM_ID,
+                'replace_name' => WikiCollabService::REPLACE_FIELD,
+                'live_url'     => $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]),
+            ],
+        ], null, ['Cache-Control' => 'private, no-store'], Response::HTTP_CONFLICT);
+    }
+
+    /**
+     * The options of the page editor, with the comments panel; without `collaboration` unless asked for.
+     *
+     * @param Panel|null $comments the comments panel
+     *
+     * @return array<string, mixed>
+     */
+    private function pageEditorOptions(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, bool $collaboration): array
+    {
+        $options = $this->editorOptions($user, $space, $page);
+        if (!$collaboration) {
+            unset($options['collaboration']);
+        }
+
+        return $comments !== null && $this->commentsPanel instanceof WikiCommentsPanel
+            ? $this->commentsPanel->editorOptions($options, $comments, $page, $collaboration)
+            : $options;
     }
 
     /**
@@ -1557,14 +1613,14 @@ final class WikiManageController extends AbstractController
      * @param FormInterface<mixed>|null $form form of the page
      * @param array<string, string> $headers response headers
      */
-    private function renderPage(string $page, array $vars, ?FormInterface $form = null, array $headers = []): Response
+    private function renderPage(string $page, array $vars, ?FormInterface $form = null, array $headers = [], ?int $status = null): Response
     {
         $pages   = $this->pages();
         $invalid = $form instanceof FormInterface && $form->isSubmitted() && !$form->isValid();
 
         return new Response(
             $this->renderView($pages->template($page), $pages->context($vars)),
-            $invalid ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK,
+            $status ?? ($invalid ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK),
             $headers,
         );
     }
