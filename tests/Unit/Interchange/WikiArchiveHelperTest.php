@@ -699,6 +699,80 @@ final class WikiArchiveHelperTest extends TestCase
         }
     }
 
+    /** Audit GV-L4: one short name can hold thousands of directories; they are refused before anything is written. */
+    public function testDirectoriesOverTheEntryLimitAreRefusedBeforeWriting(): void
+    {
+        $zipPath = $this->createZip(['a/b/c/d/page.md' => 'x']);
+        $helper  = new WikiArchiveHelper(maxEntries: 3);
+        $before  = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
+
+        try {
+            $helper->extractZip($zipPath);
+            self::fail('Expected the archive to be refused.');
+        } catch (InvalidArgumentException $e) {
+            self::assertStringContainsString('too many directories (max 3)', $e->getMessage());
+            self::assertSame($before, glob(sys_get_temp_dir() . '/wiki-import-*') ?: []);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    /** The default limit against what the audit ran: nested directories under one short name, in a few entries. */
+    public function testDefaultLimitRefusesNestedDirectoriesInOneEntry(): void
+    {
+        $zipPath = $this->createZip([str_repeat('d/', WikiArchiveHelper::DEFAULT_MAX_ENTRIES + 1) . 'page.md' => 'x']);
+
+        try {
+            $this->expectExceptionMessage('too many directories (max 10000)');
+            $this->helper->extractZip($zipPath);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    /** A shared ancestor counts once, spelling does not matter, and a file is not a directory. */
+    public function testDirectoriesExactlyAtTheLimitPassAndEachCountsOnce(): void
+    {
+        $zipPath = $this->createZip(['a/b/one.md' => '1', 'a/b/two.md' => '2', './a//b/three.md' => '3', 'a/c/' => '', 'root.md' => 'r', 'a/b/skip.png' => 'p']);
+        $helper  = new WikiArchiveHelper(maxEntries: 6);
+
+        try {
+            $extracted = $helper->extractZip($zipPath);
+            self::assertFileExists($extracted . '/a/b/three.md');
+            self::assertDirectoryExists($extracted . '/a/c');
+            $helper->removeDirectory($extracted);
+        } finally {
+            unlink($zipPath);
+        }
+
+        $zipPath = $this->createZip(['a/b/c/page.md' => 'x', 'a/b/other.md' => 'y']);
+        try {
+            $extracted = (new WikiArchiveHelper(maxEntries: 3))->extractZip($zipPath);
+            self::assertFileExists($extracted . '/a/b/c/page.md');
+            $helper->removeDirectory($extracted);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
+    /** A legitimate archive with a deep tree passes under the default limit. */
+    public function testDeepTreeWithinTheDefaultLimitPasses(): void
+    {
+        $entries = [];
+        for ($i = 0; $i < 200; ++$i) {
+            $entries['Export-1/section-' . $i . '/' . str_repeat('level/', 30) . 'page.md'] = '# Page ' . $i;
+        }
+        $zipPath = $this->createZip($entries);
+
+        try {
+            $extracted = $this->helper->extractZip($zipPath);
+            self::assertFileExists($extracted . '/Export-1/section-199/' . str_repeat('level/', 30) . 'page.md');
+            $this->helper->removeDirectory($extracted);
+        } finally {
+            unlink($zipPath);
+        }
+    }
+
     /**
      * A ZIP whose local header and central directory say what the test wants: libzip writes the real bytes anyway.
      *

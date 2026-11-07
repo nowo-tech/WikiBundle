@@ -13,10 +13,15 @@ use SplFileInfo;
 use Throwable;
 use ZipArchive;
 
+use function array_filter;
+use function array_slice;
+use function array_values;
 use function basename;
 use function chmod;
 use function clearstatcache;
+use function count;
 use function dirname;
+use function explode;
 use function fclose;
 use function feof;
 use function fileowner;
@@ -24,6 +29,8 @@ use function fopen;
 use function fread;
 use function fwrite;
 use function glob;
+use function hash;
+use function implode;
 use function in_array;
 use function ini_get;
 use function ini_parse_quantity;
@@ -254,7 +261,8 @@ final readonly class WikiArchiveHelper
     }
 
     /**
-     * Rejects ZIP bombs and path traversal before anything is written: caps the entry count and the declared total
+     * Rejects ZIP bombs and path traversal before anything is written: caps the entry count, the distinct directories
+     * and the declared total
      * uncompressed size, caps the declared size of each Markdown document and of all of them against
      * {@code memory_limit}, since the import reads them whole (audit GV-L3), and refuses absolute, {@code ..} and NUL
      * entry names. Declared sizes can lie, so {@see self::writeEntry()} applies the same limits to the real bytes.
@@ -265,8 +273,9 @@ final readonly class WikiArchiveHelper
             throw new InvalidArgumentException(sprintf('ZIP archive has too many entries (%d, max %d).', $zip->numFiles, $this->maxEntries));
         }
 
-        $total    = 0;
-        $markdown = 0;
+        $total       = 0;
+        $markdown    = 0;
+        $directories = [];
         for ($i = 0; $i < $zip->numFiles; ++$i) {
             $stat = $zip->statIndex($i);
             // @codeCoverageIgnoreStart
@@ -279,6 +288,8 @@ final readonly class WikiArchiveHelper
             if (str_contains($name, "\0") || str_starts_with($name, '/') || preg_match('#^[A-Za-z]:#', $name) === 1 || in_array('..', explode('/', $name), true)) {
                 throw new InvalidArgumentException(sprintf('ZIP archive entry "%s" escapes the extraction directory.', $stat['name']));
             }
+
+            $this->countDirectories($name, $directories);
 
             $total += $stat['size'];
             if ($total > $this->maxUncompressedBytes) {
@@ -296,6 +307,34 @@ final readonly class WikiArchiveHelper
         }
 
         $this->assertFitsInMemory($markdown);
+    }
+
+    /**
+     * Adds the directories an entry names to the set, and refuses more than the entry limit (audit GV-L4): one short
+     * name can hold thousands of nested directories, at a block of disk each. From the deepest up, stopping at one
+     * already seen, whose ancestors are too. Hashed, so the set stays small however long the names are.
+     *
+     * @param string $name entry name, with forward slashes
+     * @param array<string, true> $directories hashes of the directories seen
+     *
+     * @throws InvalidArgumentException over the limit
+     */
+    private function countDirectories(string $name, array &$directories): void
+    {
+        $parts = array_values(array_filter(explode('/', $name), static fn (string $part): bool => $part !== '' && $part !== '.'));
+        $depth = str_ends_with($name, '/') ? count($parts) : count($parts) - 1;
+
+        for (; $depth > 0; --$depth) {
+            $key = hash('sha256', implode('/', array_slice($parts, 0, $depth)), true);
+            if (isset($directories[$key])) {
+                return;
+            }
+
+            $directories[$key] = true;
+            if (count($directories) > $this->maxEntries) {
+                throw new InvalidArgumentException(sprintf('ZIP archive names too many directories (max %d).', $this->maxEntries));
+            }
+        }
     }
 
     /**

@@ -135,6 +135,7 @@ Good patterns observed: all services are `final readonly` or have no properties;
 - `LocalWikiAttachmentStorage` writes under `attachments.storage_dir`; in a worker that directory must be on a persistent volume shared by every worker / replica (the bundle keeps no file handle open between requests).
 - Set `http_client: 'nowo_wiki.ai.http_client'` on the AI platform (tune `nowo_wiki.ai.http_timeout`) and set FrankenPHP `max_wait_time`.
 - Large imports run inside the request: keep `import_export.max_upload_bytes` reasonable and prefer `nowo:wiki:import` (CLI) for big archives.
+- Inline ignore, recorded exception: `frankenphp.worker.noRegisterShutdownFunction` in `src/Interchange/WikiArchiveHelper.php`, `removeAtShutdown()`. The rule cannot be met, since nothing else runs after a fatal error (audit GV-L3). `ignoreErrors` stays empty.
 - `WikiArchiveHelper::removeAtShutdown()` uses `register_shutdown_function()` on purpose (audit GV-L3): only that runs after a fatal error. Each import keeps two small callbacks until the worker restarts; they hold a path and do nothing once the import has cleaned up. Imports are rare, so the growth is negligible.
 - If you cannot keep the Doctrine reset, set a low worker `max_requests` (or `FRANKENPHP_LOOP_MAX`) to bound identity-map growth; closed managers are already recovered by the bundle.
 - The demo (`demo/symfony8/Caddyfile`) runs FrankenPHP with a `worker` block (`file /app/public/index.php`, `watch`), and `docker-compose.yml` defaults `FRANKENPHP_MODE` to `worker`.

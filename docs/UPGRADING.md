@@ -82,12 +82,14 @@ What changes:
   way. An import that writes those documents could not finish; raise `memory_limit` if the archive holds Markdown the
   import does not need.
 - A front matter over 64 KiB that starts like YAML is refused the same way. Two `---` rules further apart than that are
-  a long body, as before.
+  a long body, as before. A file opening with `---`, then a line like `Note: …`, and another `---` over 64 KiB later
+  looks like YAML, so it refuses the whole archive; a blank line after the first `---` makes it a body.
+- An archive naming more than 10 000 distinct directories is refused the same way, before anything is written.
 - A ZIP entry that cannot be read (encrypted, corrupt) or written is an import error, no longer an exception.
 - `WikiArchiveHelper::extractZip()` now extracts only `.md` files and the directories the archive names. A host calling
   it directly for other files must extract them itself.
-- Nothing else to do. A request that dies leaves nothing in the temp dir, and each import removes what a killed process
-  left there (`wiki-import-<hex>`, `wiki-upload-<hex>.zip`, `wiki-export-*`, older than one hour).
+- Nothing else to do. A fatal error leaves nothing in the temp dir, and each import removes what a process killed
+  outright left there (`wiki-import-<hex>`, `wiki-upload-<hex>.zip`, `wiki-export-*`, older than one hour).
 
 ## To 1.21.0
 
