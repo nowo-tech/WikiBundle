@@ -22,7 +22,7 @@
         "doctrine/migrations": "^3.8",
         "doctrine/orm": "^3.0",
         "nowo-tech/form-kit-bundle": "^2.0",
-        "nowo-tech/milkdown-editor-bundle": "^1.6",
+        "nowo-tech/milkdown-editor-bundle": "^1.12",
         "nowo-tech/tiptap-editor-bundle": "^1.0",
         "nowo-tech/wiki-bundle": "^1.0",
         "php": ">=8.4,<8.6",

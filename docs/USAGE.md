@@ -382,13 +382,15 @@ nowo_wiki:
         rate_limiter: limiter.wiki_collab         # framework.rate_limiter.wiki_collab (required)
 ```
 
+With `symfony/mercure-bundle` 0.6.1 or 0.7.0, whose default protocol is `1.0`, `jwt.secret` alone fails at compile time asking for `iss`, `sub` and `client_id`; set `mercure.hubs.<name>.protocol_version: '0.x'` (needed with `dunglas/mercure` v0.24.2).
+
 The page edit form passes MilkdownEditorType the `collaboration` option (base URL, hub URL, topic, user name and colour) — only on the edit form, so readers never get it. The browser then calls, all under `routes.page_collab` (`…/pages/{pageSlug}/collab/{action}`):
 
 | Request | Answer |
 |---------|--------|
 | `POST …/collab/token` | 204; sets the `mercureAuthorization` cookie (subscriber JWT for this page's topic only); drops a stale log and claims the seeding of an empty one for this user |
-| `GET …/collab/state` | `{"state": "<base64 snapshot>", "updates": ["<base64>", …], "seq": 12, "compact": false, "seed": true}` — read only |
-| `POST …/collab/update` `{c, d}` | 204; the update is appended to the log and published (`{"t":"u","c":…,"d":…}`, private) |
+| `GET …/collab/state` | `{"state": "<base64 snapshot>", "updates": ["<base64>", …], "seq": 12, "epoch": "<name of the log>", "compact": false, "seed": true}` — read only |
+| `POST …/collab/update` `{c, d}` | 200 with `{"s": n, "p": m}`, the update's number and the one before it (204 with a store that has no numbers); the update is appended to the log and published (`{"t":"u","c":…,"d":…,"s":n,"p":m}`, private) |
 | `POST …/collab/awareness` `{c, d}` | 204; presence published (`{"t":"a",…}`), never stored |
 | `POST …/collab/compact` `{c, d, s}` | 204; the log up to `s` is replaced with the snapshot `d` |
 | `POST …/collab/corrupt` `{c, s}` | 204; the log `s` could not be applied: dropped (capped), editors reload |

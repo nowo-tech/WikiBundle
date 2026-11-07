@@ -26,6 +26,7 @@ use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
+use Nowo\WikiBundle\Tests\Support\NumberedInMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\Container;
@@ -57,12 +58,27 @@ final class WikiCollabControllerTest extends TestCase
     /** @var list<list<string>|string> */
     private array $authorized = [];
 
+    private ?InMemoryCollabStateStore $collabStore = null;
+
     protected function setUp(): void
     {
         $this->space    = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');
         $this->page     = new WikiPage($this->space, 'runbook', 'Runbook');
         $this->archived = new WikiPage($this->space, 'old', 'Old');
         $this->archived->archive();
+    }
+
+    /** Audit HO-L1 window 2: the sender learns its update's number. */
+    public function testAStoredUpdateAnswersItsNumbersWhenTheStoreHasThem(): void
+    {
+        $this->collabStore = new NumberedInMemoryCollabStateStore();
+
+        $response = $this->controller()->collab($this->post('{"c":1,"d":"AQ=="}'), 'eng', 'runbook', 'update');
+
+        self::assertSame(Response::HTTP_OK, $response->getStatusCode());
+        self::assertSame('{"s":1,"p":0}', $response->getContent());
+        self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
+        self::assertStringContainsString('json', (string) $response->headers->get('Content-Type'));
     }
 
     public function testEditorsGetTheTokenTheStateAndRelayUpdates(): void
@@ -317,7 +333,7 @@ final class WikiCollabControllerTest extends TestCase
             };
         }
         $spaceGuard = new WikiSpaceGuard(new FixedSpaceLocator($this->space), $checker ?? CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit));
-        $collab     = new WikiCollabService(new InMemoryCollabStateStore(), $publisher, $authorizer, secret: 'test-secret');
+        $collab     = new WikiCollabService($this->collabStore ?? new InMemoryCollabStateStore(), $publisher, $authorizer, secret: 'test-secret');
         $controller = new WikiCollabController(
             $spaceGuard,
             $pages,

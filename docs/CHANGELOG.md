@@ -62,6 +62,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> **Upgrade if you use co-editing (`nowo_wiki.collaboration`).** In every earlier version, with every Milkdown, a tab that came back after the shared log was dropped (a closed laptop lid is enough) could undo newer text, including a confirmed "Replace for everyone", and nobody was asked. Every revision stays in the history, so nothing is unrecoverable, but the current text can be wrong with no warning. This release closes it with Milkdown 1.12 (audit HV-M1). **Add the `log_epoch` column before you deploy the code**: see `docs/UPGRADING.md`.
+
+### Fixed
+
+- **Co-editing: an update stored while a session save is in flight stays unsaved (audit HO-L1 window 2).** A session save that sends `_nowo_milkdown_collab_seq` (Milkdown 1.11 or later) records only the updates its text includes, under the log's row lock, so a later save outside the session asks instead of dropping that update. A client that sends no number, or a malformed one, counts as before.
+- The numbers clients follow no longer jump at a compaction: the snapshot row takes no number of its own.
+- With a client's number, two session saves at once keep the log instead of dropping it (audit HV-L2). A session save that loses the log's row still moves its base, and a committed save answers no error, also on PostgreSQL's `lock_timeout` (audit HV-L1, HV-I3).
+
+- **Co-editing: every log has a name (audit HV-M1).** A random `log_epoch` changes with every reset. `state` answers it as `epoch`, `update` and `compact` send it as `e` and answer 409 `{"error":"log_epoch"}` under the write's lock if it is not the current log, `token` and `state` give no seed to a client on another log (header `X-Nowo-Collab-Epoch`), a `corrupt` report about another log is ignored, and hub messages `u` and `r` carry `e`. A form save with `_nowo_milkdown_collab_epoch` from another log always asks, and the 409 form keeps asking. A host's own store without `WikiCollabEpochStoreInterface` keeps today's behaviour.
+- A confirmed "Replace for everyone" runs under the log's lock, so a session save from the old log cannot land after it.
+- `replaced()` losing the log's row after a committed save is retried and logged, not a 500 (audit HV-L4). The base is the page's current revision read under the lock (audit HV-I4).
+
+### Changed
+
+- `conflict` on `nowo-tech/milkdown-editor-bundle` `<1.12.0`.
+
+### Added
+
+- `WikiCollabEpochStoreInterface`, optional, and `WikiCollabNumberedStoreInterface`, optional: `appendNumbered()` and `markSavedUpTo()`. `POST <url>/update` answers `200` with `{"s","p"}` with such a store, the bundled one included, and the published update carries `s` and `p`. A host's own store without it keeps `204` and the old message.
+
 ## [1.22.0] - 2026-11-07
 
 ### Fixed

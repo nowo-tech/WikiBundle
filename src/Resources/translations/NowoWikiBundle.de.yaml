@@ -48,6 +48,7 @@ wiki:
     rate_limited: "Zu viele Anfragen: Die gemeinsame Sitzung wurde nicht zurückgesetzt. Versuchen Sie es gleich noch einmal."
     conflict_title: "Nicht gespeichert: Die gemeinsame Sitzung enthält Änderungen, die noch in keiner Version stehen"
     conflict_message: "Dein Text ist noch hier, und nichts wurde überschrieben. Diese Änderungen können von jemand anderem stammen oder von dir, bevor die Verbindung abbrach. Öffne die Live-Version in einem neuen Tab, führe dort zusammen, was du brauchst, und speichere sie. Oder ersetze sie durch deinen Text: Die ungespeicherten Änderungen der gemeinsamen Sitzung gehen dann für alle verloren."
+    conflict_replaced_message: "Diese Seite wurde ersetzt, während du weg warst, und dein Text beruht auf der älteren Version. Öffne die Live-Version oder ersetze sie für alle."
     conflict_open: "Live-Version öffnen"
     conflict_replace: "Für alle ersetzen"
     restore_conflict_title: "Gemeinsame Sitzung ersetzen?"

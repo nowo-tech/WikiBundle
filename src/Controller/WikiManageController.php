@@ -85,6 +85,7 @@ use function array_slice;
 use function array_values;
 use function ceil;
 use function count;
+use function ctype_digit;
 use function is_string;
 use function max;
 use function min;
@@ -502,6 +503,11 @@ final class WikiManageController extends AbstractController
             $inSession = $this->collab instanceof WikiCollabService && $request->request->get(WikiCollabService::SESSION_FIELD) === $this->collab->topic($page);
             if ($inSession) {
                 $request->attributes->set(WikiCollabService::SESSION_SAVE_ATTRIBUTE, $page->getId());
+                // Audit HO-L1 window 2: missing or malformed keeps counting everything stored so far as saved.
+                $included = $request->request->all()[WikiCollabService::SESSION_SEQ_FIELD] ?? null;
+                if (is_string($included) && strlen($included) < 19 && ctype_digit($included)) {
+                    $request->attributes->set(WikiCollabService::SESSION_SEQ_ATTRIBUTE, (int) $included);
+                }
             }
 
             // An empty title stays a message on the form: it is never saved.
@@ -510,7 +516,7 @@ final class WikiManageController extends AbstractController
                 // Audit HF-M1: outside the session this save would drop text others have only in the shared log.
                 try {
                     if (!$this->saveUnlessItMustAsk($request, $page, $inSession, $save)) {
-                        return $this->saveConflict($user, $space, $page, $comments, $payload);
+                        return $this->saveConflict($user, $space, $page, $comments, $payload, $this->sentEpoch($request));
                     }
                 } catch (WikiRevisionCollisionException) {
                     // Audit HO-L4: lost a race with another save. Nothing was written; the text stays with the person.
@@ -548,13 +554,44 @@ final class WikiManageController extends AbstractController
      */
     private function saveUnlessItMustAsk(Request $request, WikiPage $page, bool $inSession, callable $save): bool
     {
-        if ($inSession || !$this->collab instanceof WikiCollabService || $request->request->has(WikiCollabService::REPLACE_FIELD)) {
+        if (!$this->collab instanceof WikiCollabService) {
+            $save();
+
+            return true;
+        }
+
+        // Under the lock like any other replacement, so that a session save with the old log's name cannot land after it.
+        if ($request->request->has(WikiCollabService::REPLACE_FIELD)) {
+            return $this->collab->saveOutsideSession($request, $page, $save, true);
+        }
+
+        // Audit HV-M1: text from a log that has been replaced asks, whatever the log holds now.
+        $epoch = $this->sentEpoch($request);
+        if ($epoch !== null) {
+            if ($inSession) {
+                return $this->collab->saveInEpoch($page, $epoch, $save);
+            }
+            if (!$this->collab->epochIsCurrent($page, $epoch)) {
+                return false;
+            }
+        }
+
+        if ($inSession) {
             $save();
 
             return true;
         }
 
         return $this->collab->saveOutsideSession($request, $page, $save);
+    }
+
+    /** The log a client's save came from, when it says and the value is well formed. */
+    private function sentEpoch(Request $request): ?string
+    {
+        // The form of a save conflict carries it in its action, which no host template can leave out.
+        $epoch = $request->request->all()[WikiCollabService::SESSION_EPOCH_FIELD] ?? $request->query->all()[WikiCollabService::SESSION_EPOCH_FIELD] ?? null;
+
+        return is_string($epoch) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $epoch) === 1 ? $epoch : null;
     }
 
     /**
@@ -565,26 +602,30 @@ final class WikiManageController extends AbstractController
      *
      * @param Panel|null $comments the comments panel
      */
-    private function saveConflict(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload): Response
+    private function saveConflict(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload, ?string $epoch = null): Response
     {
         $this->flash('warning', 'wiki.collab.conflict_title');
 
         return $this->pageFormAgain($user, $space, $page, $comments, $payload, [
             'form_id'      => self::CONFLICT_FORM_ID,
+            'replaced'     => $epoch !== null && $this->collab instanceof WikiCollabService && !$this->collab->epochIsCurrent($page, $epoch),
             'replace_name' => WikiCollabService::REPLACE_FIELD,
             'live_url'     => $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]),
-        ]);
+        ], $epoch);
     }
 
     /**
      * The page form with what the person submitted, in an editor outside the shared session, nothing saved.
      *
      * @param Panel|null $comments the comments panel
-     * @param array{form_id: string, replace_name: string, live_url: string}|null $conflict the way out of a save conflict
+     * @param array{form_id: string, replaced: bool, replace_name: string, live_url: string}|null $conflict the way out of a save conflict
+     * @param string|null $epoch the log the text came from: a second Save from this form must ask again (audit HV-M1)
      */
-    private function pageFormAgain(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload, ?array $conflict): Response
+    private function pageFormAgain(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload, ?array $conflict, ?string $epoch = null): Response
     {
-        $form = $this->createForm(WikiPageFormType::class, $payload, [
+        $form = $this->createForm(WikiPageFormType::class, $payload, ($epoch === null ? [] : [
+            'action' => $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug(), WikiCollabService::SESSION_EPOCH_FIELD => $epoch]),
+        ]) + [
             'csrf_token_id'  => 'wiki_edit_' . $page->getId(),
             'editor_options' => $this->pageEditorOptions($user, $space, $page, $comments, false),
         ] + $this->pageFormOptions());

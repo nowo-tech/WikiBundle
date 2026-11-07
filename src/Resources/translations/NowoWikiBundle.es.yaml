@@ -48,6 +48,7 @@ wiki:
     rate_limited: "Demasiadas solicitudes: no se ha reiniciado la sesión compartida. Vuelve a intentarlo en un momento."
     conflict_title: "No guardado: la sesión compartida tiene cambios que aún no están en ninguna versión"
     conflict_message: "Tu texto sigue aquí y no se ha sobrescrito nada. Esos cambios pueden ser de otra persona, o tuyos de antes de perder la conexión. Abre la versión en vivo en otra pestaña, combina allí lo que necesites y guárdala. O reemplázala por tu texto: los cambios sin guardar de la sesión compartida se perderán para todos."
+    conflict_replaced_message: "Esta página se sustituyó mientras no estabas y tu texto parte de la versión anterior. Abre la versión en directo o sustitúyela para todos."
     conflict_open: "Abrir la versión en vivo"
     conflict_replace: "Reemplazar para todos"
     restore_conflict_title: "¿Reemplazar la sesión compartida?"
