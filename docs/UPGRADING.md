@@ -67,6 +67,30 @@
 
 ## Unreleased
 
+**Security (audit GV-M2).** Every published version with `WikiArchiveHelper`, from 1.0.0 on, writes what a ZIP really holds, not what it declares (measured on 1.0.0, 1.4.1, 1.5.0, 1.20.0 and 1.21.0). A user with the `Import` right can write about 1000 times the upload to the temp dir. Until you upgrade:
+
+- Limit who has the `Import` right, or set `import_export.enabled: false`.
+- Lower `import_export.max_upload_bytes`, which lowers the amount in proportion.
+- Give `sys_temp_dir` its own volume or quota, so it cannot fill the disk the rest of the host needs, and watch it for `wiki-import-*`.
+
+What changes:
+
+- An import now refuses a Markdown document over 8 MiB, with the usual import error and nothing written. To accept
+  larger ones, raise `import_export.max_document_bytes`. A larger document needs far more memory than its size: 8 MiB
+  peaked at about 130 MiB and 16 MiB at about 200 MiB, with `editor.type: milkdown`.
+- An archive whose Markdown documents, read twice over, do not fit in what is left of `memory_limit` is refused the same
+  way. An import that writes those documents could not finish; raise `memory_limit` if the archive holds Markdown the
+  import does not need.
+- A front matter over 64 KiB that starts like YAML is refused the same way. Two `---` rules further apart than that are
+  a long body, as before. A file opening with `---`, then a line like `Note: …`, and another `---` over 64 KiB later
+  looks like YAML, so it refuses the whole archive; a blank line after the first `---` makes it a body.
+- An archive naming more than 10 000 distinct directories is refused the same way, before anything is written.
+- A ZIP entry that cannot be read (encrypted, corrupt) or written is an import error, no longer an exception.
+- `WikiArchiveHelper::extractZip()` now extracts only `.md` files and the directories the archive names. A host calling
+  it directly for other files must extract them itself.
+- Nothing else to do. A fatal error leaves nothing in the temp dir, and each import removes what a process killed
+  outright left there (`wiki-import-<hex>`, `wiki-upload-<hex>.zip`, `wiki-export-*`, older than one hour).
+
 ## To 1.21.0
 
 From **1.20.0**:
@@ -84,8 +108,9 @@ php bin/console assets:install
 - Plan limits: replace a `kernel.controller` listener with one on `nowo_wiki.quota.check`. It also covers `trash_restore`
   and the copy of a version (`page_create`); an import reports its Markdown documents as `count`. The CLI commands
   (`wiki:import`) do not dispatch it, and page edits, revision restore and comments are not metered.
-- The Twig global `nowo_wiki_web_ui` is now an `ArrayObject` service with the same keys. Templates read it as before; a
-  host passing it to PHP code that type-hints `array` must convert it.
+- The Twig global `nowo_wiki_web_ui` is now an `ArrayObject` service with the same keys. Templates read it as before,
+  except `|slice`, which loses the keys; a host passing it to PHP code that type-hints `array` must convert it. It is one
+  shared object: do not write to it, since in worker mode the change stays across requests.
 - A route guard that hides the index or the search without a space: replace it with `web_ui.space_index: false` and
   `search.scope: space`. `space_index` must be a literal boolean (an env placeholder is refused at compile time).
 - A forked comments panel: delete it and set `comments.moderation_panel: true` and `comments.error_notices: true`.

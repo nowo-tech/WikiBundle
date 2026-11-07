@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Interchange;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 
+use function array_filter;
+use function array_values;
 use function basename;
 use function count;
+use function glob;
 use function is_dir;
+use function is_file;
 use function is_string;
 use function scandir;
 use function str_starts_with;
@@ -25,9 +30,11 @@ final readonly class WikiDocumentTreeReader
      * Stores the front matter parser used to read Markdown files.
      *
      * @param WikiFrontMatterParser $frontMatterParser front matter parser
+     * @param WikiMarkdownFileReader $fileReader bounded reader of the Markdown files (audit GV-L3)
      */
     public function __construct(
         private WikiFrontMatterParser $frontMatterParser,
+        private WikiMarkdownFileReader $fileReader = new WikiMarkdownFileReader(),
     ) {
     }
 
@@ -51,6 +58,8 @@ final readonly class WikiDocumentTreeReader
      *
      * @param string $rootDir root directory of the export
      * @param WikiInterchangeFormat $format export layout (Outline or Notion)
+     *
+     * @throws InvalidArgumentException when a Markdown file is over the per-document limit
      *
      * @return list<WikiDocumentNode>
      */
@@ -79,7 +88,7 @@ final readonly class WikiDocumentTreeReader
         $markdownFiles = $this->collectMarkdownFiles($currentDir, $format, $currentDir === $rootDir);
 
         foreach ($markdownFiles as $markdownFile) {
-            $parsed     = $this->frontMatterParser->parse((string) file_get_contents($markdownFile));
+            $parsed     = $this->frontMatterParser->parse($this->fileReader->read($markdownFile));
             $meta       = $parsed['meta'];
             $title      = $this->stringMeta($meta, 'title');
             $slug       = $this->stringMeta($meta, 'wiki_slug') ?? $this->stringMeta($meta, 'slug');
@@ -200,7 +209,8 @@ final readonly class WikiDocumentTreeReader
      */
     private function markdownFiles(string $directory, bool $atRoot): array
     {
-        $files = glob($directory . '/*.md') ?: [];
+        // A directory named x.md is a folder, not an empty document (audit GV-I14).
+        $files = array_values(array_filter(glob($directory . '/*.md') ?: [], is_file(...)));
 
         return $atRoot ? array_values(array_filter($files, fn (string $file): bool => !$this->isRootIndex($file))) : $files;
     }

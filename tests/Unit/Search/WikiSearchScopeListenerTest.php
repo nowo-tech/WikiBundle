@@ -53,6 +53,31 @@ final class WikiSearchScopeListenerTest extends TestCase
         }
     }
 
+    /** What the tenant_paths routes accept is accepted here too, and nothing beyond it. */
+    public function testACompositeSlugPassesOnlyWithItsTenantRequirement(): void
+    {
+        $listener = new WikiSearchScopeListener('nowo_wiki_search', ['org-[0-9a-f]+(?:--[a-z0-9-]+)?']);
+        $request  = $this->request('/tools/wiki/search?space=org-abc1--handbook', 'nowo_wiki_search');
+        $listener($this->event($request));
+        self::assertSame('org-abc1--handbook', $request->attributes->get('spaceSlug'));
+
+        $bare = $this->request('/tools/wiki/search?space=eng', 'nowo_wiki_search');
+        $listener($this->event($bare));
+        self::assertSame('eng', $bare->attributes->get('spaceSlug'));
+
+        foreach (['space=org-abc1--', 'space=org-abc1--handbook%0A', 'space=org-abc1--a/../b', 'space=x--org-abc1', 'space=org-abc1--A'] as $query) {
+            try {
+                $listener($this->event($this->request('/tools/wiki/search?' . $query, 'nowo_wiki_search')));
+                self::fail('Accepted ' . $query);
+            } catch (NotFoundHttpException) {
+                self::addToAssertionCount(1);
+            }
+        }
+
+        $this->expectException(NotFoundHttpException::class);
+        (new WikiSearchScopeListener('nowo_wiki_search'))($this->event($this->request('/tools/wiki/search?space=org-abc1--handbook', 'nowo_wiki_search')));
+    }
+
     private function request(string $uri, string $route): Request
     {
         $request = Request::create($uri);

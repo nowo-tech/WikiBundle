@@ -60,6 +60,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Imports: limits on what is really extracted (audit GV-L3, GV-M2).** ZIP limits now count the bytes written, not the sizes an archive declares; before, an archive could write about 1000 times its size to the temp dir. Only Markdown documents are extracted. An archive naming more directories than the entry limit is refused. `import_export.max_document_bytes` (default 8 MiB) refuses a larger document, also in directory sources of `wiki:import`, front matter is capped at 64 KiB, and an archive whose Markdown does not fit in `memory_limit` is refused. A fatal error leaves nothing in the temp dir; each import also removes the bundle's own temp files older than one hour, export files included. Many documents within the limits can still exhaust `memory_limit` while they are imported, and leave the pages written so far.
+- **Affected versions (GV-M2):** every published version with `WikiArchiveHelper`. Run with an entry declaring 100 B and holding 32 MiB on `v1.0.0`, `v1.4.1`, `v1.5.0`, `v1.20.0` and `v1.21.0`: all wrote the 32 MiB. Before 1.5.0 there was no ZIP size limit at all. Directory entries had the same effect (audit GV-L4). It needs the `Import` right. See `docs/UPGRADING.md` for what to do until upgrading.
+
+### Fixed
+
+- A Markdown file that cannot be read in an import now fails instead of importing an empty page, and a directory named `x.md` is a folder, not an empty document (audit GV-I14).
+- `search.scope: space` accepts a slug that a `tenant_paths` `slug_requirement` accepts (a composite `org-<uuid>--<name>` answered 404). Whether the user may see the space is checked as before.
+- `WikiQuotaCheckEvent::deny()` turns U+2028 and U+2029 into a space and keeps ZWJ and ZWNJ, so emoji sequences and Persian text stay joined (audit GV-I8).
+
+### Documentation
+
+- `web_ui.assets: false` does not remove what form widgets print (audit GV-I9). `nowo_wiki_web_ui`: `|slice` and the shared object in worker mode (audit GV-I10).
+
 ## [1.21.0] - 2026-11-06
 
 Host hooks requested by Beacon (2026-11-06, WK-1 to WK-5), so it can drop its template forks and kernel listeners. Every option is off (or at the 1.20 value) by default: without them the pages, routes and responses are the same.

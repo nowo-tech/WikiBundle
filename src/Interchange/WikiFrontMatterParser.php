@@ -4,22 +4,31 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Interchange;
 
+use InvalidArgumentException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 use function is_array;
+use function preg_match;
+use function sprintf;
+use function strlen;
 
 /**
  * Parses optional YAML front matter from Markdown documents.
  */
 final class WikiFrontMatterParser
 {
+    /** Largest front matter parsed. A wiki export writes a title and two slugs. */
+    public const MAX_FRONT_MATTER_BYTES = 65536;
+
     /**
      * Splits a leading {@code ---} YAML front matter block from the Markdown body.
      *
      * Content without a closed or valid YAML block is returned whole as the body with empty meta.
      *
      * @param string $content raw Markdown file content
+     *
+     * @throws InvalidArgumentException when a block that starts like YAML is over {@see self::MAX_FRONT_MATTER_BYTES}
      *
      * @return array{meta: array<string, mixed>, body: string}
      */
@@ -35,6 +44,15 @@ final class WikiFrontMatterParser
         }
 
         $yamlBlock = substr($content, 4, $closing - 4);
+        if (strlen($yamlBlock) > self::MAX_FRONT_MATTER_BYTES) {
+            // Parsed YAML costs many times its size (audit GV-L3). Two `---` rules far apart are just a long body.
+            if (preg_match('/^[\w.-]+:(?:\s|$)/', $yamlBlock) === 1) {
+                throw new InvalidArgumentException(sprintf('Markdown front matter exceeds the limit of %d bytes.', self::MAX_FRONT_MATTER_BYTES));
+            }
+
+            return ['meta' => [], 'body' => $content];
+        }
+
         $bodyStart = $closing + 4;
         if ($content[$bodyStart] === "\r") {
             ++$bodyStart;

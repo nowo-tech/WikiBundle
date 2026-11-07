@@ -31,8 +31,10 @@ use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\History\WikiHistoryThinner;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
+use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Interchange\WikiMarkdownFileReader;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
@@ -98,6 +100,31 @@ use const E_USER_DEPRECATED;
 
 final class WikiExtensionTest extends TestCase
 {
+    public function testMaxDocumentBytesReachesTheArchiveHelperAndTheFileReader(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'import_export' => ['max_document_bytes' => 4096]]], $container);
+
+        self::assertSame(4096, $container->getParameter('nowo_wiki.import_export.max_document_bytes'));
+        foreach ([WikiArchiveHelper::class, WikiMarkdownFileReader::class] as $service) {
+            self::assertSame('%nowo_wiki.import_export.max_document_bytes%', $container->getDefinition($service)->getArgument('$maxDocumentBytes'), $service);
+        }
+    }
+
+    public function testSearchScopeListenerGetsTheTenantSlugRequirements(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class'   => 'App\\Entity\\User',
+            'search'       => ['scope' => 'space'],
+            'tenant_paths' => [['path' => '/orgs/{spaceSlug}/wiki', 'name_prefix' => 'org_', 'slug_requirement' => 'org-[a-z]+--[a-z]+']],
+        ]], $container);
+
+        self::assertSame(['org-[a-z]+--[a-z]+'], $container->getDefinition(WikiSearchScopeListener::class)->getArgument('$slugRequirements'));
+    }
+
     public function testRegistersHtmlSanitizerAlias(): void
     {
         $container = new ContainerBuilder();
@@ -723,6 +750,7 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->getDefinition(WikiPageFactory::class)->getArgument('$importExportDialog'));
         $listener = $container->getDefinition(WikiSearchScopeListener::class);
         self::assertSame('app_wiki_search', $listener->getArgument('$routeName'));
+        self::assertSame([], $listener->getArgument('$slugRequirements'));
         self::assertSame([['event' => KernelEvents::REQUEST, 'priority' => 30]], $listener->getTag('kernel.event_listener'));
         self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$moderationPanel'));
         self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$errorNotices'));

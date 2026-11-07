@@ -26,5 +26,6 @@
 | `src/DependencyInjection/WikiExtension.php` `registerAiServices()` | `ai.enabled` without `symfony/ai-bundle` | `symfony/ai-agent` is a dev dependency, so `AgentInterface` always exists in the test run |
 | `src/Interchange/WikiDocumentTreeReader.php` | `scandir()` returns `false` | Called only on directories just listed by the reader |
 | `src/Interchange/WikiArchiveHelper.php` `extractZip()` | `mkdir()` of the extraction dir fails | Fresh random dir under `sys_get_temp_dir()` |
-| `src/Interchange/WikiArchiveHelper.php` `extractZip()` | `ZipArchive::extractTo()` fails | Entries are validated first; only fails on a full or read-only disk |
+| `src/Interchange/WikiArchiveHelper.php` `writeEntry()` | `fwrite()` writes less | Only on a full or read-only disk |
 | `src/Interchange/WikiArchiveHelper.php` | `ZipArchive::statIndex()` returns `false` | Index comes from `0..numFiles-1` of an opened archive |
+| `src/Interchange/WikiArchiveHelper.php` `removeStaleTempFiles()` | `catch (Throwable)` | Only a concurrent sweep removing the same directory reaches it |

@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Interchange;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use PHPUnit\Framework\TestCase;
+
+use function strlen;
 
 final class WikiFrontMatterParserTest extends TestCase
 {
@@ -85,5 +88,30 @@ MD);
     public function testSerializeReturnsBodyOnlyWhenMetaEmpty(): void
     {
         self::assertSame('Plain body', (new WikiFrontMatterParser())->serialize([], 'Plain body'));
+    }
+
+    /** Audit GV-L3: parsed YAML costs many times its size, so a large block is refused before it is parsed. */
+    public function testRefusesFrontMatterOverTheLimit(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('exceeds the limit of 65536 bytes');
+
+        (new WikiFrontMatterParser())->parse("---\ntitle: x\nkey: " . str_repeat('a', WikiFrontMatterParser::MAX_FRONT_MATTER_BYTES) . "\n---\nBody");
+    }
+
+    public function testParsesFrontMatterAtTheLimit(): void
+    {
+        $head   = "title: x\nkey: ";
+        $parsed = (new WikiFrontMatterParser())->parse("---\n" . $head . str_repeat('a', WikiFrontMatterParser::MAX_FRONT_MATTER_BYTES - strlen($head)) . "\n---\nBody");
+
+        self::assertSame('x', $parsed['meta']['title']);
+        self::assertSame('Body', $parsed['body']);
+    }
+
+    public function testTwoRulesFarApartAreABodyNotAFrontMatter(): void
+    {
+        $content = "---\nA long paragraph. " . str_repeat('text ', 20000) . "\n---\nEnd";
+
+        self::assertSame(['meta' => [], 'body' => $content], (new WikiFrontMatterParser())->parse($content));
     }
 }

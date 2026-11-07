@@ -74,11 +74,13 @@ final class WikiQuotaCheckEvent extends Event
      */
     public function deny(string $reason = ''): void
     {
-        // Audit GV-I3 / I4: invalid UTF-8 is scrubbed so the text survives; controls become a space, format characters
-        // (bidi overrides, zero-width) go.
-        $text = preg_replace(['/\p{Cc}+/u', '/\p{Cf}+/u'], [' ', ''], mb_scrub($reason, 'UTF-8'));
+        // Audit GV-I3 / I4 / I8: invalid UTF-8 is scrubbed so the text survives; controls and line separators become a
+        // space; format characters (bidi overrides, zero-width) go, except the joiners that emoji and Persian text need.
+        $text = preg_replace(['/[\p{Cc}\p{Zl}\p{Zp}]+/u', '/[^\P{Cf}\x{200C}\x{200D}]+/u'], [' ', ''], mb_scrub($reason, 'UTF-8'));
+        // Joiners alone are no text: such a reason falls to the default, like any other format-only one.
+        $text = trim((string) $text);
         // @igor-ignore - Request-scoped event, created per dispatch and excluded from the services; no worker state.
-        $this->reason = mb_substr(trim((string) $text), 0, self::MAX_REASON);
+        $this->reason = mb_substr(trim($text, "\u{200C}\u{200D} ") === '' ? '' : $text, 0, self::MAX_REASON);
         $this->stopPropagation();
     }
 

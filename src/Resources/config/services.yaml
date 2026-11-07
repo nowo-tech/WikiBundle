@@ -46,6 +46,15 @@ services:
         arguments:
             $userClass: '%nowo_wiki.user_class%'
 
+    # Audit GV-L3: the per-document limit of an import.
+    Nowo\WikiBundle\Interchange\WikiArchiveHelper:
+        arguments:
+            $maxDocumentBytes: '%nowo_wiki.import_export.max_document_bytes%'
+
+    Nowo\WikiBundle\Interchange\WikiMarkdownFileReader:
+        arguments:
+            $maxDocumentBytes: '%nowo_wiki.import_export.max_document_bytes%'
+
     # REQ-OBS-001: import / export / archive log start, success and failure on the nowo_wiki channel.
     Nowo\WikiBundle\Interchange\WikiDocumentImporter:
         arguments:

@@ -950,6 +950,8 @@ final class WikiManageController extends AbstractController
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
+        // @igor-ignore - Not shared worker service state.
+        $this->archiveHelper->removeAtShutdown($zipTempPath);
 
         try {
             // 1.21 (audit GV-M1): the host is asked for every Markdown document of the archive; a refusal writes nothing.
