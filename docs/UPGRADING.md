@@ -90,7 +90,7 @@ Use your `table_prefix`. Existing logs are named the first time a client reads t
 - **`nowo_wiki.page.saved` listeners** now also run inside the transaction of a session save from Milkdown 1.12, with the log locked, and of a confirmed Replace. Keep them fast. If one throws, nothing is saved.
 - **`state`** answers `epoch`, and hub messages `u` and `r` carry `e`. A custom relay that rebuilds messages must keep it.
 - **A host's own `collaboration.store`** keeps today's behaviour. Implement `WikiCollabEpochStoreInterface` to close it.
-- **Residual:** a tab that never bound (hub down, standalone), opened before a Replace, with nothing unsaved on the new log, saves with no ask: plain last-write-wins, to be closed by `base_revision` in the REST API.
+- **Residual:** a tab that never bound (hub down, standalone), opened before a Replace, or reloaded in Firefox, which restores its old text, with nothing unsaved on the new log, saves with no ask: plain last-write-wins, to be closed by `base_revision` in the REST API.
 
 With co-editing enabled:
 
