@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.21.1](#to-1211)
 - [To 1.21.0](#to-1210)
 - [To 1.20.0](#to-1200)
 - [To 1.19.1](#to-1191)
@@ -66,6 +67,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.21.1
+
+From **1.21.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 **Security (audit GV-M2).** Every published version with `WikiArchiveHelper`, from 1.0.0 on, writes what a ZIP really holds, not what it declares (measured on 1.0.0, 1.4.1, 1.5.0, 1.20.0 and 1.21.0). A user with the `Import` right can write about 1000 times the upload to the temp dir. Until you upgrade:
 
