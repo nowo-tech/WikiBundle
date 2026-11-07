@@ -75,6 +75,7 @@ With co-editing enabled:
 - **Templates:** a host template that replaces `nowo_ui_content` without `parent()` must print `collab_conflict` (the banner and the "Replace for everyone" button: include `@NowoWikiBundle/manage/_collab_conflict.html.twig` with `collab_conflict` and `bundle`) and pass `page.formAttributes` to `form_start`; otherwise the person gets a 409 with no message beyond the flash and no way out.
 - **Order:** add the column before deploying the code.
 - **Listeners:** with co-editing on, a `nowo_wiki.page.saved` listener runs inside the transaction of a save outside the session or a restore, with the page's log locked. Keep it fast. If it throws, nothing is saved.
+- **Exceptions:** a host calling `WikiPageService::saveRevision()`, `restore()` or `convertToMarkdown()` and catching `UniqueConstraintViolationException` or `RetryableException` for a lost race must catch `Nowo\WikiBundle\Service\WikiRevisionCollisionException` too. Nothing was written, and the database error is its `getPrevious()`. A failure after the revision is written, or in a listener, keeps its own type.
 - **Restore:** a restore over unsaved updates now asks on a page of its own, also a 409, and `restoreRevision()` returns `Response`.
 - A host with its own `collaboration.store` needs nothing: without `savedSeq` every update counts as unsaved. To avoid asking after a session save, fill `savedSeq` in `WikiCollabState` and record it in `markSaved()`; implement `WikiCollabLockingStoreInterface` so an update cannot land between the check and the drop.
 

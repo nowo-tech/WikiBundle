@@ -132,6 +132,7 @@ final readonly class WikiPageService
      *                       {@see WikiPageRevision::FORMAT_MARKDOWN} (1.11)
      *
      * @throws InvalidArgumentException when the page is archived or the format is unknown
+     * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
      *
      * @return WikiPageRevision the new revision
      */
@@ -165,6 +166,7 @@ final readonly class WikiPageService
      * @param object $actor user who restores it
      *
      * @throws InvalidArgumentException when the page is archived or the revision belongs to another page
+     * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
      *
      * @return WikiPageRevision the new revision
      */
@@ -206,6 +208,8 @@ final readonly class WikiPageService
      * @param WikiPage $page page to convert
      * @param string $markdown Markdown of the current HTML revision
      * @param object $actor user recorded as revision author
+     *
+     * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
      *
      * @return WikiPageRevision the new Markdown revision
      */
