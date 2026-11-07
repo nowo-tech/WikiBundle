@@ -232,10 +232,13 @@ final readonly class WikiCollabService
     public function state(WikiPage $page, UserInterface $user, ?Request $request = null): array
     {
         $this->limit($page, $user);
+        // The name first (audit HV-M2): a reset between the reads then gives the old name with the new log, whose posts are
+        // refused. The other order gives the old log with the new name, whose posts are not.
+        $named = $this->store instanceof WikiCollabEpochStoreInterface ? ['epoch' => $this->store->epoch($page->getId())] : [];
         $state = $this->store->load($page->getId());
         $me    = $request instanceof Request ? $this->claimant($request, $user) : $user->getUserIdentifier();
 
-        return ($this->store instanceof WikiCollabEpochStoreInterface ? ['epoch' => $this->store->epoch($page->getId())] : []) + [
+        return $named + [
             'state'   => $state->snapshot ?? self::EMPTY_STATE,
             'updates' => $state->updates,
             'seq'     => $state->seq,
@@ -399,8 +402,10 @@ final readonly class WikiCollabService
 
         try {
             $saved = $this->store instanceof WikiCollabLockingStoreInterface ? $this->store->whileLocked($page->getId(), $work) : $work();
-        } catch (RetryableException $exception) {
+        } catch (RetryableException|DriverException $exception) {
             // Lost a race under the lock: the transaction rolled back, so nothing was written.
+            $this->rethrowUnlessLockLost($exception);
+
             throw new WikiRevisionCollisionException('The save lost a race with another one.', 0, $exception);
         } finally {
             $request->attributes->remove(self::LOG_HANDLED_ATTRIBUTE);
@@ -446,7 +451,9 @@ final readonly class WikiCollabService
 
                 return true;
             });
-        } catch (RetryableException $exception) {
+        } catch (RetryableException|DriverException $exception) {
+            $this->rethrowUnlessLockLost($exception);
+
             throw new WikiRevisionCollisionException('The save lost a race with another one.', 0, $exception);
         }
     }

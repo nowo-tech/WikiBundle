@@ -9,7 +9,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabEpochStoreInterface;
 /**
  * {@see NumberedInMemoryCollabStateStore} that names its logs, as the bundled store does. `$locks` counts the lock taken.
  */
-final class EpochInMemoryCollabStateStore extends NumberedInMemoryCollabStateStore implements WikiCollabEpochStoreInterface
+class EpochInMemoryCollabStateStore extends NumberedInMemoryCollabStateStore implements WikiCollabEpochStoreInterface
 {
     /** @var array<string, string> */
     public array $epochs = [];

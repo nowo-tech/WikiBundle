@@ -951,6 +951,77 @@ final class WikiCollabServiceTest extends TestCase
         self::assertSame($first['epoch'], $this->service()->state($this->page, $this->user)['epoch']);
     }
 
+    /**
+     * Audit HV-M2, forced: a reset lands between the two reads of `state`. The old log must never come with the new name,
+     * because that client's posts would then be accepted and undo the reset.
+     */
+    public function testAResetDuringStateNeverGivesTheOldLogTheNewName(): void
+    {
+        $store = new class extends EpochInMemoryCollabStateStore {
+            public bool $armed = false;
+
+            public function epoch(string $pageId): string
+            {
+                $name = parent::epoch($pageId);
+                $this->fire($pageId);
+
+                return $name;
+            }
+
+            public function load(string $pageId): WikiCollabState
+            {
+                $state = parent::load($pageId);
+                $this->fire($pageId);
+
+                return $state;
+            }
+
+            private function fire(string $pageId): void
+            {
+                if ($this->armed) {
+                    $this->armed = false;
+                    $this->reset($pageId, 'rev');
+                }
+            }
+        };
+        $this->store = $store;
+        $service     = $this->service();
+        $old         = $service->state($this->page, $this->user)['epoch'];
+        $store->append($this->page->getId(), 'T0xE');
+
+        $store->armed = true;
+        $answer       = $service->state($this->page, $this->user);
+
+        self::assertSame($old, $answer['epoch'], 'The name is read first, before the reset.');
+        self::assertSame([], $answer['updates'], 'The log is read after it.');
+    }
+
+    /** Audit HV-I8: PostgreSQL's `lock_timeout` under the lock is a lost race, with the collision's message, not a 500. */
+    public function testALockTimeoutUnderTheLockIsACollision(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $epoch       = $service->state($this->page, $this->user)['epoch'];
+        $timeout     = new DriverException($this->driverError('55P03'), null);
+
+        foreach ([
+            fn () => $service->saveOutsideSession(new Request(), $this->page, static fn () => throw $timeout, true),
+            fn () => $service->saveInEpoch($this->page, $epoch, static fn () => throw $timeout),
+        ] as $save) {
+            try {
+                $save();
+                self::fail('Expected the collision.');
+            } catch (WikiRevisionCollisionException $e) {
+                self::assertSame($timeout, $e->getPrevious());
+            } catch (DriverException) {
+                self::fail('A lock timeout must not answer a 500.');
+            }
+        }
+
+        $this->expectException(DriverException::class);
+        $service->saveInEpoch($this->page, $epoch, fn () => throw new DriverException($this->driverError('42000'), null));
+    }
+
     /** Audit HV-M1: the old document of a tab that was away never reaches the new log. */
     public function testAnUpdateFromAnotherLogIsRefusedAndStoresNothing(): void
     {
