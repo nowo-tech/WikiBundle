@@ -125,6 +125,7 @@ wiki:
       invalid_slug: "Der Seitentitel ergibt keine gültige Adresse; verwenden Sie Buchstaben oder Ziffern."
       slug_exists: "In diesem Bereich gibt es bereits eine Seite mit diesem Titel."
       save_failed: "Die Seite konnte nicht gespeichert werden: %reason%"
+      save_collision: "Nicht gespeichert: Jemand anderes hat diese Seite im selben Moment gespeichert. Dein Text ist noch hier; speichere erneut."
   form:
     title: Titel
     content: Inhalt

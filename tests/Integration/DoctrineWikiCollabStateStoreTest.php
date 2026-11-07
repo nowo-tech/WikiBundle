@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Integration;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
+use Doctrine\DBAL\Exception\DeadlockException;
+use Doctrine\DBAL\Exception\DriverException;
+use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Platforms\MariaDBPlatform;
 use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Platforms\OraclePlatform;
@@ -317,6 +321,38 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
             return 'done';
         }));
         self::assertTrue($this->store->info('p8')->isEmpty());
+    }
+
+    /**
+     * Audit HO-L4: a MySQL deadlock ends the whole transaction, so an inner rollback fails with 1305 and hides it. The
+     * caller gets a deadlock, and the connection, which a worker reuses, is left with no open transaction. The server
+     * side is forced here: a real ROLLBACK under an open savepoint.
+     */
+    public function testALostTransactionIsADeadlockAndLeavesTheConnectionClean(): void
+    {
+        $this->store->reset('p7', 'rev-1');
+        $connection = $this->em->getConnection();
+        $driver     = new class('SAVEPOINT DOCTRINE_2 does not exist', 1305) extends RuntimeException implements DriverExceptionInterface {
+            public function getSQLState(): string
+            {
+                return '42000';
+            }
+        };
+
+        try {
+            $this->store->whileLocked('p7', static function () use ($connection, $driver): void {
+                $connection->beginTransaction();
+                $connection->executeStatement('ROLLBACK');
+
+                throw new DriverException($driver, null);
+            });
+            self::fail('Expected the exception.');
+        } catch (RetryableException $e) {
+            self::assertInstanceOf(DeadlockException::class, $e);
+        }
+
+        self::assertFalse($connection->isTransactionActive());
+        self::assertSame(0, $connection->getTransactionNestingLevel());
     }
 
     /** Audit HF-M1: what no revision holds yet, through every step of a log's life. */

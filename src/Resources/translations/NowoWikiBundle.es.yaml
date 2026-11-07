@@ -125,6 +125,7 @@ wiki:
       invalid_slug: "El título de la página da una dirección no válida; usa letras o números."
       slug_exists: "Ya existe una página con este título en este espacio."
       save_failed: "No se pudo guardar la página: %reason%"
+      save_collision: "No guardado: otra persona guardó esta página en ese mismo momento. Tu texto sigue aquí; guarda de nuevo."
   form:
     title: Título
     content: Contenido

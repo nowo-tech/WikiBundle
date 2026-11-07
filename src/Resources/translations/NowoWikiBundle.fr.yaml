@@ -125,6 +125,7 @@ wiki:
       invalid_slug: "Le titre de la page donne une adresse invalide ; utilisez des lettres ou des chiffres."
       slug_exists: "Une page avec ce titre existe déjà dans cet espace."
       save_failed: "La page n'a pas pu être enregistrée : %reason%"
+      save_collision: "Non enregistré : quelqu'un d'autre a enregistré cette page au même moment. Votre texte est toujours ici ; enregistrez à nouveau."
   form:
     title: Titre
     content: Contenu

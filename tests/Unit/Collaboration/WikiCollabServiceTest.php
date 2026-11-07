@@ -23,6 +23,8 @@ use Nowo\WikiBundle\Tests\Support\CountingInMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
@@ -603,13 +605,11 @@ final class WikiCollabServiceTest extends TestCase
         };
         $collab = new WikiCollabService($store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
         $page   = $this->page;
-        $user   = $this->user;
         $store->reset($page->getId(), 'rev-1');
 
-        $saved = $collab->saveOutsideSession($page, static function () use ($collab, $store, $page, $user): void {
+        $saved = $collab->saveOutsideSession(new Request(), $page, static function () use ($store, $page): void {
             self::assertTrue($store->locked, 'The save runs inside the lock.');
             $store->append($page->getId(), 'cGVlcg==');
-            $collab->replaced($page, new WikiPageRevision($page, 2, '<p>x</p>', $user, 'x'));
         });
 
         self::assertTrue($saved);
@@ -621,7 +621,77 @@ final class WikiCollabServiceTest extends TestCase
         $collab = new WikiCollabService($this->store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
         $this->store->append($this->page->getId(), 'dQ==');
 
-        self::assertFalse($collab->saveOutsideSession($this->page, static fn () => self::fail('Must not save.')));
+        self::assertFalse($collab->saveOutsideSession(new Request(), $this->page, static fn () => self::fail('Must not save.')));
+    }
+
+    /** Audit HO-M1: live editors hear of the reset after the commit, so a slow hub holds no lock. */
+    public function testTheResetIsPublishedAfterTheLockIsReleased(): void
+    {
+        $store = new class extends InMemoryCollabStateStore implements WikiCollabLockingStoreInterface {
+            public bool $locked = false;
+
+            public function whileLocked(string $pageId, callable $work): mixed
+            {
+                $this->locked = true;
+                $result       = $work();
+                $this->locked = false;
+
+                return $result;
+            }
+        };
+        $lockedAtPublish = [];
+        $publisher       = $this->createMock(WikiCollabPublisherInterface::class);
+        $publisher->expects(self::once())->method('publish')->willReturnCallback(static function () use ($store, &$lockedAtPublish): void {
+            $lockedAtPublish[] = $store->locked;
+        });
+        $collab = new WikiCollabService($store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
+        $store->reset($this->page->getId(), 'rev-1');
+
+        $request = new Request();
+        self::assertTrue($collab->saveOutsideSession($request, $this->page, function () use ($request): void {
+            self::assertSame($this->page->getId(), $request->attributes->get(WikiCollabService::LOG_HANDLED_ATTRIBUTE));
+        }));
+
+        self::assertSame([false], $lockedAtPublish);
+        self::assertTrue($store->info($this->page->getId())->isEmpty(), 'The log is reset under the lock.');
+        self::assertFalse($request->attributes->has(WikiCollabService::LOG_HANDLED_ATTRIBUTE));
+    }
+
+    /** Audit HO-M1: a hub that fails does not undo the save, on any path that resets the log, and it is logged. */
+    public function testAHubFailureDoesNotUndoTheSave(): void
+    {
+        $publisher = $this->createStub(WikiCollabPublisherInterface::class);
+        $publisher->method('publish')->willThrowException(new RuntimeException('Failed to send an update.'));
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects(self::exactly(2))->method('error');
+        $collab = new WikiCollabService($this->store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret', logger: $logger);
+
+        $this->store->reset($this->page->getId(), 'rev-1');
+        self::assertTrue($collab->saveOutsideSession(new Request(), $this->page, static function (): void {}));
+
+        // Confirmed Replace and the other writes: through the listener, with nothing locked.
+        $this->store->reset($this->page->getId(), 'rev-1');
+        $collab->replaced($this->page, new WikiPageRevision($this->page, 2, '<p>x</p>', $this->user, 'x'));
+        self::assertTrue($this->store->info($this->page->getId())->isEmpty());
+    }
+
+    public function testASaveThatThrowsPublishesNothing(): void
+    {
+        $publisher = $this->createMock(WikiCollabPublisherInterface::class);
+        $publisher->expects(self::never())->method('publish');
+        $collab = new WikiCollabService($this->store, $publisher, $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
+        $this->store->reset($this->page->getId(), 'rev-1');
+        $request = new Request();
+
+        try {
+            $collab->saveOutsideSession($request, $this->page, static function (): void {
+                throw new RuntimeException('listener failed');
+            });
+            self::fail('Expected the exception.');
+        } catch (RuntimeException $e) {
+            self::assertSame('listener failed', $e->getMessage());
+        }
+        self::assertFalse($request->attributes->has(WikiCollabService::LOG_HANDLED_ATTRIBUTE));
     }
 
     /**

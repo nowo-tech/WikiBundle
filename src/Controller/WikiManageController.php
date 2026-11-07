@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Controller;
 
+use Doctrine\DBAL\Exception\RetryableException;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
@@ -507,8 +509,15 @@ final class WikiManageController extends AbstractController
             if ($payload->title !== '') {
                 $save = fn () => $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
                 // Audit HF-M1: outside the session this save would drop text others have only in the shared log.
-                if (!$this->saveUnlessItMustAsk($request, $page, $inSession, $save)) {
-                    return $this->saveConflict($user, $space, $page, $comments, $payload);
+                try {
+                    if (!$this->saveUnlessItMustAsk($request, $page, $inSession, $save)) {
+                        return $this->saveConflict($user, $space, $page, $comments, $payload);
+                    }
+                } catch (RetryableException|UniqueConstraintViolationException) {
+                    // Audit HO-L4: lost a race with another save. Nothing was written; the text stays with the person.
+                    $this->flash('error', 'wiki.page.error.save_collision');
+
+                    return $this->pageFormAgain($user, $space, $page, $comments, $payload, null);
                 }
 
                 return $this->redirectToRoute($this->routes['page_view']['name'], [
@@ -546,7 +555,7 @@ final class WikiManageController extends AbstractController
             return true;
         }
 
-        return $this->collab->saveOutsideSession($page, $save);
+        return $this->collab->saveOutsideSession($request, $page, $save);
     }
 
     /**
@@ -560,6 +569,22 @@ final class WikiManageController extends AbstractController
     private function saveConflict(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload): Response
     {
         $this->flash('warning', 'wiki.collab.conflict_title');
+
+        return $this->pageFormAgain($user, $space, $page, $comments, $payload, [
+            'form_id'      => self::CONFLICT_FORM_ID,
+            'replace_name' => WikiCollabService::REPLACE_FIELD,
+            'live_url'     => $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]),
+        ]);
+    }
+
+    /**
+     * The page form with what the person submitted, in an editor outside the shared session, nothing saved.
+     *
+     * @param Panel|null $comments the comments panel
+     * @param array{form_id: string, replace_name: string, live_url: string}|null $conflict the way out of a save conflict
+     */
+    private function pageFormAgain(UserInterface $user, WikiSpace $space, WikiPage $page, ?array $comments, WikiPageFormData $payload, ?array $conflict): Response
+    {
         $form = $this->createForm(WikiPageFormType::class, $payload, [
             'csrf_token_id'  => 'wiki_edit_' . $page->getId(),
             'editor_options' => $this->pageEditorOptions($user, $space, $page, $comments, false),
@@ -568,16 +593,12 @@ final class WikiManageController extends AbstractController
 
         return $this->renderPage('page_edit', [
             'comments'        => $comments,
-            'page'            => $this->pages()->pageForm($space, $page, $form->createView(), null, ['history' => $canHistory], ['id' => self::CONFLICT_FORM_ID]),
+            'page'            => $this->pages()->pageForm($space, $page, $form->createView(), null, ['history' => $canHistory], $conflict !== null ? ['id' => $conflict['form_id']] : []),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_edit_' . $page->getId(),
             'editor_type'     => $this->editorType(),
-            'collab_conflict' => [
-                'form_id'      => self::CONFLICT_FORM_ID,
-                'replace_name' => WikiCollabService::REPLACE_FIELD,
-                'live_url'     => $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]),
-            ],
+            'collab_conflict' => $conflict,
         ], null, ['Cache-Control' => 'private, no-store'], Response::HTTP_CONFLICT);
     }
 
@@ -853,8 +874,15 @@ final class WikiManageController extends AbstractController
         }
 
         // Audit HO-L3: a restore replaces the document, so it asks as a save outside the session does.
-        if (!$this->saveUnlessItMustAsk($request, $page, false, fn () => $this->pageService->restore($page, $revision, $user))) {
-            return $this->restoreConflict($space, $page, $revisionNumber);
+        try {
+            if (!$this->saveUnlessItMustAsk($request, $page, false, fn () => $this->pageService->restore($page, $revision, $user))) {
+                return $this->restoreConflict($space, $page, $revisionNumber);
+            }
+        } catch (RetryableException|UniqueConstraintViolationException) {
+            // Audit HO-L4: lost a race with another save. Nothing was written, and the person can press Restore again.
+            $this->flash('error', 'wiki.page.error.save_collision');
+
+            return $this->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
         }
         $this->flash('success', 'wiki.history.restored');
 

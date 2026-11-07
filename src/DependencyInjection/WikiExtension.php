@@ -735,6 +735,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         // 1.16: the comment writes publish their thread ids through the same publisher.
         $container->setAlias(WikiCollabPublisherInterface::class, $publisher);
         $container->setDefinition(WikiCollabService::class, (new Definition(WikiCollabService::class))
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
             ->setArgument('$store', new Reference($store))
             ->setArgument('$publisher', new Reference($publisher))
             ->setArgument('$authorizer', new Reference($authorizer))

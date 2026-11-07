@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Collaboration;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception as DbalException;
+use Doctrine\DBAL\Exception\DeadlockException;
+use Doctrine\DBAL\Exception\DriverException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\LockMode;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
@@ -36,6 +40,9 @@ use const PHP_INT_MAX;
  */
 final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface, WikiCollabLockingStoreInterface
 {
+    /** MySQL and MariaDB: `SAVEPOINT ... does not exist`. */
+    private const MYSQL_SAVEPOINT_MISSING = 1305;
+
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki entity manager (or its provider)
      */
@@ -88,9 +95,30 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
 
             return $result;
         } catch (Throwable $exception) {
-            $connection->rollBack();
+            $this->abandonTransaction($connection);
+
+            // MySQL ends the whole transaction on a deadlock, savepoints too, so an inner rollback fails with this code
+            // and hides the deadlock: name it again for the caller (audit HO-L4).
+            if ($exception instanceof DriverException && $exception->getCode() === self::MYSQL_SAVEPOINT_MISSING) {
+                throw new DeadlockException($exception, $exception->getQuery());
+            }
 
             throw $exception;
+        }
+    }
+
+    /**
+     * Leaves no open transaction on the connection, which a worker reuses. When a savepoint is gone a rollback cannot
+     * count the nesting down; closing resets it, the server has already rolled back, and the next query reconnects.
+     */
+    private function abandonTransaction(Connection $connection): void
+    {
+        try {
+            while ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+        } catch (DbalException) {
+            $connection->close();
         }
     }
 

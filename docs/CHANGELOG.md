@@ -64,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Co-editing: a save outside the shared session no longer loses the others' text (audit HF-M1).** A page form saved with no live session (hub down, editor standalone or offline) while the shared log holds updates no version has now saves nothing and answers 409: the person's title and text stay in the form, in an editor outside the session, with a link to the live version and a "Replace for everyone" button. Before, the save dropped the log. New option `collaboration.save_conflict` (default `true`; `false` keeps the old behaviour). A restore asks the same way, on a page of its own. The check, the write and the drop run with the log locked, so an update waits rather than being lost between them. Imports, conversions, host calls, the console and `wiki:collab:purge` still replace the document without asking.
+- A hub that fails while a reset is published no longer answers 500: the failure is logged and the save stands (audit HO-M1).
+- The loser of two simultaneous saves (a deadlock or a duplicate revision number) gets the form back with the text and a message, not a 500 (audit HO-L4).
 - `countDirectories()` counts the whole path of an entry ending in `/.` (audit GV-I17).
 
 ### Added

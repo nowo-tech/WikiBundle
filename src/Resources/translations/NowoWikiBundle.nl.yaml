@@ -125,6 +125,7 @@ wiki:
       invalid_slug: "De paginatitel levert een ongeldig adres op; gebruik letters of cijfers."
       slug_exists: "Er bestaat al een pagina met deze titel in deze ruimte."
       save_failed: "De pagina kon niet worden opgeslagen: %reason%"
+      save_collision: "Niet opgeslagen: iemand anders heeft deze pagina op hetzelfde moment opgeslagen. Je tekst staat er nog; sla opnieuw op."
   form:
     title: Titel
     content: Inhoud

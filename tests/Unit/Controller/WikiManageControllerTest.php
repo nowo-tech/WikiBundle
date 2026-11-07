@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Controller;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Exception\DeadlockException;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
@@ -86,6 +89,7 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Component\Translation\TranslatableMessage;
+use Throwable;
 use ZipArchive;
 
 use function array_column;
@@ -897,6 +901,54 @@ final class WikiManageControllerTest extends TestCase
         self::assertSame(Response::HTTP_FOUND, $confirmed->getStatusCode());
     }
 
+    /**
+     * Audit HO-L4: the loser of two saves gets the form back with the text and a message, on either exception.
+     *
+     * @return iterable<string, array{Throwable}>
+     */
+    public static function saveCollisions(): iterable
+    {
+        $driver = new class('collision') extends RuntimeException implements DriverException {
+            public function getSQLState(): ?string
+            {
+                return null;
+            }
+        };
+
+        yield 'deadlock' => [new DeadlockException($driver, null)];
+        yield 'duplicate revision number' => [new UniqueConstraintViolationException($driver, null)];
+    }
+
+    #[DataProvider('saveCollisions')]
+    public function testLosingARaceKeepsTheTextAndSaysSo(Throwable $collision): void
+    {
+        $revisions = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisions->method('getNextRevisionNumber')->willReturn(2);
+        $revisions->method('save')->willThrowException($collision);
+        [$controller, , , $twig, $post, , , $container] = $this->collabEditPage(revisions: $revisions);
+
+        $response = $controller->editPage($post([]), 'eng', 'welcome');
+
+        self::assertSame(Response::HTTP_CONFLICT, $response->getStatusCode());
+        self::assertSame('Hi there', $twig->context['page']->form->children['content']->vars['value']);
+        self::assertNull($twig->context['collab_conflict'], 'No "Replace for everyone": nobody has unsaved updates.');
+        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.page.error.save_collision');
+    }
+
+    #[DataProvider('saveCollisions')]
+    public function testLosingARaceOnARestoreSaysSo(Throwable $collision): void
+    {
+        $revisions = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisions->method('getNextRevisionNumber')->willReturn(2);
+        $revisions->method('save')->willThrowException($collision);
+        [$controller, $page, , , , , , $container] = $this->collabEditPage(revisions: $revisions);
+        $revisions->method('findByPageAndNumber')->willReturn($page->getCurrentRevision());
+        $token = WikiControllerContainerBuilder::csrfToken($container, 'wiki_restore_' . $page->getId());
+
+        self::assertSame(Response::HTTP_FOUND, $controller->restoreRevision(Request::create('/r', 'POST', ['_token' => $token]), 'eng', 'welcome', 1)->getStatusCode());
+        $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.page.error.save_collision');
+    }
+
     public function testARestoreWithNothingUnsavedDoesNotAsk(): void
     {
         [$controller, $page, , , , , , $container] = $this->collabEditPage();
@@ -971,7 +1023,7 @@ final class WikiManageControllerTest extends TestCase
      *
      * @return array{WikiManageController, WikiPage, InMemoryCollabStateStore, object, callable(array<string, string>): Request, MockObject&WikiCollabPublisherInterface, WikiCollabService, Container}
      */
-    private function collabEditPage(array $options = [], bool $collaboration = true): array
+    private function collabEditPage(array $options = [], bool $collaboration = true, ?WikiPageRevisionRepositoryInterface $revisions = null): array
     {
         $user  = new TestUser('user-1');
         $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
@@ -988,9 +1040,11 @@ final class WikiManageControllerTest extends TestCase
         $this->routes['page_restore'] = ['path' => '/restore', 'name' => 'nowo_wiki_page_restore'];
         $twig                         = $this->capturingTwig();
 
-        $revisions = $this->createMock(WikiPageRevisionRepositoryInterface::class);
-        $revisions->method('findByPageAndNumber')->willReturn($page->getCurrentRevision());
-        $revisions->method('getNextRevisionNumber')->willReturn(2);
+        if ($revisions === null) {
+            $revisions = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+            $revisions->method('findByPageAndNumber')->willReturn($page->getCurrentRevision());
+            $revisions->method('getNextRevisionNumber')->willReturn(2);
+        }
 
         $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisions, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null);
         $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);

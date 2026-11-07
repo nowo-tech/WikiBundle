@@ -10,10 +10,12 @@ use LogicException;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Throwable;
 
 use function base64_decode;
 use function count;
@@ -64,6 +66,9 @@ final readonly class WikiCollabService
     /** Field of the "Replace for everyone" button: a save outside the session that may drop unsaved updates. */
     public const REPLACE_FIELD = '_nowo_wiki_collab_replace';
 
+    /** Request attribute (page id): the save is inside {@see self::saveOutsideSession()}, which handles the log itself. */
+    public const LOG_HANDLED_ATTRIBUTE = '_nowo_wiki_collab_log_handled';
+
     /** Request attribute (the page id) of a save made from a live session; read by {@see WikiCollabSaveListener}. */
     public const SESSION_SAVE_ATTRIBUTE = '_nowo_wiki_collab_session_save';
 
@@ -103,6 +108,7 @@ final readonly class WikiCollabService
      * @param string $secret key of the per-page pseudonyms "Editor xxxx" (`kernel.secret`, 1.13.1, DA-L2)
      * @param RateLimiterFactory|null $updateRateLimiter per user and page for `update` (1.14.1; null: `$rateLimiter`)
      * @param RateLimiterFactory|null $awarenessRateLimiter per user and page for `awareness` (1.14.1; null: `$rateLimiter`)
+     * @param LoggerInterface|null $logger logs a reset that could not be published
      */
     public function __construct(
         private WikiCollabStateStoreInterface $store,
@@ -114,6 +120,7 @@ final readonly class WikiCollabService
         private string $secret = '',
         private ?RateLimiterFactory $updateRateLimiter = null,
         private ?RateLimiterFactory $awarenessRateLimiter = null,
+        private ?LoggerInterface $logger = null,
     ) {
         /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool, save_conflict: bool} $merged */
         $merged        = $options + self::DEFAULTS;
@@ -298,26 +305,46 @@ final readonly class WikiCollabService
     }
 
     /**
-     * Runs a save made outside the live session unless it has to ask first; the check, the save and the drop that
-     * follows it happen with the log locked, so an update waits and is not lost between them (audit HO-L1). A host's
-     * store without {@see WikiCollabLockingStoreInterface} runs them unlocked.
+     * Runs a save made outside the live session unless it has to ask first. The check, the save and the reset of the log
+     * happen with the log locked, so an update waits and is not lost between them (audit HO-L1); a host's store without
+     * {@see WikiCollabLockingStoreInterface} runs them unlocked. Live editors hear of the reset after the commit, so a
+     * hub that fails cannot undo the save and a slow one holds no lock (audit HO-M1).
      *
+     * @param Request $request the request: {@see WikiCollabSaveListener} leaves the log to this method
      * @param callable(): mixed $save
      *
      * @return bool false: nothing was saved, the person has to confirm
      */
-    public function saveOutsideSession(WikiPage $page, callable $save): bool
+    public function saveOutsideSession(Request $request, WikiPage $page, callable $save): bool
     {
-        $work = function () use ($page, $save): bool {
+        $request->attributes->set(self::LOG_HANDLED_ATTRIBUTE, $page->getId());
+        $reset = false;
+        $work  = function () use ($page, $save, &$reset): bool {
             if ($this->blocksSaveOutsideSession($page)) {
                 return false;
             }
+
+            $hasLog = $this->store->info($page->getId())->updatedAt instanceof DateTimeImmutable;
             $save();
+            if ($hasLog) {
+                $this->store->reset($page->getId(), $page->getCurrentRevision()?->getId());
+                $reset = true;
+            }
 
             return true;
         };
 
-        return $this->store instanceof WikiCollabLockingStoreInterface ? $this->store->whileLocked($page->getId(), $work) : $work();
+        try {
+            $saved = $this->store instanceof WikiCollabLockingStoreInterface ? $this->store->whileLocked($page->getId(), $work) : $work();
+        } finally {
+            $request->attributes->remove(self::LOG_HANDLED_ATTRIBUTE);
+        }
+
+        if ($reset) {
+            $this->publishReset($page);
+        }
+
+        return $saved;
     }
 
     /**
@@ -433,7 +460,20 @@ final readonly class WikiCollabService
     private function drop(WikiPage $page, ?string $revisionId): void
     {
         $this->store->reset($page->getId(), $revisionId);
-        $this->publisher->publish($this->topic($page), json_encode(['t' => 'r', 'c' => 0, 'd' => ''], JSON_THROW_ON_ERROR));
+        $this->publishReset($page);
+    }
+
+    /**
+     * Tells live editors the log is gone. A failure is logged and goes no further: the log is already reset, and a save
+     * that has succeeded must not answer an error (audit HO-M1). Those editors stay on the old text until they reload.
+     */
+    private function publishReset(WikiPage $page): void
+    {
+        try {
+            $this->publisher->publish($this->topic($page), json_encode(['t' => 'r', 'c' => 0, 'd' => ''], JSON_THROW_ON_ERROR));
+        } catch (Throwable $exception) {
+            $this->logger?->error('Wiki co-editing reset could not be published.', ['bundle' => 'nowo_wiki', 'page' => $page->getId(), 'exception_class' => $exception::class]);
+        }
     }
 
     /**
