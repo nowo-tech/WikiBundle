@@ -16,20 +16,24 @@ use Nowo\MilkdownEditorBundle\Markdown\DialectRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Directive\DirectiveRendererInterface;
 use Nowo\MilkdownEditorBundle\Markdown\DocumentProcessor;
 use Nowo\MilkdownEditorBundle\Markdown\FootnoteGuard;
+use Nowo\MilkdownEditorBundle\Markdown\HostSchemes;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownDialectExtension;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Node\LeafDirective;
 use Nowo\MilkdownEditorBundle\Markdown\Node\Mention;
 use Nowo\MilkdownEditorBundle\Markdown\Node\TablerIcon;
 use Nowo\MilkdownEditorBundle\Markdown\Node\WikiLink;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\HostFileResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullPageResolver;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullUserResolver;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\PageResolverInterface;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\RenderContextProviderInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceParserInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Markdown\WikiRenderFrame;
 use Nowo\WikiBundle\Markdown\WikiTaskListNormalizer;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Psr\Log\LoggerInterface;
@@ -70,6 +74,12 @@ use function trim;
  * heading ids `nowo-h-<slug>` with the editor's slugs ({@see WikiHeadingIds}); table alignment as the
  * `nowo-wiki-align--left|center|right` class; leaf directives no host renders fall back to text or a safe link
  * ({@see WikiLeafDirectiveRenderer}).
+ *
+ * 1.25: the viewer environment resolves host file references — Milkdown's `host_schemes` and, with Milkdown 1.13's
+ * `host_url_patterns`, plain file URLs such as `/files/<uuid>/original` — through the host's
+ * `HostFileResolverInterface`, given the render's {@see WikiRenderFrame} (space, page,
+ * reach; {@see WikiMilkdownHostFileResolver}). A refused file reads *Content not visible*, without URL, alt text or name.
+ * With both keys empty nothing changes. The neutral environment never resolves them.
  */
 final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface, WikiMarkdownReferenceParserInterface, WikiMarkdownLimitsInterface
 {
@@ -101,6 +111,9 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      * @param iterable<ExtensionInterface> $extensions extensions tagged nowo_wiki.markdown_extension
      * @param TranslatorInterface|null $translator translates *Content not visible*
      * @param LoggerInterface|null $logger logs resolver failures (never content)
+     * @param HostSchemes|null $hostSchemes 1.25: Milkdown's host schemes and URL patterns (viewer only; null: none)
+     * @param HostFileResolverInterface|null $hostFiles 1.25: the host's file resolver (viewer only; null: every host reference is refused)
+     * @param RenderContextProviderInterface|null $renderContext 1.25: the render's frame for a contextual file resolver
      */
     public function __construct(
         array $options,
@@ -111,6 +124,9 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         iterable $extensions = [],
         ?TranslatorInterface $translator = null,
         ?LoggerInterface $logger = null,
+        ?HostSchemes $hostSchemes = null,
+        ?HostFileResolverInterface $hostFiles = null,
+        ?RenderContextProviderInterface $renderContext = null,
     ) {
         $this->maxInputLength   = $this->intOption($options, 'max_input_length', MilkdownMarkdownRenderer::DEFAULT_MAX_INPUT_LENGTH);
         $this->maxInlineMarkers = $this->intOption($options, 'max_inline_markers', MilkdownMarkdownRenderer::DEFAULT_MAX_INLINE_MARKERS);
@@ -120,7 +136,19 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         $neutral       = $this->environment($options, new NullPageResolver(), new NullUserResolver(), $icons, [], $extensions, $translator, $logger);
         $this->neutral = new MarkdownConverter($neutral);
         $this->parser  = new MarkdownParser($neutral);
-        $this->viewer  = new MarkdownConverter($this->environment($options, $pages, $users, $icons, iterator_to_array($directiveRenderers, false), $extensions, $translator, $logger));
+        $this->viewer  = new MarkdownConverter($this->environment(
+            $options,
+            $pages,
+            $users,
+            $icons,
+            iterator_to_array($directiveRenderers, false),
+            $extensions,
+            $translator,
+            $logger,
+            $hostSchemes ?? new HostSchemes(),
+            $hostFiles instanceof HostFileResolverInterface ? new WikiMilkdownHostFileResolver($hostFiles) : null,
+            $renderContext,
+        ));
     }
 
     public function render(string $markdown): string
@@ -191,6 +219,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      * @param array<string, mixed> $options
      * @param list<DirectiveRendererInterface> $directiveRenderers
      * @param list<ExtensionInterface> $extensions
+     * @param HostSchemes $hostSchemes host schemes and URL patterns (empty in the neutral environment)
      */
     private function environment(
         array $options,
@@ -201,6 +230,9 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         array $extensions,
         ?TranslatorInterface $translator,
         ?LoggerInterface $logger,
+        HostSchemes $hostSchemes = new HostSchemes(),
+        ?HostFileResolverInterface $hostFiles = null,
+        ?RenderContextProviderInterface $renderContext = null,
     ): Environment {
         $htmlInput   = $options['html_input'] ?? 'escape';
         $markColors  = $options['mark_colors'] ?? ['yellow'];
@@ -244,7 +276,18 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         $environment->addEventListener(DocumentParsedEvent::class, (new WikiHeadingIds())->onDocumentParsed(...), 0);
         $environment->addExtension(new MilkdownDialectExtension(
             new DialectRenderer($icons, $directiveRenderers, is_array($markColors) ? array_values(array_filter($markColors, is_string(...))) : ['yellow'], $translator),
-            new DocumentProcessor($pages, $users, $directiveRenderers, in_array($options['allow_remote_images'] ?? false, [true, 1, '1', 'true'], true), $logger, $this->maxReferences),
+            new DocumentProcessor(
+                $pages,
+                $users,
+                $directiveRenderers,
+                in_array($options['allow_remote_images'] ?? false, [true, 1, '1', 'true'], true),
+                $logger,
+                $this->maxReferences,
+                $hostSchemes,
+                $hostFiles,
+                renderContext: $renderContext,
+                hideRefusedLinks: ($options['host_refused_links'] ?? 'text') === 'hidden',
+            ),
             !in_array($options['math'] ?? true, [false, 0, '0', 'false', ''], true),
         ));
         foreach ($extensions as $extension) {
@@ -252,7 +295,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         }
 
         $environment->addRenderer(TablerIcon::class, new WikiTablerIconRenderer($icons), 10);
-        $environment->addRenderer(LeafDirective::class, new WikiLeafDirectiveRenderer($directiveRenderers), 10);
+        $environment->addRenderer(LeafDirective::class, new WikiLeafDirectiveRenderer($directiveRenderers, $translator), 10);
         $environment->addEventListener(DocumentParsedEvent::class, new WikiTaskListNormalizer(), -100);
 
         return $environment;

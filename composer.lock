@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "2563b29b74e9b9b7f5be85a3256b3f84",
+    "content-hash": "c7f399d2bdbb81870c6669883a9e84f4",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -7753,16 +7753,16 @@
         },
         {
             "name": "nowo-tech/milkdown-editor-bundle",
-            "version": "v1.12.0",
+            "version": "dev-feat/host-url-patterns",
             "source": {
                 "type": "git",
-                "url": "https://github.com/nowo-tech/MilkdownEditorBundle.git",
-                "reference": "0a3e4c3123fd542aaefda45ef6acaccc4cc360ec"
+                "url": "https://github.com/nowo-tech/MilkdownEditorBundle",
+                "reference": "a2560e7fffb41a14c1cf593162d48464cba7e934"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/0a3e4c3123fd542aaefda45ef6acaccc4cc360ec",
-                "reference": "0a3e4c3123fd542aaefda45ef6acaccc4cc360ec",
+                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/a2560e7fffb41a14c1cf593162d48464cba7e934",
+                "reference": "a2560e7fffb41a14c1cf593162d48464cba7e934",
                 "shasum": ""
             },
             "require": {
@@ -7813,7 +7813,66 @@
                     "Nowo\\MilkdownEditorBundle\\": "src/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "autoload-dev": {
+                "psr-4": {
+                    "Nowo\\MilkdownEditorBundle\\Tests\\": "tests/"
+                }
+            },
+            "archive": {
+                "exclude": [
+                    "/demo",
+                    "/.cursor",
+                    "/.github",
+                    "/.specify",
+                    "/specs",
+                    "/tests",
+                    "/node_modules",
+                    "/src/Resources/assets/tests"
+                ]
+            },
+            "scripts": {
+                "test": [
+                    "phpunit --colors=always"
+                ],
+                "test-coverage": [
+                    "phpunit --colors=always --coverage-html coverage --coverage-clover coverage.xml --coverage-text"
+                ],
+                "coverage-check": [
+                    "phpunit --colors=always --coverage-text --coverage-clover=coverage.xml"
+                ],
+                "cs-check": [
+                    "php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.dist.php"
+                ],
+                "cs-fix": [
+                    "php-cs-fixer fix --config=.php-cs-fixer.dist.php"
+                ],
+                "rector": [
+                    "rector process"
+                ],
+                "rector-dry": [
+                    "rector process --dry-run --no-progress-bar"
+                ],
+                "phpstan": [
+                    "phpstan analyse --memory-limit=1G"
+                ],
+                "twig:lint": [
+                    "twig-cs-fixer lint --config=.twig-cs-fixer.php"
+                ],
+                "twig:fix": [
+                    "twig-cs-fixer fix --config=.twig-cs-fixer.php"
+                ],
+                "composer-validate": [
+                    "composer validate --strict"
+                ],
+                "qa": [
+                    "@cs-check",
+                    "@phpstan",
+                    "@test"
+                ],
+                "igor": [
+                    "igor-php --no-agent ."
+                ]
+            },
             "license": [
                 "MIT"
             ],
@@ -7846,13 +7905,12 @@
                 "wysiwyg"
             ],
             "support": {
-                "changelog": "https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/CHANGELOG.md",
-                "docs": "https://github.com/nowo-tech/MilkdownEditorBundle/tree/main/docs",
                 "issues": "https://github.com/nowo-tech/MilkdownEditorBundle/issues",
-                "source": "https://github.com/nowo-tech/MilkdownEditorBundle"
+                "source": "https://github.com/nowo-tech/MilkdownEditorBundle",
+                "docs": "https://github.com/nowo-tech/MilkdownEditorBundle/tree/main/docs",
+                "changelog": "https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/CHANGELOG.md"
             },
-            "time": "2026-11-07T16:15:04+00:00",
-            "published-time": "2026-11-07T16:16:48+00:00"
+            "time": "2026-11-08T16:21:45+00:00"
         },
         {
             "name": "nowo-tech/phpstan-frankenphp",
@@ -12323,9 +12381,18 @@
             "published-time": "2026-10-05T23:14:25+00:00"
         }
     ],
-    "aliases": [],
+    "aliases": [
+        {
+            "package": "nowo-tech/milkdown-editor-bundle",
+            "version": "dev-feat/host-url-patterns",
+            "alias": "1.13.0",
+            "alias_normalized": "1.13.0.0"
+        }
+    ],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "nowo-tech/milkdown-editor-bundle": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

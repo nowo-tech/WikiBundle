@@ -64,6 +64,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Host files referenced by plain URL now respect the API's reach. Requested by Beacon after the 1.24 REST API audit
+(spec 218, Appendix IF): Milkdown pages reference Beacon files as `/files/<uuid>/original` or `/files/<uuid>/preview`,
+and the API's reader view (`WikiViewerMarkdownView`) returned those URLs and their alt texts even when the token's
+*where* excluded the file's wiki. The download endpoint still checked access, so no file bytes leaked. Needs
+nowo-tech/milkdown-editor-bundle **^1.13**. **Audit: re-verification pending.**
+
+### Security
+
+- **Host files follow the render's reach.** The per-viewer render of pages and comments (the UI page body and the API
+  reader view) resolves host file references through the host's Milkdown `HostFileResolverInterface`. This covers
+  Milkdown's `host_schemes` values and, with Milkdown 1.13's `host_url_patterns`, plain URLs such as
+  `/files/<uuid>/original`. The resolver gets the render's `WikiRenderFrame` (space, page, reach). A file the resolver
+  refuses reads *Content not visible*, with no URL, uuid, alt text, link text or card name.
+  - A resolver that is not a `ContextualHostFileResolverInterface` cannot see the reach, so under one (the API's
+    *where*) it resolves nothing.
+  - Without a reach (the UI), the output for a person who may see the files is unchanged.
+
+### Added
+
+- `nowo_wiki.editor.milkdown.host_files`: `auto` (default: only when Milkdown's `host_url_patterns` is set), `on` (also
+  with `host_schemes` alone) or `off` (as 1.24).
+- `WikiMilkdownRenderContext` (Milkdown `RenderContextProviderInterface`, gives the current `WikiRenderFrame`) and
+  `WikiMilkdownHostFileResolver` (wraps the host's resolver as described above).
+- `WikiLeafDirectiveRenderer` renders a refused `::file` card as Milkdown's neutral placeholder (translated `ref.hidden`).
+
+### Changed
+
+- `nowo-tech/milkdown-editor-bundle` constraint raised to **^1.13** (conflict `<1.13.0`).
+- `MilkdownWikiMarkdownRenderer` takes three optional trailing arguments (`$hostSchemes`, `$hostFiles`,
+  `$renderContext`), wired by the bundle. The neutral render (stored `content_html`, search, AI) never resolves host files.
+
 ## [1.24.0] - 2026-11-08
 
 REST API for wikis, pages, revisions, search, comments and files (spec 218, opt-in `api.enabled`), base-revision saves that answer 409 on a stale write, a reader's Markdown view, and page events after the co-editing commit.

@@ -138,6 +138,11 @@ pages the reader may open come back as `[[wiki:<uuid>]]`. Pages the reader may n
 directive attributes, and raw HTML when it is stripped. A page over the renderer's limits gives a fixed placeholder
 instead of its text. Comment bodies follow the same rule.
 
+Host files (1.25) go through the host's file resolver with the token's reach. This covers Milkdown host references
+and, with Milkdown's `host_url_patterns`, plain URLs such as `/files/<uuid>/original`. A file whose wiki lies outside
+*where*, or that the person may not read, reads *Content not visible*, without its uuid, alt text or name. See
+[CONFIGURATION](CONFIGURATION.md) (`editor.milkdown.host_files`).
+
 People appear as `{"id", "name"}`. The name is whatever the history policy shows (`WikiAuthorLabel`). The id is filled
 only for the token's own user.
 

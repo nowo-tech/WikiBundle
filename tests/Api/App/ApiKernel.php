@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Api\App;
 
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use Nowo\FormKitBundle\NowoFormKitBundle;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\HostFileResolverInterface;
 use Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle;
 use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
@@ -129,6 +130,13 @@ final class ApiKernel extends Kernel
         $services->set('app.collab_store', ApiCollabStore::class)->args([service(WikiEntityManagerProvider::class)])->public();
         $services->set('app.collab_hub', ApiCollabHub::class)->public();
         $services->set('app.api_files', ApiTestFiles::class)->public();
+        // 1.25: files referenced by plain URL (/files/<uuid>/…) resolve through the host's reach-aware resolver.
+        $services->set('app.host_files', ApiHostFiles::class)->args([service(WikiEntityManagerProvider::class)]);
+        $services->alias(HostFileResolverInterface::class, 'app.host_files');
+        $container->extension('nowo_milkdown_editor', ['markdown' => [
+            'host_schemes'      => ['beacon-file' => ['file' => '/files/{id}/original', 'image' => '/files/{id}/preview']],
+            'host_url_patterns' => [['pattern' => '^/files/(?<id>[0-9a-f-]{36})/(?:original|preview)$', 'scheme' => 'beacon-file']],
+        ]]);
         $services->set('app.pages', ApiPageRepository::class)->args([service(WikiEntityManagerProvider::class)]);
         $services->alias(WikiPageRepositoryInterface::class, 'app.pages');
         $services->set('app.quota', RecordingQuotaListener::class)->public()

@@ -7,7 +7,9 @@ namespace Nowo\WikiBundle\DependencyInjection;
 use ArrayObject;
 use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
+use Nowo\MilkdownEditorBundle\Markdown\HostSchemes;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\HostFileResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
 use Nowo\MilkdownEditorBundle\ProfileRegistry;
@@ -62,6 +64,7 @@ use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRenderContext;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
@@ -525,6 +528,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$tokenGuard', new Reference(WikiTokenGuard::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$renderContext', new Reference(WikiRenderContext::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
 
+        // 1.25: host file references (Milkdown's host_schemes / host_url_patterns) resolve with the render's frame.
+        $container->setDefinition(WikiMilkdownRenderContext::class, (new Definition(WikiMilkdownRenderContext::class))
+            ->setArgument('$context', new Reference(WikiRenderContext::class)));
+
         $pageResolver = $config['editor']['milkdown']['page_resolver'] ?? null;
         $container->setDefinition(MilkdownWikiMarkdownRenderer::class, (new Definition(MilkdownWikiMarkdownRenderer::class))
             ->setArgument('$options', [])
@@ -535,7 +542,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$extensions', new TaggedIteratorArgument('nowo_wiki.markdown_extension'))
             ->setArgument('$translator', new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+            ->setArgument('$hostSchemes', new Reference(HostSchemes::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$hostFiles', new Reference(HostFileResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$renderContext', new Reference(WikiMilkdownRenderContext::class))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
+            // 1.25: MilkdownBridgePass drops the host file arguments when editor.milkdown.host_files says so.
+            ->addTag(MilkdownBridgePass::HOST_FILES_TAG, ['mode' => $config['editor']['milkdown']['host_files'] ?? Configuration::HOST_FILES_AUTO]));
         $container->setAlias(WikiMarkdownRendererInterface::class, MilkdownWikiMarkdownRenderer::class);
 
         // HTML revisions opened in the editor, exported or converted by wiki:convert-markdown are written in the dialect.

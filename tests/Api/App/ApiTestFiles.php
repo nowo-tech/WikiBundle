@@ -28,6 +28,9 @@ final class ApiTestFiles implements WikiApiFilesInterface
     /** @var array<string, string> uuid => file name */
     public static array $stored = [];
 
+    /** @var array<string, string> 1.25: uuid => slug of the wiki the file belongs to ({@see ApiHostFiles}) */
+    public static array $wikis = [];
+
     public function list(WikiApiPrincipal $principal, WikiApiWiki $wiki, WikiPage $page): array
     {
         $files = [];

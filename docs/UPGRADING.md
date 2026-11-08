@@ -71,6 +71,33 @@
 
 ## Unreleased
 
+Needs `nowo-tech/milkdown-editor-bundle` **^1.13**: `composer update nowo-tech/wiki-bundle nowo-tech/milkdown-editor-bundle`.
+Nothing changes until Milkdown's `host_url_patterns` is set, or `editor.milkdown.host_files` is `on`.
+
+**Hosts whose pages reference files by URL (Beacon):**
+
+1. Declare the file URLs in Milkdown so they are host references:
+
+   ```yaml
+   nowo_milkdown_editor:
+       markdown:
+           host_schemes:
+               beacon-file: { file: /files/{id}/original, image: /files/{id}/preview }
+           host_url_patterns:
+               - { pattern: '^/files/(?<id>[0-9a-f-]{36})/(?:original|preview)$', scheme: beacon-file }   # url: written (default)
+           host_refused_links: hidden   # optional: refused beacon-file: links lose their text too
+   ```
+
+2. Point Milkdown's `HostFileResolverInterface` at a resolver that implements `ContextualHostFileResolverInterface`.
+   In `resolveFilesInContext($references, $context)`, answer only files the current person may read. When `$context`
+   is a `WikiRenderFrame`, also drop every file whose wiki space fails `$context->reaches($space)`. A missing answer
+   reads *Content not visible*.
+3. Without step 2, the default template resolver resolves every file in the UI (unchanged output) and **none** under
+   an API reach.
+
+Once host files are on (`auto` with patterns, or `on`), `beacon-file:<id>` references in wiki pages are resolved too.
+Before, the wiki's renderer left them unresolved.
+
 ## To 1.24.0
 
 From **1.23.0**:
