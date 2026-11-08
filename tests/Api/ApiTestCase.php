@@ -22,6 +22,7 @@ use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingQuotaListener;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\KernelInterface;
 
@@ -58,6 +59,19 @@ abstract class ApiTestCase extends WebTestCase
     protected static array $wikiConfig = [];
 
     protected static bool $withFirewall = true;
+
+    /** Whether this process already dropped the kernels' caches (they are reused across runs otherwise). */
+    private static bool $freshCaches = false;
+
+    public static function setUpBeforeClass(): void
+    {
+        // A container or router cached by an earlier run would skip the compile-time code (loader, subscribers), so the
+        // coverage of a second run in the same job would miss it.
+        if (!self::$freshCaches) {
+            (new Filesystem())->remove((new ApiKernel())->getProjectDir());
+            self::$freshCaches = true;
+        }
+    }
 
     protected function setUp(): void
     {
