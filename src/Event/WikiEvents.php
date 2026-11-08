@@ -93,4 +93,7 @@ final class WikiEvents
 
     /** 1.17: the mentions of an erased person were rewritten in other people's comments. {@see WikiCommentMentionsErasedEvent} */
     public const COMMENT_MENTIONS_ERASED = 'nowo_wiki.comment.mentions_erased';
+
+    /** 1.24 (spec 218): a write through the REST API ({@see WikiApiWriteEvent}), after commit, for the host's audit. */
+    public const API_WRITE = 'nowo_wiki.api.write';
 }

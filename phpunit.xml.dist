@@ -16,6 +16,10 @@
         <testsuite name="database">
             <directory>tests/Database</directory>
         </testsuite>
+        <!-- Spec 218: the REST API through a host kernel; also run on MySQL and PostgreSQL in CI. -->
+        <testsuite name="api">
+            <directory>tests/Api</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

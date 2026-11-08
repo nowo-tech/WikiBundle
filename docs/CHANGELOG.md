@@ -70,8 +70,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Render context (spec 218).** `WikiRenderContext` names the space and page of every per-viewer render (page body, comment bodies, the reader's Markdown), so resolvers and directive renderers, the host's included, need not read route attributes. A render may carry a `WikiRenderReach` that narrows what resolves: the bundle's page-link resolver honours it and records the links it resolved. A nested render's own reach is intersected with the outer one (audit IF-I7); the context is emptied on `kernel.reset`.
 - **Reads for the REST API (spec 218).** `WikiSearchService::searchPlainText()` matches titles and plain text only, never the Markdown source, case-insensitively and in page-id order. `WikiPageMetadataFinderInterface::pageMetadata()` (Doctrine page repository) lists a space's pages with their current revision's number, date and author id in one query. `WikiCommentService::threadEntities()` and `threadEntity()` return threads and comments as entities after the same rights check as `list()` and `thread()`.
 
+- **REST API, skeleton (spec 218).** `nowo_wiki.api` (off by default: no route, service, listener or parameter). With `enabled: true` and the host's `authenticator` and `directory` hooks, a stateless JSON API under `api.prefix` (`/api/wiki/v1`): every request is authenticated by the host, rate limited, checked against the security user (the API must sit behind a secured stateless firewall), and answered `{"err", "ECODE"}` on refusal with `Cache-Control: no-store, private` and `X-RateLimit-*`. A token's level (`read`, `edit`, `full`) is a closed table over `WikiAction`; its *where* only narrows the person's access. `GET /wikis` and `GET /wikis/{wiki}`. The rate limiter and the plan gate deny until the host sets them.
+
 ### Tests
 
+- **An `api` test suite** (`tests/Api`), through a host kernel with a stateless firewall, on SQLite and in CI on MySQL and PostgreSQL.
 - **A `database` test suite on MySQL and PostgreSQL (spec 218, step 0).** `tests/Database` pins what `WikiPageService` writes and dispatches (create, revisions, restore, archive, the revision collision) and what search matches, on SQLite and, in CI, on MySQL 8.4 and PostgreSQL 16 (`WIKI_TEST_DATABASE_URL`). No change to `src/`.
 
 ## [1.23.0] - 2026-11-07

@@ -1,0 +1,32 @@
+# 1.24 (spec 218): the Wiki REST API, loaded only with `api.enabled: true`.
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    Nowo\WikiBundle\Api\Hook\DenyingWikiApiRateLimiter: ~
+    Nowo\WikiBundle\Api\Hook\DenyingWikiApiPlanGate: ~
+    Nowo\WikiBundle\Api\Hook\NullWikiApiUsers: ~
+
+    Nowo\WikiBundle\Api\Security\WikiApiRequestListener:
+        arguments:
+            $prefix: '%nowo_wiki.api.prefix%'
+            $logger: '@?logger'
+        tags:
+            - { name: monolog.logger, channel: nowo_wiki }
+
+    Nowo\WikiBundle\Api\Serializer\WikiApiSerializer: ~
+
+    # Public: an in-process caller (spec 219) reaches the guard and the operations without HTTP.
+    Nowo\WikiBundle\Api\Security\WikiApiGuard:
+        public: true
+        arguments:
+            $tenantPaths: '@?Nowo\WikiBundle\Routing\WikiTenantPaths'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiWikiOperations:
+        public: true
+
+    Nowo\WikiBundle\Api\Controller\WikiApiWikiController:
+        public: true
+        tags: ['controller.service_arguments']

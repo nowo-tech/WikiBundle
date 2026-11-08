@@ -17,6 +17,14 @@ use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Ai\WikiContextRetriever;
+use Nowo\WikiBundle\Api\Hook\DenyingWikiApiPlanGate;
+use Nowo\WikiBundle\Api\Hook\DenyingWikiApiRateLimiter;
+use Nowo\WikiBundle\Api\Hook\NullWikiApiUsers;
+use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiUsersInterface;
 use Nowo\WikiBundle\Attachment\ConfiguredWikiAttachmentLimitsProvider;
 use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
 use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
@@ -73,6 +81,7 @@ use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
+use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
 use Nowo\WikiBundle\Search\WikiSearchScopeListener;
@@ -375,6 +384,46 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->getDefinition(WikiSearchBackfillTextCommand::class)->setArgument('$entityManager', $emProviderRef);
 
         $this->registerAiServices($container, $config['ai']);
+        $this->registerApi($container, $loader, $config);
+    }
+
+    /**
+     * 1.24 (spec 218): `api.*`. With `enabled: false` nothing is registered: no route, service, listener or parameter.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerApi(ContainerBuilder $container, YamlFileLoader $loader, array $config): void
+    {
+        /** @var array{enabled: bool, prefix: string, quota_listener_required: bool, max_body_bytes: int, search_candidates: int, hooks: array<string, string|null>} $api */
+        $api = $config['api'];
+        if (!$api['enabled']) {
+            return;
+        }
+        foreach (['authenticator' => 'WikiApiAuthenticatorInterface', 'directory' => 'WikiApiDirectoryInterface'] as $hook => $interface) {
+            if (!is_string($api['hooks'][$hook]) || $api['hooks'][$hook] === '') {
+                throw new LogicException(sprintf('nowo_wiki.api.enabled needs api.hooks.%s: the service id of a Nowo\\WikiBundle\\Api\\Hook\\%s (the host keeps the tokens and the wikis).', $hook, $interface));
+            }
+        }
+        if ($config['security']['allow_unauthenticated']) {
+            throw new LogicException('nowo_wiki.api.enabled cannot be used with security.allow_unauthenticated: every wiki would be open to every token.');
+        }
+
+        $container->setParameter('nowo_wiki.api.prefix', $api['prefix']);
+        $container->setParameter('nowo_wiki.api.quota_listener_required', $api['quota_listener_required']);
+        $container->setParameter('nowo_wiki.api.max_body_bytes', $api['max_body_bytes']);
+        $container->setParameter('nowo_wiki.api.search_candidates', $api['search_candidates']);
+        $loader->load('services_api.yaml');
+        $container->setAlias(WikiApiAuthenticatorInterface::class, (string) $api['hooks']['authenticator']);
+        $container->setAlias(WikiApiDirectoryInterface::class, (string) $api['hooks']['directory']);
+        $container->setAlias(WikiApiRateLimiterInterface::class, self::serviceOr($api['hooks']['rate_limiter'], DenyingWikiApiRateLimiter::class));
+        $container->setAlias(WikiApiPlanGateInterface::class, self::serviceOr($api['hooks']['plan_gate'], DenyingWikiApiPlanGate::class));
+        $container->setAlias(WikiApiUsersInterface::class, self::serviceOr($api['hooks']['users'], NullWikiApiUsers::class));
+        $container->getDefinition(WikiRouteLoader::class)->setArgument('$apiPrefix', $api['prefix']);
+    }
+
+    private static function serviceOr(?string $id, string $default): string
+    {
+        return is_string($id) && $id !== '' ? $id : $default;
     }
 
     /**

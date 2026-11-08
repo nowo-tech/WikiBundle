@@ -9,6 +9,8 @@ services:
         resource: '../../'
         exclude:
             - '../../DependencyInjection/'
+            # 1.24: the REST API, loaded by services_api.yaml only with api.enabled.
+            - '../../Api/'
             - '../../WikiBundle.php'
             - '../../Security/AttributeSanitizer/'
             - '../../Repository/'
@@ -17,6 +19,7 @@ services:
             - '../../Command/'
             # 1.21: a per-request value object (it holds the refusal), never a shared service.
             - '../../Event/WikiQuotaCheckEvent.php'
+            - '../../Event/WikiApiWriteEvent.php'
             - '../../Service/WikiSpaceAccessResolver.php'
             - '../../Service/WikiAuthorResolver.php'
             - '../../Attachment/LocalWikiAttachmentStorage.php'
