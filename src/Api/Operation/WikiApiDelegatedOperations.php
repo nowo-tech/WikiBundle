@@ -16,6 +16,7 @@ use Nowo\WikiBundle\Api\WikiApiCapability;
 use Nowo\WikiBundle\Api\WikiApiInput;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
+use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -48,7 +49,9 @@ final readonly class WikiApiDelegatedOperations
     }
 
     /**
-     * `POST /wikis` `{owner_type, owner_id, name, description}`: Full.
+     * `POST /wikis` `{owner_type, owner_id, name, description}`: Full. The owner is the host's notion, so the hook must
+     * check it against the token's *where* ({@see WikiApiWhere::reachesOwner()}) and the
+     * person's right to manage it (audit IF-L7); the bundle checks that the wiki it answers is within *where*.
      *
      * @throws WikiApiRefusal
      *
@@ -67,6 +70,10 @@ final readonly class WikiApiDelegatedOperations
         );
         $this->audit->requireAudit();
         $wiki = $this->management->create($principal, $new);
+        if (!$principal->where->reaches($wiki)) {
+            // The host created it outside the token's reach: say so loudly, as a server error, never as a success.
+            throw new WikiApiRefusal(500, 'SERVER_001', 'Server error');
+        }
         $this->audit->written($principal, 'wiki.create', $wiki->slug, $wiki->space?->getId(), null, [], ['name', 'description']);
 
         return [$this->serializer->wiki($wiki), $wiki];
@@ -178,18 +185,22 @@ final readonly class WikiApiDelegatedOperations
     }
 
     /**
-     * A wiki whose lifecycle changes: Full, `Manage` on its space when it has one, and not archived unless it is being
-     * unarchived.
+     * A wiki whose lifecycle changes: Full; when its space exists, the person must open it (404 otherwise, as reads) and
+     * hold `Manage` on it; only a wiki nobody opened yet is decided on the level, the rest being the host's (audit
+     * IF-L7). Not archived, unless it is being unarchived.
      *
      * @throws WikiApiRefusal
      */
     private function manageable(WikiApiPrincipal $principal, string $slug, bool $mustBeActive): WikiApiWiki
     {
         $wiki = $this->guard->wiki($principal, $slug);
+        if ($wiki->space instanceof WikiSpace && !$wiki->canOpen) {
+            throw WikiApiRefusal::notFound();
+        }
         if ($mustBeActive) {
             $this->guard->requireWritable($wiki);
         }
-        if ($wiki->space instanceof WikiSpace && $wiki->canOpen) {
+        if ($wiki->space instanceof WikiSpace) {
             $this->guard->require($principal, WikiAction::Manage, $wiki->space);
         } elseif (!WikiApiCapability::allows($principal->level, WikiAction::Manage)) {
             throw WikiApiRefusal::levelRefused();

@@ -53,6 +53,15 @@ final readonly class WikiApiWhere
         return new self(false, [], $ownerKeys, $wikiSlugs);
     }
 
+    /**
+     * Whether a new wiki of this owner would be within reach (`POST /wikis`, audit IF-L7): everything but the owners the
+     * host removed, or an owner named in the scope. A wiki named by slug does not reach its owner's other wikis.
+     */
+    public function reachesOwner(string $ownerKey): bool
+    {
+        return $this->everything ? !in_array($ownerKey, $this->exceptOwnerKeys, true) : in_array($ownerKey, $this->ownerKeys, true);
+    }
+
     public function reaches(WikiApiWiki $wiki): bool
     {
         if ($this->everything && $wiki->ownerKey !== null && in_array($wiki->ownerKey, $this->exceptOwnerKeys, true)) {
