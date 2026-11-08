@@ -211,8 +211,9 @@ final readonly class WikiPageFactory
     }
 
     /**
-     * Page view: Edit / History / Archive (POST + CSRF behind a Confirm) in the header, revision meta; the template
-     * renders the tree, the sanitized content and "Used in".
+     * Page view: Save version / Move / Delete / Archive (POST + CSRF behind a Confirm) in the header, the tab row
+     * (Page / Edit / History, {@see self::pageTabs()}), revision meta; the template renders the tree, the sanitized
+     * content and "Used in". 1.25 (WK-6): Edit and History are only tabs (until 1.24 they were header actions too).
      *
      * @param array{edit: bool, history: bool, move?: bool} $can what the user may do on the page (1.14: move)
      * @param FormView|null $archiveForm CSRF form of the archive action (null = no archive action)
@@ -220,17 +221,13 @@ final readonly class WikiPageFactory
      */
     public function pageView(WikiSpace $space, WikiPage $page, array $can, ?FormView $archiveForm = null, ?FormView $deleteForm = null): ShowPage
     {
-        $params  = ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()];
+        $params = ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()];
+        $tabs   = $this->pageTabs($space, $page, $can, 'page');
+        // 1.25 (WK-6): Edit and History are tabs of the tab row (1.16, same rights), never header actions as well.
         $actions = [];
-        if ($can['edit'] && $this->has('page_edit')) {
-            $actions[] = new Action('edit', WikiPages::label('wiki.page.edit'), $this->url('page_edit', $params), attributes: ['data-testid' => 'wiki-edit']);
-        }
         // 1.15: Save version names the current revision (history.timeline, editors).
         if (($can['version'] ?? false) && $this->has('page_version_save')) {
             $actions[] = new Action('create', WikiPages::label('wiki.history.save_version'), $this->url('page_version_save', $params), attributes: ['data-testid' => 'wiki-save-version']);
-        }
-        if ($can['history'] && $this->has('page_history')) {
-            $actions[] = new Action('view', WikiPages::label('wiki.page.history'), $this->url('page_history', $params), attributes: ['data-testid' => 'wiki-history']);
         }
         if (($can['move'] ?? false) && $this->has('page_move')) {
             $actions[] = new Action('edit', WikiPages::label('wiki.tree.move'), $this->url('page_move', $params), attributes: ['data-testid' => 'wiki-move']);
@@ -276,7 +273,7 @@ final readonly class WikiPageFactory
         }
 
         return new ShowPage(
-            header: (new PageHeader($page->getTitle(), $space->getName(), $actions, $this->crumbs($space, $page)))->withTabs($this->pageTabs($space, $page, $can, 'page')),
+            header: (new PageHeader($page->getTitle(), $space->getName(), $actions, $this->crumbs($space, $page)))->withTabs($tabs),
             meta: $meta,
             bundle: WikiPages::BUNDLE,
             layout: $this->pages->layout(),

@@ -67,7 +67,10 @@ final class WikiPageFactoryTest extends TestCase
         self::assertSame('wiki.space.pick_page', $this->label($full->header->intro)->key);
         self::assertSame('wiki.space.pick_page_read_only', $this->label($factory->space($space, ['create' => false, 'import' => true, 'export' => true])->header->intro)->key);
         self::assertSame([], $this->kinds($factory->pageView($space, $page, ['edit' => false, 'history' => false])->header->actions));
-        self::assertSame(['edit', 'view', 'delete'], $this->kinds($factory->pageView($space, $page, ['edit' => true, 'history' => true], PageFixtures::postForm('t'))->header->actions));
+        // 1.25 (WK-6): Edit and History are tabs only, never header actions as well.
+        $view = $factory->pageView($space, $page, ['edit' => true, 'history' => true], PageFixtures::postForm('t'));
+        self::assertSame(['delete'], $this->kinds($view->header->actions));
+        self::assertSame(['wiki-tab-page', 'wiki-tab-edit', 'wiki-tab-history'], array_map(static fn (AreaNavItem $item): ?string => $item->attributes['data-testid'] ?? null, $view->header->tabs->items ?? []));
         self::assertSame([], $this->kinds((new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), ''))->search(PageFixtures::searchForm(null), [], '', false)->header->actions));
     }
 
@@ -116,8 +119,8 @@ final class WikiPageFactoryTest extends TestCase
         ], $factory->treeAttributes($space, 'tok', true));
         self::assertArrayNotHasKey('data-wiki-tree-move', $factory->treeAttributes($space, 'tok', false));
 
-        self::assertSame(['edit', 'edit'], $this->kinds($factory->pageView($space, $page, ['edit' => true, 'history' => false, 'move' => true])->header->actions));
-        self::assertSame(['edit'], $this->kinds($factory->pageView($space, $page, ['edit' => true, 'history' => false, 'move' => false])->header->actions));
+        self::assertSame(['edit'], $this->kinds($factory->pageView($space, $page, ['edit' => true, 'history' => false, 'move' => true])->header->actions));
+        self::assertSame([], $this->kinds($factory->pageView($space, $page, ['edit' => true, 'history' => false, 'move' => false])->header->actions));
 
         $move = $factory->pageMove($space, $page, PageFixtures::postForm('t'));
         self::assertSame('wiki.tree.move_title', $this->label($move->header->title)->key);
@@ -151,8 +154,8 @@ final class WikiPageFactoryTest extends TestCase
         $revisions = [new WikiPageRevision($page, 3, '', new TestUser()), new WikiPageRevision($page, 2, '', new TestUser()), new WikiPageRevision($page, 1, '', new TestUser())];
 
         $actions = $factory->pageView($space, $page, ['edit' => true, 'history' => true, 'version' => true])->header->actions;
-        self::assertSame(['edit', 'create', 'view'], $this->kinds($actions));
-        self::assertSame('wiki-save-version', $actions[1]->attributes['data-testid']);
+        self::assertSame(['create'], $this->kinds($actions));
+        self::assertSame('wiki-save-version', $actions[0]->attributes['data-testid']);
 
         $history = $factory->history($space, $page, $revisions, null, [], null, [
             3 => ['author' => 'Editor ab12', 'label' => 'Reviewed', 'saves' => 1],

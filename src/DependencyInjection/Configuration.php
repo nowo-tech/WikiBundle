@@ -65,6 +65,12 @@ final class Configuration implements ConfigurationInterface
     /** 1.25 `editor.milkdown.host_files`: never resolve host files (1.24 behaviour). */
     public const HOST_FILES_OFF = 'off';
 
+    /** 1.25 `editor.milkdown.file_cards`: `::file` cards read as a plain link in the per-viewer render (1.24 behaviour). */
+    public const FILE_CARDS_LINK = 'link';
+
+    /** 1.25 `editor.milkdown.file_cards`: `::file` cards read as Milkdown's own file card in the per-viewer render. */
+    public const FILE_CARDS_CARD = 'card';
+
     /** Form type of the page body with editor.type milkdown (nowo-tech/milkdown-editor-bundle). */
     public const MILKDOWN_FORM_TYPE = MilkdownEditorType::class;
 
@@ -349,6 +355,11 @@ final class Configuration implements ConfigurationInterface
                                     ->info('1.25: resolve host file references (nowo_milkdown_editor.markdown.host_schemes and host_url_patterns) in the per-viewer render of pages and comments, through the host HostFileResolverInterface with the render\'s WikiRenderFrame (space, page, the API\'s reach). auto (default): only when host_url_patterns is set; on: also with host_schemes alone; off: never (as 1.24). Under a reach, a resolver that is not a ContextualHostFileResolverInterface resolves nothing.')
                                     ->values([self::HOST_FILES_AUTO, self::HOST_FILES_ON, self::HOST_FILES_OFF])
                                     ->defaultValue(self::HOST_FILES_AUTO)
+                                ->end()
+                                ->enumNode('file_cards')
+                                    ->info('1.25 (WK-8): how ::file[name]{href size type} cards read in the per-viewer render of pages and comments (UI and API reader view) when no host DirectiveRendererInterface supports "file". link (default, as 1.24): a plain link to the card\'s href. card: Milkdown\'s own file card (FileCard: badge, name, size, link / icon / card views), linked to the URL Milkdown\'s host file resolution gave it (host_files), so a refused file reads *Content not visible*; a host renderer for "file" is then no longer needed. The neutral content_html render keeps the link.')
+                                    ->values([self::FILE_CARDS_LINK, self::FILE_CARDS_CARD])
+                                    ->defaultValue(self::FILE_CARDS_LINK)
                                 ->end()
                             ->end()
                         ->end()

@@ -80,6 +80,9 @@ use function trim;
  * `HostFileResolverInterface`, given the render's {@see WikiRenderFrame} (space, page,
  * reach; {@see WikiMilkdownHostFileResolver}). A refused file reads *Content not visible*, without URL, alt text or name.
  * With both keys empty nothing changes. The neutral environment never resolves them.
+ *
+ * 1.25 (WK-8, `editor.milkdown.file_cards: card`): in the viewer environment a `::file` card no host renderer supports
+ * reads as Milkdown's own file card, linked to the URL the host file resolution gave it ({@see WikiLeafDirectiveRenderer}).
  */
 final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface, WikiMarkdownReferenceParserInterface, WikiMarkdownLimitsInterface
 {
@@ -114,6 +117,8 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      * @param HostSchemes|null $hostSchemes 1.25: Milkdown's host schemes and URL patterns (viewer only; null: none)
      * @param HostFileResolverInterface|null $hostFiles 1.25: the host's file resolver (viewer only; null: every host reference is refused)
      * @param RenderContextProviderInterface|null $renderContext 1.25: the render's frame for a contextual file resolver
+     * @param bool $fileCards 1.25 (WK-8, `editor.milkdown.file_cards: card`): `::file` cards read as Milkdown's file card
+     *                        in the viewer environment (false: a plain link, as 1.24)
      */
     public function __construct(
         array $options,
@@ -127,6 +132,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         ?HostSchemes $hostSchemes = null,
         ?HostFileResolverInterface $hostFiles = null,
         ?RenderContextProviderInterface $renderContext = null,
+        bool $fileCards = false,
     ) {
         $this->maxInputLength   = $this->intOption($options, 'max_input_length', MilkdownMarkdownRenderer::DEFAULT_MAX_INPUT_LENGTH);
         $this->maxInlineMarkers = $this->intOption($options, 'max_inline_markers', MilkdownMarkdownRenderer::DEFAULT_MAX_INLINE_MARKERS);
@@ -148,6 +154,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
             $hostSchemes ?? new HostSchemes(),
             $hostFiles instanceof HostFileResolverInterface ? new WikiMilkdownHostFileResolver($hostFiles) : null,
             $renderContext,
+            $fileCards,
         ));
     }
 
@@ -220,6 +227,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      * @param list<DirectiveRendererInterface> $directiveRenderers
      * @param list<ExtensionInterface> $extensions
      * @param HostSchemes $hostSchemes host schemes and URL patterns (empty in the neutral environment)
+     * @param bool $fileCards 1.25 (WK-8): `::file` cards as Milkdown's file card (viewer environment only)
      */
     private function environment(
         array $options,
@@ -233,6 +241,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         HostSchemes $hostSchemes = new HostSchemes(),
         ?WikiMilkdownHostFileResolver $hostFiles = null,
         ?RenderContextProviderInterface $renderContext = null,
+        bool $fileCards = false,
     ): Environment {
         $htmlInput   = $options['html_input'] ?? 'escape';
         $markColors  = $options['mark_colors'] ?? ['yellow'];
@@ -295,7 +304,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         }
 
         $environment->addRenderer(TablerIcon::class, new WikiTablerIconRenderer($icons), 10);
-        $environment->addRenderer(LeafDirective::class, new WikiLeafDirectiveRenderer($directiveRenderers, $translator), 10);
+        $environment->addRenderer(LeafDirective::class, new WikiLeafDirectiveRenderer($directiveRenderers, $translator, $fileCards), 10);
         if (!$hostSchemes->isEmpty()) {
             // 1.25 (audit IJ-L2): URL attributes of leaf directives that name host files go through the resolver too.
             $environment->addEventListener(DocumentParsedEvent::class, (new WikiLeafHostFiles($hostSchemes, $hostFiles, $renderContext, $directiveRenderers, $this->maxReferences, $logger))->onDocumentParsed(...), -50);

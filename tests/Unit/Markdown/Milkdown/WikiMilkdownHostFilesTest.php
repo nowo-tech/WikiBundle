@@ -98,7 +98,7 @@ final class WikiMilkdownHostFilesTest extends TestCase
     /**
      * @param list<array{pattern: string, scheme: string}> $patterns
      */
-    private function renderer(?HostFileResolverInterface $files, array $patterns = self::PATTERNS, ?TranslatorInterface $translator = null): MilkdownWikiMarkdownRenderer
+    private function renderer(?HostFileResolverInterface $files, array $patterns = self::PATTERNS, ?TranslatorInterface $translator = null, bool $fileCards = false): MilkdownWikiMarkdownRenderer
     {
         return new MilkdownWikiMarkdownRenderer(
             [],
@@ -109,6 +109,7 @@ final class WikiMilkdownHostFilesTest extends TestCase
             hostSchemes: new HostSchemes(self::SCHEMES, [], $patterns),
             hostFiles: $files,
             renderContext: new WikiMilkdownRenderContext($this->context),
+            fileCards: $fileCards,
         );
     }
 
@@ -234,6 +235,52 @@ final class WikiMilkdownHostFilesTest extends TestCase
             ->markdown($this->eng, $this->page, '::download[secret]{href="/files/.env/original"}');
         self::assertStringNotContainsString('secret', $markdown);
         self::assertStringContainsString('Content not visible', $markdown);
+    }
+
+    /**
+     * 1.25 (WK-8, file_cards: card): a card the viewer may see is Milkdown's file card with the resolved URL; one outside
+     * the reach is the hidden placeholder, without uuid or name; no host renderer is involved.
+     */
+    public function testFileCardsReadAsMilkdownCardsThroughTheHostResolution(): void
+    {
+        $renderer = $this->renderer(new SpaceFiles([self::ENG_FILE => $this->eng, self::HR_FILE => $this->hr]), fileCards: true);
+        $html     = $this->context->within($this->eng, $this->page, fn (): string => $renderer->renderForViewer($this->source()), $this->onlyEng());
+
+        self::assertStringContainsString('<div class="nowo-md-file nowo-md-file--pdf" data-directive="file"><a class="nowo-md-file__link" href="/files/' . self::ENG_FILE . '/original" rel="noopener noreferrer"><span class="nowo-md-file__badge" aria-hidden="true">PDF</span><span class="nowo-md-file__name">eng notes.pdf</span></a></div>', $html);
+        self::assertStringContainsString('<div class="nowo-md-file nowo-md-file--hidden" data-directive="file"><span class="nowo-md-ref nowo-md-ref--hidden">Content not visible</span></div>', $html);
+        self::assertStringNotContainsString(self::HR_FILE, $html);
+        self::assertStringNotContainsString('secret', $html);
+        self::assertStringNotContainsString('nowo-wiki-directive', $html);
+
+        // The API reader view: the card reads as a link to its resolved URL, the refused one as the placeholder.
+        $markdown = $this->view($renderer)->markdown($this->eng, $this->page, $this->source() . '
+
+::file[size.csv]{href="/files/' . self::ENG_FILE . '/original" size="2048"}', $this->onlyEng());
+        self::assertStringContainsString('[eng notes.pdf](/files/' . self::ENG_FILE . '/original)', $markdown);
+        self::assertStringContainsString('[size.csv](/files/' . self::ENG_FILE . '/original)', $markdown);
+        self::assertStringNotContainsString(self::HR_FILE, $markdown);
+        self::assertStringNotContainsString('secret', $markdown);
+        self::assertSame(3, substr_count($markdown, 'Content not visible'));
+
+        // The neutral render (content_html) keeps the plain link.
+        self::assertStringContainsString('nowo-wiki-directive__link', $renderer->render('::file[eng notes.pdf]{href="/files/' . self::ENG_FILE . '/original"}'));
+    }
+
+    /** 1.25 (WK-8): a card's URL also passes the wiki link policy; views and labels follow Milkdown's card. */
+    public function testFileCardsKeepTheWikiLinkPolicy(): void
+    {
+        $translator = $this->createStub(TranslatorInterface::class);
+        $translator->method('trans')->willReturnArgument(0);
+        $renderer = new MilkdownWikiMarkdownRenderer([], new NullPageResolver(), new NullUserResolver(), new AllowlistIconResolver(), translator: $translator, fileCards: true);
+
+        foreach (['//evil.example/x.pdf', 'http://plain.example/x.pdf', 'javascript:alert(1)', '/.//evil.example/x.pdf', '/%2F%2Fevil.example/x.pdf'] as $href) {
+            $html = $renderer->renderForViewer('::file[x.pdf]{href="' . $href . '"}');
+            self::assertStringContainsString('<span class="nowo-md-file__link">', $html, $href);
+            self::assertStringNotContainsString('href=', $html, $href);
+        }
+        self::assertStringContainsString('<p class="nowo-md-file nowo-md-file--link-view nowo-md-file--pdf" data-directive="file" data-view="link"><a class="nowo-md-file__text" href="https://docs.example/x.pdf" rel="noopener noreferrer">x.pdf</a></p>', $renderer->renderForViewer('::file[x.pdf]{href="https://docs.example/x.pdf" view="link"}'));
+        self::assertStringContainsString('<a class="nowo-md-file__link" href="/docs/x.pdf"', $renderer->renderForViewer('::file[x.pdf]{href="/docs/x.pdf" view="preview"}'));
+        self::assertStringNotContainsString('<iframe', $renderer->renderForViewer('::file[x.pdf]{href="/docs/x.pdf" view="preview"}'));
     }
 
     public function testAHostRendererOfTheDirectiveChecksItsOwn(): void
