@@ -90,3 +90,15 @@ services:
             $logger: '@?logger'
 
     Nowo\WikiBundle\Api\Command\WikiApiPurgeIdempotencyCommand: ~
+
+    # S5: comment writes.
+    Nowo\WikiBundle\Api\Operation\WikiApiCommentWriteOperations:
+        public: true
+        arguments:
+            $repository: '@?Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface'
+
+    Nowo\WikiBundle\Api\Controller\WikiApiCommentController:
+        public: true
+        tags: ['controller.service_arguments']
+        arguments:
+            $maxBodyBytes: '%nowo_wiki.api.max_body_bytes%'

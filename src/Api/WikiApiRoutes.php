@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api;
 
+use Nowo\WikiBundle\Api\Controller\WikiApiCommentController;
 use Nowo\WikiBundle\Api\Controller\WikiApiReadController;
 use Nowo\WikiBundle\Api\Controller\WikiApiWikiController;
 use Nowo\WikiBundle\Api\Controller\WikiApiWriteController;
@@ -40,6 +41,12 @@ final class WikiApiRoutes
         'page_move'      => ['/wikis/{wiki}/pages/{page}/move', WikiApiWriteController::class, 'move', 'POST'],
         'page_archive'   => ['/wikis/{wiki}/pages/{page}/archive', WikiApiWriteController::class, 'archive', 'POST'],
         'page_unarchive' => ['/wikis/{wiki}/pages/{page}/unarchive', WikiApiWriteController::class, 'unarchive', 'POST'],
+        'thread_create'  => ['/wikis/{wiki}/pages/{page}/threads', WikiApiCommentController::class, 'create', 'POST'],
+        'thread_reply'   => ['/wikis/{wiki}/pages/{page}/threads/{thread}/comments', WikiApiCommentController::class, 'reply', 'POST'],
+        'thread_resolve' => ['/wikis/{wiki}/pages/{page}/threads/{thread}', WikiApiCommentController::class, 'resolve', 'PATCH'],
+        'thread_delete'  => ['/wikis/{wiki}/pages/{page}/threads/{thread}', WikiApiCommentController::class, 'deleteThread', 'DELETE'],
+        'comment_edit'   => ['/wikis/{wiki}/pages/{page}/comments/{comment}', WikiApiCommentController::class, 'edit', 'PATCH'],
+        'comment_delete' => ['/wikis/{wiki}/pages/{page}/comments/{comment}', WikiApiCommentController::class, 'delete', 'DELETE'],
         'page_restore'   => ['/wikis/{wiki}/pages/{page}/revisions/{number}/restore', WikiApiWriteController::class, 'restore', 'POST'],
     ];
 

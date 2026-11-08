@@ -35,6 +35,9 @@ final class WikiApiInput
     /** @var array<string, true> */
     private array $read = [];
 
+    /** @var array<string, true> fields the operation knows and does not support */
+    private array $ignored = [];
+
     /**
      * @param array<string, mixed> $fields
      */
@@ -111,14 +114,26 @@ final class WikiApiInput
         return is_int($value) && $value >= $min && $value <= $max ? $value : throw WikiApiRefusal::invalid($name);
     }
 
+    /** A field this operation knows and ignores: listed in `warnings` as `not_supported` when sent. */
+    public function ignore(string $name): void
+    {
+        if ($this->has($name)) {
+            $this->ignored[$name] = true;
+        }
+        $this->read[$name] = true;
+    }
+
     /**
-     * The fields nobody read.
+     * The fields nobody read, and the ignored ones that were sent.
      *
      * @return list<array{field: string, reason: string}>
      */
     public function warnings(): array
     {
         $warnings = [];
+        foreach (array_keys($this->ignored) as $field) {
+            $warnings[] = ['field' => $field, 'reason' => 'not_supported'];
+        }
         foreach (array_keys(array_diff_key($this->fields, $this->read)) as $field) {
             $warnings[] = ['field' => (string) $field, 'reason' => 'unknown'];
         }
