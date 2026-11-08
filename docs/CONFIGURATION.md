@@ -150,6 +150,17 @@ A refused file reads *Content not visible*, without URL, alt text or name. Under
 not a `ContextualHostFileResolverInterface` resolves nothing. The neutral render (`content_html`) never resolves host
 files. See [UPGRADING](UPGRADING.md#unreleased).
 
+**File cards (1.25, WK-8).** `editor.milkdown.file_cards` decides how a `::file[name]{href size type}` card that no host
+`DirectiveRendererInterface` supports reads in the per-viewer render (page body, comments, the API reader view):
+
+- `link` (default): a plain link to the card's `href` with its label, as in 1.24.
+- `card`: Milkdown's own file card (badge, name, size; `link`, `icon` and `card` views; no preview frames), linked to the
+  URL Milkdown's host file resolution gave it (see `host_files`) and only if that URL also passes the wiki link policy.
+  A refused file reads *Content not visible*, without uuid, name or link. In the API reader view a card reads
+  `[name](url)`.
+
+The neutral render (`content_html`) keeps the link either way.
+
 **Copy as Markdown (1.15).** `editor.milkdown.copy_markdown: true` (default `false`, needs Milkdown ≥ 1.5) adds a "Copy
 as Markdown" button to the page view, for users who may edit the page only. It copies the stored Markdown, raw: page
 ids of `[[wiki:<id>]]` links (also of pages the reader may not see), mention handles and directive attributes. That

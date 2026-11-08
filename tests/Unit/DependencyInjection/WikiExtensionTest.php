@@ -195,6 +195,7 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->hasDefinition(WikiMilkdownIconHydrator::class));
         self::assertTrue($container->hasDefinition(WikiMilkdownRichContent::class));
         self::assertSame(WikiMilkdownPageResolver::class, (string) $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$pages'));
+        self::assertFalse($container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$fileCards'));
 
         $sanitizer = $container->getDefinition(WikiHtmlSanitizer::class);
         self::assertSame(['details' => ['data-x', 'open'], 'summary' => []], $sanitizer->getArgument('$extraAllowedElements'));
@@ -207,11 +208,13 @@ final class WikiExtensionTest extends TestCase
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([[
             'user_class' => 'App\\Entity\\User',
-            'editor'     => ['type' => 'milkdown', 'markdown_form_type' => TextareaType::class, 'milkdown' => ['page_resolver' => 'app.wiki_pages']],
+            'editor'     => ['type' => 'milkdown', 'markdown_form_type' => TextareaType::class, 'milkdown' => ['page_resolver' => 'app.wiki_pages', 'file_cards' => 'card']],
         ]], $container);
 
         self::assertSame(TextareaType::class, $container->getParameter('nowo_wiki.editor')['markdown_form_type']);
         self::assertSame('app.wiki_pages', (string) $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$pages'));
+        // 1.25 (WK-8): file_cards: card draws ::file as Milkdown's file card in the per-viewer render.
+        self::assertTrue($container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$fileCards'));
     }
 
     public function testMilkdownEditorNeedsTheMilkdownBundle(): void

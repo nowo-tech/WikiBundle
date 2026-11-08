@@ -545,6 +545,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$hostSchemes', new Reference(HostSchemes::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$hostFiles', new Reference(HostFileResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$renderContext', new Reference(WikiMilkdownRenderContext::class))
+            // 1.25 (WK-8): ::file cards as Milkdown's file card in the per-viewer render.
+            ->setArgument('$fileCards', ($config['editor']['milkdown']['file_cards'] ?? Configuration::FILE_CARDS_LINK) === Configuration::FILE_CARDS_CARD)
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
             // 1.25: MilkdownBridgePass drops the host file arguments when editor.milkdown.host_files says so.
             ->addTag(MilkdownBridgePass::HOST_FILES_TAG, ['mode' => $config['editor']['milkdown']['host_files'] ?? Configuration::HOST_FILES_AUTO]));

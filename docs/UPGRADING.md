@@ -72,6 +72,33 @@
 
 ## Unreleased
 
+From **1.24.1**: `composer update nowo-tech/wiki-bundle`. Milkdown stays at **^1.13**.
+
+- **Edit and History buttons (WK-6).** `page.header.actions` of the page view no longer has Edit (`data-testid`
+  `wiki-edit`) and History (`wiki-history`): they are the tabs of `page.header.tabs` (`wiki-tab-edit`,
+  `wiki-tab-history`), with the same rights. Nothing to do if your page view prints the tab row (the bundle's does). If
+  you filtered them out of the header yourself, the filter can go; if your own page view template prints the header
+  but not `page.header.tabs`, print the tab row (`@NowoWikiBundle/manage/_page_tabs.html.twig`) or your own Edit /
+  History links.
+- **File cards drawn by Milkdown (WK-8, opt-in).** With `editor.type: milkdown`, set
+
+  ```yaml
+  nowo_wiki:
+      editor:
+          milkdown:
+              file_cards: card   # default: link (as 1.24)
+  ```
+
+  to draw `::file` cards in the page body, comments and the API reader view as Milkdown's file card, linked to the URL
+  of Milkdown's host file resolution (`host_files`; refused files read *Content not visible*). If you registered a
+  `nowo_milkdown_editor.directive_renderer` for `file` only to get that card and to check file access, remove it: as
+  long as it supports `file`, it still draws every card and Milkdown does not resolve the card's `href`. Your
+  `HostFileResolverInterface` (a `ContextualHostFileResolverInterface` under the API's reach) then decides who sees each
+  card, and Milkdown's `host_url_patterns` must cover the URLs your cards use (for example
+  `/files/<uuid>/(original|preview|thumb|s128|s64)` and `host_url_hosts` for absolute ones). The neutral
+  `content_html` render keeps the plain link. Previews (`view="preview"`) read as the card: the wiki render has no
+  preview resolver.
+
 ## To 1.24.1
 
 From **1.24.0**. Needs `nowo-tech/milkdown-editor-bundle` **^1.13**: `composer update nowo-tech/wiki-bundle nowo-tech/milkdown-editor-bundle`.

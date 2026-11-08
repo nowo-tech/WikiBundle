@@ -65,6 +65,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Two Beacon requests (2026-11-08): file cards drawn by Milkdown in the per-viewer render (WK-8), and no duplicated Edit /
+History buttons on the page view (WK-6). Works with nowo-tech/milkdown-editor-bundle **^1.13** (no new Milkdown API).
+
+### Added
+
+- **`nowo_wiki.editor.milkdown.file_cards`** (WK-8): `link` (default, as 1.24) or `card`. With `card`, a
+  `::file[name]{href size type}` card no host `DirectiveRendererInterface` supports reads, in the per-viewer render of
+  pages and comments (the UI page body and the API reader view), as Milkdown's own file card (`FileCard::render()`:
+  badge, name, size; `link`, `icon` and `card` views; no preview frames). Its link is the URL Milkdown's host file
+  resolution gave the card (`host_files`, with the render's `WikiRenderFrame`, so the reach applies), and it must also
+  pass the wiki link policy (`WikiLeafDirectiveRenderer::safeUrl()`), else the card has no link. A refused card keeps the
+  neutral *Content not visible* placeholder, without uuid, name or link. A host that drew `file` with its own renderer
+  only to get the card can remove it and set `file_cards: card`; while a host renderer supports `file`, it keeps the
+  card (and Milkdown skips the card's `href` resolution, as before). The neutral `content_html` render keeps the plain
+  link.
+- `MilkdownWikiMarkdownRenderer` takes an optional trailing `bool $fileCards`, `WikiLeafDirectiveRenderer` an optional
+  third `bool $fileCards`.
+
+### Changed
+
+- **Page view header (WK-6):** Edit and History are no longer header actions of `WikiPageFactory::pageView()`; since 1.16
+  they are tabs of `page.header.tabs` (Page / Edit / History, same rights), which the bundle's page view always prints.
+  The header keeps Save version, Move, Delete and Archive.
+- The API reader view (`WikiViewerMarkdownView`) leaves a file card's badge and size out of the reader's Markdown, so a
+  card reads `[name](url)` as the plain link did.
+
 ## [1.24.1] - 2026-11-08
 
 Host files referenced by plain URL now respect the API's reach. Requested by Beacon after the 1.24 REST API audit

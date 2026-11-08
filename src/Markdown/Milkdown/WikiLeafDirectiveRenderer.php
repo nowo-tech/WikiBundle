@@ -18,6 +18,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function implode;
 use function in_array;
+use function is_string;
 use function preg_match;
 use function trim;
 
@@ -38,6 +39,12 @@ use function trim;
  * 1.25: a `::file` card whose host file the viewer may not see (Milkdown's `nowo_file_hidden`, set by the host file
  * resolver) renders Milkdown's neutral *Content not visible*, without its name, label or link; so does any directive
  * {@see WikiLeafHostFiles} marked (audit IJ-L2).
+ *
+ * 1.25 (WK-8, `editor.milkdown.file_cards: card`, viewer environment): a `::file` card the viewer may see reads as
+ * Milkdown's own file card ({@see FileCard::render()}: badge, name, size; link / icon / card views; previews never, the
+ * wiki render has no preview resolver), linked to the URL Milkdown's host file resolution gave it (`nowo_file_url`) or
+ * its `href`. That URL must also pass this renderer's link policy ({@see self::safeUrl()}); otherwise the card has no
+ * link.
  */
 final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
 {
@@ -57,10 +64,12 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
      * @param list<DirectiveRendererInterface> $directiveRenderers host leaf-directive renderers (none in the neutral
      *                                                             environment)
      * @param TranslatorInterface|null $translator 1.25: translates *Content not visible* (Milkdown's `ref.hidden`)
+     * @param bool $fileCards 1.25 (WK-8): `::file` cards as Milkdown's file card instead of a plain link
      */
     public function __construct(
         private array $directiveRenderers = [],
         private ?TranslatorInterface $translator = null,
+        private bool $fileCards = false,
     ) {
     }
 
@@ -83,6 +92,16 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
             $node->data->set('nowo_file_hidden', true);
 
             return FileCard::render($node, ['hidden' => $hidden]);
+        }
+        if ($this->fileCards && $node->name === FileCard::NAME) {
+            $url = $node->data->get('nowo_file_url', null);
+            $node->data->set('nowo_file_url', self::safeUrl(is_string($url) ? $url : ($node->attributes['href'] ?? '')) ?? '');
+
+            return FileCard::render($node, [
+                'open'     => $this->translator?->trans('file.open', [], MilkdownEditorType::DOMAIN) ?? 'Open',
+                'download' => $this->translator?->trans('file.download', [], MilkdownEditorType::DOMAIN) ?? 'Download',
+                'hidden'   => $hidden,
+            ]);
         }
         if ($node->data->get(WikiLeafHostFiles::HIDDEN, false) === true) {
             // 1.25 (audit IJ-L2): a directive naming a host file the viewer may not see: no label, attributes or link.

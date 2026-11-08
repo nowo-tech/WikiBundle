@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 
 use function html_entity_decode;
+use function preg_replace;
 use function preg_replace_callback;
 use function trim;
 
@@ -35,6 +36,12 @@ final readonly class WikiViewerMarkdownView
      * in it could be resolved or hidden, and showing it would show everything.
      */
     public const TOO_LARGE = '*This content is too large to show here.*';
+
+    /**
+     * 1.25 (WK-8): the badge and size of a Milkdown file card (`editor.milkdown.file_cards: card`), left out of the
+     * reader's Markdown so a card reads `[name](url)` as with the plain link.
+     */
+    private const FILE_CARD_DECORATION = '#<span class="nowo-md-file__(?:badge|size)"[^>]*>[^<]*</span>#';
 
     /** An anchor of sanitized HTML, its `href` captured. */
     private const ANCHOR = '#<a\\b[^>]*?\\shref="([^"]*)"[^>]*>.*?</a>#s';
@@ -77,6 +84,7 @@ final readonly class WikiViewerMarkdownView
         if ($frame instanceof WikiRenderFrame) {
             $html = $this->pageLinksAsTokens($html, $frame);
         }
+        $html = preg_replace(self::FILE_CARD_DECORATION, '', $html) ?? $html;
 
         return $this->converter->htmlToMarkdown($html);
     }
