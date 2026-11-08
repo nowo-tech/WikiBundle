@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.24.1] - 2026-11-08](#1241---2026-11-08)
 - [[1.24.0] - 2026-11-08](#1240---2026-11-08)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
 - [[1.22.0] - 2026-11-07](#1220---2026-11-07)
@@ -64,11 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-11-08
+
 Host files referenced by plain URL now respect the API's reach. Requested by Beacon after the 1.24 REST API audit
 (spec 218, Appendix IF): Milkdown pages reference Beacon files as `/files/<uuid>/original` or `/files/<uuid>/preview`,
 and the API's reader view (`WikiViewerMarkdownView`) returned those URLs and their alt texts even when the token's
 *where* excluded the file's wiki. The download endpoint still checked access, so no file bytes leaked. Needs
-nowo-tech/milkdown-editor-bundle **^1.13**. **Audit: re-verification pending.**
+nowo-tech/milkdown-editor-bundle **^1.13**. Audit: Appendix IJ, Pass-Low after the fixes (Delta IJ, 2026-11-08); IJ-L4 accepted by the owner as a known limitation.
 
 ### Security
 
@@ -1249,7 +1252,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.24.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.24.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

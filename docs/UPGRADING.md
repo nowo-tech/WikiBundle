@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.24.1](#to-1241)
 - [To 1.24.0](#to-1240)
 - [To 1.23.0](#to-1230)
 - [To 1.22.0](#to-1220)
@@ -71,7 +72,9 @@
 
 ## Unreleased
 
-Needs `nowo-tech/milkdown-editor-bundle` **^1.13**: `composer update nowo-tech/wiki-bundle nowo-tech/milkdown-editor-bundle`.
+## To 1.24.1
+
+From **1.24.0**. Needs `nowo-tech/milkdown-editor-bundle` **^1.13**: `composer update nowo-tech/wiki-bundle nowo-tech/milkdown-editor-bundle`.
 Nothing changes until Milkdown's `host_url_patterns` is set, or `editor.milkdown.host_files` is `on`.
 
 **Hosts whose pages reference files by URL (Beacon):**
