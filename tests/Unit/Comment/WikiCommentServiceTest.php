@@ -44,6 +44,7 @@ use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\LegacyCommentRepository;
 use Nowo\WikiBundle\Tests\Support\RecordingAvatarResolver;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
@@ -133,6 +134,40 @@ final class WikiCommentServiceTest extends TestCase
         ] as $call) {
             $this->assertRefused(403, 'forbidden', $call);
         }
+    }
+
+    public function testAHubThatFailsDoesNotUndoASavedComment(): void
+    {
+        $failing = new class implements WikiCollabPublisherInterface, WikiCollabSubscriberAuthorizerInterface {
+            public function publish(string $topic, string $message): void
+            {
+                throw new RuntimeException('hub down: page text');
+            }
+
+            public function authorize(Request $request, string $topic): void
+            {
+            }
+        };
+        $logger  = new RecordingLogger();
+        $service = new WikiCommentService(
+            new DoctrineOrmWikiCommentRepository($this->em),
+            $this->guard(),
+            new WikiAuthorLabel('secret'),
+            new WikiMarkdownRenderer(),
+            new WikiHtmlSanitizer(),
+            collab: new WikiCollabService(new InMemoryCollabStateStore(), $failing, $failing, ['topic_prefix' => 'eng-topic/page-'], secret: 'secret'),
+            publisher: $failing,
+            logger: $logger,
+        );
+
+        $thread = $service->create($this->ana, $this->space, $this->page, null, 'Saved anyway');
+
+        self::assertInstanceOf(WikiCommentThread::class, $this->em->find(WikiCommentThread::class, $thread['id']));
+        self::assertSame(['error: Wiki comments: the live update could not be published; the comment is saved.'], $logger->lines());
+        self::assertSame(RuntimeException::class, $logger->records[0]['context']['exception_class']);
+        // Without a logger it is silent.
+        $quiet = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), collab: new WikiCollabService(new InMemoryCollabStateStore(), $failing, $failing, [], secret: 'secret'), publisher: $failing);
+        self::assertArrayHasKey('id', $quiet->reply($this->ana, $this->space, $this->page, $thread['id'], 'Again'));
     }
 
     public function testThreadEntitiesForCallersThatSerializeThemselves(): void

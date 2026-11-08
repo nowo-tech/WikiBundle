@@ -86,6 +86,7 @@ abstract class ApiTestCase extends WebTestCase
         ApiPageRepository::$lockFails     = false;
         ApiCollabStore::$failReset        = false;
         ApiCollabHub::$published          = [];
+        ApiCollabHub::$down               = false;
         RecordingQuotaListener::$seen     = [];
         RecordingQuotaListener::$denyWith = null;
         $this->client                     = static::createClient();

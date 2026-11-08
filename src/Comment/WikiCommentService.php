@@ -37,6 +37,7 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -161,6 +162,7 @@ final readonly class WikiCommentService
      * @param WikiRenderContext|null $renderContext 1.24: comment bodies render inside a frame naming their page
      * @param WikiEventDeferral|null $deferral 1.24: comment events of a caller's scope (the REST API) wait for its end,
      *                                         and a listener that fails then does not refuse a saved write (audit IF-L3)
+     * @param LoggerInterface|null $logger 1.24: a live update the hub refused (the comment is saved; audit IF-L6)
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -180,6 +182,7 @@ final readonly class WikiCommentService
         private array $limits = self::DEFAULT_LIMITS,
         private ?WikiRenderContext $renderContext = null,
         private ?WikiEventDeferral $deferral = null,
+        private ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -1065,7 +1068,13 @@ final readonly class WikiCommentService
         if ($topic === null || !$this->publisher instanceof WikiCollabPublisherInterface) {
             return;
         }
-        $this->publisher->publish($topic, '{"threads":["' . $thread->getId() . '"]}');
+        // 1.24 (audit IF-L6): the comment is saved; a hub that fails cannot undo it, as for page saves (audit HO-M1).
+        // Viewers pick the change up on their next load. The class only: a message may hold user data.
+        try {
+            $this->publisher->publish($topic, '{"threads":["' . $thread->getId() . '"]}');
+        } catch (Throwable $failure) {
+            $this->logger?->error('Wiki comments: the live update could not be published; the comment is saved.', ['bundle' => 'nowo_wiki', 'exception_class' => $failure::class]);
+        }
     }
 
     /**
