@@ -67,7 +67,7 @@ The bundle stores no tokens. Each hook is an interface in `Nowo\WikiBundle\Api\H
 | `rate_limiter` | `WikiApiRateLimiterInterface`: one bucket per token, plus a failed-token limit per IP | Every request gets 429 |
 | `plan_gate` | `WikiApiPlanGateInterface` | 403 `PLAN_001` |
 | `users` | `WikiApiUsersInterface`: the `id` shown for the token's own user | People have no `id` |
-| `wiki_management` | `WikiApiWikiManagementInterface`: create, rename, archive and unarchive wikis | 403 `WIKI_001` |
+| `wiki_management` | `WikiApiWikiManagementInterface`: the owner key of a new wiki, then create; rename, archive and unarchive wikis | 403 `WIKI_001` |
 | `files` | `WikiApiFilesInterface`: list, upload and download, with every check of the file | No files (403 `FILE_001`, empty lists) |
 | `idempotency_store` | `WikiApiIdempotencyStoreInterface` | The bundle's table |
 
@@ -169,6 +169,10 @@ against the page, its ancestors and its space. Each request reads at most `api.s
 
 **Comments.** New threads are page-level; an `anchor` field is answered with a `not_supported` warning. Other people's
 comments are never edited through the API.
+
+**Creating a wiki.** The hook names the new wiki's owner key. If that owner is outside the token's *where*, the answer is
+404 and nothing is created. The token that creates a restricted wiki gets it back in the answer. After that, the usual
+reach applies: a restricted wiki must be named in *where*.
 
 **Downloads** always leave as an `attachment`, with `X-Content-Type-Options: nosniff` and
 `Content-Security-Policy: default-src 'none'; sandbox`.
