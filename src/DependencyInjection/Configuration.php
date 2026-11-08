@@ -503,6 +503,8 @@ final class Configuration implements ConfigurationInterface
                                 ->scalarNode('plan_gate')->defaultNull()->info('Api\\Hook\\WikiApiPlanGateInterface. null: 403 PLAN_001.')->end()
                                 ->scalarNode('users')->defaultNull()->info('Api\\Hook\\WikiApiUsersInterface. null: no person has an id.')->end()
                                 ->scalarNode('idempotency_store')->defaultNull()->info('Api\\Hook\\WikiApiIdempotencyStoreInterface. null: the bundle table <table_prefix>_api_idempotency.')->end()
+                                ->scalarNode('wiki_management')->defaultNull()->info('Api\\Hook\\WikiApiWikiManagementInterface. null: 403 WIKI_001.')->end()
+                                ->scalarNode('files')->defaultNull()->info('Api\\Hook\\WikiApiFilesInterface. null: no files (403 FILE_001, empty lists).')->end()
                             ->end()
                         ->end()
                     ->end()

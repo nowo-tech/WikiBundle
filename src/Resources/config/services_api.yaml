@@ -102,3 +102,16 @@ services:
         tags: ['controller.service_arguments']
         arguments:
             $maxBodyBytes: '%nowo_wiki.api.max_body_bytes%'
+
+    # S6: wiki lifecycle and files over host hooks.
+    Nowo\WikiBundle\Api\Hook\DenyingWikiApiWikiManagement: ~
+    Nowo\WikiBundle\Api\Hook\DenyingWikiApiFiles: ~
+
+    Nowo\WikiBundle\Api\Operation\WikiApiDelegatedOperations:
+        public: true
+
+    Nowo\WikiBundle\Api\Controller\WikiApiDelegatedController:
+        public: true
+        tags: ['controller.service_arguments']
+        arguments:
+            $maxBodyBytes: '%nowo_wiki.api.max_body_bytes%'

@@ -128,6 +128,7 @@ final class ApiKernel extends Kernel
             ->tag('kernel.event_listener', ['event' => WikiEvents::COMMENT_CREATED, 'method' => 'commented']);
         $services->set('app.collab_store', ApiCollabStore::class)->args([service(WikiEntityManagerProvider::class)])->public();
         $services->set('app.collab_hub', ApiCollabHub::class)->public();
+        $services->set('app.api_files', ApiTestFiles::class)->public();
         $services->set('app.pages', ApiPageRepository::class)->args([service(WikiEntityManagerProvider::class)]);
         $services->alias(WikiPageRepositoryInterface::class, 'app.pages');
         $services->set('app.quota', RecordingQuotaListener::class)->public()
@@ -140,11 +141,13 @@ final class ApiKernel extends Kernel
             'tree'       => ['enabled' => true],
             'security'   => ['access_roles' => ['ROLE_USER']],
             'api'        => $this->api + ['enabled' => true, 'hooks' => [
-                'authenticator' => 'app.api_host',
-                'directory'     => 'app.api_host',
-                'rate_limiter'  => 'app.api_host',
-                'plan_gate'     => 'app.api_host',
-                'users'         => 'app.api_host',
+                'authenticator'   => 'app.api_host',
+                'directory'       => 'app.api_host',
+                'rate_limiter'    => 'app.api_host',
+                'plan_gate'       => 'app.api_host',
+                'users'           => 'app.api_host',
+                'wiki_management' => 'app.api_host',
+                'files'           => 'app.api_files',
             ]],
         ], $this->wiki));
     }

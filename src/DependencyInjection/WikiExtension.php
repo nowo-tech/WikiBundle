@@ -17,15 +17,19 @@ use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Ai\WikiContextRetriever;
+use Nowo\WikiBundle\Api\Hook\DenyingWikiApiFiles;
 use Nowo\WikiBundle\Api\Hook\DenyingWikiApiPlanGate;
 use Nowo\WikiBundle\Api\Hook\DenyingWikiApiRateLimiter;
+use Nowo\WikiBundle\Api\Hook\DenyingWikiApiWikiManagement;
 use Nowo\WikiBundle\Api\Hook\NullWikiApiUsers;
 use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiFilesInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiIdempotencyStoreInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiUsersInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiWikiManagementInterface;
 use Nowo\WikiBundle\Api\Idempotency\DoctrineWikiApiIdempotencyStore;
 use Nowo\WikiBundle\Attachment\ConfiguredWikiAttachmentLimitsProvider;
 use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
@@ -421,6 +425,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setAlias(WikiApiRateLimiterInterface::class, self::serviceOr($api['hooks']['rate_limiter'], DenyingWikiApiRateLimiter::class));
         $container->setAlias(WikiApiPlanGateInterface::class, self::serviceOr($api['hooks']['plan_gate'], DenyingWikiApiPlanGate::class));
         $container->setAlias(WikiApiUsersInterface::class, self::serviceOr($api['hooks']['users'], NullWikiApiUsers::class));
+        $container->setAlias(WikiApiWikiManagementInterface::class, self::serviceOr($api['hooks']['wiki_management'], DenyingWikiApiWikiManagement::class));
+        $container->setAlias(WikiApiFilesInterface::class, self::serviceOr($api['hooks']['files'], DenyingWikiApiFiles::class));
         $container->getDefinition(WikiRouteLoader::class)->setArgument('$apiPrefix', $api['prefix']);
 
         $table = rtrim((string) $config['table_prefix'], '_') . '_api_idempotency';

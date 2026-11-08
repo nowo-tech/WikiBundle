@@ -11,13 +11,17 @@ use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiUsersInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiWikiManagementInterface;
+use Nowo\WikiBundle\Api\Value\WikiApiNewWiki;
 use Nowo\WikiBundle\Api\Value\WikiApiRateLimitState;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\Value\WikiApiWikiFilter;
+use Nowo\WikiBundle\Api\Value\WikiApiWikiPatch;
 use Nowo\WikiBundle\Api\WikiApiAuthFailure;
 use Nowo\WikiBundle\Api\WikiApiCredential;
 use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
+use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -31,12 +35,14 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use function array_values;
 use function in_array;
 use function is_array;
+use function preg_replace;
+use function strtolower;
 
 /**
  * The host side of the API tests, scripted by each test through static state (the kernel boots a fresh container per
  * request): tokens, wikis and their flags, the person's grants, rate limits and the plan.
  */
-final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirectoryInterface, WikiApiRateLimiterInterface, WikiApiPlanGateInterface, WikiApiUsersInterface, WikiSpaceAccessCheckerInterface
+final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirectoryInterface, WikiApiWikiManagementInterface, WikiApiRateLimiterInterface, WikiApiPlanGateInterface, WikiApiUsersInterface, WikiSpaceAccessCheckerInterface
 {
     /** @var array<string, array{user: string, level: WikiApiLevel|null, where: WikiApiWhere, name?: string}|string> secret => token, or 'disabled' */
     public static array $tokens = [];
@@ -72,16 +78,17 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
 
     public static function reset(): void
     {
-        self::$tokens      = [];
-        self::$wikis       = [];
-        self::$grants      = [];
-        self::$hiddenPages = [];
-        self::$noPlan      = [];
-        self::$rateLimited = false;
-        self::$ipBlocked   = false;
-        self::$failedIps   = [];
-        self::$provisioned = [];
-        self::$race        = null;
+        self::$tokens         = [];
+        self::$wikis          = [];
+        self::$grants         = [];
+        self::$hiddenPages    = [];
+        self::$noPlan         = [];
+        self::$rateLimited    = false;
+        self::$ipBlocked      = false;
+        self::$failedIps      = [];
+        self::$provisioned    = [];
+        self::$race           = null;
+        ApiTestFiles::$stored = [];
     }
 
     public function authenticate(Request $request): WikiApiPrincipal|WikiApiAuthFailure
@@ -166,6 +173,38 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
         self::$wikis[$wiki->slug]['unopened'] = false;
 
         return $space;
+    }
+
+    public function create(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): WikiApiWiki
+    {
+        $slug = strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', $wiki->name));
+        if (isset(self::$wikis[$slug])) {
+            throw new WikiApiRefusal(409, 'WIKI_003', 'This name is taken');
+        }
+        self::$wikis[$slug] = ['name' => $wiki->name, 'owner' => $wiki->ownerId, 'unopened' => true];
+
+        return $this->find($principal, $slug) ?? throw new WikiApiRefusal(500, 'SERVER_001', 'Server error');
+    }
+
+    public function update(WikiApiPrincipal $principal, WikiApiWiki $wiki, WikiApiWikiPatch $patch): WikiApiWiki
+    {
+        self::$wikis[$wiki->slug]['name'] = $patch->name ?? $wiki->name;
+
+        return $this->find($principal, $wiki->slug) ?? $wiki;
+    }
+
+    public function archive(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiApiWiki
+    {
+        self::$wikis[$wiki->slug]['archived'] = true;
+
+        return $this->find($principal, $wiki->slug) ?? $wiki;
+    }
+
+    public function unarchive(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiApiWiki
+    {
+        self::$wikis[$wiki->slug]['archived'] = false;
+
+        return $this->find($principal, $wiki->slug) ?? $wiki;
     }
 
     public function consume(WikiApiPrincipal $principal): WikiApiRateLimitState

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Api;
 
 use Nowo\WikiBundle\Api\Controller\WikiApiCommentController;
+use Nowo\WikiBundle\Api\Controller\WikiApiDelegatedController;
 use Nowo\WikiBundle\Api\Controller\WikiApiReadController;
 use Nowo\WikiBundle\Api\Controller\WikiApiWikiController;
 use Nowo\WikiBundle\Api\Controller\WikiApiWriteController;
@@ -47,6 +48,13 @@ final class WikiApiRoutes
         'thread_delete'  => ['/wikis/{wiki}/pages/{page}/threads/{thread}', WikiApiCommentController::class, 'deleteThread', 'DELETE'],
         'comment_edit'   => ['/wikis/{wiki}/pages/{page}/comments/{comment}', WikiApiCommentController::class, 'edit', 'PATCH'],
         'comment_delete' => ['/wikis/{wiki}/pages/{page}/comments/{comment}', WikiApiCommentController::class, 'delete', 'DELETE'],
+        'wiki_create'    => ['/wikis', WikiApiDelegatedController::class, 'createWiki', 'POST'],
+        'wiki_update'    => ['/wikis/{wiki}', WikiApiDelegatedController::class, 'updateWiki', 'PATCH'],
+        'wiki_archive'   => ['/wikis/{wiki}/archive', WikiApiDelegatedController::class, 'archiveWiki', 'POST'],
+        'wiki_unarchive' => ['/wikis/{wiki}/unarchive', WikiApiDelegatedController::class, 'unarchiveWiki', 'POST'],
+        'page_files'     => ['/wikis/{wiki}/pages/{page}/files', WikiApiDelegatedController::class, 'files', 'GET'],
+        'file_upload'    => ['/wikis/{wiki}/files', WikiApiDelegatedController::class, 'upload', 'POST'],
+        'file_download'  => ['/wikis/{wiki}/files/{file}', WikiApiDelegatedController::class, 'download', 'GET'],
         'page_restore'   => ['/wikis/{wiki}/pages/{page}/revisions/{number}/restore', WikiApiWriteController::class, 'restore', 'POST'],
     ];
 
