@@ -15,6 +15,8 @@ final class WikiApiRefusal extends RuntimeException
     /**
      * @param array<string, mixed> $extra more fields of the body (a conflict's current revision)
      * @param array<string, string> $headers headers of the answer (`Retry-After`)
+     * @param bool $afterCommit the write was stored before this refusal: its idempotent claim is kept, so a retry with the
+     *                          same key does not run it again (audit IF-L8)
      */
     public function __construct(
         public readonly int $status,
@@ -22,6 +24,7 @@ final class WikiApiRefusal extends RuntimeException
         string $message,
         public readonly array $extra = [],
         public readonly array $headers = [],
+        public readonly bool $afterCommit = false,
     ) {
         parent::__construct($message);
     }
@@ -49,6 +52,12 @@ final class WikiApiRefusal extends RuntimeException
     public static function archivedWiki(): self
     {
         return new self(403, 'WIKI_002', 'This wiki is archived');
+    }
+
+    /** A server error after the write was stored (a host bug): 500, claim kept. */
+    public static function serverErrorAfterCommit(): self
+    {
+        return new self(500, 'SERVER_001', 'Server error', [], [], true);
     }
 
     public static function invalid(string $field): self

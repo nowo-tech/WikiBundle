@@ -109,6 +109,8 @@ services:
 
     Nowo\WikiBundle\Api\Operation\WikiApiDelegatedOperations:
         public: true
+        arguments:
+            $logger: '@?logger'
 
     Nowo\WikiBundle\Api\Controller\WikiApiDelegatedController:
         public: true

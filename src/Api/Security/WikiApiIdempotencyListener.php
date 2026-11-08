@@ -125,7 +125,8 @@ final readonly class WikiApiIdempotencyListener implements EventSubscriberInterf
         [$scope, $keyHash] = $claim;
         $response          = $event->getResponse();
         try {
-            if ($response->isSuccessful()) {
+            // A write stored before its refusal (audit IF-L8) keeps its claim: a retry replays, never runs it again.
+            if ($response->isSuccessful() || WikiApiRequestListener::wroteAnyway($request)) {
                 $target              = $request->attributes->get(self::TARGET);
                 [$wikiSlug, $pageId] = is_array($target) ? $target : [null, null];
                 $this->store->complete($scope, $keyHash, $response->getStatusCode(), (string) $response->getContent(), $wikiSlug, $pageId);

@@ -31,6 +31,7 @@ final class WikiApiDenyingDelegatesTest extends TestCase
         $wiki       = new WikiApiWiki('eng', null, 'Eng');
         $management = new DenyingWikiApiWikiManagement();
         foreach ([
+            static fn () => $management->ownerKey($principal, new WikiApiNewWiki('project', 'p', 'X')),
             static fn () => $management->create($principal, new WikiApiNewWiki('project', 'p', 'X')),
             static fn () => $management->update($principal, $wiki, new WikiApiWikiPatch('Y')),
             static fn () => $management->archive($principal, $wiki),

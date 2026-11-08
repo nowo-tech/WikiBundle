@@ -175,16 +175,19 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
         return $space;
     }
 
+    public function ownerKey(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): ?string
+    {
+        return $wiki->ownerId === 'nobody' ? null : $wiki->ownerId;
+    }
+
     public function create(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): WikiApiWiki
     {
-        if (!$principal->where->reachesOwner($wiki->ownerId)) {
-            throw WikiApiRefusal::notFound();
-        }
         $slug = strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', $wiki->name));
         if (isset(self::$wikis[$slug])) {
             throw new WikiApiRefusal(409, 'WIKI_003', 'This name is taken');
         }
-        self::$wikis[$slug] = ['name' => $wiki->name, 'owner' => $wiki->ownerId, 'unopened' => true, 'restricted' => $wiki->ownerType === 'rogue'];
+        // 'restricted': a host that restricts new wikis; 'misfiled': a faulty host that files it under another owner.
+        self::$wikis[$slug] = ['name' => $wiki->name, 'owner' => $wiki->ownerType === 'misfiled' ? 'owner-9' : $wiki->ownerId, 'unopened' => true, 'restricted' => $wiki->ownerType === 'restricted'];
 
         return $this->find($principal, $slug) ?? throw new WikiApiRefusal(500, 'SERVER_001', 'Server error');
     }

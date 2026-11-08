@@ -16,9 +16,10 @@ use Nowo\WikiBundle\Api\WikiApiCapability;
 use Nowo\WikiBundle\Api\WikiApiInput;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
-use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -45,13 +46,18 @@ final readonly class WikiApiDelegatedOperations
         private WikiApiFilesInterface $files,
         private WikiApiAudit $audit,
         private WikiApiSerializer $serializer,
+        private LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
     /**
-     * `POST /wikis` `{owner_type, owner_id, name, description}`: Full. The owner is the host's notion, so the hook must
-     * check it against the token's *where* ({@see WikiApiWhere::reachesOwner()}) and the
-     * person's right to manage it (audit IF-L7); the bundle checks that the wiki it answers is within *where*.
+     * `POST /wikis` `{owner_type, owner_id, name, description}`: Full (audit IF-L7, IF-L8).
+     *
+     * The owner is the host's notion: the hook names its key ({@see WikiApiWikiManagementInterface::ownerKey()}), and an
+     * owner outside the token's *where* is 404 before anything is created. The new wiki is judged by its owner, so a
+     * restricted wiki this token just created is answered (later requests follow the usual reach, where a restricted
+     * wiki must be named). A hook that answers a wiki of another owner is a host bug: the write is audited, an error
+     * names the hook, the idempotent claim is kept so a retry does not create it again, and the answer is 500.
      *
      * @throws WikiApiRefusal
      *
@@ -68,13 +74,18 @@ final readonly class WikiApiDelegatedOperations
             $this->name($input, true) ?? '',
             $input->string('description', false, 2000),
         );
+        $ownerKey = $this->management->ownerKey($principal, $new);
+        if ($ownerKey === null || !$principal->where->reachesOwner($ownerKey)) {
+            throw WikiApiRefusal::notFound();
+        }
         $this->audit->requireAudit();
         $wiki = $this->management->create($principal, $new);
-        if (!$principal->where->reaches($wiki)) {
-            // The host created it outside the token's reach: say so loudly, as a server error, never as a success.
-            throw new WikiApiRefusal(500, 'SERVER_001', 'Server error');
-        }
         $this->audit->written($principal, 'wiki.create', $wiki->slug, $wiki->space?->getId(), null, [], ['name', 'description']);
+        if ($wiki->ownerKey !== $ownerKey) {
+            $this->logger->error('Wiki API: the wiki management hook created a wiki under another owner than the one asked.', ['bundle' => 'nowo_wiki', 'hook' => $this->management::class]);
+
+            throw WikiApiRefusal::serverErrorAfterCommit();
+        }
 
         return [$this->serializer->wiki($wiki), $wiki];
     }
