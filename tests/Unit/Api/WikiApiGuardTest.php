@@ -127,6 +127,9 @@ final class WikiApiGuardTest extends TestCase
         $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(), $wiki, $this->archived->getId()));
         self::assertSame($this->archived, $guard->page($this->principal(WikiApiLevel::Edit), $wiki, $this->archived->getId(), true));
         $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(WikiApiLevel::Read), $wiki, $this->archived->getId(), true));
+        // The role gate counts too, even when the host checker grants Archive (audit IF-L4).
+        $this->roles = ['list'];
+        $this->refused(404, 'ACCESS_001', fn () => $this->guard()->page($this->principal(WikiApiLevel::Full), $wiki, $this->archived->getId(), true));
         $this->granted = [WikiAction::View];
         $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(WikiApiLevel::Full), $wiki, $this->archived->getId(), true));
     }

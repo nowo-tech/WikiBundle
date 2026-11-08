@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle;
 use Nowo\WikiBundle\DependencyInjection\Compiler\CsrfProtectionPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\TwigPathsPass;
+use Nowo\WikiBundle\DependencyInjection\Compiler\WikiApiSafetyPass;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
@@ -29,6 +30,7 @@ final class WikiBundle extends Bundle
         $container->addCompilerPass(new TwigPathsPass());
         $container->addCompilerPass(new CsrfProtectionPass());
         $container->addCompilerPass(new MilkdownBridgePass());
+        $container->addCompilerPass(new WikiApiSafetyPass());
     }
 
     /**
