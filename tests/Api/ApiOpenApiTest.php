@@ -14,14 +14,18 @@ use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Yaml\Yaml;
 
 use function array_diff;
+use function array_is_list;
 use function array_keys;
 use function array_merge;
+use function array_values;
 use function file_get_contents;
-use function in_array;
 use function is_array;
+use function is_bool;
+use function is_int;
 use function is_string;
 use function preg_match_all;
 use function sort;
+use function str_repeat;
 use function strlen;
 use function strtolower;
 use function substr;
@@ -95,40 +99,120 @@ final class ApiOpenApiTest extends ApiTestCase
         $this->assertShape('Page', $this->json($this->call('GET', $base, 'reader')));
     }
 
-    /**
-     * @param array<string, mixed> $answer
-     */
-    private function assertShape(string $schema, array $answer): void
+    public function testWriteAnswersAndRefusalsAreDocumented(): void
     {
-        [$required, $named, $open] = $this->fields($schema);
-        $keys                      = array_keys($answer);
-        self::assertSame([], array_diff($required, $keys), $schema . ': missing required fields');
-        if (!$open) {
-            self::assertSame([], array_diff($keys, $named), $schema . ': fields the document does not name');
+        $created = $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Guide', 'content_markdown' => 'x', 'extra' => 1]);
+        $page    = $this->json($created);
+        $this->assertShape('Page', $page);
+        $this->assertDocumented('post', '/wikis/{wiki}/pages', $created->getStatusCode());
+        $base = '/wikis/eng/pages/' . $page['id'];
+        $this->assertShape('Page', $this->json($this->call('PUT', $base, self::ANA, ['content_markdown' => 'y', 'base_revision' => 1])));
+        $thread = $this->json($this->call('POST', $base . '/threads', self::ANA, ['body' => 'Hi']));
+        $this->assertShape('Thread', $thread);
+        $this->assertShape('ThreadList', $this->json($this->call('GET', $base . '/threads')));
+        $this->assertShape('PageList', $this->json($this->call('GET', '/wikis/eng/pages')));
+        $this->assertShape('RevisionList', $this->json($this->call('GET', $base . '/revisions')));
+        $this->assertShape('Wiki', $this->json($this->call('POST', '/wikis', self::ANA, ['owner_type' => 'project', 'owner_id' => 'owner-1', 'name' => 'Handbook'])));
+        $this->assertShape('FileList', $this->json($this->call('GET', $base . '/files')));
+
+        foreach ([
+            ['put', '/wikis/{wiki}/pages/{page}', $this->call('PUT', $base, self::ANA, ['content_markdown' => 'z', 'base_revision' => 1])],
+            ['put', '/wikis/{wiki}/pages/{page}', $this->call('PUT', $base, self::ANA, ['content_markdown' => 'z'])],
+            ['put', '/wikis/{wiki}/pages/{page}', $this->call('PUT', $base, self::ANA, 'x=1', ['Content-Type' => 'text/plain'])],
+            ['post', '/wikis/{wiki}/pages', $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'x', 'content_markdown' => str_repeat('*a* ', 20000)])],
+            ['get', '/wikis/{wiki}', $this->call('GET', '/wikis/missing')],
+            ['get', '/search', $this->call('GET', '/search')],
+            ['get', '/wikis', $this->call('GET', '/wikis', 'unknown')],
+        ] as [$method, $path, $response]) {
+            $this->assertShape('Error', $this->json($response));
+            $this->assertDocumented($method, $path, $response->getStatusCode());
+        }
+    }
+
+    private function assertDocumented(string $method, string $path, int $status): void
+    {
+        self::assertArrayHasKey((string) $status, $this->document()['paths'][$path][$method]['responses'], $method . ' ' . $path . ' ' . $status);
+    }
+
+    /**
+     * Required fields present, no unnamed field, each value of the type its property declares, nested objects and list
+     * items checked the same way.
+     */
+    private function assertShape(string $schema, mixed $answer, string $at = ''): void
+    {
+        $this->assertValue(['$ref' => '#/components/schemas/' . $schema], $answer, $at === '' ? $schema : $at);
+    }
+
+    /**
+     * @param array<string, mixed> $definition
+     */
+    private function assertValue(array $definition, mixed $value, string $at): void
+    {
+        if (is_string($definition['$ref'] ?? null)) {
+            $this->assertValue($this->document()['components']['schemas'][substr($definition['$ref'], strlen('#/components/schemas/'))], $value, $at);
+
+            return;
+        }
+        if (isset($definition['oneOf'])) {
+            $value === null ? $this->addToAssertionCount(1) : $this->assertValue($definition['oneOf'][0], $value, $at);
+
+            return;
+        }
+        if (isset($definition['allOf']) || ($definition['type'] ?? null) === 'object') {
+            self::assertIsArray($value, $at);
+            [$required, $properties, $open] = $this->objectOf($definition);
+            self::assertSame([], array_values(array_diff($required, array_keys($value))), $at . ': missing required fields');
+            if (!$open) {
+                self::assertSame([], array_values(array_diff(array_keys($value), array_keys($properties))), $at . ': fields the document does not name');
+            }
+            foreach ($value as $key => $item) {
+                if (isset($properties[$key])) {
+                    $this->assertValue($properties[$key], $item, $at . '.' . $key);
+                }
+            }
+
+            return;
+        }
+        $types = (array) ($definition['type'] ?? []);
+        if ($types === []) {
+            return;
+        }
+        $actual = match (true) {
+            $value === null                           => 'null',
+            is_bool($value)                           => 'boolean',
+            is_int($value)                            => 'integer',
+            is_string($value)                         => 'string',
+            is_array($value) && array_is_list($value) => 'array',
+            default                                   => 'object',
+        };
+        self::assertContains($actual, $types, $at . ': type');
+        if ($actual === 'array' && isset($definition['items'])) {
+            foreach ($value as $index => $item) {
+                $this->assertValue($definition['items'], $item, $at . '[' . $index . ']');
+            }
         }
     }
 
     /**
-     * @return array{0: list<string>, 1: list<string>, 2: bool} required, named, open to more
+     * @param array<string, mixed> $definition
+     *
+     * @return array{0: list<string>, 1: array<string, array<string, mixed>>, 2: bool}
      */
-    private function fields(string $schema): array
+    private function objectOf(array $definition): array
     {
-        $definition = $this->document()['components']['schemas'][$schema];
         $required   = [];
-        $named      = [];
+        $properties = [];
         $open       = ($definition['additionalProperties'] ?? false) === true;
         foreach ($definition['allOf'] ?? [$definition] as $part) {
             if (is_string($part['$ref'] ?? null)) {
-                [$r, $n] = $this->fields(substr($part['$ref'], strlen('#/components/schemas/')));
-            } else {
-                [$r, $n] = [$part['required'] ?? [], array_keys($part['properties'] ?? [])];
+                $part = $this->document()['components']['schemas'][substr($part['$ref'], strlen('#/components/schemas/'))];
             }
-            $required = array_merge($required, $r);
-            $named    = array_merge($named, $n);
+            $required   = array_merge($required, $part['required'] ?? []);
+            $properties = array_merge($properties, $part['properties'] ?? []);
+            $open       = $open || ($part['additionalProperties'] ?? false) === true;
         }
-        self::assertTrue(in_array($schema, array_keys($this->document()['components']['schemas']), true));
 
-        return [$required, $named, $open];
+        return [$required, $properties, $open];
     }
 
     /**
