@@ -118,10 +118,15 @@ final readonly class WikiApiGuard
         return $page;
     }
 
-    /** Whether archived pages may be read (level >= Edit and `Archive` granted; owner Q-O4). */
+    /**
+     * Whether archived pages may be read: level >= Edit, the role gate's `canArchive()` and `Archive` granted, as the
+     * UI's archived list (owner Q-O4, audit IF-L4).
+     */
     public function maySeeArchived(WikiApiPrincipal $principal, WikiSpace $space, ?WikiPage $page = null): bool
     {
-        return WikiApiCapability::allows($principal->level, WikiAction::Archive) && $this->checker->isGranted($principal->user, WikiAction::Archive, $space, $page);
+        return WikiApiCapability::allows($principal->level, WikiAction::Archive)
+            && $this->roles->canArchive($principal->user)
+            && $this->checker->isGranted($principal->user, WikiAction::Archive, $space, $page);
     }
 
     /**
