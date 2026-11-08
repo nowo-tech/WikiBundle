@@ -8,10 +8,13 @@ use InvalidArgumentException;
 use League\CommonMark\Node\Node;
 use League\CommonMark\Renderer\ChildNodeRendererInterface;
 use League\CommonMark\Renderer\NodeRendererInterface;
+use Nowo\MilkdownEditorBundle\Form\MilkdownEditorType;
 use Nowo\MilkdownEditorBundle\Markdown\DialectRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Directive\DirectiveRendererInterface;
+use Nowo\MilkdownEditorBundle\Markdown\FileCard;
 use Nowo\MilkdownEditorBundle\Markdown\Node\LeafDirective;
 use Nowo\UiKitBundle\Avatar\AvatarUrlPolicy;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function implode;
 use function in_array;
@@ -31,6 +34,10 @@ use function trim;
  *   path may not hold `//`, `.` / `..` segments or encoded slashes (`/.//host`, `/%2F%2Fhost`). Any other URL
  *   (`javascript:`, `data:`, `http:`, `//host`, entity-encoded schemes…) is dropped;
  * - every value is escaped. `id` and `class` attributes are never copied into the markup.
+ *
+ * 1.25: a `::file` card whose host file the viewer may not see (Milkdown's `nowo_file_hidden`, set by the host file
+ * resolver) renders Milkdown's neutral *Content not visible*, without its name, label or link; so does any directive
+ * {@see WikiLeafHostFiles} marked (audit IJ-L2).
  */
 final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
 {
@@ -49,9 +56,11 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
     /**
      * @param list<DirectiveRendererInterface> $directiveRenderers host leaf-directive renderers (none in the neutral
      *                                                             environment)
+     * @param TranslatorInterface|null $translator 1.25: translates *Content not visible* (Milkdown's `ref.hidden`)
      */
     public function __construct(
         private array $directiveRenderers = [],
+        private ?TranslatorInterface $translator = null,
     ) {
     }
 
@@ -68,6 +77,16 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
             if ($renderer->supports($node->name)) {
                 return $renderer->render($node);
             }
+        }
+        $hidden = $this->translator?->trans('ref.hidden', [], MilkdownEditorType::DOMAIN) ?? 'Content not visible';
+        if ($node->name === FileCard::NAME && ($node->data->get('nowo_file_hidden', false) === true || $node->data->get(WikiLeafHostFiles::HIDDEN, false) === true)) {
+            $node->data->set('nowo_file_hidden', true);
+
+            return FileCard::render($node, ['hidden' => $hidden]);
+        }
+        if ($node->data->get(WikiLeafHostFiles::HIDDEN, false) === true) {
+            // 1.25 (audit IJ-L2): a directive naming a host file the viewer may not see: no label, attributes or link.
+            return '<div class="nowo-md-directive nowo-md-directive--leaf nowo-wiki-directive" data-directive="' . DialectRenderer::e($node->name) . '"><span class="nowo-md-ref nowo-md-ref--hidden">' . DialectRenderer::e($hidden) . '</span></div>';
         }
 
         $text = DialectRenderer::e($this->text($node));
@@ -93,7 +112,8 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
 
     private function url(LeafDirective $node): ?string
     {
-        foreach (self::URL_ATTRIBUTES as $key) {
+        // 1.25 (audit IJ-L2): a `::file` whose `href` is a host file links only that resolved `href`.
+        foreach ($node->data->get(WikiLeafHostFiles::HREF_ONLY, false) === true ? ['href'] : self::URL_ATTRIBUTES as $key) {
             $url = isset($node->attributes[$key]) ? self::safeUrl($node->attributes[$key]) : null;
             if ($url !== null) {
                 return $url;

@@ -10,12 +10,14 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownView;
+use Nowo\WikiBundle\Tests\Api\App\ApiTestFiles;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 
 use function array_column;
 use function array_search;
 use function str_repeat;
+use function substr_count;
 
 /**
  * 1.24 (spec 218 FR-010, FR-012 – FR-014, SC-002): page reads, the source for editors with an Edit token, the reader's
@@ -127,6 +129,39 @@ final class ApiPageReadTest extends ApiTestCase
         self::assertStringNotContainsString($ops->getId(), $limited);
         self::assertStringNotContainsString('Ops page', $limited);
         self::assertStringContainsString('[[wiki:' . $open->getId() . ']]', $limited);
+    }
+
+    /**
+     * 1.25 (Beacon, Appendix IF follow-up): a file referenced by plain URL belongs to a wiki; a token whose *where* does not
+     * reach that wiki gets the neutral placeholder — no uuid, no alt text, no link text — even when its person could open it.
+     */
+    public function testAFileOutsideTheWhereIsNeverShownByUrlOrText(): void
+    {
+        $opsFile             = '22222222-2222-4222-8222-000000000001';
+        $engFile             = '22222222-2222-4222-8222-000000000002';
+        ApiTestFiles::$wikis = [$opsFile => 'ops', $engFile => 'eng'];
+        $source              = "![secret org chart](/files/{$opsFile}/preview)\n\nSee [salaries 2026.pdf](/files/{$opsFile}/original) and ![eng diagram](/files/{$engFile}/preview).\n\n"
+            . "![secret thumb](/files/{$opsFile}/thumb) [secret absolute](https://beacon.example/files/{$opsFile}/original?download=1) <https://beacon.example/files/{$opsFile}/s128>\n\n"
+            . "Pasted: https://beacon.example/files/{$opsFile}/original";
+        $page = $this->page($this->eng, 'Runbook', $source);
+
+        $this->token('ana-read', 'u-ana', WikiApiLevel::Read);
+        $everything = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'ana-read'))['content_markdown'];
+        self::assertStringContainsString('![secret org chart](/files/' . $opsFile . '/preview)', $everything);
+        self::assertStringContainsString('[salaries 2026.pdf](/files/' . $opsFile . '/original)', $everything);
+
+        $this->token('ana-eng', 'u-ana', WikiApiLevel::Read, WikiApiWhere::limitedTo(['owner-1'], []));
+        $limited = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'ana-eng'))['content_markdown'];
+        self::assertStringNotContainsString($opsFile, $limited);
+        self::assertStringNotContainsString('secret org chart', $limited);
+        self::assertStringNotContainsString('salaries', $limited);
+        // Image, link, thumb variant, absolute link, angle autolink and GFM bare autolink (audit IJ-L3).
+        self::assertSame(6, substr_count($limited, 'Content not visible'));
+        self::assertStringContainsString('![eng diagram](/files/' . $engFile . '/preview)', $limited);
+
+        // The source is still the source for an editor's Edit token within the where.
+        $this->token('ana-edit', 'u-ana', WikiApiLevel::Edit, WikiApiWhere::limitedTo(['owner-1'], []));
+        self::assertSame($source, $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'ana-edit'))['content_markdown']);
     }
 
     public function testAPageOverTheLimitsIsNeverShownToAReader(): void

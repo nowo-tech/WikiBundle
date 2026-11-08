@@ -56,6 +56,15 @@ final class Configuration implements ConfigurationInterface
      */
     public const TAB_ICON_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*(?::[a-z0-9]+(?:-[a-z0-9]+)*)?$/';
 
+    /** 1.25 `editor.milkdown.host_files`: resolve host files only when Milkdown's `host_url_patterns` is set. */
+    public const HOST_FILES_AUTO = 'auto';
+
+    /** 1.25 `editor.milkdown.host_files`: resolve host files whenever Milkdown declares host schemes. */
+    public const HOST_FILES_ON = 'on';
+
+    /** 1.25 `editor.milkdown.host_files`: never resolve host files (1.24 behaviour). */
+    public const HOST_FILES_OFF = 'off';
+
     /** Form type of the page body with editor.type milkdown (nowo-tech/milkdown-editor-bundle). */
     public const MILKDOWN_FORM_TYPE = MilkdownEditorType::class;
 
@@ -335,6 +344,11 @@ final class Configuration implements ConfigurationInterface
                                 ->booleanNode('copy_markdown')
                                     ->info('1.15: a "Copy as Markdown" button on the page view, for users who may edit the page only (the raw source holds page ids and directive attributes). Needs nowo-tech/milkdown-editor-bundle >= 1.5.')
                                     ->defaultFalse()
+                                ->end()
+                                ->enumNode('host_files')
+                                    ->info('1.25: resolve host file references (nowo_milkdown_editor.markdown.host_schemes and host_url_patterns) in the per-viewer render of pages and comments, through the host HostFileResolverInterface with the render\'s WikiRenderFrame (space, page, the API\'s reach). auto (default): only when host_url_patterns is set; on: also with host_schemes alone; off: never (as 1.24). Under a reach, a resolver that is not a ContextualHostFileResolverInterface resolves nothing.')
+                                    ->values([self::HOST_FILES_AUTO, self::HOST_FILES_ON, self::HOST_FILES_OFF])
+                                    ->defaultValue(self::HOST_FILES_AUTO)
                                 ->end()
                             ->end()
                         ->end()

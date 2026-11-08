@@ -138,6 +138,18 @@ nowo_milkdown_editor:
 Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates`, part of the generated schema only while `collaboration.enabled` is true (1.13.1; see [UPGRADING](UPGRADING.md#to-1131)).
 
 
+**Host files (1.25).** `editor.milkdown.host_files` decides whether the per-viewer render (page body, comments, the API
+reader view) resolves host file references through Milkdown's `HostFileResolverInterface`, with the render's
+`WikiRenderFrame` (space, page, reach) as context:
+
+- `auto` (default): only when `nowo_milkdown_editor.markdown.host_url_patterns` is set.
+- `on`: also with `host_schemes` alone.
+- `off`: never, as in 1.24.
+
+A refused file reads *Content not visible*, without URL, alt text or name. Under the API's reach, a resolver that is
+not a `ContextualHostFileResolverInterface` resolves nothing. The neutral render (`content_html`) never resolves host
+files. See [UPGRADING](UPGRADING.md#unreleased).
+
 **Copy as Markdown (1.15).** `editor.milkdown.copy_markdown: true` (default `false`, needs Milkdown ≥ 1.5) adds a "Copy
 as Markdown" button to the page view, for users who may edit the page only. It copies the stored Markdown, raw: page
 ids of `[[wiki:<id>]]` links (also of pages the reader may not see), mention handles and directive attributes. That
