@@ -26,6 +26,8 @@ services:
             - '../../Ui/'
             - '../../Interchange/HtmlToMarkdown/'
             - '../../Markdown/WikiTaskListNormalizer.php'
+            # 1.24: one per render, made by WikiRenderContext, never a shared service.
+            - '../../Markdown/WikiRenderFrame.php'
             - '../../Markdown/Milkdown/'
             - '../../Collaboration/'
             - '../../Controller/'

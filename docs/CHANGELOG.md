@@ -63,6 +63,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Saves from a known revision (spec 218).** `WikiPageService::saveRevision()` and `restore()` take an optional last argument, `$expectedRevision`. With it, the page row is locked in a transaction (`WikiPageLockInterface`, implemented by the Doctrine page repository), the revision is compared under the lock, and a stale one throws `WikiRevisionConflictException` (current revision, its author and date) with nothing written. A save whose title and body equal the current revision's writes nothing and returns it. Events fire after the commit. Without the argument, saves behave exactly as before (last write wins). Proven on MySQL and PostgreSQL with two concurrent processes.
+- **The reader's Markdown (spec 218).** `WikiViewerMarkdownView` gives a reader who may not edit a page the Markdown of what their render shows, never the source: links to pages they may open stay `[[wiki:<uuid>]]`, the others read *Content not visible*, and whatever the render hides (reference definitions, link targets, directive attributes, raw HTML when stripped) is absent.
+- **Render context (spec 218).** `WikiRenderContext` names the space and page of every per-viewer render (page body, comment bodies, the reader's Markdown), so resolvers and directive renderers, the host's included, need not read route attributes. A render may carry a `WikiRenderReach` that narrows what resolves: the bundle's page-link resolver honours it and records the links it resolved.
+- **Reads for the REST API (spec 218).** `WikiSearchService::searchPlainText()` matches titles and plain text only, never the Markdown source, case-insensitively and in page-id order. `WikiPageMetadataFinderInterface::pageMetadata()` (Doctrine page repository) lists a space's pages with their current revision's number, date and author id in one query. `WikiCommentService::threadEntities()` and `threadEntity()` return threads and comments as entities after the same rights check as `list()` and `thread()`.
+
 ### Tests
 
 - **A `database` test suite on MySQL and PostgreSQL (spec 218, step 0).** `tests/Database` pins what `WikiPageService` writes and dispatches (create, revisions, restore, archive, the revision collision) and what search matches, on SQLite and, in CI, on MySQL 8.4 and PostgreSQL 16 (`WIKI_TEST_DATABASE_URL`). No change to `src/`.

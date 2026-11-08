@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Search\WikiPlainText;
 
 use function is_array;
 use function is_string;
+use function mb_strtolower;
 use function trim;
 
 /**
@@ -64,6 +65,50 @@ final readonly class WikiSearchService
     }
 
     /**
+     * 1.24 (spec 218): search for a reader who must not learn about a page's source. Matches titles and the plain text
+     * of the current revision only; a revision without plain text yet is matched on its viewer-neutral `content_html`
+     * cache, never on its Markdown (which holds ids and attributes the render hides). Case-insensitive on every
+     * platform. Pages come in id order after `$afterPageId`, so a caller that filters hits can read on.
+     *
+     * @param list<WikiSpace> $spaces spaces to search (empty yields no results)
+     * @param string $query search text (matched literally; empty yields no results)
+     * @param int $limit maximum number of rows read
+     * @param string|null $afterPageId read pages after this id (keyset)
+     *
+     * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
+     */
+    public function searchPlainText(array $spaces, string $query, int $limit, ?string $afterPageId = null): array
+    {
+        $query = trim($query);
+        if ($query === '' || $spaces === [] || $limit < 1) {
+            return [];
+        }
+
+        $like          = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($query)) . '%';
+        $entityManager = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
+        $builder       = $entityManager->createQueryBuilder()
+            ->select('p', 's', 'r.contentHtml AS contentHtml', 'r.contentText AS contentText')
+            ->from(WikiPage::class, 'p')
+            ->innerJoin('p.space', 's')
+            ->leftJoin('p.currentRevision', 'r')
+            ->where('p.space IN (:spaces)')
+            ->andWhere('p.archivedAt IS NULL')
+            ->andWhere("LOWER(p.title) LIKE :q ESCAPE '!' OR LOWER(r.contentText) LIKE :q ESCAPE '!' OR (r.contentText IS NULL AND LOWER(r.contentHtml) LIKE :q ESCAPE '!')")
+            ->setParameter('spaces', $spaces)
+            ->setParameter('q', $like)
+            ->orderBy('p.id', 'ASC')
+            ->setMaxResults($limit);
+        if ($afterPageId !== null) {
+            $builder->andWhere('p.id > :after')->setParameter('after', $afterPageId);
+        }
+
+        /** @var list<array{0: WikiPage, contentHtml: string|null, contentText: string|null}> $rows */
+        $rows = $builder->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
+
+        return $this->hits($rows, $query);
+    }
+
+    /**
      * @param list<WikiSpace> $spaces
      *
      * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
@@ -101,6 +146,16 @@ final readonly class WikiSearchService
             return [];
         }
 
+        return $this->hits($rows, $query);
+    }
+
+    /**
+     * @param array<mixed> $rows
+     *
+     * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
+     */
+    private function hits(array $rows, string $query): array
+    {
         $results = [];
         foreach ($rows as $row) {
             if (!is_array($row) || !isset($row[0]) || !$row[0] instanceof WikiPage) {

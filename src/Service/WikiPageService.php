@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Service;
 use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
+use LogicException;
 use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -17,6 +18,7 @@ use Nowo\WikiBundle\Event\WikiPageRestoredEvent;
 use Nowo\WikiBundle\Event\WikiPageUnarchivedEvent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Repository\WikiPageLockInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
@@ -24,6 +26,7 @@ use Nowo\WikiBundle\Util\WikiSlugger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
+use Throwable;
 
 use function rtrim;
 use function sprintf;
@@ -130,11 +133,17 @@ final readonly class WikiPageService
      * @param object $author application user recorded as revision author
      * @param string $format content format, {@see WikiPageRevision::FORMAT_HTML} or
      *                       {@see WikiPageRevision::FORMAT_MARKDOWN} (1.11)
+     * @param int|null $expectedRevision 1.24 (spec 218): the revision number this save started from. With it, the page
+     *                                   row is locked in a transaction, the revision is compared under the lock, and a
+     *                                   title and body equal to the current revision's write nothing and return it.
+     *                                   Null keeps the last-write-wins save of earlier versions
      *
      * @throws InvalidArgumentException when the page is archived or the format is unknown
      * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
+     * @throws WikiRevisionConflictException when the current revision is not the expected one: nothing was written (1.24)
+     * @throws LogicException when an expected revision is given and the page repository cannot lock a page (1.24)
      *
-     * @return WikiPageRevision the new revision
+     * @return WikiPageRevision the new revision (or, with an expected revision and nothing changed, the current one)
      */
     public function saveRevision(
         WikiPage $page,
@@ -142,8 +151,12 @@ final readonly class WikiPageService
         string $contentHtml,
         object $author,
         string $format = WikiPageRevision::FORMAT_HTML,
+        ?int $expectedRevision = null,
     ): WikiPageRevision {
         $this->assertFormat($format);
+        if ($expectedRevision !== null) {
+            return $this->saveFromRevision($page, $title, $contentHtml, $author, $format, $expectedRevision);
+        }
         if ($page->isArchived()) {
             throw new InvalidArgumentException('Archived pages cannot be edited.');
         }
@@ -164,15 +177,19 @@ final readonly class WikiPageService
      * @param WikiPage $page page to restore
      * @param WikiPageRevision $from revision whose body is copied
      * @param object $actor user who restores it
+     * @param int|null $expectedRevision 1.24 (spec 218): the revision number the restore started from, compared under
+     *                                   the page lock as in {@see self::saveRevision()}; a restore always appends
      *
      * @throws InvalidArgumentException when the page is archived or the revision belongs to another page
      * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
+     * @throws WikiRevisionConflictException when the current revision is not the expected one: nothing was written (1.24)
+     * @throws LogicException when an expected revision is given and the page repository cannot lock a page (1.24)
      *
      * @return WikiPageRevision the new revision
      */
-    public function restore(WikiPage $page, WikiPageRevision $from, object $actor): WikiPageRevision
+    public function restore(WikiPage $page, WikiPageRevision $from, object $actor, ?int $expectedRevision = null): WikiPageRevision
     {
-        if ($page->isArchived()) {
+        if ($expectedRevision === null && $page->isArchived()) {
             throw new InvalidArgumentException('Archived pages cannot be restored.');
         }
 
@@ -181,9 +198,14 @@ final readonly class WikiPageService
         }
 
         $previous = $page->getCurrentRevision();
-        $revision = $from->isMarkdown()
+        $append   = fn (): WikiPageRevision => $from->isMarkdown()
             ? $this->appendRevision($page, (string) $from->getContentMarkdown(), WikiPageRevision::FORMAT_MARKDOWN, $actor)
             : $this->appendRevision($page, $from->getContentHtml(), WikiPageRevision::FORMAT_HTML, $actor);
+        if ($expectedRevision === null) {
+            $revision = $append();
+        } else {
+            [$revision, $previous] = $this->underPageLock($page, $expectedRevision, 'Archived pages cannot be restored.', static fn (): ?WikiPageRevision => null, $append);
+        }
 
         $this->logger->info('Wiki page revision restored.', [
             'bundle'   => 'nowo_wiki',
@@ -282,6 +304,90 @@ final readonly class WikiPageService
         $this->eventDispatcher->dispatch(new WikiPageUnarchivedEvent($page, $actor), WikiEvents::PAGE_UNARCHIVED);
     }
 
+    /**
+     * The save of {@see self::saveRevision()} with an expected revision (1.24).
+     */
+    private function saveFromRevision(WikiPage $page, string $title, string $content, object $author, string $format, int $expectedRevision): WikiPageRevision
+    {
+        [$revision, $previous] = $this->underPageLock(
+            $page,
+            $expectedRevision,
+            'Archived pages cannot be edited.',
+            fn (?WikiPageRevision $current): ?WikiPageRevision => $current instanceof WikiPageRevision && $this->isUnchanged($page, $current, $title, $content, $format) ? $current : null,
+            function () use ($page, $title, $content, $format, $author): WikiPageRevision {
+                $page->setTitle($title);
+
+                return $this->appendRevision($page, $content, $format, $author);
+            },
+        );
+        if ($revision !== $previous) {
+            $this->eventDispatcher->dispatch(new WikiPageSavedEvent($page, $revision, $previous, $author), WikiEvents::PAGE_SAVED);
+        }
+
+        return $revision;
+    }
+
+    /**
+     * Runs a write with the page row locked (1.24): the page is read again under the lock, then checked (archived, the
+     * expected revision), then `$unchanged` may answer the current revision without writing, else `$write` appends.
+     * Commit before any event, so no listener hears of a write that was rolled back.
+     *
+     * @param callable(?WikiPageRevision): ?WikiPageRevision $unchanged
+     * @param callable(): WikiPageRevision $write
+     *
+     * @return array{0: WikiPageRevision, 1: WikiPageRevision|null} the revision written (or the current one) and the
+     *                                                              revision that was current under the lock
+     */
+    private function underPageLock(WikiPage $page, int $expectedRevision, string $archivedMessage, callable $unchanged, callable $write): array
+    {
+        if (!$this->pageRepository instanceof WikiPageLockInterface) {
+            throw new LogicException('An expected revision needs a page repository that implements ' . WikiPageLockInterface::class . '.');
+        }
+
+        $lock = $this->pageRepository;
+        try {
+            $lock->beginPageTransaction($page);
+        } catch (RetryableException $exception) {
+            throw new WikiRevisionCollisionException('The page could not be locked: another save holds it.', 0, $exception);
+        }
+
+        try {
+            if ($page->isArchived()) {
+                throw new InvalidArgumentException($archivedMessage);
+            }
+            $current = $page->getCurrentRevision();
+            $number  = $current?->getRevisionNumber() ?? 0;
+            if ($number !== $expectedRevision) {
+                throw new WikiRevisionConflictException($expectedRevision, $number, $current?->getAuthor(), $current?->getCreatedAt());
+            }
+            $revision = $unchanged($current) ?? $write();
+            $lock->commitPageTransaction();
+        } catch (Throwable $exception) {
+            $lock->rollbackPageTransaction();
+            if ($exception instanceof RetryableException) {
+                throw new WikiRevisionCollisionException('The revision could not be written: another save got there first.', 0, $exception);
+            }
+
+            throw $exception;
+        }
+
+        return [$revision, $current];
+    }
+
+    /** Whether a save would store what the current revision already holds: same title, same format, same body. */
+    private function isUnchanged(WikiPage $page, WikiPageRevision $current, string $title, string $content, string $format): bool
+    {
+        if ($page->getTitle() !== $title) {
+            return false;
+        }
+
+        if ($format === WikiPageRevision::FORMAT_MARKDOWN) {
+            return $current->getContentMarkdown() === $this->normalizeMarkdown($content);
+        }
+
+        return !$current->isMarkdown() && $current->getContentHtml() === $this->clean($page->getSpace(), $content);
+    }
+
     private function appendRevision(WikiPage $page, string $content, string $format, object $author): WikiPageRevision
     {
         $number   = $this->revisionRepository->getNextRevisionNumber($page);
@@ -301,12 +407,17 @@ final readonly class WikiPageService
     private function newRevision(WikiPage $page, int $number, string $content, string $format, object $author): WikiPageRevision
     {
         if ($format === WikiPageRevision::FORMAT_MARKDOWN) {
-            $markdown = rtrim(str_replace(["\r\n", "\r"], "\n", $content));
+            $markdown = $this->normalizeMarkdown($content);
 
             return new WikiPageRevision($page, $number, $this->clean($page->getSpace(), $this->markdownRenderer->render($markdown)), $author, $markdown);
         }
 
         return new WikiPageRevision($page, $number, $this->clean($page->getSpace(), $content), $author);
+    }
+
+    private function normalizeMarkdown(string $content): string
+    {
+        return rtrim(str_replace(["\r\n", "\r"], "\n", $content));
     }
 
     private function assertFormat(string $format): void

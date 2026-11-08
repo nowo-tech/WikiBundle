@@ -53,6 +53,7 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
@@ -450,7 +451,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$tokenStorage', new Reference('security.token_storage', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$urlGenerator', new Reference('router', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$routes', $config['routes'])
-            ->setArgument('$tokenGuard', new Reference(WikiTokenGuard::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            ->setArgument('$tokenGuard', new Reference(WikiTokenGuard::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$renderContext', new Reference(WikiRenderContext::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
 
         $pageResolver = $config['editor']['milkdown']['page_resolver'] ?? null;
         $container->setDefinition(MilkdownWikiMarkdownRenderer::class, (new Definition(MilkdownWikiMarkdownRenderer::class))
@@ -580,7 +582,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$pageRateLimiter', is_string($comments['page_rate_limiter']) && $comments['page_rate_limiter'] !== '' ? new Reference($comments['page_rate_limiter']) : null)
             ->setArgument('$accessChecker', new Reference(WikiAccessCheckerInterface::class))
             ->setArgument('$readViewSource', $comments['read_view_source'])
-            ->setArgument('$limits', $comments['limits']));
+            ->setArgument('$limits', $comments['limits'])
+            ->setArgument('$renderContext', new Reference(WikiRenderContext::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
         $container->setDefinition(WikiCommentsPanel::class, (new Definition(WikiCommentsPanel::class))
             ->setArgument('$comments', new Reference(WikiCommentService::class))
             ->setArgument('$state', new Reference(WikiPanelStateStoreInterface::class))

@@ -70,6 +70,12 @@
 
 ## Unreleased
 
+Nothing to do: every change is additive and default behaviour is unchanged.
+
+- `WikiPageService::saveRevision()` and `restore()` have a new optional last argument. A host that extends neither is unaffected. A host that passes an expected revision needs a page repository implementing `WikiPageLockInterface` (the bundle's Doctrine repository does); otherwise the call throws a `LogicException`.
+- `WikiRevisionBodyRenderer`, `WikiCommentService` and `WikiMilkdownPageResolver` take an optional `WikiRenderContext` (wired by the bundle). Host resolvers and directive renderers can read `WikiRenderContext::current()` for the space and page being rendered instead of the request's `spaceSlug` / `pageSlug`.
+- A host page-link resolver (`editor.milkdown.page_resolver`) should honour `WikiRenderContext::current()?->reaches($space)` and may record resolved links with `recordPageLink()`; the REST API relies on both to keep a token within its reach.
+
 ## To 1.23.0
 
 From **1.22.0**:

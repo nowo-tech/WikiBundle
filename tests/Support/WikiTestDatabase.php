@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Support;
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Logging\Middleware as LoggingMiddleware;
 use Doctrine\DBAL\Tools\DsnParser;
 use Doctrine\ORM\Configuration;
 use Doctrine\ORM\EntityManager;
@@ -15,9 +16,11 @@ use Doctrine\ORM\ORMSetup;
 use Doctrine\ORM\Tools\SchemaTool;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Psr\Log\LoggerInterface;
 
 use function dirname;
 use function getenv;
+use function getmypid;
 use function is_string;
 use function method_exists;
 use function sys_get_temp_dir;
@@ -48,9 +51,9 @@ final class WikiTestDatabase
     }
 
     /** A fresh schema and an entity manager on it. */
-    public static function create(): EntityManager
+    public static function create(?LoggerInterface $sqlLogger = null): EntityManager
     {
-        $em   = self::connect();
+        $em   = self::connect($sqlLogger);
         $tool = new SchemaTool($em);
         $all  = $em->getMetadataFactory()->getAllMetadata();
         if (self::isServer()) {
@@ -62,15 +65,21 @@ final class WikiTestDatabase
     }
 
     /** Another entity manager (and connection) on the same database, schema untouched: for concurrency tests. */
-    public static function connect(): EntityManager
+    public static function connect(?LoggerInterface $sqlLogger = null): EntityManager
     {
         $config = ORMSetup::createAttributeMetadataConfiguration(
             [dirname(__DIR__, 2) . '/src/Entity', __DIR__ . '/../Stub'],
             true,
-            sys_get_temp_dir() . '/wiki_db_proxies',
+            // One directory per process: concurrent workers would race to write the same proxy file.
+            sys_get_temp_dir() . '/wiki_db_proxies_' . getmypid(),
         );
         if (PHP_VERSION_ID >= 80400 && method_exists($config, 'enableNativeLazyObjects')) {
             $config->enableNativeLazyObjects(true);
+        }
+
+        // An optional SQL log, for statement-count tests.
+        if ($sqlLogger instanceof LoggerInterface) {
+            $config->setMiddlewares([new LoggingMiddleware($sqlLogger)]);
         }
 
         $events = new EventManager();
