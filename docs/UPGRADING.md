@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.25.0](#to-1250)
 - [To 1.24.1](#to-1241)
 - [To 1.24.0](#to-1240)
 - [To 1.23.0](#to-1230)
@@ -71,6 +72,8 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.25.0
 
 From **1.24.1**: `composer update nowo-tech/wiki-bundle`. Milkdown stays at **^1.13**.
 

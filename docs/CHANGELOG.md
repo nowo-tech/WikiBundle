@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.25.0] - 2026-11-08](#1250---2026-11-08)
 - [[1.24.1] - 2026-11-08](#1241---2026-11-08)
 - [[1.24.0] - 2026-11-08](#1240---2026-11-08)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
@@ -64,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.25.0] - 2026-11-08
+
+Opt-in `editor.milkdown.file_cards: card` draws `::file` with Milkdown's file card through the reach-aware host file resolution (WK-8), and Edit and History are no longer duplicated in the page header (WK-6). Audit: Appendix IK and Delta IK, Pass-Low (IK-L1 documented).
 
 Two Beacon requests (2026-11-08): file cards drawn by Milkdown in the per-viewer render (WK-8), and no duplicated Edit /
 History buttons on the page view (WK-6). Works with nowo-tech/milkdown-editor-bundle **^1.13** (no new Milkdown API).
@@ -1280,7 +1285,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.24.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.25.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
