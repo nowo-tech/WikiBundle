@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.24.0](#to-1240)
 - [To 1.23.0](#to-1230)
 - [To 1.22.0](#to-1220)
 - [To 1.21.1](#to-1211)
@@ -69,6 +70,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.24.0
+
+From **1.23.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 Nothing to do for most hosts: the REST API is off by default and every other change is additive.
 

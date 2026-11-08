@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.24.0] - 2026-11-08](#1240---2026-11-08)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
 - [[1.22.0] - 2026-11-07](#1220---2026-11-07)
 - [[1.21.1] - 2026-11-07](#1211---2026-11-07)
@@ -62,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.24.0] - 2026-11-08
+
+REST API for wikis, pages, revisions, search, comments and files (spec 218, opt-in `api.enabled`), base-revision saves that answer 409 on a stale write, a reader's Markdown view, and page events after the co-editing commit.
 
 ### Added
 
@@ -1204,7 +1209,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.23.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.24.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
