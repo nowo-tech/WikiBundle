@@ -9,10 +9,14 @@ use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Search\WikiPlainText;
 
 use function is_array;
 use function is_string;
+use function mb_strtolower;
+use function min;
+use function str_contains;
 use function trim;
 
 /**
@@ -25,6 +29,9 @@ use function trim;
  */
 final readonly class WikiSearchService
 {
+    /** 1.24: the most rows {@see self::searchPlainText()} reads in one call (audit IF-I3). */
+    public const MAX_ROWS = 1000;
+
     /**
      * Stores the entity manager (or the provider resolving it on each call).
      *
@@ -61,6 +68,81 @@ final readonly class WikiSearchService
     public function searchAcrossSpaces(array $spaces, string $query, int $limit = 25): array
     {
         return $this->searchInSpaces($spaces, $query, $limit);
+    }
+
+    /**
+     * 1.24 (spec 218): search for a reader who must not learn about a page's source. Matches titles and the plain text
+     * of the current revision only; a revision without plain text yet is matched on its viewer-neutral `content_html`
+     * cache, never on its Markdown (which holds ids and attributes the render hides). Case-insensitive on every
+     * platform. Pages come in id order after `$afterPageId`, so a caller that filters hits can read on.
+     *
+     * A page whose Markdown is over the renderer's limits is matched on its title only, with the title as excerpt: its
+     * cache is the source as escaped text, ids and comments included (audit IF-L1). A hit found only in the markup of an
+     * HTML cache is dropped (audit IF-I3).
+     *
+     * @param list<WikiSpace> $spaces spaces to search (empty yields no results)
+     * @param string $query search text (matched literally; empty yields no results)
+     * @param int $limit maximum number of rows read (at most {@see self::MAX_ROWS})
+     * @param string|null $afterPageId read pages after this id (keyset)
+     * @param WikiMarkdownLimitsInterface|null $limits the renderer's limits
+     *
+     * @param-out string|null $lastPageId
+     * @param-out int $rowsRead
+     *
+     * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}> the hits; `$lastPageId` and `$rowsRead` say
+     *                                                                        where the read stopped and how many rows it read
+     */
+    public function searchPlainText(array $spaces, string $query, int $limit, ?string $afterPageId = null, ?WikiMarkdownLimitsInterface $limits = null, ?string &$lastPageId = null, ?int &$rowsRead = null): array
+    {
+        $lastPageId = null;
+        $rowsRead   = 0;
+        $limit      = min($limit, self::MAX_ROWS);
+        $query      = trim($query);
+        if ($query === '' || $spaces === [] || $limit < 1) {
+            return [];
+        }
+
+        $like          = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($query)) . '%';
+        $entityManager = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
+        $builder       = $entityManager->createQueryBuilder()
+            ->select('p', 's', 'r.contentHtml AS contentHtml', 'r.contentText AS contentText', 'r.contentMarkdown AS contentMarkdown')
+            ->from(WikiPage::class, 'p')
+            ->innerJoin('p.space', 's')
+            ->leftJoin('p.currentRevision', 'r')
+            ->where('p.space IN (:spaces)')
+            ->andWhere('p.archivedAt IS NULL')
+            ->andWhere("LOWER(p.title) LIKE :q ESCAPE '!' OR LOWER(r.contentText) LIKE :q ESCAPE '!' OR (r.contentText IS NULL AND LOWER(r.contentHtml) LIKE :q ESCAPE '!')")
+            ->setParameter('spaces', $spaces)
+            ->setParameter('q', $like)
+            ->orderBy('p.id', 'ASC')
+            ->setMaxResults($limit);
+        if ($afterPageId !== null) {
+            $builder->andWhere('p.id > :after')->setParameter('after', $afterPageId);
+        }
+
+        /** @var list<array{0: WikiPage, contentHtml: string|null, contentText: string|null, contentMarkdown: string|null}> $rows */
+        $rows   = $builder->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
+        $needle = mb_strtolower($query);
+        $kept   = [];
+        foreach ($rows as $row) {
+            $page       = $row[0];
+            $lastPageId = $page->getId();
+            ++$rowsRead;
+            $inTitle  = str_contains(mb_strtolower($page->getTitle()), $needle);
+            $markdown = $row['contentMarkdown'];
+            if ($markdown !== null && $limits instanceof WikiMarkdownLimitsInterface && $limits->exceedsLimits($markdown)) {
+                if ($inTitle) {
+                    $kept[] = ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => $page->getTitle()];
+                }
+                continue;
+            }
+            $text = $row['contentText'] ?? WikiPlainText::fromHtml($row['contentHtml'] ?? '');
+            if ($inTitle || str_contains(mb_strtolower($text), $needle)) {
+                $kept[] = ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => $this->excerpt($page->getTitle(), $text, $query)];
+            }
+        }
+
+        return $kept;
     }
 
     /**
@@ -101,6 +183,16 @@ final readonly class WikiSearchService
             return [];
         }
 
+        return $this->hits($rows, $query);
+    }
+
+    /**
+     * @param array<mixed> $rows
+     *
+     * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
+     */
+    private function hits(array $rows, string $query): array
+    {
         $results = [];
         foreach ($rows as $row) {
             if (!is_array($row) || !isset($row[0]) || !$row[0] instanceof WikiPage) {

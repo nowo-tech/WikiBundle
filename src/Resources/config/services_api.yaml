@@ -1,0 +1,119 @@
+# 1.24 (spec 218): the Wiki REST API, loaded only with `api.enabled: true`.
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    Nowo\WikiBundle\Api\Hook\DenyingWikiApiRateLimiter: ~
+    Nowo\WikiBundle\Api\Hook\DenyingWikiApiPlanGate: ~
+    Nowo\WikiBundle\Api\Hook\NullWikiApiUsers: ~
+
+    Nowo\WikiBundle\Api\Security\WikiApiRequestListener:
+        arguments:
+            $prefix: '%nowo_wiki.api.prefix%'
+            $logger: '@?logger'
+        tags:
+            - { name: monolog.logger, channel: nowo_wiki }
+
+    Nowo\WikiBundle\Api\Serializer\WikiApiSerializer: ~
+
+    # Public: an in-process caller (spec 219) reaches the guard and the operations without HTTP.
+    Nowo\WikiBundle\Api\Security\WikiApiGuard:
+        public: true
+        arguments:
+            $tenantPaths: '@?Nowo\WikiBundle\Routing\WikiTenantPaths'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiWikiOperations:
+        public: true
+
+    Nowo\WikiBundle\Api\Controller\WikiApiWikiController:
+        public: true
+        tags: ['controller.service_arguments']
+
+    # S3: reads.
+    Nowo\WikiBundle\Repository\WikiPageMetadataFinderInterface: '@Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository'
+
+    Nowo\WikiBundle\Api\Repository\WikiApiUsersReader:
+        arguments:
+            $entityManager: '@Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider'
+            $userClass: '%nowo_wiki.user_class%'
+
+    Nowo\WikiBundle\Api\Serializer\WikiApiPeople: ~
+    Nowo\WikiBundle\Api\Serializer\WikiApiContent: ~
+
+    Nowo\WikiBundle\Api\Operation\WikiApiComments:
+        arguments:
+            $service: '@?Nowo\WikiBundle\Comment\WikiCommentService'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiPageReadOperations:
+        public: true
+
+    Nowo\WikiBundle\Api\Operation\WikiApiRevisionOperations:
+        public: true
+        arguments:
+            $labels: '@?Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiSearchOperations:
+        public: true
+        arguments:
+            $candidates: '%nowo_wiki.api.search_candidates%'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiCommentReadOperations:
+        public: true
+
+    Nowo\WikiBundle\Api\Controller\WikiApiReadController:
+        public: true
+        tags: ['controller.service_arguments']
+
+    # S4: page writes, audit, idempotency.
+    Nowo\WikiBundle\Api\Operation\WikiApiAudit:
+        arguments:
+            $dispatcher: '@event_dispatcher'
+            $quotaListenerRequired: '%nowo_wiki.api.quota_listener_required%'
+            $logger: '@?logger'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiPageWriteOperations:
+        public: true
+        arguments:
+            $collab: '@?Nowo\WikiBundle\Collaboration\WikiCollabService'
+            $mover: '@?Nowo\WikiBundle\Service\WikiPageMover'
+
+    Nowo\WikiBundle\Api\Controller\WikiApiWriteController:
+        public: true
+        tags: ['controller.service_arguments']
+        arguments:
+            $maxBodyBytes: '%nowo_wiki.api.max_body_bytes%'
+
+    Nowo\WikiBundle\Api\Security\WikiApiIdempotencyListener:
+        arguments:
+            $logger: '@?logger'
+
+    Nowo\WikiBundle\Api\Command\WikiApiPurgeIdempotencyCommand: ~
+
+    # S5: comment writes.
+    Nowo\WikiBundle\Api\Operation\WikiApiCommentWriteOperations:
+        public: true
+        arguments:
+            $repository: '@?Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface'
+
+    Nowo\WikiBundle\Api\Controller\WikiApiCommentController:
+        public: true
+        tags: ['controller.service_arguments']
+        arguments:
+            $maxBodyBytes: '%nowo_wiki.api.max_body_bytes%'
+
+    # S6: wiki lifecycle and files over host hooks.
+    Nowo\WikiBundle\Api\Hook\DenyingWikiApiWikiManagement: ~
+    Nowo\WikiBundle\Api\Hook\DenyingWikiApiFiles: ~
+
+    Nowo\WikiBundle\Api\Operation\WikiApiDelegatedOperations:
+        public: true
+        arguments:
+            $logger: '@?logger'
+
+    Nowo\WikiBundle\Api\Controller\WikiApiDelegatedController:
+        public: true
+        tags: ['controller.service_arguments']
+        arguments:
+            $maxBodyBytes: '%nowo_wiki.api.max_body_bytes%'

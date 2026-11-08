@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Doctrine;
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
+use Nowo\WikiBundle\Entity\WikiApiIdempotencyRecord;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Entity\WikiCollabUpdate;
@@ -49,6 +50,8 @@ final readonly class WikiMetadataListener
      * @param string $commentTablePrefix prefix of the three comment tables `<prefix>_comment_threads`, `_comments`,
      *                                   `_comment_reactions` (1.16)
      * @param bool $commentsEnabled false: the comment tables are left out of the generated schema (1.16)
+     * @param string $apiIdempotencyTableName table name for the REST API's idempotency store (1.24)
+     * @param bool $apiIdempotencyEnabled true only with `api.enabled` and the bundle's own store (1.24)
      */
     public function __construct(
         private string $spacesTableName,
@@ -66,6 +69,8 @@ final readonly class WikiMetadataListener
         private bool $historyTimeline = true,
         private string $commentTablePrefix = 'wiki',
         private bool $commentsEnabled = true,
+        private string $apiIdempotencyTableName = 'wiki_api_idempotency',
+        private bool $apiIdempotencyEnabled = false,
     ) {
     }
 
@@ -87,6 +92,10 @@ final readonly class WikiMetadataListener
         }
         if (!$this->historyTimeline) {
             $tables[] = $this->revisionLabelsTableName;
+        }
+        // 1.24 (spec 218): only with api.enabled and the bundle's own idempotency store.
+        if (!$this->apiIdempotencyEnabled) {
+            $tables[] = $this->apiIdempotencyTableName;
         }
         if (!$this->commentsEnabled) {
             // Children first: a platform that drops foreign keys with the table never sees a dangling one.
@@ -112,6 +121,12 @@ final readonly class WikiMetadataListener
 
         if ($class === WikiSpace::class) {
             $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->spacesTableName]));
+
+            return;
+        }
+
+        if ($class === WikiApiIdempotencyRecord::class) {
+            $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->apiIdempotencyTableName]));
 
             return;
         }

@@ -46,6 +46,14 @@ make -C demo/symfony8 up
 | `make test-ts` | Vitest (`wiki.ts`) |
 | `make release-check` | Full pre-release pipeline |
 
+The `database` test suite (`tests/Database`) runs on SQLite in memory by default. Set `WIKI_TEST_DATABASE_URL` to a
+throwaway MySQL or PostgreSQL database to run it there, as CI does (`mysql` and `pgsql` jobs): its schema is dropped and
+created for each test.
+
+```bash
+WIKI_TEST_DATABASE_URL='mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4' composer test -- --testsuite database
+```
+
 Run `make release-check` before tagging a release.
 
 ## Pull requests

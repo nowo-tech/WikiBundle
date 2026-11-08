@@ -11,6 +11,8 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Markdown\WikiRenderContext;
+use Nowo\WikiBundle\Markdown\WikiRenderFrame;
 use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
@@ -49,6 +51,39 @@ final class WikiRevisionBodyRendererTest extends TestCase
         $filtered = new WikiRevisionBodyRenderer($this->viewerRenderer(), new WikiHtmlSanitizer(), new WikiAttachmentReferenceFilter(new InMemoryAttachmentRepository()));
         self::assertStringNotContainsString('0b6f4f0e', $filtered->body($revision));
         self::assertStringContainsString('<p>viewer: source</p>', $filtered->body($revision));
+    }
+
+    public function testTheRenderRunsInAFrameNamingItsSpaceAndPage(): void
+    {
+        $context  = new WikiRenderContext();
+        $seen     = [];
+        $renderer = new class($context, $seen) implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface {
+            /** @param list<WikiRenderFrame|null> $seen */
+            public function __construct(private readonly WikiRenderContext $context, private array &$seen)
+            {
+            }
+
+            public function render(string $markdown): string
+            {
+                return 'neutral';
+            }
+
+            public function renderForViewer(string $markdown): string
+            {
+                $this->seen[] = $this->context->current();
+
+                return '<p>' . $markdown . '</p>';
+            }
+        };
+
+        $body = new WikiRevisionBodyRenderer($renderer, new WikiHtmlSanitizer(), null, $context);
+
+        self::assertSame('<p>source</p>', $body->body(new WikiPageRevision($this->page, 1, '<p>cached</p>', new TestUser(), 'source')));
+        self::assertCount(1, $seen);
+        self::assertInstanceOf(WikiRenderFrame::class, $seen[0]);
+        self::assertSame($this->page, $seen[0]->page);
+        self::assertSame($this->page->getSpace(), $seen[0]->space);
+        self::assertNull($context->current());
     }
 
     private function viewerRenderer(): WikiMarkdownRendererInterface

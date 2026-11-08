@@ -8,6 +8,8 @@ use Nowo\MilkdownEditorBundle\Markdown\Resolver\PageResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\ResolvedPage;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Markdown\WikiRenderContext;
+use Nowo\WikiBundle\Markdown\WikiRenderFrame;
 use Nowo\WikiBundle\Repository\WikiPageBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -35,6 +37,8 @@ final readonly class WikiMilkdownPageResolver implements PageResolverInterface
      * @param UrlGeneratorInterface|null $urlGenerator page URLs (none: titles without link)
      * @param array<string, array{name: string, path?: string}> $routes the nowo_wiki routes
      * @param WikiTokenGuard|null $tokenGuard ignores tokens of a firewall without security
+     * @param WikiRenderContext|null $renderContext 1.24: the render in progress — its reach (the API token's *where*)
+     *                                              narrows what resolves, and resolved links are recorded on it
      */
     public function __construct(
         private WikiPageRepositoryInterface $pages,
@@ -44,6 +48,7 @@ final readonly class WikiMilkdownPageResolver implements PageResolverInterface
         private ?UrlGeneratorInterface $urlGenerator = null,
         private array $routes = [],
         private ?WikiTokenGuard $tokenGuard = null,
+        private ?WikiRenderContext $renderContext = null,
     ) {
     }
 
@@ -54,14 +59,17 @@ final readonly class WikiMilkdownPageResolver implements PageResolverInterface
             return [];
         }
 
+        $frame    = $this->renderContext?->current();
         $resolved = [];
         /** @var array<string, bool> $decisions */
         $decisions = [];
         /** @var array<string, bool> $spaces */
         $spaces = [];
         foreach ($this->find($ids) as $page) {
-            if (!$page->isArchived() && $this->visible($user, $page, $decisions, $spaces)) {
-                $resolved[$page->getId()] = new ResolvedPage($page->getTitle(), $this->url($page));
+            if (!$page->isArchived() && $this->visible($user, $page, $decisions, $spaces, $frame)) {
+                $url                      = $this->url($page);
+                $resolved[$page->getId()] = new ResolvedPage($page->getTitle(), $url);
+                $frame?->recordPageLink($url, $page->getId());
             }
         }
 
@@ -95,19 +103,19 @@ final readonly class WikiMilkdownPageResolver implements PageResolverInterface
      * space checker once).
      *
      * @param array<string, bool> $decisions page id => readable with its ancestors (a parent cycle reads as hidden)
-     * @param array<string, bool> $spaces space id => the space itself is readable
+     * @param array<string, bool> $spaces space id => the space itself is readable (and within the frame's reach, 1.24)
      */
-    private function visible(UserInterface $user, WikiPage $page, array &$decisions, array &$spaces): bool
+    private function visible(UserInterface $user, WikiPage $page, array &$decisions, array &$spaces, ?WikiRenderFrame $frame): bool
     {
         $id = $page->getId();
         if (!isset($decisions[$id])) {
             $decisions[$id] = false;
             $space          = $page->getSpace();
             $parent         = $page->getParent();
-            $spaces[$space->getId()] ??= $this->spaceAccess->isGranted($user, WikiAction::View, $space);
+            $spaces[$space->getId()] ??= (!$frame instanceof WikiRenderFrame || $frame->reaches($space)) && $this->spaceAccess->isGranted($user, WikiAction::View, $space);
             $decisions[$id] = $spaces[$space->getId()]
                 && $this->spaceAccess->isGranted($user, WikiAction::View, $space, $page)
-                && (!$parent instanceof WikiPage || $this->visible($user, $parent, $decisions, $spaces));
+                && (!$parent instanceof WikiPage || $this->visible($user, $parent, $decisions, $spaces, $frame));
         }
 
         return $decisions[$id];

@@ -26,6 +26,7 @@ use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\WikiCommentAuthorRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
@@ -35,6 +36,8 @@ use Nowo\WikiBundle\Search\WikiPlainText;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
+use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -156,6 +159,10 @@ final readonly class WikiCommentService
      * @param WikiAccessCheckerInterface|null $accessChecker the role gate (canEdit) of the full-anchor rule
      * @param bool $readViewSource `comments.read_view_source`: every commenter mounts the editor, so gets full anchors
      * @param array{threads_per_page: int, user_threads_per_page: int, total_threads_per_page?: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits `comments.limits`
+     * @param WikiRenderContext|null $renderContext 1.24: comment bodies render inside a frame naming their page
+     * @param WikiEventDeferral|null $deferral 1.24: comment events of a caller's scope (the REST API) wait for its end,
+     *                                         and a listener that fails then does not refuse a saved write (audit IF-L3)
+     * @param LoggerInterface|null $logger 1.24: a live update the hub refused (the comment is saved; audit IF-L6)
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -173,6 +180,9 @@ final readonly class WikiCommentService
         private ?WikiAccessCheckerInterface $accessChecker = null,
         private bool $readViewSource = false,
         private array $limits = self::DEFAULT_LIMITS,
+        private ?WikiRenderContext $renderContext = null,
+        private ?WikiEventDeferral $deferral = null,
+        private ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -250,6 +260,35 @@ final readonly class WikiCommentService
         $this->require($rights['view']);
 
         return $this->threadJson($user, $page, $this->requireThread($page, $id), $rights);
+    }
+
+    /**
+     * 1.24 (spec 218): the page's threads as entities, with their comments, for a caller that serializes them itself
+     * (the REST API, which chooses each body's view). Same right as {@see self::list()}: `ViewComments`.
+     *
+     * @return array{threads: list<WikiCommentThread>, comments: array<string, list<WikiComment>>, truncated: bool}
+     */
+    public function threadEntities(UserInterface $user, WikiSpace $space, WikiPage $page): array
+    {
+        $this->require($this->rights($user, $space, $page)['view']);
+        $threads   = $this->comments->threads($page, self::MAX_THREADS + 1);
+        $truncated = count($threads) > self::MAX_THREADS;
+        $threads   = array_slice($threads, 0, self::MAX_THREADS);
+
+        return ['threads' => $threads, 'comments' => $this->comments->comments($threads), 'truncated' => $truncated];
+    }
+
+    /**
+     * 1.24 (spec 218): one thread of the page as an entity, with its comments (`ViewComments`; 404 for another page's).
+     *
+     * @return array{thread: WikiCommentThread, comments: list<WikiComment>}
+     */
+    public function threadEntity(UserInterface $user, WikiSpace $space, WikiPage $page, string $id): array
+    {
+        $this->require($this->rights($user, $space, $page)['view']);
+        $thread = $this->requireThread($page, $id);
+
+        return ['thread' => $thread, 'comments' => $this->comments->comments([$thread])[$thread->getId()] ?? []];
     }
 
     /**
@@ -814,7 +853,14 @@ final readonly class WikiCommentService
             return '';
         }
         $markdown = $comment->getBody();
-        $html     = $this->renderer instanceof WikiViewerMarkdownRendererInterface ? $this->renderer->renderForViewer($markdown) : $this->renderer->render($markdown);
+        $renderer = $this->renderer;
+        if (!$renderer instanceof WikiViewerMarkdownRendererInterface) {
+            return $this->sanitizer->sanitize($renderer->render($markdown));
+        }
+        $page = $comment->getThread()->getPage();
+        $html = $this->renderContext instanceof WikiRenderContext
+            ? $this->renderContext->within($page->getSpace(), $page, static fn (): string => $renderer->renderForViewer($markdown))
+            : $renderer->renderForViewer($markdown);
 
         return $this->sanitizer->sanitize($html);
     }
@@ -1003,7 +1049,16 @@ final readonly class WikiCommentService
     private function changed(WikiPage $page, WikiCommentThread $thread, ?WikiComment $comment, UserInterface $user, string $event, ?string $body = null): void
     {
         $this->publish($page, $thread);
-        $this->dispatcher?->dispatch(new WikiCommentEvent($page, $thread, $comment, $user, $body === null ? [] : $this->references->mentions($body)), $event);
+        if ($this->dispatcher === null) {
+            return;
+        }
+        $changed = new WikiCommentEvent($page, $thread, $comment, $user, $body === null ? [] : $this->references->mentions($body));
+        if ($this->deferral instanceof WikiEventDeferral) {
+            $this->deferral->dispatch($this->dispatcher, $changed, $event);
+
+            return;
+        }
+        $this->dispatcher->dispatch($changed, $event);
     }
 
     /** Live update: the changed thread id on the page's private comments topic (ids only, never bodies). */
@@ -1013,7 +1068,13 @@ final readonly class WikiCommentService
         if ($topic === null || !$this->publisher instanceof WikiCollabPublisherInterface) {
             return;
         }
-        $this->publisher->publish($topic, '{"threads":["' . $thread->getId() . '"]}');
+        // 1.24 (audit IF-L6): the comment is saved; a hub that fails cannot undo it, as for page saves (audit HO-M1).
+        // Viewers pick the change up on their next load. The class only: a message may hold user data.
+        try {
+            $this->publisher->publish($topic, '{"threads":["' . $thread->getId() . '"]}');
+        } catch (Throwable $failure) {
+            $this->logger?->error('Wiki comments: the live update could not be published; the comment is saved.', ['bundle' => 'nowo_wiki', 'exception_class' => $failure::class]);
+        }
     }
 
     /**

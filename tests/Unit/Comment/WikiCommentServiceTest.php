@@ -30,6 +30,7 @@ use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
@@ -43,6 +44,7 @@ use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\LegacyCommentRepository;
 use Nowo\WikiBundle\Tests\Support\RecordingAvatarResolver;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
@@ -132,6 +134,79 @@ final class WikiCommentServiceTest extends TestCase
         ] as $call) {
             $this->assertRefused(403, 'forbidden', $call);
         }
+    }
+
+    public function testAHubThatFailsDoesNotUndoASavedComment(): void
+    {
+        $failing = new class implements WikiCollabPublisherInterface, WikiCollabSubscriberAuthorizerInterface {
+            public function publish(string $topic, string $message): void
+            {
+                throw new RuntimeException('hub down: page text');
+            }
+
+            public function authorize(Request $request, string $topic): void
+            {
+            }
+        };
+        $logger  = new RecordingLogger();
+        $service = new WikiCommentService(
+            new DoctrineOrmWikiCommentRepository($this->em),
+            $this->guard(),
+            new WikiAuthorLabel('secret'),
+            new WikiMarkdownRenderer(),
+            new WikiHtmlSanitizer(),
+            collab: new WikiCollabService(new InMemoryCollabStateStore(), $failing, $failing, ['topic_prefix' => 'eng-topic/page-'], secret: 'secret'),
+            publisher: $failing,
+            logger: $logger,
+        );
+
+        $thread = $service->create($this->ana, $this->space, $this->page, null, 'Saved anyway');
+
+        self::assertInstanceOf(WikiCommentThread::class, $this->em->find(WikiCommentThread::class, $thread['id']));
+        self::assertSame(['error: Wiki comments: the live update could not be published; the comment is saved.'], $logger->lines());
+        self::assertSame(RuntimeException::class, $logger->records[0]['context']['exception_class']);
+        // Without a logger it is silent.
+        $quiet = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), collab: new WikiCollabService(new InMemoryCollabStateStore(), $failing, $failing, [], secret: 'secret'), publisher: $failing);
+        self::assertArrayHasKey('id', $quiet->reply($this->ana, $this->space, $this->page, $thread['id'], 'Again'));
+    }
+
+    public function testThreadEntitiesForCallersThatSerializeThemselves(): void
+    {
+        $service = $this->service();
+        $first   = $service->create($this->ana, $this->space, $this->page, null, 'First');
+        $service->reply($this->bob, $this->space, $this->page, $first['id'], 'Reply');
+        $second = $service->create($this->bob, $this->space, $this->page, null, 'Second');
+
+        $all = $service->threadEntities($this->bob, $this->space, $this->page);
+        self::assertFalse($all['truncated']);
+        self::assertEqualsCanonicalizing([$first['id'], $second['id']], array_map(static fn (WikiCommentThread $t): string => $t->getId(), $all['threads']));
+        self::assertSame(['First', 'Reply'], array_map(static fn (WikiComment $c): string => $c->getBody(), $all['comments'][$first['id']]));
+
+        $one = $service->threadEntity($this->bob, $this->space, $this->page, $second['id']);
+        self::assertSame($second['id'], $one['thread']->getId());
+        self::assertSame(['Second'], array_map(static fn (WikiComment $c): string => $c->getBody(), $one['comments']));
+
+        $this->assertRefused(404, 'not_found', fn (): array => $service->threadEntity($this->bob, $this->space, $this->page, 'missing'));
+        $this->grants = [];
+        $this->assertRefused(403, 'forbidden', fn (): array => $service->threadEntities($this->bob, $this->space, $this->page));
+        $this->assertRefused(403, 'forbidden', fn (): array => $service->threadEntity($this->bob, $this->space, $this->page, $second['id']));
+    }
+
+    public function testThreadEntitiesSayWhenTheListIsCut(): void
+    {
+        $repository = $this->createStub(WikiCommentRepositoryInterface::class);
+        $threads    = [];
+        for ($i = 0; $i <= WikiCommentService::MAX_THREADS; ++$i) {
+            $threads[] = new WikiCommentThread($this->page, $this->ana, null, null);
+        }
+        $repository->method('threads')->willReturn($threads);
+        $repository->method('comments')->willReturn([]);
+        $service = new WikiCommentService($repository, $this->guard(), new WikiAuthorLabel('s'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer());
+
+        $all = $service->threadEntities($this->ana, $this->space, $this->page);
+
+        self::assertTrue($all['truncated']);
+        self::assertCount(WikiCommentService::MAX_THREADS, $all['threads']);
     }
 
     public function testCreatesListsAndRendersThreads(): void
@@ -390,6 +465,27 @@ final class WikiCommentServiceTest extends TestCase
 
         self::assertSame('<p>for viewer </p>', $thread['comments'][0]['html']);
         self::assertNull($service->topic($this->page));
+
+        // 1.24: with a render context, the body renders inside a frame naming the comment's page.
+        $context = new WikiRenderContext();
+        $framed  = new class($context) implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface {
+            public function __construct(private readonly WikiRenderContext $context)
+            {
+            }
+
+            public function render(string $markdown): string
+            {
+                return '<p>neutral</p>';
+            }
+
+            public function renderForViewer(string $markdown): string
+            {
+                return '<p>' . ($this->context->current()?->page?->getSlug() ?? 'none') . '</p>';
+            }
+        };
+        $withContext = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $this->guard(), new WikiAuthorLabel('secret', true), $framed, new WikiHtmlSanitizer(), renderContext: $context);
+        self::assertSame('<p>' . $this->page->getSlug() . '</p>', $withContext->thread($this->ana, $this->space, $this->page, $thread['id'])['comments'][0]['html']);
+        self::assertNull($context->current());
         self::assertSame('wiki_comments_' . $this->page->getId(), WikiCommentService::csrfTokenId($this->page));
         // A deleted user's comment and resolve: an untranslated label without a translator.
         $stored = $this->em->find(WikiCommentThread::class, $thread['id']);

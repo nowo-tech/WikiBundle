@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Routing;
 
+use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
+use Nowo\WikiBundle\Api\WikiApiRoutes;
 use Nowo\WikiBundle\Controller\WikiAttachmentController;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Controller\WikiCommentController;
@@ -48,12 +50,14 @@ final class WikiRouteLoader extends Loader
      * @param string $routePrefix path prefix for all wiki routes
      * @param WikiTenantPaths|null $tenantPaths tenant copies of the space-scoped routes (1.9)
      * @param bool $enabled web_ui.enabled: false registers no route (1.10)
+     * @param string|null $apiPrefix 1.24: `api.prefix` with `api.enabled`; null adds no API route
      */
     public function __construct(
         private readonly array $routes,
         private readonly string $routePrefix,
         private readonly ?WikiTenantPaths $tenantPaths = null,
         private readonly bool $enabled = true,
+        private readonly ?string $apiPrefix = null,
     ) {
     }
 
@@ -78,6 +82,7 @@ final class WikiRouteLoader extends Loader
         // @igor-ignore - Route loader builds routes at compile/cache warm; not per-request mutation.
         $this->loaded = true;
         $collection   = new RouteCollection();
+        $this->addApiRoutes($collection);
         if (!$this->enabled) {
             return $collection;
         }
@@ -97,6 +102,28 @@ final class WikiRouteLoader extends Loader
         }
 
         return $collection;
+    }
+
+    /**
+     * 1.24 (spec 218): the REST API, stateless, under its own prefix (not `route_prefix`, not the tenant paths), whatever
+     * `web_ui.enabled` says.
+     */
+    private function addApiRoutes(RouteCollection $collection): void
+    {
+        if ($this->apiPrefix === null) {
+            return;
+        }
+        foreach (WikiApiRoutes::ROUTES as $name => [$path, $controller, $method, $httpMethod]) {
+            $collection->add(WikiApiRoutes::NAME_PREFIX . $name, new Route(
+                $this->apiPrefix . $path,
+                ['_controller' => $controller . '::' . $method, WikiApiRequestListener::ROUTE_FLAG => true, '_stateless' => true],
+                WikiApiRoutes::REQUIREMENTS,
+                [],
+                '',
+                [],
+                [$httpMethod],
+            ));
+        }
     }
 
     /**

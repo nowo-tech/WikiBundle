@@ -22,11 +22,14 @@ final readonly class WikiRevisionBodyRenderer
      * @param WikiMarkdownRendererInterface $renderer the Markdown renderer of the bundle
      * @param WikiHtmlSanitizerInterface $sanitizer sanitizes the rendered HTML
      * @param WikiAttachmentReferenceFilter|null $attachmentFilter drops attachment URLs of other spaces
+     * @param WikiRenderContext|null $renderContext 1.24: the render runs inside a frame naming the revision's space and
+     *                                              page, for the bundle's and the host's resolvers
      */
     public function __construct(
         private WikiMarkdownRendererInterface $renderer,
         private WikiHtmlSanitizerInterface $sanitizer,
         private ?WikiAttachmentReferenceFilter $attachmentFilter = null,
+        private ?WikiRenderContext $renderContext = null,
     ) {
     }
 
@@ -44,10 +47,14 @@ final readonly class WikiRevisionBodyRenderer
             return $revision->getContentHtml();
         }
 
-        $html = $this->sanitizer->sanitize($this->renderer->renderForViewer($markdown));
+        $renderer = $this->renderer;
+        $page     = $revision->getPage();
+        $html     = $this->sanitizer->sanitize($this->renderContext instanceof WikiRenderContext
+            ? $this->renderContext->within($page->getSpace(), $page, static fn (): string => $renderer->renderForViewer($markdown))
+            : $renderer->renderForViewer($markdown));
 
         return $this->attachmentFilter instanceof WikiAttachmentReferenceFilter
-            ? $this->attachmentFilter->filter($revision->getPage()->getSpace(), $html)
+            ? $this->attachmentFilter->filter($page->getSpace(), $html)
             : $html;
     }
 

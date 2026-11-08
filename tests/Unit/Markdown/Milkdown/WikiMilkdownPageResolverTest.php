@@ -10,6 +10,9 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
+use Nowo\WikiBundle\Markdown\WikiRenderContext;
+use Nowo\WikiBundle\Markdown\WikiRenderFrame;
+use Nowo\WikiBundle\Markdown\WikiRenderReach;
 use Nowo\WikiBundle\Repository\WikiPageBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -132,6 +135,35 @@ final class WikiMilkdownPageResolverTest extends TestCase
         self::assertEquals(['x' => new ResolvedPage('Guide', '')], $this->resolverWithoutIds($repository, failingGenerator: true));
     }
 
+    public function testInsideAFrameResolvedLinksAreRecordedAndTheReachNarrows(): void
+    {
+        $repository = $this->createMockForIntersectionOfInterfaces([WikiPageRepositoryInterface::class, WikiPageBatchFinderInterface::class]);
+        $repository->method('findByIds')->willReturn($this->allPages());
+        $context  = new WikiRenderContext();
+        $resolver = $this->resolver($repository, context: $context);
+        $space    = $this->space;
+
+        $context->within($space, null, function (WikiRenderFrame $frame) use ($resolver): void {
+            self::assertCount(2, $resolver->resolvePages($this->allIds()));
+            self::assertSame($this->parent->getId(), $frame->pageIdOfLink('/wiki/eng/guide'));
+            self::assertSame($this->child->getId(), $frame->pageIdOfLink('/wiki/eng/install'));
+        });
+
+        $nowhere = new class implements WikiRenderReach {
+            public function reachesSpace(WikiSpace $space): bool
+            {
+                return false;
+            }
+        };
+        $context->within($space, null, static function (WikiRenderFrame $frame) use ($resolver): void {
+            self::assertSame([], $resolver->resolvePages(['any']));
+            self::assertNull($frame->pageIdOfLink('/wiki/eng/guide'));
+        }, $nowhere);
+
+        // Outside any frame: the person's access only, as before 1.24.
+        self::assertCount(2, $resolver->resolvePages($this->allIds()));
+    }
+
     /**
      * @return list<WikiPage>
      */
@@ -176,6 +208,7 @@ final class WikiMilkdownPageResolverTest extends TestCase
         bool $generator = true,
         bool $failingGenerator = false,
         ?WikiTokenGuard $guard = null,
+        ?WikiRenderContext $context = null,
     ): WikiMilkdownPageResolver {
         $hiddenId = $this->hidden->getId();
         $access   = $this->createStub(WikiSpaceAccessCheckerInterface::class);
@@ -202,6 +235,7 @@ final class WikiMilkdownPageResolverTest extends TestCase
             $generator ? $urls : null,
             $routes ?? ['page_view' => ['name' => 'nowo_wiki_page_view']],
             $guard,
+            $context,
         );
     }
 

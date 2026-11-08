@@ -1,0 +1,1943 @@
+# Wiki REST API (spec 218). Kept in step with the routes by ApiOpenApiTest.
+openapi: 3.1.0
+info:
+  title: WikiBundle REST API
+  version: 1.24.0
+  description: Spec 218. Off unless nowo_wiki.api.enabled. Paths are relative to api.prefix (default /api/wiki/v1). See docs/API.md
+    for levels, where, the host's hooks and every error code.
+servers:
+- url: /api/wiki/v1
+security:
+- token: []
+paths:
+  /search:
+    get:
+      operationId: search
+      summary: Search the wikis in reach
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResult'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 200
+      - name: wiki
+        in: query
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+        style: form
+        explode: true
+        description: Repeatable; default every wiki in reach.
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Page of the list, from 0; 100 rows per page.
+  /wikis:
+    get:
+      operationId: wikis_list
+      summary: Wikis the token may list
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikiList'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: owner_type
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter by owner type.
+      - name: owner_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter by owner id.
+      - name: archived
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: Archived wikis only (true) or active ones only (false).
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Page of the list, from 0; 100 rows per page.
+    post:
+      operationId: wiki_create
+      summary: Create a wiki (host hook)
+      description: 'Level: Full. The person''s access and the token''s where still apply.'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WikiCreate'
+  /wikis/{wiki}:
+    get:
+      operationId: wiki_get
+      summary: One wiki
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+    patch:
+      operationId: wiki_update
+      summary: Rename or describe a wiki (host hook)
+      description: 'Level: Full. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WikiPatch'
+  /wikis/{wiki}/archive:
+    post:
+      operationId: wiki_archive
+      summary: Archive a wiki (host hook)
+      description: 'Level: Full. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - $ref: '#/components/parameters/IdempotencyKey'
+  /wikis/{wiki}/files:
+    post:
+      operationId: file_upload
+      summary: Upload a file (host hook)
+      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedFile'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+  /wikis/{wiki}/files/{file}:
+    get:
+      operationId: file_download
+      summary: Download a file (host hook), as an attachment
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: 'The file, `Content-Disposition: attachment`, `Content-Security-Policy: default-src ''none''; sandbox`'
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: file
+        in: path
+        required: true
+        schema:
+          type: string
+  /wikis/{wiki}/pages:
+    get:
+      operationId: pages_list
+      summary: Pages of a wiki, metadata only
+      description: 'Level: Read (archived: Edit). The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageList'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: parent
+        in: query
+        required: false
+        schema:
+          type: string
+        description: A page id, or `root` for the top level.
+      - name: archived
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: Archived pages (needs Edit and Archive).
+      - name: updated_since
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Unix milliseconds.
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Page of the list, from 0; 100 rows per page.
+    post:
+      operationId: page_create
+      summary: Create a page
+      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageCreate'
+  /wikis/{wiki}/pages/{page}:
+    get:
+      operationId: page_get
+      summary: One page with its body in the token's view
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+    put:
+      operationId: page_update
+      summary: Save a page from a known revision
+      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageUpdate'
+  /wikis/{wiki}/pages/{page}/archive:
+    post:
+      operationId: page_archive
+      summary: Archive a page
+      description: 'Level: Edit (own pages) / Full. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - $ref: '#/components/parameters/IdempotencyKey'
+  /wikis/{wiki}/pages/{page}/comments/{comment}:
+    patch:
+      operationId: comment_edit
+      summary: Edit one's own comment
+      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: comment
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentBody'
+    delete:
+      operationId: comment_delete
+      summary: Delete a comment
+      description: 'Level: Edit (own) / Full (ModerateComments). The person''s access and the token''s where still apply.'
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: comment
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+  /wikis/{wiki}/pages/{page}/files:
+    get:
+      operationId: page_files
+      summary: Files the page shows (host hook)
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileList'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+  /wikis/{wiki}/pages/{page}/move:
+    post:
+      operationId: page_move
+      summary: Move a page in the tree
+      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PageMove'
+  /wikis/{wiki}/pages/{page}/revisions:
+    get:
+      operationId: revisions_list
+      summary: History, newest first
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevisionList'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Page of the list, from 0; 100 rows per page.
+  /wikis/{wiki}/pages/{page}/revisions/{number}:
+    get:
+      operationId: revision_get
+      summary: One revision in the page's view
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Revision'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: string
+  /wikis/{wiki}/pages/{page}/revisions/{number}/diff:
+    get:
+      operationId: revision_diff
+      summary: Line diff of two revisions' sources
+      description: 'Level: Edit (source). The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Diff'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: against
+        in: query
+        required: true
+        schema:
+          type: integer
+  /wikis/{wiki}/pages/{page}/revisions/{number}/restore:
+    post:
+      operationId: revision_restore
+      summary: Restore a revision (appends one)
+      description: 'Level: Full. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: number
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BaseRevision'
+  /wikis/{wiki}/pages/{page}/threads:
+    get:
+      operationId: threads_list
+      summary: Comment threads of a page
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadList'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+    post:
+      operationId: thread_create
+      summary: Start a page-level thread
+      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentBody'
+  /wikis/{wiki}/pages/{page}/threads/{thread}:
+    get:
+      operationId: thread_get
+      summary: One thread
+      description: 'Level: Read. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: thread
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      operationId: thread_resolve
+      summary: Resolve or reopen a thread
+      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: thread
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Resolve'
+    delete:
+      operationId: thread_delete
+      summary: Delete a thread
+      description: 'Level: Full (ModerateComments). The person''s access and the token''s where still apply.'
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: thread
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+  /wikis/{wiki}/pages/{page}/threads/{thread}/comments:
+    post:
+      operationId: thread_reply
+      summary: Reply to a thread
+      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - name: thread
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentBody'
+  /wikis/{wiki}/pages/{page}/unarchive:
+    post:
+      operationId: page_unarchive
+      summary: Unarchive a page
+      description: 'Level: Edit (own pages) / Full. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - name: page
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The page's UUID.
+      - $ref: '#/components/parameters/IdempotencyKey'
+  /wikis/{wiki}/unarchive:
+    post:
+      operationId: wiki_unarchive
+      summary: Unarchive a wiki (host hook)
+      description: 'Level: Full. The person''s access and the token''s where still apply.'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Wiki'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '413':
+          $ref: '#/components/responses/Error'
+        '415':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+      parameters:
+      - name: wiki
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The wiki's slug.
+      - $ref: '#/components/parameters/IdempotencyKey'
+components:
+  securitySchemes:
+    token:
+      type: http
+      scheme: bearer
+      description: The host's personal token, in the Authorization header only (with or without Bearer).
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 255
+      description: A retry with the same key within 24 hours gets the first successful answer again.
+  responses:
+    Error:
+      description: A refusal; see docs/API.md for the codes.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      properties:
+        err:
+          type: string
+        ECODE:
+          type: string
+      required:
+      - err
+      - ECODE
+      additionalProperties: true
+      description: Every refusal. A conflict adds current_revision, updated_by and updated_at.
+    Warning:
+      type: object
+      properties:
+        field:
+          type: string
+        reason:
+          type: string
+          enum:
+          - unknown
+          - not_supported
+      required:
+      - field
+      - reason
+    Person:
+      type: object
+      properties:
+        id:
+          type:
+          - string
+          - 'null'
+        name:
+          type: string
+      required:
+      - id
+      - name
+      description: The name the history policy shows; an id only for the token's own user.
+    Wiki:
+      type: object
+      properties:
+        id:
+          type:
+          - string
+          - 'null'
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type:
+          - string
+          - 'null'
+        owner_type:
+          type:
+          - string
+          - 'null'
+        owner_id:
+          type:
+          - string
+          - 'null'
+        archived:
+          type: boolean
+        restricted:
+          type: boolean
+        can_open:
+          type: boolean
+        created_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        updated_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        page_count:
+          type: integer
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Warning'
+      required:
+      - id
+      - slug
+      - name
+      - description
+      - owner_type
+      - owner_id
+      - archived
+      - restricted
+      - can_open
+      - created_at
+      - updated_at
+    WikiList:
+      type: object
+      properties:
+        wikis:
+          type: array
+          items:
+            $ref: '#/components/schemas/Wiki'
+        last_page:
+          type: boolean
+      required:
+      - wikis
+      - last_page
+    WikiCreate:
+      type: object
+      properties:
+        owner_type:
+          type: string
+        owner_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+      required:
+      - owner_type
+      - owner_id
+      - name
+    WikiPatch:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    PageHead:
+      type: object
+      properties:
+        id:
+          type: string
+        wiki:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        parent:
+          type:
+          - string
+          - 'null'
+        position:
+          type: integer
+        archived:
+          type: boolean
+        revision:
+          type:
+          - integer
+          - 'null'
+        created_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        updated_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        updated_by:
+          oneOf:
+          - $ref: '#/components/schemas/Person'
+          - type: 'null'
+      required:
+      - id
+      - wiki
+      - slug
+      - title
+      - parent
+      - position
+      - archived
+      - revision
+      - created_at
+      - updated_at
+      - updated_by
+    PageList:
+      type: object
+      properties:
+        pages:
+          type: array
+          items:
+            $ref: '#/components/schemas/PageHead'
+        last_page:
+          type: boolean
+      required:
+      - pages
+      - last_page
+    Page:
+      allOf:
+      - $ref: '#/components/schemas/PageHead'
+      - type: object
+        properties:
+          format:
+            type: string
+            enum:
+            - markdown
+            - html
+          content_view:
+            type: string
+            enum:
+            - source
+            - viewer
+          content_markdown:
+            type:
+            - string
+            - 'null'
+          content_text:
+            type: string
+          warnings:
+            type: array
+            items:
+              $ref: '#/components/schemas/Warning'
+        required:
+        - format
+        - content_view
+        - content_markdown
+    PageCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        content_markdown:
+          type: string
+        parent:
+          type: string
+        slug:
+          type: string
+      required:
+      - title
+    PageUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content_markdown:
+          type: string
+        base_revision:
+          type: integer
+        allow_empty:
+          type: boolean
+      required:
+      - content_markdown
+      - base_revision
+    PageMove:
+      type: object
+      properties:
+        parent:
+          type:
+          - string
+          - 'null'
+        index:
+          type: integer
+    BaseRevision:
+      type: object
+      properties:
+        base_revision:
+          type: integer
+      required:
+      - base_revision
+    RevisionHead:
+      type: object
+      properties:
+        number:
+          type: integer
+        author:
+          oneOf:
+          - $ref: '#/components/schemas/Person'
+          - type: 'null'
+        created_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        label:
+          type:
+          - string
+          - 'null'
+        format:
+          type: string
+      required:
+      - number
+      - author
+      - created_at
+      - label
+      - format
+    RevisionList:
+      type: object
+      properties:
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RevisionHead'
+        last_page:
+          type: boolean
+      required:
+      - revisions
+      - last_page
+    Revision:
+      allOf:
+      - $ref: '#/components/schemas/RevisionHead'
+      - type: object
+        properties:
+          content_view:
+            type: string
+          content_markdown:
+            type:
+            - string
+            - 'null'
+          content_text:
+            type: string
+        required:
+        - content_view
+        - content_markdown
+    Diff:
+      type: object
+      properties:
+        from:
+          type: integer
+        to:
+          type: integer
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum:
+                - same
+                - add
+                - remove
+              line:
+                type: string
+            required:
+            - kind
+            - line
+      required:
+      - from
+      - to
+      - lines
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+        author:
+          oneOf:
+          - $ref: '#/components/schemas/Person'
+          - type: 'null'
+        created_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        edited_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        deleted:
+          type: boolean
+        content_view:
+          type: string
+        body_markdown:
+          type:
+          - string
+          - 'null'
+      required:
+      - id
+      - author
+      - created_at
+      - edited_at
+      - deleted
+      - content_view
+      - body_markdown
+    Thread:
+      type: object
+      properties:
+        id:
+          type: string
+        anchor:
+          type:
+          - string
+          - 'null'
+          enum:
+          - inline
+          - null
+        quote:
+          type:
+          - string
+          - 'null'
+        resolved:
+          type: boolean
+        resolved_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        resolved_by:
+          oneOf:
+          - $ref: '#/components/schemas/Person'
+          - type: 'null'
+        created_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        updated_at:
+          type:
+          - integer
+          - 'null'
+          description: Unix milliseconds.
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comment'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Warning'
+      required:
+      - id
+      - anchor
+      - quote
+      - resolved
+      - resolved_at
+      - resolved_by
+      - created_at
+      - updated_at
+      - comments
+    ThreadList:
+      type: object
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/Thread'
+        truncated:
+          type: boolean
+      required:
+      - threads
+      - truncated
+    CommentBody:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 10000
+      required:
+      - body
+    Resolve:
+      type: object
+      properties:
+        resolved:
+          type: boolean
+      required:
+      - resolved
+    File:
+      type: object
+      properties:
+        uuid:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+        mime_type:
+          type:
+          - string
+          - 'null'
+        size:
+          type:
+          - integer
+          - 'null'
+      required:
+      - uuid
+      - name
+      - kind
+      - mime_type
+      - size
+    FileList:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+      required:
+      - files
+    UploadedFile:
+      type: object
+      properties:
+        uuid:
+          type: string
+        markdown:
+          type: string
+      required:
+      - uuid
+      - markdown
+    SearchHit:
+      type: object
+      properties:
+        page:
+          type: object
+          properties:
+            id:
+              type: string
+            wiki:
+              type: string
+            slug:
+              type: string
+            title:
+              type: string
+          required:
+          - id
+          - wiki
+          - slug
+          - title
+        excerpt:
+          type: string
+      required:
+      - page
+      - excerpt
+    SearchResult:
+      type: object
+      properties:
+        hits:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHit'
+        total:
+          type: integer
+        truncated:
+          type: boolean
+        last_page:
+          type: boolean
+      required:
+      - hits
+      - total
+      - truncated
+      - last_page

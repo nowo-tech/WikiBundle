@@ -12,6 +12,14 @@
         <testsuite name="integration">
             <directory>tests/Integration</directory>
         </testsuite>
+        <!-- Spec 218: SQLite in memory by default; MySQL and PostgreSQL in CI through WIKI_TEST_DATABASE_URL. -->
+        <testsuite name="database">
+            <directory>tests/Database</directory>
+        </testsuite>
+        <!-- Spec 218: the REST API through a host kernel; also run on MySQL and PostgreSQL in CI. -->
+        <testsuite name="api">
+            <directory>tests/Api</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

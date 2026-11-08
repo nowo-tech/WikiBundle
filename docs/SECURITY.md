@@ -7,6 +7,7 @@
 - [Access control](#access-control)
 - [Content safety](#content-safety)
 - [Comments threat model (1.16)](#comments-threat-model-116)
+- [REST API (1.24, spec 218)](#rest-api-124-spec-218)
 - [Secrets and cryptography](#secrets-and-cryptography)
 - [Logging](#logging)
 - [Limits and DoS](#limits-and-dos)
@@ -191,6 +192,20 @@ A page form saved outside the live session (hub down, editor standalone or offli
 | Page source | **By default the read view never sends the Markdown source to viewers who may not edit the page** (DN-I2): they get the server-rendered body and, in the panel, the open threads rendered by the server (inline ones with their quote, which is text the anchor already holds). Only editors get the read-only Milkdown mount (they can read the source in the editor anyway); its responses are `Cache-Control: private, no-store`. **`comments.read_view_source: true` (opt-in, default false)** gives the mount — and so the whole source — to every viewer with `ViewComments`: HTML comments, raw link targets, reference definitions, hidden or disabled blocks, front matter, page ids and directive arguments that the per-viewer render hides. Enable it only when everyone with `ViewComments` may read the source. |
 | Storage | Threads, comments and reactions are deleted with their page: the trash purge deletes them explicitly (`WikiCommentRepositoryInterface::deleteForPages()`, children first) and the foreign keys cascade too on platforms that enforce them (audit EI-L5; SQLite without `foreign_keys` relies on the explicit deletes; a host deleting pages or spaces itself must call `deleteForPages()`). A user's deletion keeps their comments without an author (`SET NULL`) and drops their reactions. Comments are not in exports, AI context or search. Every response that carries the panel or thread data is `Cache-Control: private, no-store`. |
 
+## REST API (1.24, spec 218)
+
+Off unless `api.enabled`. The host keeps the tokens; the bundle checks, on every request, the token's level (a closed table over `WikiAction`), the person's access and the token's *where*, behind a stateless secured firewall whose user must be the token's user. Known properties, for hosts and auditors:
+
+| Item | Behaviour |
+|---|---|
+| Idempotent answers (IF-I12) | Kept 24 hours in `<table_prefix>_api_idempotency` (or the host's store), keyed by hashes of the token id and the key. They can hold a page's body, the source for an Edit token, and outlive the page's archive or purge until they expire. Purge them with `nowo:wiki:api:purge-idempotency`; call `forget()` on token revocation and account erasure |
+| Replays (IF-I8) | A replay checks the token's reach again (the wiki, the page with its ancestors) but not its level or the person's rights: within 24 hours a token whose level was lowered gets back the bytes it already received, never anything new |
+| First write of an unopened wiki (IF-I9) | The space is created through the directory hook before the person's `Create` right is asked, exactly as the person's first visit in the UI would |
+| Search (IF-I13) | `truncated` says that `api.search_candidates` rows matched, counting rows the reader may not read: a coarse count, accepted (owner Q-O6). Excerpts are the viewer-neutral plain text |
+| Events | In an API write, page events fire after the commit; a listener that fails is logged by class and does not refuse the write (IF-L3) |
+| Creating a wiki (IF-L7, IF-L8) | The owner key the management hook names (`ownerKey()`) must be within the token's *where* before anything is created (404 otherwise). The new wiki is judged by its owner, so a restricted wiki the token just created is answered once; later requests follow the usual reach (a restricted wiki must be named). A hook that files the wiki under another owner is a host bug: the write is audited, an error names the hook class, the idempotent claim is kept so a retry does not create it again, and the answer is 500 `SERVER_001` |
+| Managing a wiki (IF-L7) | When its space exists, the person must be able to open it (404 otherwise) and hold `Manage`; only a wiki nobody opened is decided on the level, the rest being the hook's |
+
 ## Secrets and cryptography
 
 - The bundle stores no credentials and uses no cryptography of its own. CSRF tokens come from `symfony/security-csrf`; page and space ids are random UUIDs (`ValueObject\Uuid`), not secrets.
@@ -225,6 +240,7 @@ Channel `nowo_wiki` (PSR-3, see [CONFIGURATION.md](CONFIGURATION.md#logging-req-
 
 | Date | Version | Grade / residual risk | Record |
 | --- | --- | --- | --- |
+| 2026-11-08 | Unreleased (spec 218, REST API, S0–S7) | **Re-verification pending.** Independent audit IF: S0 Pass, S1 Pass-Low (IF-L1, IF-I7 fixed), S2–S4 Pass-Low (IF-L3, IF-L4, IF-L5, IF-I10, IF-I11, IF-I14 fixed; IF-I8, IF-I9, IF-I12, IF-I13 documented in [REST API](#rest-api-124-spec-218)); S5–S7 not audited yet. The API is off by default; with it on, every request checks level ∩ access ∩ *where* behind a secured stateless firewall, base-revision saves lock the page row, the reader's Markdown is derived from the reader's render, search never matches the source, and page events wait for the co-editing log's commit (IF-L2). | Spec 218 contract, APPENDIX-IF-Wiki-218 |
 | 2026-11-07 | PR #103 → 1.23.0 | Pass (good) / Low at `1420705`. HV-M1 closed with Milkdown 1.12: every reset renames the log, so a tab that was away posts nothing and its save asks; run on outside save, Replace, restore, corrupt, purge and idle token in Chromium, Firefox and WebKit, on a real hub. HO-L1 window 2 closed with a numbered store: an update landing during a session save stays unsaved and the next save outside the session asks. Open: tabs with older JavaScript behave as before until reloaded; a tab that never bound saves last-write-wins when nothing is unsaved; a save right after typing can leave one false alarm, costing one Replace; PAGE_SAVED listeners run under the log's lock in a session save, so keep them fast. Add log_epoch before deploying the code. | Appendix HV |
 | 2026-11-07 | PR #102 → 1.22.0 | Pass (good) / Low at `05b53d2`. HF-M1 closed: a page form saved outside the live session, or a restore, no longer drops updates no version has, unless the person confirms it or the host opts out. Open residuals: an update stored while a session save is in flight can still be lost; an import, conversion, host call, console save or log purge replaces the document without asking | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix HO |
 | 2026-11-07 | PR #101 → 1.21.1 | Pass (good) / Low at `eb54a9d`. GV-L3, GV-M2 and GV-L4 fixed and re-verified: extraction counts real bytes, takes only Markdown and caps directories, front matter is capped, and a fatal error leaves nothing. Open residual: many documents within the limits can exhaust `memory_limit` during the import and leave the pages written so far; a process killed outright leaves its temp files until a later import | `BUNDLES_SECURITY_ANALYSIS.md`, Appendix GV |
