@@ -42,6 +42,14 @@ final class ApiAuditRecorder
         }
     }
 
+    public function commented(object $event): void
+    {
+        self::$heard[] = ['comment', $this->level()];
+        if (self::$failSaved) {
+            throw new RuntimeException('The mailer is down.');
+        }
+    }
+
     private function level(): int
     {
         return $this->connection?->getTransactionNestingLevel() ?? -1;

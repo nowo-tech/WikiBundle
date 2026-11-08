@@ -124,7 +124,8 @@ final class ApiKernel extends Kernel
         $services->alias(WikiSpaceAccessCheckerInterface::class, 'app.api_host');
         $services->set('app.audit', ApiAuditRecorder::class)->public()->args([service('doctrine.dbal.default_connection')])
             ->tag('kernel.event_listener', ['event' => WikiEvents::API_WRITE, 'method' => 'record'])
-            ->tag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED, 'method' => 'saved']);
+            ->tag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED, 'method' => 'saved'])
+            ->tag('kernel.event_listener', ['event' => WikiEvents::COMMENT_CREATED, 'method' => 'commented']);
         $services->set('app.collab_store', ApiCollabStore::class)->args([service(WikiEntityManagerProvider::class)])->public();
         $services->set('app.collab_hub', ApiCollabHub::class)->public();
         $services->set('app.pages', ApiPageRepository::class)->args([service(WikiEntityManagerProvider::class)]);

@@ -36,6 +36,7 @@ use Nowo\WikiBundle\Search\WikiPlainText;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
+use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -158,6 +159,8 @@ final readonly class WikiCommentService
      * @param bool $readViewSource `comments.read_view_source`: every commenter mounts the editor, so gets full anchors
      * @param array{threads_per_page: int, user_threads_per_page: int, total_threads_per_page?: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits `comments.limits`
      * @param WikiRenderContext|null $renderContext 1.24: comment bodies render inside a frame naming their page
+     * @param WikiEventDeferral|null $deferral 1.24: comment events of a caller's scope (the REST API) wait for its end,
+     *                                         and a listener that fails then does not refuse a saved write (audit IF-L3)
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -176,6 +179,7 @@ final readonly class WikiCommentService
         private bool $readViewSource = false,
         private array $limits = self::DEFAULT_LIMITS,
         private ?WikiRenderContext $renderContext = null,
+        private ?WikiEventDeferral $deferral = null,
     ) {
     }
 
@@ -1042,7 +1046,16 @@ final readonly class WikiCommentService
     private function changed(WikiPage $page, WikiCommentThread $thread, ?WikiComment $comment, UserInterface $user, string $event, ?string $body = null): void
     {
         $this->publish($page, $thread);
-        $this->dispatcher?->dispatch(new WikiCommentEvent($page, $thread, $comment, $user, $body === null ? [] : $this->references->mentions($body)), $event);
+        if ($this->dispatcher === null) {
+            return;
+        }
+        $changed = new WikiCommentEvent($page, $thread, $comment, $user, $body === null ? [] : $this->references->mentions($body));
+        if ($this->deferral instanceof WikiEventDeferral) {
+            $this->deferral->dispatch($this->dispatcher, $changed, $event);
+
+            return;
+        }
+        $this->dispatcher->dispatch($changed, $event);
     }
 
     /** Live update: the changed thread id on the page's private comments topic (ids only, never bodies). */

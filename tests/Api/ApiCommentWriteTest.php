@@ -83,6 +83,18 @@ final class ApiCommentWriteTest extends ApiTestCase
         self::assertSame('thread.delete', ApiAuditRecorder::$events[1]->operation);
     }
 
+    public function testAListenerThatFailsAfterTheSaveLeavesTheCommentAndItsAudit(): void
+    {
+        $page                        = $this->page($this->eng, 'Guide', 'x');
+        ApiAuditRecorder::$failSaved = true;
+
+        $created = $this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/threads', 'bob', ['body' => 'Hi @ana']);
+
+        self::assertSame(201, $created->getStatusCode(), (string) $created->getContent());
+        self::assertSame(['thread.create'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        self::assertContains(['comment', 0], ApiAuditRecorder::$heard);
+    }
+
     public function testRefusals(): void
     {
         $page = $this->page($this->eng, 'Guide', 'x');
