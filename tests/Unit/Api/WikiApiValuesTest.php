@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Api;
 
+use DateTimeImmutable;
 use Nowo\WikiBundle\Api\Hook\DenyingWikiApiPlanGate;
 use Nowo\WikiBundle\Api\Hook\DenyingWikiApiRateLimiter;
 use Nowo\WikiBundle\Api\Hook\NullWikiApiUsers;
@@ -13,6 +14,7 @@ use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Api\WikiApiWhere;
+use Nowo\WikiBundle\Entity\WikiApiIdempotencyRecord;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
@@ -108,6 +110,9 @@ final class WikiApiValuesTest extends TestCase
         $refusal = WikiApiRefusal::archivedWiki();
         self::assertSame([403, 'WIKI_002', 'This wiki is archived'], [$refusal->status, $refusal->ecode, $refusal->getMessage()]);
         self::assertSame('Invalid field: title', WikiApiRefusal::invalid('title')->getMessage());
+
+        $record = new WikiApiIdempotencyRecord('s', 'k', 'f', new DateTimeImmutable(), new DateTimeImmutable());
+        self::assertNull($record->status);
 
         $event = new WikiApiWriteEvent(new WikiApiPrincipal(new TestUser(), WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n'), 'page.update', 'eng', 's', 'p', ['revision' => 'r'], ['title']);
         self::assertSame(['title'], $event->changedFields);

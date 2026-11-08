@@ -65,3 +65,28 @@ services:
     Nowo\WikiBundle\Api\Controller\WikiApiReadController:
         public: true
         tags: ['controller.service_arguments']
+
+    # S4: page writes, audit, idempotency.
+    Nowo\WikiBundle\Api\Operation\WikiApiAudit:
+        arguments:
+            $dispatcher: '@event_dispatcher'
+            $quotaListenerRequired: '%nowo_wiki.api.quota_listener_required%'
+            $logger: '@?logger'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiPageWriteOperations:
+        public: true
+        arguments:
+            $collab: '@?Nowo\WikiBundle\Collaboration\WikiCollabService'
+            $mover: '@?Nowo\WikiBundle\Service\WikiPageMover'
+
+    Nowo\WikiBundle\Api\Controller\WikiApiWriteController:
+        public: true
+        tags: ['controller.service_arguments']
+        arguments:
+            $maxBodyBytes: '%nowo_wiki.api.max_body_bytes%'
+
+    Nowo\WikiBundle\Api\Security\WikiApiIdempotencyListener:
+        arguments:
+            $logger: '@?logger'
+
+    Nowo\WikiBundle\Api\Command\WikiApiPurgeIdempotencyCommand: ~

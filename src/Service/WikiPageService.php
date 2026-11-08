@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Service;
 
 use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\ORM\EntityNotFoundException;
 use InvalidArgumentException;
 use LogicException;
 use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
@@ -54,6 +55,8 @@ final readonly class WikiPageService
      * @param WikiAttachmentReferenceFilter|null $attachmentFilter drops attachment URLs of other spaces (1.9)
      * @param WikiMarkdownRendererInterface|null $markdownRenderer renders Markdown revisions (1.11; default renderer
      *                                                             when null)
+     * @param WikiEventDeferral|null $deferral 1.24: holds the page events of a write inside an outer transaction until
+     *                                         it commits (audit IF-L2)
      */
     public function __construct(
         private WikiPageRepositoryInterface $pageRepository,
@@ -64,6 +67,7 @@ final readonly class WikiPageService
         ?LoggerInterface $logger = null,
         private ?WikiAttachmentReferenceFilter $attachmentFilter = null,
         ?WikiMarkdownRendererInterface $markdownRenderer = null,
+        private ?WikiEventDeferral $deferral = null,
     ) {
         $this->logger           = $logger ?? new NullLogger();
         $this->markdownRenderer = $markdownRenderer ?? new WikiMarkdownRenderer();
@@ -118,8 +122,8 @@ final readonly class WikiPageService
         $page->setCurrentRevision($revision);
         $this->pageRepository->save($page);
 
-        $this->eventDispatcher->dispatch(new WikiPageSavedEvent($page, $revision, null, $author), WikiEvents::PAGE_SAVED);
-        $this->eventDispatcher->dispatch(new WikiPageCreatedEvent($page, $author), WikiEvents::PAGE_CREATED);
+        $this->saved(new WikiPageSavedEvent($page, $revision, null, $author));
+        $this->dispatch(new WikiPageCreatedEvent($page, $author), WikiEvents::PAGE_CREATED);
 
         return $page;
     }
@@ -165,7 +169,7 @@ final readonly class WikiPageService
         $page->setTitle($title);
         $revision = $this->appendRevision($page, $contentHtml, $format, $author);
 
-        $this->eventDispatcher->dispatch(new WikiPageSavedEvent($page, $revision, $previous, $author), WikiEvents::PAGE_SAVED);
+        $this->saved(new WikiPageSavedEvent($page, $revision, $previous, $author));
 
         return $revision;
     }
@@ -204,7 +208,9 @@ final readonly class WikiPageService
         if ($expectedRevision === null) {
             $revision = $append();
         } else {
-            [$revision, $previous] = $this->underPageLock($page, $expectedRevision, 'Archived pages cannot be restored.', static fn (): ?WikiPageRevision => null, $append);
+            [$revision, $previous] = $this->underPageLock($page, $expectedRevision, 'Archived pages cannot be restored.', static fn (): ?WikiPageRevision => null, fn (): WikiPageRevision => $from->isMarkdown()
+                ? $this->appendRevision($page, (string) $from->getContentMarkdown(), WikiPageRevision::FORMAT_MARKDOWN, $actor, $expectedRevision + 1)
+                : $this->appendRevision($page, $from->getContentHtml(), WikiPageRevision::FORMAT_HTML, $actor, $expectedRevision + 1));
         }
 
         $this->logger->info('Wiki page revision restored.', [
@@ -216,8 +222,8 @@ final readonly class WikiPageService
             'revision' => $revision->getRevisionNumber(),
         ]);
 
-        $this->eventDispatcher->dispatch(new WikiPageSavedEvent($page, $revision, $previous, $actor), WikiEvents::PAGE_SAVED);
-        $this->eventDispatcher->dispatch(new WikiPageRestoredEvent($page, $from, $revision, $actor), WikiEvents::PAGE_RESTORED);
+        $this->saved(new WikiPageSavedEvent($page, $revision, $previous, $actor));
+        $this->dispatch(new WikiPageRestoredEvent($page, $from, $revision, $actor), WikiEvents::PAGE_RESTORED);
 
         return $revision;
     }
@@ -249,7 +255,7 @@ final readonly class WikiPageService
             'revision' => $revision->getRevisionNumber(),
         ]);
 
-        $this->eventDispatcher->dispatch(new WikiPageSavedEvent($page, $revision, $previous, $actor, true), WikiEvents::PAGE_SAVED);
+        $this->saved(new WikiPageSavedEvent($page, $revision, $previous, $actor, true));
 
         return $revision;
     }
@@ -314,14 +320,16 @@ final readonly class WikiPageService
             $expectedRevision,
             'Archived pages cannot be edited.',
             fn (?WikiPageRevision $current): ?WikiPageRevision => $current instanceof WikiPageRevision && $this->isUnchanged($page, $current, $title, $content, $format) ? $current : null,
-            function () use ($page, $title, $content, $format, $author): WikiPageRevision {
+            function () use ($page, $title, $content, $format, $author, $expectedRevision): WikiPageRevision {
                 $page->setTitle($title);
 
-                return $this->appendRevision($page, $content, $format, $author);
+                // Under the lock the current revision is the last one: no MAX() read, which an outer snapshot could make
+                // stale (audit IF-I2).
+                return $this->appendRevision($page, $content, $format, $author, $expectedRevision + 1);
             },
         );
         if ($revision !== $previous) {
-            $this->eventDispatcher->dispatch(new WikiPageSavedEvent($page, $revision, $previous, $author), WikiEvents::PAGE_SAVED);
+            $this->saved(new WikiPageSavedEvent($page, $revision, $previous, $author));
         }
 
         return $revision;
@@ -364,7 +372,7 @@ final readonly class WikiPageService
             $lock->commitPageTransaction();
         } catch (Throwable $exception) {
             $lock->rollbackPageTransaction();
-            if ($exception instanceof RetryableException) {
+            if ($exception instanceof RetryableException || $exception instanceof EntityNotFoundException) {
                 throw new WikiRevisionCollisionException('The revision could not be written: another save got there first.', 0, $exception);
             }
 
@@ -388,9 +396,29 @@ final readonly class WikiPageService
         return !$current->isMarkdown() && $current->getContentHtml() === $this->clean($page->getSpace(), $content);
     }
 
-    private function appendRevision(WikiPage $page, string $content, string $format, object $author): WikiPageRevision
+    /**
+     * A save's events: {@see WikiEvents::PAGE_WRITTEN} at once (the bundle's co-editing bookkeeping, which must run under
+     * the log's lock), {@see WikiEvents::PAGE_SAVED} once the outermost transaction committed (1.24, audit IF-L2).
+     */
+    private function saved(WikiPageSavedEvent $event): void
     {
-        $number   = $this->revisionRepository->getNextRevisionNumber($page);
+        $this->eventDispatcher->dispatch($event, WikiEvents::PAGE_WRITTEN);
+        $this->dispatch($event, WikiEvents::PAGE_SAVED);
+    }
+
+    private function dispatch(object $event, string $name): void
+    {
+        if ($this->deferral instanceof WikiEventDeferral) {
+            $this->deferral->dispatch($this->eventDispatcher, $event, $name);
+
+            return;
+        }
+        $this->eventDispatcher->dispatch($event, $name);
+    }
+
+    private function appendRevision(WikiPage $page, string $content, string $format, object $author, ?int $number = null): WikiPageRevision
+    {
+        $number ??= $this->revisionRepository->getNextRevisionNumber($page);
         $revision = $this->newRevision($page, $number, $content, $format, $author);
         try {
             $this->revisionRepository->save($revision);

@@ -11,6 +11,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use SortDirection;
 use Throwable;
@@ -91,6 +92,20 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
         $entityManager->beginTransaction();
         try {
             $entityManager->refresh($page, LockMode::PESSIMISTIC_WRITE);
+            // A locking read of the current revision: inside an outer REPEATABLE READ transaction (the co-editing log's
+            // lock) a plain read would use an older snapshot and miss a revision committed since (audit IF-I2).
+            $current = $page->getCurrentRevision();
+            if ($current instanceof WikiPageRevision) {
+                $entityManager->createQueryBuilder()
+                    ->select('r')
+                    ->from(WikiPageRevision::class, 'r')
+                    ->where('r.id = :id')
+                    ->setParameter('id', $current->getId())
+                    ->getQuery()
+                    ->setLockMode(LockMode::PESSIMISTIC_READ)
+                    ->setHint(Query::HINT_REFRESH, true)
+                    ->getOneOrNullResult();
+            }
         } catch (Throwable $exception) {
             $entityManager->rollback();
 

@@ -22,9 +22,11 @@ use Nowo\WikiBundle\Api\Hook\DenyingWikiApiRateLimiter;
 use Nowo\WikiBundle\Api\Hook\NullWikiApiUsers;
 use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiIdempotencyStoreInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiUsersInterface;
+use Nowo\WikiBundle\Api\Idempotency\DoctrineWikiApiIdempotencyStore;
 use Nowo\WikiBundle\Attachment\ConfiguredWikiAttachmentLimitsProvider;
 use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
 use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
@@ -97,6 +99,7 @@ use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
+use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
@@ -419,6 +422,19 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setAlias(WikiApiPlanGateInterface::class, self::serviceOr($api['hooks']['plan_gate'], DenyingWikiApiPlanGate::class));
         $container->setAlias(WikiApiUsersInterface::class, self::serviceOr($api['hooks']['users'], NullWikiApiUsers::class));
         $container->getDefinition(WikiRouteLoader::class)->setArgument('$apiPrefix', $api['prefix']);
+
+        $table = rtrim((string) $config['table_prefix'], '_') . '_api_idempotency';
+        if (is_string($api['hooks']['idempotency_store']) && $api['hooks']['idempotency_store'] !== '') {
+            $container->setAlias(WikiApiIdempotencyStoreInterface::class, $api['hooks']['idempotency_store']);
+        } else {
+            $container->setDefinition(DoctrineWikiApiIdempotencyStore::class, (new Definition(DoctrineWikiApiIdempotencyStore::class))
+                ->setArgument('$entityManager', new Reference(WikiEntityManagerProvider::class))
+                ->setArgument('$table', $table));
+            $container->setAlias(WikiApiIdempotencyStoreInterface::class, DoctrineWikiApiIdempotencyStore::class);
+            $container->getDefinition(WikiMetadataListener::class)
+                ->setArgument('$apiIdempotencyTableName', $table)
+                ->setArgument('$apiIdempotencyEnabled', true);
+        }
     }
 
     private static function serviceOr(?string $id, string $default): string
@@ -797,11 +813,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$userRateLimiter', is_string($collab['user_rate_limiter']) && $collab['user_rate_limiter'] !== '' ? new Reference($collab['user_rate_limiter']) : null)
             ->setArgument('$updateRateLimiter', is_string($collab['update_rate_limiter']) && $collab['update_rate_limiter'] !== '' ? new Reference($collab['update_rate_limiter']) : null)
             ->setArgument('$awarenessRateLimiter', is_string($collab['awareness_rate_limiter']) && $collab['awareness_rate_limiter'] !== '' ? new Reference($collab['awareness_rate_limiter']) : null)
-            ->setArgument('$secret', '%kernel.secret%'));
+            ->setArgument('$secret', '%kernel.secret%')
+            ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
         $container->setDefinition(WikiCollabSaveListener::class, (new Definition(WikiCollabSaveListener::class))
             ->setArgument('$collab', new Reference(WikiCollabService::class))
             ->setArgument('$requestStack', new Reference('request_stack', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->addTag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED]));
+            // 1.24 (audit IF-L2): inside the write, under the log's lock; hosts' PAGE_SAVED listeners run after the commit.
+            ->addTag('kernel.event_listener', ['event' => WikiEvents::PAGE_WRITTEN]));
     }
 
     /**

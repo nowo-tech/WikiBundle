@@ -102,6 +102,11 @@ services:
         autoconfigure: false
         tags: ['controller.service_arguments', 'container.service_subscriber']
 
+    # 1.24 (audit IF-L2): events held until the outermost commit; request state.
+    Nowo\WikiBundle\Service\WikiEventDeferral:
+        tags:
+            - { name: kernel.reset, method: reset }
+
     # 1.24 (spec 218): render frames are request state; emptied between requests in worker mode (audit IF-I7).
     Nowo\WikiBundle\Markdown\WikiRenderContext:
         tags:

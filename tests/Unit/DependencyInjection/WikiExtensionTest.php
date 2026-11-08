@@ -420,7 +420,8 @@ final class WikiExtensionTest extends TestCase
         self::assertSame(4096, $service->getArgument('$options')['max_update_bytes']);
         self::assertSame(HubInterface::class, (string) $container->getDefinition(MercureWikiCollabPublisher::class)->getArgument('$hub'));
         self::assertNull($container->getDefinition(MercureWikiCollabSubscriberAuthorizer::class)->getArgument('$hub'));
-        self::assertSame([['event' => 'nowo_wiki.page.saved']], $container->getDefinition(WikiCollabSaveListener::class)->getTag('kernel.event_listener'));
+        // 1.24 (audit IF-L2): the co-editing bookkeeping runs inside the write; hosts' PAGE_SAVED listeners after the commit.
+        self::assertSame([['event' => 'nowo_wiki.page.written']], $container->getDefinition(WikiCollabSaveListener::class)->getTag('kernel.event_listener'));
     }
 
     public function testCollaborationTakesHostServicesAndANamedHub(): void

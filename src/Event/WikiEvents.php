@@ -96,4 +96,11 @@ final class WikiEvents
 
     /** 1.24 (spec 218): a write through the REST API ({@see WikiApiWriteEvent}), after commit, for the host's audit. */
     public const API_WRITE = 'nowo_wiki.api.write';
+
+    /**
+     * 1.24 (audit IF-L2): a save was written, dispatched at once inside its transaction, before {@see self::PAGE_SAVED}
+     * (which waits for the outermost commit). Internal: the bundle's co-editing bookkeeping listens to it, because it must
+     * run under the log's lock. Hosts listen to {@see self::PAGE_SAVED}. Same {@see WikiPageSavedEvent}.
+     */
+    public const PAGE_WRITTEN = 'nowo_wiki.page.written';
 }

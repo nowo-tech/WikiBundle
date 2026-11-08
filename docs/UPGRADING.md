@@ -70,7 +70,10 @@
 
 ## Unreleased
 
-Nothing to do: every change is additive and default behaviour is unchanged.
+Nothing to do for most hosts: the REST API is off by default and every other change is additive.
+
+- **Co-editing hosts:** listeners of `WikiEvents::PAGE_SAVED`, `PAGE_CREATED` and `PAGE_RESTORED` now run after the co-editing log's transaction committed (and not at all when it rolled back). A listener that relied on running inside it should listen to the new `WikiEvents::PAGE_WRITTEN` (same event object), which keeps the old timing.
+- **API hosts:** create the `<table_prefix>_api_idempotency` table (`doctrine:migrations:diff`) unless you set `api.hooks.idempotency_store`; schedule `nowo:wiki:api:purge-idempotency`; call `forget(WikiApiIdempotencyListener::scope($principal))` on token revocation and account erasure.
 
 - `WikiPageService::saveRevision()` and `restore()` have a new optional last argument. A host that extends neither is unaffected. A host that passes an expected revision needs a page repository implementing `WikiPageLockInterface` (the bundle's Doctrine repository does); otherwise the call throws a `LogicException`.
 - `WikiRevisionBodyRenderer`, `WikiCommentService` and `WikiMilkdownPageResolver` take an optional `WikiRenderContext` (wired by the bundle). Host resolvers and directive renderers can read `WikiRenderContext::current()` for the space and page being rendered instead of the request's `spaceSlug` / `pageSlug`.

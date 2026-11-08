@@ -10,18 +10,23 @@ use Nowo\WikiBundle\Api\Hook\DenyingWikiApiRateLimiter;
 use Nowo\WikiBundle\Api\Hook\NullWikiApiUsers;
 use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Api\Hook\WikiApiIdempotencyStoreInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiUsersInterface;
+use Nowo\WikiBundle\Api\Idempotency\DoctrineWikiApiIdempotencyStore;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
+use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 
+use function array_intersect;
+use function array_keys;
 use function str_starts_with;
 
 /**
@@ -59,6 +64,14 @@ final class WikiExtensionApiTest extends TestCase
         self::assertSame('r', (string) $hosted->getAlias(WikiApiRateLimiterInterface::class));
         self::assertSame('p', (string) $hosted->getAlias(WikiApiPlanGateInterface::class));
         self::assertSame('u', (string) $hosted->getAlias(WikiApiUsersInterface::class));
+
+        // The bundle's idempotency table only with its own store.
+        self::assertTrue($container->getDefinition(WikiMetadataListener::class)->getArgument('$apiIdempotencyEnabled'));
+        self::assertSame('wiki_api_idempotency', $container->getDefinition(WikiMetadataListener::class)->getArgument('$apiIdempotencyTableName'));
+        $own = $this->load(['enabled' => true, 'hooks' => ['authenticator' => 'a', 'directory' => 'd', 'idempotency_store' => 'app.store']]);
+        self::assertSame('app.store', (string) $own->getAlias(WikiApiIdempotencyStoreInterface::class));
+        self::assertFalse($own->hasDefinition(DoctrineWikiApiIdempotencyStore::class));
+        self::assertSame([], array_intersect(['$apiIdempotencyEnabled'], array_keys($own->getDefinition(WikiMetadataListener::class)->getArguments())));
     }
 
     public function testTheAuthenticatorIsRequired(): void

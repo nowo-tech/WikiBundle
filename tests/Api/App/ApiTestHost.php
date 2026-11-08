@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api\App;
 
+use Closure;
 use Doctrine\Persistence\ManagerRegistry;
 use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
@@ -52,6 +53,9 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
     /** @var list<string> wiki slugs whose plan has no wiki module */
     public static array $noPlan = [];
 
+    /** A write raced by someone else: run when the person's Edit or Restore right is asked, until it returns true. */
+    public static ?Closure $race = null;
+
     public static bool $rateLimited = false;
 
     public static bool $ipBlocked = false;
@@ -77,6 +81,7 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
         self::$ipBlocked   = false;
         self::$failedIps   = [];
         self::$provisioned = [];
+        self::$race        = null;
     }
 
     public function authenticate(Request $request): WikiApiPrincipal|WikiApiAuthFailure
@@ -190,6 +195,13 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
 
     public function isGranted(UserInterface $user, WikiAction $action, WikiSpace $space, ?WikiPage $page = null): bool
     {
+        if (self::$race !== null && $page !== null && ($action === WikiAction::Edit || $action === WikiAction::Restore)) {
+            $race       = self::$race;
+            self::$race = null;
+            if ($race($page) === false) {
+                self::$race = $race;
+            }
+        }
         if ($page instanceof WikiPage && in_array($page->getSlug(), self::$hiddenPages, true)) {
             return false;
         }

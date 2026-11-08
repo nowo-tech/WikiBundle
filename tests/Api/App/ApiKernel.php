@@ -9,6 +9,7 @@ use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle;
 use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
+use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -120,8 +121,11 @@ final class ApiKernel extends Kernel
         $services->set('app.api_host', ApiTestHost::class)->autowire()->public();
         $services->set('app.api_firewall', ApiFirewallAuthenticator::class)->args([service('app.api_host')]);
         $services->alias(WikiSpaceAccessCheckerInterface::class, 'app.api_host');
-        $services->set('app.audit', ApiAuditRecorder::class)->public()
-            ->tag('kernel.event_listener', ['event' => WikiEvents::API_WRITE, 'method' => 'record']);
+        $services->set('app.audit', ApiAuditRecorder::class)->public()->args([service('doctrine.dbal.default_connection')])
+            ->tag('kernel.event_listener', ['event' => WikiEvents::API_WRITE, 'method' => 'record'])
+            ->tag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED, 'method' => 'saved']);
+        $services->set('app.collab_store', ApiCollabStore::class)->args([service(WikiEntityManagerProvider::class)])->public();
+        $services->set('app.collab_hub', ApiCollabHub::class)->public();
         $services->set('app.quota', RecordingQuotaListener::class)->public()
             ->tag('kernel.event_listener', ['event' => WikiEvents::QUOTA_CHECK, 'method' => 'onCheck']);
         $container->extension('nowo_wiki', array_replace([
@@ -129,6 +133,7 @@ final class ApiKernel extends Kernel
             'editor'     => ['type' => 'milkdown'],
             'comments'   => ['enabled' => true, 'rate_limiter' => 'limiter.wiki_comments'],
             'history'    => ['timeline' => true],
+            'tree'       => ['enabled' => true],
             'security'   => ['access_roles' => ['ROLE_USER']],
             'api'        => $this->api + ['enabled' => true, 'hooks' => [
                 'authenticator' => 'app.api_host',

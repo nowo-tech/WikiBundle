@@ -502,6 +502,7 @@ final class Configuration implements ConfigurationInterface
                                 ->scalarNode('rate_limiter')->defaultNull()->info('Api\\Hook\\WikiApiRateLimiterInterface. null: every request 429.')->end()
                                 ->scalarNode('plan_gate')->defaultNull()->info('Api\\Hook\\WikiApiPlanGateInterface. null: 403 PLAN_001.')->end()
                                 ->scalarNode('users')->defaultNull()->info('Api\\Hook\\WikiApiUsersInterface. null: no person has an id.')->end()
+                                ->scalarNode('idempotency_store')->defaultNull()->info('Api\\Hook\\WikiApiIdempotencyStoreInterface. null: the bundle table <table_prefix>_api_idempotency.')->end()
                             ->end()
                         ->end()
                     ->end()

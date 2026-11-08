@@ -16,6 +16,8 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
+use Nowo\WikiBundle\Tests\Api\App\ApiCollabHub;
+use Nowo\WikiBundle\Tests\Api\App\ApiCollabStore;
 use Nowo\WikiBundle\Tests\Api\App\ApiKernel;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -63,6 +65,9 @@ abstract class ApiTestCase extends WebTestCase
     {
         ApiTestHost::reset();
         ApiAuditRecorder::$events         = [];
+        ApiAuditRecorder::$heard          = [];
+        ApiCollabStore::$failReset        = false;
+        ApiCollabHub::$published          = [];
         RecordingQuotaListener::$seen     = [];
         RecordingQuotaListener::$denyWith = null;
         $this->client                     = static::createClient();

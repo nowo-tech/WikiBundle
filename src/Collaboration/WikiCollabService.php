@@ -12,6 +12,7 @@ use LogicException;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -127,6 +128,8 @@ final readonly class WikiCollabService
      * @param RateLimiterFactory|null $updateRateLimiter per user and page for `update` (1.14.1; null: `$rateLimiter`)
      * @param RateLimiterFactory|null $awarenessRateLimiter per user and page for `awareness` (1.14.1; null: `$rateLimiter`)
      * @param LoggerInterface|null $logger logs a reset that could not be published
+     * @param WikiEventDeferral|null $deferral 1.24: the page events of a save under the log's lock wait for its commit
+     *                                         (audit IF-L2)
      */
     public function __construct(
         private WikiCollabStateStoreInterface $store,
@@ -139,6 +142,7 @@ final readonly class WikiCollabService
         private ?RateLimiterFactory $updateRateLimiter = null,
         private ?RateLimiterFactory $awarenessRateLimiter = null,
         private ?LoggerInterface $logger = null,
+        private ?WikiEventDeferral $deferral = null,
     ) {
         /** @var array{hub_url: string, topic_prefix: string, max_update_bytes: int, max_snapshot_bytes: int, max_log_bytes: int, compact_after: int, max_log_entries: int, seed_timeout: int, reset_after_idle: int, corrupt_resets: int, corrupt_window: int, show_names: bool, save_conflict: bool} $merged */
         $merged        = $options + self::DEFAULTS;
@@ -401,7 +405,8 @@ final readonly class WikiCollabService
         };
 
         try {
-            $saved = $this->store instanceof WikiCollabLockingStoreInterface ? $this->store->whileLocked($page->getId(), $work) : $work();
+            $store = $this->store;
+            $saved = $this->afterCommit(static fn (): bool => $store instanceof WikiCollabLockingStoreInterface ? $store->whileLocked($page->getId(), $work) : $work());
         } catch (RetryableException|DriverException $exception) {
             // Lost a race under the lock: the transaction rolled back, so nothing was written.
             $this->rethrowUnlessLockLost($exception);
@@ -416,6 +421,17 @@ final readonly class WikiCollabService
         }
 
         return $saved;
+    }
+
+    /**
+     * Runs a unit of work that commits on return (the log's lock): the page events it raised are dispatched after it
+     * (1.24, audit IF-L2).
+     *
+     * @param callable(): bool $work
+     */
+    private function afterCommit(callable $work): bool
+    {
+        return $this->deferral instanceof WikiEventDeferral ? $this->deferral->run($work) : $work();
     }
 
     /**
@@ -442,15 +458,17 @@ final readonly class WikiCollabService
         }
 
         try {
+            $store = $this->store;
+
             // @igor-ignore - Runs and ends inside this call; the store keeps no reference to it.
-            return $this->store->whileLocked($page->getId(), function () use ($page, $epoch, $save): bool {
-                if ($this->store->currentEpoch($page->getId()) !== $epoch) {
+            return $this->afterCommit(static fn (): bool => $store->whileLocked($page->getId(), static function () use ($store, $page, $epoch, $save): bool {
+                if ($store->currentEpoch($page->getId()) !== $epoch) {
                     return false;
                 }
                 $save();
 
                 return true;
-            });
+            }));
         } catch (RetryableException|DriverException $exception) {
             $this->rethrowUnlessLockLost($exception);
 
