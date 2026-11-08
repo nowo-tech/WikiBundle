@@ -77,8 +77,10 @@ History buttons on the page view (WK-6). Works with nowo-tech/milkdown-editor-bu
   resolution gave the card (`host_files`, with the render's `WikiRenderFrame`, so the reach applies), and it must also
   pass the wiki link policy (`WikiLeafDirectiveRenderer::safeUrl()`), else the card has no link. A refused card keeps the
   neutral *Content not visible* placeholder, without uuid, name or link. A host that drew `file` with its own renderer
-  only to get the card can remove it and set `file_cards: card`; while a host renderer supports `file`, it keeps the
-  card (and Milkdown skips the card's `href` resolution, as before). The neutral `content_html` render keeps the plain
+  only to get the card can remove it and set `file_cards: card` once it runs Milkdown ≥ 1.14 and lists every link
+  host in `host_url_hosts` (audit IK-L1, see UPGRADING); while a host renderer supports `file`, it keeps the card (and
+  Milkdown skips the card's `href` resolution, as before). `card` hides refused files only while host files are
+  resolved (IK-I4); with `url: resolved` a visible card shows the resolver's name and type (IK-I5). The neutral `content_html` render keeps the plain
   link.
 - `MilkdownWikiMarkdownRenderer` takes an optional trailing `bool $fileCards`, `WikiLeafDirectiveRenderer` an optional
   third `bool $fileCards`.

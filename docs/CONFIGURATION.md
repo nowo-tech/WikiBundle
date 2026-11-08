@@ -161,6 +161,12 @@ files. See [UPGRADING](UPGRADING.md#unreleased).
 
 The neutral render (`content_html`) keeps the link either way.
 
+`card` hides nothing by itself (audit IK-I4): a refused file reads *Content not visible* only while host files are
+resolved (`host_files: auto` with Milkdown's `host_url_patterns` set, or `on`); otherwise the card links its written
+`href` like `link`. With a `url: resolved` pattern or a scheme value, a visible card shows the resolver's URL, name and
+type (IK-I5). Before replacing a host `file` renderer with `card`, see [UPGRADING](UPGRADING.md#unreleased): Milkdown
+≥ 1.14 and every link host in `host_url_hosts` (IK-L1).
+
 **Copy as Markdown (1.15).** `editor.milkdown.copy_markdown: true` (default `false`, needs Milkdown ≥ 1.5) adds a "Copy
 as Markdown" button to the page view, for users who may edit the page only. It copies the stored Markdown, raw: page
 ids of `[[wiki:<id>]]` links (also of pages the reader may not see), mention handles and directive attributes. That

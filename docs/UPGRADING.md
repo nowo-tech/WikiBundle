@@ -90,14 +90,31 @@ From **1.24.1**: `composer update nowo-tech/wiki-bundle`. Milkdown stays at **^1
   ```
 
   to draw `::file` cards in the page body, comments and the API reader view as Milkdown's file card, linked to the URL
-  of Milkdown's host file resolution (`host_files`; refused files read *Content not visible*). If you registered a
-  `nowo_milkdown_editor.directive_renderer` for `file` only to get that card and to check file access, remove it: as
-  long as it supports `file`, it still draws every card and Milkdown does not resolve the card's `href`. Your
-  `HostFileResolverInterface` (a `ContextualHostFileResolverInterface` under the API's reach) then decides who sees each
-  card, and Milkdown's `host_url_patterns` must cover the URLs your cards use (for example
-  `/files/<uuid>/(original|preview|thumb|s128|s64)` and `host_url_hosts` for absolute ones). The neutral
-  `content_html` render keeps the plain link. Previews (`view="preview"`) read as the card: the wiki render has no
-  preview resolver.
+  of Milkdown's host file resolution (`host_files`; refused files read *Content not visible*).
+
+  - **`card` protects nothing by itself** (audit IK-I4). Refused files are hidden only while host files are resolved:
+    `host_files` is `auto` with Milkdown's `host_url_patterns` set, or `on`. Without them, a card links its written
+    `href` with the author's label, exactly like `link`.
+  - **Before you delete your own `file` renderer** (audit IK-L1): if you registered a `nowo_milkdown_editor.directive_renderer`
+    for `file` to get the card and to check file access, it may match more URL forms than Milkdown does (any host,
+    explicit default ports, userinfo, dot segments). Remove it only once **both** hold:
+    1. you run nowo-tech/milkdown-editor-bundle **≥ 1.14**, which reads browser-normalised forms (`:443` / `:80`,
+       trailing dot, `user@`, `/./`, `/../`, `%2e`, repeated slashes) as the own URL (audit IJ-I10). 1.13 does not;
+    2. every host your file links use is in `nowo_milkdown_editor.markdown.host_url_hosts` (1.14 accepts
+       `%env(key:host:url:DEFAULT_URI)%`), in addition to the request's own host. A link to a host not listed there
+       stays an ordinary link.
+
+    As long as your renderer supports `file`, it still draws every card and Milkdown does not resolve the card's `href`.
+    WikiBundle itself still requires only Milkdown `^1.13`; the ≥ 1.14 requirement applies to removing your renderer.
+  - Your `HostFileResolverInterface` (a `ContextualHostFileResolverInterface` under the API's reach) decides who sees
+    each card, and Milkdown's `host_url_patterns` must cover the URLs your cards use (for example
+    `/files/<uuid>/(original|preview|thumb|s128|s64)`).
+  - **What a visible card shows** (audit IK-I5): with a `url: written` pattern, the author's label and URL, as with
+    `link`. With a `url: resolved` pattern or a scheme value (`app-file:<id>`), the resolver's URL and the file's real
+    name and type from the resolver (`ResolvedFile`), in the UI and in the API reader view; this differs from `link` mode
+    and from `content_html`, which keep the author's label.
+  - The neutral `content_html` render keeps the plain link. Previews (`view="preview"`) read as the card: the wiki
+    render has no preview resolver.
 
 ## To 1.24.1
 
