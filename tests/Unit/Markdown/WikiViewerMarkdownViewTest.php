@@ -30,6 +30,8 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+use function str_repeat;
+
 /**
  * 1.24 (spec 218 FR-013, SC-002): the reader's Markdown is built from the reader's render. Nothing the render hides —
  * ids and titles of pages the reader may not open, HTML comments, unused reference definitions, raw HTML — comes
@@ -112,6 +114,16 @@ final class WikiViewerMarkdownViewTest extends TestCase
         self::assertStringContainsString('[[wiki:' . $this->open->getId() . ']]', $reached);
     }
 
+    public function testASourceOverTheLimitsIsNeverShown(): void
+    {
+        [$view] = $this->view(['html_input' => 'strip', 'max_inline_markers' => 3]);
+        $source = 'See [[wiki:' . $this->hidden->getId() . "]] *a* *b* *c*\n\n<!-- secret comment -->\n\n[unused]: https://internal.example/admin\n\n::file{id=\"beacon-file:1234\"}";
+
+        self::assertFalse($view->isShowable($source));
+        self::assertSame(WikiViewerMarkdownView::TOO_LARGE, $view->markdown($this->space, $this->page, $source));
+        self::assertTrue($view->isShowable('Short *text*'));
+    }
+
     public function testAnOrdinaryLinkStaysALink(): void
     {
         [$view] = $this->view();
@@ -125,6 +137,7 @@ final class WikiViewerMarkdownViewTest extends TestCase
         self::assertSame('', $view->markdown($this->space, $this->page, " \n "));
 
         $neutral = new WikiViewerMarkdownView(new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), new WikiMarkdownConverter(), new WikiRenderContext());
+        self::assertTrue($neutral->isShowable(str_repeat('*x* ', 50000)));
         self::assertSame('Plain **bold**', $neutral->markdown($this->space, $this->page, 'Plain **bold**'));
     }
 

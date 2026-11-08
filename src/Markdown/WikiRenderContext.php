@@ -32,7 +32,8 @@ final class WikiRenderContext implements ResetInterface
     }
 
     /**
-     * Runs a render inside a frame. A nested render without its own reach keeps the outer one, so it can only narrow.
+     * Runs a render inside a frame. A nested render keeps the outer reach; given its own, it gets both (audit IF-I7), so a
+     * nested render can only narrow.
      *
      * @template T
      *
@@ -42,7 +43,8 @@ final class WikiRenderContext implements ResetInterface
      */
     public function within(WikiSpace $space, ?WikiPage $page, callable $render, ?WikiRenderReach $reach = null): mixed
     {
-        $frame          = new WikiRenderFrame($space, $page, $reach ?? $this->current()?->reach);
+        $outer          = $this->current()?->reach;
+        $frame          = new WikiRenderFrame($space, $page, $reach instanceof WikiRenderReach && $outer instanceof WikiRenderReach ? new WikiRenderReachIntersection($outer, $reach) : $reach ?? $outer);
         $this->frames[] = $frame;
         try {
             return $render($frame);

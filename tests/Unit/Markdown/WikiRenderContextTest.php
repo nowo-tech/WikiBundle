@@ -66,10 +66,18 @@ final class WikiRenderContextTest extends TestCase
             $context->within($this->other, null, static function (WikiRenderFrame $frame) use ($outer): void {
                 self::assertSame($outer, $frame->reach);
             });
-            $context->within($this->other, null, static function (WikiRenderFrame $frame) use ($inner): void {
-                self::assertSame($inner, $frame->reach);
+            // Its own reach is intersected with the outer one, never a replacement (audit IF-I7).
+            $context->within($this->other, null, function (WikiRenderFrame $frame): void {
+                self::assertFalse($frame->reaches($this->space));
+                self::assertFalse($frame->reaches($this->other));
             }, $inner);
+            $context->within($this->space, null, function (WikiRenderFrame $frame): void {
+                self::assertTrue($frame->reaches($this->space));
+            }, $outer);
         }, $outer);
+        $context->within($this->space, null, static function (WikiRenderFrame $frame) use ($inner): void {
+            self::assertSame($inner, $frame->reach);
+        }, $inner);
     }
 
     public function testReachAndRecordedLinks(): void

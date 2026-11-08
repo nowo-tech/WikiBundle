@@ -30,6 +30,12 @@ use const ENT_QUOTES;
  */
 final readonly class WikiViewerMarkdownView
 {
+    /**
+     * What a reader gets for a source over the renderer's limits (audit IF-L1): such a source is never parsed, so nothing
+     * in it could be resolved or hidden, and showing it would show everything.
+     */
+    public const TOO_LARGE = '*This content is too large to show here.*';
+
     /** An anchor of sanitized HTML, its `href` captured. */
     private const ANCHOR = '#<a\\b[^>]*?\\shref="([^"]*)"[^>]*>.*?</a>#s';
 
@@ -55,6 +61,9 @@ final readonly class WikiViewerMarkdownView
         if (trim($markdown) === '') {
             return '';
         }
+        if (!$this->isShowable($markdown)) {
+            return self::TOO_LARGE;
+        }
 
         $renderer       = $this->renderer;
         [$html, $frame] = $renderer instanceof WikiViewerMarkdownRendererInterface
@@ -70,6 +79,15 @@ final readonly class WikiViewerMarkdownView
         }
 
         return $this->converter->htmlToMarkdown($html);
+    }
+
+    /**
+     * Whether a source can be turned into a reader's Markdown: false over the renderer's limits, where the renderer would
+     * fall back to the source as text (audit IF-L1).
+     */
+    public function isShowable(string $markdown): bool
+    {
+        return !$this->renderer instanceof WikiMarkdownLimitsInterface || !$this->renderer->exceedsLimits($markdown);
     }
 
     /**
