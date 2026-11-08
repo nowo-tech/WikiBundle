@@ -231,7 +231,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         ?TranslatorInterface $translator,
         ?LoggerInterface $logger,
         HostSchemes $hostSchemes = new HostSchemes(),
-        ?HostFileResolverInterface $hostFiles = null,
+        ?WikiMilkdownHostFileResolver $hostFiles = null,
         ?RenderContextProviderInterface $renderContext = null,
     ): Environment {
         $htmlInput   = $options['html_input'] ?? 'escape';
@@ -296,6 +296,10 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
 
         $environment->addRenderer(TablerIcon::class, new WikiTablerIconRenderer($icons), 10);
         $environment->addRenderer(LeafDirective::class, new WikiLeafDirectiveRenderer($directiveRenderers, $translator), 10);
+        if (!$hostSchemes->isEmpty()) {
+            // 1.25 (audit IJ-L2): URL attributes of leaf directives that name host files go through the resolver too.
+            $environment->addEventListener(DocumentParsedEvent::class, (new WikiLeafHostFiles($hostSchemes, $hostFiles, $renderContext, $directiveRenderers, $this->maxReferences, $logger))->onDocumentParsed(...), -50);
+        }
         $environment->addEventListener(DocumentParsedEvent::class, new WikiTaskListNormalizer(), -100);
 
         return $environment;

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Markdown\Milkdown;
 
+use Nowo\MilkdownEditorBundle\Markdown\Directive\DirectiveRendererInterface;
 use Nowo\MilkdownEditorBundle\Markdown\HostSchemes;
+use Nowo\MilkdownEditorBundle\Markdown\Node\LeafDirective;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\AllowlistIconResolver;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\ContextualHostFileResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\HostFileResolverInterface;
@@ -18,6 +20,7 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiLeafDirectiveRenderer;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiLeafHostFiles;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownHostFileResolver;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRenderContext;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
@@ -27,6 +30,7 @@ use Nowo\WikiBundle\Markdown\WikiViewerMarkdownView;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function explode;
@@ -42,6 +46,7 @@ use function substr_count;
 #[CoversClass(WikiMilkdownHostFileResolver::class)]
 #[CoversClass(WikiMilkdownRenderContext::class)]
 #[CoversClass(WikiLeafDirectiveRenderer::class)]
+#[CoversClass(WikiLeafHostFiles::class)]
 final class WikiMilkdownHostFilesTest extends TestCase
 {
     private const ENG_FILE = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -179,6 +184,78 @@ final class WikiMilkdownHostFilesTest extends TestCase
 
         self::assertStringNotContainsString('/files/', $markdown);
         self::assertSame(5, substr_count($markdown, 'Content not visible'));
+    }
+
+    /** Audit IJ-L2: every URL attribute of a leaf directive that names a host file goes through the resolver. */
+    public function testDirectiveUrlAttributesGoThroughTheResolver(): void
+    {
+        $view = $this->view($this->renderer(new SpaceFiles([self::ENG_FILE => $this->eng, self::HR_FILE => $this->hr])));
+        $hr   = '/files/' . self::HR_FILE . '/original';
+        $eng  = '/files/' . self::ENG_FILE . '/original';
+        foreach ([
+            '::file[secret card.pdf]{url="' . $hr . '"}',
+            '::file[secret card.pdf]{link="' . $hr . '"}',
+            '::file[secret card.pdf]{href="' . $eng . '" url="' . $hr . '"}',
+            '::download[secret]{href="' . $hr . '"}',
+            '::download{href="' . $hr . '"}',
+        ] as $source) {
+            $markdown = $view->markdown($this->eng, $this->page, $source, $this->onlyEng());
+            self::assertStringNotContainsString(self::HR_FILE, $markdown, $source);
+            self::assertStringNotContainsString('secret', $markdown, $source);
+            self::assertStringContainsString('Content not visible', $markdown, $source);
+        }
+
+        // Within reach: unchanged for the person, and a `::file` links its href, never a url next to it.
+        self::assertSame('[download](' . $eng . ')', $view->markdown($this->eng, $this->page, '::download{href="' . $eng . '"}', $this->onlyEng()));
+        self::assertSame('[notes.pdf](' . $eng . ')', $view->markdown($this->eng, $this->page, '::file[notes.pdf]{href="' . $eng . '" url="/elsewhere"}', $this->onlyEng()));
+        self::assertSame('[notes.pdf](/elsewhere)', $view->markdown($this->eng, $this->page, '::file[notes.pdf]{href="javascript:x" url="/elsewhere"}', $this->onlyEng()));
+    }
+
+    public function testDirectiveFilesFailClosed(): void
+    {
+        $failing = new class implements ContextualHostFileResolverInterface {
+            public function resolveFiles(array $references): array
+            {
+                throw new RuntimeException('down');
+            }
+
+            public function resolveFilesInContext(array $references, ?object $context): array
+            {
+                throw new RuntimeException('down');
+            }
+        };
+        foreach ([$failing, null] as $files) {
+            $markdown = $this->view($this->renderer($files))->markdown($this->eng, $this->page, '::download[secret]{href="/files/' . self::ENG_FILE . '/original"}');
+            self::assertStringNotContainsString('secret', $markdown);
+            self::assertStringNotContainsString(self::ENG_FILE, $markdown);
+        }
+        // A matching URL with an invalid id is refused without asking.
+        $markdown = $this->view($this->renderer(new SpaceFiles([]), [['pattern' => '^/files/(?<id>[^/]+)/original$', 'scheme' => 'beacon-file']]))
+            ->markdown($this->eng, $this->page, '::download[secret]{href="/files/.env/original"}');
+        self::assertStringNotContainsString('secret', $markdown);
+        self::assertStringContainsString('Content not visible', $markdown);
+    }
+
+    public function testAHostRendererOfTheDirectiveChecksItsOwn(): void
+    {
+        $download = new class implements DirectiveRendererInterface {
+            public function supports(string $name): bool
+            {
+                return $name === 'download';
+            }
+
+            public function prepare(array $nodes): void
+            {
+            }
+
+            public function render(LeafDirective $node): string
+            {
+                return '<p>host</p>';
+            }
+        };
+        $renderer = new MilkdownWikiMarkdownRenderer([], new NullPageResolver(), new NullUserResolver(), new AllowlistIconResolver(), [$download], hostSchemes: new HostSchemes(self::SCHEMES, [], self::PATTERNS), hostFiles: new SpaceFiles([]), renderContext: new WikiMilkdownRenderContext($this->context));
+
+        self::assertSame('<p>host</p>', $this->context->within($this->eng, $this->page, static fn (): string => $renderer->renderForViewer('::download{href="/files/' . self::HR_FILE . '/original"}')));
     }
 
     public function testTheWrapperAndTheContext(): void

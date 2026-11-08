@@ -134,8 +134,10 @@ final class ApiKernel extends Kernel
         $services->set('app.host_files', ApiHostFiles::class)->args([service(WikiEntityManagerProvider::class)]);
         $services->alias(HostFileResolverInterface::class, 'app.host_files');
         $container->extension('nowo_milkdown_editor', ['markdown' => [
-            'host_schemes'      => ['beacon-file' => ['file' => '/files/{id}/original', 'image' => '/files/{id}/preview']],
-            'host_url_patterns' => [['pattern' => '^/files/(?<id>[0-9a-f-]{36})/(?:original|preview)$', 'scheme' => 'beacon-file']],
+            'host_schemes'       => ['beacon-file' => ['file' => '/files/{id}/original', 'image' => '/files/{id}/preview']],
+            'host_url_patterns'  => [['pattern' => '^/files/(?<id>[0-9a-f-]{36})/(?:original|preview|thumb|s128|s64)$', 'scheme' => 'beacon-file']],
+            'host_url_hosts'     => ['beacon.example'],
+            'host_refused_links' => 'hidden',
         ]]);
         $services->set('app.pages', ApiPageRepository::class)->args([service(WikiEntityManagerProvider::class)]);
         $services->alias(WikiPageRepositoryInterface::class, 'app.pages');

@@ -143,6 +143,16 @@ and, with Milkdown's `host_url_patterns`, plain URLs such as `/files/<uuid>/orig
 *where*, or that the person may not read, reads *Content not visible*, without its uuid, alt text or name. See
 [CONFIGURATION](CONFIGURATION.md) (`editor.milkdown.host_files`).
 
+Not covered by the reach (audit IJ-L4, IJ-I7):
+
+- **`content_view: source`** (an Edit-or-higher token whose person may edit the page) is the raw Markdown, with every
+  file uuid, including files outside *where*. Editors need the source.
+- **Search** matches and quotes `content_text`, the plain text of the viewer-neutral render. For a Markdown page this
+  keeps the **text of links and the labels of `::file` cards** (often file names) even when the file is outside the
+  token's *where*; uuids, alt texts and URLs are attributes and are not in it. An HTML-format revision's `content_text`
+  (returned as `content_text`) is the same plain text. The reader view hides these; search and HTML revisions do not yet.
+  Fix planned: build excerpts from a render that refuses host files.
+
 People appear as `{"id", "name"}`. The name is whatever the history policy shows (`WikiAuthorLabel`). The id is filled
 only for the token's own user.
 

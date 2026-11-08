@@ -88,6 +88,15 @@ nowo-tech/milkdown-editor-bundle **^1.13**. **Audit: re-verification pending.**
 - `WikiMilkdownRenderContext` (Milkdown `RenderContextProviderInterface`, gives the current `WikiRenderFrame`) and
   `WikiMilkdownHostFileResolver` (wraps the host's resolver as described above).
 - `WikiLeafDirectiveRenderer` renders a refused `::file` card as Milkdown's neutral placeholder (translated `ref.hidden`).
+- `WikiLeafHostFiles` (audit IJ-L2): the `url`, `href` and `link` attributes of leaf directives that name host files
+  (`::download{href=…}`, `::file{url=…}`) go through the resolver with the frame; refused or unchecked ones render the
+  placeholder, and a `::file` whose `href` is a host file links only that `href`.
+
+### Known limitation
+
+- Search matching and excerpts, and HTML revisions' `content_text`, use the viewer-neutral plain text: link text and
+  `::file` labels of files outside a token's *where* can still appear there (audit IJ-L4, no uuid). See
+  [API](API.md).
 
 ### Changed
 

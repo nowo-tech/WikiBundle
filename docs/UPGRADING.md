@@ -84,9 +84,17 @@ Nothing changes until Milkdown's `host_url_patterns` is set, or `editor.milkdown
            host_schemes:
                beacon-file: { file: /files/{id}/original, image: /files/{id}/preview }
            host_url_patterns:
-               - { pattern: '^/files/(?<id>[0-9a-f-]{36})/(?:original|preview)$', scheme: beacon-file }   # url: written (default)
-           host_refused_links: hidden   # optional: refused beacon-file: links lose their text too
+               # Every variant Beacon's file route serves (FileDownloadController): a form no pattern covers stays a plain link.
+               - { pattern: '^/files/(?<id>[0-9a-f-]{36})/(?:original|preview|thumb|s128|s64)$', scheme: beacon-file }   # url: written (default)
+           # Absolute and protocol-relative URLs of these hosts (and of the request's host) are matched as their path, so
+           # https://beacon.example.com/files/<uuid>/original pasted from the address bar, and its GFM autolink, are covered.
+           host_url_hosts: [beacon.example.com]
+           host_refused_links: hidden   # refused beacon-file: links lose their text too (audit IJ-I8)
    ```
+
+   Milkdown also drops the query and fragment, percent-decodes the path once and lower-cases uuids before matching
+   (`/files/<UUID>/original?download=1` matches). It does not match file URLs written as plain text or inside escaped raw
+   HTML: those are the author's text, not references.
 
 2. Point Milkdown's `HostFileResolverInterface` at a resolver that implements `ContextualHostFileResolverInterface`.
    In `resolveFilesInContext($references, $context)`, answer only files the current person may read. When `$context`
@@ -95,8 +103,20 @@ Nothing changes until Milkdown's `host_url_patterns` is set, or `editor.milkdown
 3. Without step 2, the default template resolver resolves every file in the UI (unchanged output) and **none** under
    an API reach.
 
-Once host files are on (`auto` with patterns, or `on`), `beacon-file:<id>` references in wiki pages are resolved too.
-Before, the wiki's renderer left them unresolved.
+**What changes in the UI once host files are on** (`auto` with patterns, or `on`); a person who may see every file of
+a page sees the same page as before (audit IJ-I9):
+
+- Files the resolver refuses for the person (if your resolver checks the person, as it should) read *Content not
+  visible*, without alt text, link text or card name, where they used to show as broken images or links.
+- A resolver that throws hides every host file of that page (logged by class); more than Milkdown's `max_references`
+  (500) distinct files on one page hide the rest.
+- `beacon-file:<id>` links and images are resolved to their template URLs; before, the wiki's renderer left them
+  unresolved and the sanitizer dropped them to text.
+- Leaf directives whose `url`, `href` or `link` names a host file (`::download{href=…}`, `::file{url=…}`) go through the
+  resolver too and read *Content not visible* when refused; a `::file` whose `href` is a host file links only that
+  `href` (audit IJ-L2).
+- A host `DirectiveRendererInterface` for `file` (or any directive) takes over: Milkdown then skips card resolution, and
+  your renderer must check the person and `WikiRenderFrame::reaches()` itself.
 
 ## To 1.24.0
 

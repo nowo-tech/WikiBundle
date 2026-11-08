@@ -7757,12 +7757,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/MilkdownEditorBundle",
-                "reference": "a2560e7fffb41a14c1cf593162d48464cba7e934"
+                "reference": "51f360608570779c592ba447de1f52f7b4c78c31"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/a2560e7fffb41a14c1cf593162d48464cba7e934",
-                "reference": "a2560e7fffb41a14c1cf593162d48464cba7e934",
+                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/51f360608570779c592ba447de1f52f7b4c78c31",
+                "reference": "51f360608570779c592ba447de1f52f7b4c78c31",
                 "shasum": ""
             },
             "require": {
@@ -7910,7 +7910,7 @@
                 "docs": "https://github.com/nowo-tech/MilkdownEditorBundle/tree/main/docs",
                 "changelog": "https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/CHANGELOG.md"
             },
-            "time": "2026-11-08T16:21:45+00:00"
+            "time": "2026-11-08T17:34:15+00:00"
         },
         {
             "name": "nowo-tech/phpstan-frankenphp",

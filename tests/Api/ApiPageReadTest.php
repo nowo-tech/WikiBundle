@@ -140,8 +140,10 @@ final class ApiPageReadTest extends ApiTestCase
         $opsFile             = '22222222-2222-4222-8222-000000000001';
         $engFile             = '22222222-2222-4222-8222-000000000002';
         ApiTestFiles::$wikis = [$opsFile => 'ops', $engFile => 'eng'];
-        $source              = "![secret org chart](/files/{$opsFile}/preview)\n\nSee [salaries 2026.pdf](/files/{$opsFile}/original) and ![eng diagram](/files/{$engFile}/preview).";
-        $page                = $this->page($this->eng, 'Runbook', $source);
+        $source              = "![secret org chart](/files/{$opsFile}/preview)\n\nSee [salaries 2026.pdf](/files/{$opsFile}/original) and ![eng diagram](/files/{$engFile}/preview).\n\n"
+            . "![secret thumb](/files/{$opsFile}/thumb) [secret absolute](https://beacon.example/files/{$opsFile}/original?download=1) <https://beacon.example/files/{$opsFile}/s128>\n\n"
+            . "Pasted: https://beacon.example/files/{$opsFile}/original";
+        $page = $this->page($this->eng, 'Runbook', $source);
 
         $this->token('ana-read', 'u-ana', WikiApiLevel::Read);
         $everything = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'ana-read'))['content_markdown'];
@@ -153,7 +155,8 @@ final class ApiPageReadTest extends ApiTestCase
         self::assertStringNotContainsString($opsFile, $limited);
         self::assertStringNotContainsString('secret org chart', $limited);
         self::assertStringNotContainsString('salaries', $limited);
-        self::assertSame(2, substr_count($limited, 'Content not visible'));
+        // Image, link, thumb variant, absolute link, angle autolink and GFM bare autolink (audit IJ-L3).
+        self::assertSame(6, substr_count($limited, 'Content not visible'));
         self::assertStringContainsString('![eng diagram](/files/' . $engFile . '/preview)', $limited);
 
         // The source is still the source for an editor's Edit token within the where.

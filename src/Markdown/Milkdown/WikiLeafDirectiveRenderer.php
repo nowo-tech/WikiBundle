@@ -36,7 +36,8 @@ use function trim;
  * - every value is escaped. `id` and `class` attributes are never copied into the markup.
  *
  * 1.25: a `::file` card whose host file the viewer may not see (Milkdown's `nowo_file_hidden`, set by the host file
- * resolver) renders Milkdown's neutral *Content not visible*, without its name, label or link.
+ * resolver) renders Milkdown's neutral *Content not visible*, without its name, label or link; so does any directive
+ * {@see WikiLeafHostFiles} marked (audit IJ-L2).
  */
 final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
 {
@@ -77,8 +78,15 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
                 return $renderer->render($node);
             }
         }
-        if ($node->name === FileCard::NAME && $node->data->get('nowo_file_hidden', false) === true) {
-            return FileCard::render($node, ['hidden' => $this->translator?->trans('ref.hidden', [], MilkdownEditorType::DOMAIN) ?? 'Content not visible']);
+        $hidden = $this->translator?->trans('ref.hidden', [], MilkdownEditorType::DOMAIN) ?? 'Content not visible';
+        if ($node->name === FileCard::NAME && ($node->data->get('nowo_file_hidden', false) === true || $node->data->get(WikiLeafHostFiles::HIDDEN, false) === true)) {
+            $node->data->set('nowo_file_hidden', true);
+
+            return FileCard::render($node, ['hidden' => $hidden]);
+        }
+        if ($node->data->get(WikiLeafHostFiles::HIDDEN, false) === true) {
+            // 1.25 (audit IJ-L2): a directive naming a host file the viewer may not see: no label, attributes or link.
+            return '<div class="nowo-md-directive nowo-md-directive--leaf nowo-wiki-directive" data-directive="' . DialectRenderer::e($node->name) . '"><span class="nowo-md-ref nowo-md-ref--hidden">' . DialectRenderer::e($hidden) . '</span></div>';
         }
 
         $text = DialectRenderer::e($this->text($node));
@@ -104,7 +112,8 @@ final readonly class WikiLeafDirectiveRenderer implements NodeRendererInterface
 
     private function url(LeafDirective $node): ?string
     {
-        foreach (self::URL_ATTRIBUTES as $key) {
+        // 1.25 (audit IJ-L2): a `::file` whose `href` is a host file links only that resolved `href`.
+        foreach ($node->data->get(WikiLeafHostFiles::HREF_ONLY, false) === true ? ['href'] : self::URL_ATTRIBUTES as $key) {
             $url = isset($node->attributes[$key]) ? self::safeUrl($node->attributes[$key]) : null;
             if ($url !== null) {
                 return $url;
