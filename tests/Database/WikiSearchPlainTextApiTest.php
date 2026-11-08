@@ -67,8 +67,14 @@ final class WikiSearchPlainTextApiTest extends TestCase
 
         self::assertSame([], $search->searchPlainText([$this->space()], '0d1c2b3a', 10));
         self::assertSame([], $search->searchPlainText([$this->space()], 'wiki:', 10));
-        // The neutral HTML cache still finds what every reader sees.
+        // The neutral HTML cache still finds what every reader sees, and never its markup (audit IF-I3).
         self::assertSame(['Links'], $this->titles($search->searchPlainText([$this->space()], 'see', 10)));
+        self::assertSame([], $search->searchPlainText([$this->space()], 'span', 10, null, null, $last, $rows));
+        self::assertSame(1, $rows);
+        self::assertSame($page->getId(), $last);
+        self::assertSame([], $search->searchPlainText([$this->space()], 'zzz', 10, null, null, $last, $rows));
+        self::assertNull($last);
+        self::assertSame(0, $rows);
     }
 
     public function testMatchesAreCaseInsensitiveLiteralAndSkipArchivedPages(): void

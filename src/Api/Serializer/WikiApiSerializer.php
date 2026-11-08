@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\Api\Serializer;
 
 use DateTimeImmutable;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
+use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 
 /**
  * 1.24 (spec 218): the API's bodies. Dates are Unix milliseconds, ids UUID strings, wikis named by slug.
@@ -42,5 +44,47 @@ final readonly class WikiApiSerializer
         }
 
         return $body;
+    }
+
+    /**
+     * A page's metadata: what lists show, and the head of a page body.
+     *
+     * @param array{id: string|null, name: string}|null $updatedBy
+     *
+     * @return array<string, mixed>
+     */
+    public function pageHead(WikiApiWiki $wiki, WikiPage $page, ?int $revision, ?DateTimeImmutable $revisedAt, ?array $updatedBy): array
+    {
+        return [
+            'id'         => $page->getId(),
+            'wiki'       => $wiki->slug,
+            'slug'       => $page->getSlug(),
+            'title'      => $page->getTitle(),
+            'parent'     => $page->getParent()?->getId(),
+            'position'   => $page->getPosition(),
+            'archived'   => $page->isArchived(),
+            'revision'   => $revision,
+            'created_at' => self::ms($page->getCreatedAt()),
+            'updated_at' => self::ms($revisedAt ?? $page->getUpdatedAt()),
+            'updated_by' => $updatedBy,
+        ];
+    }
+
+    /**
+     * A revision's head (the body, when asked, is added by the caller).
+     *
+     * @param array{id: string|null, name: string}|null $author
+     *
+     * @return array<string, mixed>
+     */
+    public function revisionHead(WikiPageRevision $revision, ?array $author, ?string $label): array
+    {
+        return [
+            'number'     => $revision->getRevisionNumber(),
+            'author'     => $author,
+            'created_at' => self::ms($revision->getCreatedAt()),
+            'label'      => $label,
+            'format'     => $revision->getFormat(),
+        ];
     }
 }

@@ -15,5 +15,6 @@ final class ApiListGateTest extends ApiTestCase
     {
         $this->assertRefusal($this->call('GET', '/wikis'), 403, 'ACCESS_002');
         $this->assertRefusal($this->call('GET', '/wikis/eng'), 403, 'ACCESS_002');
+        $this->assertRefusal($this->call('GET', '/search?q=x'), 403, 'ACCESS_002');
     }
 }

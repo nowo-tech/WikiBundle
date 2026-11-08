@@ -30,3 +30,38 @@ services:
     Nowo\WikiBundle\Api\Controller\WikiApiWikiController:
         public: true
         tags: ['controller.service_arguments']
+
+    # S3: reads.
+    Nowo\WikiBundle\Repository\WikiPageMetadataFinderInterface: '@Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository'
+
+    Nowo\WikiBundle\Api\Repository\WikiApiUsersReader:
+        arguments:
+            $entityManager: '@Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider'
+            $userClass: '%nowo_wiki.user_class%'
+
+    Nowo\WikiBundle\Api\Serializer\WikiApiPeople: ~
+    Nowo\WikiBundle\Api\Serializer\WikiApiContent: ~
+
+    Nowo\WikiBundle\Api\Operation\WikiApiComments:
+        arguments:
+            $service: '@?Nowo\WikiBundle\Comment\WikiCommentService'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiPageReadOperations:
+        public: true
+
+    Nowo\WikiBundle\Api\Operation\WikiApiRevisionOperations:
+        public: true
+        arguments:
+            $labels: '@?Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiSearchOperations:
+        public: true
+        arguments:
+            $candidates: '%nowo_wiki.api.search_candidates%'
+
+    Nowo\WikiBundle\Api\Operation\WikiApiCommentReadOperations:
+        public: true
+
+    Nowo\WikiBundle\Api\Controller\WikiApiReadController:
+        public: true
+        tags: ['controller.service_arguments']

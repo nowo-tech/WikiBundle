@@ -96,6 +96,7 @@ final class ApiKernel extends Kernel
             'csrf_protection'      => true,
             'form'                 => ['csrf_protection' => true],
             'session'              => ['storage_factory_id' => 'session.storage.factory.mock_file'],
+            'rate_limiter'         => ['wiki_comments' => ['policy' => 'sliding_window', 'limit' => 1000, 'interval' => '1 minute']],
         ]);
         $container->extension('security', [
             'providers' => ['app' => ['entity' => ['class' => TestUserEntity::class, 'property' => 'id']]],
@@ -103,7 +104,7 @@ final class ApiKernel extends Kernel
                 + ['main' => ['lazy' => true, 'provider' => 'app']],
         ]);
         $container->extension('doctrine', [
-            'dbal' => ['url' => $this->databaseUrl()],
+            'dbal' => ['url' => $this->databaseUrl(), 'logging' => true],
             'orm'  => ['mappings' => ['WikiTestStub' => [
                 'type'      => 'attribute',
                 'is_bundle' => false,
@@ -126,6 +127,8 @@ final class ApiKernel extends Kernel
         $container->extension('nowo_wiki', array_replace([
             'user_class' => TestUserEntity::class,
             'editor'     => ['type' => 'milkdown'],
+            'comments'   => ['enabled' => true, 'rate_limiter' => 'limiter.wiki_comments'],
+            'history'    => ['timeline' => true],
             'security'   => ['access_roles' => ['ROLE_USER']],
             'api'        => $this->api + ['enabled' => true, 'hooks' => [
                 'authenticator' => 'app.api_host',
