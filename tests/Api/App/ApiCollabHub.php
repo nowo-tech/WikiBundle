@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Api\App;
 
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -16,8 +17,14 @@ final class ApiCollabHub implements WikiCollabPublisherInterface, WikiCollabSubs
     /** @var list<string> */
     public static array $published = [];
 
+    /** The hub is down (audit IF-L6). */
+    public static bool $down = false;
+
     public function publish(string $topic, string $message): void
     {
+        if (self::$down) {
+            throw new RuntimeException('Hub unreachable.');
+        }
         self::$published[] = $message;
     }
 

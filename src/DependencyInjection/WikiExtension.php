@@ -655,7 +655,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$readViewSource', $comments['read_view_source'])
             ->setArgument('$limits', $comments['limits'])
             ->setArgument('$renderContext', new Reference(WikiRenderContext::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
         $container->setDefinition(WikiCommentsPanel::class, (new Definition(WikiCommentsPanel::class))
             ->setArgument('$comments', new Reference(WikiCommentService::class))
             ->setArgument('$state', new Reference(WikiPanelStateStoreInterface::class))
