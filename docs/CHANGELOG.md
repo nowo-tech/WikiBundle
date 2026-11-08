@@ -63,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests
+
+- **A `database` test suite on MySQL and PostgreSQL (spec 218, step 0).** `tests/Database` pins what `WikiPageService` writes and dispatches (create, revisions, restore, archive, the revision collision) and what search matches, on SQLite and, in CI, on MySQL 8.4 and PostgreSQL 16 (`WIKI_TEST_DATABASE_URL`). No change to `src/`.
+
 ## [1.23.0] - 2026-11-07
 
 > **Upgrade if you use co-editing (`nowo_wiki.collaboration`).** In every earlier version, with every Milkdown, a tab that came back after the shared log was dropped (a closed laptop lid is enough) could undo newer text, including a confirmed "Replace for everyone", and nobody was asked. Every revision stays in the history, so nothing is unrecoverable, but the current text can be wrong with no warning. This release closes it with Milkdown 1.12 (audit HV-M1). **Add the `log_epoch` column before you deploy the code**: see `docs/UPGRADING.md`.
