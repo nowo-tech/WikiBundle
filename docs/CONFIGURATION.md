@@ -62,6 +62,7 @@ Root key: `nowo_wiki`.
 - [Attachments (1.9)](#attachments-19)
 - [Web UI (REQ-UI-001 / REQ-UI-003)](#web-ui-req-ui-001--req-ui-003)
 - [Host hooks (1.21)](#host-hooks-121)
+- [REST API (1.24)](#rest-api-124)
 - [Roles per action (REQ-UI-003)](#roles-per-action-req-ui-003)
 - [Pagination (REQ-PERF-001)](#pagination-req-perf-001)
 - [Import / export](#import--export)
@@ -531,6 +532,20 @@ values. They style the nested list; `tree.enabled` draws the UiKit `tree` partia
 | `--nowo-wiki-tree-hover-bg` | `var(--nowo-ui-surface-muted, #f6f8fb)` |
 | `--nowo-wiki-tree-current-bg` | `var(--nowo-ui-surface-muted, #f6f8fb)` |
 | `--nowo-wiki-tree-current-fg` | `var(--nowo-ui-primary, #2563eb)` |
+
+## REST API (1.24)
+
+`nowo_wiki.api` (off by default) turns on the JSON API of spec 218 under `api.prefix` (`/api/wiki/v1`). With it off,
+nothing is registered. See [API.md](API.md) for the hooks, the firewall, the levels and the errors.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `api.enabled` | `false` | Literal switch; needs `hooks.authenticator` and `hooks.directory` |
+| `api.prefix` | `/api/wiki/v1` | Base path; not affected by `web_ui.path_prefix` or `tenant_paths` |
+| `api.quota_listener_required` | `true` | Page creates and unarchives are refused unless a `nowo_wiki.quota.check` listener exists |
+| `api.max_body_bytes` | `1048576` | Largest JSON body (413 above) |
+| `api.search_candidates` | `500` | Rows a search reads at most before filtering |
+| `api.hooks.*` | `~` | `authenticator`, `directory`, `rate_limiter`, `plan_gate`, `users`, `wiki_management`, `files`, `idempotency_store` |
 
 ## Roles per action (REQ-UI-003)
 

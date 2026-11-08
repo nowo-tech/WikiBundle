@@ -79,6 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **REST API, wiki lifecycle and files over host hooks (spec 218, Beacon Q-B1).** `POST /wikis`, `PATCH /wikis/{wiki}`, `POST /wikis/{wiki}/archive|unarchive` (Full; `Manage` on an existing space) through `api.hooks.wiki_management` (default: 403 `WIKI_001`); `GET …/pages/{page}/files`, `POST /wikis/{wiki}/files` (multipart `file`, Edit) and `GET /wikis/{wiki}/files/{file}` through `api.hooks.files` (default: no files). Every check of an upload is the host's; every download leaves as an attachment with `nosniff` and `Content-Security-Policy: default-src 'none'; sandbox`.
 
+- **REST API documentation (spec 218).** `docs/API.md` and `docs/openapi.yaml` (OpenAPI 3.1), kept in step with the routes and the answers by `ApiOpenApiTest`; configuration in `CONFIGURATION.md`.
+
 ### Changed
 
 - **Page events wait for the co-editing log's commit (audit IF-L2).** A save under the log's lock (the page form outside the live session, a restore, an API save) dispatches `PAGE_SAVED`, `PAGE_CREATED` and `PAGE_RESTORED` after the lock's transaction committed, and not at all when it rolled back; before, they fired inside it, so listeners could act on a write that was then undone. The bundle's own co-editing bookkeeping moved to a new internal event, `WikiEvents::PAGE_WRITTEN`, which still runs inside the write. Outside the lock nothing changes. **A listener that writes to the database (backlinks, file references) no longer shares the save's transaction:** if it fails, the save stays and that listener's data is stale until the next save. In such a scope a failing listener is logged by class and the next listeners still run (audit IF-L3).

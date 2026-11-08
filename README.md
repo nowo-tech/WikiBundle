@@ -34,6 +34,7 @@ This bundle is **FrankenPHP worker mode friendly**.
 - **Co-editing (optional)** — several people edit one Milkdown page at once over Mercure (`nowo_wiki.collaboration`): edit permission and a rate limiter on every request, a bounded Yjs log, reset only when needed ([Usage](docs/USAGE.md#co-editing-113))
 - **Comments (optional, 1.16)** — inline and page comments in a right-side panel toggled from the page tabs (UiKit side panel, Milkdown 1.6 thread component), default-deny rights, live updates with co-editing, `nowo_wiki.comment.*` events ([Usage](docs/USAGE.md#comments-116))
 - **Avatars (1.16)** — authors' pictures from a host resolver, only beside real names ([Configuration](docs/CONFIGURATION.md#avatars-116))
+- **REST API (optional, 1.24)** — `nowo_wiki.api`: a JSON API for scripts and agents with the host's tokens: wikis, pages (Markdown in, the reader's Markdown out), saves from a known revision (409 on a stale one), revisions, search, comments and files, level ∩ access ∩ *where* on every request ([API](docs/API.md))
 - **Plain-text search (1.16)** — the `content_text` column, so Markdown punctuation and directive attributes are never hits ([Configuration](docs/CONFIGURATION.md#search-text-116))
 - Web UI options under `nowo_wiki.web_ui` (`enabled`, `path_prefix`, `layout_template`, `templates.<page>`) and roles per action under `nowo_wiki.security.roles`
 
@@ -67,6 +68,7 @@ The screenshots at the top of this README come from this demo; refresh them with
 - [Configuration](docs/CONFIGURATION.md)
 - [Usage](docs/USAGE.md)
 - [Templates (UiKit page contract)](docs/TEMPLATES.md)
+- [REST API](docs/API.md) ([OpenAPI](docs/openapi.yaml))
 - [Contributing](docs/CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](docs/CHANGELOG.md)

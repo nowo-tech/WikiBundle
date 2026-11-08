@@ -549,8 +549,9 @@ action (`security.roles`), `tenant_only` paths; Beacon maps `project.wiki.*` / `
 
 ### API, webhooks, command palette
 
-- **REST API** (JSON, token or session auth by the host): spaces, pages (Markdown in / out), search, comments,
-  databases; pagination; same per-viewer rules. **Webhooks**: signed (HMAC) deliveries of the events above with
+- **REST API** — **shipped in 1.24** (spec 218, [API.md](API.md)): wikis, pages (Markdown in / out), revisions,
+  search, comments and files with the host's tokens; same per-viewer rules. Databases wait for their own feature.
+  **Webhooks**: signed (HMAC) deliveries of the events above with
   retries; host-configured endpoints, SSRF protections (no private ranges). Effort L. **1.22.**
 - **Command palette (T066):** SearchKit's Ctrl / ⌘ + K with WikiBundle actions (new page, new from template, move,
   go to space) as quick actions; keyboard-only e2e. Effort S. **1.18.**
