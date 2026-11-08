@@ -11,6 +11,7 @@ use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
@@ -126,6 +127,8 @@ final class ApiKernel extends Kernel
             ->tag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED, 'method' => 'saved']);
         $services->set('app.collab_store', ApiCollabStore::class)->args([service(WikiEntityManagerProvider::class)])->public();
         $services->set('app.collab_hub', ApiCollabHub::class)->public();
+        $services->set('app.pages', ApiPageRepository::class)->args([service(WikiEntityManagerProvider::class)]);
+        $services->alias(WikiPageRepositoryInterface::class, 'app.pages');
         $services->set('app.quota', RecordingQuotaListener::class)->public()
             ->tag('kernel.event_listener', ['event' => WikiEvents::QUOTA_CHECK, 'method' => 'onCheck']);
         $container->extension('nowo_wiki', array_replace([

@@ -7,6 +7,7 @@
 - [Access control](#access-control)
 - [Content safety](#content-safety)
 - [Comments threat model (1.16)](#comments-threat-model-116)
+- [REST API (1.24, spec 218)](#rest-api-124-spec-218)
 - [Secrets and cryptography](#secrets-and-cryptography)
 - [Logging](#logging)
 - [Limits and DoS](#limits-and-dos)
@@ -190,6 +191,18 @@ A page form saved outside the live session (hub down, editor standalone or offli
 | Live updates | With co-editing only: private Mercure topic `<collab topic>/comments`, granted with the co-editing topic in one subscriber cookie to viewers with `ViewComments`; messages carry thread ids, never bodies. |
 | Page source | **By default the read view never sends the Markdown source to viewers who may not edit the page** (DN-I2): they get the server-rendered body and, in the panel, the open threads rendered by the server (inline ones with their quote, which is text the anchor already holds). Only editors get the read-only Milkdown mount (they can read the source in the editor anyway); its responses are `Cache-Control: private, no-store`. **`comments.read_view_source: true` (opt-in, default false)** gives the mount — and so the whole source — to every viewer with `ViewComments`: HTML comments, raw link targets, reference definitions, hidden or disabled blocks, front matter, page ids and directive arguments that the per-viewer render hides. Enable it only when everyone with `ViewComments` may read the source. |
 | Storage | Threads, comments and reactions are deleted with their page: the trash purge deletes them explicitly (`WikiCommentRepositoryInterface::deleteForPages()`, children first) and the foreign keys cascade too on platforms that enforce them (audit EI-L5; SQLite without `foreign_keys` relies on the explicit deletes; a host deleting pages or spaces itself must call `deleteForPages()`). A user's deletion keeps their comments without an author (`SET NULL`) and drops their reactions. Comments are not in exports, AI context or search. Every response that carries the panel or thread data is `Cache-Control: private, no-store`. |
+
+## REST API (1.24, spec 218)
+
+Off unless `api.enabled`. The host keeps the tokens; the bundle checks, on every request, the token's level (a closed table over `WikiAction`), the person's access and the token's *where*, behind a stateless secured firewall whose user must be the token's user. Known properties, for hosts and auditors:
+
+| Item | Behaviour |
+|---|---|
+| Idempotent answers (IF-I12) | Kept 24 hours in `<table_prefix>_api_idempotency` (or the host's store), keyed by hashes of the token id and the key. They can hold a page's body, the source for an Edit token, and outlive the page's archive or purge until they expire. Purge them with `nowo:wiki:api:purge-idempotency`; call `forget()` on token revocation and account erasure |
+| Replays (IF-I8) | A replay checks the token's reach again (the wiki, the page with its ancestors) but not its level or the person's rights: within 24 hours a token whose level was lowered gets back the bytes it already received, never anything new |
+| First write of an unopened wiki (IF-I9) | The space is created through the directory hook before the person's `Create` right is asked, exactly as the person's first visit in the UI would |
+| Search (IF-I13) | `truncated` says that `api.search_candidates` rows matched, counting rows the reader may not read: a coarse count, accepted (owner Q-O6). Excerpts are the viewer-neutral plain text |
+| Events | In an API write, page events fire after the commit; a listener that fails is logged by class and does not refuse the write (IF-L3) |
 
 ## Secrets and cryptography
 

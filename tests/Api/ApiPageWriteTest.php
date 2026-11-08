@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
+use Nowo\WikiBundle\Tests\Api\App\ApiPageRepository;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
@@ -164,14 +165,51 @@ final class ApiPageWriteTest extends ApiTestCase
         $this->assertRefusal($this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]), 409, 'WIKI_PAGE_ARCHIVED');
         $sql()->executeStatement('UPDATE wiki_pages SET archived_at = NULL WHERE id = ?', [$page->getId()]);
 
-        // A revision number taken behind the page's back: the write loses the race and writes nothing.
+        // A revision left behind that never became current (a save that died between its writes): stepped over (IF-I14).
         ApiTestHost::$race = static function (WikiPage $target) use ($sql): void {
             $sql()->insert('wiki_page_revisions', ['id' => '00000000-0000-4000-8000-0000000000aa', 'page_id' => $target->getId(), 'revision_number' => 2, 'content_html' => '<p>x</p>', 'author_id' => 'u-bob', 'created_at' => '2026-11-08 10:00:00', 'format' => 'html']);
         };
-        $collision = $this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]);
+        self::assertSame(3, $this->json($this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]))['revision']);
+
+        // A lock that cannot be taken: nothing written, retry later.
+        ApiPageRepository::$lockFails = true;
+        $collision                    = $this->call('PUT', $path, self::ANA, ['content_markdown' => 'three', 'base_revision' => 3]);
         $this->assertRefusal($collision, 409, 'WIKI_SAVE_COLLISION');
         self::assertSame('1', $collision->headers->get('Retry-After'));
+        self::assertCount(1, ApiAuditRecorder::$events);
+    }
+
+    public function testTwoCreatesWithOneSlugAtTheSameInstant(): void
+    {
+        $this->page($this->eng, 'Runbook', 'x');
+        ApiPageRepository::$missSlugs = true;
+
+        $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Runbook']), 409, 'WIKI_003');
         self::assertSame([], ApiAuditRecorder::$events);
+    }
+
+    public function testAListenerThatFailsAfterTheCommitLeavesTheWriteAndItsAudit(): void
+    {
+        $page                        = $this->page($this->eng, 'Runbook', 'one');
+        ApiAuditRecorder::$failSaved = true;
+
+        $created = $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'New'], ['Idempotency-Key' => 'k-fail']);
+        $updated = $this->call('PUT', '/wikis/eng/pages/' . $page->getId(), self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]);
+
+        self::assertSame(201, $created->getStatusCode(), (string) $created->getContent());
+        self::assertSame(200, $updated->getStatusCode(), (string) $updated->getContent());
+        self::assertSame(['page.create', 'page.update'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        $logger = static::getContainer()->get('logger');
+        self::assertInstanceOf(RecordingLogger::class, $logger);
+        self::assertContains('error: Wiki: a listener failed after the write committed; the write stands.', $logger->lines());
+        // The idempotent answer is kept: a retry replays it.
+        self::assertSame('true', $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'New'], ['Idempotency-Key' => 'k-fail'])->headers->get('Idempotency-Replayed'));
+    }
+
+    public function testJsonBodiesOnly(): void
+    {
+        $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, 'title=x', ['Content-Type' => 'application/x-www-form-urlencoded']), 415, 'INPUT_005');
+        self::assertSame(201, $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'x'], ['Content-Type' => 'application/merge-patch+json; charset=utf-8'])->getStatusCode());
     }
 
     public function testRestoreAppendsTheOldBody(): void
@@ -268,13 +306,15 @@ final class ApiPageWriteTest extends ApiTestCase
 
     public function testAnUploadIsPartOfTheRequestsFingerprint(): void
     {
+        $page = $this->page($this->eng, 'Runbook', 'x');
         $file = tempnam(sys_get_temp_dir(), 'wiki-api');
         file_put_contents((string) $file, 'bytes');
         $server = ['HTTP_AUTHORIZATION' => 'Bearer ' . self::ANA, 'HTTP_IDEMPOTENCY_KEY' => 'k-file'];
+        $path   = '/api/wiki/v1/wikis/eng/pages/' . $page->getId() . '/archive';
 
-        $this->client->request('POST', '/api/wiki/v1/wikis/eng/pages?title=x', [], ['file' => new UploadedFile((string) $file, 'a.txt', 'text/plain', null, true)], $server, '{"title":"With file"}');
-        self::assertSame(201, $this->client->getResponse()->getStatusCode());
-        $this->client->request('POST', '/api/wiki/v1/wikis/eng/pages?title=x', [], [], $server, '{"title":"With file"}');
+        $this->client->request('POST', $path, [], ['file' => new UploadedFile((string) $file, 'a.txt', 'text/plain', null, true)], $server);
+        self::assertSame(200, $this->client->getResponse()->getStatusCode(), (string) $this->client->getResponse()->getContent());
+        $this->client->request('POST', $path, [], [], $server);
         $this->assertRefusal($this->client->getResponse(), 409, 'IDEMP_002');
     }
 

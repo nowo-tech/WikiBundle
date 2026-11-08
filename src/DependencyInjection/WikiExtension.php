@@ -744,7 +744,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$repository', new Reference(WikiPageRepositoryInterface::class))
             ->setArgument('$writer', new Reference(DoctrineOrmWikiPageRepository::class))
             ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$maxDepth', $tree['max_depth']));
+            ->setArgument('$maxDepth', $tree['max_depth'])
+            ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
     }
 
     /**
