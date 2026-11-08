@@ -12,8 +12,17 @@ use Nowo\WikiBundle\Api\WikiApiRefusal;
 
 /**
  * 1.24 (spec 218 FR-033, Beacon Q-B1): creating, renaming, archiving and unarchiving wikis, with the host's checks (the
- * owner's permissions, the plan's `wiki_spaces`). The bundle has checked reach, the level (Full) and, for an existing
- * space, `Manage`; each method refuses with a {@see WikiApiRefusal} (403 `PLAN_002`, 409 `WIKI_003` for a taken name, …).
+ * owner's permissions, the plan's `wiki_spaces`). Each method refuses with a {@see WikiApiRefusal} (404 `ACCESS_001`,
+ * 403 `PLAN_002`, 409 `WIKI_003` for a taken name, …).
+ *
+ * What the bundle has checked before a call (audit IF-L7):
+ *
+ * - `create()`: the level (Full) only. **The host must** check that the owner is within the token's *where*
+ *   (`$principal->where->reachesOwner($ownerKey)`, with the key its directory uses; refuse with 404 otherwise) and that
+ *   the person may manage that owner. The bundle checks afterwards that the wiki answered is within *where*.
+ * - `update()`, `archive()`, `unarchive()`: reach (*where*, the directory, the plan), the level (Full), and — when the
+ *   wiki's space exists — that the person can open it and holds `Manage` on it. For a wiki nobody opened yet (no space)
+ *   only the level was checked: the host decides on the owner.
  */
 interface WikiApiWikiManagementInterface
 {

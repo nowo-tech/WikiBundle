@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Api;
 
 use Nowo\WikiBundle\Api\Operation\WikiApiDelegatedOperations;
 use Nowo\WikiBundle\Api\WikiApiLevel;
+use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -50,6 +51,26 @@ final class ApiDelegatedTest extends ApiTestCase
         $this->token('bob', 'u-bob', WikiApiLevel::Full);
         $this->assertRefusal($this->call('POST', '/wikis/eng/archive', 'bob'), 403, 'ACCESS_002');
         $this->assertRefusal($this->call('POST', '/wikis/ops/archive', 'bob'), 404, 'ACCESS_001');
+    }
+
+    public function testAWikiListedByNameOnlyIsNotManagedAndCreatesStayInReach(): void
+    {
+        // A restricted wiki the token names but the person cannot open: 404, as reads (audit IF-L7).
+        ApiTestHost::$wikis['eng']['restricted'] = true;
+        ApiTestHost::$wikis['eng']['can_open']   = false;
+        $this->token('named', 'u-ana', WikiApiLevel::Full, WikiApiWhere::limitedTo([], ['eng']));
+        foreach ([['PATCH', '/wikis/eng', ['name' => 'x']], ['POST', '/wikis/eng/archive', null], ['POST', '/wikis/eng/unarchive', null]] as [$method, $path, $body]) {
+            $this->assertRefusal($this->call($method, $path, 'named', $body), 404, 'ACCESS_001');
+        }
+
+        // A token limited to owner-1 cannot create under owner-2: the hook checks the owner against where.
+        $this->token('owner-1', 'u-ana', WikiApiLevel::Full, WikiApiWhere::limitedTo(['owner-1'], []));
+        $this->assertRefusal($this->call('POST', '/wikis', 'owner-1', ['owner_type' => 'project', 'owner_id' => 'owner-2', 'name' => 'Elsewhere']), 404, 'ACCESS_001');
+        self::assertSame(201, $this->call('POST', '/wikis', 'owner-1', ['owner_type' => 'project', 'owner_id' => 'owner-1', 'name' => 'Here'])->getStatusCode());
+
+        // A host that answers a wiki outside the token's reach is a server error, never a success.
+        $this->assertRefusal($this->call('POST', '/wikis', 'owner-1', ['owner_type' => 'rogue', 'owner_id' => 'owner-1', 'name' => 'Hidden']), 500, 'SERVER_001');
+        self::assertSame(['wiki.create'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
     }
 
     public function testFilesUploadListAndDownload(): void

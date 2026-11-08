@@ -60,6 +60,21 @@ final class ApiCollabWriteTest extends ApiTestCase
         self::assertSame(1, $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId()))['revision']);
     }
 
+    public function testAHubThatFailsAfterACommentIsSavedLeavesTheAnswerAndTheAudit(): void
+    {
+        $page               = $this->page($this->eng, 'Runbook', 'one');
+        ApiCollabHub::$down = true;
+        $path               = '/wikis/eng/pages/' . $page->getId() . '/threads';
+
+        $created = $this->call('POST', $path, self::ANA, ['body' => 'Hello'], ['Idempotency-Key' => 'k-hub']);
+        $replay  = $this->call('POST', $path, self::ANA, ['body' => 'Hello'], ['Idempotency-Key' => 'k-hub']);
+
+        self::assertSame(201, $created->getStatusCode(), (string) $created->getContent());
+        self::assertSame('true', $replay->headers->get('Idempotency-Replayed'));
+        self::assertCount(1, ApiAuditRecorder::$events);
+        self::assertCount(1, $this->json($this->call('GET', $path))['threads']);
+    }
+
     /** A page with a co-editing log whose updates are all saved. */
     private function savedLog(): WikiPage
     {

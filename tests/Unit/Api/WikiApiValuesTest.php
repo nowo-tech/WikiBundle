@@ -86,6 +86,13 @@ final class WikiApiValuesTest extends TestCase
         self::assertTrue($named->reaches($orphan));
         self::assertFalse($named->reaches($eng));
         self::assertFalse(WikiApiWhere::limitedTo([], [])->reaches($eng));
+
+        // A new wiki's owner (audit IF-L7).
+        self::assertTrue($everything->reachesOwner('owner-1'));
+        self::assertFalse($everything->reachesOwner('owner-9'));
+        self::assertTrue($owner->reachesOwner('owner-1'));
+        self::assertFalse($owner->reachesOwner('owner-2'));
+        self::assertFalse($named->reachesOwner('owner-1'));
     }
 
     public function testTheDenyingDefaults(): void
