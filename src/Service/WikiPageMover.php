@@ -47,12 +47,14 @@ final readonly class WikiPageMover
      * @param WikiPageTreeWriterInterface $writer the space-locked transaction
      * @param EventDispatcherInterface|null $dispatcher receives {@see WikiPageMovedEvent}
      * @param int $maxDepth tree.max_depth: deepest level of a page (roots are level 1)
+     * @param WikiEventDeferral|null $deferral 1.24: holds the event until the caller's scope ends
      */
     public function __construct(
         private WikiPageRepositoryInterface $repository,
         private WikiPageTreeWriterInterface $writer,
         private ?EventDispatcherInterface $dispatcher = null,
         private int $maxDepth = 10,
+        private ?WikiEventDeferral $deferral = null,
     ) {
     }
 
@@ -83,7 +85,13 @@ final readonly class WikiPageMover
         }
 
         if ($moved) {
-            $this->dispatcher?->dispatch(new WikiPageMovedEvent($page, $fromParent, $page->getParent(), $result->index, $actor, new DateTimeImmutable()), WikiEvents::PAGE_MOVED);
+            $event = new WikiPageMovedEvent($page, $fromParent, $page->getParent(), $result->index, $actor, new DateTimeImmutable());
+            if ($this->dispatcher instanceof EventDispatcherInterface && $this->deferral instanceof WikiEventDeferral) {
+                // 1.24: after a caller's scope (the REST API), a failing listener does not undo the move (audit IF-L3).
+                $this->deferral->dispatch($this->dispatcher, $event, WikiEvents::PAGE_MOVED);
+            } else {
+                $this->dispatcher?->dispatch($event, WikiEvents::PAGE_MOVED);
+            }
         }
 
         return $result;

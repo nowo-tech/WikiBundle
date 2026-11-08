@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Api\App;
 use Doctrine\DBAL\Connection;
 use Nowo\WikiBundle\Event\WikiApiWriteEvent;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
+use RuntimeException;
 
 /**
  * The host's audit of API writes in the tests, and the page events, each with the transaction nesting level it was heard
@@ -19,6 +20,9 @@ final class ApiAuditRecorder
 
     /** @var list<array{0: string, 1: int}> event name => nesting level */
     public static array $heard = [];
+
+    /** A page listener that fails after the write (a mailer down; audit IF-L3). */
+    public static bool $failSaved = false;
 
     public function __construct(private readonly ?Connection $connection = null)
     {
@@ -33,6 +37,9 @@ final class ApiAuditRecorder
     public function saved(WikiPageSavedEvent $event): void
     {
         self::$heard[] = ['page_saved', $this->level()];
+        if (self::$failSaved) {
+            throw new RuntimeException('The mailer is down.');
+        }
     }
 
     private function level(): int

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api\Operation;
 
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
@@ -25,8 +26,10 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
+use Nowo\WikiBundle\Service\WikiPageMoveResult;
 use Nowo\WikiBundle\Service\WikiPageMoveScope;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
@@ -44,6 +47,10 @@ use const PHP_INT_MAX;
  * services (so their events fire as in the UI, with the token's user as actor), and raises one
  * {@see WikiApiWriteEvent} after the commit.
  *
+ * Every write runs in a {@see WikiEventDeferral} scope: the page events fire once it committed, and a host listener that
+ * fails then is logged, never turned into a refusal of a write that stands (audit IF-L3), so the audit event and the
+ * idempotent answer always follow a committed write.
+ *
  * Every method answers `[page body, wiki, page]`; the controller keeps the body.
  */
 final readonly class WikiApiPageWriteOperations
@@ -58,6 +65,7 @@ final readonly class WikiApiPageWriteOperations
         private WikiMarkdownRendererInterface $renderer,
         private WikiApiPageReadOperations $reads,
         private WikiApiPeople $people,
+        private WikiEventDeferral $deferral,
         private ?WikiCollabService $collab = null,
         private ?WikiPageMover $mover = null,
         private ?RequestStack $requestStack = null,
@@ -97,9 +105,12 @@ final readonly class WikiApiPageWriteOperations
         $this->audit->requireQuota(WikiQuotaCheckEvent::PAGE_CREATE, $principal->user, $space);
 
         try {
-            $page = $this->service->create($space, $title, $markdown, $principal->user, $parent, $pageSlug, WikiPageRevision::FORMAT_MARKDOWN);
+            $page = $this->deferral->run(fn (): WikiPage => $this->service->create($space, $title, $markdown, $principal->user, $parent, $pageSlug, WikiPageRevision::FORMAT_MARKDOWN));
         } catch (InvalidArgumentException $exception) {
             throw $exception->getMessage() === 'Invalid page slug.' ? WikiApiRefusal::invalid('slug') : new WikiApiRefusal(409, 'WIKI_003', 'This slug is taken');
+        } catch (UniqueConstraintViolationException) {
+            // Another create took the slug between the check and the insert (audit IF-I10): nothing was written.
+            throw new WikiApiRefusal(409, 'WIKI_003', 'This slug is taken');
         }
         $this->audit->written($principal, 'page.create', $wiki->slug, $space->getId(), $page->getId(), [], ['title', 'content_markdown']);
 
@@ -186,7 +197,8 @@ final readonly class WikiApiPageWriteOperations
             }
         }
         try {
-            $result = $this->mover->move($page, $parent, $index, $principal->user, new WikiPageMoveScope($readable, $from?->getId()));
+            $mover  = $this->mover;
+            $result = $this->deferral->run(static fn (): WikiPageMoveResult => $mover->move($page, $parent, $index, $principal->user, new WikiPageMoveScope($readable, $from?->getId())));
         } catch (WikiPageMoveException $exception) {
             throw match ($exception->reason) {
                 'too_deep'                       => new WikiApiRefusal(422, 'WIKI_MOVE_002', 'The page would be too deep'),
@@ -216,12 +228,10 @@ final readonly class WikiApiPageWriteOperations
         if ($archive === $page->isArchived()) {
             return [$this->reads->body($principal, $wiki, $page), $wiki, $page];
         }
-        if ($archive) {
-            $this->service->archive($page, $principal->user);
-        } else {
+        if (!$archive) {
             $this->audit->requireQuota(WikiQuotaCheckEvent::PAGE_UNARCHIVE, $principal->user, $page->getSpace(), $page);
-            $this->service->unarchive($page, $principal->user);
         }
+        $this->deferral->run(fn () => $archive ? $this->service->archive($page, $principal->user) : $this->service->unarchive($page, $principal->user));
         $this->audit->written($principal, $archive ? 'page.archive' : 'page.unarchive', $wiki->slug, $page->getSpace()->getId(), $page->getId(), [], ['archived']);
 
         return [$this->reads->body($principal, $wiki, $page), $wiki, $page];
@@ -265,7 +275,7 @@ final readonly class WikiApiPageWriteOperations
                     throw new WikiApiRefusal(409, 'WIKI_LIVE_SESSION', 'Someone is editing this page live; their changes are not saved yet');
                 }
             } else {
-                $run();
+                $this->deferral->run($run);
             }
         } catch (WikiRevisionConflictException $conflict) {
             throw new WikiApiRefusal(409, 'WIKI_REVISION_CONFLICT', 'The page changed since base_revision', ['current_revision' => $conflict->currentRevision, 'updated_by' => $this->people->present($principal, $conflict->updatedBy, $page), 'updated_at' => WikiApiSerializer::ms($conflict->updatedAt)]);

@@ -77,8 +77,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Page events wait for the co-editing log's commit (audit IF-L2).** A save under the log's lock (the page form outside the live session, a restore, an API save) dispatches `PAGE_SAVED`, `PAGE_CREATED` and `PAGE_RESTORED` after the lock's transaction committed, and not at all when it rolled back; before, they fired inside it, so listeners could act on a write that was then undone. The bundle's own co-editing bookkeeping moved to a new internal event, `WikiEvents::PAGE_WRITTEN`, which still runs inside the write. Outside the lock nothing changes.
+- **Page events wait for the co-editing log's commit (audit IF-L2).** A save under the log's lock (the page form outside the live session, a restore, an API save) dispatches `PAGE_SAVED`, `PAGE_CREATED` and `PAGE_RESTORED` after the lock's transaction committed, and not at all when it rolled back; before, they fired inside it, so listeners could act on a write that was then undone. The bundle's own co-editing bookkeeping moved to a new internal event, `WikiEvents::PAGE_WRITTEN`, which still runs inside the write. Outside the lock nothing changes. **A listener that writes to the database (backlinks, file references) no longer shares the save's transaction:** if it fails, the save stays and that listener's data is stale until the next save. In such a scope a failing listener is logged by class and the next listeners still run (audit IF-L3).
 - **A save from an expected revision reads the page and its current revision with locks, and numbers the new revision after the current one (audit IF-I2):** inside an outer MySQL REPEATABLE READ transaction a plain read could miss a revision committed since.
+
+### Security
+
+- The REST API refuses to build over `AllowAllWikiAccessChecker` (however wired) or a page repository without `WikiPageLockInterface` (audit IF-L5); archived pages need the role gate's `canArchive()` as in the UI (IF-L4); JSON writes need `Content-Type: application/json` (415, IF-I11); a slug taken by a concurrent create answers 409 `WIKI_003` (IF-I10); a save steps over an orphan revision number (IF-I14); a host listener that fails after an API write commits no longer turns it into a 500, and the audit event and the idempotent answer always follow (IF-L3).
 
 ### Tests
 

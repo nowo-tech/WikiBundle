@@ -19,6 +19,7 @@ use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 use Nowo\WikiBundle\Tests\Api\App\ApiCollabHub;
 use Nowo\WikiBundle\Tests\Api\App\ApiCollabStore;
 use Nowo\WikiBundle\Tests\Api\App\ApiKernel;
+use Nowo\WikiBundle\Tests\Api\App\ApiPageRepository;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingQuotaListener;
@@ -80,6 +81,9 @@ abstract class ApiTestCase extends WebTestCase
         ApiTestHost::reset();
         ApiAuditRecorder::$events         = [];
         ApiAuditRecorder::$heard          = [];
+        ApiAuditRecorder::$failSaved      = false;
+        ApiPageRepository::$missSlugs     = false;
+        ApiPageRepository::$lockFails     = false;
         ApiCollabStore::$failReset        = false;
         ApiCollabHub::$published          = [];
         RecordingQuotaListener::$seen     = [];
@@ -160,10 +164,11 @@ abstract class ApiTestCase extends WebTestCase
             $server['HTTP_AUTHORIZATION'] = 'Bearer ' . $secret;
         }
         foreach ($headers as $name => $value) {
-            $server['HTTP_' . strtoupper(str_replace('-', '_', $name))] = $value;
+            $key                                                     = strtoupper(str_replace('-', '_', $name));
+            $server[$key === 'CONTENT_TYPE' ? $key : 'HTTP_' . $key] = $value;
         }
         $content = is_array($body) ? json_encode($body, JSON_THROW_ON_ERROR) : $body;
-        if ($content !== null) {
+        if ($content !== null && !isset($server['CONTENT_TYPE'])) {
             $server['CONTENT_TYPE'] = 'application/json';
         }
         $this->client->request($method, '/api/wiki/v1' . $path, [], [], $server, $content);

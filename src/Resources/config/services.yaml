@@ -104,6 +104,8 @@ services:
 
     # 1.24 (audit IF-L2): events held until the outermost commit; request state.
     Nowo\WikiBundle\Service\WikiEventDeferral:
+        arguments:
+            $logger: '@?logger'
         tags:
             - { name: kernel.reset, method: reset }
 

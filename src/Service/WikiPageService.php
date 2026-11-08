@@ -29,6 +29,7 @@ use Psr\Log\NullLogger;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
+use function max;
 use function rtrim;
 use function sprintf;
 use function str_replace;
@@ -91,6 +92,7 @@ final readonly class WikiPageService
      *                       {@see WikiPageRevision::FORMAT_MARKDOWN} (1.11)
      *
      * @throws InvalidArgumentException when the slug is invalid or already exists in the space, or the format is unknown
+     * @throws UniqueConstraintViolationException when another create took the slug meanwhile (nothing written)
      *
      * @return WikiPage the persisted page
      */
@@ -209,8 +211,8 @@ final readonly class WikiPageService
             $revision = $append();
         } else {
             [$revision, $previous] = $this->underPageLock($page, $expectedRevision, 'Archived pages cannot be restored.', static fn (): ?WikiPageRevision => null, fn (): WikiPageRevision => $from->isMarkdown()
-                ? $this->appendRevision($page, (string) $from->getContentMarkdown(), WikiPageRevision::FORMAT_MARKDOWN, $actor, $expectedRevision + 1)
-                : $this->appendRevision($page, $from->getContentHtml(), WikiPageRevision::FORMAT_HTML, $actor, $expectedRevision + 1));
+                ? $this->appendRevision($page, (string) $from->getContentMarkdown(), WikiPageRevision::FORMAT_MARKDOWN, $actor, $this->nextAfter($page, $expectedRevision))
+                : $this->appendRevision($page, $from->getContentHtml(), WikiPageRevision::FORMAT_HTML, $actor, $this->nextAfter($page, $expectedRevision)));
         }
 
         $this->logger->info('Wiki page revision restored.', [
@@ -323,9 +325,7 @@ final readonly class WikiPageService
             function () use ($page, $title, $content, $format, $author, $expectedRevision): WikiPageRevision {
                 $page->setTitle($title);
 
-                // Under the lock the current revision is the last one: no MAX() read, which an outer snapshot could make
-                // stale (audit IF-I2).
-                return $this->appendRevision($page, $content, $format, $author, $expectedRevision + 1);
+                return $this->appendRevision($page, $content, $format, $author, $this->nextAfter($page, $expectedRevision));
             },
         );
         if ($revision !== $previous) {
@@ -380,6 +380,16 @@ final readonly class WikiPageService
         }
 
         return [$revision, $current];
+    }
+
+    /**
+     * The number of a save under the page lock: after the current revision, which the lock read with the latest data
+     * (an outer snapshot could make `MAX()` stale, audit IF-I2), and past any revision left behind that never became
+     * current (a save that died between its two writes, audit IF-I14).
+     */
+    private function nextAfter(WikiPage $page, int $current): int
+    {
+        return max($current + 1, $this->revisionRepository->getNextRevisionNumber($page));
     }
 
     /** Whether a save would store what the current revision already holds: same title, same format, same body. */

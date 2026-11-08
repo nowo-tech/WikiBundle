@@ -54,6 +54,10 @@ final class WikiApiInput
         if (trim($content) === '') {
             return new self([]);
         }
+        // Audit IF-I11: JSON only, so a form a browser could send never counts as a write's body.
+        if (preg_match('#^application/(?:[a-z0-9.+-]+\+)?json(?:\s*;.*)?$#i', (string) $request->headers->get('Content-Type')) !== 1) {
+            throw new WikiApiRefusal(415, 'INPUT_005', 'The body must be application/json');
+        }
         try {
             $decoded = json_decode($content, true, 32, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
         } catch (JsonException) {
