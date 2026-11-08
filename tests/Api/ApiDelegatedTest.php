@@ -9,10 +9,13 @@ use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 
+use function array_filter;
 use function array_map;
+use function array_values;
 use function file_put_contents;
 use function sys_get_temp_dir;
 use function tempnam;
@@ -63,14 +66,39 @@ final class ApiDelegatedTest extends ApiTestCase
             $this->assertRefusal($this->call($method, $path, 'named', $body), 404, 'ACCESS_001');
         }
 
-        // A token limited to owner-1 cannot create under owner-2: the hook checks the owner against where.
+        // A token limited to owner-1 cannot create under owner-2: refused before the hook, nothing created (IF-L8).
         $this->token('owner-1', 'u-ana', WikiApiLevel::Full, WikiApiWhere::limitedTo(['owner-1'], []));
         $this->assertRefusal($this->call('POST', '/wikis', 'owner-1', ['owner_type' => 'project', 'owner_id' => 'owner-2', 'name' => 'Elsewhere']), 404, 'ACCESS_001');
+        $this->assertRefusal($this->call('POST', '/wikis', 'owner-1', ['owner_type' => 'project', 'owner_id' => 'nobody', 'name' => 'Nowhere']), 404, 'ACCESS_001');
+        self::assertArrayNotHasKey('elsewhere', ApiTestHost::$wikis);
         self::assertSame(201, $this->call('POST', '/wikis', 'owner-1', ['owner_type' => 'project', 'owner_id' => 'owner-1', 'name' => 'Here'])->getStatusCode());
 
-        // A host that answers a wiki outside the token's reach is a server error, never a success.
-        $this->assertRefusal($this->call('POST', '/wikis', 'owner-1', ['owner_type' => 'rogue', 'owner_id' => 'owner-1', 'name' => 'Hidden']), 500, 'SERVER_001');
+        // A host that restricts new wikis: the token that created one gets it back (judged by its owner).
+        $restricted = $this->call('POST', '/wikis', 'owner-1', ['owner_type' => 'restricted', 'owner_id' => 'owner-1', 'name' => 'Private']);
+        self::assertSame(201, $restricted->getStatusCode(), (string) $restricted->getContent());
+        self::assertTrue($this->json($restricted)['restricted']);
+        // Later requests follow the usual reach: a restricted wiki must be named.
+        $this->assertRefusal($this->call('GET', '/wikis/private', 'owner-1'), 404, 'ACCESS_001');
+        self::assertSame(['wiki.create', 'wiki.create'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+    }
+
+    public function testAHostThatFilesAWikiUnderAnotherOwner(): void
+    {
+        $this->token('owner-1', 'u-ana', WikiApiLevel::Full, WikiApiWhere::limitedTo(['owner-1'], []));
+        $body = ['owner_type' => 'misfiled', 'owner_id' => 'owner-1', 'name' => 'Misfiled'];
+
+        $this->assertRefusal($this->call('POST', '/wikis', 'owner-1', $body, ['Idempotency-Key' => 'k-misfiled']), 500, 'SERVER_001');
+
         self::assertSame(['wiki.create'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        $logger = static::getContainer()->get('logger');
+        self::assertInstanceOf(RecordingLogger::class, $logger);
+        $errors = array_values(array_filter($logger->records, static fn (array $r): bool => $r['message'] === 'Wiki API: the wiki management hook created a wiki under another owner than the one asked.'));
+        self::assertCount(1, $errors);
+        self::assertSame(ApiTestHost::class, $errors[0]['context']['hook']);
+        // The claim is kept: a retry with the same key does not create it again.
+        $retry = $this->call('POST', '/wikis', 'owner-1', $body, ['Idempotency-Key' => 'k-misfiled']);
+        self::assertNotSame(201, $retry->getStatusCode());
+        self::assertCount(1, ApiAuditRecorder::$events);
     }
 
     public function testFilesUploadListAndDownload(): void

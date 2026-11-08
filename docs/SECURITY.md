@@ -203,6 +203,8 @@ Off unless `api.enabled`. The host keeps the tokens; the bundle checks, on every
 | First write of an unopened wiki (IF-I9) | The space is created through the directory hook before the person's `Create` right is asked, exactly as the person's first visit in the UI would |
 | Search (IF-I13) | `truncated` says that `api.search_candidates` rows matched, counting rows the reader may not read: a coarse count, accepted (owner Q-O6). Excerpts are the viewer-neutral plain text |
 | Events | In an API write, page events fire after the commit; a listener that fails is logged by class and does not refuse the write (IF-L3) |
+| Creating a wiki (IF-L7, IF-L8) | The owner key the management hook names (`ownerKey()`) must be within the token's *where* before anything is created (404 otherwise). The new wiki is judged by its owner, so a restricted wiki the token just created is answered once; later requests follow the usual reach (a restricted wiki must be named). A hook that files the wiki under another owner is a host bug: the write is audited, an error names the hook class, the idempotent claim is kept so a retry does not create it again, and the answer is 500 `SERVER_001` |
+| Managing a wiki (IF-L7) | When its space exists, the person must be able to open it (404 otherwise) and hold `Manage`; only a wiki nobody opened is decided on the level, the rest being the hook's |
 
 ## Secrets and cryptography
 

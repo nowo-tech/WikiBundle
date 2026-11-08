@@ -15,6 +15,11 @@ use Nowo\WikiBundle\Api\WikiApiRefusal;
  */
 final readonly class DenyingWikiApiWikiManagement implements WikiApiWikiManagementInterface
 {
+    public function ownerKey(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): ?string
+    {
+        throw self::refusal();
+    }
+
     public function create(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): WikiApiWiki
     {
         throw self::refusal();

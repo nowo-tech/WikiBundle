@@ -48,6 +48,8 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
 
     private const RATE_LIMIT = '_nowo_wiki_api_rate_limit';
 
+    private const AFTER_COMMIT = '_nowo_wiki_api_after_commit';
+
     public function __construct(
         private WikiApiAuthenticatorInterface $authenticator,
         private WikiApiRateLimiterInterface $rateLimiter,
@@ -120,7 +122,17 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
         if (!$event->isMainRequest() || !$this->isApiRequest($event->getRequest())) {
             return;
         }
-        $event->setResponse(self::answer($this->refusalFor($event->getThrowable())));
+        $refusal = $this->refusalFor($event->getThrowable());
+        if ($refusal->afterCommit) {
+            $event->getRequest()->attributes->set(self::AFTER_COMMIT, true);
+        }
+        $event->setResponse(self::answer($refusal));
+    }
+
+    /** Whether the request's write was stored although it was answered with a refusal (audit IF-L8). */
+    public static function wroteAnyway(Request $request): bool
+    {
+        return $request->attributes->getBoolean(self::AFTER_COMMIT);
     }
 
     /**

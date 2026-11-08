@@ -17,15 +17,24 @@ use Nowo\WikiBundle\Api\WikiApiRefusal;
  *
  * What the bundle has checked before a call (audit IF-L7):
  *
- * - `create()`: the level (Full) only. **The host must** check that the owner is within the token's *where*
- *   (`$principal->where->reachesOwner($ownerKey)`, with the key its directory uses; refuse with 404 otherwise) and that
- *   the person may manage that owner. The bundle checks afterwards that the wiki answered is within *where*.
+ * - `ownerKey()`, then `create()`: the level (Full), then the owner key `ownerKey()` names against the token's *where*
+ *   (`WikiApiWhere::reachesOwner()`; 404 and nothing created otherwise). **The host must** still check that the person
+ *   may manage that owner, and must create the wiki under exactly that owner: the wiki `create()` answers must carry
+ *   the same `ownerKey`, or the bundle answers 500 and logs the hook as faulty (the write is audited all the same).
  * - `update()`, `archive()`, `unarchive()`: reach (*where*, the directory, the plan), the level (Full), and — when the
  *   wiki's space exists — that the person can open it and holds `Manage` on it. For a wiki nobody opened yet (no space)
  *   only the level was checked: the host decides on the owner.
  */
 interface WikiApiWikiManagementInterface
 {
+    /**
+     * The owner key (as the directory's {@see WikiApiWiki::$ownerKey}) of a wiki about to be created; null: no such owner
+     * (404). Must not write.
+     *
+     * @throws WikiApiRefusal
+     */
+    public function ownerKey(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): ?string;
+
     /** @throws WikiApiRefusal */
     public function create(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): WikiApiWiki;
 
