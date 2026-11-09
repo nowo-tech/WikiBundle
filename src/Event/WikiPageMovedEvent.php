@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Event;
 
 use DateTimeImmutable;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\User\WikiUserId;
 
 /**
  * Dispatched after a page was moved in the page tree (1.14, {@see WikiEvents::PAGE_MOVED}): the audit entry of a move
@@ -30,5 +31,14 @@ final readonly class WikiPageMovedEvent
         public ?object $actor,
         public DateTimeImmutable $movedAt,
     ) {
+    }
+
+    /**
+     * The actor's id (`getId()` as a string; null without an actor or an id), so listeners need not know the user
+     * class (1.27).
+     */
+    public function actorId(): ?string
+    {
+        return WikiUserId::of($this->actor);
     }
 }

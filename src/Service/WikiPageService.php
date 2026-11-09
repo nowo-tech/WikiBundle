@@ -23,6 +23,7 @@ use Nowo\WikiBundle\Repository\WikiPageLockInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -42,7 +43,7 @@ use function str_replace;
  * ({@see WikiPageRevision::FORMAT_MARKDOWN}: stored as the source, rendered by {@see WikiMarkdownRendererInterface}
  * and sanitized into the `content_html` cache).
  */
-final readonly class WikiPageService
+final readonly class WikiPageService implements WikiPageServiceInterface
 {
     /**
      * Wires the repositories, slugger, sanitizer, event dispatcher and optional logger.
@@ -58,6 +59,8 @@ final readonly class WikiPageService
      *                                                             when null)
      * @param WikiEventDeferral|null $deferral 1.24: holds the page events of a write inside an outer transaction until
      *                                         it commits (audit IF-L2)
+     * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored revision author for a security user that
+     *                                                       is no `user_class` entity
      */
     public function __construct(
         private WikiPageRepositoryInterface $pageRepository,
@@ -69,6 +72,7 @@ final readonly class WikiPageService
         private ?WikiAttachmentReferenceFilter $attachmentFilter = null,
         ?WikiMarkdownRendererInterface $markdownRenderer = null,
         private ?WikiEventDeferral $deferral = null,
+        private ?WikiUserReferenceResolverInterface $users = null,
     ) {
         $this->logger           = $logger ?? new NullLogger();
         $this->markdownRenderer = $markdownRenderer ?? new WikiMarkdownRenderer();
@@ -444,6 +448,7 @@ final readonly class WikiPageService
 
     private function newRevision(WikiPage $page, int $number, string $content, string $format, object $author): WikiPageRevision
     {
+        $author = $this->users?->reference($author) ?? $author;
         if ($format === WikiPageRevision::FORMAT_MARKDOWN) {
             $markdown = $this->normalizeMarkdown($content);
 

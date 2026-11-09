@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Service;
 
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\User\WikiUserId;
 
 /**
  * Dispatched when a page revision is saved.
@@ -29,5 +30,14 @@ final readonly class WikiPageSavedEvent
         public ?object $actor = null,
         public bool $conversion = false,
     ) {
+    }
+
+    /**
+     * The actor's id (`getId()` as a string; null without an actor or an id), so listeners need not know the user
+     * class (1.27).
+     */
+    public function actorId(): ?string
+    {
+        return WikiUserId::of($this->actor);
     }
 }

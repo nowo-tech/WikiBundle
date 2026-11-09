@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
+use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
@@ -47,6 +48,7 @@ final readonly class WikiAttachmentService
      * @param WikiAttachmentLimitsProviderInterface $limitsProvider limits per space
      * @param EventDispatcherInterface $eventDispatcher dispatcher of the attachment events
      * @param LoggerInterface|null $logger logger (defaults to a NullLogger)
+     * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored uploader for a non-entity user
      */
     public function __construct(
         private WikiAttachmentRepositoryInterface $attachmentRepository,
@@ -55,6 +57,7 @@ final readonly class WikiAttachmentService
         private WikiAttachmentLimitsProviderInterface $limitsProvider,
         private EventDispatcherInterface $eventDispatcher,
         ?LoggerInterface $logger = null,
+        private ?WikiUserReferenceResolverInterface $users = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -122,7 +125,7 @@ final readonly class WikiAttachmentService
             fclose($stream);
         }
 
-        $attachment = new WikiAttachment($page, $space, $name, $key, $mime, $size, (string) hash_file('sha256', $path), $actor);
+        $attachment = new WikiAttachment($page, $space, $name, $key, $mime, $size, (string) hash_file('sha256', $path), $actor !== null ? ($this->users?->reference($actor) ?? $actor) : null);
 
         try {
             $this->attachmentRepository->save($attachment);

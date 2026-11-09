@@ -13,7 +13,7 @@ use Nowo\WikiBundle\Util\WikiSlugger;
 /**
  * Creates and resolves wiki spaces.
  */
-final readonly class WikiSpaceService
+final readonly class WikiSpaceService implements WikiSpaceServiceInterface
 {
     /**
      * Wires the space repository and the slugger.

@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.27.0](#to-1270)
 - [To 1.26.0](#to-1260)
 - [To 1.25.1](#to-1251)
 - [To 1.25.0](#to-1250)
@@ -74,6 +75,21 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.27.0
+
+From **1.26.0**: nothing to change; no schema change. A security user that is your `user_class` entity is stored
+exactly as before.
+
+- **Security user that is no Doctrine entity:** it works now when it exposes the persisted user's id through `getId()`;
+  otherwise alias `Nowo\WikiBundle\User\WikiUserReferenceResolverInterface` to your own resolver.
+- **Adapters:** type-hint `WikiPageServiceInterface`, `WikiSpaceServiceInterface`, `WikiPageLinkServiceInterface`
+  instead of the final classes; read `$event->actorId()` instead of casting `$event->actor`.
+- **Comment ownership** now also matches a user of a class listed in `accepted_user_classes` whose `getId()` equals
+  the author's (before: the user identifier only). Unlisted classes keep the identifier rule only.
+- **Fail closed (audit JX-W1):** a security user that is neither `user_class` nor listed in `accepted_user_classes` is
+  refused (`AccessDeniedException`) when it writes a revision, link, attachment or comment. Before 1.27 such a user
+  failed in Doctrine (no entity) or, if it was another entity class, was silently stored under the same id.
 
 ## To 1.26.0
 

@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiPageLinkEvent;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
+use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -23,18 +24,20 @@ use function array_values;
  * Authorization of the link itself (who may link a page to an object) is the host's job: call
  * {@see self::link()} / {@see self::unlink()} only after checking it.
  */
-final readonly class WikiPageLinkService
+final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
 {
     /**
      * @param WikiPageLinkRepositoryInterface $linkRepository link persistence
      * @param iterable<WikiObjectLinkResolverInterface> $resolvers host resolvers
      * @param EventDispatcherInterface $eventDispatcher dispatcher of the link events
+     * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored link creator for a non-entity user
      */
     public function __construct(
         private WikiPageLinkRepositoryInterface $linkRepository,
         #[AutowireIterator('nowo_wiki.object_link_resolver')]
         private iterable $resolvers,
         private EventDispatcherInterface $eventDispatcher,
+        private ?WikiUserReferenceResolverInterface $users = null,
     ) {
     }
 
@@ -55,7 +58,7 @@ final readonly class WikiPageLinkService
             return $existing;
         }
 
-        $link = new WikiPageLink($page, $objectType, $objectId, $actor);
+        $link = new WikiPageLink($page, $objectType, $objectId, $actor !== null ? ($this->users?->reference($actor) ?? $actor) : null);
         $this->linkRepository->save($link);
         $this->eventDispatcher->dispatch(new WikiPageLinkEvent($page, $objectType, $objectId, $actor), WikiEvents::PAGE_LINKED);
 

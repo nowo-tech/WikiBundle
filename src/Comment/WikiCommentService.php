@@ -37,6 +37,9 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
+use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
@@ -163,6 +166,9 @@ final readonly class WikiCommentService
      * @param WikiEventDeferral|null $deferral 1.24: comment events of a caller's scope (the REST API) wait for its end,
      *                                         and a listener that fails then does not refuse a saved write (audit IF-L3)
      * @param LoggerInterface|null $logger 1.24: a live update the hub refused (the comment is saved; audit IF-L6)
+     * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored user relation for a security user that is
+     *                                                       no `user_class` entity
+     * @param WikiUserClassPolicy|null $userClasses 1.27 (JX-W1): which users comment ownership may match by id
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -183,6 +189,8 @@ final readonly class WikiCommentService
         private ?WikiRenderContext $renderContext = null,
         private ?WikiEventDeferral $deferral = null,
         private ?LoggerInterface $logger = null,
+        private ?WikiUserReferenceResolverInterface $users = null,
+        private ?WikiUserClassPolicy $userClasses = null,
     ) {
     }
 
@@ -322,12 +330,13 @@ final readonly class WikiCommentService
         $text           = $this->body($body);
         [$json, $quote] = $anchor === null ? [null, null] : $this->anchor($anchor);
         // 1.16.1: open threads (EI-I16), a share per user, and a generous total, resolved ones included (EI2-L1).
-        $this->openCaps($page, $user);
+        $stored = $this->stored($user);
+        $this->openCaps($page, $stored);
         $this->cap($this->comments->countThreads($page), 'total_threads_per_page');
         $this->limit($user, $page);
 
-        $thread  = new WikiCommentThread($page, $user, $json, $quote);
-        $comment = new WikiComment($thread, $user, $text);
+        $thread  = new WikiCommentThread($page, $stored, $json, $quote);
+        $comment = new WikiComment($thread, $stored, $text);
         // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
         $this->comments->add($thread);
         // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
@@ -354,7 +363,7 @@ final readonly class WikiCommentService
         $existing = $this->comments->comments([$thread])[$thread->getId()] ?? [];
         $this->cap(count($existing), 'comments_per_thread');
         $last    = $existing === [] ? null : $existing[array_key_last($existing)];
-        $comment = new WikiComment($thread, $user, $text, $last instanceof WikiComment ? $last->getPosition() + 1 : 0);
+        $comment = new WikiComment($thread, $this->stored($user), $text, $last instanceof WikiComment ? $last->getPosition() + 1 : 0);
         $thread->touch();
         // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
         $this->comments->add($comment);
@@ -389,7 +398,7 @@ final readonly class WikiCommentService
                 if (!$patch['resolved']) {
                     $this->openCaps($page, $thread->getCreatedBy());
                 }
-                $patch['resolved'] ? $thread->resolve($user) : $thread->reopen();
+                $patch['resolved'] ? $thread->resolve($this->stored($user)) : $thread->reopen();
                 $this->comments->flush();
                 $this->changed($page, $thread, null, $user, $patch['resolved'] ? WikiEvents::COMMENT_RESOLVED : WikiEvents::COMMENT_REOPENED);
             }
@@ -509,7 +518,8 @@ final readonly class WikiCommentService
         }
         $this->limit($user, $page);
 
-        $existing = $this->comments->reaction($comment, $user, $emoji);
+        $stored   = $this->stored($user);
+        $existing = $this->comments->reaction($comment, $stored, $emoji);
         if ($on && !$existing instanceof WikiCommentReaction) {
             $emojis = [];
             $mine   = 0;
@@ -522,7 +532,7 @@ final readonly class WikiCommentService
             }
             $this->cap($mine, 'user_reactions_per_comment');
             // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
-            $this->comments->add(new WikiCommentReaction($comment, $user, $emoji));
+            $this->comments->add(new WikiCommentReaction($comment, $stored, $emoji));
         } elseif (!$on && $existing instanceof WikiCommentReaction) {
             // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
             $this->comments->remove($existing);
@@ -573,6 +583,7 @@ final readonly class WikiCommentService
     {
         // A host store written for 1.16.0 (no per-author queries) exports the comments only.
         $authors = $this->comments instanceof WikiCommentAuthorRepositoryInterface ? $this->comments : null;
+        $user    = $this->stored($user);
 
         return [
             'comments'  => $this->exportAuthor($user),
@@ -611,7 +622,7 @@ final readonly class WikiCommentService
             'created_at' => $comment->getCreatedAt()->format(self::DATE),
             'edited_at'  => $comment->getEditedAt()?->format(self::DATE),
             'deleted'    => $comment->isDeleted(),
-        ], $this->comments->byAuthor($user));
+        ], $this->comments->byAuthor($this->stored($user)));
     }
 
     /**
@@ -625,7 +636,7 @@ final readonly class WikiCommentService
      */
     public function eraseAuthor(object $user, bool $deleteBodies = true): int
     {
-        $changed = $this->comments->eraseAuthor($user, $deleteBodies);
+        $changed = $this->comments->eraseAuthor($this->stored($user), $deleteBodies);
         // 1.16.1 (audit EI-I17): hosts drop their own copies (search indexes, caches, notification history).
         $this->dispatcher?->dispatch(new WikiCommentAuthorErasedEvent($user, $changed, $deleteBodies), WikiEvents::COMMENT_AUTHOR_ERASED);
 
@@ -1023,7 +1034,22 @@ final readonly class WikiCommentService
 
     private function same(?object $a, UserInterface $b): bool
     {
+        // 1.27: a listed wrapper of a user_class row matches that row by id (JX-W1: only accepted classes with a usable
+        // id; Admin#5 never owns Customer#5's comments). Without a policy only the 1.26 identifier rule applies.
+        $id = $this->userClasses?->idOf($b);
+        if ($id !== null && $a !== null && (string) $id === WikiUserId::of($a)) {
+            return true;
+        }
+
         return $a instanceof UserInterface && $a->getUserIdentifier() === $b->getUserIdentifier();
+    }
+
+    /**
+     * The object stored in the user relations for this user (1.27; the user itself without a resolver).
+     */
+    private function stored(object $user): object
+    {
+        return $this->users?->reference($user) ?? $user;
     }
 
     private function require(bool $granted): void

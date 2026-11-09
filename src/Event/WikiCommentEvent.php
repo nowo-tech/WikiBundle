@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\User\WikiUserId;
 
 /**
  * A comment change (1.16): {@see WikiEvents::COMMENT_CREATED} (a new thread), {@see WikiEvents::COMMENT_REPLIED},
@@ -38,5 +39,14 @@ final readonly class WikiCommentEvent
         public object $actor,
         public array $mentions = [],
     ) {
+    }
+
+    /**
+     * The actor's id (`getId()` as a string; null without an actor or an id), so listeners need not know the user
+     * class (1.27).
+     */
+    public function actorId(): ?string
+    {
+        return WikiUserId::of($this->actor);
     }
 }

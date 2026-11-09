@@ -100,7 +100,22 @@ to wiki pages by id, and the wiki refers to your objects by string ids.
   team or user tables.
 - Link wiki pages to your objects with `WikiPageLinkService::link($page, $objectType, $objectId)`; the wiki only keeps
   the strings and asks your `WikiObjectLinkResolverInterface` what the viewer may see.
-- Call `WikiPageService` / `WikiSpaceService` from an infrastructure adapter behind your own port, not from domain code.
+- Call the ports `Service\WikiPageServiceInterface` / `Service\WikiSpaceServiceInterface` /
+  `Link\WikiPageLinkServiceInterface` (public aliases of the services, 1.27) from an infrastructure adapter, not from
+  domain code; replace them with doubles in your tests.
+- Your **security user does not have to be the `user_class` entity** (1.27), but the wiki only trusts the classes
+  you list: `$author` / `$actor` arguments and the token user go through `User\WikiUserReferenceResolverInterface`.
+  The default keeps `user_class` instances and turns an instance of a class listed in
+  `nowo_wiki.accepted_user_classes` (a DTO, a read model carrying the `user_class` id) into
+  `getReference(user_class, id)` on the wiki entity manager, without a query. Any other user is refused
+  (`AccessDeniedException`) and comment ownership never matches it by id, so a second identity domain with overlapping
+  ids (Admin#5 next to Customer#5) fails closed. Ids of 0, negative ids and empty ids are refused. The comment privacy
+  export / erasure (`exportAuthorData()`, `exportAuthor()`, `eraseAuthor()`) throw `AccessDeniedException` for a user
+  of a class that is not accepted. Alias the interface to your own resolver when the ids differ.
+
+        nowo_wiki:
+            user_class: App\Entity\User
+            accepted_user_classes: [App\Security\SecurityUser]   # default: [] = user_class only
 
 **Ports you implement** (alias the interface to your service, or set the config key)
 
@@ -111,6 +126,7 @@ to wiki pages by id, and the wiki refers to your objects by string ids.
 | Team membership | `Security\WikiTeamMembershipResolverInterface` | `team_membership_resolver` |
 | Your objects shown on a page | `Link\WikiObjectLinkResolverInterface` | autoconfigured |
 | Avatars | `Avatar\WikiUserAvatarResolverInterface` | service alias |
+| Security user → stored user relation | `User\WikiUserReferenceResolverInterface` | service alias (1.27) |
 | File storage / scanning | `Attachment\WikiAttachmentStorageInterface`, `WikiAttachmentScannerInterface` | `attachments.storage`, `attachments.scanner` |
 | REST API | `Api\Hook\*Interface` (authenticator, directory, users, plan gate, ...) | `api.hooks.*` |
 
@@ -126,11 +142,10 @@ own messages in one listener:
 
         public function __invoke(WikiPageSavedEvent $event): void
         {
-            $actor = $event->actor instanceof User ? $event->actor->getId() : null;
             $this->bus->dispatch(new KnowledgePageChanged(
                 $event->page->getId(),
                 $event->revision->getRevisionNumber(),
-                $actor,
+                $event->actorId(), // 1.27: the actor's getId() as a string, whatever its class
             ));
         }
     }
@@ -138,14 +153,15 @@ own messages in one listener:
 **Known limitations**
 
 - `user_class` is required: revision authors, link creators, uploaders, comment authors and reactions are Doctrine
-  `ManyToOne` relations to that class, remapped at runtime by `WikiMetadataListener`. Your user must be a Doctrine
-  entity in the wiki's entity manager (`database.entity_manager`) and be the object your security token returns.
-- Deleting a user row deletes that user's page revisions (`author_id ... ON DELETE CASCADE`); comments keep their
-  text without an author. Deactivate or anonymise users instead of deleting them.
-- Event payloads carry wiki entities and the actor as `?object`; there are no scalar-id events yet except
-  `WikiApiWriteEvent` and `WikiCommentMentionsErasedEvent`.
-- `WikiPageService`, `WikiSpaceService`, `WikiCommentService` and `WikiPageLinkService` are final and have no
-  interface; wrap them in your own port to test your use cases without the wiki.
+  `ManyToOne` relations to that class, remapped at runtime by `WikiMetadataListener`. The host needs a Doctrine user
+  class in the wiki's entity manager (an infrastructure persistence model is enough); the security user may be another
+  class with the same `getId()` (see above). There is no plain-id mode.
+- Deleting a user row keeps their page revisions without an author (1.26, `ON DELETE SET NULL`) and their comments
+  without an author; their reactions go with them.
+- Event payloads still carry wiki entities; the actor is `?object` plus `actorId(): ?string` (1.27). Page, space and
+  revision ids are read from the entities (`$event->page->getId()`).
+- `WikiCommentService` is final and has no interface (it is the UI / REST comment engine; call its privacy methods
+  from your adapter).
 - The bundle maps its entities in the default entity manager; with another `database.entity_manager`, add the
   `WikiBundle` mapping to that manager yourself.
 
@@ -616,7 +632,9 @@ What a host such as symfony-beacon configures:
    service; keep `history.show_names` as it is (pictures follow names).
 9. Search: switch `WikiPageSearchProvider`'s `LIKE` from `content_markdown` to `content_text`.
 10. Privacy: call `WikiCommentService::exportAuthor()` / `eraseAuthor()` (or `wiki:comments:erase-user`) from its
-    data-subject flows. Since 1.17 also call `eraseMentions([$handle], $erasedLabel)` from the same personal-data
+    data-subject flows. Pass the `user_class` entity (or an instance of an `accepted_user_classes` entry): since 1.27
+    `exportAuthorData()` / `exportAuthor()` / `eraseAuthor()` with a user of another class throw
+    `AccessDeniedException` instead of matching a `user_class` row by its id. Since 1.17 also call `eraseMentions([$handle], $erasedLabel)` from the same personal-data
     eraser: every `@handle` of the erased person in **other people's** comments (body, quoted Markdown) and in inline
     thread quotes becomes the label (`@…` by default), without marking the comments as edited. Matching is
     case-insensitive, accepts a Markdown-escaped `\_`, and never touches a longer handle (`@ana` leaves `@ana.b`) or
