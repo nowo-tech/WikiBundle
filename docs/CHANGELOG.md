@@ -68,6 +68,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: **1.27.0** (DDD / hexagonal adapter fixes, audit 2026-11-09, P1 "the security user must be the entity").
+See [UPGRADING](UPGRADING.md#to-1270).
+
+### Added
+
+- **User reference resolver.** New port `User\WikiUserReferenceResolverInterface` (default
+  `DoctrineWikiUserReferenceResolver`, aliased): revision authors, link creators, uploaders, comment / thread authors,
+  resolvers and reactions are stored through it. `user_class` instances are stored as before; any other user with a
+  `getId()` (a security user that is no Doctrine entity) becomes `getReference(user_class, id)` on the wiki entity
+  manager. Comment ownership ("my comment", "my reactions") also matches by id. The privacy export / erasure of
+  comments accept such a user too.
+- **Scalar actor ids on the events.** `actorId(): ?string` on `WikiPageSavedEvent`, `WikiPageCreatedEvent`,
+  `WikiPageArchivedEvent`, `WikiPageUnarchivedEvent`, `WikiPageRestoredEvent`, `WikiPageLinkEvent`,
+  `WikiPageMovedEvent`, `WikiTrashEvent`, `WikiPageFilesPurgedEvent`, `WikiAttachmentEvent` and `WikiCommentEvent`;
+  payloads unchanged. Helper `User\WikiUserId::of()`.
+- **Service ports.** `Service\WikiPageServiceInterface` (create, saveRevision, restore, archive, unarchive),
+  `Service\WikiSpaceServiceInterface` (create, findBySlug) and `Link\WikiPageLinkServiceInterface` (link, unlink,
+  usedIn): public aliases of the existing services.
+- USAGE "Using it from a DDD / hexagonal application": known limitations updated.
+
 ## [1.26.0] - 2026-11-09
 
 Target: **1.26.0** (minor: schema change, and `WikiPageRevision::getAuthor()` returns `?object`).

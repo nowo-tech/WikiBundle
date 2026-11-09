@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Event;
 
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\User\WikiUserId;
 
 /**
  * Dispatched after a page was linked to, or unlinked from, a host object (1.9).
@@ -23,5 +24,14 @@ final readonly class WikiPageLinkEvent
         public string $objectId,
         public ?object $actor = null,
     ) {
+    }
+
+    /**
+     * The actor's id (`getId()` as a string; null without an actor or an id), so listeners need not know the user
+     * class (1.27).
+     */
+    public function actorId(): ?string
+    {
+        return WikiUserId::of($this->actor);
     }
 }

@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Event;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\PageFile\WikiPageFile;
+use Nowo\WikiBundle\User\WikiUserId;
 
 /**
  * {@see WikiEvents::PAGE_FILES_PURGED} (1.20, `page_files.purge_event`): pages were purged from the trash for good, and
@@ -39,5 +40,14 @@ final readonly class WikiPageFilesPurgedEvent
         public ?object $actor = null,
         public bool $truncated = false,
     ) {
+    }
+
+    /**
+     * The actor's id (`getId()` as a string; null without an actor or an id), so listeners need not know the user
+     * class (1.27).
+     */
+    public function actorId(): ?string
+    {
+        return WikiUserId::of($this->actor);
     }
 }

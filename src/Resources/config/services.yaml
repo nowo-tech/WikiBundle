@@ -20,6 +20,7 @@ services:
             # 1.21: a per-request value object (it holds the refusal), never a shared service.
             - '../../Event/WikiQuotaCheckEvent.php'
             - '../../Event/WikiApiWriteEvent.php'
+            - '../../User/WikiUserId.php'
             - '../../Service/WikiSpaceAccessResolver.php'
             - '../../Service/WikiAuthorResolver.php'
             - '../../Attachment/LocalWikiAttachmentStorage.php'
@@ -79,6 +80,25 @@ services:
     Nowo\WikiBundle\Interchange\WikiExportIndexWriter:
         arguments:
             $translator: '@?translator'
+
+    # 1.27: the stored user relation for a security user that is no user_class entity (hosts alias the interface).
+    Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver:
+        arguments:
+            $userClass: '%nowo_wiki.user_class%'
+            $entityManagers: '@Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider'
+
+    Nowo\WikiBundle\User\WikiUserReferenceResolverInterface: '@Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver'
+
+    # 1.27: ports of the services hosts call (public aliases; decorate or replace them in your tests).
+    Nowo\WikiBundle\Service\WikiPageServiceInterface:
+        alias: Nowo\WikiBundle\Service\WikiPageService
+        public: true
+    Nowo\WikiBundle\Service\WikiSpaceServiceInterface:
+        alias: Nowo\WikiBundle\Service\WikiSpaceService
+        public: true
+    Nowo\WikiBundle\Link\WikiPageLinkServiceInterface:
+        alias: Nowo\WikiBundle\Link\WikiPageLinkService
+        public: true
 
     Nowo\WikiBundle\Service\WikiPageService:
         arguments:

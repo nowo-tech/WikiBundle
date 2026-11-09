@@ -4,7 +4,7 @@ Root key: `nowo_wiki`.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `user_class` | *(required)* | Application user entity FQCN |
+| `user_class` | *(required)* | Application user entity FQCN (the security user may be another class with the same `getId()`, see `WikiUserReferenceResolverInterface`, 1.27) |
 | `table_prefix` | `wiki_` | DB table prefix |
 | `space_scope` | `team` | `team` or `user` |
 | `team_membership_resolver` | null | Service id implementing `WikiTeamMembershipResolverInterface` |

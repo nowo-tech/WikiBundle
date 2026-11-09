@@ -10,9 +10,17 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
+use Nowo\WikiBundle\Link\WikiPageLinkService;
+use Nowo\WikiBundle\Link\WikiPageLinkServiceInterface;
 use Nowo\WikiBundle\Service\WikiPageService;
+use Nowo\WikiBundle\Service\WikiPageServiceInterface;
+use Nowo\WikiBundle\Service\WikiSpaceService;
+use Nowo\WikiBundle\Service\WikiSpaceServiceInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
 use Nowo\WikiBundle\Tests\Support\RecordingQuotaListener;
+use Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver;
+use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\WikiBundle;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -74,6 +82,23 @@ final class WebUiHooksKernelTest extends TestCase
     {
         $this->kernel?->shutdown();
         $this->kernel = null;
+    }
+
+    public function testTheDddPortsAreAliasedAndTakeANonEntityUser(): void
+    {
+        $this->boot([], '-defaults');
+        $container = $this->services();
+        self::assertSame($container->get(WikiPageService::class), $container->get(WikiPageServiceInterface::class));
+        self::assertSame($container->get(WikiSpaceService::class), $container->get(WikiSpaceServiceInterface::class));
+        self::assertSame($container->get(WikiPageLinkService::class), $container->get(WikiPageLinkServiceInterface::class));
+        self::assertInstanceOf(DoctrineWikiUserReferenceResolver::class, $container->get(WikiUserReferenceResolverInterface::class));
+
+        $pages = $container->get(WikiPageServiceInterface::class);
+        self::assertInstanceOf(WikiPageServiceInterface::class, $pages);
+        $page   = $pages->create($this->space, 'Ports', '<p>x</p>', new WikiSecurityUserDto($this->user->getId()));
+        $author = $page->getCurrentRevision()?->getAuthor();
+        self::assertInstanceOf(TestUserEntity::class, $author);
+        self::assertSame($this->user->getId(), $author->getId());
     }
 
     public function testTwigIsRegisteredBeforeTheWikiInThisKernel(): void
