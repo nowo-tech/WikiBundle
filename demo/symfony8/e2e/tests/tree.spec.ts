@@ -101,3 +101,36 @@ test.describe('Wiki page tree', () => {
     await expect(item(page, 'Resources')).toHaveAttribute('aria-level', '1');
   });
 });
+
+/**
+ * MUX-80: hosts stack the tree under the page body on phones (one column). Bringing the current page into view must
+ * scroll the tree's own container only, never the page: a long page opens at its top.
+ */
+test.describe('Wiki page tree on a phone (390 × 844)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('a long page opens at the top, the tree under the content does not drag the page down', async ({ page }) => {
+    // A long body before the sidebar, as a host layout that puts the tree after the content renders it.
+    await page.route(`**${deploy}`, async (route) => {
+      const response = await route.fetch();
+      const filler = Array.from({ length: 60 }, (_, i) => `<p>Filler paragraph ${i + 1} of a long page body.</p>`).join('');
+      const body = (await response.text()).replace('<div class="nowo-wiki-layout">', `<div class="nowo-wiki-layout"><div data-e2e-filler>${filler}</div>`);
+      await route.fulfill({ response, body });
+    });
+    await page.goto(deploy);
+    await expect(tree(page)).toHaveAttribute('data-nowo-ui-tree-ready', '');
+    await expect(page.locator('[data-e2e-filler]')).toHaveCount(1);
+    await expect(item(page, 'Deploy')).toHaveAttribute('aria-current', 'page');
+    // Precondition: the current tree entry starts well below the fold.
+    const top = await item(page, 'Deploy').evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+    expect(top).toBeGreaterThan(844 * 2);
+    await page.waitForLoadState('load');
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    // No scroller outside the sidebar moved (hosts may scroll an inner page container instead of the window).
+    const moved = await page.evaluate(() => [...document.querySelectorAll('*')]
+      .filter((el) => el.scrollTop > 0 && !el.closest('[data-wiki-sidebar]'))
+      .map((el) => `${el.tagName.toLowerCase()}.${el.className}`));
+    expect(moved).toEqual([]);
+    await expect(page.locator('[data-e2e-filler] p').first()).toBeInViewport();
+  });
+});

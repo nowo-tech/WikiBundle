@@ -2,17 +2,64 @@ import { bindWikiComments } from './wiki-comments';
 import { bindCommentsModeration } from './wiki-comments-moderation';
 import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 
+/** True when the element scrolls its own content vertically (overflow auto / scroll and taller content). */
+const scrollsItself = (el: HTMLElement): boolean => {
+    const { overflowY } = getComputedStyle(el);
+
+    return (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+};
+
 /**
- * Wiki page tree: brings the current page (`aria-current="page"`) into view inside each scrollable tree
- * (`[data-wiki-tree]`), so long trees open at the page being read. No-op without a current page.
+ * The tree's own scroll container: the tree itself or an ancestor up to its sidebar (`[data-wiki-sidebar]`) that
+ * scrolls on its own. Null when the tree flows with the page (phones: the sidebar is stacked under the content and
+ * has no height cap), so the page / window scroller is never a candidate.
+ *
+ * @param tree - A page tree (`[data-wiki-tree]`).
+ */
+export function treeScroller(tree: HTMLElement): HTMLElement | null {
+    const boundary = tree.closest<HTMLElement>('[data-wiki-sidebar]') ?? tree;
+    for (let el: HTMLElement | null = tree; el !== null; el = el.parentElement) {
+        if (scrollsItself(el)) {
+            return el;
+        }
+        if (el === boundary) {
+            break;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Scrolls `scroller` (and only it: no `scrollIntoView`, which would also scroll the page) so that `item` is
+ * visible, by the smallest amount ("nearest").
+ */
+export function revealInScroller(scroller: HTMLElement, item: HTMLElement): void {
+    const box = scroller.getBoundingClientRect();
+    const rect = item.getBoundingClientRect();
+    const top = box.top + scroller.clientTop;
+    const bottom = top + scroller.clientHeight;
+    if (rect.top < top) {
+        scroller.scrollTop += rect.top - top;
+    } else if (rect.bottom > bottom) {
+        scroller.scrollTop += Math.min(rect.bottom - bottom, rect.top - top);
+    }
+}
+
+/**
+ * Wiki page tree: brings the current page (`aria-current="page"`) into view inside each tree (`[data-wiki-tree]`)
+ * that is its own scroller (the sticky side column), so long trees open at the page being read. Only the tree's
+ * container moves: the page is never scrolled (MUX-80: on phones the tree sits under the content, and
+ * `scrollIntoView` dragged long pages to the bottom). No-op without a current page or a scrolling tree.
  *
  * @param root - Document subtree to scan for page trees.
  */
 export function initWikiTrees(root: ParentNode = document): void {
-    root.querySelectorAll('[data-wiki-tree]').forEach((tree) => {
+    root.querySelectorAll<HTMLElement>('[data-wiki-tree]').forEach((tree) => {
         const current = tree.querySelector('[aria-current="page"]');
-        if (current instanceof HTMLElement && typeof current.scrollIntoView === 'function') {
-            current.scrollIntoView({ block: 'nearest' });
+        const scroller = current instanceof HTMLElement ? treeScroller(tree) : null;
+        if (scroller !== null) {
+            revealInScroller(scroller, current as HTMLElement);
         }
     });
 }

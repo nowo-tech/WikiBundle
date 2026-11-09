@@ -66,6 +66,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Long pages no longer open scrolled to the bottom on phones (MUX-80).** `wiki.js` brought the current page of the
+  tree into view with `scrollIntoView`, which also scrolls every ancestor: on narrow screens the tree is stacked under
+  the page body, so long pages opened at the tree. The script now scrolls only the tree's own container (the tree or
+  its sidebar body when it is a height-capped scroller, i.e. the sticky side column on wide screens), by computing the
+  offset and setting `scrollTop`; when the tree flows with the page it does nothing. The page and window are never
+  scrolled. The other bundle scripts (comments, moderation, code blocks) have no such call; the tree's keyboard
+  moves only focus the moved item after a user action. New exports `treeScroller()` / `revealInScroller()`; Vitest
+  cases and a Playwright check at 390 × 844.
+
 ## [1.25.0] - 2026-11-08
 
 Opt-in `editor.milkdown.file_cards: card` draws `::file` with Milkdown's file card through the reach-aware host file resolution (WK-8), and Edit and History are no longer duplicated in the page header (WK-6). Audit: Appendix IK and Delta IK, Pass-Low (IK-L1 documented).
