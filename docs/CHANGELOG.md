@@ -75,13 +75,15 @@ Target: **1.26.0** (minor: schema change, and `WikiPageRevision::getAuthor()` re
   `NOT NULL ... ON DELETE CASCADE`: deleting a host user deleted every revision they had written, and the pages whose
   current revision was theirs lost it (`current_revision_id` became `NULL`, the page showed no content). The column is
   now nullable with `ON DELETE SET NULL`: the revisions and the pages stay, and the history shows the author as
-  **Former person** (`wiki.history.former_person`, the wording of TimeTrackBundle's former person). Nothing else about the
-  deleted user is kept. A revision of a former person is a session of its own in the timeline, and `wiki:history:thin`
+  **Former person** (`wiki.history.former_person`, the wording of TimeTrackBundle's former person). The revision keeps no
+  other trace of the deleted user (known limitation: co-editing's `seeded_by`, fixed in 1.26.1; see UPGRADING). A revision of a former person is a session of its own in the timeline, and `wiki:history:thin`
   never removes it as an older save of somebody's session. The REST API answers `"author": null` for it, as the
   schema already allowed. **The schema change is required:** see [UPGRADING.md](UPGRADING.md#unreleased).
 - The other six relations to the user class were checked: links (`created_by_id`), attachments (`uploaded_by_id`),
   comment threads (`created_by_id`, `resolved_by_id`) and comments (`author_id`) were already `SET NULL`. Comment
   reactions (`user_id`) stay `ON DELETE CASCADE` on purpose: a reaction is the user's own mark, not content.
+- Comments by a deleted user now read **Former person** too (`wiki.comments.unknown_author`, was *Deleted user*), the
+  same wording as the history.
 
 ### Changed
 
