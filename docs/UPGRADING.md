@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.26.0](#to-1260)
 - [To 1.25.1](#to-1251)
 - [To 1.25.0](#to-1250)
 - [To 1.24.1](#to-1241)
@@ -73,6 +74,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.26.0
+
+From **1.25.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 Target: **1.26.0**. From **1.25.x**:
 

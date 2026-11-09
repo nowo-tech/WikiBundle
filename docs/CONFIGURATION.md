@@ -148,7 +148,7 @@ reader view) resolves host file references through Milkdown's `HostFileResolverI
 
 A refused file reads *Content not visible*, without URL, alt text or name. Under the API's reach, a resolver that is
 not a `ContextualHostFileResolverInterface` resolves nothing. The neutral render (`content_html`) never resolves host
-files. See [UPGRADING](UPGRADING.md#unreleased).
+files. See [UPGRADING](UPGRADING.md#to-1260).
 
 **File cards (1.25, WK-8).** `editor.milkdown.file_cards` decides how a `::file[name]{href size type}` card that no host
 `DirectiveRendererInterface` supports reads in the per-viewer render (page body, comments, the API reader view):
@@ -164,7 +164,7 @@ The neutral render (`content_html`) keeps the link either way.
 `card` hides nothing by itself (audit IK-I4): a refused file reads *Content not visible* only while host files are
 resolved (`host_files: auto` with Milkdown's `host_url_patterns` set, or `on`); otherwise the card links its written
 `href` like `link`. With a `url: resolved` pattern or a scheme value, a visible card shows the resolver's URL, name and
-type (IK-I5). Before replacing a host `file` renderer with `card`, see [UPGRADING](UPGRADING.md#unreleased): Milkdown
+type (IK-I5). Before replacing a host `file` renderer with `card`, see [UPGRADING](UPGRADING.md#to-1260): Milkdown
 ≥ 1.14 and every link host in `host_url_hosts` (IK-L1).
 
 **Copy as Markdown (1.15).** `editor.milkdown.copy_markdown: true` (default `false`, needs Milkdown ≥ 1.5) adds a "Copy

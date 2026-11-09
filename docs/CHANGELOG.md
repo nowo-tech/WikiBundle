@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.26.0] - 2026-11-09](#1260---2026-11-09)
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
 - [[1.24.1] - 2026-11-08](#1241---2026-11-08)
@@ -67,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-11-09
+
 Target: **1.26.0** (minor: schema change, and `WikiPageRevision::getAuthor()` returns `?object`).
 
 ### Fixed
@@ -78,7 +81,7 @@ Target: **1.26.0** (minor: schema change, and `WikiPageRevision::getAuthor()` re
   **Former person** (`wiki.history.former_person`, the wording of TimeTrackBundle's former person). The revision keeps no
   other trace of the deleted user (known limitation: co-editing's `seeded_by`, fixed in 1.26.1; see UPGRADING). A revision of a former person is a session of its own in the timeline, and `wiki:history:thin`
   never removes it as an older save of somebody's session. The REST API answers `"author": null` for it, as the
-  schema already allowed. **The schema change is required:** see [UPGRADING.md](UPGRADING.md#unreleased).
+  schema already allowed. **The schema change is required:** see [UPGRADING.md](UPGRADING.md#to-1260).
 - The other six relations to the user class were checked: links (`created_by_id`), attachments (`uploaded_by_id`),
   comment threads (`created_by_id`, `resolved_by_id`) and comments (`author_id`) were already `SET NULL`. Comment
   reactions (`user_id`) stay `ON DELETE CASCADE` on purpose: a reaction is the user's own mark, not content.
@@ -1330,7 +1333,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.25.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.26.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
