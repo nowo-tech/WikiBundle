@@ -67,6 +67,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: **1.26.0** (minor: schema change, and `WikiPageRevision::getAuthor()` returns `?object`).
+
+### Fixed
+
+- **Deleting a user no longer deletes the revisions they wrote (data loss).** `<prefix>_page_revisions.author_id` was
+  `NOT NULL ... ON DELETE CASCADE`: deleting a host user deleted every revision they had written, and the pages whose
+  current revision was theirs lost it (`current_revision_id` became `NULL`, the page showed no content). The column is
+  now nullable with `ON DELETE SET NULL`: the revisions and the pages stay, and the history shows the author as
+  **Former person** (`wiki.history.former_person`, the wording of TimeTrackBundle's former person). The revision keeps no
+  other trace of the deleted user (known limitation: co-editing's `seeded_by`, fixed in 1.26.1; see UPGRADING). A revision of a former person is a session of its own in the timeline, and `wiki:history:thin`
+  never removes it as an older save of somebody's session. The REST API answers `"author": null` for it, as the
+  schema already allowed. **The schema change is required:** see [UPGRADING.md](UPGRADING.md#unreleased).
+- The other six relations to the user class were checked: links (`created_by_id`), attachments (`uploaded_by_id`),
+  comment threads (`created_by_id`, `resolved_by_id`) and comments (`author_id`) were already `SET NULL`. Comment
+  reactions (`user_id`) stay `ON DELETE CASCADE` on purpose: a reaction is the user's own mark, not content.
+- Comments by a deleted user now read **Former person** too (`wiki.comments.unknown_author`, was *Deleted user*), the
+  same wording as the history.
+
+### Changed
+
+- **`WikiPageRevision::getAuthor()` returns `?object`** (was `object`): null once the author's account was deleted.
+  Host code calling it must handle null. The constructor's `$author` is `?object` too, as `WikiComment`'s (the bundle's
+  services always pass the writing user).
+- `WikiHistoryTimeline::rows()` rows carry `deleted` (bool); `WikiPageFactory::history()` rows carry
+  `author_deleted`, and `page_history.html.twig` prints *Former person* for them
+  (`data-testid="wiki-history-former-person"`).
+
 ### Documentation
 
 - USAGE: new section "Using it from a DDD / hexagonal application" (where the bundle sits in a hexagonal host, the ports, events and DTOs to build an anti-corruption layer on, and the known limitations).

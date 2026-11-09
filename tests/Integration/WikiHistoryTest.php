@@ -106,6 +106,48 @@ final class WikiHistoryTest extends TestCase
         self::assertSame([], (new WikiHistoryTimeline($labels, new WikiAuthorLabel('secret')))->rows($this->page, []));
     }
 
+    /** 1.26: a deleted author is a former person: no label, no picture, every revision a session of its own. */
+    public function testDeletedAuthorsAreFormerPeople(): void
+    {
+        $timeline  = new WikiHistoryTimeline(new DoctrineOrmWikiRevisionLabelRepository($this->em), new WikiAuthorLabel('secret', true), 30);
+        $revisions = [
+            $this->revision(4, $this->bob, '-10 minutes'),
+            $this->revision(3, $this->ana, '-20 minutes'),
+            $this->revision(2, $this->ana, '-25 minutes'),
+            $this->revision(1, $this->bob, '-30 minutes'),
+        ];
+        self::assertSame([1, 2, 0, 1], array_map(static fn (array $r): int => $r['saves'], array_values($timeline->rows($this->page, $revisions))));
+
+        // What ON DELETE SET NULL leaves of Ana's revisions once her account is deleted.
+        $author = new ReflectionProperty(WikiPageRevision::class, 'author');
+        $author->setValue($revisions[1], null);
+        $author->setValue($revisions[2], null);
+
+        $rows = $timeline->rows($this->page, $revisions);
+        self::assertSame([false, true, true, false], array_map(static fn (array $r): bool => $r['deleted'], array_values($rows)));
+        self::assertSame(['', false, null], [$rows[3]['author'], $rows[3]['named'], $rows[3]['avatar']]);
+        self::assertMatchesRegularExpression('/^Editor [0-9a-f]{4}$/', $rows[4]['author']);
+        self::assertSame([1, 1, 1, 1], array_map(static fn (array $r): int => $r['saves'], array_values($rows)));
+    }
+
+    /** 1.26: the retention never thins a deleted author's revision as an older save of a session. */
+    public function testThinningKeepsEveryRevisionOfDeletedAuthors(): void
+    {
+        $day = (new DateTimeImmutable('-40 days'))->setTime(10, 0);
+        // Ana v1, v2 | Bob v3, v4 (minutes apart, one day) | recent v5 (current); then Ana's account is deleted.
+        $this->revisionAt(1, $this->ana, $day);
+        $this->revisionAt(2, $this->ana, $day->modify('+5 minutes'));
+        $this->revisionAt(3, $this->bob, $day->modify('+10 minutes'));
+        $this->revisionAt(4, $this->bob, $day->modify('+15 minutes'));
+        $this->page->setCurrentRevision($this->revision(5, $this->bob, '-1 hour'));
+        $this->em->flush();
+        $this->em->getConnection()->executeStatement("UPDATE wiki_page_revisions SET author_id = NULL WHERE author_id = 'ana'");
+
+        // Only Bob's v3 goes (an older save of v4's session); Ana's v1 and v2 stay.
+        self::assertSame(['pages' => 1, 'revisions' => 1], (new WikiHistoryThinner($this->em))->thin(new DateTimeImmutable()));
+        self::assertSame([1, 2, 4, 5], $this->numbers());
+    }
+
     public function testAuthorLabelsAreOpaquePerPageUnlessSafeNamesAreShown(): void
     {
         $other = new WikiPage($this->page->getSpace(), 'other', 'Other');

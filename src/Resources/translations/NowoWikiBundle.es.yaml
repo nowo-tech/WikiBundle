@@ -22,7 +22,7 @@ wiki:
     quote_gone: "El texto comentado ya no está en la página."
     truncated: "Solo se muestran los primeros %count% hilos abiertos."
     more_in_editor: "%count% comentario(s) anterior(es) en el editor"
-    unknown_author: "Usuario eliminado"
+    unknown_author: "Persona antigua"
     error:
       invalid: "El comentario está vacío o no es válido."
       too_large: "El comentario es demasiado largo (10.000 caracteres como máximo)."
@@ -153,6 +153,7 @@ wiki:
     label: "Nombre de la versión"
     label_help: "Nombra la revisión actual, p. ej. «Antes de la migración». Las versiones con nombre nunca se depuran."
     author: "Autor"
+    former_person: "Persona antigua"
     session_column: "Guardados en la sesión"
     save_version: "Guardar versión"
     save_version_title: "Guardar versión de %title%"

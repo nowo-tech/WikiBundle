@@ -9,7 +9,6 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
-use function array_map;
 use function spl_object_id;
 
 /**
@@ -29,9 +28,10 @@ final readonly class WikiHistoryTimeline
     /**
      * @param list<WikiPageRevision> $revisions newest first (one page of the history)
      *
-     * @return array<int, array{author: string, named: bool, avatar: string|null, label: string|null, saves: int}> per revision
-     *                                                                                                             number; `saves` is the size of the session on its newest row, 0 on the others; `avatar` (1.16) the
-     *                                                                                                             author's picture URL, only beside a real name
+     * @return array<int, array{author: string, named: bool, avatar: string|null, label: string|null, saves: int, deleted: bool}>
+     *                                                                                                                            per revision number; `saves` is the size of the session on its newest row, 0 on the others;
+     *                                                                                                                            `avatar` (1.16) the author's picture URL, only beside a real name; `deleted` (1.26) true when
+     *                                                                                                                            the author's account was deleted (`author` is then '': the page shows "Former person")
      */
     public function rows(WikiPage $page, array $revisions): array
     {
@@ -49,16 +49,29 @@ final readonly class WikiHistoryTimeline
         }
 
         // 1.16: one avatar resolver call per page of rows, for the authors shown under their real name only.
-        $authors = $this->authors->presentAll(array_map(static fn (WikiPageRevision $revision): object => $revision->getAuthor(), $revisions), $page);
+        // 1.26: a deleted author (null) is not presented: nothing is kept about them, the row reads "Former person".
+        $live = [];
+        foreach ($revisions as $revision) {
+            $author = $revision->getAuthor();
+            if ($author !== null) {
+                $live[] = $author;
+            }
+        }
+        $authors = $this->authors->presentAll($live, $page);
         $rows    = [];
-        foreach ($revisions as $index => $revision) {
-            $number        = $revision->getRevisionNumber();
+        $index   = 0;
+        foreach ($revisions as $revision) {
+            $number = $revision->getRevisionNumber();
+            $author = $revision->getAuthor() !== null
+                ? $authors[$index++] + ['deleted' => false]
+                : ['name' => '', 'named' => false, 'avatarUrl' => null, 'deleted' => true];
             $rows[$number] = [
-                'author' => $authors[$index]['name'],
-                'named'  => $authors[$index]['named'],
-                'avatar' => $authors[$index]['avatarUrl'],
-                'label'  => $labels[$revision->getId()] ?? null,
-                'saves'  => $saves[$number] ?? 0,
+                'author'  => $author['name'],
+                'named'   => $author['named'],
+                'avatar'  => $author['avatarUrl'],
+                'label'   => $labels[$revision->getId()] ?? null,
+                'saves'   => $saves[$number] ?? 0,
+                'deleted' => $author['deleted'],
             ];
         }
 
@@ -73,7 +86,10 @@ final readonly class WikiHistoryTimeline
         if (isset($labels[$newer->getId()]) || isset($labels[$older->getId()])) {
             return true;
         }
-        if ($this->identifier($newer->getAuthor()) !== $this->identifier($older->getAuthor())) {
+        // 1.26: a revision of a deleted author is a session of its own (two former people cannot be told apart).
+        $newerAuthor = $newer->getAuthor();
+        $olderAuthor = $older->getAuthor();
+        if ($newerAuthor === null || $olderAuthor === null || $this->identifier($newerAuthor) !== $this->identifier($olderAuthor)) {
             return true;
         }
 

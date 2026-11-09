@@ -53,7 +53,7 @@ final readonly class WikiApiRevisionOperations
         $rows   = $this->revisions->findByPage($target, WikiApiQuery::PAGE_SIZE + 1, $page * WikiApiQuery::PAGE_SIZE);
         $shown  = array_slice($rows, 0, WikiApiQuery::PAGE_SIZE);
         $labels = $this->labels?->labelsFor($shown) ?? [];
-        $people = $this->people->presentAll($principal, array_map(static fn (WikiPageRevision $r): object => $r->getAuthor(), $shown), $target);
+        $people = $this->people->presentAll($principal, array_map(static fn (WikiPageRevision $r): ?object => $r->getAuthor(), $shown), $target);
         $answer = [];
         foreach ($shown as $index => $revision) {
             $answer[] = $this->serializer->revisionHead($revision, $people[$index], $labels[$revision->getId()] ?? null);

@@ -380,7 +380,7 @@ page and every ancestor): an unreadable page answers 404, a missing right 403.
 Tables (`<prefix>` = `table_prefix` without its trailing `_`): `<prefix>_comment_threads` (page, opaque anchor JSON,
 quote copy, resolved by / at, created by / at, updated at), `<prefix>_comments` (thread, author, Markdown body,
 position, created / edited / deleted at), `<prefix>_comment_reactions` (comment, user, emoji). Threads are deleted with
-their page (purge) and hidden with it (archive, trash). A deleted user's comments stay, without an author name.
+their page (purge) and hidden with it (archive, trash). A deleted user's comments stay, shown as *Former person* (1.26; as do their page revisions).
 
 ## Avatars (1.16)
 

@@ -74,6 +74,124 @@
 
 ## Unreleased
 
+Target: **1.26.0**. From **1.25.x**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+> **Upgrade before you delete any user.** Until 1.25, `<prefix>_page_revisions.author_id` was `NOT NULL ... ON DELETE
+> CASCADE`: deleting a host user deleted every revision they wrote, and pages whose current revision was theirs lost it.
+> From 1.26 the column is nullable with `ON DELETE SET NULL`: the revisions stay and the history shows **Former person**
+> (no name, no picture; the revision keeps no other trace of them). The code change alone does not protect you: **the foreign key
+> must be changed in your database**.
+
+**Code (BC note).** `WikiPageRevision::getAuthor()` returns `?object` (was `object`): null for a revision whose author
+was deleted. Code of yours that calls it (listeners of `nowo_wiki.page.saved`, exports, reports) must handle null. The
+REST API already declared `author` nullable and answers `null` for such revisions. A custom `page_history.html.twig`
+should print `'wiki.history.former_person'|trans` when `row.author_deleted` is true.
+
+**Schema (required).** One column and its foreign key, nothing else. `bin/console doctrine:migrations:diff` generates it
+on MySQL / MariaDB and PostgreSQL; or apply the SQL below. **On SQLite, do not use a generated migration nor
+`doctrine:schema:update`:** use only the SQLite script below (see there why). Apply the schema in the same deployment
+as the code: 1.25 code keeps working on the new schema only until the first user deletion (see *Rolling back*). Use
+your `table_prefix`, your user table and the type of its id, and your foreign key's name.
+
+The name Doctrine generates for the default table `wiki_page_revisions` is **`FK_6C9030C0F675F31B`** (it depends on the
+table name only). If your schema was written by hand it may differ; read it first:
+
+```sql
+-- MySQL, MariaDB
+SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'wiki_page_revisions' AND COLUMN_NAME = 'author_id'
+   AND REFERENCED_TABLE_NAME IS NOT NULL;
+-- PostgreSQL
+SELECT c.conname FROM pg_constraint c
+  JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+ WHERE c.conrelid = 'wiki_page_revisions'::regclass AND c.contype = 'f' AND a.attname = 'author_id';
+```
+
+MySQL / MariaDB, user table `user` with `INT` ids (for example Symfony Beacon, whose name is the Doctrine default):
+
+```sql
+ALTER TABLE wiki_page_revisions DROP FOREIGN KEY FK_6C9030C0F675F31B;
+ALTER TABLE wiki_page_revisions CHANGE author_id author_id INT DEFAULT NULL;
+ALTER TABLE wiki_page_revisions ADD CONSTRAINT FK_6C9030C0F675F31B FOREIGN KEY (author_id) REFERENCES `user` (id) ON DELETE SET NULL;
+```
+
+The `CHANGE` line must repeat the exact type of your user id: `INT UNSIGNED`, `BIGINT`, `VARCHAR(36)` (string / UUID
+ids, e.g. `CHANGE author_id author_id VARCHAR(36) DEFAULT NULL`), `BINARY(16)`… (`SHOW CREATE TABLE wiki_page_revisions`
+shows it). The demo ships it as `demo/symfony8/migrations/Version20261109120000.php` (table `users`, its own key name
+`FK_WIKI_REVISION_AUTHOR`).
+
+PostgreSQL (the type is kept; quote `"user"`, a reserved word there):
+
+```sql
+ALTER TABLE wiki_page_revisions DROP CONSTRAINT FK_6C9030C0F675F31B;
+ALTER TABLE wiki_page_revisions ALTER author_id DROP NOT NULL;
+ALTER TABLE wiki_page_revisions ADD CONSTRAINT FK_6C9030C0F675F31B FOREIGN KEY (author_id) REFERENCES "user" (id) ON DELETE SET NULL NOT DEFERRABLE INITIALLY IMMEDIATE;
+```
+
+SQLite cannot alter a foreign key: the table is rebuilt. **Turn `foreign_keys` off first, outside any transaction**:
+with it on, `DROP TABLE` itself clears every page's current revision and deletes every named version. That is why a
+`doctrine:migrations:diff` migration or `doctrine:schema:update` must not be used here: they issue the same rebuild
+inside a transaction, where `PRAGMA foreign_keys` has no effect, so with foreign keys enabled they destroy those rows
+(audit JT-L2). Run this script as is (e.g. with the `sqlite3` shell), not from a transactional migration. Replace `users` with your user table and `VARCHAR(36)` in `author_id` with your id type (`INTEGER` for
+integer ids):
+
+```sql
+PRAGMA foreign_keys = OFF;
+BEGIN;
+CREATE TEMPORARY TABLE __temp__wiki_page_revisions AS SELECT id, created_at, format, content_text, revision_number, content_html, content_markdown, page_id, author_id FROM wiki_page_revisions;
+DROP TABLE wiki_page_revisions;
+CREATE TABLE wiki_page_revisions (id VARCHAR(36) NOT NULL, created_at DATETIME NOT NULL, format VARCHAR(16) DEFAULT 'html' NOT NULL, content_text CLOB DEFAULT NULL, revision_number INTEGER NOT NULL, content_html CLOB NOT NULL, content_markdown CLOB DEFAULT NULL, page_id VARCHAR(36) NOT NULL, author_id VARCHAR(36) DEFAULT NULL, PRIMARY KEY (id), CONSTRAINT FK_6C9030C0C4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE NOT DEFERRABLE INITIALLY IMMEDIATE, CONSTRAINT FK_6C9030C0F675F31B FOREIGN KEY (author_id) REFERENCES users (id) ON DELETE SET NULL NOT DEFERRABLE INITIALLY IMMEDIATE);
+INSERT INTO wiki_page_revisions (id, created_at, format, content_text, revision_number, content_html, content_markdown, page_id, author_id) SELECT id, created_at, format, content_text, revision_number, content_html, content_markdown, page_id, author_id FROM __temp__wiki_page_revisions;
+DROP TABLE __temp__wiki_page_revisions;
+CREATE UNIQUE INDEX wiki_revision_page_number ON wiki_page_revisions (page_id, revision_number);
+CREATE INDEX IDX_6C9030C0C4663E4 ON wiki_page_revisions (page_id);
+CREATE INDEX IDX_6C9030C0F675F31B ON wiki_page_revisions (author_id);
+PRAGMA foreign_key_check;
+COMMIT;
+PRAGMA foreign_keys = ON;
+```
+
+`PRAGMA foreign_key_check` must return no rows **before you `COMMIT`**: if it reports any (for example `users` not
+replaced by your user table), run `ROLLBACK;` instead, fix the script and run it again. With `wiki_pages` renamed by your prefix, rename it in the `page_id`
+constraint too.
+
+**Pages that already lost their current revision (optional repair).** Revisions deleted by an earlier user deletion are
+gone (only a backup brings them back). A page whose current revision was deleted that way has `current_revision_id`
+`NULL` while older revisions of it remain; this points it at its newest remaining revision (same SQL on MySQL, MariaDB,
+PostgreSQL and SQLite; a page legitimately has a current revision from its creation on, so no other page matches):
+
+```sql
+UPDATE wiki_pages SET current_revision_id = (
+    SELECT r.id FROM wiki_page_revisions r WHERE r.page_id = wiki_pages.id ORDER BY r.revision_number DESC LIMIT 1
+) WHERE current_revision_id IS NULL
+  AND EXISTS (SELECT 1 FROM wiki_page_revisions r2 WHERE r2.page_id = wiki_pages.id);
+```
+
+The page then shows that older text until someone saves it again. List the pages it will touch first:
+
+```sql
+SELECT p.id, p.title FROM wiki_pages p
+ WHERE p.current_revision_id IS NULL AND EXISTS (SELECT 1 FROM wiki_page_revisions r WHERE r.page_id = p.id);
+```
+
+**Rolling back** to 1.25 code is safe **only until the first user deletion** under the new schema. After that, 1.25
+cannot load a revision without an author (its `$author` is a non-nullable typed property): the history, the REST
+revision list and head, and a save conflict on such a page answer 500 (audit JT-L1). Once a user was deleted, stay on
+1.26 or later. Reverting the schema itself also needs every `author_id` set: a revision of a deleted author blocks
+`NOT NULL` (the demo's `down()` refuses then).
+
+**Known limitation (fixed in 1.26.1).** With co-editing on, `<prefix>_page_collab_documents.seeded_by` holds the user
+identifier (usually the e-mail) of the tab that seeded a page's shared log, and deleting the user does not clear it: it
+stays until the next seed or a co-editing reset (audit JT-L3, older than 1.26). For an erasure now, clear it by hand:
+`UPDATE wiki_page_collab_documents SET seeded_by = NULL WHERE seeded_by = '<identifier>' OR seeded_by LIKE '<identifier>#%';`.
+
+**Other relations to the user** are unchanged: links, attachments, comment threads and comments already keep their row
+with the user `SET NULL`; a comment reaction is deleted with its user (it is the user's own mark).
+
 ## To 1.25.1
 
 From **1.25.0**:

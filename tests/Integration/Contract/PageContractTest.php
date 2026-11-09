@@ -406,4 +406,15 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringContainsString('src="/files/maria/s64"', $html);
         self::assertStringContainsString('Editor 3f2a', $html);
     }
+
+    /** 1.26: a revision whose author was deleted reads "Former person", with no picture; the others are unchanged. */
+    public function testHistoryLabelsFormerPeople(): void
+    {
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', PageFixtures::history(false, null, true, true)))->html;
+
+        self::assertSame(1, substr_count($html, 'data-testid="wiki-history-former-person"'));
+        self::assertMatchesRegularExpression('#data-testid="wiki-history-former-person">Former person</span>#', $html);
+        self::assertStringContainsString('Editor 3f2a', $html);
+        self::assertStringNotContainsString('data-testid="wiki-history-avatar"', $html);
+    }
 }

@@ -216,7 +216,7 @@ final class PageFixtures
     /**
      * @return array<string, mixed>
      */
-    public static function history(bool $empty = false, ?WikiPageFactory $factory = null, bool $timeline = false): array
+    public static function history(bool $empty = false, ?WikiPageFactory $factory = null, bool $timeline = false, bool $deletedAuthors = false): array
     {
         $factory ??= self::factory();
         $space     = self::space('engineering', 'Engineering');
@@ -240,10 +240,14 @@ final class PageFixtures
                 $empty ? [] : [2 => self::postForm('wiki_restore_' . $page->getId())],
                 Pagination::fromTotal($empty ? 0 : 3, 1, 2, [2], 2, 'nowo_wiki_page_history', [], ['spaceSlug' => 'engineering', 'pageSlug' => 'deploy']),
                 // 1.16: a named author with a picture, an opaque one without any avatar.
-                $timeline ? [
+                $timeline ? ($deletedAuthors ? [
+                    // 1.26: a deleted account (former person) beside a live one.
+                    3 => ['author' => '', 'named' => false, 'avatar' => null, 'label' => null, 'saves' => 1, 'deleted' => true],
+                    2 => ['author' => 'Editor 3f2a', 'named' => false, 'avatar' => null, 'label' => null, 'saves' => 1, 'deleted' => false],
+                ] : [
                     3 => ['author' => 'Maria Ruiz', 'named' => true, 'avatar' => '/files/maria/s64', 'label' => 'Reviewed', 'saves' => 1],
                     2 => ['author' => 'Editor 3f2a', 'named' => false, 'avatar' => null, 'label' => null, 'saves' => 1],
-                ] : null,
+                ]) : null,
             ),
             'routes'          => self::routes(),
             'dashboard_route' => null,

@@ -19,6 +19,10 @@ use Symfony\Component\Security\Core\User\UserInterface;
  *
  * 1.16: `content_text` is the plain text of `content_html` ({@see WikiPlainText::fromHtml()}), filled when the revision
  * is saved and by `wiki:search:backfill-text`; the search matches it, and hosts may filter on it in SQL (public API).
+ *
+ * 1.26: a revision outlives its author (as TimeTrack time entries do). `author_id` is nullable with `ON DELETE SET
+ * NULL` (it was `NOT NULL ... ON DELETE CASCADE`, so deleting a user deleted every revision they wrote); the history
+ * then shows "Former person" and keeps nothing else about them.
  */
 #[ORM\Entity]
 #[ORM\HasLifecycleCallbacks]
@@ -52,7 +56,8 @@ class WikiPageRevision
      * @param WikiPage $page page this revision belongs to
      * @param int $revisionNumber sequential revision number within the page
      * @param string $contentHtml HTML content of the revision
-     * @param object $author application user entity (remapped at runtime via metadata listener)
+     * @param object|null $author application user entity (remapped at runtime via metadata listener); 1.26: null once
+     *                            the host deleted the account (`ON DELETE SET NULL`); the services always pass one
      * @param string|null $contentMarkdown Markdown source (1.11); when set the revision format is Markdown and
      *                                     $contentHtml is its rendered cache
      */
@@ -61,8 +66,8 @@ class WikiPageRevision
         private WikiPage $page, #[ORM\Column(name: 'revision_number', type: 'integer')]
         private int $revisionNumber, #[ORM\Column(name: 'content_html', type: 'text')]
         private string $contentHtml, #[ORM\ManyToOne(targetEntity: UserInterface::class)]
-        #[ORM\JoinColumn(name: 'author_id', nullable: false, onDelete: 'CASCADE')]
-        private object $author, #[ORM\Column(name: 'content_markdown', type: 'text', nullable: true)]
+        #[ORM\JoinColumn(name: 'author_id', nullable: true, onDelete: 'SET NULL')]
+        private ?object $author, #[ORM\Column(name: 'content_markdown', type: 'text', nullable: true)]
         private ?string $contentMarkdown = null)
     {
         $this->id        = Uuid::generate()->toString();
@@ -180,11 +185,11 @@ class WikiPageRevision
     }
 
     /**
-     * Returns the application user who authored the revision.
+     * Returns the application user who authored the revision; null once the host deleted that user (1.26).
      *
-     * @return object author user entity
+     * @return object|null author user entity
      */
-    public function getAuthor(): object
+    public function getAuthor(): ?object
     {
         return $this->author;
     }
