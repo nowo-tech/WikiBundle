@@ -7,6 +7,7 @@
 - [Symfony AI](#symfony-ai)
 - [Search](#search)
 - [Application integration](#application-integration)
+- [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
@@ -85,6 +86,68 @@ and the form has no space choice ([CONFIGURATION › Host hooks](CONFIGURATION.m
 2. For team spaces, register `WikiTeamMembershipResolverInterface`.
 3. Set **`nowo_ui_kit.layouts.admin`** (once for every UiKit bundle) to your project layout or a one-file bridge that renders the UiKit canonical blocks — every wiki page extends a UiKit scaffold that extends it and stacks `wiki.css` with **`{{ parent() }}`** (REQ-UI-001 / REQ-UI-003). `nowo_wiki.web_ui.layout_template` overrides it for the wiki only. Do not fork wiki pages; see [TEMPLATES.md](TEMPLATES.md).
 4. Seed `WikiSpace` rows per team (or expose a create UI in your app).
+
+## Using it from a DDD / hexagonal application
+
+WikiBundle is a **bounded context with its own model and persistence** (spaces, pages, revisions, links, attachments,
+comments, trash; Doctrine ORM) plus its own UI and REST API. Treat it as a separate "wiki" context: your domain refers
+to wiki pages by id, and the wiki refers to your objects by string ids.
+
+**Keep your domain free of the bundle**
+
+- Do not hold `WikiPage` / `WikiSpace` entities in your aggregates; store the page or space id (UUID string).
+- Spaces are owned by `owner_scope_type` (`team` | `user`) and an `owner_scope_id` string — no relation to your
+  team or user tables.
+- Link wiki pages to your objects with `WikiPageLinkService::link($page, $objectType, $objectId)`; the wiki only keeps
+  the strings and asks your `WikiObjectLinkResolverInterface` what the viewer may see.
+- Call `WikiPageService` / `WikiSpaceService` from an infrastructure adapter behind your own port, not from domain code.
+
+**Ports you implement** (alias the interface to your service, or set the config key)
+
+| Concern | Interface | Config |
+|---|---|---|
+| Who may use the wiki | `Security\WikiAccessCheckerInterface` | `security.access_checker` |
+| Per-space / per-page rights | `Security\WikiSpaceAccessCheckerInterface` | service alias |
+| Team membership | `Security\WikiTeamMembershipResolverInterface` | `team_membership_resolver` |
+| Your objects shown on a page | `Link\WikiObjectLinkResolverInterface` | autoconfigured |
+| Avatars | `Avatar\WikiUserAvatarResolverInterface` | service alias |
+| File storage / scanning | `Attachment\WikiAttachmentStorageInterface`, `WikiAttachmentScannerInterface` | `attachments.storage`, `attachments.scanner` |
+| REST API | `Api\Hook\*Interface` (authenticator, directory, users, plan gate, ...) | `api.hooks.*` |
+
+**Events you listen to** (`Event\WikiEvents`, dispatched after the flush): `PAGE_SAVED`, `PAGE_CREATED`,
+`PAGE_ARCHIVED`, `PAGE_MOVED`, `PAGE_TRASHED`, `TRASH_PURGED`, `PAGE_FILES_PURGED`, `PAGE_LINKED`, `ATTACHMENT_*`,
+`COMMENT_*`, `API_WRITE`; `QUOTA_CHECK` runs **before** a metered write and can `deny()` it. Translate them into your
+own messages in one listener:
+
+    #[AsEventListener(WikiEvents::PAGE_SAVED)]
+    final readonly class WikiPageSavedToDomain
+    {
+        public function __construct(private MessageBusInterface $bus) {}
+
+        public function __invoke(WikiPageSavedEvent $event): void
+        {
+            $actor = $event->actor instanceof User ? $event->actor->getId() : null;
+            $this->bus->dispatch(new KnowledgePageChanged(
+                $event->page->getId(),
+                $event->revision->getRevisionNumber(),
+                $actor,
+            ));
+        }
+    }
+
+**Known limitations**
+
+- `user_class` is required: revision authors, link creators, uploaders, comment authors and reactions are Doctrine
+  `ManyToOne` relations to that class, remapped at runtime by `WikiMetadataListener`. Your user must be a Doctrine
+  entity in the wiki's entity manager (`database.entity_manager`) and be the object your security token returns.
+- Deleting a user row deletes that user's page revisions (`author_id ... ON DELETE CASCADE`); comments keep their
+  text without an author. Deactivate or anonymise users instead of deleting them.
+- Event payloads carry wiki entities and the actor as `?object`; there are no scalar-id events yet except
+  `WikiApiWriteEvent` and `WikiCommentMentionsErasedEvent`.
+- `WikiPageService`, `WikiSpaceService`, `WikiCommentService` and `WikiPageLinkService` are final and have no
+  interface; wrap them in your own port to test your use cases without the wiki.
+- The bundle maps its entities in the default entity manager; with another `database.entity_manager`, add the
+  `WikiBundle` mapping to that manager yourself.
 
 ## Pagination and list limits (REQ-PERF-001)
 
