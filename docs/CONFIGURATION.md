@@ -4,7 +4,8 @@ Root key: `nowo_wiki`.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `user_class` | *(required)* | Application user entity FQCN (the security user may be another class with the same `getId()`, see `WikiUserReferenceResolverInterface`, 1.27) |
+| `user_class` | *(required)* | Application user entity FQCN (the security user may be another class with the same `getId()` when listed in `accepted_user_classes`, 1.27) |
+| `accepted_user_classes` | `[]` | 1.27: security-user classes other than `user_class` stored as `user_class` by their `getId()` (wrappers / read models). Empty: only `user_class` instances write and own comments; any other user is refused, so overlapping ids of another identity domain fail closed. Ids ≤ 0 and empty ids are refused |
 | `table_prefix` | `wiki_` | DB table prefix |
 | `space_scope` | `team` | `team` or `user` |
 | `team_membership_resolver` | null | Service id implementing `WikiTeamMembershipResolverInterface` |

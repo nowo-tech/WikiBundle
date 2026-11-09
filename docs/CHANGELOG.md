@@ -75,10 +75,12 @@ See [UPGRADING](UPGRADING.md#to-1270).
 
 - **User reference resolver.** New port `User\WikiUserReferenceResolverInterface` (default
   `DoctrineWikiUserReferenceResolver`, aliased): revision authors, link creators, uploaders, comment / thread authors,
-  resolvers and reactions are stored through it. `user_class` instances are stored as before; any other user with a
-  `getId()` (a security user that is no Doctrine entity) becomes `getReference(user_class, id)` on the wiki entity
-  manager. Comment ownership ("my comment", "my reactions") also matches by id. The privacy export / erasure of
-  comments accept such a user too.
+  resolvers and reactions are stored through it. `user_class` instances are stored as before; an instance of a class
+  listed in the new option **`accepted_user_classes`** (default `[]`; a security user that is no Doctrine entity)
+  becomes `getReference(user_class, id)` on the wiki entity manager. Any other user is refused
+  (`AccessDeniedException`, audit JX-W1), and ids ≤ 0 / empty ids are refused (`User\WikiUserClassPolicy`). Comment
+  ownership ("my comment", "my reactions") also matches a listed class by id; other classes keep the 1.26
+  identifier rule only. The privacy export / erasure of comments accept a listed user too.
 - **Scalar actor ids on the events.** `actorId(): ?string` on `WikiPageSavedEvent`, `WikiPageCreatedEvent`,
   `WikiPageArchivedEvent`, `WikiPageUnarchivedEvent`, `WikiPageRestoredEvent`, `WikiPageLinkEvent`,
   `WikiPageMovedEvent`, `WikiTrashEvent`, `WikiPageFilesPurgedEvent`, `WikiAttachmentEvent` and `WikiCommentEvent`;

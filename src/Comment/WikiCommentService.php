@@ -37,6 +37,7 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\User\WikiUserId;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Psr\Log\LoggerInterface;
@@ -167,6 +168,7 @@ final readonly class WikiCommentService
      * @param LoggerInterface|null $logger 1.24: a live update the hub refused (the comment is saved; audit IF-L6)
      * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored user relation for a security user that is
      *                                                       no `user_class` entity
+     * @param WikiUserClassPolicy|null $userClasses 1.27 (JX-W1): which users comment ownership may match by id
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -188,6 +190,7 @@ final readonly class WikiCommentService
         private ?WikiEventDeferral $deferral = null,
         private ?LoggerInterface $logger = null,
         private ?WikiUserReferenceResolverInterface $users = null,
+        private ?WikiUserClassPolicy $userClasses = null,
     ) {
     }
 
@@ -1031,9 +1034,10 @@ final readonly class WikiCommentService
 
     private function same(?object $a, UserInterface $b): bool
     {
-        // 1.27: a security user that is no user_class entity matches its stored reference by id.
-        $id = WikiUserId::of($b);
-        if ($id !== null && $id === WikiUserId::of($a)) {
+        // 1.27: a listed wrapper of a user_class row matches that row by id (JX-W1: only accepted classes with a usable
+        // id; Admin#5 never owns Customer#5's comments). Without a policy only the 1.26 identifier rule applies.
+        $id = $this->userClasses?->idOf($b);
+        if ($id !== null && $a !== null && (string) $id === WikiUserId::of($a)) {
             return true;
         }
 

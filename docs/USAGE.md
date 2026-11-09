@@ -103,10 +103,18 @@ to wiki pages by id, and the wiki refers to your objects by string ids.
 - Call the ports `Service\WikiPageServiceInterface` / `Service\WikiSpaceServiceInterface` /
   `Link\WikiPageLinkServiceInterface` (public aliases of the services, 1.27) from an infrastructure adapter, not from
   domain code; replace them with doubles in your tests.
-- Your **security user does not have to be the `user_class` entity** (1.27): `$author` / `$actor` arguments and the
-  token user go through `User\WikiUserReferenceResolverInterface`. The default keeps `user_class` instances and turns
-  any other user with the same `getId()` (a DTO, a read model) into `getReference(user_class, id)` on the wiki entity
-  manager, without a query. Alias the interface to your own resolver when the ids differ.
+- Your **security user does not have to be the `user_class` entity** (1.27), but the wiki only trusts the classes
+  you list: `$author` / `$actor` arguments and the token user go through `User\WikiUserReferenceResolverInterface`.
+  The default keeps `user_class` instances and turns an instance of a class listed in
+  `nowo_wiki.accepted_user_classes` (a DTO, a read model carrying the `user_class` id) into
+  `getReference(user_class, id)` on the wiki entity manager, without a query. Any other user is refused
+  (`AccessDeniedException`) and comment ownership never matches it by id, so a second identity domain with overlapping
+  ids (Admin#5 next to Customer#5) fails closed. Ids of 0, negative ids and empty ids are refused. Alias the interface
+  to your own resolver when the ids differ.
+
+        nowo_wiki:
+            user_class: App\Entity\User
+            accepted_user_classes: [App\Security\SecurityUser]   # default: [] = user_class only
 
 **Ports you implement** (alias the interface to your service, or set the config key)
 

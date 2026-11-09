@@ -85,7 +85,11 @@ exactly as before.
   otherwise alias `Nowo\WikiBundle\User\WikiUserReferenceResolverInterface` to your own resolver.
 - **Adapters:** type-hint `WikiPageServiceInterface`, `WikiSpaceServiceInterface`, `WikiPageLinkServiceInterface`
   instead of the final classes; read `$event->actorId()` instead of casting `$event->actor`.
-- **Comment ownership** now also matches a user whose `getId()` equals the author's (before: the user identifier only).
+- **Comment ownership** now also matches a user of a class listed in `accepted_user_classes` whose `getId()` equals
+  the author's (before: the user identifier only). Unlisted classes keep the identifier rule only.
+- **Fail closed (audit JX-W1):** a security user that is neither `user_class` nor listed in `accepted_user_classes` is
+  refused (`AccessDeniedException`) when it writes a revision, link, attachment or comment. Before 1.27 such a user
+  failed in Doctrine (no entity) or, if it was another entity class, was silently stored under the same id.
 
 ## To 1.26.0
 

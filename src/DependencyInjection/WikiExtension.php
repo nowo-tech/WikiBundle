@@ -117,6 +117,7 @@ use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -255,6 +256,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $emName         = (string) $database['entity_manager'];
 
         $container->setParameter('nowo_wiki.user_class', $config['user_class']);
+        $container->setParameter('nowo_wiki.accepted_user_classes', $config['accepted_user_classes']);
         $container->setParameter('nowo_wiki.spaces_table', $spacesTable);
         $container->setParameter('nowo_wiki.pages_table', $pagesTable);
         $container->setParameter('nowo_wiki.revisions_table', $revisionsTable);
@@ -672,6 +674,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$renderContext', new Reference(WikiRenderContext::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$users', new Reference(WikiUserReferenceResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$userClasses', new Reference(WikiUserClassPolicy::class))
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
         $container->setDefinition(WikiCommentsPanel::class, (new Definition(WikiCommentsPanel::class))

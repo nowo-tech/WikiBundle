@@ -10,10 +10,12 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
 use Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\User\WikiUserId;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 use Stringable;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 /**
  * 1.27: default user reference resolver and scalar user ids.
@@ -30,29 +32,66 @@ final class WikiUserPortsTest extends TestCase
         self::assertSame($dto, (new DoctrineWikiUserReferenceResolver('App\\Missing\\User', $this->provider(null)))->reference($dto), 'Unknown class');
     }
 
-    public function testOtherUsersBecomeReferencesWithTheirRawId(): void
+    public function testListedUsersBecomeReferencesWithTheirRawId(): void
     {
         $reference = new TestUserEntity('id-7');
         $em        = $this->createMock(EntityManagerInterface::class);
         $em->method('isOpen')->willReturn(true);
         $em->expects(self::once())->method('getReference')->with(TestUserEntity::class, 7)->willReturn($reference);
 
-        self::assertSame($reference, (new DoctrineWikiUserReferenceResolver('\\' . TestUserEntity::class, $this->provider($em)))->reference(new WikiSecurityUserDto(7)));
+        $policy = new WikiUserClassPolicy('\\' . TestUserEntity::class, ['\\' . WikiSecurityUserDto::class]);
+        self::assertSame($reference, (new DoctrineWikiUserReferenceResolver('\\' . TestUserEntity::class, $this->provider($em), $policy))->reference(new WikiSecurityUserDto(7)));
     }
 
-    public function testUsersWithoutIdOrANullReferenceKeepTheUser(): void
+    public function testUnlistedClassesAndUnusableIdsAreRefused(): void
+    {
+        $listed  = new WikiUserClassPolicy(TestUserEntity::class, [WikiSecurityUserDto::class, stdClass::class]);
+        $refused = [];
+        foreach ([
+            'unlisted by default' => [new DoctrineWikiUserReferenceResolver(TestUserEntity::class, $this->provider(null)), new WikiSecurityUserDto(3)],
+            'no getId()'          => [new DoctrineWikiUserReferenceResolver(TestUserEntity::class, $this->provider(null), $listed), new stdClass()],
+            'empty id'            => [new DoctrineWikiUserReferenceResolver(TestUserEntity::class, $this->provider(null), $listed), new WikiSecurityUserDto('')],
+            'zero'                => [new DoctrineWikiUserReferenceResolver(TestUserEntity::class, $this->provider(null), $listed), new WikiSecurityUserDto(0)],
+            'negative string'     => [new DoctrineWikiUserReferenceResolver(TestUserEntity::class, $this->provider(null), $listed), new WikiSecurityUserDto('-4')],
+        ] as $case => [$resolver, $user]) {
+            try {
+                $resolver->reference($user);
+                self::fail($case);
+            } catch (AccessDeniedException) {
+                $refused[] = $case;
+            }
+        }
+        self::assertCount(5, $refused);
+    }
+
+    public function testANullReferenceKeepsTheUser(): void
     {
         $em = $this->createStub(EntityManagerInterface::class);
         $em->method('isOpen')->willReturn(true);
         $em->method('getReference')->willReturn(null);
-        $resolver = new DoctrineWikiUserReferenceResolver(TestUserEntity::class, $this->provider($em));
-
-        $object = new stdClass();
-        self::assertSame($object, $resolver->reference($object));
-        $empty = new WikiSecurityUserDto('');
-        self::assertSame($empty, $resolver->reference($empty));
         $dto = new WikiSecurityUserDto(3);
-        self::assertSame($dto, $resolver->reference($dto));
+        self::assertSame($dto, (new DoctrineWikiUserReferenceResolver(TestUserEntity::class, $this->provider($em), new WikiUserClassPolicy(TestUserEntity::class, [WikiSecurityUserDto::class])))->reference($dto));
+    }
+
+    public function testPolicy(): void
+    {
+        $policy = new WikiUserClassPolicy(TestUserEntity::class);
+        self::assertTrue($policy->isAccepted(new TestUserEntity('a')));
+        self::assertFalse($policy->isAccepted(new WikiSecurityUserDto(1)));
+        self::assertSame('a', $policy->idOf(new TestUserEntity('a')));
+        self::assertNull($policy->idOf(new WikiSecurityUserDto(1)));
+        foreach ([1, 'x', 'acc-7'] as $id) {
+            self::assertTrue(WikiUserClassPolicy::isUsableId($id));
+        }
+        foreach ([0, -1, '', ' ', '0', '-2', null, 1.5] as $id) {
+            self::assertFalse(WikiUserClassPolicy::isUsableId($id));
+        }
+        self::assertTrue(WikiUserClassPolicy::isUsableId(new class implements Stringable {
+            public function __toString(): string
+            {
+                return 'uuid';
+            }
+        }));
     }
 
     public function testScalarIds(): void

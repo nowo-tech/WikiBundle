@@ -82,10 +82,17 @@ services:
             $translator: '@?translator'
 
     # 1.27: the stored user relation for a security user that is no user_class entity (hosts alias the interface).
+    # 1.27 (audit JX-W1): only user_class and the listed accepted classes map to a user_class row by getId().
+    Nowo\WikiBundle\User\WikiUserClassPolicy:
+        arguments:
+            $userClass: '%nowo_wiki.user_class%'
+            $acceptedUserClasses: '%nowo_wiki.accepted_user_classes%'
+
     Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver:
         arguments:
             $userClass: '%nowo_wiki.user_class%'
             $entityManagers: '@Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider'
+            $classes: '@Nowo\WikiBundle\User\WikiUserClassPolicy'
 
     Nowo\WikiBundle\User\WikiUserReferenceResolverInterface: '@Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver'
 

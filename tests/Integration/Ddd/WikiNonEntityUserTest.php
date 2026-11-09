@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Integration\Ddd;
 
 use Doctrine\ORM\EntityManager;
 use Doctrine\Persistence\ManagerRegistry;
+use Nowo\WikiBundle\Comment\WikiCommentException;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
@@ -31,13 +32,18 @@ use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
 use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
+
+use function array_map;
 
 /**
  * 1.27 (DDD audit 2026-11-09, P1): a security user that is no `user_class` entity writes revisions, links and comments
@@ -50,6 +56,8 @@ final class WikiNonEntityUserTest extends TestCase
     private DoctrineWikiUserReferenceResolver $users;
 
     private WikiSpace $space;
+
+    private WikiUserClassPolicy $classes;
 
     protected function setUp(): void
     {
@@ -64,7 +72,8 @@ final class WikiNonEntityUserTest extends TestCase
 
         $registry = $this->createStub(ManagerRegistry::class);
         $registry->method('getManager')->willReturn($this->em);
-        $this->users = new DoctrineWikiUserReferenceResolver(TestUserEntity::class, new WikiEntityManagerProvider($registry));
+        $this->classes = new WikiUserClassPolicy(TestUserEntity::class, [WikiSecurityUserDto::class]);
+        $this->users   = new DoctrineWikiUserReferenceResolver(TestUserEntity::class, new WikiEntityManagerProvider($registry), $this->classes);
     }
 
     public function testPagesAndLinksStoreAReferenceAndEventsGiveTheId(): void
@@ -107,7 +116,7 @@ final class WikiNonEntityUserTest extends TestCase
         $this->em->persist($page);
         $this->em->flush();
         $guard    = new WikiSpaceGuard(new FixedSpaceLocator($this->space), new CallbackSpaceAccessChecker(static fn (WikiAction $action): bool => $action !== WikiAction::ModerateComments));
-        $comments = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $guard, new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), users: $this->users);
+        $comments = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $guard, new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), users: $this->users, userClasses: $this->classes);
         $viewer   = new WikiSecurityUserDto('id-ana');
 
         $thread = $comments->create($viewer, $this->space, $page, null, 'First');
@@ -131,5 +140,47 @@ final class WikiNonEntityUserTest extends TestCase
         self::assertCount(1, $export['threads_resolved']);
         self::assertSame(2, $comments->eraseAuthor($viewer));
         self::assertSame([], $comments->exportAuthor($viewer));
+    }
+
+    public function testAnotherIdentityDomainWithTheSameIdCannotTouchTheComments(): void
+    {
+        $page = new WikiPage($this->space, 'faq', 'FAQ');
+        $this->em->persist($page);
+        $this->em->flush();
+        $guard    = new WikiSpaceGuard(new FixedSpaceLocator($this->space), new CallbackSpaceAccessChecker(static fn (WikiAction $action): bool => $action !== WikiAction::ModerateComments));
+        $comments = new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), $guard, new WikiAuthorLabel('secret'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), users: $this->users, userClasses: $this->classes);
+        $customer = $this->em->find(TestUserEntity::class, 'id-ana');
+        self::assertInstanceOf(TestUserEntity::class, $customer);
+        $thread = $comments->create($customer, $this->space, $page, null, 'Mine');
+        $cid    = $thread['comments'][0]['id'];
+        self::assertIsString($cid);
+
+        // Admin "id-ana" of another identity domain (not listed): no write as user_class#id-ana, no edit, no delete.
+        $admin = new WikiForeignAdminUser('id-ana');
+        foreach ([
+            'edit'   => fn (): mixed => $comments->editComment($admin, $this->space, $page, $cid, 'Hijacked'),
+            'delete' => fn (): mixed => $comments->deleteComment($admin, $this->space, $page, $cid),
+        ] as $path => $call) {
+            try {
+                $call();
+                self::fail($path . ' should be refused');
+            } catch (WikiCommentException) {
+            }
+        }
+        try {
+            $comments->create($admin, $this->space, $page, null, 'As Ana');
+            self::fail('create should be refused');
+        } catch (AccessDeniedException) {
+        }
+        self::assertSame(['Mine'], array_map(static fn (array $row): string => $row['body'], $comments->exportAuthor($customer)));
+
+        // Ids 0 / negative are refused even for a listed class.
+        foreach ([0, -5, ''] as $id) {
+            try {
+                $this->users->reference(new WikiSecurityUserDto($id));
+                self::fail('id ' . $id . ' should be refused');
+            } catch (AccessDeniedException) {
+            }
+        }
     }
 }

@@ -32,6 +32,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use ZipArchive;
 
 use function array_keys;
@@ -86,7 +87,7 @@ final class WebUiHooksKernelTest extends TestCase
 
     public function testTheDddPortsAreAliasedAndTakeANonEntityUser(): void
     {
-        $this->boot([], '-defaults');
+        $this->boot(['accepted_user_classes' => [WikiSecurityUserDto::class]], '-ddd');
         $container = $this->services();
         self::assertSame($container->get(WikiPageService::class), $container->get(WikiPageServiceInterface::class));
         self::assertSame($container->get(WikiSpaceService::class), $container->get(WikiSpaceServiceInterface::class));
@@ -99,6 +100,16 @@ final class WebUiHooksKernelTest extends TestCase
         $author = $page->getCurrentRevision()?->getAuthor();
         self::assertInstanceOf(TestUserEntity::class, $author);
         self::assertSame($this->user->getId(), $author->getId());
+    }
+
+    public function testAnUnlistedSecurityUserClassIsRefusedByDefault(): void
+    {
+        $this->boot([], '-defaults');
+        $pages = $this->services()->get(WikiPageServiceInterface::class);
+        self::assertInstanceOf(WikiPageServiceInterface::class, $pages);
+
+        $this->expectException(AccessDeniedException::class);
+        $pages->create($this->space, 'Ports', '<p>x</p>', new WikiSecurityUserDto($this->user->getId()));
     }
 
     public function testTwigIsRegisteredBeforeTheWikiInThisKernel(): void
