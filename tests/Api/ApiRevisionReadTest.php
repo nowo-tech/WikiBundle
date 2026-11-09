@@ -34,6 +34,27 @@ final class ApiRevisionReadTest extends ApiTestCase
         self::assertNull($body['revisions'][0]['author']['id']);
     }
 
+    /** 1.26 (audit JT-I5): a revision whose author was deleted (author_id SET NULL) answers `author: null`. */
+    public function testAFormerPersonsRevisionHasNoAuthor(): void
+    {
+        $page = $this->twoRevisions();
+        // What ON DELETE SET NULL leaves once Bob's account is deleted (portable: SQLite may not enforce the key).
+        $this->em()->getConnection()->executeStatement("UPDATE wiki_page_revisions SET author_id = NULL WHERE author_id = 'u-bob'");
+        $this->em()->clear();
+
+        $list = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId() . '/revisions'));
+        self::assertSame([2, 1], array_column($list['revisions'], 'number'));
+        self::assertNull($list['revisions'][0]['author']);
+        self::assertSame('api-u-ana', $list['revisions'][1]['author']['id']);
+        self::assertNull($this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId() . '/revisions/2'))['author']);
+
+        $head = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId()));
+        self::assertSame(2, $head['revision']);
+        self::assertNull($head['updated_by']);
+        $row = $this->json($this->call('GET', '/wikis/eng/pages'))['pages'][0];
+        self::assertSame([2, null], [$row['revision'], $row['updated_by']]);
+    }
+
     public function testOneRevisionFollowsThePagesView(): void
     {
         $page = $this->twoRevisions();

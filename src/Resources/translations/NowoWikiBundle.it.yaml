@@ -22,7 +22,7 @@ wiki:
     quote_gone: "Il testo commentato non è più nella pagina."
     truncated: "Sono mostrate solo le prime %count% discussioni aperte."
     more_in_editor: "%count% commento/i precedente/i nell’editor"
-    unknown_author: "Utente eliminato"
+    unknown_author: "Ex collaboratore"
     error:
       invalid: "Il commento è vuoto o non valido."
       too_large: "Il commento è troppo lungo (al massimo 10.000 caratteri)."

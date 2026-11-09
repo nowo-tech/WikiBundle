@@ -22,7 +22,7 @@ wiki:
     quote_gone: "De becommentarieerde tekst staat niet meer op de pagina."
     truncated: "Alleen de eerste %count% open discussies worden getoond."
     more_in_editor: "%count% eerdere opmerking(en) in de editor"
-    unknown_author: "Verwijderde gebruiker"
+    unknown_author: "Voormalige persoon"
     error:
       invalid: "De opmerking is leeg of ongeldig."
       too_large: "De opmerking is te lang (maximaal 10.000 tekens)."

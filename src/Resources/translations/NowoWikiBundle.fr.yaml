@@ -22,7 +22,7 @@ wiki:
     quote_gone: "Le texte commenté n’est plus sur la page."
     truncated: "Seuls les %count% premiers fils ouverts sont affichés."
     more_in_editor: "%count% commentaire(s) précédent(s) dans l’éditeur"
-    unknown_author: "Utilisateur supprimé"
+    unknown_author: "Ancienne personne"
     error:
       invalid: "Le commentaire est vide ou invalide."
       too_large: "Le commentaire est trop long (10 000 caractères au plus)."
