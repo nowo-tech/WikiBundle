@@ -37,7 +37,9 @@
         <td class="{{ _cell }}" data-label="{{ 'wiki.history.label'|trans }}">{% if row.label != '' %}<strong>{{ row.label }}</strong>{% endif %}</td>
         <td class="{{ _cell }}" data-label="{{ 'wiki.history.author'|trans }}">
             {#- 1.16: the picture only beside a real name (a hidden "Editor xxxx" has no avatar); decorative: the name follows -#}
-            {%- if row.author_named|default(false) %}<span class="nowo-wiki-author">{{ include('@NowoUiKitBundle/partials/_avatar.html.twig', {name: row.author, src: row.author_avatar|default('') ?: null, size: 'xs', decorative: true, attr: {'data-testid': 'wiki-history-avatar'}}, false) }}<span class="nowo-wiki-author__name">{{ row.author }}</span></span>{% else %}{{ row.author }}{% endif -%}
+            {#- 1.26: the author's account was deleted: nothing is kept about them (as TimeTrack's former person) -#}
+            {%- if row.author_deleted|default(false) %}<span class="nowo-wiki-author nowo-wiki-author--former" data-testid="wiki-history-former-person">{{ 'wiki.history.former_person'|trans }}</span>
+            {%- elseif row.author_named|default(false) %}<span class="nowo-wiki-author">{{ include('@NowoUiKitBundle/partials/_avatar.html.twig', {name: row.author, src: row.author_avatar|default('') ?: null, size: 'xs', decorative: true, attr: {'data-testid': 'wiki-history-avatar'}}, false) }}<span class="nowo-wiki-author__name">{{ row.author }}</span></span>{% else %}{{ row.author }}{% endif -%}
         </td>
     {% endif %}
     <td class="{{ _cell }}" data-label="{{ 'wiki.history.created'|trans }}">{{ row.created }}</td>

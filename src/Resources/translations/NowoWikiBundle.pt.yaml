@@ -153,6 +153,7 @@ wiki:
     label: "Nome da versão"
     label_help: "Dá nome à revisão atual, p. ex. «Antes da migração». As versões com nome nunca são desbastadas."
     author: "Autor"
+    former_person: "Antiga pessoa"
     session_column: "Gravações na sessão"
     save_version: "Guardar versão"
     save_version_title: "Guardar versão de %title%"

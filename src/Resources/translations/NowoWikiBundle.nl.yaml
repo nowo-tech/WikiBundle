@@ -153,6 +153,7 @@ wiki:
     label: "Versienaam"
     label_help: "Geeft de huidige revisie een naam, bijv. ‘Vóór de migratie’. Benoemde versies worden nooit uitgedund."
     author: "Auteur"
+    former_person: "Voormalige persoon"
     session_column: "Opslagen in sessie"
     save_version: "Versie opslaan"
     save_version_title: "Versie van %title% opslaan"

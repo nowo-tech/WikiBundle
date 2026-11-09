@@ -384,8 +384,8 @@ final readonly class WikiPageFactory
      * @param list<WikiPageRevision> $revisions revisions of the current page, newest first
      * @param WikiPageRevision|null $older first revision of the next page (compare target of the last row)
      * @param array<int|string, FormView> $restoreForms revision number => CSRF restore form
-     * @param array<int, array{author: string, avatar?: string|null, named?: bool, label: string|null, saves: int}>|null $timeline 1.15
-     *                                                                                                                             timeline rows per revision number (null: the 1.14 list); 1.16: `avatar` / `named`
+     * @param array<int, array{author: string, avatar?: string|null, named?: bool, label: string|null, saves: int, deleted?: bool}>|null $timeline 1.15
+     *                                                                                                                                             timeline rows per revision number (null: the 1.14 list); 1.16: `avatar` / `named`; 1.26: `deleted`
      * @param array<int|string, FormView> $copyForms 1.15 Copy to new page forms per revision number
      */
     public function history(WikiSpace $space, WikiPage $page, array $revisions, ?WikiPageRevision $older, array $restoreForms, ?Pagination $pagination, ?array $timeline = null, array $copyForms = []): ListPage
@@ -403,13 +403,15 @@ final readonly class WikiPageFactory
             ];
             // 1.15 (`history.timeline`): named version, author and the size of the session on its newest row.
             if ($timeline !== null) {
-                $entry = $timeline[$number] ?? ['author' => '', 'avatar' => null, 'named' => false, 'label' => null, 'saves' => 0];
+                $entry = $timeline[$number] ?? ['author' => '', 'avatar' => null, 'named' => false, 'label' => null, 'saves' => 0, 'deleted' => false];
                 $row += [
                     'label'  => $entry['label'] ?? '',
                     'author' => $entry['author'],
                     // 1.16: the author's picture, only beside a real name (else no avatar at all: avatar contract §11).
                     'author_named'  => $entry['named'] ?? false,
                     'author_avatar' => $entry['avatar'] ?? '',
+                    // 1.26: the author's account was deleted (the template shows "Former person").
+                    'author_deleted' => $entry['deleted'] ?? false,
                     // Rows hold scalars: the count of saves (2 or more) on the newest row of a session.
                     'session' => $entry['saves'] > 1 ? $entry['saves'] : '',
                 ];

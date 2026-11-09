@@ -88,7 +88,7 @@ final readonly class WikiHistoryThinner
     private function thinnable(string $pageId, DateTimeImmutable $cutoff): array
     {
         $em = $this->em();
-        /** @var list<array{id: string, number: int, createdAt: DateTimeInterface, author: int|string}> $old */
+        /** @var list<array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|null}> $old */
         $old = $em->createQueryBuilder()
             ->select('r.id AS id', 'r.revisionNumber AS number', 'r.createdAt AS createdAt', 'IDENTITY(r.author) AS author')
             ->from(WikiPageRevision::class, 'r')
@@ -133,13 +133,17 @@ final readonly class WikiHistoryThinner
     /**
      * Whether $older starts a new session after $newer (both old revisions of one page, newest first).
      *
-     * @param array{id: string, number: int, createdAt: DateTimeInterface, author: int|string} $newer
-     * @param array{id: string, number: int, createdAt: DateTimeInterface, author: int|string} $older
+     * 1.26: a revision whose author was deleted (null) is a session of its own: nothing tells two former people apart,
+     * so none of their revisions is thinned as an older save of someone else's session.
+     *
+     * @param array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|null} $newer
+     * @param array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|null} $older
      * @param array<string, true> $named ids of the named versions (a session of their own)
      */
     private function breaks(array $newer, array $older, array $named): bool
     {
         return isset($named[$newer['id']])
+            || $newer['author'] === null || $older['author'] === null
             || (string) $newer['author'] !== (string) $older['author']
             || $newer['createdAt']->format('Y-m-d') !== $older['createdAt']->format('Y-m-d')
             || $newer['createdAt']->getTimestamp() - $older['createdAt']->getTimestamp() > $this->sessionMinutes * 60;

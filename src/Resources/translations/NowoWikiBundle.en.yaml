@@ -153,6 +153,7 @@ wiki:
     label: "Version name"
     label_help: "Names the current revision, e.g. “Before the migration”. Named versions are never thinned."
     author: "Author"
+    former_person: "Former person"
     session_column: "Saves in session"
     save_version: "Save version"
     save_version_title: "Save version of %title%"
