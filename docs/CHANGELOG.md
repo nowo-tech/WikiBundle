@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.27.0] - 2026-11-09](#1270---2026-11-09)
 - [[1.26.0] - 2026-11-09](#1260---2026-11-09)
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
@@ -67,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.27.0] - 2026-11-09
 
 Target: **1.27.0** (DDD / hexagonal adapter fixes, audit 2026-11-09, P1 "the security user must be the entity").
 See [UPGRADING](UPGRADING.md#to-1270).
@@ -1355,7 +1358,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.26.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.27.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
