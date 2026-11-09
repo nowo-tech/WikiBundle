@@ -94,6 +94,10 @@ Target: **1.26.0** (minor: schema change, and `WikiPageRevision::getAuthor()` re
   `author_deleted`, and `page_history.html.twig` prints *Former person* for them
   (`data-testid="wiki-history-former-person"`).
 
+### Documentation
+
+- USAGE: new section "Using it from a DDD / hexagonal application" (where the bundle sits in a hexagonal host, the ports, events and DTOs to build an anti-corruption layer on, and the known limitations).
+
 ## [1.25.1] - 2026-11-09
 
 ### Fixed
