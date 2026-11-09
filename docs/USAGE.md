@@ -109,8 +109,9 @@ to wiki pages by id, and the wiki refers to your objects by string ids.
   `nowo_wiki.accepted_user_classes` (a DTO, a read model carrying the `user_class` id) into
   `getReference(user_class, id)` on the wiki entity manager, without a query. Any other user is refused
   (`AccessDeniedException`) and comment ownership never matches it by id, so a second identity domain with overlapping
-  ids (Admin#5 next to Customer#5) fails closed. Ids of 0, negative ids and empty ids are refused. Alias the interface
-  to your own resolver when the ids differ.
+  ids (Admin#5 next to Customer#5) fails closed. Ids of 0, negative ids and empty ids are refused. The comment privacy
+  export / erasure (`exportAuthorData()`, `exportAuthor()`, `eraseAuthor()`) throw `AccessDeniedException` for a user
+  of a class that is not accepted. Alias the interface to your own resolver when the ids differ.
 
         nowo_wiki:
             user_class: App\Entity\User
@@ -631,7 +632,9 @@ What a host such as symfony-beacon configures:
    service; keep `history.show_names` as it is (pictures follow names).
 9. Search: switch `WikiPageSearchProvider`'s `LIKE` from `content_markdown` to `content_text`.
 10. Privacy: call `WikiCommentService::exportAuthor()` / `eraseAuthor()` (or `wiki:comments:erase-user`) from its
-    data-subject flows. Since 1.17 also call `eraseMentions([$handle], $erasedLabel)` from the same personal-data
+    data-subject flows. Pass the `user_class` entity (or an instance of an `accepted_user_classes` entry): since 1.27
+    `exportAuthorData()` / `exportAuthor()` / `eraseAuthor()` with a user of another class throw
+    `AccessDeniedException` instead of matching a `user_class` row by its id. Since 1.17 also call `eraseMentions([$handle], $erasedLabel)` from the same personal-data
     eraser: every `@handle` of the erased person in **other people's** comments (body, quoted Markdown) and in inline
     thread quotes becomes the label (`@…` by default), without marking the comments as edited. Matching is
     case-insensitive, accepts a Markdown-escaped `\_`, and never touches a longer handle (`@ana` leaves `@ana.b`) or
