@@ -155,12 +155,30 @@ files. See [UPGRADING](UPGRADING.md#to-1260).
 `DirectiveRendererInterface` supports reads in the per-viewer render (page body, comments, the API reader view):
 
 - `link` (default): a plain link to the card's `href` with its label, as in 1.24.
-- `card`: Milkdown's own file card (badge, name, size; `link`, `icon` and `card` views; no preview frames), linked to the
+- `card`: Milkdown's own file card (badge, name, size; `link`, `icon` and `card` views; 1.28: preview frames, see below), linked to the
   URL Milkdown's host file resolution gave it (see `host_files`) and only if that URL also passes the wiki link policy.
   A refused file reads *Content not visible*, without uuid, name or link. In the API reader view a card reads
   `[name](url)`.
 
 The neutral render (`content_html`) keeps the link either way.
+
+**File previews (1.28, Symfony Beacon spec 212 block B).** `editor.milkdown.file_previews` (default `true`) applies only
+with `file_cards: card`: a `view="preview"` card frames the preview URL the host's Milkdown `FilePreviewResolverInterface`
+gives it, called inside the render's `WikiRenderFrame` (under the API's reach, only for host-reference cards). The frame
+uses Milkdown's `file_preview_sandbox`, `loading="lazy"` and `referrerpolicy="no-referrer"`, the URL must pass the wiki
+link policy, and it reaches the page through `nowo_wiki_safe_html` only (a per-request placeholder survives the
+sanitizer; see [SECURITY](SECURITY.md)). Milkdown's default resolver answers only for `preview` templates, so without a
+host resolver or a template nothing changes. The page's CSP needs `frame-src` for the preview origin. `false`: preview
+cards read as plain cards (as 1.27).
+
+```yaml
+nowo_wiki:
+    editor:
+        type: milkdown
+        milkdown:
+            file_cards: card
+            file_previews: true   # 1.28, default
+```
 
 `card` hides nothing by itself (audit IK-I4): a refused file reads *Content not visible* only while host files are
 resolved (`host_files: auto` with Milkdown's `host_url_patterns` set, or `on`); otherwise the card links its written

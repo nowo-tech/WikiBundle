@@ -8,6 +8,7 @@ use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use LogicException;
 use Nowo\MilkdownEditorBundle\Form\MilkdownEditorType;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\FilePreviewResolverInterface;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
@@ -36,6 +37,7 @@ use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownFileReader;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
@@ -196,6 +198,10 @@ final class WikiExtensionTest extends TestCase
         self::assertTrue($container->hasDefinition(WikiMilkdownRichContent::class));
         self::assertSame(WikiMilkdownPageResolver::class, (string) $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$pages'));
         self::assertFalse($container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$fileCards'));
+        // 1.28 (spec 212 B): previews need file_cards: card.
+        self::assertNull($container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$filePreviews'));
+        self::assertNull($container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$previewFrames'));
+        self::assertFalse($container->hasDefinition(WikiFilePreviewFrames::class));
 
         $sanitizer = $container->getDefinition(WikiHtmlSanitizer::class);
         self::assertSame(['details' => ['data-x', 'open'], 'summary' => []], $sanitizer->getArgument('$extraAllowedElements'));
@@ -215,6 +221,19 @@ final class WikiExtensionTest extends TestCase
         self::assertSame('app.wiki_pages', (string) $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$pages'));
         // 1.25 (WK-8): file_cards: card draws ::file as Milkdown's file card in the per-viewer render.
         self::assertTrue($container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$fileCards'));
+        // 1.28 (spec 212 B): with file cards, previews through the host's resolver; the frames reset between requests.
+        self::assertSame(FilePreviewResolverInterface::class, (string) $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$filePreviews'));
+        self::assertSame(WikiFilePreviewFrames::class, (string) $container->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$previewFrames'));
+        self::assertSame([['method' => 'reset']], $container->getDefinition(WikiFilePreviewFrames::class)->getTag('kernel.reset'));
+
+        $off = new ContainerBuilder();
+        $off->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'editor'     => ['type' => 'milkdown', 'milkdown' => ['file_cards' => 'card', 'file_previews' => false]],
+        ]], $off);
+        self::assertNull($off->getDefinition(MilkdownWikiMarkdownRenderer::class)->getArgument('$filePreviews'));
+        self::assertFalse($off->hasDefinition(WikiFilePreviewFrames::class));
     }
 
     public function testMilkdownEditorNeedsTheMilkdownBundle(): void

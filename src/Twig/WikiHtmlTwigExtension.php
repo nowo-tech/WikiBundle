@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Twig;
 
+use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
@@ -18,6 +19,9 @@ use Twig\TwigFunction;
  * 1.13 (`editor.type: milkdown`): the filter then draws the allowlisted Tabler icons of the dialect
  * ({@see WikiMilkdownIconHydrator}), and `nowo_wiki_rich_content_assets()` prints the Milkdown read-side assets
  * (an empty string with any other editor).
+ *
+ * 1.28 (`editor.milkdown.file_previews`): after sanitizing, the file preview frames the per-viewer render registered
+ * ({@see WikiFilePreviewFrames}) are put back in place of their placeholders.
  */
 final class WikiHtmlTwigExtension extends AbstractExtension
 {
@@ -27,11 +31,13 @@ final class WikiHtmlTwigExtension extends AbstractExtension
      * @param WikiHtmlSanitizerInterface $sanitizer sanitizer applied to page HTML at render time
      * @param WikiMilkdownIconHydrator|null $iconHydrator draws dialect icons after sanitizing (1.13, milkdown)
      * @param WikiMilkdownRichContent|null $richContent read-side assets of the dialect (1.13, milkdown)
+     * @param WikiFilePreviewFrames|null $previewFrames puts back the file preview frames of this request after sanitizing (1.28, milkdown)
      */
     public function __construct(
         private readonly WikiHtmlSanitizerInterface $sanitizer,
         private readonly ?WikiMilkdownIconHydrator $iconHydrator = null,
         private readonly ?WikiMilkdownRichContent $richContent = null,
+        private readonly ?WikiFilePreviewFrames $previewFrames = null,
     ) {
     }
 
@@ -73,8 +79,10 @@ final class WikiHtmlTwigExtension extends AbstractExtension
         }
 
         $html = $this->sanitizer->sanitize($html);
+        $html = $this->iconHydrator instanceof WikiMilkdownIconHydrator ? $this->iconHydrator->hydrate($html) : $html;
 
-        return $this->iconHydrator instanceof WikiMilkdownIconHydrator ? $this->iconHydrator->hydrate($html) : $html;
+        // 1.28: only frames this request's render registered; any other placeholder is removed.
+        return $this->previewFrames instanceof WikiFilePreviewFrames ? $this->previewFrames->hydrate($html) : $html;
     }
 
     /**

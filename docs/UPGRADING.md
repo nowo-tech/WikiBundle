@@ -77,6 +77,29 @@
 
 ## Unreleased
 
+Target **1.28.0**, from **1.27.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+Nothing to do unless you use `editor.milkdown.file_cards: card` **and** your host answers previews (a
+`FilePreviewResolverInterface` of your own, or a `preview` template in `nowo_milkdown_editor.markdown.host_schemes`).
+Then `view="preview"` cards now show their preview frame on the page view and in comments (Symfony Beacon spec 212
+block B). Before updating:
+
+- allow the preview origin in the page's CSP `frame-src` (`'self'` when same-origin); without it the browser blocks
+  the frame and the card's *Open* / *Download* links stay usable;
+- make sure the preview endpoint itself checks the viewer and answers with `Content-Security-Policy: sandbox`,
+  `X-Content-Type-Options: nosniff` and `Content-Disposition: inline` (see MilkdownEditorBundle USAGE, *Previews*);
+- a resolver that depends on the API's reach can read it from `WikiRenderContext::current()` (it is called inside the
+  render's frame); under a reach the wiki only asks about host-reference cards.
+
+To keep 1.27's plain cards, set `editor.milkdown.file_previews: false`. The REST API's reader Markdown is unchanged
+(`[name](url)`, no frame, no *Open* / *Download*). The comment thread JSON `html` carries an empty
+`<span class="nowo-wiki-file-frame …">` placeholder where the panel shows the frame (only `nowo_wiki_safe_html`
+restores frames). A resolver that returns another `https://` origin is framed: keep `frame-src` strict.
+
 ## To 1.27.0
 
 From **1.26.0**:

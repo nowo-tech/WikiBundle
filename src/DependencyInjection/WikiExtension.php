@@ -9,6 +9,7 @@ use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Markdown\HostSchemes;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\FilePreviewResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\HostFileResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
@@ -62,6 +63,7 @@ use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRenderContext;
@@ -535,6 +537,14 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(WikiMilkdownRenderContext::class, (new Definition(WikiMilkdownRenderContext::class))
             ->setArgument('$context', new Reference(WikiRenderContext::class)));
 
+        // 1.28 (spec 212 B): the request's preview frames, kept past the sanitizer (WikiHtmlTwigExtension puts them back).
+        $filePreviews = ($config['editor']['milkdown']['file_previews'] ?? true) === true
+            && ($config['editor']['milkdown']['file_cards'] ?? Configuration::FILE_CARDS_LINK) === Configuration::FILE_CARDS_CARD;
+        if ($filePreviews) {
+            $container->setDefinition(WikiFilePreviewFrames::class, (new Definition(WikiFilePreviewFrames::class))
+                ->addTag('kernel.reset', ['method' => 'reset']));
+        }
+
         $pageResolver = $config['editor']['milkdown']['page_resolver'] ?? null;
         $container->setDefinition(MilkdownWikiMarkdownRenderer::class, (new Definition(MilkdownWikiMarkdownRenderer::class))
             ->setArgument('$options', [])
@@ -550,6 +560,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$renderContext', new Reference(WikiMilkdownRenderContext::class))
             // 1.25 (WK-8): ::file cards as Milkdown's file card in the per-viewer render.
             ->setArgument('$fileCards', ($config['editor']['milkdown']['file_cards'] ?? Configuration::FILE_CARDS_LINK) === Configuration::FILE_CARDS_CARD)
+            // 1.28 (spec 212 B): previews of view="preview" cards through the host's resolver (file_cards: card only).
+            ->setArgument('$filePreviews', $filePreviews ? new Reference(FilePreviewResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE) : null)
+            ->setArgument('$previewFrames', $filePreviews ? new Reference(WikiFilePreviewFrames::class) : null)
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
             // 1.25: MilkdownBridgePass drops the host file arguments when editor.milkdown.host_files says so.
             ->addTag(MilkdownBridgePass::HOST_FILES_TAG, ['mode' => $config['editor']['milkdown']['host_files'] ?? Configuration::HOST_FILES_AUTO]));
