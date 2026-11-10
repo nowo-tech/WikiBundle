@@ -15,6 +15,7 @@ use League\CommonMark\Parser\MarkdownParser;
 use Nowo\MilkdownEditorBundle\Markdown\DialectRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Directive\DirectiveRendererInterface;
 use Nowo\MilkdownEditorBundle\Markdown\DocumentProcessor;
+use Nowo\MilkdownEditorBundle\Markdown\FileCard;
 use Nowo\MilkdownEditorBundle\Markdown\FootnoteGuard;
 use Nowo\MilkdownEditorBundle\Markdown\HostSchemes;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownDialectExtension;
@@ -23,6 +24,7 @@ use Nowo\MilkdownEditorBundle\Markdown\Node\LeafDirective;
 use Nowo\MilkdownEditorBundle\Markdown\Node\Mention;
 use Nowo\MilkdownEditorBundle\Markdown\Node\TablerIcon;
 use Nowo\MilkdownEditorBundle\Markdown\Node\WikiLink;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\FilePreviewResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\HostFileResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullPageResolver;
@@ -39,8 +41,10 @@ use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+use function array_filter;
 use function array_slice;
 use function array_values;
+use function implode;
 use function in_array;
 use function is_array;
 use function is_int;
@@ -83,6 +87,11 @@ use function trim;
  *
  * 1.25 (WK-8, `editor.milkdown.file_cards: card`): in the viewer environment a `::file` card no host renderer supports
  * reads as Milkdown's own file card, linked to the URL the host file resolution gave it ({@see WikiLeafDirectiveRenderer}).
+ *
+ * 1.28 (Symfony Beacon spec 212 block B, `editor.milkdown.file_previews`): with file cards on, the viewer environment
+ * asks the host's `FilePreviewResolverInterface` about `view="preview"` cards inside the render's frame
+ * ({@see WikiMilkdownFilePreviewResolver}) and frames the approved previews with Milkdown's `file_preview_sandbox`
+ * ({@see WikiFilePreviewFrames}). The neutral environment never shows previews.
  */
 final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface, WikiMarkdownReferenceParserInterface, WikiMarkdownLimitsInterface
 {
@@ -119,6 +128,8 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      * @param RenderContextProviderInterface|null $renderContext 1.25: the render's frame for a contextual file resolver
      * @param bool $fileCards 1.25 (WK-8, `editor.milkdown.file_cards: card`): `::file` cards read as Milkdown's file card
      *                        in the viewer environment (false: a plain link, as 1.24)
+     * @param FilePreviewResolverInterface|null $filePreviews 1.28: the host's preview resolver (viewer only, with file cards; null: no previews)
+     * @param WikiFilePreviewFrames|null $previewFrames 1.28: keeps the approved frames past the sanitizer (null: no previews)
      */
     public function __construct(
         array $options,
@@ -133,7 +144,10 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         ?HostFileResolverInterface $hostFiles = null,
         ?RenderContextProviderInterface $renderContext = null,
         bool $fileCards = false,
+        ?FilePreviewResolverInterface $filePreviews = null,
+        ?WikiFilePreviewFrames $previewFrames = null,
     ) {
+        $previews               = $fileCards && $filePreviews instanceof FilePreviewResolverInterface && $previewFrames instanceof WikiFilePreviewFrames;
         $this->maxInputLength   = $this->intOption($options, 'max_input_length', MilkdownMarkdownRenderer::DEFAULT_MAX_INPUT_LENGTH);
         $this->maxInlineMarkers = $this->intOption($options, 'max_inline_markers', MilkdownMarkdownRenderer::DEFAULT_MAX_INLINE_MARKERS);
         $this->maxReferences    = $this->intOption($options, 'max_references', DocumentProcessor::DEFAULT_MAX_REFERENCES);
@@ -155,6 +169,8 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
             $hostFiles instanceof HostFileResolverInterface ? new WikiMilkdownHostFileResolver($hostFiles) : null,
             $renderContext,
             $fileCards,
+            $previews && $filePreviews instanceof FilePreviewResolverInterface ? new WikiMilkdownFilePreviewResolver($filePreviews, $hostSchemes ?? new HostSchemes(), $renderContext) : null,
+            $previews ? $previewFrames : null,
         ));
     }
 
@@ -228,6 +244,8 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      * @param list<ExtensionInterface> $extensions
      * @param HostSchemes $hostSchemes host schemes and URL patterns (empty in the neutral environment)
      * @param bool $fileCards 1.25 (WK-8): `::file` cards as Milkdown's file card (viewer environment only)
+     * @param WikiMilkdownFilePreviewResolver|null $previews 1.28: previews of `view="preview"` cards (viewer environment only)
+     * @param WikiFilePreviewFrames|null $previewFrames 1.28: where the approved frames wait for the sanitizer to pass
      */
     private function environment(
         array $options,
@@ -242,6 +260,8 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         ?WikiMilkdownHostFileResolver $hostFiles = null,
         ?RenderContextProviderInterface $renderContext = null,
         bool $fileCards = false,
+        ?WikiMilkdownFilePreviewResolver $previews = null,
+        ?WikiFilePreviewFrames $previewFrames = null,
     ): Environment {
         $htmlInput   = $options['html_input'] ?? 'escape';
         $markColors  = $options['mark_colors'] ?? ['yellow'];
@@ -294,6 +314,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
                 $this->maxReferences,
                 $hostSchemes,
                 $hostFiles,
+                $previews,
                 renderContext: $renderContext,
                 hideRefusedLinks: ($options['host_refused_links'] ?? 'text') === 'hidden',
             ),
@@ -304,7 +325,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         }
 
         $environment->addRenderer(TablerIcon::class, new WikiTablerIconRenderer($icons), 10);
-        $environment->addRenderer(LeafDirective::class, new WikiLeafDirectiveRenderer($directiveRenderers, $translator, $fileCards), 10);
+        $environment->addRenderer(LeafDirective::class, new WikiLeafDirectiveRenderer($directiveRenderers, $translator, $fileCards, $previewFrames, $previewFrames instanceof WikiFilePreviewFrames ? FileCard::sandbox($this->sandboxTokens($options)) : ''), 10);
         if (!$hostSchemes->isEmpty()) {
             // 1.25 (audit IJ-L2): URL attributes of leaf directives that name host files go through the resolver too.
             $environment->addEventListener(DocumentParsedEvent::class, (new WikiLeafHostFiles($hostSchemes, $hostFiles, $renderContext, $directiveRenderers, $this->maxReferences, $logger))->onDocumentParsed(...), -50);
@@ -312,6 +333,19 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         $environment->addEventListener(DocumentParsedEvent::class, new WikiTaskListNormalizer(), -100);
 
         return $environment;
+    }
+
+    /**
+     * 1.28: Milkdown's `file_preview_sandbox` (a list in its configuration), space separated; FileCard::sandbox() keeps
+     * the allowed tokens only.
+     *
+     * @param array<string, mixed> $options
+     */
+    private function sandboxTokens(array $options): string
+    {
+        $tokens = $options['file_preview_sandbox'] ?? [];
+
+        return is_array($tokens) ? implode(' ', array_filter($tokens, is_string(...))) : '';
     }
 
     /**

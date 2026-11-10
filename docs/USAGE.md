@@ -445,6 +445,13 @@ With `nowo_wiki.editor.type: milkdown` ([CONFIGURATION](CONFIGURATION.md#milkdow
 
 **Limits** are Milkdown's (`nowo_milkdown_editor.markdown`, `%env()%` values are read at runtime): a document over `max_input_length` bytes or `max_inline_markers` inline delimiters is shown as escaped plain text, unparsed, and `MilkdownEditorType` refuses to save it; at most `max_references` distinct page ids and handles reach the resolvers.
 
+**File previews (1.28, spec 212 block B).** With `editor.milkdown.file_cards: card`, a file card in *preview* view
+(`::file[report.csv]{href="/files/<uuid>/original" view="preview"}`) shows the preview your Milkdown
+`FilePreviewResolverInterface` approves for the viewer, in a sandboxed, lazy, no-referrer frame on the page view and in
+comments. Nothing to wire: the wiki passes Milkdown's resolver alias (call it inside the render: `WikiRenderContext::current()`
+names the space, page and API reach) and Milkdown's `file_preview_sandbox`. Allow the preview origin in your CSP
+`frame-src`. Turn it off with `editor.milkdown.file_previews: false` ([CONFIGURATION](CONFIGURATION.md)).
+
 **Page links in wiki pages** are resolved by `WikiMilkdownPageResolver` (one query per document, each space decided once): not archived, the general list gate, and `WikiAction::View` on the space, the page and each ancestor. Point `editor.milkdown.page_resolver` at your own service to change it (e.g. Beacon's resolver that also links issues and tasks).
 
 ### Co-editing (1.13)

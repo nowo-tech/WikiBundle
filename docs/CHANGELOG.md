@@ -69,6 +69,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: **1.28.0** (Symfony Beacon spec 212 block B: file previews on the wiki read page). See
+[UPGRADING](UPGRADING.md#unreleased). Works with the required MilkdownEditorBundle `^1.13` (no new Milkdown release
+needed).
+
+### Added
+
+- **File previews in the per-viewer render (`editor.milkdown.file_previews`, default `true`, only with
+  `file_cards: card`):** a `::file[…]{… view="preview"}` card now frames the preview URL the host's Milkdown
+  `FilePreviewResolverInterface` approves for it, instead of always reading as a plain card. The resolver is called
+  once per render, inside the render's `WikiRenderFrame` (space, page, reach; new `WikiMilkdownFilePreviewResolver`),
+  and only about cards the viewer may see (a refused host file still reads *Content not visible*). Under the REST
+  API's reach only host-reference cards are asked about (they already passed the reach-aware host file resolution); a
+  plain-URL card gets no preview there.
+- The frame is Milkdown's `FileCard` frame: `sandbox` from `nowo_milkdown_editor.markdown.file_preview_sandbox`
+  through `FileCard::sandbox()` (never `allow-scripts` with `allow-same-origin` or `allow-popups-to-escape-sandbox`),
+  `loading="lazy"`, `referrerpolicy="no-referrer"`. The preview URL must also pass the wiki link policy
+  (`WikiLeafDirectiveRenderer::safeUrl()`: no `javascript:`, `data:`, `http:`, `//host` or ambiguous paths).
+- **`WikiFilePreviewFrames`** (request-scoped, `kernel.reset`, at most 1000 frames): the wiki sanitizer never lets a
+  sandboxed `<iframe>` through, so the render writes an empty placeholder with a 128-bit random token and
+  `nowo_wiki_safe_html` puts the frame back after sanitizing. Only frames this request's render registered are
+  restored; any other placeholder (stored HTML, HTML revisions, comments, author text) is removed, never framed.
+
+### Changed
+
+- `MilkdownWikiMarkdownRenderer` takes two optional arguments (`$filePreviews`, `$previewFrames`),
+  `WikiLeafDirectiveRenderer` two (`$previewFrames`, `$previewSandbox`) and `WikiHtmlTwigExtension` one
+  (`$previewFrames`). With `file_cards: link` (the default), `file_previews: false`, or no resolver answer (Milkdown's
+  default resolver without a `preview` template) the output is byte-for-byte the 1.27 output.
+
 ## [1.27.0] - 2026-11-09
 
 Target: **1.27.0** (DDD / hexagonal adapter fixes, audit 2026-11-09, P1 "the security user must be the entity").
