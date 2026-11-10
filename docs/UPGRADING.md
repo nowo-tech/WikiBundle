@@ -95,9 +95,10 @@ block B). Before updating:
 - a resolver that depends on the API's reach can read it from `WikiRenderContext::current()` (it is called inside the
   render's frame); under a reach the wiki only asks about host-reference cards.
 
-To keep 1.27's plain cards, set `editor.milkdown.file_previews: false`. The REST API's HTML bodies carry an empty
-`<span class="nowo-wiki-file-frame …">` placeholder where the frame would be (only `nowo_wiki_safe_html` restores
-frames).
+To keep 1.27's plain cards, set `editor.milkdown.file_previews: false`. The REST API's reader Markdown is unchanged
+(`[name](url)`, no frame, no *Open* / *Download*). The comment thread JSON `html` carries an empty
+`<span class="nowo-wiki-file-frame …">` placeholder where the panel shows the frame (only `nowo_wiki_safe_html`
+restores frames). A resolver that returns another `https://` origin is framed: keep `frame-src` strict.
 
 ## To 1.27.0
 

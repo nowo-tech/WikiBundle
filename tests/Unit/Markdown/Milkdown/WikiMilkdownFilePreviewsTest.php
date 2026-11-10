@@ -16,6 +16,7 @@ use Nowo\MilkdownEditorBundle\Markdown\Resolver\TemplateFilePreviewResolver;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiLeafDirectiveRenderer;
@@ -24,6 +25,7 @@ use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRenderContext;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Markdown\WikiRenderFrame;
 use Nowo\WikiBundle\Markdown\WikiRenderReach;
+use Nowo\WikiBundle\Markdown\WikiViewerMarkdownView;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Twig\WikiHtmlTwigExtension;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -48,6 +50,7 @@ use function substr_count;
 #[CoversClass(WikiMilkdownFilePreviewResolver::class)]
 #[CoversClass(WikiFilePreviewFrames::class)]
 #[CoversClass(WikiHtmlTwigExtension::class)]
+#[CoversClass(WikiViewerMarkdownView::class)]
 final class WikiMilkdownFilePreviewsTest extends TestCase
 {
     private const ENG_FILE = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -188,6 +191,43 @@ final class WikiMilkdownFilePreviewsTest extends TestCase
         self::assertStringNotContainsString('<iframe', $this->page($this->renderer(new FixedPreviews(null)), $card));
     }
 
+    /** Audit KG-W-L1 / KG-W-I4: the reader's Markdown (REST API) keeps the 1.27 output and registers no frame. */
+    public function testTheReaderMarkdownKeepsThe127Output(): void
+    {
+        $previews = new BeaconLikePreviews();
+        $card     = $this->card(self::ENG_FILE);
+        $view     = new WikiViewerMarkdownView($this->renderer($previews), new WikiHtmlSanitizer(), new WikiMarkdownConverter(true), $this->context, previewFrames: $this->frames);
+        $before   = (new WikiViewerMarkdownView($this->renderer(null, frames: false), new WikiHtmlSanitizer(), new WikiMarkdownConverter(true), $this->context))->markdown($this->eng, $this->page, $card);
+
+        self::assertSame('[data.csv](/files/' . self::ENG_FILE . '/original)', $before);
+        self::assertSame($before, $view->markdown($this->eng, $this->page, $card));
+        self::assertSame($before, $view->markdown($this->eng, $this->page, $card, $this->onlyEng()));
+        // Nothing waits in the store: all 1000 frames are still free, and the page view frames again afterwards.
+        $frame = '<iframe class="nowo-md-file__frame" src="/p" title="a" sandbox="" loading="lazy" referrerpolicy="no-referrer" height="320"></iframe>';
+        for ($i = 0; $i < WikiFilePreviewFrames::MAX_FRAMES; ++$i) {
+            self::assertNotNull($this->frames->placeholder($frame));
+        }
+        $this->frames->reset();
+        self::assertStringContainsString('<iframe', $this->page($this->renderer($previews), $card));
+
+        // Without the frames service the actions would still be stripped (decoration).
+        $actions = (new WikiViewerMarkdownView($this->renderer(new BeaconLikePreviews()), new WikiHtmlSanitizer(), new WikiMarkdownConverter(true), $this->context))->markdown($this->eng, $this->page, $card);
+        self::assertSame($before, $actions);
+    }
+
+    public function testFramesAreSuspendedOnlyInsideWithoutFrames(): void
+    {
+        $frame = '<iframe class="nowo-md-file__frame" src="/p" title="a" sandbox="" loading="lazy" referrerpolicy="no-referrer" height="320"></iframe>';
+        self::assertNull($this->frames->withoutFrames(fn (): ?string => $this->frames->placeholder($frame)));
+        try {
+            $this->frames->withoutFrames(static function (): never {
+                throw new RuntimeException('render failed');
+            });
+        } catch (RuntimeException) {
+        }
+        self::assertNotNull($this->frames->placeholder($frame));
+    }
+
     public function testForgedPlaceholdersAreRemoved(): void
     {
         $twig = new WikiHtmlTwigExtension(new WikiHtmlSanitizer(), previewFrames: $this->frames);
@@ -203,6 +243,10 @@ final class WikiMilkdownFilePreviewsTest extends TestCase
         $place = $this->frames->placeholder($frame);
         self::assertNotNull($place);
         self::assertSame('<div>' . $frame . '</div>', $this->frames->hydrate('<div>' . $place . '</div>'));
+        // Single use (audit KG-W-I1): a second copy, or a later hydration, gets no frame.
+        $again = (string) $this->frames->placeholder($frame);
+        self::assertSame('<p>' . $frame . '</p><p></p>', $this->frames->hydrate('<p>' . $again . '</p><p>' . $again . '</p>'));
+        self::assertSame('', $this->frames->hydrate($place));
         // Only Milkdown's frame markup is kept.
         foreach ([
             '<iframe class="nowo-md-file__frame" src="/p" title="a" sandbox="" loading="lazy" referrerpolicy="no-referrer" height="320" onload="x()"></iframe>',

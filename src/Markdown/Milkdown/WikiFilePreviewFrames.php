@@ -27,7 +27,8 @@ use function str_contains;
  * `safeUrl()` and the wiki link policy, the `file_preview_sandbox` sandbox, `loading="lazy"`,
  * `referrerpolicy="no-referrer"`) is ever written back.
  *
- * Request-scoped: emptied by `kernel.reset` (FrankenPHP worker mode) and bounded to {@see self::MAX_FRAMES} frames.
+ * Request-scoped: emptied by `kernel.reset` (FrankenPHP worker mode) and bounded to {@see self::MAX_FRAMES} frames
+ * waiting for hydration; a token is used once. Renders that are never hydrated run {@see self::withoutFrames()}.
  */
 final class WikiFilePreviewFrames implements ResetInterface
 {
@@ -46,6 +47,9 @@ final class WikiFilePreviewFrames implements ResetInterface
     /** @var array<string, string> frame markup by token */
     private array $frames = [];
 
+    /** Renders in progress that are never hydrated ({@see self::withoutFrames()}). */
+    private int $suspended = 0;
+
     /**
      * Keeps a frame for {@see self::hydrate()} and returns its placeholder, or null when the frame is not the markup
      * Milkdown writes or the request holds {@see self::MAX_FRAMES} frames already.
@@ -54,7 +58,7 @@ final class WikiFilePreviewFrames implements ResetInterface
      */
     public function placeholder(string $frame): ?string
     {
-        if (count($this->frames) >= self::MAX_FRAMES || preg_match(self::FRAME, $frame) !== 1) {
+        if ($this->suspended > 0 || count($this->frames) >= self::MAX_FRAMES || preg_match(self::FRAME, $frame) !== 1) {
             return null;
         }
         $token                = bin2hex(random_bytes(16));
@@ -64,7 +68,28 @@ final class WikiFilePreviewFrames implements ResetInterface
     }
 
     /**
-     * Puts the frames of this request back into sanitized HTML; any other placeholder is removed.
+     * Runs a render whose HTML is never hydrated (the reader's Markdown of the REST API): its preview cards read as plain
+     * cards, as in 1.27, and register nothing (audit KG-W-L1, KG-W-I4).
+     *
+     * @template T
+     *
+     * @param callable(): T $render
+     *
+     * @return T
+     */
+    public function withoutFrames(callable $render): mixed
+    {
+        ++$this->suspended;
+        try {
+            return $render();
+        } finally {
+            --$this->suspended;
+        }
+    }
+
+    /**
+     * Puts the frames of this request back into sanitized HTML; any other placeholder is removed. A token is used once
+     * (audit KG-W-I1): a second copy of a placeholder is removed too.
      *
      * @param string $html sanitized page HTML
      */
@@ -74,11 +99,17 @@ final class WikiFilePreviewFrames implements ResetInterface
             return $html;
         }
 
-        return preg_replace_callback(self::PLACEHOLDER, fn (array $match): string => $this->frames[$match[1]] ?? '', $html) ?? $html;
+        return preg_replace_callback(self::PLACEHOLDER, function (array $match): string {
+            $frame = $this->frames[$match[1]] ?? '';
+            unset($this->frames[$match[1]]);
+
+            return $frame;
+        }, $html) ?? $html;
     }
 
     public function reset(): void
     {
-        $this->frames = [];
+        $this->frames    = [];
+        $this->suspended = 0;
     }
 }

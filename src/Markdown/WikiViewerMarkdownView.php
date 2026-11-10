@@ -8,6 +8,7 @@ use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 
 use function html_entity_decode;
@@ -39,9 +40,10 @@ final readonly class WikiViewerMarkdownView
 
     /**
      * 1.25 (WK-8): the badge and size of a Milkdown file card (`editor.milkdown.file_cards: card`), left out of the
-     * reader's Markdown so a card reads `[name](url)` as with the plain link.
+     * reader's Markdown so a card reads `[name](url)` as with the plain link. 1.28: also the *Open* / *Download* actions
+     * of a preview card (audit KG-W-L1; the reader view renders without preview frames anyway).
      */
-    private const FILE_CARD_DECORATION = '#<span class="nowo-md-file__(?:badge|size)"[^>]*>[^<]*</span>#';
+    private const FILE_CARD_DECORATION = '#<span class="nowo-md-file__(?:badge|size)"[^>]*>[^<]*</span>|<span class="nowo-md-file__actions"[^>]*>.*?</span>#s';
 
     /** An anchor of sanitized HTML, its `href` captured. */
     private const ANCHOR = '#<a\\b[^>]*?\\shref="([^"]*)"[^>]*>.*?</a>#s';
@@ -52,6 +54,7 @@ final readonly class WikiViewerMarkdownView
         private WikiMarkdownConverter $converter,
         private WikiRenderContext $renderContext,
         private ?WikiAttachmentReferenceFilter $attachmentFilter = null,
+        private ?WikiFilePreviewFrames $previewFrames = null,
     ) {
     }
 
@@ -74,7 +77,7 @@ final readonly class WikiViewerMarkdownView
 
         $renderer       = $this->renderer;
         [$html, $frame] = $renderer instanceof WikiViewerMarkdownRendererInterface
-            ? $this->renderContext->within($space, $page, static fn (WikiRenderFrame $frame): array => [$renderer->renderForViewer($markdown), $frame], $reach)
+            ? $this->renderContext->within($space, $page, fn (WikiRenderFrame $frame): array => [$this->previewFrames instanceof WikiFilePreviewFrames ? $this->previewFrames->withoutFrames(static fn (): string => $renderer->renderForViewer($markdown)) : $renderer->renderForViewer($markdown), $frame], $reach)
             : [$renderer->render($markdown), null];
 
         $html = $this->sanitizer->sanitize($html);

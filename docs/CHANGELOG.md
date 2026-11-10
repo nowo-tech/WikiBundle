@@ -90,6 +90,11 @@ needed).
   sandboxed `<iframe>` through, so the render writes an empty placeholder with a 128-bit random token and
   `nowo_wiki_safe_html` puts the frame back after sanitizing. Only frames this request's render registered are
   restored; any other placeholder (stored HTML, HTML revisions, comments, author text) is removed, never framed.
+  Tokens are single-use (audit KG-W-I1).
+- The reader's Markdown (`WikiViewerMarkdownView`, the REST API `markdown` for readers) renders without preview frames
+  and strips a preview card's *Open* / *Download* actions, so a card still reads `[name](url)` as in 1.27 and registers
+  no frame (audit KG-W-L1, KG-W-I4). Comment thread JSON `html` keeps an empty placeholder span where the panel shows
+  the frame (KG-W-I3).
 
 ### Changed
 
