@@ -81,7 +81,7 @@ final class PageContractTest extends PageContractTestCase
     private static function layout130(array $context, string $position = 'card'): array
     {
         $context                               = self::layoutContext($context);
-        $context['nowo_wiki_web_ui']['layout'] = ['tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => $position] + $context['nowo_wiki_web_ui']['layout'];
+        $context['nowo_wiki_web_ui']['layout'] = ['tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => $position, 'seamless_swap' => true] + $context['nowo_wiki_web_ui']['layout'];
         $context['nowo_wiki_web_ui']['slots']  = ['page_header_toolbar' => 'slots/page_header_toolbar.html.twig'];
         $context['title_in_body']              = true;
         $context['tree_rail']['collapsed']     = true;
@@ -391,6 +391,31 @@ final class PageContractTest extends PageContractTestCase
         $reader = $this->renderWithKitHeader(self::historyTabs(false), '@NowoWikiBundle/manage/page_history.html.twig');
         self::assertStringNotContainsString('wiki-toolbar-edit', $reader);
         self::assertStringNotContainsString('wiki-toolbar-back', $this->renderWithKitHeader(PageFixtures::history(), '@NowoWikiBundle/manage/page_history.html.twig'));
+    }
+
+    /**
+     * 1.30 web_ui.read_view.seamless_swap: the read-only editor and the server body share one box (no `hidden` on the
+     * editor, the same card / card_body slots as the body); the server dedupe mark is printed for the first paint.
+     * Off (the default) and without the read-only editor: the 1.29 markup.
+     */
+    public function testTheSeamlessReadSwap(): void
+    {
+        $context                                   = PageFixtures::pageView(true, null, false);
+        $context['comments_view']['dedupe_title']  = 'Deploy';
+        $context['comments_view']['title_deduped'] = true;
+        $off                                       = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $context))->html;
+        self::assertStringNotContainsString('data-nowo-wiki-read-swap', $off);
+        self::assertSame(1, preg_match('#<div class="nowo-wiki-comments-view" data-nowo-wiki-comments-view data-testid="wiki-comments-view" data-nowo-wiki-dedupe-title="Deploy" data-nowo-wiki-title-deduped hidden>#', $off));
+
+        $context['nowo_wiki_web_ui'] = ['layout' => ['seamless_swap' => true]];
+        $html                        = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $context))->html;
+        self::assertSame(1, preg_match('#<div class="nowo-wiki-read-swap" data-nowo-wiki-read-swap="pending" data-testid="wiki-read-swap">\s*<div class="[^"]*nowo-wiki-comments-view" data-nowo-wiki-comments-view data-testid="wiki-comments-view" data-nowo-wiki-dedupe-title="Deploy" data-nowo-wiki-title-deduped[^>]*>\s*<div class="[^"]*nowo-wiki-comments-view__body">.*?</div>\s*</div>\s*<article class="[^"]*nowo-wiki-page" data-nowo-wiki-server-body[^>]*>.*?</article>\s*</div>#s', $html));
+        self::assertSame(0, preg_match('#data-nowo-wiki-comments-view[^>]*hidden#', $html));
+
+        // Without the read-only editor (a reader without the source) there is nothing to swap.
+        $reader                     = PageFixtures::pageView(false, null, false, false);
+        $reader['nowo_wiki_web_ui'] = ['layout' => ['seamless_swap' => true]];
+        self::assertStringNotContainsString('data-nowo-wiki-read-swap', $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $reader))->html);
     }
 
     /**

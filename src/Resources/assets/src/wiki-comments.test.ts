@@ -2,15 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     bindWikiComments,
     DEDUPED_ATTR,
+    focusInView,
     hideDuplicateTitle,
     isDrawerLayout,
     normaliseTitle,
     openRequestedPanel,
     PANEL_ID,
+    READ_SWAP_ATTR,
     setCommentsCount,
     setNavigator,
     setStatePoster,
     showCommentsEditor,
+    swapReadView,
     type SidePanelApi,
 } from './wiki-comments';
 
@@ -345,5 +348,113 @@ describe('wiki comments 1.29: requested panel and title dedupe', () => {
         delete (window as { matchMedia?: unknown }).matchMedia;
         expect(isDrawerLayout(panel)).toBe(false);
         expect(isDrawerLayout(panel, null)).toBe(false);
+    });
+});
+
+describe('wiki comments 1.30: seamless read swap', () => {
+    const swapMarkup = `
+        <div class="nowo-wiki-read-swap" data-nowo-wiki-read-swap="pending" id="swap">
+            <div class="nowo-wiki-comments-view" data-nowo-wiki-comments-view data-nowo-wiki-dedupe-title="Deploy" data-nowo-wiki-title-deduped id="view"><div class="nowo-milkdown" id="root"></div></div>
+            <article data-nowo-wiki-server-body id="server"><a href="/x" id="server-link">Body</a> <a href="/only-here" id="lonely">Only</a> <button type="button" id="server-button">B</button></article>
+            <section id="host">A host body without the marker</section>
+        </div>
+        <div data-nowo-wiki-server-body id="outside">Elsewhere</div>
+        <aside id="${PANEL_ID}"><div data-nowo-wiki-comments-fallback id="fallback"></div></aside>`;
+
+    beforeEach(() => {
+        document.body.innerHTML = swapMarkup;
+        bindWikiComments(document);
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('keeps both in the same box and marks it ready when the editor is ready, never hiding either (1.30)', () => {
+        const swap = document.getElementById('swap') as HTMLElement;
+        const view = document.getElementById('view') as HTMLElement;
+        const server = document.getElementById('server') as HTMLElement;
+        const root = document.getElementById('root') as HTMLElement;
+        // Before: the server body shows, the editor is laid out invisibly (CSS), the heading already deduped (server).
+        expect(swap.getAttribute(READ_SWAP_ATTR)).toBe('pending');
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(true);
+
+        root.innerHTML = '<div class="ProseMirror" contenteditable="false"><h1>Deploy</h1><p>Steps</p></div>';
+        fire(root, 'nowo-milkdown:ready');
+
+        expect(swap.getAttribute(READ_SWAP_ATTR)).toBe('ready');
+        // No `hidden` on either: the cell keeps its size (no reflow); the body leaves the tab order and the a11y tree.
+        expect(view.hidden).toBe(false);
+        expect(server.hidden).toBe(false);
+        expect(server.hasAttribute('inert')).toBe(true);
+        expect(server.getAttribute('aria-hidden')).toBe('true');
+        // The dedupe stays (the editor's heading equals the title); a body outside the box is left alone.
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(true);
+        const outside = document.getElementById('outside') as HTMLElement;
+        expect(outside.hidden).toBe(false);
+        expect(outside.hasAttribute('inert')).toBe(false);
+        expect((document.getElementById('fallback') as HTMLElement).hidden).toBe(true);
+
+        // Once only.
+        expect(swapReadView(swap)).toBe(false);
+    });
+
+    it('hides every other child of the box, also a host body without the marker (audit MG-3-L2)', () => {
+        const root = document.getElementById('root') as HTMLElement;
+        root.innerHTML = '<div class="ProseMirror"><p>Body</p></div>';
+        fire(root, 'nowo-milkdown:ready');
+        const host = document.getElementById('host') as HTMLElement;
+        expect(host.hasAttribute('inert')).toBe(true);
+        expect(host.getAttribute('aria-hidden')).toBe('true');
+        expect((document.getElementById('view') as HTMLElement).hasAttribute('inert')).toBe(false);
+    });
+
+    it('moves the focus out of the body before it becomes inert (audit MG-3-L1)', () => {
+        const swap = document.getElementById('swap') as HTMLElement;
+        const view = document.getElementById('view') as HTMLElement;
+        const root = document.getElementById('root') as HTMLElement;
+        root.innerHTML = '<div class="ProseMirror"><p><a href="/x" id="editor-link">Body</a></p></div>';
+
+        // A focused link: its twin in the editor.
+        (document.getElementById('server-link') as HTMLElement).focus();
+        expect(swapReadView(swap)).toBe(true);
+        expect(document.activeElement?.id).toBe('editor-link');
+        expect(view.hasAttribute('tabindex')).toBe(false);
+
+        // A link without a twin, then a button: the view itself, once made focusable.
+        for (const id of ['lonely', 'server-button']) {
+            swap.setAttribute(READ_SWAP_ATTR, 'pending');
+            (document.getElementById('server') as HTMLElement).removeAttribute('inert');
+            (document.getElementById(id) as HTMLElement).focus();
+            expect(document.activeElement?.id).toBe(id);
+            swapReadView(swap);
+            expect(document.activeElement).toBe(view);
+            expect(view.getAttribute('tabindex')).toBe('-1');
+        }
+
+        // Focus elsewhere: left where it is.
+        swap.setAttribute(READ_SWAP_ATTR, 'pending');
+        const outside = document.getElementById('outside') as HTMLElement;
+        outside.tabIndex = 0;
+        outside.focus();
+        swapReadView(swap);
+        expect(document.activeElement).toBe(outside);
+    });
+
+    it('swaps a box without the read-only view too (nothing to focus)', () => {
+        const swap = document.getElementById('swap') as HTMLElement;
+        (document.getElementById('view') as HTMLElement).remove();
+        (document.getElementById('server-link') as HTMLElement).focus();
+        expect(swapReadView(swap)).toBe(true);
+        expect((document.getElementById('server') as HTMLElement).hasAttribute('inert')).toBe(true);
+        expect(focusInView).toBeTypeOf('function');
+    });
+
+    it('drops a server dedupe mark that the editor does not confirm (1.30)', () => {
+        const view = document.getElementById('view') as HTMLElement;
+        const root = document.getElementById('root') as HTMLElement;
+        root.innerHTML = '<div class="ProseMirror"><h1>Other</h1></div>';
+        fire(root, 'nowo-milkdown:ready');
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(false);
     });
 });

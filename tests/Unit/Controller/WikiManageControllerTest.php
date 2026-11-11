@@ -634,6 +634,8 @@ final class WikiManageControllerTest extends TestCase
         self::assertSame('/nowo_wiki_space_panel_state', $twig->context['tree_rail']['state_url']);
         self::assertSame('<p>Hi</p>', $twig->context['content_html']);
         self::assertSame('Welcome', $twig->context['comments_view']['dedupe_title']);
+        // 1.30: the body started with the title, so the read-only editor hides its heading from the first paint.
+        self::assertTrue($twig->context['comments_view']['title_deduped']);
         $controller->space('eng');
         self::assertSame(WikiTreeRail::ID, $twig->context['tree_rail']['id']);
 
@@ -642,6 +644,7 @@ final class WikiManageControllerTest extends TestCase
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $controller->viewPage('eng', 'welcome');
         self::assertNull($twig->context['comments_view']['dedupe_title']);
+        self::assertFalse($twig->context['comments_view']['title_deduped']);
         self::assertArrayNotHasKey('title_in_body', $twig->context);
 
         // 1.30 title: body — the body keeps its heading, the header is told to leave its title out; the read-only

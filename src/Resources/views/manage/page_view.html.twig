@@ -38,7 +38,8 @@
   page_header.title: body with title_in_body (the body starts with the title) renders the header without title and
   subtitle (UiKit compact presentation); page_header.tabs: toolbar puts Edit / History as icon buttons in the toolbar
   (no tab row); page_header.toolbar_position: card prints the toolbar (_page_toolbar.html.twig) sticky at the top right
-  of the content, around the server body and the read-only editor (.nowo-wiki-card-frame). page_path
+  of the content, around the server body and the read-only editor (.nowo-wiki-card-frame). web_ui.read_view.
+  seamless_swap wraps the read-only editor and the wiki_page_body block in .nowo-wiki-read-swap (one grid cell). page_path
   (page_header.path: card, _page_path.html.twig) and the page_children chip (web_ui.children,
   _page_children_chip.html.twig) above the body (.nowo-wiki-page-head); "Pages in this section"
   (_page_children.html.twig) after wiki_page_after_body.
@@ -146,9 +147,13 @@
                     {{ include('@NowoWikiBundle/manage/_page_children_chip.html.twig', {page_children: page_children|default(null), bundle: _b}, false) }}
                 </div>
             {% endif %}
+            {#- 1.30 web_ui.read_view.seamless_swap: the read-only editor and the server body share one grid cell (no reflow when
+                the editor is ready; wiki.js cross-fades), with the same typography (--nowo-wiki-read-* tokens) -#}
+            {% set _swap = (_layout.seamless_swap ?? false) and comments_view|default(null) %}
+            {% if _swap %}<div class="nowo-wiki-read-swap" data-nowo-wiki-read-swap="pending" data-testid="wiki-read-swap">{% endif %}
             {# 1.16: commenters get the page as a read-only editor (highlights, the thread component); hidden until it is ready #}
             {% if comments_view|default(null) %}
-                {{ include('@NowoWikiBundle/manage/_comments_view.html.twig', {comments_view: comments_view}, false) }}
+                {{ include('@NowoWikiBundle/manage/_comments_view.html.twig', {comments_view: comments_view, seamless: _swap, bundle: _b}, false) }}
             {% endif %}
             {% block wiki_page_body %}
             <article class="{{ nowo_ui_class('card', _b) }} nowo-wiki-page"{% if comments_view|default(null) %} data-nowo-wiki-server-body{% endif %}{{ nowo_ui_attrs('card', _b) }}>
@@ -157,6 +162,7 @@
                 </div>
             </article>
             {% endblock %}
+            {% if _swap %}</div>{% endif %}
             {% if _in_card %}</div>{% endif %}
             {#- 1.29: after the body, before "Used in" (empty; e.g. a host's backlinks) -#}
             {% block wiki_page_after_body %}{% endblock %}

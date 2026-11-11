@@ -107,6 +107,17 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   is never scrolled under it (WCAG 2.4.11; wiki.js publishes `--nowo-wiki-card-toolbar-height`); hosts with a sticky
   top bar set `--nowo-wiki-card-toolbar-top`. With `title: body` and `tabs: toolbar` the empty header is not printed,
   so the body's `<h1>` is the only one.
+- **`web_ui.read_view.seamless_swap`** (literal boolean, default `false`): the read-only editor of commenters is
+  mounted in the same box as the server body (`.nowo-wiki-read-swap`, one grid cell: the taller of the two is reserved
+  from the first paint, so nothing moves), laid out invisibly, and cross-faded in when ready
+  (`--nowo-wiki-read-swap-duration`, 150ms; no fade with `prefers-reduced-motion` or UiKit `data-motion="reduce"`).
+  Audit MG-3: every non-editor child of the box (also a host `wiki_page_body` without the marker) is hidden and made
+  inert at the swap, after the focus it held moved to the editor (same link, else the view).
+  The editor gets the body's UiKit `card` / `card_body` box and drops its own frame; both bodies take the same
+  typography from `--nowo-wiki-read-*` tokens (h1–h3, p, lists, code, pre, blockquote, tables, links). The server
+  body leaves the tab order and the accessibility tree at the swap (`inert`, `aria-hidden`). Checked in Chromium at
+  1280 and 390 px with the real Milkdown editor: same box, every block at the same y, CLS 0
+  (`make check-seamless-swap`, `tests/Browser/seamless-swap`).
 - **`web_ui.page_header.path: card`:** the in-wiki path (space › ancestors) above the page body, each level a link
   (`manage/_page_path.html.twig`). More than three levels fold the middle ones into a "…" disclosure menu; under 30rem
   only "‹ Parent" shows. An ancestor the viewer may not read is "…" with a generic hidden text: no link, no title, no
@@ -133,6 +144,8 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   twice. wiki.js set `hidden` on the editor's first `<h1>`, which ProseMirror reverts at once (it redraws a node whose
   DOM attributes change). The view wrapper now gets `data-nowo-wiki-title-deduped` and wiki.css hides
   `.ProseMirror > h1:first-child`; the editor's own DOM is never touched.
+  The server prints the marker when the body starts with the title (`comments_view.title_deduped`), so the
+  heading is hidden from the editor's first paint, not when it becomes ready.
 
 ## [1.29.1] - 2026-11-11
 

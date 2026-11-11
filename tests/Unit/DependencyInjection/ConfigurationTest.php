@@ -384,6 +384,7 @@ final class ConfigurationTest extends TestCase
         // 1.30 layout defaults keep the 1.29 page.
         self::assertSame('rail', $defaults['web_ui']['tree_collapsed_mode']);
         self::assertSame('center', $defaults['web_ui']['reading_align']);
+        self::assertSame(['seamless_swap' => false], $defaults['web_ui']['read_view']);
         self::assertNull($defaults['web_ui']['slots']['page_header_toolbar']);
         $on = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'web_ui' => ['tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'page_header' => ['title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => 'card'], 'slots' => ['page_header_toolbar' => 'wiki/_toolbar.html.twig']]]]);
         self::assertSame(['title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'layout' => 'stacked', 'path' => 'none'], $on['web_ui']['page_header']);

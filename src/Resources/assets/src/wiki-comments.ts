@@ -12,7 +12,8 @@
  *   source): the page is loaded again with `?comments=1`, so the list is only read when someone opens it;
  * - `nowo-milkdown:ready` of a comments editor → the no-JavaScript list is hidden, and on the read view the read-only
  *   editor replaces the server-rendered body (1.29: without its first `<h1>` when that repeats the page title,
- *   `data-nowo-wiki-dedupe-title`);
+ *   `data-nowo-wiki-dedupe-title`; 1.30: with `web_ui.read_view.seamless_swap` in the same box, cross-faded,
+ *   {@link swapReadView});
  * - 1.29: a panel asked for in the URL (`?comments=1`, `data-nowo-wiki-comments-requested`) that started closed (a
  *   server-open `lg` / `xl` panel under its breakpoint, UiKit LV-L2) is opened as a drawer after load
  *   ({@link openRequestedPanel}).
@@ -114,10 +115,68 @@ export function showCommentsEditor(doc: Document, root: Element): void {
         return;
     }
     hideDuplicateTitle(view);
+    const swap = view.closest<HTMLElement>(`[${READ_SWAP_ATTR}]`);
+    if (swap) {
+        swapReadView(swap);
+
+        return;
+    }
     view.hidden = false;
     doc.querySelectorAll<HTMLElement>('[data-nowo-wiki-server-body]').forEach((body) => {
         body.hidden = true;
     });
+}
+
+/** The shared box of the read-only editor and the server body (1.30, `web_ui.read_view.seamless_swap`). */
+export const READ_SWAP_ATTR = 'data-nowo-wiki-read-swap';
+
+/**
+ * 1.30 (`web_ui.read_view.seamless_swap`): the read-only editor and the server body sit in one grid cell
+ * (`.nowo-wiki-read-swap`), so the box keeps its size; the editor was laid out invisibly. Marking the box `ready` lets
+ * wiki.css cross-fade (none with reduced motion); every other child of the box (the server body, also a host's
+ * `wiki_page_body` without the marker) leaves the tab order and the accessibility tree at once (`inert`,
+ * `aria-hidden`), after the focus it held moved to the editor ({@link focusInView}). Nothing is `hidden`, so nothing
+ * reflows.
+ *
+ * @param swap - The shared box (`[data-nowo-wiki-read-swap]`).
+ * @returns Whether the box was swapped now (false when it already was).
+ */
+export function swapReadView(swap: HTMLElement): boolean {
+    if (swap.getAttribute(READ_SWAP_ATTR) === 'ready') {
+        return false;
+    }
+    const view = swap.querySelector<HTMLElement>(':scope > .nowo-wiki-comments-view');
+    // Audit MG-3-L2: every other child (the bundle's body card, or a host's wiki_page_body without the marker) leaves.
+    const others = [...swap.children].filter((child): child is HTMLElement => child instanceof HTMLElement && child !== view);
+    // Audit MG-3-L1: focus inside a body that is about to become inert moves to the editor first.
+    const active = swap.ownerDocument.activeElement;
+    if (view && active instanceof HTMLElement && others.some((body) => body.contains(active))) {
+        focusInView(view, active);
+    }
+    others.forEach((body) => {
+        body.setAttribute('inert', '');
+        body.setAttribute('aria-hidden', 'true');
+    });
+    swap.setAttribute(READ_SWAP_ATTR, 'ready');
+
+    return true;
+}
+
+/**
+ * Moves the focus from the server body to the read-only editor (1.30, audit MG-3-L1): the editor link with the same
+ * `href` when there is one, else the view itself (`tabindex="-1"`). The page does not scroll.
+ *
+ * @param view - The read-only view (`.nowo-wiki-comments-view`).
+ * @param active - The focused element of the server body.
+ */
+export function focusInView(view: HTMLElement, active: HTMLElement): void {
+    const href = active.getAttribute('href');
+    const twin = href === null ? null : [...view.querySelectorAll<HTMLElement>('a[href]')].find((link) => link.getAttribute('href') === href);
+    const target = twin ?? view;
+    if (target === view && !view.hasAttribute('tabindex')) {
+        view.setAttribute('tabindex', '-1');
+    }
+    target.focus({ preventScroll: true });
 }
 
 /**
