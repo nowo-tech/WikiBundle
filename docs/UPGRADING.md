@@ -80,6 +80,19 @@
 
 ## Unreleased
 
+Target **1.29.1** (security patch, no configuration change). Update with `composer update nowo-tech/wiki-bundle`.
+
+- The default space checker (`LegacyWikiSpaceAccessChecker`) keeps the memberships it read for one main request only;
+  outside a request (console, Messenger) it reads them on every call. A host that changes memberships inside one request
+  still calls `reset()` on it, as before.
+- If you implement `WikiTeamMembershipResolverInterface`, your resolver decides how teams are read. Where the services
+  resetter does not run between requests (a host that removes or bypasses it, `messenger:consume --no-reset`,
+  long-running commands), prefer a query over a collection loaded on the user entity: the host EntityManager can keep
+  the user, and its loaded collection, across requests. The stock kernel in FrankenPHP worker mode still runs the
+  resetter before every request.
+- Outside a request (console, Messenger) the default checker keeps no memo, so a loop over many pages pays one lookup
+  per check; call it with the page set you need, or keep your own per-run cache.
+
 ## To 1.29.0
 
 From **1.28.0**:

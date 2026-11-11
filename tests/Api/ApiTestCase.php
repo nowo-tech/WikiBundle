@@ -63,6 +63,12 @@ abstract class ApiTestCase extends WebTestCase
 
     protected static bool $withFirewall = true;
 
+    /** 1.29.1: the bundle's legacy space checker decides instead of the test host. */
+    protected static bool $legacySpaceChecker = false;
+
+    /** 1.29.1: false for memory measurements (debug collectors keep every request until kernel.reset). */
+    protected static bool $debug = true;
+
     /** Whether this process already dropped the kernels' caches (they are reused across runs otherwise). */
     private static bool $freshCaches = false;
 
@@ -115,7 +121,7 @@ abstract class ApiTestCase extends WebTestCase
 
     protected static function createKernel(array $options = []): KernelInterface
     {
-        return new ApiKernel(static::$apiConfig, static::$wikiConfig, static::$withFirewall);
+        return new ApiKernel(static::$apiConfig, static::$wikiConfig, static::$withFirewall, static::$legacySpaceChecker, static::$debug);
     }
 
     protected function token(string $secret, string $user, ?WikiApiLevel $level, ?WikiApiWhere $where = null): void

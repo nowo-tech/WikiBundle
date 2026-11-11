@@ -7,10 +7,14 @@ namespace Nowo\WikiBundle\Security;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\Service\ResetInterface;
 use WeakMap;
+use WeakReference;
 
 use function count;
 
@@ -23,6 +27,15 @@ use function count;
  * {@see WikiSpaceAccessResolverInterface::listSpacesForUser()} once, not once per link. The memo is keyed by user
  * object and identifier, bounded, and cleared by {@see self::reset()} (`kernel.reset`), so a FrankenPHP worker never
  * carries it over. Call {@see self::reset()} after changing memberships inside one request or in a long-running loop.
+ *
+ * 1.29.1 (REQ-RUNTIME-002): `kernel.reset` alone let a process where the services resetter does not run (a host that
+ * removes or bypasses it, `messenger:consume --no-reset`, long-running commands) keep a user's memberships for as long as the host's EntityManager kept that user object managed (the
+ * identity map hands the same instance to every later request), so a revoked membership kept granting access. The
+ * memo now belongs to one main request: it is dropped when the main request changes, it is not kept at all outside a
+ * request (console, Messenger: memberships are read on every call), and
+ * {@see WikiRequestBoundaryResetter} also empties it at every request, console and Messenger
+ * boundary. Memberships are re-read through {@see WikiSpaceAccessResolverInterface} when a new request starts; in team
+ * mode the host's {@see WikiTeamMembershipResolverInterface} decides how teams are read.
  */
 final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterface, ResetInterface
 {
@@ -32,13 +45,18 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
     /** @var WeakMap<UserInterface, array{0: string, 1: array<string, true>}> user => [identifier, ids of its spaces] (this request) */
     private WeakMap $memberships;
 
+    /** @var WeakReference<Request>|null the main request the memo was read for */
+    private ?WeakReference $memoRequest = null;
+
     /**
      * @param WikiAccessCheckerInterface $accessChecker user-level checker of 1.x
      * @param WikiSpaceAccessResolverInterface $spaceAccessResolver spaces the user belongs to
+     * @param RequestStack|null $requestStack 1.29.1: scopes the memo to one main request (null: no memo at all)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
         private readonly WikiSpaceAccessResolverInterface $spaceAccessResolver,
+        private readonly ?RequestStack $requestStack = null,
     ) {
         $this->memberships = new WeakMap();
     }
@@ -84,11 +102,23 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
     public function reset(): void
     {
         $this->memberships = new WeakMap();
+        $this->memoRequest = null;
     }
 
     /** The 1.x membership rule: the space is one of the user's spaces. */
     private function isMember(UserInterface $user, WikiSpace $space): bool
     {
+        // 1.29.1: outside a main request nothing is memoised; a new main request starts from an empty memo.
+        $request = $this->requestStack?->getMainRequest();
+        if (!$request instanceof Request) {
+            $this->reset();
+
+            return isset($this->spaceIdsOf($user)[$space->getId()]);
+        }
+        if ($this->memoRequest?->get() !== $request) {
+            $this->reset();
+            $this->memoRequest = WeakReference::create($request);
+        }
         // 1.13.1 (CV-I9): one entry per user object, released with it (WeakMap: no reused object ids in long loops);
         // the identifier is checked too, and the memo is bounded for processes that never reset.
         $entry = $this->memberships[$user] ?? null;
@@ -96,14 +126,25 @@ final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterf
             if (count($this->memberships) >= self::MAX_MEMO) {
                 $this->memberships = new WeakMap();
             }
-            $ids = [];
-            foreach ($this->spaceAccessResolver->listSpacesForUser($user) as $accessible) {
-                $ids[$accessible->getId()] = true;
-            }
-            $entry                    = [$user->getUserIdentifier(), $ids];
+            $entry                    = [$user->getUserIdentifier(), $this->spaceIdsOf($user)];
             $this->memberships[$user] = $entry;
         }
 
         return isset($entry[1][$space->getId()]);
+    }
+
+    /**
+     * The ids of the user's spaces, read now.
+     *
+     * @return array<string, true>
+     */
+    private function spaceIdsOf(UserInterface $user): array
+    {
+        $ids = [];
+        foreach ($this->spaceAccessResolver->listSpacesForUser($user) as $accessible) {
+            $ids[$accessible->getId()] = true;
+        }
+
+        return $ids;
     }
 }
