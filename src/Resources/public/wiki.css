@@ -36,8 +36,88 @@
 
 .nowo-wiki-layout__main {
   display: grid;
+  /* 1.29: one track that may shrink below its content, so a long code line or a wide table never widens the page card
+     (an implicit `auto` track grew to the widest item); every item may shrink too. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   min-width: 0;
+}
+
+.nowo-wiki-layout > *,
+.nowo-wiki-layout__main > *,
+.nowo-wiki-comments-view,
+.nowo-wiki-comments-view .nowo-milkdown,
+.nowo-wiki-page {
+  min-width: 0;
+}
+
+/* 1.29: the read-only editor's CodeMirror code blocks (mounted when they scroll into view) scroll in their own box. */
+.nowo-wiki-comments-view .nowo-milkdown,
+:is(.nowo-wiki-comments-view, .nowo-wiki-content) .cm-editor {
+  max-width: 100%;
+}
+
+:is(.nowo-wiki-comments-view, .nowo-wiki-content) .cm-scroller {
+  overflow-x: auto;
+}
+
+/* 1.29 web_ui.reading_width: readable — the main column centred at a comfortable measure (UiKit .nowo-ui-readable). */
+.nowo-wiki-reading {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch));
+  margin-inline: auto;
+}
+
+/* 1.29 web_ui.narrow_tree_position: after — one column: the page first, its tree after it. */
+@media (max-width: 61.99rem) {
+  .nowo-wiki-layout--tree-after > .nowo-wiki-layout__aside {
+    order: 2;
+  }
+}
+
+/* 1.29 web_ui.tree_rail: the tree card is a UiKit rail host (rail_toggle, js/nowo-ui-rail.js). Its header holds the title
+   and the toggle; collapsed, the side column shrinks to the rail (--nowo-ui-rail-width) and the title shows vertically
+   in the toggle. Under 62rem (one column) a collapsed tree is a one-row bar with the toggle instead of a strip. */
+.nowo-wiki-sidebar[data-nowo-ui-rail-host] > .nowo-wiki-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* The vertical "Pages" of the rail reads in the text colour (a theme's muted button colour fails AA on a tinted card
+   header, e.g. Bootstrap secondary on the card-header grey: 4.41:1). */
+.nowo-wiki-sidebar[data-nowo-ui-rail-host] .nowo-ui-rail-toggle__title {
+  color: var(--nowo-ui-text, CanvasText);
+}
+
+@media (min-width: 62rem) {
+  .nowo-wiki-layout:has(> .nowo-wiki-layout__aside > [data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed']) {
+    grid-template-columns: var(--nowo-ui-rail-width, 2.75rem) minmax(0, 1fr);
+  }
+
+  .nowo-wiki-sidebar[data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'] > .nowo-wiki-sidebar__header {
+    justify-content: center;
+    padding-inline: 0;
+    border-block-end: 0;
+  }
+}
+
+@media (max-width: 61.99rem) {
+  .nowo-wiki-sidebar[data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'] {
+    inline-size: auto;
+    max-inline-size: none;
+  }
+
+  .nowo-wiki-sidebar[data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'] .nowo-ui-rail-toggle {
+    flex-direction: row;
+    padding-block: 0.25rem;
+  }
+
+  .nowo-wiki-sidebar[data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'] .nowo-ui-rail-toggle__title {
+    writing-mode: horizontal-tb;
+  }
 }
 
 /* Page tree: nested lists, indentation from the nesting. */
@@ -118,6 +198,7 @@
 
 .nowo-wiki-content pre {
   padding: 0.75rem 1rem;
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -137,8 +218,20 @@
   color: var(--nowo-ui-muted, #64748b);
 }
 
+/* 1.29: a wide table scrolls sideways in its own box instead of widening the page. The box is a wrapper
+   (.nowo-wiki-table-scroll, nowo_wiki_scroll_tables: UiKit scroll region with a label, keyboard reachable while it
+   overflows); the table keeps its table display, so its semantics stay (audit MA-L1, over the UiKit 2.48
+   rendered-content rule that makes the table itself a block). A table is as wide as its content. */
+.nowo-wiki-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .nowo-wiki-content table {
-  width: 100%;
+  display: table;
+  inline-size: auto;
+  max-inline-size: none;
+  overflow: visible;
   border-collapse: collapse;
 }
 

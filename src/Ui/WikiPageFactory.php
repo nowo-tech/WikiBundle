@@ -75,6 +75,8 @@ final readonly class WikiPageFactory
      *                                             '' = no icon on that tab)
      * @param bool $importExportDialog 1.21 `web_ui.import_export: dialog`: one header action opens the Import & export
      *                                 dialog instead of the export actions (and the import card)
+     * @param bool $compactHeader 1.29 `web_ui.page_header.layout: compact`: the page view's header actions use the
+     *                            UiKit `split` layout (icon buttons, one primary, a "more" menu) beside the inline tabs
      */
     public function __construct(
         private UrlGeneratorInterface $urlGenerator,
@@ -83,6 +85,7 @@ final readonly class WikiPageFactory
         private ?string $dashboardRoute = null,
         private array $tabIcons = self::TAB_ICONS,
         private bool $importExportDialog = false,
+        private bool $compactHeader = false,
     ) {
     }
 
@@ -230,7 +233,10 @@ final readonly class WikiPageFactory
             $actions[] = new Action('create', WikiPages::label('wiki.history.save_version'), $this->url('page_version_save', $params), attributes: ['data-testid' => 'wiki-save-version']);
         }
         if (($can['move'] ?? false) && $this->has('page_move')) {
-            $actions[] = new Action('edit', WikiPages::label('wiki.tree.move'), $this->url('page_move', $params), attributes: ['data-testid' => 'wiki-move']);
+            // 1.29 compact header: Move, Delete and Archive close the "more" menu in the danger style, each with its verb icon.
+            $actions[] = $this->compactHeader
+                ? new Action('move', WikiPages::label('wiki.tree.move'), $this->url('page_move', $params), variant: 'danger', attributes: ['data-testid' => 'wiki-move'])
+                : new Action('edit', WikiPages::label('wiki.tree.move'), $this->url('page_move', $params), attributes: ['data-testid' => 'wiki-move']);
         }
         // 1.14: Delete moves the page and its sub-pages to the trash (POST + CSRF behind a Confirm).
         if ($deleteForm instanceof FormView && $this->has('page_delete')) {
@@ -251,10 +257,11 @@ final readonly class WikiPageFactory
         }
         if ($archiveForm instanceof FormView && $this->has('page_archive')) {
             $actions[] = new Action(
-                'delete',
+                $this->compactHeader ? 'archive' : 'delete',
                 WikiPages::label('wiki.page.archive'),
                 $this->url('page_archive', $params),
                 method: 'POST',
+                variant: $this->compactHeader ? 'danger' : null,
                 confirm: new Confirm(
                     WikiPages::label('wiki.page.archive_confirm_title'),
                     WikiPages::label('wiki.page.archive_confirm_message', ['%title%' => $page->getTitle()]),
@@ -273,7 +280,7 @@ final readonly class WikiPageFactory
         }
 
         return new ShowPage(
-            header: (new PageHeader($page->getTitle(), $space->getName(), $actions, $this->crumbs($space, $page)))->withTabs($tabs),
+            header: (new PageHeader($page->getTitle(), $space->getName(), $actions, $this->crumbs($space, $page), actionsLayout: $this->compactHeader ? 'split' : 'toolbar'))->withTabs($tabs),
             meta: $meta,
             bundle: WikiPages::BUNDLE,
             layout: $this->pages->layout(),

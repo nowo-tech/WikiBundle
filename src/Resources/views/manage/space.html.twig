@@ -13,6 +13,8 @@
   (included with the page variables); web_ui.import_export: dialog moves the exports and the import form into the
   Import & export dialog (nowo_ui_modals, _import_export_dialog.html.twig); web_ui.assets.styles / scripts: false
   leave nowo_ui_styles / nowo_ui_scripts empty (Twig global nowo_wiki_web_ui).
+  1.29: tree_rail (WikiTreeRail::rail(), web_ui.tree_rail) folds the tree card to a rail (UiKit rail_toggle,
+  js/nowo-ui-rail.js; js/nowo-ui-layout-state.js in the head when the state is kept in localStorage).
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
 {% trans_default_domain 'NowoWikiBundle' %}
@@ -23,6 +25,11 @@
         {{ parent() }}
         <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
     {% endif %}
+    {#- 1.29: a tree rail remembered in localStorage (no session) applied before the first paint -#}
+    {% if (nowo_wiki_web_ui.assets.scripts ?? true) and tree_rail.persist|default(null) %}
+        {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+        <script src="{{ asset('js/nowo-ui-layout-state.js', 'nowo_ui_kit') }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+    {% endif %}
 {% endblock %}
 
 {% block nowo_ui_scripts %}
@@ -31,6 +38,7 @@
         {{ parent() }}
         {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
         {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
+        {% if tree_rail|default(null) %}<script src="{{ asset('js/nowo-ui-rail.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
         <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
 {% endblock %}
@@ -50,7 +58,7 @@
                 {%- if nowo_wiki_web_ui.slots.sidebar ?? null -%}
                     {{ include(nowo_wiki_web_ui.slots.sidebar) }}
                 {%- else -%}
-                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), bundle: _b}, false) }}
+                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), tree_rail: tree_rail|default(null), bundle: _b}, false) }}
                 {%- endif -%}
             {% endblock %}
         </div>

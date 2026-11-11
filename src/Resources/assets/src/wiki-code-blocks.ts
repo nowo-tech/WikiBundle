@@ -5,6 +5,10 @@
  * read-only editor) are picked up by a `MutationObserver`; a resize re-checks every block. Blocks that stop
  * overflowing lose what was added; attributes set by the markup itself are never touched. Code inside an editable
  * region (`contenteditable`) is left alone.
+ *
+ * @deprecated since 1.29: the page body is UiKit rendered content (`data-nowo-ui-rendered-content`) and the read view
+ * loads UiKit `js/nowo-ui-scroll-region.js` (2.48), which gives overflowing code blocks and tables their tab stop. This
+ * module still runs (it names the code blocks it marks, and covers pages without the UiKit script); removed in 2.0.
  */
 
 /** Marker of the attributes this module added (so it never removes the markup's own). */

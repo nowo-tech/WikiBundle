@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Integration\Contract;
 
 use Nowo\UiKitBundle\Test\PageContractTestCase;
 use Nowo\UiKitBundle\Test\PageFixture;
+use Nowo\UiKitBundle\Test\StubHost;
 use Nowo\WikiBundle\Tests\Support\PageFixtures;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
@@ -15,6 +16,7 @@ use Twig\Environment;
 use Twig\Loader\ArrayLoader;
 use Twig\Loader\ChainLoader;
 
+use function is_array;
 use function preg_match;
 use function strpos;
 use function substr_count;
@@ -56,6 +58,152 @@ final class PageContractTest extends PageContractTestCase
         yield 'search (no hit)' => new PageFixture('@NowoWikiBundle/manage/search.html.twig', PageFixtures::search('nothing'));
         yield 'ai ask (answered)' => new PageFixture('@NowoWikiBundle/manage/ai_ask.html.twig', PageFixtures::aiAsk());
         yield 'ai ask (error)' => new PageFixture('@NowoWikiBundle/manage/ai_ask.html.twig', PageFixtures::aiAsk(false, 'wiki.ai.unavailable'));
+        // 1.29 layout options (block A): everything on.
+        yield 'page view (layout 1.29)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layoutContext(PageFixtures::pageView(true, self::compactFactory(), false)));
+        yield 'page view (layout 1.29, reader, no session)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layoutContext(PageFixtures::pageView(false, self::compactFactory(), true, false), true));
+        yield 'space (tree rail)' => new PageFixture('@NowoWikiBundle/manage/space.html.twig', self::layoutContext(PageFixtures::spaceHome()));
+        yield 'page edit (compact header)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', self::layoutContext(PageFixtures::pageForm(true, null, true)));
+    }
+
+    /**
+     * 1.29: a page context with every layout option on (web_ui.tree_rail, narrow_tree_position, reading_width,
+     * page_header compact + dedupe) and, when it has comments, the lg dock.
+     *
+     * @param array<string, mixed> $context
+     *
+     * @return array<string, mixed>
+     */
+    private static function layoutContext(array $context, bool $noSession = false): array
+    {
+        $context['nowo_wiki_web_ui'] = ['layout' => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe']];
+        $context['tree_rail']        = [
+            'id'          => 'nowo-wiki-tree',
+            'body_id'     => 'nowo-wiki-tree-body',
+            'collapsed'   => $noSession,
+            'href'        => '/p?tree=' . ($noSession ? 'full' : 'rail'),
+            'state_url'   => $noSession ? null : '/s/panel-state',
+            'state_token' => $noSession ? null : 'state-token',
+            'state_panel' => 'tree_rail',
+            'persist'     => $noSession ? 'wiki-tree' : null,
+        ];
+        if (isset($context['comments']) && is_array($context['comments'])) {
+            $context['comments'] = ['drawer_below' => 'lg', 'persist' => $noSession ? 'wiki-comments' : null, 'open_requested' => $noSession] + $context['comments'];
+        }
+        if (isset($context['comments_view']) && is_array($context['comments_view'])) {
+            $context['comments_view']['dedupe_title'] = 'Deploy "<runbook>"';
+        }
+
+        return $context;
+    }
+
+    /**
+     * Renders a page with the real UiKit `page_header` partial (the stub host's override delegates to it), for the
+     * header markup the stub does not print (toolbar, tabs_inline).
+     *
+     * @param array<string, mixed> $context
+     */
+    private function renderWithKitHeader(array $context, string $template): string
+    {
+        $twig = $this->createTwig();
+        $twig->setLoader(new ChainLoader([new ArrayLoader([StubHost::PARTIAL_TEMPLATE => "{{ include('@NowoUiKitBundle/partials/_page_header.html.twig') }}"]), $twig->getLoader()]));
+
+        return $twig->render($template, $context);
+    }
+
+    private static function compactFactory(): WikiPageFactory
+    {
+        return new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), null, WikiPageFactory::TAB_ICONS, false, true);
+    }
+
+    /**
+     * 1.29 (block A): the defaults keep the 1.28 page (no rail, no reading column, the stacked header and tab row, the
+     * md dock, no head script); the only default changes are the rendered-content marker of the body and the UiKit
+     * scroll-region script. Each option then shows its markup, escaped.
+     */
+    public function testTheLayoutOptions(): void
+    {
+        $default = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(true, null, false)))->html;
+        foreach (['data-nowo-ui-rail-host', 'nowo-ui-rail.js', 'nowo-wiki-reading', 'nowo-ui-readable', 'nowo-wiki-layout--tree-after', 'nowo-ui-layout-state.js', 'drawer-lg', 'data-drawer-below', 'nowo-ui-page-header--tabs-inline', 'data-nowo-ui-side-panel-persist', 'data-nowo-wiki-comments-requested', 'data-nowo-wiki-dedupe-title'] as $absent) {
+            self::assertStringNotContainsString($absent, $default, $absent);
+        }
+        self::assertStringContainsString('data-testid="wiki-tabs"', $default);
+        self::assertStringContainsString('data-testid="wiki-content" data-nowo-ui-rendered-content', $default);
+        self::assertStringContainsString('js/nowo-ui-scroll-region.js', $default);
+        self::assertStringNotContainsString('data-nowo-ui-rail-host', $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', PageFixtures::spaceHome()))->html);
+        // MA-L1: every table of the sanitized body sits in a labelled scroll box and keeps its table element.
+        $tables                 = PageFixtures::pageView();
+        $tables['content_html'] = '<table><tr><td onclick="x()">1</td></tr></table>';
+        $wrapped                = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $tables))->html;
+        self::assertStringContainsString('<div class="nowo-wiki-table-scroll" data-nowo-ui-scroll-region data-nowo-ui-scroll-label="Table"><table>', $wrapped);
+        self::assertStringNotContainsString('onclick', $wrapped);
+
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layoutContext(PageFixtures::pageView(true, self::compactFactory(), false))))->html;
+        // Tree rail: the card is the rail host, the toggle names and controls the body; no-JS link; host store.
+        self::assertMatchesRegularExpression('#<aside class="[^"]*nowo-wiki-sidebar[^"]*" id="nowo-wiki-tree" data-nowo-ui-rail-host data-nowo-ui-rail="expanded" data-wiki-sidebar#', $html);
+        self::assertMatchesRegularExpression('#<a href="/p\?tree=rail" role="button" class="[^"]*" aria-controls="nowo-wiki-tree-body" aria-expanded="true" data-nowo-ui-rail-toggle#', $html);
+        self::assertStringContainsString('data-nowo-ui-rail-state-url="/s/panel-state" data-nowo-ui-rail-state-token="state-token" data-nowo-ui-rail-state-panel="tree_rail"', $html);
+        self::assertStringContainsString('data-testid="wiki-tree-rail-toggle"', $html);
+        self::assertMatchesRegularExpression('#<nav class="[^"]*nowo-wiki-sidebar__body" id="nowo-wiki-tree-body" data-nowo-ui-rail-body aria-label="Pages">#', $html);
+        self::assertStringContainsString('Collapse Pages', $html);
+        self::assertStringContainsString('js/nowo-ui-rail.js', $html);
+        // Narrow tree after the page, reading column.
+        self::assertStringContainsString('class="nowo-wiki-layout nowo-wiki-layout--tree-after"', $html);
+        self::assertStringContainsString('class="nowo-wiki-layout__main nowo-wiki-reading nowo-ui-readable"', $html);
+        // Compact header: no separate tab row; the tabs go to the header partial (the stub host override prints them).
+        self::assertStringNotContainsString('data-testid="wiki-tabs"', $html);
+        self::assertStringContainsString('data-testid="wiki-tab-edit"', $html);
+        // With the real UiKit page_header partial: tabs and actions on one row, the comments toggle at its end.
+        $real = $this->renderWithKitHeader(self::layoutContext(PageFixtures::pageView(true, self::compactFactory(), false)), '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertStringContainsString('nowo-ui-page-header--tabs-inline', $real);
+        self::assertSame(1, preg_match('#nowo-ui-page-header__bar.*?data-testid="wiki-tab-edit".*?data-testid="wiki-comments-toggle"#s', $real));
+        self::assertSame(1, substr_count($real, 'data-testid="wiki-comments-toggle"'));
+        self::assertStringNotContainsString('data-testid="wiki-tabs"', $real);
+        // The read view's actions use the split layout ("more" menu).
+        self::assertStringContainsString('data-nowo-ui-header-actions', $real);
+        // Archive closes the "more" menu as a danger item with its own verb (1.29, Beacon Q2).
+        self::assertSame(1, preg_match('#data-nowo-ui-header-more.*?class="(?=[^"]*nowo-ui-menu__item--danger)(?=[^"]*nowo-ui-action--archive)[^"]*"#s', $real));
+        // The lg dock (container and panel) and the head script that applies it before the first paint.
+        self::assertMatchesRegularExpression('#<aside id="nowo-wiki-comments" class="[^"]*nowo-ui-side-panel--drawer-lg#', $html);
+        self::assertStringContainsString('data-drawer-below="lg"', $html);
+        self::assertStringContainsString('nowo-ui-side-panel-container--drawer-lg', $html);
+        self::assertSame(1, preg_match('#data-nowo-ui-contract-block="nowo_ui_styles">(?:(?!data-nowo-ui-contract-block).)*js/nowo-ui-layout-state\.js#s', $html), 'The layout-state script is in the head (nowo_ui_styles).');
+        self::assertStringNotContainsString('data-nowo-wiki-comments-requested', $html);
+        // The dedupe hint is attribute-escaped.
+        self::assertStringContainsString('data-nowo-wiki-dedupe-title="Deploy &quot;&lt;runbook&gt;&quot;"', $html);
+
+        // A reader without a session: localStorage for the rail and the panel, the panel asked for in the URL.
+        $reader = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layoutContext(PageFixtures::pageView(false, self::compactFactory(), true, false), true)))->html;
+        self::assertStringContainsString('data-nowo-ui-rail="collapsed"', $reader);
+        self::assertStringContainsString('aria-expanded="false" data-nowo-ui-rail-toggle', $reader);
+        self::assertStringContainsString('data-nowo-ui-rail-persist="wiki-tree"', $reader);
+        self::assertStringNotContainsString('data-nowo-ui-rail-state-url', $reader);
+        self::assertStringContainsString('data-nowo-ui-side-panel-persist="wiki-comments"', $reader);
+        self::assertStringContainsString('data-nowo-wiki-comments-requested', $reader);
+        self::assertStringContainsString('Expand Pages', $reader);
+
+        // An escaped rail link (a request URI the server echoes).
+        $context              = self::layoutContext(PageFixtures::pageView());
+        $context['tree_rail'] = ['href' => '/p"><script>alert(1)</script>?tree=rail'] + $context['tree_rail'];
+        $escaped              = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $context))->html;
+        self::assertStringNotContainsString('<script>alert(1)</script>', $escaped);
+
+        // Space home with the rail; the edit form with the compact header and the lg dock.
+        $space = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', self::layoutContext(PageFixtures::spaceHome(), true)))->html;
+        self::assertStringContainsString('data-nowo-ui-rail-host data-nowo-ui-rail="collapsed"', $space);
+        self::assertStringContainsString('js/nowo-ui-rail.js', $space);
+        self::assertSame(1, preg_match('#data-nowo-ui-contract-block="nowo_ui_styles">(?:(?!data-nowo-ui-contract-block).)*js/nowo-ui-layout-state\.js#s', $space));
+        $edit = $this->renderWithKitHeader(self::layoutContext(PageFixtures::pageForm(true, null, true)), '@NowoWikiBundle/manage/page_edit.html.twig');
+        self::assertStringContainsString('nowo-ui-page-header--tabs-inline', $edit);
+        self::assertStringNotContainsString('data-testid="wiki-tabs"', $edit);
+        self::assertSame(1, substr_count($edit, 'data-testid="wiki-comments-toggle"'));
+        self::assertStringContainsString('data-drawer-below="lg"', $edit);
+        self::assertStringContainsString('js/nowo-ui-layout-state.js', $edit);
+
+        // Compact header without comments: no toggle, the tabs still inline.
+        $plain = $this->renderWithKitHeader(self::layoutContext(PageFixtures::pageView(true, self::compactFactory())), '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertStringContainsString('nowo-ui-page-header--tabs-inline', $plain);
+        self::assertStringNotContainsString('wiki-comments-toggle', $plain);
+        self::assertStringNotContainsString('nowo-ui-layout-state.js', $plain);
     }
 
     public function testPageTreeNestsListsAndMarksTheCurrentPage(): void

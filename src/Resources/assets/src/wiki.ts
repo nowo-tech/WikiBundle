@@ -1,4 +1,4 @@
-import { bindWikiComments } from './wiki-comments';
+import { bindWikiComments, openRequestedPanel } from './wiki-comments';
 import { bindCommentsModeration } from './wiki-comments-moderation';
 import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 
@@ -365,5 +365,8 @@ initWikiTrees();
 bindWikiTree();
 bindWikiComments();
 bindCommentsModeration();
-whenLoaded(() => void renderWikiRichContent());
+whenLoaded(() => {
+    openRequestedPanel();
+    void renderWikiRichContent();
+});
 observeScrollableCode(codeLabel(document.currentScript));

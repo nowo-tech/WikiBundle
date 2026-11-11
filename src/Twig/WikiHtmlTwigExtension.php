@@ -8,6 +8,7 @@ use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\Util\WikiTableScroll;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
 use Twig\TwigFunction;
@@ -50,6 +51,8 @@ final class WikiHtmlTwigExtension extends AbstractExtension
     {
         return [
             new TwigFilter('nowo_wiki_safe_html', $this->sanitize(...), ['is_safe' => ['html']]),
+            // 1.29 (MA-L1): tables of an already sanitized body in labelled scroll boxes.
+            new TwigFilter('nowo_wiki_scroll_tables', static fn (mixed $html, string $label): string => WikiTableScroll::wrap((string) $html, $label), ['is_safe' => ['html']]),
         ];
     }
 

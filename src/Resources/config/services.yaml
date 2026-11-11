@@ -166,6 +166,7 @@ services:
             $pageFactory: '@Nowo\WikiBundle\Ui\WikiPageFactory'
             $translator: '@?translator'
             $searchScope: '%nowo_wiki.search.scope%'
+            $layout: '%nowo_wiki.web_ui.layout%'
 
     Nowo\WikiBundle\Controller\WikiHistoryController:
         public: true
@@ -197,7 +198,8 @@ services:
         arguments:
             $routes: '%nowo_wiki.routes%'
 
-    # 1.16: comment endpoints and the panel state (404 without comments.enabled: the service is then null).
+    # 1.16: comment endpoints and the panel state (404 without comments.enabled: the service is then null; 1.29: the
+    # panel state also with web_ui.tree_rail).
     Nowo\WikiBundle\Controller\WikiCommentController:
         public: true
         autoconfigure: false
@@ -205,6 +207,7 @@ services:
         arguments:
             $routes: '%nowo_wiki.routes%'
             $translator: '@?translator'
+            $layout: '%nowo_wiki.web_ui.layout%'
 
     Nowo\WikiBundle\Controller\WikiAttachmentController:
         public: true

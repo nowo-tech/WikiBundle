@@ -32,6 +32,8 @@ nowo_wiki:
         # 1.21: "Moderate threads" for ModerateComments, and own texts for writes refused with 422 / 429.
         moderation_panel: true
         error_notices: true
+        # 1.29: the panel docks only from 1200 px (the tree takes the room); an overlay drawer below.
+        dock_min_width: lg
     ai:
         enabled: true
         agent: wiki_assistant
@@ -41,6 +43,14 @@ nowo_wiki:
     web_ui:
         # 1.21: exports and import in one dialog; a host template after the page header.
         import_export: dialog
+        # 1.29 (layout): the tree folds to a rail, the tree follows the page on phones, a readable column, the tabs
+        # and actions on one header row, no duplicated title.
+        tree_rail: true
+        narrow_tree_position: after
+        reading_width: readable
+        page_header:
+            layout: compact
+            title: dedupe
         slots:
             page_header_extra: 'wiki/_header_extra.html.twig'
         tab_icons:

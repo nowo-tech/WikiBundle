@@ -5,13 +5,33 @@
   printed in the header, e.g. New page).
   1.14: tree_ui ({nodes, attr, movable} from WikiPageFactory::uiTree() / treeAttributes(), tree.enabled) renders the
   UiKit `tree` partial instead of the nested list (disclosures, fold state, moves; js/nowo-ui-tree.js + wiki.js).
+  1.29: tree_rail (WikiTreeRail::rail(), web_ui.tree_rail; null = as before) makes the card a UiKit rail host
+  (data-nowo-ui-rail-host): the UiKit `rail_toggle` partial in the header ("Collapse Pages" / "Expand Pages",
+  aria-controls the body, aria-expanded; a link to ?tree=rail|full without JavaScript; js/nowo-ui-rail.js stores the
+  state through the panel state endpoint, or localStorage without a session); the title and the body are
+  data-nowo-ui-rail-body (display: none in the rail, so out of the tab order); the rail shows "Pages" vertically.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
-<aside class="{{ nowo_ui_class('card', bundle) }} nowo-wiki-sidebar" data-wiki-sidebar{{ nowo_ui_attrs('card', bundle) }}>
+{% set _rail = tree_rail|default(null) %}
+<aside class="{{ nowo_ui_class('card', bundle) }} nowo-wiki-sidebar"{% if _rail %} id="{{ _rail.id }}" data-nowo-ui-rail-host data-nowo-ui-rail="{{ _rail.collapsed ? 'collapsed' : 'expanded' }}"{% endif %} data-wiki-sidebar{{ nowo_ui_attrs('card', bundle) }}>
     <header class="{{ nowo_ui_class('card_header', bundle) }} nowo-wiki-sidebar__header">
-        <h2 class="{{ nowo_ui_class('card_title', bundle) }} nowo-wiki-region-title">{{ 'wiki.space.pages'|trans }}</h2>
+        <h2 class="{{ nowo_ui_class('card_title', bundle) }} nowo-wiki-region-title"{% if _rail %} data-nowo-ui-rail-body{% endif %}>{{ 'wiki.space.pages'|trans }}</h2>
+        {% if _rail %}
+            {{ include(nowo_ui_partial('rail_toggle', bundle), {
+                target: _rail.body_id,
+                title: 'wiki.space.pages'|trans,
+                collapsed: _rail.collapsed,
+                href: _rail.href,
+                persist: _rail.persist,
+                state_url: _rail.state_url,
+                state_token: _rail.state_token,
+                state_panel: _rail.state_panel,
+                attr: {'data-testid': 'wiki-tree-rail-toggle'},
+                bundle: bundle,
+            }, false) }}
+        {% endif %}
     </header>
-    <nav class="{{ nowo_ui_class('card_body', bundle) }} nowo-wiki-sidebar__body" aria-label="{{ 'wiki.space.pages'|trans }}">
+    <nav class="{{ nowo_ui_class('card_body', bundle) }} nowo-wiki-sidebar__body"{% if _rail %} id="{{ _rail.body_id }}" data-nowo-ui-rail-body{% endif %} aria-label="{{ 'wiki.space.pages'|trans }}">
         {% if tree is empty %}
             <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.space.no_pages'|trans }}</p>
         {% elseif tree_ui|default(null) %}

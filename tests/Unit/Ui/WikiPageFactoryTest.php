@@ -128,6 +128,35 @@ final class WikiPageFactoryTest extends TestCase
         self::assertSame('wiki.tree.move', $this->label($move->submitLabel)->key);
     }
 
+    /** 1.29 web_ui.page_header.layout: compact — the read view's header actions use the UiKit split layout. */
+    public function testTheCompactHeaderSplitsThePageViewActions(): void
+    {
+        $space    = PageFixtures::space('eng', 'Engineering');
+        [, $page] = PageFixtures::pages($space);
+        $default  = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), '');
+        self::assertSame('toolbar', $default->pageView($space, $page, ['edit' => true])->header->actionsLayout);
+        $compact = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), '', compactHeader: true);
+        $header  = $compact->pageView($space, $page, ['edit' => true])->header;
+        self::assertSame('split', $header->actionsLayout);
+        self::assertNotNull($header->tabs);
+
+        // Move, Delete and Archive: danger, their own verb (icon), last in the "more" menu after Save version.
+        $routes  = PageFixtures::routes() + ['page_version_save' => ['path' => '/v', 'name' => 'version'], 'page_move' => ['path' => '/m', 'name' => 'move'], 'page_delete' => ['path' => '/d', 'name' => 'delete']];
+        $compact = new WikiPageFactory(PageFixtures::urlGenerator(), $routes, new WikiPages(), '', compactHeader: true);
+        $default = new WikiPageFactory(PageFixtures::urlGenerator(), $routes, new WikiPages(), '');
+        $all     = ['edit' => true, 'version' => true, 'move' => true];
+        $forms   = [PageFixtures::postForm('a'), PageFixtures::postForm('d')];
+        $split   = $compact->pageView($space, $page, $all, $forms[0], $forms[1])->header->splitActions();
+        self::assertSame('create', $split->primary?->kind);
+        self::assertSame(['move', 'delete', 'archive'], array_map(static fn (Action $a): string => $a->kind, $split->more));
+        foreach ($split->more as $action) {
+            self::assertSame('danger', $action->resolvedVariant());
+        }
+        // The stacked header keeps the 1.28 kinds.
+        $kinds = array_map(static fn (Action $a): string => $a->kind, $default->pageView($space, $page, $all, $forms[0], $forms[1])->header->actions);
+        self::assertSame(['create', 'edit', 'delete', 'delete'], $kinds);
+    }
+
     public function testThePageTabsCarryTheirIcons(): void
     {
         $routes   = PageFixtures::routes();

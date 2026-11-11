@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.29.0](#to-1290)
 - [To 1.28.0](#to-1280)
 - [To 1.27.0](#to-1270)
 - [To 1.27.0](#to-1270-1)
@@ -77,6 +78,73 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.29.0
+
+From **1.28.x**:
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/ui-kit-bundle   # UiKit ^2.48 is required
+php bin/console assets:install                                   # wiki.css / wiki.js, UiKit nowo-ui-rail.js, nowo-ui-layout-state.js
+```
+
+Every new layout option is **off by default**. Two default changes apply to every host:
+
+1. **Wide content stays in the column.** The page view's main column no longer grows to its widest item: long code
+   lines (also in the read-only Milkdown view of editors) and wide tables scroll sideways inside it. Drop host
+   workarounds such as `.nowo-wiki-comments-view { min-width: 0 }` / `.nowo-wiki-comments-view .cm-editor { max-width:
+   100% }` (Beacon 1.148).
+2. **Tables are as wide as their content** instead of `width: 100%`, and each table of the page body is wrapped in a
+   scroll box: `<div class="nowo-wiki-table-scroll" data-nowo-ui-scroll-region data-nowo-ui-scroll-label="Table">`
+   (Twig filter `nowo_wiki_scroll_tables`, label `wiki.table_scroll`), added after sanitizing. The box scrolls
+   sideways; the `<table>` keeps `display: table`, so screen readers still announce a table (audit MA-L1). The body
+   carries `data-nowo-ui-rendered-content` and the read view loads UiKit `js/nowo-ui-scroll-region.js`, which makes an
+   overflowing box (and code block) a focusable, labelled region (`tabindex="0"`, `role="region"`, `aria-label`).
+   To stretch narrow tables again, add `.nowo-wiki-content table { width: 100%; }` (they still scroll in the box). Host
+   CSS that targets `.nowo-wiki-content > table` must use `.nowo-wiki-content table` (or
+   `.nowo-wiki-table-scroll > table`); host templates that print the body themselves get the box with
+   `|nowo_wiki_safe_html|nowo_wiki_scroll_tables('wiki.table_scroll'|trans({}, 'NowoWikiBundle'))`.
+
+Host `page_view.html.twig` overrides that copy `nowo_ui_show_sections` keep working but do not get the new markup
+(rail, reading column, rendered-content marker): prefer the new blocks `wiki_page_body` / `wiki_page_after_body` and
+`wiki_sidebar`. Host overrides of `_page_tabs.html.twig` still render in the default (`stacked`) header.
+
+Optional — what to adopt (Beacon 1.149):
+
+```yaml
+nowo_wiki:
+    web_ui:
+        tree_rail: true                  # literal boolean
+        narrow_tree_position: after      # the tree after the page under 62rem (drop the host `order: 2` rule)
+        reading_width: readable          # set --nowo-wiki-reading-width (e.g. 52rem) to keep a host measure
+        page_header: { layout: compact, title: dedupe }
+    comments:
+        dock_min_width: lg               # dock only from 1200 px with the tree; a drawer below
+```
+
+- `comments.dock_min_width: lg | xl`: a remembered "open" panel starts closed under the breakpoint (it opens as a
+  drawer from the toggle); `?comments=1` links still open it.
+- The comments panel state is stored only from the column (desktop) layout: toggling the drawer on a phone or tablet
+  no longer changes what a host store (or the session) remembers. A host store that relied on drawer toggles being
+  posted sees fewer writes.
+- `page_header.layout: compact` moves Move, Delete and Archive into the "More actions" menu (danger items, last);
+  end-to-end tests that clicked those buttons must open the menu first.
+- `web_ui.narrow_tree_position: after` reorders with CSS `order` under 62rem: the page shows first, but the DOM, the
+  focus and the screen-reader order stay tree first (audit MA-I2, WCAG 2.4.3 trade-off; the same as a host
+  `order: 2` rule). Keep `before` where that matters; a skip link to the main content helps keyboard users.
+- `web_ui.page_header.title: dedupe` keeps a heading that holds more than text (an image, media, math) and keeps the
+  `id`s of a dropped heading on empty `<sup class="nowo-wiki-anchor">` elements, so in-page `#…` links still land
+  (audit MA-I1).
+- `web_ui.tree_rail` uses the same panel state store as the comments (`comments.state_store`, default the session)
+  and the same `space_panel_state` route, now registered with the comments **or** the rail. A host store receives the
+  new panel name `tree_rail` (`WikiPanelStateStoreInterface::TREE_RAIL`; "open" means collapsed): stores that keep any
+  panel name need no change. Firewall / CSRF rules for the route are unchanged.
+- Without a session (stateless firewall) the panel and the rail fall back to `localStorage`; the blocking UiKit
+  `js/nowo-ui-layout-state.js` is printed in `nowo_ui_styles` (keep that block in the `<head>` of a custom layout).
+- Hosts with `web_ui.assets.scripts: false` bundle these UiKit scripts themselves: `js/nowo-ui-rail.js` (rail),
+  `js/nowo-ui-scroll-region.js` (read view), `js/nowo-ui-layout-state.js` (blocking, in the head).
+- `web_ui.page_header.layout: compact` replaces the tab row (and a host `_page_tabs.html.twig` override) on the read
+  and edit views; the comments toggle moves to the end of the header row.
 
 ## To 1.28.0
 

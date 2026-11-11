@@ -1,4 +1,6 @@
 wiki:
+  # 1.29: accessible name of the scroll box around a table of the page body.
+  table_scroll: 'Tabela'
   code_block: 'Bloco de código'
   tabs:
     label: "Vistas da página"

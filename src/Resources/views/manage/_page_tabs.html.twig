@@ -8,6 +8,8 @@
   the viewer may read) is also part of its accessible name ("Comments 3 open"; "Comments" alone at 0). Without
   JavaScript the toggle is a link to ?comments=1 (?comments=0 when open).
   Variables: tabs (View\AreaNav), comments (WikiCommentsPanel::panel() or null), bundle.
+  1.29: the toggle is _comments_toggle.html.twig; with web_ui.page_header.layout: compact this row is not printed (the
+  tabs and the toggle go into the header, _page_header_compact.html.twig).
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
 {% set _b = bundle|default(null) %}
@@ -24,18 +26,7 @@
     }, false) }}
     {% if comments|default(null) %}
         <div class="nowo-wiki-tabs__end">
-            {{ include(nowo_ui_partial('side_panel_toggle', _b), {
-                target: comments.id,
-                label: 'wiki.comments.title'|trans,
-                open: comments.open,
-                href: comments.toggle_href,
-                icon: 'tabler:message-circle',
-                count: comments.count,
-                count_suffix: 'wiki.comments.open_suffix'|trans,
-                shortcut: comments.shortcut,
-                attr: {'data-testid': 'wiki-comments-toggle', 'data-nowo-wiki-comments-toggle': true},
-                bundle: _b,
-            }, false) }}
+            {{ include('@NowoWikiBundle/manage/_comments_toggle.html.twig', {comments: comments, bundle: _b}, false) }}
         </div>
     {% endif %}
 </div>

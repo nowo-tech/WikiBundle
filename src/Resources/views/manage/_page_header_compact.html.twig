@@ -1,0 +1,29 @@
+{#
+  Compact page header (1.29, web_ui.page_header.layout: compact) of the read and edit views: the UiKit `page_header`
+  theme partial with the page tabs (Page / Edit / History, View\AreaNav) and the toolbar on ONE row under the title
+  (UiKit >= 2.48 tabs_inline; the row wraps under the tabs on narrow widths). The toolbar holds the header actions (the
+  read view uses the `split` layout: icon buttons, one primary, a "more" menu), the form's secondary header actions,
+  then the comments toggle (_comments_toggle.html.twig, bundle-rendered markup). The separate tab row
+  (_page_tabs.html.twig) is not printed. Presentation (`compact`, `no_title`, …) follows the UiKit header settings like
+  the stacked header.
+  Variables: header (View\PageHeader with tabs), comments (WikiCommentsPanel::panel() or null), extra_actions (list of
+  View\Action, optional), bundle, nowo_ui_page_type.
+#}
+{% set _b = bundle|default(null) %}
+{% set _pt = nowo_ui_page_type|default(null) %}
+{% set _presentation = nowo_ui_header_presentation(null) %}
+{% set _compact = _presentation == 'compact' %}
+{% set _with_actions = not (_compact and nowo_ui_header.compactActions() == 'bar') %}
+{% set _header = header.withActions((_with_actions ? header.actions : [])|merge(extra_actions|default([]))) %}
+{% set _toggle %}{% if comments|default(null) %}{{ include('@NowoWikiBundle/manage/_comments_toggle.html.twig', {comments: comments, bundle: _b}, false) }}{% endif %}{% endset %}
+{{ include(nowo_ui_partial('page_header', _b), {
+    header: _header,
+    actions: _header.actions,
+    toolbar: _toggle|trim is empty ? null : _toggle|trim,
+    region: 'header',
+    bundle: _b,
+    nowo_ui_page_type: _pt,
+    presentation: _presentation,
+    title_hidden: _compact or _presentation in ['no_title', 'no_header'],
+    tabs_inline: true,
+}, false) }}

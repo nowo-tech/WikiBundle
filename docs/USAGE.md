@@ -11,6 +11,7 @@
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
+  - [Page layout (1.29)](#page-layout-129)
 - [Translations (REQ-I18N-001)](#translations-req-i18n-001)
 - [Events](#events)
 - [Links to host objects (1.9)](#links-to-host-objects-19)
@@ -303,6 +304,31 @@ Templates carry no `style="…"`, no `on*="…"` handlers, no `<style>` block, n
 [SECURITY](SECURITY.md#content-safety)). `tests/Integration/Contract/PageContractTest.php` (UiKit `PageContractTestCase`)
 enforces it for every bundle page.
 
+### Page layout (1.29)
+
+Four opt-in layout options for a three-column page (tree + page + comments), see
+[CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129):
+
+- **Tree rail** (`web_ui.tree_rail: true`): a chevron button in the tree card header ("Collapse Pages") folds the
+  card to a 2.75rem rail; the button then reads "Expand Pages" and shows "Pages" vertically. Keyboard: Enter / Space;
+  the tree leaves the tab order while folded. Without JavaScript the button is a link to `?tree=rail` / `?tree=full`.
+- **Reading column** (`web_ui.reading_width: readable`): the page and its "Used in" / "Files" cards centred at
+  `--nowo-wiki-reading-width`:
+
+  ```css
+  .my-wiki { --nowo-wiki-reading-width: 52rem; }
+  ```
+
+- **Wide content** (always): code blocks and tables scroll sideways inside the column and get a tab stop while they
+  overflow (UiKit `js/nowo-ui-scroll-region.js`).
+- **Compact header** (`web_ui.page_header.layout: compact`): title, then one row with the tabs (*Page* / *Edit* /
+  *History*) at the start and the actions at the end (icon buttons, a "more" menu, the comments toggle); the row wraps
+  under the tabs on a phone. `title: dedupe` stops a body that starts with `# <page title>` from repeating it.
+- **Narrow screens** (`web_ui.narrow_tree_position: after`): under 62rem the page comes first and its tree after it.
+
+New Twig blocks of the page view: `wiki_page_body` (the body card) and `wiki_page_after_body` (empty, after the body:
+backlinks, related objects) — override one block instead of copying `nowo_ui_show_sections`.
+
 ## Translations (REQ-I18N-001)
 
 Every UI string uses the **`NowoWikiBundle`** domain (`src/Resources/translations/NowoWikiBundle.<locale>.yaml`). Shipped locales: `en` (reference), `es`, `it`, `fr`, `pt`, `de`, `nl`; `make validate-translations` checks YAML syntax and key parity across them.
@@ -554,6 +580,13 @@ panel: an inline column from 768 px, a full-height drawer below) holding the Mil
 threads anchored in the text and page-level threads, replies, reactions, resolve / reopen, edit / delete. A highlight
 in the text opens the panel on its thread; a thread scrolls its text into view. The open state is remembered per user;
 `?comments=1` / `?comments=0` open or close it for one request (use `?comments=1` in notification links).
+
+**1.29, dock breakpoint.** With the page tree beside the content, the panel squeezes the page long before 768 px:
+`comments.dock_min_width: lg` docks it only from 1200 px (`xl`: 1440 px) and makes it the overlay drawer below
+(UiKit 2.48 `drawer_below`: focus moves into the drawer and back to the toggle, Escape and the backdrop close it, the
+page is inert behind it). A remembered "open" panel starts closed under that width, so laptops and tablets never open
+a modal drawer on load; `?comments=1` still opens it (as a drawer there). Without a session the open state is kept in
+`localStorage`.
 
 On the read view, **editors** get the page as a read-only Milkdown editor (needed for the highlights and the thread
 component). Other viewers with `ViewComments` keep the server-rendered page and never receive its Markdown source:

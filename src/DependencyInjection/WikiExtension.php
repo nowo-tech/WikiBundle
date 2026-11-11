@@ -76,6 +76,7 @@ use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Panel\WikiTreeRail;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
@@ -216,8 +217,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         // 1.16: comments; their tables and routes exist only when they are on.
         $config['comments']['enabled']          = $this->literalBool($config['comments']['enabled'], 'comments.enabled');
         $config['comments']['read_view_source'] = $this->literalBool($config['comments']['read_view_source'], 'comments.read_view_source');
+        // 1.29: the tree rail shares the panel state endpoint (and store) with the comments panel.
+        $config['web_ui']['tree_rail'] = $this->literalBool($config['web_ui']['tree_rail'], 'web_ui.tree_rail');
         if (!$config['comments']['enabled']) {
-            unset($config['routes']['page_comments'], $config['routes']['space_panel_state']);
+            unset($config['routes']['page_comments']);
+            if (!$config['web_ui']['tree_rail']) {
+                unset($config['routes']['space_panel_state']);
+            }
         }
         // 1.19.1: with the AI off (default) its question route is not registered, so no endpoint or link exists.
         if (!$config['ai']['enabled']) {
@@ -295,6 +301,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.search.scope', $config['search']['scope']);
         $container->setParameter('nowo_wiki.web_ui.enabled', (bool) $config['web_ui']['enabled']);
         $container->setParameter('nowo_wiki.web_ui.css_framework', $config['web_ui']['css_framework']);
+        // 1.29: the page layout options (controllers: tree rail, title dedupe).
+        $container->setParameter('nowo_wiki.web_ui.layout', self::layout($config['web_ui']));
         $container->setParameter('nowo_wiki.security.roles', $roles);
 
         // Load the resource scan first: every explicit definition below must win over the
@@ -392,6 +400,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerPageFiles($container, $config);
         $this->registerAvatars($container, $config);
         $this->registerHistory($container, $config, $emProviderRef);
+        $this->registerPanelState($container, $config);
         $this->registerComments($container, $config, $emProviderRef);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
@@ -633,7 +642,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     private function registerComments(ContainerBuilder $container, array $config, Reference $entityManager, string $anchorClass = CommentAnchor::class): void
     {
-        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, moderation_panel: mixed, error_notices: bool, limits: array{threads_per_page: int, total_threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
+        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, moderation_panel: mixed, error_notices: bool, dock_min_width: string, limits: array{threads_per_page: int, total_threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
         $comments = $config['comments'];
         if (!$comments['enabled']) {
             return;
@@ -658,14 +667,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if ($container->hasDefinition(DoctrineOrmWikiTrashRepository::class)) {
             $container->getDefinition(DoctrineOrmWikiTrashRepository::class)->setArgument('$comments', new Reference(WikiCommentRepositoryInterface::class));
         }
-
-        $store = $comments['state_store'];
-        if (!is_string($store) || $store === '') {
-            $store = SessionWikiPanelStateStore::class;
-            $container->setDefinition($store, (new Definition(SessionWikiPanelStateStore::class))
-                ->setArgument('$requestStack', new Reference('request_stack')));
-        }
-        $container->setAlias(WikiPanelStateStoreInterface::class, $store);
 
         $collab = $config['collaboration']['enabled'];
         $container->setDefinition(WikiCommentService::class, (new Definition(WikiCommentService::class))
@@ -701,7 +702,55 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$forms', new Reference('form.factory', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$readViewSource', $comments['read_view_source'])
             ->setArgument('$moderationPanel', $this->literalBool($comments['moderation_panel'], 'comments.moderation_panel'))
-            ->setArgument('$errorNotices', $comments['error_notices']));
+            ->setArgument('$errorNotices', $comments['error_notices'])
+            ->setArgument('$dockMinWidth', $comments['dock_min_width'])
+            ->setArgument('$sessionStore', $this->sessionPanelStore($comments)));
+    }
+
+    /**
+     * 1.16 / 1.29: the panel state store (the session unless `comments.state_store` names a service), registered with
+     * the comments or the tree rail (`web_ui.tree_rail`); with the rail, also the rail builder of the tree card.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerPanelState(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool, state_store: string|null} $comments */
+        $comments = $config['comments'];
+        $treeRail = $config['web_ui']['tree_rail'] === true;
+        if (!$comments['enabled'] && !$treeRail) {
+            return;
+        }
+
+        $store = $comments['state_store'];
+        if ($this->sessionPanelStore($comments)) {
+            $store = SessionWikiPanelStateStore::class;
+            $container->setDefinition($store, (new Definition(SessionWikiPanelStateStore::class))
+                ->setArgument('$requestStack', new Reference('request_stack')));
+        }
+        $container->setAlias(WikiPanelStateStoreInterface::class, (string) $store);
+
+        if ($treeRail) {
+            $container->setDefinition(WikiTreeRail::class, (new Definition(WikiTreeRail::class))
+                ->setArgument('$state', new Reference(WikiPanelStateStoreInterface::class))
+                ->setArgument('$urlGenerator', new Reference('router'))
+                ->setArgument('$csrf', new Reference('security.csrf.token_manager'))
+                ->setArgument('$routes', $config['routes'])
+                ->setArgument('$sessionStore', $this->sessionPanelStore($comments)));
+        }
+    }
+
+    /**
+     * Whether the panel state store is the bundle's session store (no `comments.state_store`): without a session the
+     * panels then fall back to the browser's localStorage (UiKit `persist`).
+     *
+     * @param array<string, mixed> $comments processed `comments` node
+     */
+    private function sessionPanelStore(array $comments): bool
+    {
+        $store = $comments['state_store'] ?? null;
+
+        return !is_string($store) || $store === '';
     }
 
     /**
@@ -910,7 +959,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$pages', new Reference(WikiPages::class))
             ->setArgument('$dashboardRoute', $config['dashboard_route'])
             ->setArgument('$tabIcons', $config['web_ui']['tab_icons'])
-            ->setArgument('$importExportDialog', $config['web_ui']['import_export'] === 'dialog'));
+            ->setArgument('$importExportDialog', $config['web_ui']['import_export'] === 'dialog')
+            ->setArgument('$compactHeader', ($config['web_ui']['page_header']['layout'] ?? 'stacked') === 'compact'));
         if ($config['search']['excluded_spaces'] !== [] && $config['search']['scope'] !== 'space') {
             throw new LogicException('nowo_wiki.search.excluded_spaces needs search.scope: space.');
         }
@@ -933,7 +983,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      *
      * @throws InvalidConfigurationException when a slot is not a template name
      *
-     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string}
+     * 1.29: `layout` (tree_rail, narrow_tree_position, reading_width, page_header, title, comments_dock), read by the
+     * page view, the edit form and the space home.
+     *
+     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string}}
      */
     public static function ui(array $webUi): array
     {
@@ -950,6 +1003,27 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'assets'        => ['styles' => (bool) ($webUi['assets']['styles'] ?? true), 'scripts' => (bool) ($webUi['assets']['scripts'] ?? true)],
             'slots'         => $slots,
             'import_export' => ($webUi['import_export'] ?? 'page') === 'dialog' ? 'dialog' : 'page',
+            'layout'        => self::layout($webUi),
+        ];
+    }
+
+    /**
+     * 1.29: the page layout options of `web_ui` (every default keeps the 1.28 markup).
+     *
+     * @param array<string, mixed> $webUi processed `web_ui` node
+     *
+     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string}
+     */
+    public static function layout(array $webUi): array
+    {
+        $header = is_array($webUi['page_header'] ?? null) ? $webUi['page_header'] : [];
+
+        return [
+            'tree_rail'            => ($webUi['tree_rail'] ?? false) === true,
+            'narrow_tree_position' => ($webUi['narrow_tree_position'] ?? 'before') === 'after' ? 'after' : 'before',
+            'reading_width'        => ($webUi['reading_width'] ?? 'full') === 'readable' ? 'readable' : 'full',
+            'page_header'          => ($header['layout'] ?? 'stacked') === 'compact' ? 'compact' : 'stacked',
+            'title'                => ($header['title'] ?? 'both') === 'dedupe' ? 'dedupe' : 'both',
         ];
     }
 

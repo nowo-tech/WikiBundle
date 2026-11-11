@@ -5,6 +5,9 @@
   and wiki.js stores the state (POST data-state-url, X-CSRF-Token data-state-token). The body is
   _comments_panel_body.html.twig through content_template (never `content`: comment text is user content, UiKit
   audit DU-I1).
+  1.29: drawer_below (comments.dock_min_width: md | lg | xl) docks the panel only from that width (a drawer below; a
+  server-open lg / xl panel starts closed there, UiKit LV-L2), persist (no session: localStorage, UiKit 2.48), and
+  data-nowo-wiki-comments-requested (?comments=1): wiki.js opens the panel after load if it started closed.
   Variables: comments (WikiCommentsPanel::panel()), bundle.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
@@ -16,6 +19,8 @@
     open: comments.open,
     side: 'end',
     layout: 'inline',
+    drawer_below: comments.drawer_below|default('md'),
+    persist: comments.persist|default(null),
     close_href: comments.close_href,
     labels: {close: 'wiki.comments.close'|trans, opened: 'wiki.comments.opened'|trans, closed: 'wiki.comments.closed'|trans},
     content_template: '@NowoWikiBundle/manage/_comments_panel_body.html.twig',
@@ -26,6 +31,7 @@
         'data-state-url': comments.state_url,
         'data-state-token': comments.state_token,
         'data-reload-href': comments.reload_href|default(null),
+        'data-nowo-wiki-comments-requested': comments.open_requested|default(false) ? true : null,
     },
     bundle: _b,
 }, false) }}

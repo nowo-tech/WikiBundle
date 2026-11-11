@@ -63,6 +63,7 @@ Root key: `nowo_wiki`.
 - [Attachments (1.9)](#attachments-19)
 - [Web UI (REQ-UI-001 / REQ-UI-003)](#web-ui-req-ui-001--req-ui-003)
 - [Host hooks (1.21)](#host-hooks-121)
+- [Page layout (1.29)](#page-layout-129)
 - [REST API (1.24)](#rest-api-124)
 - [Roles per action (REQ-UI-003)](#roles-per-action-req-ui-003)
 - [Pagination (REQ-PERF-001)](#pagination-req-perf-001)
@@ -386,9 +387,10 @@ nowo_wiki:
 | `comments.read_view_source` | `false` | Literal boolean. `false`: on the read view only editors get the read-only Milkdown mount (inline highlights) and so the page source; other commenters get the threads rendered by the server. `true`: every viewer with `ViewComments` gets the mount **and the Markdown source** ([SECURITY](SECURITY.md#comments-threat-model-116)) |
 | `comments.moderation_panel` | `false` | 1.21, literal boolean. `true`: users with `ModerateComments` get *Moderate threads* in the panel: the threads of the page (at most the 50 of `GET …/threads`), each with *Delete thread* behind a confirm dialog (`DELETE …/threads/{id}`). The endpoint exists either way |
 | `comments.error_notices` | `false` | 1.21. `true`: a write refused with 422 or 429 shows its own text (a UiKit toast when the toast script is loaded, else a notice in the panel). The Milkdown event only carries the status, so every 422 reads as `wiki.comments.error.limit_reached` |
+| `comments.dock_min_width` | `md` | 1.29: `md` (768 px, as before), `lg` (1200 px) or `xl` (1440 px) — from this width the panel docks as a column, below it is an overlay drawer (UiKit `drawer_below`). A remembered "open" panel starts closed under `lg` / `xl`; `?comments=1` still opens it ([Page layout](#page-layout-129)) |
 | `comments.shortcut` | null | Modifiers + one key (`Control`, `Alt`, `Shift`, `Meta`), e.g. `Alt+Shift+C` |
 | `routes.page_comments` | `…/pages/{pageSlug}/comments/{path}` | The thread component's endpoints (a custom path must end with `/{path}`) |
-| `routes.space_panel_state` | `…/spaces/{spaceSlug}/panel-state` | `POST {panel: "comments", open}` (204) |
+| `routes.space_panel_state` | `…/spaces/{spaceSlug}/panel-state` | `POST {panel: "comments", open}` (204); 1.29 also `{panel: "tree_rail", open}` with `web_ui.tree_rail` (registered with either feature) |
 
 The tab row (*Page* / *Edit* / *History*) is rendered with or without comments. The toggle and the panel appear only
 for viewers with `WikiAction::ViewComments`. **Rights** are default deny: the host's `WikiSpaceAccessCheckerInterface`
@@ -580,6 +582,41 @@ values. They style the nested list; `tree.enabled` draws the UiKit `tree` partia
 | `--nowo-wiki-tree-hover-bg` | `var(--nowo-ui-surface-muted, #f6f8fb)` |
 | `--nowo-wiki-tree-current-bg` | `var(--nowo-ui-surface-muted, #f6f8fb)` |
 | `--nowo-wiki-tree-current-fg` | `var(--nowo-ui-primary, #2563eb)` |
+
+## Page layout (1.29)
+
+Options of the page view (and, for the header and the comments dock, the edit form and the space home). Every default
+keeps the 1.28 layout. They need UiKit ^2.48 (required by the bundle).
+
+```yaml
+nowo_wiki:
+    web_ui:
+        tree_rail: false               # literal boolean: a collapse button folds the page tree card to a thin rail
+        narrow_tree_position: before   # after: under 62rem the page tree follows the page (page view)
+        reading_width: full            # readable: the main column centred at --nowo-wiki-reading-width
+        page_header:
+            layout: stacked            # compact: tabs and actions (split, comments toggle at the end) on one row
+            title: both                # dedupe: a first body <h1> equal to the title is not shown twice
+    comments:
+        dock_min_width: md             # lg / xl: dock from 1200 / 1440 px, a drawer below
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `web_ui.tree_rail` | `false` | Literal boolean. The tree card (space home, page view) gets the UiKit `rail_toggle`; collapsed it is `--nowo-ui-rail-width` (2.75rem) wide with "Pages" written vertically. Remembered per user in the panel state store (`comments.state_store`, default the session; `WikiPanelStateStoreInterface::TREE_RAIL`, "open" = collapsed), `?tree=rail` / `?tree=full` for one request. Without a session: `localStorage` (`nowo-ui-rail:wiki-tree`). Not applied when `web_ui.slots.sidebar` replaces the card |
+| `web_ui.narrow_tree_position` | `before` | `after`: one column (under 62rem), the page first, then its tree (page view). Visual order only (CSS `order`): the DOM / focus order stays tree first (audit MA-I2) |
+| `web_ui.reading_width` | `full` | `readable`: the page view's main column is at most `--nowo-wiki-reading-width` wide (default `var(--nowo-ui-reading-width, 75ch)`), centred |
+| `web_ui.page_header.layout` | `stacked` | `compact`: UiKit `tabs_inline` on the read and edit views; the read view's actions use the `split` layout; the comments toggle ends the row; no separate tab row |
+| `web_ui.page_header.title` | `both` | `dedupe`: on the read view, a leading body `<h1>` whose normalised text equals the title is dropped (server body; its `id`s stay on empty anchors) or hidden (read-only Milkdown view); a heading with an image, media or math is kept |
+| `comments.dock_min_width` | `md` | See [Comments](#comments-116) |
+
+Tokens: `--nowo-wiki-reading-width` (reading column), UiKit `--nowo-ui-rail-width` (rail), `--nowo-ui-reading-width`,
+`--nowo-ui-side-panel-width` (comments panel, 22rem).
+
+Always on since 1.29: the main column never grows past its track (long code lines and wide tables scroll inside it),
+the body is UiKit rendered content (`data-nowo-ui-rendered-content`: tables as wide as their content, at most the
+column, each in a labelled scroll box that keeps the table semantics) and the read view loads UiKit `js/nowo-ui-scroll-region.js` (keyboard access to overflowing blocks). See
+[UPGRADING](UPGRADING.md#to-1290).
 
 ## REST API (1.24)
 

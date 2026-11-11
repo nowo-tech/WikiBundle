@@ -373,7 +373,12 @@ final class ConfigurationTest extends TestCase
     public function testCommentsDefaultsAndShortcutValidation(): void
     {
         $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
-        self::assertSame(['enabled' => false, 'rate_limiter' => null, 'page_rate_limiter' => null, 'limits' => ['threads_per_page' => 500, 'total_threads_per_page' => 1000, 'user_threads_per_page' => 50, 'comments_per_thread' => 500, 'reactions_per_comment' => 20, 'user_reactions_per_comment' => 10], 'state_store' => null, 'moderation_panel' => false, 'error_notices' => false, 'read_view_source' => false, 'shortcut' => null], $defaults['comments']);
+        self::assertSame(['enabled' => false, 'rate_limiter' => null, 'page_rate_limiter' => null, 'limits' => ['threads_per_page' => 500, 'total_threads_per_page' => 1000, 'user_threads_per_page' => 50, 'comments_per_thread' => 500, 'reactions_per_comment' => 20, 'user_reactions_per_comment' => 10], 'state_store' => null, 'moderation_panel' => false, 'error_notices' => false, 'dock_min_width' => 'md', 'read_view_source' => false, 'shortcut' => null], $defaults['comments']);
+        // 1.29 layout defaults keep the 1.28 page.
+        self::assertFalse($defaults['web_ui']['tree_rail']);
+        self::assertSame('before', $defaults['web_ui']['narrow_tree_position']);
+        self::assertSame('full', $defaults['web_ui']['reading_width']);
+        self::assertSame(['layout' => 'stacked', 'title' => 'both'], $defaults['web_ui']['page_header']);
         self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}', $defaults['routes']['page_comments']['path']);
         self::assertSame('nowo_wiki_space_panel_state', $defaults['routes']['space_panel_state']['name']);
         $ok = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'comments' => ['shortcut' => 'Control+Alt+M']]]);

@@ -33,6 +33,7 @@ use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
+use Nowo\WikiBundle\Panel\WikiTreeRail;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
@@ -57,6 +58,7 @@ use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
+use Nowo\WikiBundle\Util\WikiTitleDedupe;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
@@ -150,6 +152,8 @@ final class WikiManageController extends AbstractController
      * @param WikiPageFileExtractor|null $pageFiles the files of the page view (1.20, `page_files.enabled`; null = off)
      * @param WikiQuotaGate|null $quota asks the host before a new page, an unarchive or an import (1.21, `nowo_wiki.quota.check`)
      * @param string $searchScope `search.scope` (1.21): `space` leaves the "all spaces" choice out of the index search form
+     * @param WikiTreeRail|null $treeRail the page tree rail (1.29, `web_ui.tree_rail`; null = off)
+     * @param array{title?: string} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -190,6 +194,8 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiPageFileExtractor $pageFiles = null,
         private readonly ?WikiQuotaGate $quota = null,
         private readonly string $searchScope = 'all',
+        private readonly ?WikiTreeRail $treeRail = null,
+        private readonly array $layout = [],
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -271,6 +277,10 @@ final class WikiManageController extends AbstractController
         $treeNodes = $pages->tree($space, $tree);
         $treeUi    = $this->treeUi($user, $space, $treeNodes);
         $vars      = $treeUi === null ? [] : ['tree_ui' => $treeUi];
+        // 1.29 (web_ui.tree_rail): the tree card folds to a rail.
+        if ($this->treeRail instanceof WikiTreeRail) {
+            $vars['tree_rail'] = $this->treeRail->rail($this->currentRequest(), $user, $space);
+        }
 
         return $this->renderPage('space', $vars + [
             'page'             => $pages->space($space, $can),
@@ -355,6 +365,16 @@ final class WikiManageController extends AbstractController
         if ($source !== null && $source !== '') {
             $vars['copy_markdown'] = $source;
         }
+        // 1.29 (web_ui.tree_rail): the tree card folds to a rail.
+        if ($this->treeRail instanceof WikiTreeRail) {
+            $vars['tree_rail'] = $this->treeRail->rail($this->currentRequest(), $user, $space);
+        }
+        // 1.29 (web_ui.page_header.title: dedupe): a first body <h1> repeating the title is not shown twice.
+        $dedupe  = ($this->layout['title'] ?? 'both') === 'dedupe';
+        $content = $this->revisionBody($revision);
+        if ($dedupe) {
+            $content = WikiTitleDedupe::strip($content, $page->getTitle());
+        }
 
         // 1.16: the comments toggle and panel (viewers with ViewComments only). The read-only Milkdown mount that holds
         // the thread component needs the page's Markdown, so only editors get it (they may read the source anyway,
@@ -371,13 +391,15 @@ final class WikiManageController extends AbstractController
                 $vars['comments_view'] = [
                     'markdown' => $this->editorBody($revision),
                     'options'  => $this->commentsPanel->editorOptions($options, $comments, $page),
+                    // 1.29: wiki.js hides the read-only editor's first <h1> when it repeats this title.
+                    'dedupe_title' => $dedupe ? $page->getTitle() : null,
                 ];
             }
         }
 
         return $this->renderPage('page_view', $vars + [
             'page'             => $pages->pageView($space, $page, $can, $archiveForm, $deleteForm),
-            'content_html'     => $this->revisionBody($page->getCurrentRevision()),
+            'content_html'     => $content,
             'rich_content'     => $this->bodyRenderer?->hasRichContent() ?? false,
             'tree'             => $treeNodes,
             'tree_truncated'   => $treeTruncated,

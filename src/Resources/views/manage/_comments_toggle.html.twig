@@ -1,0 +1,21 @@
+{#
+  The comments toggle (1.16, extracted in 1.29): the UiKit `side_panel_toggle` theme partial as an icon button
+  (tabler:message-circle) whose visible count badge (open threads the viewer may read) is also part of its accessible
+  name ("Comments 3 open"; "Comments" alone at 0). Without JavaScript it is a link to ?comments=1 (?comments=0 when
+  open). Printed at the end of the tab row (_page_tabs.html.twig) or, with web_ui.page_header.layout: compact, at the
+  end of the header toolbar (_page_header_compact.html.twig).
+  Variables: comments (WikiCommentsPanel::panel()), bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{{ include(nowo_ui_partial('side_panel_toggle', bundle|default(null)), {
+    target: comments.id,
+    label: 'wiki.comments.title'|trans,
+    open: comments.open,
+    href: comments.toggle_href,
+    icon: 'tabler:message-circle',
+    count: comments.count,
+    count_suffix: 'wiki.comments.open_suffix'|trans,
+    shortcut: comments.shortcut,
+    attr: {'data-testid': 'wiki-comments-toggle', 'data-nowo-wiki-comments-toggle': true},
+    bundle: bundle|default(null),
+}, false) }}

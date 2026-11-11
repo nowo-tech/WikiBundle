@@ -32,12 +32,18 @@ use function strtok;
  * remembered state), the badge count, the no-JavaScript URLs and the Milkdown options that mount the thread
  * component into the panel (`panel: container`). Viewers without the right get null: no toggle, no panel, no count.
  *
- * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, truncated: bool, reload_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null, moderation: bool, error_notices: bool}
+ * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, truncated: bool, reload_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null, moderation: bool, error_notices: bool, drawer_below: string, persist: string|null, open_requested: bool}
  */
 final readonly class WikiCommentsPanel
 {
     /** Id of the panel element (`aria-controls` of the toggle; the heading is `<id>-title`). */
     public const ID = 'nowo-wiki-comments';
+
+    /** 1.29: localStorage key of the open state when there is no server store (no session). */
+    public const PERSIST_KEY = 'wiki-comments';
+
+    /** 1.29 `comments.dock_min_width` values (UiKit side panel `drawer_below`). */
+    public const DOCK_WIDTHS = ['md', 'lg', 'xl'];
 
     /** Selector of the element the Milkdown thread component mounts into. */
     public const MOUNT = '[data-nowo-wiki-comments-mount]';
@@ -49,6 +55,9 @@ final readonly class WikiCommentsPanel
      * @param FormFactoryInterface|null $forms builds the no-JavaScript comment form
      * @param bool $moderationPanel 1.21 `comments.moderation_panel`: "Moderate threads" for users with ModerateComments
      * @param bool $errorNotices 1.21 `comments.error_notices`: own texts for writes refused with 422 / 429
+     * @param string $dockMinWidth 1.29 `comments.dock_min_width`: md | lg | xl (UiKit `drawer_below`; anything else: md)
+     * @param bool $sessionStore 1.29: the state store is the bundle's session store (without a session the panel
+     *                           keeps its state in localStorage, UiKit `persist`)
      */
     public function __construct(
         private WikiCommentService $comments,
@@ -62,6 +71,8 @@ final readonly class WikiCommentsPanel
         private bool $readViewSource = false,
         private bool $moderationPanel = false,
         private bool $errorNotices = false,
+        private string $dockMinWidth = 'md',
+        private bool $sessionStore = false,
     ) {
     }
 
@@ -124,6 +135,12 @@ final readonly class WikiCommentsPanel
             // 1.21: the panel extras (each off by default); the moderation list only for moderators.
             'moderation'    => $this->moderationPanel && $can['moderate'],
             'error_notices' => $this->errorNotices,
+            // 1.29: the width from which the panel docks (a drawer below it), the localStorage fallback without a
+            // session, and ?comments=1 (a no-JavaScript link or the reload of a server list): opened as a drawer
+            // after load also where a server-open lg / xl panel starts closed.
+            'drawer_below'   => in_array($this->dockMinWidth, self::DOCK_WIDTHS, true) ? $this->dockMinWidth : 'md',
+            'persist'        => $this->sessionStore && $request?->hasSession() !== true ? self::PERSIST_KEY : null,
+            'open_requested' => $query === '1',
         ];
     }
 
