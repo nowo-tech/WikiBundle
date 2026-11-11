@@ -195,15 +195,18 @@ A page form saved outside the live session (hub down, editor standalone or offli
 
 ## Page layout (1.29)
 
-Re-verification pending (independent audit of 1.29.0 before the tag).
+Audited in Appendix MA (2026-11-11, on `5cfe77a`): **Pass-Low** (MA-L1 table semantics, MA-I1–I3 informational), all
+addressed in the follow-up commit. Re-verification of that delta (drawer state, table scroll boxes, dedupe anchors)
+pending before the tag.
 
 | Item | Behaviour |
 |---|---|
+| Drawer state | `wiki.js` posts the comments panel state only while the panel is a column (not at or under its `dock_min_width` breakpoint, not `layout: overlay`), so a phone / tablet toggle never overwrites the stored desktop choice. |
 | Panel state endpoint | Unchanged checks (firewall-trusted user, readable space, same origin, CSRF token per space, JSON ≤ 16 KiB). It now also accepts `{panel: "tree_rail", open}`, only while `web_ui.tree_rail` is on, and `comments` only while comments are on (422 otherwise). The route exists when either feature is on. The stored value is a boolean per user and panel; nothing else is written. |
 | Rail and panel markup | Every value is server-built and escaped by Twig: the rail toggle `href` is the request path + `?tree=rail|full` and goes through UiKit `nowo_ui_safe_href()`, `state_url` likewise (a refused URL renders no store attributes); `js/nowo-ui-rail.js` posts only to its own origin. The comments toggle in the compact header is bundle-rendered markup; no user input is printed raw. The dedupe title is an attribute-escaped data attribute read with `dataset` and compared as text. |
 | localStorage | Only without a session and with the bundle's session store: keys `nowo-ui-panel:wiki-comments` / `nowo-ui-rail:wiki-tree` hold `open|closed` / `collapsed|expanded`, nothing per page or per user id; errors are ignored. |
-| Title dedupe | A render-time removal of the leading `<h1>` of the body when it equals the title, before the usual sanitizing; the stored revision, search, export and the API are unchanged. It never adds markup. |
-| Rendered content | The body gets `data-nowo-ui-rendered-content` (CSS and the UiKit scroll-region script only add `tabindex` / `role` to overflowing `pre` / `table`); the sanitizer allow-list is unchanged. |
+| Title dedupe | A render-time removal of the leading `<h1>` of the body when it equals the title, before the usual sanitizing; the stored revision, search, export and the API are unchanged. A heading with more than text is kept; the removed heading's `id`s are re-emitted, HTML-escaped, on empty `<sup>` anchors (then sanitized as usual). |
+| Rendered content | The body gets `data-nowo-ui-rendered-content`; each table is wrapped after sanitizing in a scroll box whose label is a translated, attribute-escaped string (`WikiTableScroll`; the regex runs on sanitized HTML, where `<` in text and attributes is escaped). The UiKit scroll-region script adds `tabindex` (plus `role="region"` and `aria-label` from the label) to an overflowing box or code block, and only `tabindex` to an overflowing table; the sanitizer allow-list is unchanged. |
 | Worker mode | `WikiTreeRail` is a stateless readonly service; the layout options are container parameters; nothing is kept between requests (N-request test with two users in `WikiTreeRailTest`). |
 
 ## REST API (1.24, spec 218)

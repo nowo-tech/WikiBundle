@@ -130,6 +130,12 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringContainsString('data-testid="wiki-content" data-nowo-ui-rendered-content', $default);
         self::assertStringContainsString('js/nowo-ui-scroll-region.js', $default);
         self::assertStringNotContainsString('data-nowo-ui-rail-host', $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', PageFixtures::spaceHome()))->html);
+        // MA-L1: every table of the sanitized body sits in a labelled scroll box and keeps its table element.
+        $tables                 = PageFixtures::pageView();
+        $tables['content_html'] = '<table><tr><td onclick="x()">1</td></tr></table>';
+        $wrapped                = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $tables))->html;
+        self::assertStringContainsString('<div class="nowo-wiki-table-scroll" data-nowo-ui-scroll-region data-nowo-ui-scroll-label="Table"><table>', $wrapped);
+        self::assertStringNotContainsString('onclick', $wrapped);
 
         $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layoutContext(PageFixtures::pageView(true, self::compactFactory(), false))))->html;
         // Tree rail: the card is the rail host, the toggle names and controls the body; no-JS link; host store.
@@ -154,6 +160,8 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringNotContainsString('data-testid="wiki-tabs"', $real);
         // The read view's actions use the split layout ("more" menu).
         self::assertStringContainsString('data-nowo-ui-header-actions', $real);
+        // Archive closes the "more" menu as a danger item with its own verb (1.29, Beacon Q2).
+        self::assertSame(1, preg_match('#data-nowo-ui-header-more.*?class="(?=[^"]*nowo-ui-menu__item--danger)(?=[^"]*nowo-ui-action--archive)[^"]*"#s', $real));
         // The lg dock (container and panel) and the head script that applies it before the first paint.
         self::assertMatchesRegularExpression('#<aside id="nowo-wiki-comments" class="[^"]*nowo-ui-side-panel--drawer-lg#', $html);
         self::assertStringContainsString('data-drawer-below="lg"', $html);

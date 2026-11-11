@@ -27,7 +27,8 @@
   on one row, no tab row); comments.drawer_below (comments.dock_min_width) docks the panel only from lg / xl;
   comments.persist / tree_rail.persist (no session) and lg / xl panels add the blocking js/nowo-ui-layout-state.js in
   the head (no flash). Always: the body is UiKit rendered content (data-nowo-ui-rendered-content: wide code blocks
-  and tables scroll sideways inside the column, js/nowo-ui-scroll-region.js makes them keyboard reachable) and the main
+  and tables scroll sideways inside the column — each table in its own labelled scroll box, nowo_wiki_scroll_tables,
+  so it keeps its table semantics — js/nowo-ui-scroll-region.js makes them keyboard reachable) and the main
   column never widens past its track (grid fix). Blocks wiki_page_body (the body card) and wiki_page_after_body (after
   it, before "Used in"; empty) for templates that extend this one.
   Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the rich-content assets + wiki.js: scrolls the current page of the tree into view, draws rich content; 1.16 + nowo-ui-side-panel.js with comments), nowo_ui_page_header (the UiKit header without its tabs + the tab row), nowo_ui_content (1.16: inside the side panel container with comments), nowo_ui_show_sections (sidebar tree + content + "Used in").
@@ -110,7 +111,7 @@
             {% block wiki_page_body %}
             <article class="{{ nowo_ui_class('card', _b) }} nowo-wiki-page"{% if comments_view|default(null) %} data-nowo-wiki-server-body{% endif %}{{ nowo_ui_attrs('card', _b) }}>
                 <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-content{% if rich_content|default(false) %} nowo-md{% endif %}" data-testid="wiki-content" data-nowo-ui-rendered-content{% if rich_content|default(false) %} data-wiki-rich-content{% endif %}>
-                    {{ content_html|default('')|nowo_wiki_safe_html }}
+                    {{ content_html|default('')|nowo_wiki_safe_html|nowo_wiki_scroll_tables('wiki.table_scroll'|trans) }}
                 </div>
             </article>
             {% endblock %}

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     bindWikiComments,
     hideDuplicateTitle,
+    isDrawerLayout,
     normaliseTitle,
     openRequestedPanel,
     PANEL_ID,
@@ -275,7 +276,7 @@ describe('wiki comments 1.29: requested panel and title dedupe', () => {
         const view = document.getElementById('view') as HTMLElement;
         const root = document.getElementById('root') as HTMLElement;
         view.dataset.nowoWikiDedupeTitle = 'Deploy';
-        for (const html of ['<h1>Deploy v2</h1>', '<h2>Deploy</h2>', '<p>x</p><h1>Deploy</h1>', '']) {
+        for (const html of ['<h1>Deploy v2</h1>', '<h2>Deploy</h2>', '<p>x</p><h1>Deploy</h1>', '', '<h1>Deploy<img src="/x.png" alt=""></h1>']) {
             root.innerHTML = `<div class="ProseMirror">${html}</div>`;
             expect(hideDuplicateTitle(view)).toBe(false);
         }
@@ -284,5 +285,54 @@ describe('wiki comments 1.29: requested panel and title dedupe', () => {
         root.innerHTML = '<div class="ProseMirror"><h1></h1></div>';
         view.dataset.nowoWikiDedupeTitle = '';
         expect(hideDuplicateTitle(view)).toBe(false);
+    });
+
+    it('stores the state only while the panel is a column, never from the drawer (1.29)', async () => {
+        const posted: unknown[] = [];
+        setStatePoster(async (_url, _token, body) => {
+            posted.push(body);
+        });
+        const panel = document.getElementById(PANEL_ID) as HTMLElement;
+        panel.dataset.drawerBelow = 'lg';
+        let width = 1024;
+        const queries: string[] = [];
+        const matchMedia = vi.fn((query: string) => {
+            queries.push(query);
+            const max = Number(/(\d+)px/.exec(query)?.[1]);
+
+            return { matches: width <= max } as MediaQueryList;
+        });
+        Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: matchMedia });
+
+        // 1024 px with an lg dock: the drawer — opening and closing it stores nothing.
+        fire(panel, 'nowo-ui:side-panel:open', { id: PANEL_ID });
+        fire(panel, 'nowo-ui:side-panel:close', { id: PANEL_ID });
+        await flush();
+        expect(posted).toEqual([]);
+        expect(queries).toContain('(max-width: 1199px)');
+
+        // 1280 px: a column — stored.
+        width = 1280;
+        fire(panel, 'nowo-ui:side-panel:open', { id: PANEL_ID });
+        await flush();
+        expect(posted).toEqual([{ panel: 'comments', open: true }]);
+
+        // xl and the md default; an unknown value reads as md; an overlay layout is always a drawer.
+        panel.dataset.drawerBelow = 'xl';
+        expect(isDrawerLayout(panel)).toBe(true);
+        delete panel.dataset.drawerBelow;
+        expect(isDrawerLayout(panel)).toBe(false);
+        width = 700;
+        panel.dataset.drawerBelow = 'huge';
+        expect(isDrawerLayout(panel)).toBe(true);
+        panel.dataset.layout = 'overlay';
+        width = 2000;
+        expect(isDrawerLayout(panel)).toBe(true);
+        delete panel.dataset.layout;
+
+        // No layout engine (no matchMedia, or no window): a column.
+        delete (window as { matchMedia?: unknown }).matchMedia;
+        expect(isDrawerLayout(panel)).toBe(false);
+        expect(isDrawerLayout(panel, null)).toBe(false);
     });
 });

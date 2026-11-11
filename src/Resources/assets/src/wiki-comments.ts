@@ -6,7 +6,8 @@
  * - `nowo-milkdown:comments-open-requested` (a highlight, a new comment) → opens the panel if it is closed (the
  *   component then scrolls to the thread and focuses its first control);
  * - `nowo-ui:side-panel:open` / `close` of the panel → the open state is stored for the next page
- *   (`POST data-state-url`, `X-CSRF-Token: data-state-token`, `{panel: "comments", open}`);
+ *   (`POST data-state-url`, `X-CSRF-Token: data-state-token`, `{panel: "comments", open}`); 1.29: only while the
+ *   panel is a column ({@link isDrawerLayout}): toggling the drawer never overwrites the desktop choice;
  * - opening a closed panel whose threads are rendered by the server (`data-reload-href`, readers without the page
  *   source): the page is loaded again with `?comments=1`, so the list is only read when someone opens it;
  * - `nowo-milkdown:ready` of a comments editor → the no-JavaScript list is hidden, and on the read view the read-only
@@ -128,6 +129,9 @@ export function normaliseTitle(text: string): string {
     return text.replace(/\s+/gu, ' ').trim().toLowerCase();
 }
 
+/** Content that is more than text (as `WikiTitleDedupe::NON_TEXT`): such a heading is never hidden. */
+export const NON_TEXT = 'img, svg, picture, video, audio, iframe, object, embed, canvas, input, math, button, select, textarea';
+
 /**
  * 1.29 (`web_ui.page_header.title: dedupe`): hides the read-only editor's first block when it is an `<h1>` whose text
  * equals the page title (`data-nowo-wiki-dedupe-title`). Only the DOM node is hidden: the editor document, and so the
@@ -140,7 +144,14 @@ export function hideDuplicateTitle(view: HTMLElement): boolean {
     const title = normaliseTitle(view.dataset.nowoWikiDedupeTitle ?? '');
     const editor = view.querySelector<HTMLElement>('[contenteditable]') ?? view.querySelector<HTMLElement>('.ProseMirror');
     const first = editor?.firstElementChild;
-    if (title === '' || !(first instanceof HTMLHeadingElement) || first.tagName !== 'H1' || normaliseTitle(`${first.textContent}`) !== title) {
+    if (
+        title === ''
+        || !(first instanceof HTMLHeadingElement)
+        || first.tagName !== 'H1'
+        // Audit MA-I1: a heading with more than text stays.
+        || first.querySelector(NON_TEXT) !== null
+        || normaliseTitle(`${first.textContent}`) !== title
+    ) {
         return false;
     }
     first.hidden = true;
@@ -165,6 +176,29 @@ export function openRequestedPanel(doc: Document = document): boolean {
     }
 
     return api.open(PANEL_ID);
+}
+
+/** Widest viewport (px) at which a panel with this `data-drawer-below` is a drawer (UiKit 2.48 breakpoints). */
+export const DRAWER_MAX_WIDTH: Record<string, number> = { md: 767, lg: 1199, xl: 1439 };
+
+/**
+ * 1.29: whether the panel is laid out as the overlay drawer now (layout `overlay`, or a viewport at or under its
+ * `data-drawer-below` breakpoint, `md` by default), the same rule as UiKit's `isDrawer()`. Without `matchMedia` (no
+ * layout engine) it reads as a column.
+ *
+ * @param panel - The comments panel.
+ * @param win - The window (`matchMedia`).
+ */
+export function isDrawerLayout(panel: HTMLElement, win: Window | null = window): boolean {
+    if (panel.dataset.layout === 'overlay') {
+        return true;
+    }
+    if (typeof win?.matchMedia !== 'function') {
+        return false;
+    }
+    const max = DRAWER_MAX_WIDTH[panel.dataset.drawerBelow ?? 'md'] ?? DRAWER_MAX_WIDTH.md;
+
+    return win.matchMedia(`(max-width: ${max}px)`).matches;
 }
 
 const boundDocs = new WeakSet<Document>();
@@ -211,7 +245,8 @@ export function bindWikiComments(doc: Document = document): void {
         if (reload) {
             navigate(reload);
         }
-        if (url) {
+        // 1.29: only the column (desktop) state is stored; a toggle of the drawer never overwrites it.
+        if (url && !isDrawerLayout(panel, doc.defaultView)) {
             void Promise.resolve()
                 .then(() => statePoster(url, panel.dataset.stateToken ?? '', { panel: 'comments', open }))
                 .catch(() => undefined);

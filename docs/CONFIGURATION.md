@@ -604,10 +604,10 @@ nowo_wiki:
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `web_ui.tree_rail` | `false` | Literal boolean. The tree card (space home, page view) gets the UiKit `rail_toggle`; collapsed it is `--nowo-ui-rail-width` (2.75rem) wide with "Pages" written vertically. Remembered per user in the panel state store (`comments.state_store`, default the session; `WikiPanelStateStoreInterface::TREE_RAIL`, "open" = collapsed), `?tree=rail` / `?tree=full` for one request. Without a session: `localStorage` (`nowo-ui-rail:wiki-tree`). Not applied when `web_ui.slots.sidebar` replaces the card |
-| `web_ui.narrow_tree_position` | `before` | `after`: one column (under 62rem), the page first, then its tree (page view) |
+| `web_ui.narrow_tree_position` | `before` | `after`: one column (under 62rem), the page first, then its tree (page view). Visual order only (CSS `order`): the DOM / focus order stays tree first (audit MA-I2) |
 | `web_ui.reading_width` | `full` | `readable`: the page view's main column is at most `--nowo-wiki-reading-width` wide (default `var(--nowo-ui-reading-width, 75ch)`), centred |
 | `web_ui.page_header.layout` | `stacked` | `compact`: UiKit `tabs_inline` on the read and edit views; the read view's actions use the `split` layout; the comments toggle ends the row; no separate tab row |
-| `web_ui.page_header.title` | `both` | `dedupe`: on the read view, a leading body `<h1>` whose normalised text equals the title is dropped (server body) or hidden (read-only Milkdown view) |
+| `web_ui.page_header.title` | `both` | `dedupe`: on the read view, a leading body `<h1>` whose normalised text equals the title is dropped (server body; its `id`s stay on empty anchors) or hidden (read-only Milkdown view); a heading with an image, media or math is kept |
 | `comments.dock_min_width` | `md` | See [Comments](#comments-116) |
 
 Tokens: `--nowo-wiki-reading-width` (reading column), UiKit `--nowo-ui-rail-width` (rail), `--nowo-ui-reading-width`,
@@ -615,7 +615,7 @@ Tokens: `--nowo-wiki-reading-width` (reading column), UiKit `--nowo-ui-rail-widt
 
 Always on since 1.29: the main column never grows past its track (long code lines and wide tables scroll inside it),
 the body is UiKit rendered content (`data-nowo-ui-rendered-content`: tables as wide as their content, at most the
-column) and the read view loads UiKit `js/nowo-ui-scroll-region.js` (keyboard access to overflowing blocks). See
+column, each in a labelled scroll box that keeps the table semantics) and the read view loads UiKit `js/nowo-ui-scroll-region.js` (keyboard access to overflowing blocks). See
 [UPGRADING](UPGRADING.md#to-1290).
 
 ## REST API (1.24)

@@ -13,7 +13,8 @@ const roadmap = '/tools/wiki/spaces/product/pages/roadmap';
 
 const longLine = `kubectl rollout restart deployment/${'very-long-service-name-'.repeat(20)}api --namespace=production`;
 // 48 columns: wider than any column even though the body breaks long words anywhere (overflow-wrap).
-const wideTable = `<table><thead><tr>${Array.from({ length: 48 }, (_, i) => `<th>C${i + 1}</th>`).join('')}</tr></thead><tbody><tr>${Array.from({ length: 48 }, (_, i) => `<td>${i + 1}</td>`).join('')}</tr></tbody></table>`;
+// Wrapped as the server wraps every table of a body (nowo_wiki_scroll_tables, audit MA-L1).
+const wideTable = `<div class="nowo-wiki-table-scroll" data-nowo-ui-scroll-region data-nowo-ui-scroll-label="Table"><table><thead><tr>${Array.from({ length: 48 }, (_, i) => `<th>C${i + 1}</th>`).join('')}</tr></thead><tbody><tr>${Array.from({ length: 48 }, (_, i) => `<td>${i + 1}</td>`).join('')}</tr></tbody></table></div>`;
 
 /** Serves the page with a 300+ character code line and a 48-column table at the top of its body. */
 async function withWideContent(page: Page, url: string): Promise<void> {
@@ -50,11 +51,18 @@ for (const width of [390, 1024, 1280]) {
       await expect(code).toBeVisible();
       expect(await pageScrollsSideways(page)).toBe(false);
       expect(await code.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
-      const table = page.getByTestId('wiki-content').locator('table').first();
-      expect(await table.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
-      // Keyboard users can reach both (UiKit scroll regions / the wiki code-block helper).
+      // The table keeps its table display (semantics); its scroll box scrolls and is a labelled, focusable region.
+      const box = page.getByTestId('wiki-content').locator('.nowo-wiki-table-scroll').first();
+      const table = box.locator('table');
+      expect(await table.evaluate((el) => getComputedStyle(el).display)).toBe('table');
+      expect(await box.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
       await expect(code).toHaveAttribute('tabindex', '0');
-      await expect(table).toHaveAttribute('tabindex', '0');
+      await expect(box).toHaveAttribute('tabindex', '0');
+      await expect(box).toHaveAttribute('role', 'region');
+      await expect(box).toHaveAccessibleName('Table');
+      // Every table of the page body (the seeded ones too) sits in a box.
+      const content = page.getByTestId('wiki-content');
+      expect(await content.locator('table').count()).toBe(await content.locator('.nowo-wiki-table-scroll > table').count());
       // The page body stays inside the viewport.
       const card = await page.getByTestId('wiki-content').boundingBox();
       expect(card && card.x + card.width <= width + 1).toBe(true);
@@ -125,6 +133,10 @@ test.describe('Wiki tree on a phone (390 px)', () => {
 
 test.describe('Wiki comments dock (comments.dock_min_width: lg)', () => {
   test('1024 px: an overlay drawer — focus in, Escape, focus back; 1280 px: a column beside the page', async ({ page }) => {
+    const stored: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/panel-state') && (r.postData() ?? '').includes('"comments"')) stored.push(r.postData() ?? '');
+    });
     await page.setViewportSize({ width: 1024, height: 800 });
     await page.goto(roadmap);
     const toggle = page.getByTestId('wiki-comments-toggle');
@@ -133,11 +145,11 @@ test.describe('Wiki comments dock (comments.dock_min_width: lg)', () => {
     await expect(panel).toBeHidden();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
-    await Promise.all([page.waitForResponse((r) => r.url().includes('/panel-state')), toggle.click()]);
+    await toggle.click();
     await expect(panel).toBeVisible();
     expect(await panel.evaluate((el) => getComputedStyle(el).position)).toBe('fixed');
     await expect.poll(() => panel.evaluate((el) => el.contains(document.activeElement))).toBe(true);
-    await Promise.all([page.waitForResponse((r) => r.url().includes('/panel-state')), page.keyboard.press('Escape')]);
+    await page.keyboard.press('Escape');
     await expect(panel).toBeHidden();
     await expect(toggle).toBeFocused();
 
@@ -146,6 +158,44 @@ test.describe('Wiki comments dock (comments.dock_min_width: lg)', () => {
     await expect(panel).toBeVisible();
     expect(await panel.evaluate((el) => getComputedStyle(el).position)).not.toBe('fixed');
     expect(await pageScrollsSideways(page)).toBe(false);
+    // Only the column toggle was stored: the drawer toggles at 1024 px never reached the store.
+    expect(stored).toEqual([JSON.stringify({ panel: 'comments', open: true })]);
+  });
+
+  test('a drawer toggle never overwrites the desktop choice (1.29, Beacon Q4)', async ({ page }) => {
+    const stored: string[] = [];
+    page.on('request', (r) => {
+      if (r.url().includes('/panel-state') && (r.postData() ?? '').includes('"comments"')) stored.push(r.postData() ?? '');
+    });
+    const toggle = page.getByTestId('wiki-comments-toggle');
+    const panel = page.locator('#nowo-wiki-comments');
+
+    // Desktop: open the column (stored for this user's session).
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(roadmap);
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+      await Promise.all([page.waitForResponse((r) => r.url().includes('/panel-state')), toggle.click()]);
+    }
+    await expect(panel).toBeVisible();
+    stored.length = 0;
+
+    // Tablet width: open the drawer and close it again.
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await page.goto(roadmap);
+    await expect(panel).toBeHidden();
+    await toggle.click();
+    await expect(panel).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+    await page.waitForTimeout(300);
+    expect(stored).toEqual([]);
+
+    // Back on the desktop: still the stored "open" column.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(roadmap);
+    await expect(panel).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
     // Leave it closed for the other specs.
     await Promise.all([page.waitForResponse((r) => r.url().includes('/panel-state')), toggle.click()]);
     await expect(panel).toBeHidden();

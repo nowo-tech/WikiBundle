@@ -218,14 +218,20 @@
   color: var(--nowo-ui-muted, #64748b);
 }
 
-/* 1.29: a wide table scrolls sideways in its own box instead of widening the page (as UiKit 2.48 rendered content;
-   js/nowo-ui-scroll-region.js gives it a tab stop while it overflows). A table is as wide as its content, at most the
-   column. */
-.nowo-wiki-content table {
-  display: block;
-  width: max-content;
+/* 1.29: a wide table scrolls sideways in its own box instead of widening the page. The box is a wrapper
+   (.nowo-wiki-table-scroll, nowo_wiki_scroll_tables: UiKit scroll region with a label, keyboard reachable while it
+   overflows); the table keeps its table display, so its semantics stay (audit MA-L1, over the UiKit 2.48
+   rendered-content rule that makes the table itself a block). A table is as wide as its content. */
+.nowo-wiki-table-scroll {
   max-width: 100%;
   overflow-x: auto;
+}
+
+.nowo-wiki-content table {
+  display: table;
+  inline-size: auto;
+  max-inline-size: none;
+  overflow: visible;
   border-collapse: collapse;
 }
 

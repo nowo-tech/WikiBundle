@@ -94,11 +94,16 @@ Every new layout option is **off by default**. Two default changes apply to ever
    lines (also in the read-only Milkdown view of editors) and wide tables scroll sideways inside it. Drop host
    workarounds such as `.nowo-wiki-comments-view { min-width: 0 }` / `.nowo-wiki-comments-view .cm-editor { max-width:
    100% }` (Beacon 1.148).
-2. **Tables are as wide as their content** (at most the column, then they scroll), instead of `width: 100%`. The body
-   carries `data-nowo-ui-rendered-content` and the read view loads UiKit `js/nowo-ui-scroll-region.js` (a tab stop on
-   an overflowing code block or table). To stretch narrow tables again (and give up the sideways scroll), add
-   `.nowo-wiki-content table { display: table; width: 100%; }` to your CSS. Host CSS that relied on the table being
-   `display: table` (e.g. `table-layout`) should be checked.
+2. **Tables are as wide as their content** instead of `width: 100%`, and each table of the page body is wrapped in a
+   scroll box: `<div class="nowo-wiki-table-scroll" data-nowo-ui-scroll-region data-nowo-ui-scroll-label="Table">`
+   (Twig filter `nowo_wiki_scroll_tables`, label `wiki.table_scroll`), added after sanitizing. The box scrolls
+   sideways; the `<table>` keeps `display: table`, so screen readers still announce a table (audit MA-L1). The body
+   carries `data-nowo-ui-rendered-content` and the read view loads UiKit `js/nowo-ui-scroll-region.js`, which makes an
+   overflowing box (and code block) a focusable, labelled region (`tabindex="0"`, `role="region"`, `aria-label`).
+   To stretch narrow tables again, add `.nowo-wiki-content table { width: 100%; }` (they still scroll in the box). Host
+   CSS that targets `.nowo-wiki-content > table` must use `.nowo-wiki-content table` (or
+   `.nowo-wiki-table-scroll > table`); host templates that print the body themselves get the box with
+   `|nowo_wiki_safe_html|nowo_wiki_scroll_tables('wiki.table_scroll'|trans({}, 'NowoWikiBundle'))`.
 
 Host `page_view.html.twig` overrides that copy `nowo_ui_show_sections` keep working but do not get the new markup
 (rail, reading column, rendered-content marker): prefer the new blocks `wiki_page_body` / `wiki_page_after_body` and
@@ -119,6 +124,17 @@ nowo_wiki:
 
 - `comments.dock_min_width: lg | xl`: a remembered "open" panel starts closed under the breakpoint (it opens as a
   drawer from the toggle); `?comments=1` links still open it.
+- The comments panel state is stored only from the column (desktop) layout: toggling the drawer on a phone or tablet
+  no longer changes what a host store (or the session) remembers. A host store that relied on drawer toggles being
+  posted sees fewer writes.
+- `page_header.layout: compact` moves Move, Delete and Archive into the "More actions" menu (danger items, last);
+  end-to-end tests that clicked those buttons must open the menu first.
+- `web_ui.narrow_tree_position: after` reorders with CSS `order` under 62rem: the page shows first, but the DOM, the
+  focus and the screen-reader order stay tree first (audit MA-I2, WCAG 2.4.3 trade-off; the same as a host
+  `order: 2` rule). Keep `before` where that matters; a skip link to the main content helps keyboard users.
+- `web_ui.page_header.title: dedupe` keeps a heading that holds more than text (an image, media, math) and keeps the
+  `id`s of a dropped heading on empty `<sup class="nowo-wiki-anchor">` elements, so in-page `#…` links still land
+  (audit MA-I1).
 - `web_ui.tree_rail` uses the same panel state store as the comments (`comments.state_store`, default the session)
   and the same `space_panel_state` route, now registered with the comments **or** the rail. A host store receives the
   new panel name `tree_rail` (`WikiPanelStateStoreInterface::TREE_RAIL`; "open" means collapsed): stores that keep any

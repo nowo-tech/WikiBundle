@@ -112,7 +112,9 @@ templates (block B) follow in 1.30.
 - **Title dedupe (`web_ui.page_header.title`: `both` default | `dedupe`).** On the read view a body that starts with
   an `<h1>` whose text equals the page title (trimmed, whitespace collapsed, case-insensitive) does not repeat it:
   the server body drops it at render time (`Util\WikiTitleDedupe`) and `wiki.js` hides that heading in the read-only
-  Milkdown view (`data-nowo-wiki-dedupe-title`; the document and the comment anchors are unchanged). The stored
+  Milkdown view (`data-nowo-wiki-dedupe-title`; the document and the comment anchors are unchanged). A heading with
+  more than text (image, media, math) is kept, and a dropped heading's `id`s stay on empty
+  `<sup class="nowo-wiki-anchor">` elements (audit MA-I1). The stored
   revision, the editor, search, export and the API are untouched.
 - Twig blocks `wiki_page_body` (the body card) and `wiki_page_after_body` (after it, empty; e.g. backlinks) on the page
   view.
@@ -123,10 +125,17 @@ templates (block B) follow in 1.30.
   shrink (`min-width: 0`), so a long code line or a wide table stays inside the column (the read-only Milkdown view's
   CodeMirror blocks included: `.cm-editor` `max-width: 100%`, `.cm-scroller` scrolls). Hosts can drop their own
   workaround (Beacon 1.148 `.nowo-wiki-comments-view { min-width: 0 }` / `.cm-editor { max-width: 100% }`).
-- **Tables scroll sideways (default).** The page body is UiKit rendered content (`data-nowo-ui-rendered-content`): a
-  table is a block as wide as its content, at most the column, and scrolls sideways (it was `width: 100%` and could
-  push the card past the viewport); narrow tables no longer stretch to the full width. `<pre>` keeps
-  `overflow-x: auto` and gets `max-width: 100%`.
+- **Tables scroll sideways (default).** Each table of the page body is wrapped after sanitizing in a labelled scroll
+  box (`.nowo-wiki-table-scroll`, a UiKit scroll region: focusable `role="region"` named "Table" while it overflows;
+  new Twig filter `nowo_wiki_scroll_tables`, label `wiki.table_scroll` in 7 locales). The table keeps
+  `display: table` and its semantics (audit MA-L1) and is as wide as its content (it was `width: 100%` and could push
+  the card past the viewport). `<pre>` keeps `overflow-x: auto` and gets `max-width: 100%`.
+- **Only the desktop (column) state of the comments panel is stored.** Opening or closing the panel while it is the
+  overlay drawer (at or under its `dock_min_width` breakpoint, or `layout: overlay`) no longer posts to the panel state
+  store, so a phone or tablet toggle never overwrites the choice made on a wide screen (the UiKit `persist` fallback
+  already keeps only the column state). Applies to every breakpoint, `md` included.
+- Compact header (`page_header.layout: compact`): Move, Delete and Archive close the "more" menu in the danger style,
+  each with its own verb (`move`, `delete`, `archive` action kinds and icons); the stacked header keeps the 1.28 kinds.
 - The read view loads UiKit `js/nowo-ui-scroll-region.js`: an overflowing code block or table gets a tab stop (axe
   `scrollable-region-focusable`). `wiki-code-blocks.ts` (1.17) is **deprecated** (it still names the code blocks it
   marks and covers pages without the UiKit script; removed in 2.0).

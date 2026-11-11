@@ -155,7 +155,8 @@ test.describe('Wiki comments panel', () => {
     const toggle = page.getByTestId('wiki-comments-toggle');
     const panel = page.locator('#nowo-wiki-comments');
 
-    await Promise.all([stored(page), toggle.click()]);
+    // 1.29: a drawer toggle is never stored (the desktop column state stays).
+    await toggle.click();
     await expect(panel).toBeVisible();
     await expect(page.locator('#nowo-wiki-comments-title')).toBeFocused();
     const box = await panel.boundingBox();
@@ -165,7 +166,7 @@ test.describe('Wiki comments panel', () => {
     await expect(panel.locator('[data-nowo-ui-side-panel-close]')).toBeVisible();
     expect(await seriousViolations(page, '#nowo-wiki-comments')).toEqual([]);
 
-    await Promise.all([stored(page), panel.locator('[data-nowo-ui-side-panel-close]').click()]);
+    await panel.locator('[data-nowo-ui-side-panel-close]').click();
     await expect(panel).toBeHidden();
     await expect(page.locator('[data-nowo-ui-side-panel-main][inert]')).toHaveCount(0);
     await expect(toggle).toBeFocused();
