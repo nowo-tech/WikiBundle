@@ -39,7 +39,7 @@ final class WikiHtmlTwigExtensionTest extends TestCase
         $twig->addExtension(new WikiHtmlTwigExtension(new WikiHtmlSanitizer()));
         $date = new DateTimeImmutable('2026-11-11 21:40', new DateTimeZone('UTC'));
 
-        self::assertSame('Nov 11, 2026, 9:40 PM', $twig->render('t', ['date' => $date, 'locale' => 'en']));
+        self::assertSame('Nov 11, 2026, 9:40 PM', preg_replace('/\s+/u', ' ', $twig->render('t', ['date' => $date, 'locale' => 'en'])));
         self::assertSame('2026-11-11 21:40', $twig->render('t', ['date' => $date, 'locale' => null]));
     }
 

@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Util\WikiDateFormat;
 use PHPUnit\Framework\TestCase;
 
 use function extension_loaded;
+use function preg_replace;
 
 /**
  * 1.31 (web_ui.page_meta: card): the date in the reader's locale, the fixed format otherwise.
@@ -20,7 +21,8 @@ final class WikiDateFormatTest extends TestCase
     {
         $date = new DateTimeImmutable('2026-11-11 21:40', new DateTimeZone('Europe/Madrid'));
 
-        self::assertSame('Nov 11, 2026, 9:40 PM', WikiDateFormat::medium($date, 'en'));
+        // ICU writes a (narrow) no-break space before "PM"; the polyfill a plain space.
+        self::assertSame('Nov 11, 2026, 9:40 PM', preg_replace('/\s+/u', ' ', WikiDateFormat::medium($date, 'en')));
     }
 
     public function testTheFixedFormatWithoutAUsableLocale(): void
