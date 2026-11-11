@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { headerAction } from './helpers';
 
 /** REQ-DEMO-013 — Wiki demo happy path (auto-login demo user; spaces and pages from the demo fixtures, UiKit pages). */
 const welcome = '/tools/wiki/spaces/engineering/pages/welcome';
@@ -32,13 +33,14 @@ test.describe('Wiki demo', () => {
     await expect(results.getByText(/^\d+ results?$/)).toBeVisible();
   });
 
-  test('1.21: the page_header_extra slot draws the host template after the page header, before the tabs', async ({ page }) => {
+  test('1.21: the page_header_extra slot draws the host template after the page header', async ({ page }) => {
     await page.goto('/tools/wiki/spaces/engineering/pages/deploy');
     const extra = page.getByTestId('demo-header-extra');
     await expect(extra).toBeVisible();
     const box = await extra.boundingBox();
-    const tabs = await page.getByTestId('wiki-tabs').boundingBox();
-    expect(box && tabs && box.y < tabs.y).toBe(true);
+    // 1.29 web_ui.page_header.layout: compact (the demo turns it on): the tabs are part of the header, above the slot.
+    const tabs = await page.getByTestId('wiki-tab-page').boundingBox();
+    expect(box && tabs && box.y > tabs.y).toBe(true);
   });
 
   test('space page shows the tree, search, exports and archived pages (no import for a ROLE_USER)', async ({ page }) => {
@@ -57,7 +59,7 @@ test.describe('Wiki demo', () => {
 
   test('archive asks for confirmation in a native dialog', async ({ page }) => {
     await page.goto(deploy);
-    await page.getByRole('button', { name: 'Archive' }).first().click();
+    await (await headerAction(page, page.getByRole('button', { name: 'Archive' }).or(page.getByRole('menuitem', { name: 'Archive' })))).click();
     const dialog = page.locator('dialog[open]');
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText('Archive this page?');

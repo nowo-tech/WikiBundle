@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect, type Page } from '@playwright/test';
+import { headerAction } from './helpers';
 
 /** 1.14 — the Outline-style page tree (tree.enabled in the demo): treeview, fold state, keyboard moves, Move form. */
 const deploy = '/tools/wiki/spaces/engineering/pages/deploy';
@@ -82,7 +83,7 @@ test.describe('Wiki page tree', () => {
 
   test('the Move form is the single-pointer alternative: parent and position, then back', async ({ page }) => {
     await page.goto('/tools/wiki/spaces/engineering/pages/resources');
-    await page.getByTestId('wiki-move').click();
+    await (await headerAction(page, page.getByTestId('wiki-move'))).click();
     await expect(page.getByTestId('wiki-page-move')).toBeVisible();
     // The Cancel button is the shared UiKit form scaffold in the demo's stock Bootstrap secondary colour (every wiki
     // form has it; a demo theme matter, not the Move form's).
@@ -94,7 +95,7 @@ test.describe('Wiki page tree', () => {
     await expect(page.getByText('“Resources” moved under “Runbooks”, position 1 of 3.')).toBeVisible();
     expect(await children(page, 'Runbooks')).toEqual(['Resources', 'Deploy', 'Rollback']);
 
-    await page.getByTestId('wiki-move').click();
+    await (await headerAction(page, page.getByTestId('wiki-move'))).click();
     await page.getByLabel('Parent page').selectOption({ label: 'Top level' });
     await page.getByRole('button', { name: 'Move' }).click();
     await expect(page.getByText(/^“Resources” moved to the top level, position \d+ of \d+\.$/)).toBeVisible();
@@ -114,7 +115,7 @@ test.describe('Wiki page tree on a phone (390 × 844)', () => {
     await page.route(`**${deploy}`, async (route) => {
       const response = await route.fetch();
       const filler = Array.from({ length: 60 }, (_, i) => `<p>Filler paragraph ${i + 1} of a long page body.</p>`).join('');
-      const body = (await response.text()).replace('<div class="nowo-wiki-layout">', `<div class="nowo-wiki-layout"><div data-e2e-filler>${filler}</div>`);
+      const body = (await response.text()).replace(/<div class="nowo-wiki-layout[^"]*">/, (layout) => `${layout}<div data-e2e-filler>${filler}</div>`);
       await route.fulfill({ response, body });
     });
     await page.goto(deploy);

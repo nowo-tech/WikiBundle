@@ -1322,7 +1322,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * }
  * @psalm-type NowoMilkdownEditorConfig = array{
  *     default_profile?: scalar|Param|null, // Profile used when a form field does not set the `profile` option. // Default: "default"
- *     profiles?: array<string, array{ // Default: {"default":{"features":["toolbar","link_tooltip","table","code_mirror","placeholder","cursor","slash_menu"],"theme":"auto","min_height":"12rem","icon_sprite_url":null,"icons":[],"icon_catalog":false,"toolbar_icons":true,"menu_icons":true,"upload_max_size":10485760,"mention_display":"handle","upload_accept":[]}}
+ *     profiles?: array<string, array{ // Default: {"default":{"features":["toolbar","link_tooltip","table","code_mirror","placeholder","cursor","slash_menu"],"theme":"auto","min_height":"12rem","icon_sprite_url":null,"icons":[],"icon_catalog":false,"toolbar_icons":true,"menu_icons":true,"upload_max_size":10485760,"mention_display":"handle","upload_accept":[],"upload_accept_images":[],"upload_accept_files":[],"action_bar_insert":["file","icon"]}}
  *         features?: list<scalar|Param|null>,
  *         theme?: "light"|"dark"|"auto"|Param, // Default: "auto"
  *         min_height?: scalar|Param|null, // Default: "12rem"
@@ -1334,6 +1334,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         upload_max_size?: int|Param, // Largest upload in bytes (0: no client-side limit). // Default: 10485760
  *         mention_display?: "handle"|"name"|Param, // Mention chips show the @handle (default) or the person's name (1.2.1; names from the `@` suggestions and `user_title_url`). // Default: "handle"
  *         upload_accept?: list<scalar|Param|null>,
+ *         upload_accept_images?: list<scalar|Param|null>,
+ *         upload_accept_files?: list<scalar|Param|null>,
+ *         action_bar_insert?: list<scalar|Param|null>,
  *     }>,
  *     markdown?: array{ // The PHP renderer of the dialect (`milkdown_markdown` Twig filter, MilkdownMarkdownRenderer service).
  *         html_input?: "escape"|"strip"|Param, // Raw HTML in Markdown: escaped (default) or stripped. // Default: "escape"
@@ -1351,11 +1354,27 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         icon_sprite_url?: scalar|Param|null, // Sprite URL for :tabler-NAME: icons in rendered HTML. // Default: null
  *         icons?: list<scalar|Param|null>,
  *         icon_catalog?: bool|Param, // 1.7: also render any icon of the bundled Tabler outline catalog (sprite shards under /bundles/nowomilkdowneditor/icons/). // Default: false
+ *         host_schemes?: array<string, array{ // Default: []
+ *             image?: scalar|Param|null, // Default: null
+ *             file?: scalar|Param|null, // Default: null
+ *             preview?: scalar|Param|null, // Default: null
+ *         }>,
+ *         host_url_patterns?: list<array{ // Default: []
+ *             pattern?: scalar|Param|null,
+ *             scheme?: scalar|Param|null,
+ *             url?: "written"|"resolved"|Param, // Default: "written"
+ *         }>,
+ *         host_url_hosts?: list<scalar|Param|null>,
+ *         host_refused_links?: "text"|"hidden"|Param, // 1.13: a link with a host scheme (app-file:<id>) the resolver refuses keeps its text without a target (text, default, as 1.9) or becomes *Content not visible* (hidden). Links matched by host_url_patterns are always hidden. // Default: "text"
+ *         host_image_origins?: list<scalar|Param|null>,
+ *         image_block?: bool|Param, // 1.9: a paragraph holding only an image renders as a figure: caption from the title, {width=… align=…} block (classes and the width attribute, no style). Enable with the editor feature image_block. // Default: false
+ *         file_preview_sandbox?: list<scalar|Param|null>,
  *         mark_colors?: list<scalar|Param|null>,
  *     },
  * }
  * @psalm-type NowoWikiConfig = array{
  *     user_class?: scalar|Param|null, // FQCN of the application user entity.
+ *     accepted_user_classes?: list<scalar|Param|null>,
  *     table_prefix?: scalar|Param|null, // Default: "wiki_"
  *     space_scope?: "team"|"user"|Param, // Default: "team"
  *     team_membership_resolver?: scalar|Param|null, // Default: null
@@ -1399,6 +1418,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         awareness_rate_limiter?: scalar|Param|null, // 1.14.1: service id of a RateLimiterFactory applied per user and page to presence (awareness) requests instead of rate_limiter (e.g. limiter.wiki_collab_awareness; null: rate_limiter). // Default: null
  *         user_rate_limiter?: scalar|Param|null, // 1.13.1 (CW-I9): service id of a Symfony RateLimiterFactory applied per user across all pages to every collaboration request (null: none). // Default: null
  *         show_names?: bool|Param, // 1.13.1 (CW-I2): co-editors see each other's display name (getDisplayName() / getName()) instead of an opaque "Editor xxxx". Values that equal the login identifier or look like an e-mail address are never shown. // Default: false
+ *         save_conflict?: bool|Param, // A page form saved outside the live session (hub down, editor standalone or offline) while the shared log holds unsaved updates: true (default) asks first and keeps the text in the form; false saves and drops the log, so those updates are lost, as before this option. // Default: true
  *         store?: scalar|Param|null, // Service id of a WikiCollabStateStoreInterface (null: the Doctrine store, tables <prefix>_page_collab_*). // Default: null
  *         publisher?: scalar|Param|null, // Service id of a WikiCollabPublisherInterface (null: symfony/mercure HubInterface). // Default: null
  *         subscriber_authorizer?: scalar|Param|null, // Service id of a WikiCollabSubscriberAuthorizerInterface (null: symfony/mercure Authorization cookie). // Default: null
@@ -1440,6 +1460,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         state_store?: scalar|Param|null, // Service id of a WikiPanelStateStoreInterface keeping the open / closed state of the panel per user (null: the session). // Default: null
  *         moderation_panel?: bool|Param, // 1.21, literal boolean. true: users with ModerateComments get "Moderate threads" in the comments panel: every thread of the page with "Delete thread" behind a confirm dialog (DELETE …/comments/threads/{id}). false (default): no such section (the endpoint stays). // Default: false
  *         error_notices?: bool|Param, // 1.21. true: a comment write refused for a cap (422 limit_reached) or the rate limit (429) shows its own text (a UiKit toast when the UiKit toast script is loaded, else a notice in the panel). false (default): only the editor's "could not be saved". // Default: false
+ *         dock_min_width?: "md"|"lg"|"xl"|Param, // 1.29: from which width the comments panel docks as a column beside the page (UiKit side panel drawer_below): md (default, 768 px, as before), lg (1200 px) or xl (1440 px); below it the panel is an overlay drawer. A panel the server renders open starts closed under lg / xl (it opens as a drawer from the toggle). lg is recommended with the page tree. // Default: "md"
  *         read_view_source?: bool|Param, // Literal boolean. true: on the read view, viewers with ViewComments who may not edit the page also get its Markdown source (the read-only Milkdown mount with inline highlights; HTML comments, link targets, reference definitions and directive arguments included). false (default): only editors do; the others see the threads rendered by the server. // Default: false
  *         shortcut?: scalar|Param|null, // Keyboard shortcut of the comments toggle, e.g. "Alt+Shift+C" (exposed as aria-keyshortcuts); null: none. // Default: null
  *     },
@@ -1454,6 +1475,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         milkdown?: array{ // 1.13: options of editor.type milkdown.
  *             page_resolver?: scalar|Param|null, // Service id of the Nowo\MilkdownEditorBundle\Markdown\Resolver\PageResolverInterface that resolves [[wiki:<uuid>]] links for the viewer in wiki pages; null = the bundle resolver (wiki pages the viewer may read, page_view URLs). // Default: null
  *             copy_markdown?: bool|Param, // 1.15: a "Copy as Markdown" button on the page view, for users who may edit the page only (the raw source holds page ids and directive attributes). Needs nowo-tech/milkdown-editor-bundle >= 1.5. // Default: false
+ *             host_files?: "auto"|"on"|"off"|Param, // 1.25: resolve host file references (nowo_milkdown_editor.markdown.host_schemes and host_url_patterns) in the per-viewer render of pages and comments, through the host HostFileResolverInterface with the render's WikiRenderFrame (space, page, the API's reach). auto (default): only when host_url_patterns is set; on: also with host_schemes alone; off: never (as 1.24). Under a reach, a resolver that is not a ContextualHostFileResolverInterface resolves nothing. // Default: "auto"
+ *             file_cards?: "link"|"card"|Param, // 1.25 (WK-8): how ::file[name]{href size type} cards read in the per-viewer render of pages and comments (UI and API reader view) when no host DirectiveRendererInterface supports "file". link (default, as 1.24): a plain link to the card's href. card: Milkdown's own file card (FileCard: badge, name, size, link / icon / card views), linked to the URL Milkdown's host file resolution gave it (host_files), so a refused file reads *Content not visible*; a host renderer for "file" is then no longer needed. The neutral content_html render keeps the link. // Default: "link"
+ *             file_previews?: bool|Param, // 1.28 (Symfony Beacon spec 212 block B): with file_cards: card, a view="preview" card of the per-viewer render frames the preview URL the host's Milkdown FilePreviewResolverInterface gives it (inside the render's WikiRenderFrame; under the API's reach only host-reference cards are asked), sandboxed with nowo_milkdown_editor.markdown.file_preview_sandbox, lazy and without referrer. Milkdown's default resolver answers only for its preview templates, so without a host resolver or a preview template nothing changes. The page CSP needs frame-src for the preview origin. false: preview cards read as cards (as 1.27). // Default: true
  *         },
  *     },
  *     security?: array{
@@ -1483,10 +1507,29 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     },
  *     search?: array{ // 1.21: the search page (routes.search).
  *         scope?: "all"|"space"|Param, // all (default): one space (?space=) or every space the user may read. space: always one space — a request without a valid ?space= is 404, and the space becomes the request attribute spaceSlug (as on the space pages, for host listeners, tabs and breadcrumbs). // Default: "all"
+ *         excluded_spaces?: list<scalar|Param|null>,
+ *     },
+ *     api?: array{ // 1.24 (spec 218): a REST API for scripts and agents with a host token. Off: no route, service, listener or table. See docs/API.md.
+ *         enabled?: bool|Param, // Default: false
+ *         prefix?: scalar|Param|null, // Base path of the API. Not affected by web_ui.path_prefix or the tenant paths. // Default: "/api/wiki/v1"
+ *         quota_listener_required?: bool|Param, // Page creates and unarchives through the API are refused unless a listener answers nowo_wiki.quota.check. false: a host with no plan limits. // Default: true
+ *         max_body_bytes?: int|Param, // Largest JSON body, in bytes (413 above). Uploads are the files hook's business. // Default: 1048576
+ *         search_candidates?: int|Param, // Rows a search request reads at most before filtering what the reader may see (owner Q-O6). // Default: 500
+ *         hooks?: array{
+ *             authenticator?: scalar|Param|null, // Required with enabled: Api\Hook\WikiApiAuthenticatorInterface. // Default: null
+ *             directory?: scalar|Param|null, // Required with enabled: Api\Hook\WikiApiDirectoryInterface. // Default: null
+ *             rate_limiter?: scalar|Param|null, // Api\Hook\WikiApiRateLimiterInterface. null: every request 429. // Default: null
+ *             plan_gate?: scalar|Param|null, // Api\Hook\WikiApiPlanGateInterface. null: 403 PLAN_001. // Default: null
+ *             users?: scalar|Param|null, // Api\Hook\WikiApiUsersInterface. null: no person has an id. // Default: null
+ *             idempotency_store?: scalar|Param|null, // Api\Hook\WikiApiIdempotencyStoreInterface. null: the bundle table <table_prefix>_api_idempotency. // Default: null
+ *             wiki_management?: scalar|Param|null, // Api\Hook\WikiApiWikiManagementInterface. null: 403 WIKI_001. // Default: null
+ *             files?: scalar|Param|null, // Api\Hook\WikiApiFilesInterface. null: no files (403 FILE_001, empty lists). // Default: null
+ *         },
  *     },
  *     import_export?: array{
  *         enabled?: bool|Param, // Default: true
  *         max_upload_bytes?: int|Param, // Default: 52428800
+ *         max_document_bytes?: int|Param, // 1.21.1: largest Markdown document an import accepts, in bytes. A ZIP entry over it is refused before anything is extracted (or as soon as a lying entry passes it), and a file over it in a directory source (wiki:import) before anything is written. // Default: 8388608
  *     },
  *     pagination?: array{ // REQ-PERF-001: caps on the list pages of the manage UI.
  *         spaces_per_page?: int|Param, // Space cards per page on the wiki index (?page=N). // Default: 24
@@ -1632,6 +1675,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             scripts?: bool|Param, // Default: true
  *             ...<string, mixed>
  *         },
+ *         tree_rail?: bool|Param, // 1.29, literal boolean. true: the page tree card of the space home and the page view gets a collapse button (UiKit rail_toggle) that folds it to a thin rail; the state is kept per user in the panel state store (comments.state_store, default the session; localStorage without a session) and ?tree=rail|full overrides it. false (default): no button, as before. // Default: false
+ *         narrow_tree_position?: "before"|"after"|Param, // 1.29: where the page tree goes on the page view below 62rem (one column): before (default, as before) or after the page. // Default: "before"
+ *         reading_width?: "full"|"readable"|Param, // 1.29: width of the page view's main column. full (default, as before): the whole column; readable: centred, at most --nowo-wiki-reading-width (default the UiKit --nowo-ui-reading-width, 75ch). // Default: "full"
+ *         page_header?: array{ // 1.29: header of the page view and the edit form.
+ *             layout?: "stacked"|"compact"|Param, // stacked (default, as before): the UiKit header, then the tab row (Page / Edit / History + the comments toggle). compact: the tabs and the actions (icon buttons and a "more" menu, the comments toggle at the end) on one row under the title (UiKit tabs_inline). // Default: "stacked"
+ *             title?: "both"|"dedupe"|Param, // both (default): the header title and the page body as written. dedupe: on the read view, a first body heading <h1> whose text equals the page title (trimmed, spaces collapsed, case-insensitive) is not shown; the stored revision, the editor, search, export and the API are unchanged. // Default: "both"
+ *         },
  *         slots?: array{ // 1.21: host templates drawn in place of a part of the pages (included with the page variables; null = the bundle part). sidebar: the page tree card of the space home and the page view; space_intro: the search card of the space home; page_header_extra: after the page header of the page view (before the tab row).
  *             sidebar?: scalar|Param|null, // Default: null
  *             space_intro?: scalar|Param|null, // Default: null
@@ -1667,9 +1717,11 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     icon_set?: "bootstrap-icons"|"tabler-icons"|"ux_icon"|"svg_inline"|"none"|Param, // Icon rendering: bootstrap-icons|tabler-icons|ux_icon|svg_inline|none. // Default: "bootstrap-icons"
  *     row_actions_display?: "icon"|"text"|"icon_text"|Param, // Table/list row actions: icon (glyph only) | text (label only) | icon_text (both). // Default: "icon"
  *     row_actions_confirm?: "inline"|"native"|"dialog"|Param, // confirm_message of 1.x row_actions POST hashes (2.22, REQ-UI-003): inline = onsubmit="return confirm(…)" (default, unchanged markup); native | dialog = no inline handler, the confirm-submit Stimulus peer asks (window.confirm or the kit <dialog>). native / dialog need the confirm-submit peer registered. // Default: "inline"
+ *     action_icons?: array<string, scalar|Param|null>,
+ *     action_variants?: array<string, scalar|Param|null>,
  *     panel_path_rewrites?: array<string, scalar|Param|null>,
  *     release_check?: array{ // Optional GitHub release-version checker (footer dialog + JSON endpoint). Off by default.
- *         enabled?: bool|Param, // Register the checker service + controller. Also import @NowoUiKitBundle/Resources/config/routes/release_check.yaml. // Default: false
+ *         enabled?: bool|Param, // Register the checker service + controller. Also import @NowoUiKitBundle/Resources/config/routes/release_check.yaml. Since 2.33 also a container parameter or "%env(bool:…)%" (false at runtime = the check is skipped and the endpoint answers 404). // Default: false
  *         github_repo?: scalar|Param|null, // Public GitHub repository "owner/name" whose releases are compared (e.g. nowo-tech/my-app). // Default: ""
  *         current_version?: scalar|Param|null, // Installed version label, clean semver x.y.z with optional "v" (e.g. "%app.version%"). Non-semver values skip the check. // Default: ""
  *         cache_ttl?: int|Param, // Seconds to cache the GitHub answer (cache.app). Default 12h. // Default: 43200
@@ -1697,7 +1749,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     },
  *     appearance?: array{ // Optional site appearance SPI (presets, --nowo-ui-* token emitter, Twig functions). Off by default.
  *         enabled?: bool|Param, // Default: false
- *         provider?: scalar|Param|null, // Service id implementing AppearanceProviderInterface (host storage). Null = the config defaults below. // Default: null
+ *         provider?: scalar|Param|null, // Service id implementing AppearanceProviderInterface (host storage). Null = the config defaults below (or, 2.40, the brand provider: see brand). // Default: null
+ *         brand?: "auto"|"off"|Param, // 2.40 (spec 220): auto = with provider null and a nowo-tech/brand-contracts BrandProviderInterface service, the brand drives the name, eyebrow, colours and logos (corner, border and footer stay from defaults). off = always the defaults. No brand service = no change. // Default: "auto"
+ *         head_links?: bool|Param, // 2.40: the kit layouts (document, error) print nowo_ui_appearance_head() in <head>: favicon / apple-touch links of the appearance logos and meta theme-color (paper colour per colour scheme). Off = the 2.39 <head>. // Default: false
  *         defaults?: array{
  *             brand_name?: scalar|Param|null, // Default: ""
  *             brand_eyebrow?: scalar|Param|null, // Default: ""
@@ -1748,11 +1802,18 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // 2.3.1: false drops the breadcrumb trail (BreadcrumbKit and PageHeader::breadcrumbs) from every page header, e.g. when the host layout renders its own. // Default: true
  *     },
  *     header?: array{ // 2.27 compact header: the default page-header presentation (a request attribute _nowo_ui_header_presentation overrides it per request) and where PageHeader::actions go in the compact presentation.
- *         presentation?: "standard"|"compact"|Param, // standard (default) | compact: in compact the page header keeps a visually hidden h1 and leaves its intro, breadcrumbs and back link to the top bar (header_context). // Default: "standard"
+ *         presentation?: "standard"|"compact"|"inline"|"no_intro"|"no_title"|"no_header"|Param, // standard (default) | compact | inline | no_intro | no_title | no_header: in compact the page header keeps a visually hidden h1 and leaves its intro, breadcrumbs and back link to the top bar (header_context); 2.39: inline puts the intro on the title row, no_intro drops the intro, no_title keeps the h1 visually hidden, no_header does both. // Default: "standard"
  *         compact_actions?: "page"|"bar"|Param, // page (default): header.actions stay in the page header; bar: in the compact presentation the page header leaves them out (the host shows them in the top bar through the page_actions partial). extra_actions always stay. // Default: "page"
+ *     },
+ *     auth_panel?: array{ // 2.44: the auth scaffold (page/auth.html.twig) panel (Twig global nowo_ui_kit_auth_panel).
+ *         brand?: "auto"|"none"|Param, // auto (default, the 2.43 markup): the panel brand region prints the appearance logo lockup, else AuthPage::brand as text; none: the panel prints no brand region (a host guest layout that prints its own brand). A render variable nowo_ui_auth_brand (auto | none) wins over it. // Default: "auto"
  *     },
  *     remote_dialog?: array{ // 2.28 remote form dialog (X-Nowo-Dialog requests).
  *         convert_redirects?: bool|Param, // Turn a RedirectResponse answered to a dialog request (X-Nowo-Dialog: 1, main request) into 204 + X-Nowo-Redirect when its Location is a same-origin path, so redirectToRoute() controllers work in the dialog without code changes. // Default: false
+ *         step_routes?: list<scalar|Param|null>,
+ *         request_header?: scalar|Param|null, // 2.33: request header the dialog sends with "1" (both drivers, RemoteDialogResponder, the redirect listener, nowo_ui_dialog_request()). // Default: "X-Nowo-Dialog"
+ *         redirect_header?: scalar|Param|null, // 2.33: response header of the success answer (204 + <path>: the dialog closes and the page goes there). // Default: "X-Nowo-Redirect"
+ *         location_header?: scalar|Param|null, // 2.33: response header of the step answer (204 + <path>: the dialog stays open and loads the next step). // Default: "X-Nowo-Dialog-Location"
  *     },
  *     theme?: array{ // Global theme (REQ-UI-003): semantic slot classes / attributes, partial overrides and --nowo-ui-* tokens, configured once for every bundle.
  *         framework_defaults?: bool|Param, // false = slots print the semantic nowo-ui-* class and the host classes only (no UiKit framework defaults such as btn / badge / card). Per slot: classes.<slot>: {value: …, framework_defaults: false}. // Default: true
@@ -1821,6 +1882,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         }>,
  *         illustration_width?: int|Param, // Default intrinsic width of the illustrations. // Default: 1024
  *         illustration_height?: int|Param, // Default intrinsic height of the illustrations. // Default: 683
+ *         illustration_provider?: scalar|Param|null, // 2.47: service id implementing Nowo\UiKitBundle\View\ErrorIllustrationProviderInterface, asked first per status code (null answer, any exception or an invalid illustration → the illustrations map). Must be fast and must not need the database. Null = the map only. // Default: null
+ *         illustration_provider_budget_ms?: int|Param, // 2.47: when > 0, a provider call slower than this many milliseconds makes the rest of the same request skip the provider (logged once). 0 = no budget. // Default: 0
  *         webp?: bool|Param, // Illustrations ship a .webp next to the fallback image (<source type="image/webp">). // Default: true
  *         retry_statuses?: list<int|Param>,
  *         back_link_statuses?: list<int|Param>,
@@ -1835,6 +1898,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         sidebar_hidden_value?: scalar|Param|null, // Cookie value of the hidden aside. // Default: "collapsed"
  *         sidebar_rail_value?: scalar|Param|null, // Cookie value of the icons-only rail. // Default: "rail"
  *         sidebar_storage?: scalar|Param|null, // localStorage key of the aside mode (data-nowo-ui-sidebar-storage on the shell root; kit_styles + rail only). // Default: null
+ *         sidebar_layout?: "below-header"|"full-height"|Param, // 2.32: below-header (default, the 2.31 markup byte for byte) | full-height: on desktop the aside runs from the top edge with the burger and the brand in its head (aside_brand_html / brand_icon_html + brand_name / brand_html), the header and the footer start at its right edge. The app_shell_open option sidebar_layout, then the request attribute _nowo_ui_sidebar_layout, win over it. // Default: "below-header"
+ *         brand?: array{ // 2.32: the shell brand from config (no template override): the aside head of the full-height layout, and the header brand when a page passes neither brand_html nor brand. The app_shell_open options brand_name / brand_href / brand_icon_src / brand_icon_html / aside_brand_html win.
+ *             name?: scalar|Param|null, // Brand name (text); the icons-only rail hides it and keeps it as the link name. // Default: null
+ *             href?: scalar|Param|null, // Brand link: relative, http, https or mailto (validated when the container compiles; javascript:, data: and other schemes are refused). // Default: null
+ *             icon_src?: scalar|Param|null, // Brand icon image URL (e.g. /images/logo.svg; prefer same-origin or https), rendered as <img> in every aside mode; without it the name's initial. Relative, http or https only (validated when the container compiles). // Default: null
+ *         },
+ *         hover_expand?: bool|Param, // 2.32: with kit_styles and rail_mode, the icons-only rail widens over the page while the pointer or the keyboard focus is on it (data-nowo-ui-sidebar-hover-expand on the shell root, is-aside-peek set by nowo-ui-shell.js). The app_shell_open option hover_expand wins. // Default: false
  *     },
  * }
  * @psalm-type AiConfig = array{

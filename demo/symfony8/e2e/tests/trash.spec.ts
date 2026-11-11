@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect, type Page } from '@playwright/test';
+import { headerAction } from './helpers';
 
 /** 1.14 (T065) — the trash (trash.enabled in the demo): delete with its sub-pages, restore together, purge twice confirmed. */
 const retired = '/tools/wiki/spaces/engineering/pages/retired-runbooks';
@@ -13,7 +14,7 @@ async function seriousViolations(page: Page, include: string): Promise<string[]>
 
 async function deleteRetired(page: Page): Promise<void> {
   await page.goto(retired);
-  await page.getByTestId('wiki-delete').click();
+  await (await headerAction(page, page.getByTestId('wiki-delete'))).click();
   const dialog = page.locator('dialog[open]');
   await expect(dialog).toContainText('Move this page to the trash?');
   await dialog.getByRole('button', { name: 'Delete' }).click();
@@ -27,7 +28,7 @@ test.describe('Wiki trash', () => {
   test('delete moves the page and its sub-pages to the trash; restore brings them back together', async ({ page }) => {
     // Cancel keeps the page.
     await page.goto(retired);
-    await page.getByTestId('wiki-delete').click();
+    await (await headerAction(page, page.getByTestId('wiki-delete'))).click();
     await page.locator('dialog[open]').getByRole('button', { name: 'Cancel' }).click();
     await expect(page).toHaveURL(new RegExp(retired + '$'));
 

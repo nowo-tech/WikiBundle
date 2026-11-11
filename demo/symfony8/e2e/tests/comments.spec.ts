@@ -36,7 +36,8 @@ test.describe.configure({ mode: 'serial' });
 test.describe('Wiki comments panel', () => {
   test('the tab row is always there; the toggle only where the viewer may see comments', async ({ page }) => {
     await page.goto('/tools/wiki/spaces/engineering/pages/deploy');
-    const tabs = page.getByTestId('wiki-tabs');
+    // 1.29: the demo uses the compact header, so the tabs are in the page header (no separate tab row).
+    const tabs = page.locator('[data-nowo-ui-region="header"]');
     await expect(tabs.getByTestId('wiki-tab-page')).toHaveAttribute('aria-current', 'page');
     await expect(tabs.getByTestId('wiki-tab-edit')).toBeVisible();
     await expect(tabs.getByTestId('wiki-tab-history')).toBeVisible();
