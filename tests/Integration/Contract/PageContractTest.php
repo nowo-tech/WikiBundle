@@ -443,6 +443,11 @@ final class PageContractTest extends PageContractTestCase
         $html                  = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $auto))->html;
         self::assertSame(2, substr_count($html, 'nowo-wiki-children--auto'));
         self::assertStringContainsString('>1 subpage</summary>', $html);
+        // More readable sub-pages than the cap: "N+" on the chip and under the list.
+        $auto['page_children'] = ['mode' => 'always', 'items' => [['label' => 'Alpha', 'href' => '/p/alpha']], 'truncated' => true];
+        $html                  = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $auto))->html;
+        self::assertStringContainsString('>1+ subpages</summary>', $html);
+        self::assertStringContainsString('data-testid="wiki-children-more">1+ subpages</p>', $html);
         $auto['page_children'] = ['mode' => 'always', 'items' => []];
         $html                  = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $auto))->html;
         self::assertStringNotContainsString('wiki-page-head', $html);

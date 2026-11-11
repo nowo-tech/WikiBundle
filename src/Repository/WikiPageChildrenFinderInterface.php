@@ -18,8 +18,9 @@ interface WikiPageChildrenFinderInterface
      *
      * @param WikiPage $parent the page
      * @param int $limit maximum number of pages
+     * @param int $offset pages to skip (the next batch when the caller filtered the previous one)
      *
      * @return list<WikiPage>
      */
-    public function findActiveChildren(WikiPage $parent, int $limit): array;
+    public function findActiveChildren(WikiPage $parent, int $limit, int $offset = 0): array;
 }

@@ -240,6 +240,7 @@ wiki:
     more: 'Nog %count% niveaus tonen'
   children:
     count: '{1} 1 subpagina|]1,Inf[ %count% subpagina''s'
+    count_more: '%count%+ subpagina''s'
     title: 'Pagina''s in deze sectie'
 wiki_page_form:
   title:

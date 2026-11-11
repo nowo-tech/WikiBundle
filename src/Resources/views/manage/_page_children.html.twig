@@ -19,5 +19,6 @@
             </li>
         {% endfor %}
     </ul>
+    {% if _children.truncated|default(false) %}<p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-children__more" data-testid="wiki-children-more">{{ 'wiki.children.count_more'|trans({'%count%': _children.items|length}) }}</p>{% endif %}
 </section>
 {% endif %}

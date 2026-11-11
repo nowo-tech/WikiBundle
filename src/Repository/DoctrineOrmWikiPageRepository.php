@@ -260,7 +260,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->getResult();
     }
 
-    public function findActiveChildren(WikiPage $parent, int $limit): array
+    public function findActiveChildren(WikiPage $parent, int $limit, int $offset = 0): array
     {
         /* @var list<WikiPage> */
         return $this->entityManager()->createQueryBuilder()
@@ -272,7 +272,10 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->orderBy('p.position', SortDirection::Ascending)
             ->addOrderBy('p.title', SortDirection::Ascending)
             ->setMaxResults(max(1, $limit))
+            ->setFirstResult(max(0, $offset))
             ->getQuery()
+            // Audit MG-2-L2: like findActiveBySpace(), the rows win over a page the EntityManager kept (worker mode).
+            ->setHint(Query::HINT_REFRESH, true)
             ->getResult();
     }
 

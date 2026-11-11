@@ -111,17 +111,20 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   (`manage/_page_path.html.twig`). More than three levels fold the middle ones into a "…" disclosure menu; under 30rem
   only "‹ Parent" shows. An ancestor the viewer may not read is "…" with a generic hidden text: no link, no title, no
   name in any attribute (defence in depth: the read rule already hides pages below a hidden one). No extra query (the
-  ancestors are those the tree already loaded). Default `none`.
+  ancestors are those the tree already loaded). An archived ancestor is plain text, not a link to a 404 (MG-2-L4).
+  Default `none`.
 - **`web_ui.children: auto|always`:** the readable, non-archived direct sub-pages in tree order, as a "N subpages" chip
   above the body (a disclosure with the list) and a "Pages in this section" card after the body. One query
   (`WikiPageChildrenFinderInterface::findActiveChildren()`, implemented by `DoctrineOrmWikiPageRepository`; a host
-  repository without it falls back to `findActiveBySpace()`), capped at `pagination.max_tree_pages`; the count is the
-  count of the visible pages. `auto` shows both only while the tree is collapsed or on one column. Default `never`.
+  repository without it falls back to `findActiveBySpace()` bounded like the tree), at most `pagination.max_tree_pages`
+  readable pages: the cap counts readable pages only (hidden ones are skipped in further batches when needed) and more
+  shows as "N+ subpages" (`truncated`; audit MG-2-L1/L3). `findActiveChildren()` reads with `HINT_REFRESH` (MG-2-L2).
+  `auto` shows both only while the tree is collapsed or on one column. Default `never`.
 - **`web_ui.breadcrumb_current_label`** (literal boolean, default `false`): with BreadcrumbKit >= 2.17 installed, the
   page view names the current crumb after the page title through
   `Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface` (optional reference; without BreadcrumbKit or
   with an older one nothing happens). `composer.json` suggests `nowo-tech/breadcrumb-kit-bundle` ^2.17; no conflict.
-- Translation keys `wiki.page.toolbar`, `wiki.path.label|hidden|more`, `wiki.children.count|title`.
+- Translation keys `wiki.page.toolbar`, `wiki.path.label|hidden|more`, `wiki.children.count|count_more|title`.
 
 ### Fixed
 

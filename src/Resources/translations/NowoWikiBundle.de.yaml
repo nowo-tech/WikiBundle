@@ -240,6 +240,7 @@ wiki:
     more: '%count% weitere Ebenen anzeigen'
   children:
     count: '{1} 1 Unterseite|]1,Inf[ %count% Unterseiten'
+    count_more: '%count%+ Unterseiten'
     title: 'Seiten in diesem Abschnitt'
 wiki_page_form:
   title:

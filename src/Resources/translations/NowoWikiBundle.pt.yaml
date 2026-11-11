@@ -240,6 +240,7 @@ wiki:
     more: 'Mostrar mais %count% níveis'
   children:
     count: '{1} 1 subpágina|]1,Inf[ %count% subpáginas'
+    count_more: '%count%+ subpáginas'
     title: 'Páginas desta secção'
 wiki_page_form:
   title:

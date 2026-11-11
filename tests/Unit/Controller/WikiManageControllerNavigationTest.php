@@ -45,7 +45,9 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 
 use function array_column;
 use function array_filter;
+use function array_map;
 use function count;
+use function in_array;
 use function json_encode;
 use function str_starts_with;
 
@@ -218,6 +220,64 @@ final class WikiManageControllerNavigationTest extends TestCase
         self::assertCount(31, $this->twig->context['page_children']['items']);
     }
 
+    /**
+     * Audit MG-2-L1: the cap applies to readable sub-pages; hidden ones never eat it, and "more than the cap" is a flag.
+     */
+    public function testTheCapCountsReadableSubPagesAndFlagsTheRest(): void
+    {
+        $hidden = [];
+        for ($i = 1; $i <= 7; ++$i) {
+            $child = $this->page('c' . $i, 'Child ' . $i, $this->run);
+            $child->setPosition($i);
+            if ($i <= 4) {
+                $hidden[] = $child->getId();
+            }
+        }
+        $this->em->flush();
+        $decide = static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !in_array($page?->getId(), $hidden, true);
+
+        // Cap 2: four hidden children (positions 1-4) sit between the readable ones; they do not use up the cap.
+        $this->controller(['children' => 'always'], $decide, maxTreePages: 2)->viewPage('eng', 'run');
+        $children = $this->twig->context['page_children'];
+        self::assertSame(['Secret runbooks', 'Child 5'], array_column($children['items'], 'label'));
+        self::assertTrue($children['truncated']);
+
+        // Cap 4: four readable (Child 5-7 and Secret runbooks), not more: no flag.
+        $this->controller(['children' => 'always'], $decide, maxTreePages: 4)->viewPage('eng', 'run');
+        self::assertSame(['Secret runbooks', 'Child 5', 'Child 6', 'Child 7'], array_column($this->twig->context['page_children']['items'], 'label'));
+        self::assertFalse($this->twig->context['page_children']['truncated']);
+
+        // The fallback repository is bounded like the tree; a capped space list is flagged.
+        $this->controller(['children' => 'always'], $decide, pages: $this->stubRepository(), maxTreePages: 3)->viewPage('eng', 'run');
+        self::assertTrue($this->twig->context['page_children']['truncated']);
+    }
+
+    /**
+     * Audit MG-2-L2: findActiveChildren() reads the rows again over a page the EntityManager kept (worker mode).
+     */
+    public function testTheChildrenFinderRefreshesKeptPages(): void
+    {
+        $child = $this->page('kid', 'Old title', $this->leaf);
+        $this->em->getConnection()->executeStatement('UPDATE wiki_pages SET title = ? WHERE id = ?', ['New title', $child->getId()]);
+
+        $found = (new DoctrineOrmWikiPageRepository($this->em))->findActiveChildren($this->leaf, 10);
+        self::assertSame(['New title'], array_map(static fn (WikiPage $page): string => $page->getTitle(), $found));
+        self::assertSame([], (new DoctrineOrmWikiPageRepository($this->em))->findActiveChildren($this->leaf, 10, 1));
+    }
+
+    /**
+     * Audit MG-2-L4: an archived ancestor (its page view is a 404) is plain text, not a link.
+     */
+    public function testAnArchivedAncestorHasNoLink(): void
+    {
+        $this->run->archive();
+        $this->em->flush();
+        $this->controller(['path' => 'card'])->viewPage('eng', 'leaf');
+
+        self::assertSame(['label' => 'Runbooks', 'href' => null], $this->twig->context['page_path'][2]);
+        self::assertSame('/generated/nowo_wiki_page_view', $this->twig->context['page_path'][1]['href']);
+    }
+
     public function testTheBreadcrumbKitLabelIsOptional(): void
     {
         $label = $this->createMock(BreadcrumbCurrentLabelInterface::class);
@@ -262,7 +322,7 @@ final class WikiManageControllerNavigationTest extends TestCase
      * @param (Closure(WikiAction, WikiSpace, ?WikiPage): bool)|null $decide
      * @param list<string> $routes
      */
-    private function controller(array $layout, ?Closure $decide = null, ?object $breadcrumb = null, array $routes = ['space', 'page_view', 'page_edit', 'page_history'], ?WikiPageRepositoryInterface $pages = null): WikiManageController
+    private function controller(array $layout, ?Closure $decide = null, ?object $breadcrumb = null, array $routes = ['space', 'page_view', 'page_edit', 'page_history'], ?WikiPageRepositoryInterface $pages = null, int $maxTreePages = 500): WikiManageController
     {
         $repository = $pages ?? new DoctrineOrmWikiPageRepository($this->em);
         $doctrine   = new DoctrineOrmWikiPageRepository($this->em);
@@ -297,6 +357,7 @@ final class WikiManageControllerNavigationTest extends TestCase
             null,
             ['tiptap_config' => 'notion'],
             ['enabled' => false, 'max_upload_bytes' => 1],
+            pagination: ['max_tree_pages' => $maxTreePages] + WikiManageController::DEFAULT_PAGINATION,
             spaceGuard: new WikiSpaceGuard(new FixedSpaceLocator($this->space), new CallbackSpaceAccessChecker($decide ?? static fn (): bool => true)),
             layout: $layout,
             breadcrumbCurrentLabel: $breadcrumb,

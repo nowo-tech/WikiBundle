@@ -85,6 +85,7 @@ use Throwable;
 use function array_fill_keys;
 use function array_filter;
 use function array_map;
+use function array_push;
 use function array_reverse;
 use function array_slice;
 use function array_values;
@@ -392,7 +393,7 @@ final class WikiManageController extends AbstractController
         // 1.30 (web_ui.children): the readable direct sub-pages, one query.
         $childrenMode = $this->layout['children'] ?? 'never';
         if ($childrenMode !== 'never') {
-            $vars['page_children'] = ['mode' => $childrenMode, 'items' => $this->pageChildren($user, $space, $page)];
+            $vars['page_children'] = ['mode' => $childrenMode] + $this->pageChildren($user, $space, $page);
         }
         // 1.30 (web_ui.breadcrumb_current_label): BreadcrumbKit >= 2.17 names its current crumb after the page (optional
         // integration: without BreadcrumbKit, or with an older one, the reference is null or another object).
@@ -1651,7 +1652,8 @@ final class WikiManageController extends AbstractController
             $readable               = $this->spaceGuard->isGranted($user, WikiAction::View, $space, $parent);
             $ancestors[]            = [
                 'label' => $readable ? $parent->getTitle() : null,
-                'href'  => $readable ? $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $parent->getSlug()]) : null,
+                // Audit MG-2-L4: an archived ancestor (its view is a 404) is plain text.
+                'href' => $readable && !$parent->isArchived() ? $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $parent->getSlug()]) : null,
             ];
         }
         $root = ['label' => $space->getName(), 'href' => isset($this->routes['space']) ? $this->generateUrl($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]) : null];
@@ -1660,32 +1662,46 @@ final class WikiManageController extends AbstractController
     }
 
     /**
-     * 1.30 (`web_ui.children`): the direct sub-pages of the page the user may read, not archived, in tree order. One
-     * query ({@see WikiPageChildrenFinderInterface}, else the space's active pages), capped at
-     * `pagination.max_tree_pages`; the count shown is the count of this list.
+     * 1.30 (`web_ui.children`): the direct sub-pages of the page the user may read, not archived, in tree order, at
+     * most `pagination.max_tree_pages`. Audit MG-2-L1: the cap applies to readable pages: batches of cap + 1 are read
+     * until cap + 1 readable ones are found or the children run out, so `truncated` (more than the cap) is honest and
+     * the usual case is one query. Without {@see WikiPageChildrenFinderInterface} the children come from the space's
+     * first `max_tree_pages` + 1 active pages, the tree's own bound (audit MG-2-L3); `truncated` is then also set when
+     * that list was capped.
      *
-     * @return list<array{label: string, href: string}>
+     * @return array{items: list<array{label: string, href: string}>, truncated: bool}
      */
     private function pageChildren(UserInterface $user, WikiSpace $space, WikiPage $page): array
     {
         $limit    = max(1, $this->pagination['max_tree_pages']);
-        $children = $this->pageRepository instanceof WikiPageChildrenFinderInterface
-            ? $this->pageRepository->findActiveChildren($page, $limit)
-            : array_slice(array_values(array_filter(
-                $this->pageRepository->findActiveBySpace($space),
-                static fn (WikiPage $child): bool => $child->getParent()?->getId() === $page->getId(),
-            )), 0, $limit);
-        $items = [];
-        foreach ($children as $child) {
-            if (!$child->isArchived() && $this->spaceGuard->isGranted($user, WikiAction::View, $space, $child)) {
-                $items[] = [
-                    'label' => $child->getTitle(),
-                    'href'  => $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $child->getSlug()]),
-                ];
+        $readable = fn (WikiPage $child): bool => !$child->isArchived() && $this->spaceGuard->isGranted($user, WikiAction::View, $space, $child);
+        $found    = [];
+        $capped   = false;
+        if ($this->pageRepository instanceof WikiPageChildrenFinderInterface) {
+            for ($offset = 0; count($found) <= $limit; $offset += $limit + 1) {
+                $batch = $this->pageRepository->findActiveChildren($page, $limit + 1, $offset);
+                array_push($found, ...array_values(array_filter($batch, $readable)));
+                if (count($batch) <= $limit) {
+                    break;
+                }
             }
+        } else {
+            $pages  = $this->pageRepository->findActiveBySpace($space, $limit + 1);
+            $capped = count($pages) > $limit;
+            $found  = array_values(array_filter(
+                $pages,
+                static fn (WikiPage $child): bool => $child->getParent()?->getId() === $page->getId() && $readable($child),
+            ));
+        }
+        $items = [];
+        foreach (array_slice($found, 0, $limit) as $child) {
+            $items[] = [
+                'label' => $child->getTitle(),
+                'href'  => $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $child->getSlug()]),
+            ];
         }
 
-        return $items;
+        return ['items' => $items, 'truncated' => $capped || count($found) > $limit];
     }
 
     /**
