@@ -156,6 +156,7 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
             throw new WikiApiRefusal(Response::HTTP_NOT_FOUND, 'API_001', 'Not found');
         }
         if ($principal === WikiApiAuthFailure::Invalid) {
+            // @igor-ignore - Failed-token counter is meant to persist across requests (host rate limiter storage).
             $this->rateLimiter->registerFailedToken($clientIp);
 
             throw $this->invalidToken();
@@ -166,6 +167,7 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
         $this->requireSecurityUser($principal);
         if (!$this->accessChecker->canAccess($principal->user)) {
             // The same answer as a bad token, and counted as one.
+            // @igor-ignore - Failed-token counter is meant to persist across requests (host rate limiter storage).
             $this->rateLimiter->registerFailedToken($clientIp);
 
             throw $this->invalidToken();

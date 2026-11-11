@@ -148,6 +148,7 @@ final readonly class WikiApiCommentWriteOperations
     {
         [$wiki, $page] = $this->target($principal, $slug, $pageId, WikiAction::ModerateComments);
         $this->audit->requireAudit();
+        // @igor-ignore - Closure runs synchronously inside call()/run() and is never stored.
         $this->comments->call(fn () => $this->deferral->run(function () use ($principal, $page, $threadId): void {
             $this->comments->service()->deleteThread($principal->user, $page->getSpace(), $page, $threadId);
         }));

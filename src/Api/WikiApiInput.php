@@ -122,8 +122,10 @@ final class WikiApiInput
     public function ignore(string $name): void
     {
         if ($this->has($name)) {
+            // @igor-ignore - Per-request value object (WikiApiInput::fromRequest), never a shared service.
             $this->ignored[$name] = true;
         }
+        // @igor-ignore - Per-request value object (WikiApiInput::fromRequest), never a shared service.
         $this->read[$name] = true;
     }
 
@@ -147,6 +149,7 @@ final class WikiApiInput
 
     private function take(string $name): mixed
     {
+        // @igor-ignore - Per-request value object (WikiApiInput::fromRequest), never a shared service.
         $this->read[$name] = true;
 
         return $this->fields[$name] ?? null;

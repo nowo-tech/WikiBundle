@@ -21,6 +21,7 @@
   - [W-03 — Temporary export ZIP can be left behind (Low)](#w-03--temporary-export-zip-can-be-left-behind-low)
   - [W-04 — AI requests have no bundle-level timeout (Low)](#w-04--ai-requests-have-no-bundle-level-timeout-low)
   - [W-05 — `WikiRouteLoader` uses a one-shot `$loaded` flag (Info)](#w-05--wikirouteloader-uses-a-one-shot-loaded-flag-info)
+  - [Igor findings (2026-11-11)](#igor-findings-2026-11-11)
 - [Usage recommendations in worker mode](#usage-recommendations-in-worker-mode)
 - [Re-audit triggers](#re-audit-triggers)
 
@@ -125,6 +126,18 @@ Entities (`WikiSpace`, `WikiPage`, `WikiPageRevision`), DTOs, events and `Uuid` 
 1.10 (UiKit page contract): `Ui\WikiPages` and `Ui\WikiPageFactory` are `final readonly` (configuration, the router and Twig only; the legacy-layout probe asks Twig on every call and keeps nothing), the view models are immutable UiKit value objects built per request, and `CsrfProtectionPass` runs at compile time. The controller builds a new `Response` per render (no mutation of a shared object).
 
 Good patterns observed: all services are `final readonly` or have no properties; no in-process caches; space access is re-evaluated on every request; the FormKit builder binding is restored in `finally`; imports clean their extracted directory in `finally`.
+
+### Igor findings (2026-11-11)
+
+`composer igor` (igor-php 0.10.1) reported four KO on `src/Api/*`. All four are false positives, annotated inline with
+`// @igor-ignore` (CI runs `composer igor` since 1.28.1):
+
+| Where | Igor says | Why it is safe |
+|-------|-----------|----------------|
+| `Api/Operation/WikiApiDelegatedOperations::download()` | mutation of a shared `$response` | The `Response` is returned by the files hook for this call only; the bundle sets its headers before returning it. |
+| `Api/Operation/WikiApiCommentWriteOperations::deleteThread()` | closure capturing local state injected into a shared service | `WikiApiComments::call()` and `WikiEventDeferral::run()` invoke the closure at once and never store it. |
+| `Api/Security/WikiApiRequestListener` | mutation of the injected rate limiter | Counting failed tokens across requests is the purpose of the host rate limiter (its storage bounds it); the default `DenyingWikiApiRateLimiter` is `readonly` and keeps nothing. |
+| `Api/WikiApiInput::ignore()` / `take()` | mutation of `read` / `ignored` | `WikiApiInput` is a per-request value object built by `fromRequest()`; it is not a service. |
 
 ## Usage recommendations in worker mode
 
