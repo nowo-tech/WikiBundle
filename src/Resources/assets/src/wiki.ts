@@ -1,6 +1,7 @@
 import { bindWikiComments, openRequestedPanel } from './wiki-comments';
 import { bindCommentsModeration } from './wiki-comments-moderation';
 import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
+import { bindTreeHiddenFocus, observeCardToolbar } from './wiki-layout';
 
 /** True when the element scrolls its own content vertically (overflow auto / scroll and taller content). */
 const scrollsItself = (el: HTMLElement): boolean => {
@@ -365,6 +366,8 @@ initWikiTrees();
 bindWikiTree();
 bindWikiComments();
 bindCommentsModeration();
+bindTreeHiddenFocus();
+observeCardToolbar();
 whenLoaded(() => {
     openRequestedPanel();
     void renderWikiRichContent();

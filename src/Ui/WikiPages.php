@@ -52,9 +52,10 @@ final readonly class WikiPages
     /**
      * 1.21 `web_ui.slots`: parts of the pages a host template may replace (included with the page variables).
      * sidebar: the page tree card (space home, page view); space_intro: the search card of the space home;
-     * page_header_extra: after the page header of the page view, before the tab row.
+     * page_header_extra: after the page header of the page view, before the tab row. 1.30 page_header_toolbar: host
+     * buttons in the page header toolbar of the page view and the edit form (block wiki_page_header_toolbar).
      */
-    public const SLOTS = ['sidebar', 'space_intro', 'page_header_extra'];
+    public const SLOTS = ['sidebar', 'space_intro', 'page_header_extra', 'page_header_toolbar'];
 
     /** A layout that defines this block renders the UiKit canonical blocks. */
     private const CANONICAL_BLOCK = 'nowo_ui_page_header';

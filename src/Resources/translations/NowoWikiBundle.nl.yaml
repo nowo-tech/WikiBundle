@@ -115,6 +115,7 @@ wiki:
     history: Geschiedenis
     unarchive: 'Pagina terugzetten'
     used_in: 'Gebruikt in'
+    toolbar: 'Pagina-acties'
     files: 'Bestanden'
     file: 'Bestand'
     file_image: 'Afbeelding'

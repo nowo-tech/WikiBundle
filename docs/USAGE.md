@@ -329,6 +329,48 @@ Four opt-in layout options for a three-column page (tree + page + comments), see
 New Twig blocks of the page view: `wiki_page_body` (the body card) and `wiki_page_after_body` (empty, after the body:
 backlinks, related objects) — override one block instead of copying `nowo_ui_show_sections`.
 
+#### 1.30 additions
+
+- **Host toolbar buttons.** Instead of overriding `nowo_ui_page_header`, fill the block `wiki_page_header_toolbar` in a
+  `web_ui.templates.page_view` (and `page_edit`) that extends the bundle page, or point
+  `web_ui.slots.page_header_toolbar` at a template. It is printed where the toolbar is (compact header, end of the
+  stacked tab row, or the content card), before the tree and comments toggles, with the page variables (`page`,
+  `can_edit`, `comments`, …):
+
+  ```twig
+  {# templates/wiki/manage/page_view.html.twig (nowo_wiki.web_ui.templates.page_view) #}
+  {% extends '@NowoWikiBundle/manage/page_view.html.twig' %}
+
+  {% block wiki_page_header_toolbar %}
+      {%- if can_edit|default(false) %}{{ include('wiki/_copy_markdown_button.html.twig', {markdown: wiki_page_markdown()}, false) }}{% endif -%}
+      {{ parent() }}{# the web_ui.slots.page_header_toolbar template, if any #}
+  {% endblock %}
+  ```
+
+  Use toolbar-sized buttons (UiKit `btn_icon`) and print escaped values only: the block is trusted host code.
+- **Tree that disappears** (`web_ui.tree_collapsed_mode: hidden`): collapsing the tree removes it; the expand button
+  is in the toolbar.
+- **Reading column at the start** (`web_ui.reading_align: start`).
+- **Title in the body** (`web_ui.page_header.title: body`): pages written as `# <title>` drop the header title.
+- **Tabs as buttons** (`web_ui.page_header.tabs: toolbar`) and **toolbar in the content card**
+  (`web_ui.page_header.toolbar_position: card`), Notion / Confluence style. With all of them:
+
+  ```yaml
+  nowo_wiki:
+      web_ui:
+          tree_rail: true
+          tree_collapsed_mode: hidden
+          reading_width: readable
+          reading_align: start
+          page_header:
+              layout: compact
+              title: body
+              tabs: toolbar
+              toolbar_position: card
+  ```
+
+  A host that overrides `wiki_page_body` keeps the card toolbar: it wraps the read-only editor and that block.
+
 ## Translations (REQ-I18N-001)
 
 Every UI string uses the **`NowoWikiBundle`** domain (`src/Resources/translations/NowoWikiBundle.<locale>.yaml`). Shipped locales: `en` (reference), `es`, `it`, `fr`, `pt`, `de`, `nl`; `make validate-translations` checks YAML syntax and key parity across them.

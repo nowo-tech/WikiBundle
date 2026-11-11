@@ -29,6 +29,8 @@ use const PREG_SET_ORDER;
  * Audit MA-I1: a heading that holds more than text (an image, media, a form control, math) is never dropped, and the
  * `id`s of a dropped heading (targets of in-page `#…` links and the table of contents) stay in the page on empty
  * `<sup class="nowo-wiki-anchor">` elements (an element the sanitizer keeps with its `id`).
+ *
+ * 1.30 `title: body` uses the same match ({@see startsWithTitle()}) the other way round: the header drops its title.
  */
 final class WikiTitleDedupe
 {
@@ -49,11 +51,8 @@ final class WikiTitleDedupe
      */
     public static function strip(string $html, string $title): string
     {
-        if (preg_match(self::LEADING_H1, $html, $match) !== 1 || preg_match(self::NON_TEXT, $match[1]) === 1) {
-            return $html;
-        }
-        $wanted = self::normalise($title);
-        if ($wanted === '' || self::normalise(html_entity_decode(strip_tags($match[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !== $wanted) {
+        $match = self::leadingTitle($html, $title);
+        if ($match === null) {
             return $html;
         }
 
@@ -67,6 +66,36 @@ final class WikiTitleDedupe
         }
 
         return $anchors . trim(substr($html, strlen($match[0])));
+    }
+
+    /**
+     * 1.30 `web_ui.page_header.title: body`: whether the body starts with an `<h1>` whose text equals the title (the
+     * same match as {@see strip()}), so the page header may leave its title to the body.
+     *
+     * @param string $html the rendered body
+     * @param string $title the page title
+     */
+    public static function startsWithTitle(string $html, string $title): bool
+    {
+        return self::leadingTitle($html, $title) !== null;
+    }
+
+    /**
+     * The leading `<h1>` match (`[0]` the whole heading) when its text equals the title, else null.
+     *
+     * @return array<int, string>|null
+     */
+    private static function leadingTitle(string $html, string $title): ?array
+    {
+        if (preg_match(self::LEADING_H1, $html, $match) !== 1 || preg_match(self::NON_TEXT, $match[1]) === 1) {
+            return null;
+        }
+        $wanted = self::normalise($title);
+        if ($wanted === '' || self::normalise(html_entity_decode(strip_tags($match[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8')) !== $wanted) {
+            return null;
+        }
+
+        return $match;
     }
 
     /**

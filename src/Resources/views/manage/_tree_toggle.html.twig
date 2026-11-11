@@ -1,0 +1,22 @@
+{#
+  1.30 (web_ui.tree_collapsed_mode: hidden): the tree's expand button in the page header toolbar (or the tab row, or
+  the card toolbar). The UiKit `rail_toggle` theme partial controlling the tree body (aria-controls), outside the rail
+  host: js/nowo-ui-rail.js keeps it in sync with the card's own toggle (aria-expanded, label) and stores the state the
+  same way (panel state store, localStorage without a session; ?tree=full without JavaScript). wiki.css shows it only
+  while the tree is collapsed ([aria-expanded="false"]); wiki.js moves the focus between the two toggles.
+  Variables: tree_rail (WikiTreeRail::rail()), bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{{ include(nowo_ui_partial('rail_toggle', bundle|default(null)), {
+    target: tree_rail.body_id,
+    title: 'wiki.space.pages'|trans,
+    collapsed: tree_rail.collapsed,
+    href: tree_rail.href,
+    persist: tree_rail.persist,
+    state_url: tree_rail.state_url,
+    state_token: tree_rail.state_token,
+    state_panel: tree_rail.state_panel,
+    show_title: false,
+    attr: {class: 'nowo-wiki-tree-toggle', 'data-testid': 'wiki-tree-toggle', 'data-nowo-wiki-tree-toggle': true},
+    bundle: bundle|default(null),
+}, false) }}

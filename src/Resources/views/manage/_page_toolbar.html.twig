@@ -1,0 +1,28 @@
+{#
+  1.30: the page toolbar in a fixed order, for web_ui.page_header.tabs: toolbar and toolbar_position: card: the tree
+  toggle (tree_collapsed_mode: hidden), the page tabs as icon buttons (nowo_wiki_tab_actions(): Back to page / Edit /
+  History, aria-current on the current one), the host buttons (block wiki_page_header_toolbar /
+  web_ui.slots.page_header_toolbar), the comments toggle, then the header actions (UiKit `header_actions` partial
+  with the split layout: icon buttons, one primary, the "more" menu; else one UiKit `action` each).
+  Variables: header (View\PageHeader with or without tabs), tabs (View\AreaNav or null), extra_actions (list of
+  View\Action, optional), with_actions (bool, default true), tree_toggle, host_toolbar (pre-rendered markup or ''),
+  comments (WikiCommentsPanel::panel() or null), bundle, nowo_ui_page_type.
+#}
+{% set _b = bundle|default(null) %}
+{% set _pt = nowo_ui_page_type|default(null) %}
+{% set _actions = ((with_actions ?? true) ? header.actions : [])|merge(extra_actions|default([])) %}
+{{- tree_toggle|default('')|raw -}}
+{%- for action in nowo_wiki_tab_actions(tabs|default(null), nowo_ui_kit_icon_set|default('bootstrap-icons')) -%}
+    {{ include(nowo_ui_partial('action', _b), {action: action, context: 'toolbar', bundle: _b, nowo_ui_page_type: _pt}, false) }}
+{%- endfor -%}
+{{- host_toolbar|default('')|raw -}}
+{%- if comments|default(null) %}{{ include('@NowoWikiBundle/manage/_comments_toggle.html.twig', {comments: comments, bundle: _b}, false) }}{% endif -%}
+{%- if _actions is not empty -%}
+    {%- if header.actionsLayout is defined and header.actionsLayout == 'split' -%}
+        {{ include(nowo_ui_partial('header_actions', _b), {actions: _actions, bundle: _b, nowo_ui_page_type: _pt}, false) }}
+    {%- else -%}
+        {%- for action in _actions -%}
+            {{ include(nowo_ui_partial('action', _b), {action: action, context: 'toolbar', bundle: _b, nowo_ui_page_type: _pt}, false) }}
+        {%- endfor -%}
+    {%- endif -%}
+{%- endif -%}

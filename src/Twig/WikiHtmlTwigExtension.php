@@ -8,6 +8,7 @@ use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\Ui\WikiTabActions;
 use Nowo\WikiBundle\Util\WikiTableScroll;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
@@ -57,7 +58,7 @@ final class WikiHtmlTwigExtension extends AbstractExtension
     }
 
     /**
-     * Registers `nowo_wiki_rich_content_assets()` (1.13), marked as HTML-safe.
+     * Registers `nowo_wiki_rich_content_assets()` (1.13), marked as HTML-safe, and `nowo_wiki_tab_actions()` (1.30).
      *
      * @return list<TwigFunction> functions provided by this extension
      */
@@ -65,6 +66,8 @@ final class WikiHtmlTwigExtension extends AbstractExtension
     {
         return [
             new TwigFunction('nowo_wiki_rich_content_assets', $this->richContentAssets(...), ['is_safe' => ['html']]),
+            // 1.30 (web_ui.page_header.tabs: toolbar): the page tabs as toolbar icon buttons.
+            new TwigFunction('nowo_wiki_tab_actions', WikiTabActions::fromTabs(...)),
         ];
     }
 

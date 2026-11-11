@@ -120,6 +120,99 @@
   }
 }
 
+/* 1.30 web_ui.tree_collapsed_mode: hidden — a collapsed tree is not drawn at all (the main column takes the whole
+   width); its expand button is in the page toolbar (_tree_toggle.html.twig), shown only while the tree is collapsed. */
+.nowo-wiki-layout--tree-hidden:has(> .nowo-wiki-layout__aside [data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed']) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.nowo-wiki-layout--tree-hidden > .nowo-wiki-layout__aside:has([data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed']) {
+  display: none;
+}
+
+.nowo-wiki-tree-toggle[aria-expanded='true'] {
+  display: none;
+}
+
+/* 1.30 web_ui.reading_align: start — the readable column next to the tree, same maximum width. */
+.nowo-wiki-reading.nowo-wiki-reading--start {
+  margin-inline: 0;
+}
+
+/* 1.30 web_ui.page_header.toolbar_position: card — the page toolbar at the top right of the content (server body and
+   read-only editor), sticky while the page scrolls (--nowo-wiki-card-toolbar-top, default 0.5rem; inset from the card
+   edge --nowo-wiki-card-toolbar-inset, default 0.75rem). It takes no height of its own: the body's first block (the
+   title) keeps clear of it by the toolbar width that wiki.js publishes (--nowo-wiki-card-toolbar-width; 12rem without
+   JavaScript). It stays above the content (z-index 3, its "more" menu inside it) and in the tab order before it.
+   Under 40rem it is a plain row above the content. */
+.nowo-wiki-card-frame {
+  position: relative;
+  min-width: 0;
+}
+
+.nowo-wiki-card-toolbar {
+  position: sticky;
+  top: var(--nowo-wiki-card-toolbar-top, 0.5rem);
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  block-size: 0;
+  overflow: visible;
+  padding-inline-end: var(--nowo-wiki-card-toolbar-inset, 0.75rem);
+}
+
+.nowo-wiki-card-toolbar__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  block-size: max-content;
+  margin-block-start: var(--nowo-wiki-card-toolbar-inset, 0.75rem);
+  padding: 0.25rem;
+  border-radius: var(--nowo-ui-radius, 0.5rem);
+  background: var(--nowo-ui-surface, Canvas);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
+}
+
+.nowo-wiki-card-frame :is(.nowo-wiki-content, .ProseMirror) > :first-child {
+  padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
+}
+
+/* Audit MG-1-L2 (WCAG 2.4.11): a focused element scrolled into view stops below the sticky toolbar. Hosts with a
+   sticky top bar set --nowo-wiki-card-toolbar-top to its height plus a gap. */
+.nowo-wiki-card-frame :is(a[href], button, input, select, textarea, summary, [tabindex], [contenteditable]) {
+  scroll-margin-block-start: calc(var(--nowo-wiki-card-toolbar-top, 0.5rem) + var(--nowo-wiki-card-toolbar-height, 3rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
+}
+
+@media (max-width: 39.99rem) {
+  .nowo-wiki-card-toolbar {
+    position: static;
+    block-size: auto;
+    padding-inline-end: 0;
+    margin-block-end: 0.5rem;
+  }
+
+  .nowo-wiki-card-toolbar__bar {
+    margin-block-start: 0;
+  }
+
+  .nowo-wiki-card-frame :is(.nowo-wiki-content, .ProseMirror) > :first-child {
+    padding-inline-end: 0;
+  }
+}
+
+@media print {
+  .nowo-wiki-card-toolbar {
+    display: none;
+  }
+}
+
+/* 1.30 fix (title: dedupe): the read-only editor's first <h1> that repeats the title is hidden through a marker on the
+   view wrapper (wiki.js), never in the editor's own DOM (ProseMirror redraws a node whose attributes change). */
+.nowo-wiki-comments-view[data-nowo-wiki-title-deduped] .ProseMirror > h1:first-child {
+  display: none;
+}
+
 /* Page tree: nested lists, indentation from the nesting. */
 /* 1.21 tree tokens (defaults = the 1.20 look; set them on .nowo-wiki-sidebar or any ancestor):
    --nowo-wiki-tree-gap (space between rows, 0), --nowo-wiki-tree-indent (nested list offset, 0.85rem),

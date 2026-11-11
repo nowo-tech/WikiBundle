@@ -766,7 +766,7 @@ final class WikiExtensionTest extends TestCase
         $webUi = $container->getParameter('nowo_wiki.web_ui');
         self::assertTrue($webUi['space_index']);
         self::assertSame(['styles' => true, 'scripts' => true], $webUi['assets']);
-        self::assertSame(['sidebar' => null, 'space_intro' => null, 'page_header_extra' => null], $webUi['slots']);
+        self::assertSame(['sidebar' => null, 'space_intro' => null, 'page_header_extra' => null, 'page_header_toolbar' => null], $webUi['slots']);
         self::assertSame('page', $webUi['import_export']);
         self::assertArrayHasKey('index', (array) $container->getParameter('nowo_wiki.routes'));
         self::assertFalse($container->hasDefinition(WikiSearchScopeListener::class));
@@ -776,7 +776,7 @@ final class WikiExtensionTest extends TestCase
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([[
             'user_class' => 'App\\Entity\\User',
-            'web_ui'     => ['space_index' => false, 'import_export' => 'dialog', 'assets' => false, 'slots' => ['sidebar' => 'wiki/_sidebar.html.twig', 'space_intro' => 'wiki/_intro.html.twig']],
+            'web_ui'     => ['space_index' => false, 'import_export' => 'dialog', 'assets' => false, 'slots' => ['sidebar' => 'wiki/_sidebar.html.twig', 'space_intro' => 'wiki/_intro.html.twig', 'page_header_toolbar' => 'wiki/_toolbar.html.twig']],
             'search'     => ['scope' => 'space'],
             'routes'     => ['search' => ['name' => 'app_wiki_search']],
             'editor'     => ['type' => 'milkdown'],
@@ -787,7 +787,7 @@ final class WikiExtensionTest extends TestCase
         $webUi = $container->getParameter('nowo_wiki.web_ui');
         self::assertFalse($webUi['space_index']);
         self::assertSame(['styles' => false, 'scripts' => false], $webUi['assets']);
-        self::assertSame(['sidebar' => 'wiki/_sidebar.html.twig', 'space_intro' => 'wiki/_intro.html.twig', 'page_header_extra' => null], $webUi['slots']);
+        self::assertSame(['sidebar' => 'wiki/_sidebar.html.twig', 'space_intro' => 'wiki/_intro.html.twig', 'page_header_extra' => null, 'page_header_toolbar' => 'wiki/_toolbar.html.twig'], $webUi['slots']);
         self::assertSame('dialog', $webUi['import_export']);
         self::assertArrayNotHasKey('index', (array) $container->getParameter('nowo_wiki.routes'));
         self::assertTrue($container->getDefinition(WikiPageFactory::class)->getArgument('$importExportDialog'));
@@ -813,7 +813,7 @@ final class WikiExtensionTest extends TestCase
         $container = new ContainerBuilder();
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
-        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both'];
+        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'tree_collapsed_mode' => 'rail', 'reading_align' => 'center'];
         self::assertSame($defaults, $container->getParameter('nowo_wiki.web_ui.layout'));
         /** @var array<string, mixed> $webUi */
         $webUi = $container->getParameter('nowo_wiki.web_ui');
@@ -827,9 +827,9 @@ final class WikiExtensionTest extends TestCase
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([[
             'user_class' => 'App\\Entity\\User',
-            'web_ui'     => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => ['layout' => 'compact', 'title' => 'dedupe']],
+            'web_ui'     => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => ['layout' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card'], 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start'],
         ]], $container);
-        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe'];
+        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start'];
         self::assertSame($layout, $container->getParameter('nowo_wiki.web_ui.layout'));
         /** @var array<string, array{path: string, name: string}> $routes */
         $routes = $container->getParameter('nowo_wiki.routes');
@@ -869,6 +869,8 @@ final class WikiExtensionTest extends TestCase
         // Partial / odd input of the static helper.
         self::assertSame($defaults, WikiExtension::layout([]));
         self::assertSame($defaults, WikiExtension::layout(['tree_rail' => 'yes', 'page_header' => 'compact']));
+        // 1.30: title body.
+        self::assertSame('body', WikiExtension::layout(['page_header' => ['title' => 'body']])['title']);
     }
 
     public function testTheTreeRailIsALiteralBoolean(): void

@@ -528,6 +528,7 @@ nowo_wiki:
             sidebar: null          # the page tree card (space home, page view)
             space_intro: null      # the search card (space home)
             page_header_extra: null  # after the page header, before the tab row (page view)
+            page_header_toolbar: null  # 1.30: host buttons in the page header toolbar (page view, edit form)
     search:
         scope: all                 # space: a request without a valid ?space= is 404
 ```
@@ -539,7 +540,7 @@ nowo_wiki:
 | `search.scope` | `all` | `space`: `WikiSearchScopeListener` (`kernel.request`, priority 30, registered only with this value) answers 404 without a valid `?space=` and sets the request attribute `spaceSlug`, for host listeners, tabs and breadcrumbs. Access to the space is still checked by the controller. The search page has no space choice and the index search form no "all spaces" choice |
 | `web_ui.import_export` | `page` | `dialog`: the exports leave the header and the import card leaves the page, into `manage/_import_export_dialog.html.twig` (UiKit `dialog`; users who may neither import nor export get neither the action nor the dialog) |
 | `web_ui.assets` | `true` | `false` or `{styles: false, scripts: false}`: the `nowo_ui_styles` / `nowo_ui_scripts` blocks of every page print nothing. That also leaves out what the scaffold prints there: the UiKit stylesheet and tokens, and the UiKit runtime scripts. A host bundling the assets loads `src/Resources/assets/src/wiki.css`, `wiki.ts` and the UiKit equivalents itself. Form widgets print their own assets, which this does not remove: on the page view and edit with Milkdown, `milkdown-editor.js` and its CSS stay, so a host bundling Milkdown as well loads it twice. Literal booleans (an env placeholder counts as `true`) |
-| `web_ui.slots.*` | null | A template name; the bundle part is not drawn. The same places are the blocks `wiki_sidebar`, `wiki_space_intro` and `wiki_page_header_extra`, for a `web_ui.templates.<page>` that extends the bundle page. Slot templates are trusted host code; escape what they print |
+| `web_ui.slots.*` | null | A template name; the bundle part is not drawn. The same places are the blocks `wiki_sidebar`, `wiki_space_intro`, `wiki_page_header_extra` and (1.30) `wiki_page_header_toolbar`, for a `web_ui.templates.<page>` that extends the bundle page. Slot templates are trusted host code; escape what they print |
 
 ### Quota event
 
@@ -594,9 +595,14 @@ nowo_wiki:
         tree_rail: false               # literal boolean: a collapse button folds the page tree card to a thin rail
         narrow_tree_position: before   # after: under 62rem the page tree follows the page (page view)
         reading_width: full            # readable: the main column centred at --nowo-wiki-reading-width
+        tree_collapsed_mode: rail      # 1.30 hidden: a collapsed tree disappears; its expand button is in the toolbar
+        reading_align: center          # 1.30 start: the readable column next to the tree
         page_header:
             layout: stacked            # compact: tabs and actions (split, comments toggle at the end) on one row
             title: both                # dedupe: a first body <h1> equal to the title is not shown twice
+                                       # 1.30 body: the header leaves its title (and subtitle) to that <h1>
+            tabs: row                  # 1.30 toolbar: Edit / History (Back to page) as toolbar icon buttons
+            toolbar_position: header   # 1.30 card: the toolbar sticky at the top right of the content
     comments:
         dock_min_width: md             # lg / xl: dock from 1200 / 1440 px, a drawer below
 ```
@@ -608,9 +614,15 @@ nowo_wiki:
 | `web_ui.reading_width` | `full` | `readable`: the page view's main column is at most `--nowo-wiki-reading-width` wide (default `var(--nowo-ui-reading-width, 75ch)`), centred |
 | `web_ui.page_header.layout` | `stacked` | `compact`: UiKit `tabs_inline` on the read and edit views; the read view's actions use the `split` layout; the comments toggle ends the row; no separate tab row |
 | `web_ui.page_header.title` | `both` | `dedupe`: on the read view, a leading body `<h1>` whose normalised text equals the title is dropped (server body; its `id`s stay on empty anchors) or hidden (read-only Milkdown view); a heading with an image, media or math is kept |
+| `web_ui.tree_collapsed_mode` | `rail` | 1.30, with `tree_rail` on the page view. `hidden`: a collapsed tree is not drawn (`display: none`, the main column takes the width) and its expand button (UiKit `rail_toggle`, `data-testid="wiki-tree-toggle"`) is in the page toolbar before the comments toggle (the tab row with the stacked header), visible only while the tree is collapsed. Same state store and `?tree=` as the rail. The space home keeps the rail (it has no toolbar) |
+| `web_ui.reading_align` | `center` | 1.30, with `reading_width: readable`. `start`: the column at the start of the main area (next to the tree), same maximum width |
+| `web_ui.page_header.title` (1.30) | | `body`: when the body starts with an `<h1>` equal to the title (the `dedupe` match), the page view header uses the UiKit compact presentation: no visible title, no subtitle, no breadcrumbs or back link; the title stays a visually hidden `<h1>`, and tabs, actions and toolbar stay. The body (server and read-only editor) keeps its heading. Otherwise the header is unchanged |
+| `web_ui.page_header.tabs` | `row` | 1.30. `toolbar`: no tabs. Page view: Edit (pencil) and History (clock) icon buttons, toolbar order tree toggle, Edit, History, host buttons, comments, actions / "more". Edit form and history: "Back to page", Edit, History; the current one has `aria-current="page"`. Implies the one-row header (whatever `layout` is). Icons follow `web_ui.tab_icons` when the UiKit icon set can draw them |
+| `web_ui.page_header.toolbar_position` | `header` | 1.30, page view. `card`: the toolbar (tree toggle, tab buttons with `tabs: toolbar`, host buttons, comments toggle, actions) leaves the header for the top right of the content, sticky (`role="group"` named "Page actions": its buttons stay in the normal tab order). The header keeps the title and the tabs (unless `tabs: toolbar`); with `title: body` and `tabs: toolbar` it is not printed at all (the body's `<h1>` is the page's only one). Tokens: `--nowo-wiki-card-toolbar-top` (0.5rem: the sticky offset; a host with a sticky top bar sets it to that bar's height plus a gap, e.g. `calc(var(--app-navbar-height) + 0.5rem)`), `--nowo-wiki-card-toolbar-inset` (0.75rem); wiki.js sets `--nowo-wiki-card-toolbar-width` (12rem without it) and `--nowo-wiki-card-toolbar-height` (3rem without it). Focusable elements in the content get `scroll-margin-block-start` = top + height + inset, so a focused link scrolled into view is never under the toolbar (WCAG 2.4.11). Known limit (audit MG-1-I4): `scroll-margin` only acts when the browser scrolls; an element that receives focus while already in view but under the sticky toolbar (focus moved by script, or the page scrolled by hand) is not moved. A host that needs it can add a `focusin` listener on `[data-nowo-wiki-card-frame]` that calls `window.scrollBy()` by the overlap with `[data-nowo-wiki-card-toolbar]` |
+| `web_ui.slots.page_header_toolbar` | null | 1.30. Template of host buttons for the page header toolbar (page view, edit form; only pages with tabs). Same place as the block `wiki_page_header_toolbar` |
 | `comments.dock_min_width` | `md` | See [Comments](#comments-116) |
 
-Tokens: `--nowo-wiki-reading-width` (reading column), UiKit `--nowo-ui-rail-width` (rail), `--nowo-ui-reading-width`,
+Tokens: `--nowo-wiki-reading-width` (reading column), 1.30 `--nowo-wiki-card-toolbar-top` / `-inset` (card toolbar), UiKit `--nowo-ui-rail-width` (rail), `--nowo-ui-reading-width`,
 `--nowo-ui-side-panel-width` (comments panel, 22rem).
 
 Always on since 1.29: the main column never grows past its track (long code lines and wide tables scroll inside it),

@@ -13,6 +13,8 @@ use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
 use InvalidArgumentException;
 use Nowo\UiKitBundle\View\Action;
+use Nowo\UiKitBundle\View\AreaNav;
+use Nowo\UiKitBundle\View\AreaNavItem;
 use Nowo\UiKitBundle\View\FormPage;
 use Nowo\UiKitBundle\View\ListPage;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
@@ -640,6 +642,20 @@ final class WikiManageControllerTest extends TestCase
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $controller->viewPage('eng', 'welcome');
         self::assertNull($twig->context['comments_view']['dedupe_title']);
+        self::assertArrayNotHasKey('title_in_body', $twig->context);
+
+        // 1.30 title: body — the body keeps its heading, the header is told to leave its title out; the read-only
+        // editor gets no dedupe hint (it keeps the heading too).
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'milkdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments]), layout: ['title' => 'body']);
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->viewPage('eng', 'welcome');
+        self::assertTrue($twig->context['title_in_body']);
+        self::assertSame('<h1>Welcome</h1><p>Hi</p>', $twig->context['content_html']);
+        self::assertNull($twig->context['comments_view']['dedupe_title']);
+        // No matching heading: the header is unchanged.
+        $page->setCurrentRevision(new WikiPageRevision($page, 2, '<h1>Other</h1><p>Hi</p>', $user, "# Other\n\nHi"));
+        $controller->viewPage('eng', 'welcome');
+        self::assertArrayNotHasKey('title_in_body', $twig->context);
     }
 
     public function testSpaceRendersTree(): void
@@ -783,6 +799,24 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('page_history', (string) $response->getContent());
+        // 1.30 (web_ui.page_header.tabs: toolbar): the page tabs for the header buttons, History current; not by default.
+        $twig = $this->capturingTwig();
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->pageHistory('eng', 'welcome');
+        self::assertArrayNotHasKey('history_tabs', $twig->context);
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisionRepo, layout: ['tabs' => 'toolbar']);
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->pageHistory('eng', 'welcome');
+        $tabs = $twig->context['history_tabs'];
+        self::assertInstanceOf(AreaNav::class, $tabs);
+        self::assertSame(['wiki-tab-page', 'wiki-tab-edit', 'wiki-tab-history'], array_map(static fn (AreaNavItem $item): mixed => $item->attributes['data-testid'] ?? null, $tabs->items));
+        self::assertSame([false, false, true], array_map(static fn (AreaNavItem $item): bool => $item->active, $tabs->items));
+
+        // A reader without Edit: no Edit button.
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisionRepo, layout: ['tabs' => 'toolbar'], accessChecker: $this->createConfiguredMock(WikiAccessCheckerInterface::class, ['canAccess' => true, 'canList' => true, 'canEdit' => false, 'canViewHistory' => true, 'canArchive' => false, 'canCreate' => false]));
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->pageHistory('eng', 'welcome');
+        self::assertSame(['wiki-tab-page', 'wiki-tab-history'], array_map(static fn (AreaNavItem $item): mixed => $item->attributes['data-testid'] ?? null, $twig->context['history_tabs']->items));
     }
 
     public function testPageDiffNotFoundWhenRevisionMissing(): void

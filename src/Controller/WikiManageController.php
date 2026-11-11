@@ -153,7 +153,7 @@ final class WikiManageController extends AbstractController
      * @param WikiQuotaGate|null $quota asks the host before a new page, an unarchive or an import (1.21, `nowo_wiki.quota.check`)
      * @param string $searchScope `search.scope` (1.21): `space` leaves the "all spaces" choice out of the index search form
      * @param WikiTreeRail|null $treeRail the page tree rail (1.29, `web_ui.tree_rail`; null = off)
-     * @param array{title?: string} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title)
+     * @param array{title?: string, tabs?: string} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title; 1.30 `title: body` drops the header title instead)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -374,6 +374,11 @@ final class WikiManageController extends AbstractController
         $content = $this->revisionBody($revision);
         if ($dedupe) {
             $content = WikiTitleDedupe::strip($content, $page->getTitle());
+        }
+        // 1.30 (title: body): the body keeps its <h1> and the header leaves out the title and the space subtitle. The
+        // read-only editor draws the same Markdown, so it keeps the heading too.
+        if (($this->layout['title'] ?? 'both') === 'body' && WikiTitleDedupe::startsWithTitle($content, $page->getTitle())) {
+            $vars['title_in_body'] = true;
         }
 
         // 1.16: the comments toggle and panel (viewers with ViewComments only). The read-only Milkdown mount that holds
@@ -776,8 +781,14 @@ final class WikiManageController extends AbstractController
         // Revisions are append-only and numbered 1..N: the current number is the total (at least what was fetched).
         $total = max($page->getCurrentRevision()?->getRevisionNumber() ?? 0, ($current - 1) * $perPage + count($fetched));
         $route = $this->routes['page_history']['name'];
+        $vars  = [];
+        // 1.30 (web_ui.page_header.tabs: toolbar): Back to page / Edit / History as header buttons (same rights as the tabs).
+        if (($this->layout['tabs'] ?? 'row') === 'toolbar') {
+            $edit                 = $this->accessChecker->canEdit($user) && $this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $page);
+            $vars['history_tabs'] = $this->pages()->pageTabs($space, $page, ['edit' => $edit, 'history' => true], 'history');
+        }
 
-        return $this->renderPage('page_history', [
+        return $this->renderPage('page_history', $vars + [
             'page' => $this->pages()->history(
                 $space,
                 $page,

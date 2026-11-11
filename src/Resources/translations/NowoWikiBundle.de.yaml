@@ -115,6 +115,7 @@ wiki:
     history: Verlauf
     unarchive: 'Seite wiederherstellen'
     used_in: 'Verwendet in'
+    toolbar: 'Seitenaktionen'
     files: 'Dateien'
     file: 'Datei'
     file_image: 'Bild'

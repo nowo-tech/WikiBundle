@@ -368,7 +368,7 @@ final readonly class WikiPageFactory
      * (`web_ui.tab_icons`, {@see self::TAB_ICONS}).
      *
      * @param array{edit?: bool, history?: bool} $can what the user may do on the page
-     * @param string $current page | edit
+     * @param string $current page | edit | history (1.30: the history view's toolbar buttons, `page_header.tabs: toolbar`)
      */
     public function pageTabs(WikiSpace $space, WikiPage $page, array $can, string $current): AreaNav
     {
@@ -378,7 +378,7 @@ final readonly class WikiPageFactory
             $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.edit'), $this->url('page_edit', $params), $current === 'edit', ['data-testid' => 'wiki-tab-edit'], $this->tabIcon('edit'));
         }
         if (($can['history'] ?? false) && $this->has('page_history')) {
-            $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.history'), $this->url('page_history', $params), false, ['data-testid' => 'wiki-tab-history'], $this->tabIcon('history'));
+            $items[] = new AreaNavItem(WikiPages::label('wiki.tabs.history'), $this->url('page_history', $params), $current === 'history', ['data-testid' => 'wiki-tab-history'], $this->tabIcon('history'));
         }
 
         return new AreaNav($items, WikiPages::label('wiki.tabs.label'));
