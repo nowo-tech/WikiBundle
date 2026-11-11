@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.29.0] - 2026-11-11](#1290---2026-11-11)
 - [[1.28.0] - 2026-11-10](#1280---2026-11-10)
 - [[1.27.0] - 2026-11-09](#1270---2026-11-09)
 - [[1.26.0] - 2026-11-09](#1260---2026-11-09)
@@ -69,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+## [1.29.0] - 2026-11-11
 
 Target: **1.29.0** (Symfony Beacon 1.149 wiki plan, **block A: layout** — the comments aside as a drawer, a
 collapsible page tree rail, a readable column with code / table overflow, a compact header). Needs
@@ -1477,7 +1480,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.28.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.29.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
