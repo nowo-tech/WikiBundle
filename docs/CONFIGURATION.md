@@ -603,6 +603,9 @@ nowo_wiki:
                                        # 1.30 body: the header leaves its title (and subtitle) to that <h1>
             tabs: row                  # 1.30 toolbar: Edit / History (Back to page) as toolbar icon buttons
             toolbar_position: header   # 1.30 card: the toolbar sticky at the top right of the content
+            path: none                 # 1.30 card: Space › ancestors above the body (hidden ones as "…")
+        children: never                # 1.30 auto / always: "N subpages" chip + "Pages in this section"
+        breadcrumb_current_label: false  # 1.30: BreadcrumbKit >= 2.17 names its current crumb after the page
     comments:
         dock_min_width: md             # lg / xl: dock from 1200 / 1440 px, a drawer below
 ```
@@ -619,6 +622,9 @@ nowo_wiki:
 | `web_ui.page_header.title` (1.30) | | `body`: when the body starts with an `<h1>` equal to the title (the `dedupe` match), the page view header uses the UiKit compact presentation: no visible title, no subtitle, no breadcrumbs or back link; the title stays a visually hidden `<h1>`, and tabs, actions and toolbar stay. The body (server and read-only editor) keeps its heading. Otherwise the header is unchanged |
 | `web_ui.page_header.tabs` | `row` | 1.30. `toolbar`: no tabs. Page view: Edit (pencil) and History (clock) icon buttons, toolbar order tree toggle, Edit, History, host buttons, comments, actions / "more". Edit form and history: "Back to page", Edit, History; the current one has `aria-current="page"`. Implies the one-row header (whatever `layout` is). Icons follow `web_ui.tab_icons` when the UiKit icon set can draw them |
 | `web_ui.page_header.toolbar_position` | `header` | 1.30, page view. `card`: the toolbar (tree toggle, tab buttons with `tabs: toolbar`, host buttons, comments toggle, actions) leaves the header for the top right of the content, sticky (`role="toolbar"`, "Page actions"). The header keeps the title and the tabs (unless `tabs: toolbar`); with `title: body` it is empty and collapses. Tokens: `--nowo-wiki-card-toolbar-top` (0.5rem), `--nowo-wiki-card-toolbar-inset` (0.75rem); `--nowo-wiki-card-toolbar-width` is set by wiki.js (12rem without it) |
+| `web_ui.page_header.path` | `none` | 1.30, page view. `card`: the in-wiki path above the body (`data-testid="wiki-page-path"`): the space, then the ancestors, each a link. More than three levels: the middle ones in a "…" disclosure menu. Under 30rem only "‹ Parent". An ancestor the viewer may not read renders "…" (hidden text "Restricted page"), without link, title or name. Tokens `--nowo-wiki-path-separator` ("›"), `--nowo-wiki-path-item-max` (14rem), `--nowo-wiki-path-font-size` |
+| `web_ui.children` | `never` | 1.30, page view. The direct sub-pages the viewer may read, not archived, in tree order: a "N subpages" chip above the body (disclosure with the list) and a "Pages in this section" card after the body. `always`: both; `auto`: only while the tree is collapsed (`tree_rail`) or under 62rem. One query (`WikiPageChildrenFinderInterface`, else `findActiveBySpace()`), at most `pagination.max_tree_pages` pages |
+| `web_ui.breadcrumb_current_label` | `false` | 1.30, literal boolean. With `nowo-tech/breadcrumb-kit-bundle` >= 2.17: the page view calls `BreadcrumbCurrentLabelInterface::setCurrentLabel(<page title>)` (request-scoped in BreadcrumbKit, safe in worker mode). Without BreadcrumbKit or with an older one: nothing |
 | `web_ui.slots.page_header_toolbar` | null | 1.30. Template of host buttons for the page header toolbar (page view, edit form; only pages with tabs). Same place as the block `wiki_page_header_toolbar` |
 | `comments.dock_min_width` | `md` | See [Comments](#comments-116) |
 

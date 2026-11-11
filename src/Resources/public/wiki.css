@@ -201,6 +201,152 @@
   }
 }
 
+/* 1.30 page head (above the body): the in-wiki path (page_header.path: card) and the sub-pages chip (children). In
+   the card-toolbar frame it keeps clear of the sticky toolbar like the title does. */
+.nowo-wiki-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+  font-size: var(--nowo-wiki-path-font-size, 0.875rem);
+}
+
+.nowo-wiki-card-frame > .nowo-wiki-page-head {
+  padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
+  min-block-size: 2.5rem;
+}
+
+.nowo-wiki-path {
+  min-width: 0;
+}
+
+.nowo-wiki-path__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nowo-wiki-path__item {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: var(--nowo-wiki-path-item-max, 14rem);
+}
+
+.nowo-wiki-path__item + .nowo-wiki-path__item::before {
+  content: var(--nowo-wiki-path-separator, "›");
+  padding-inline: 0.4rem;
+  color: var(--nowo-ui-muted, GrayText);
+}
+
+.nowo-wiki-path__link,
+.nowo-wiki-path__text {
+  overflow: hidden;
+  color: var(--nowo-ui-muted, GrayText);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.nowo-wiki-path__link:hover,
+.nowo-wiki-path__link:focus-visible {
+  color: var(--nowo-ui-text, CanvasText);
+}
+
+.nowo-wiki-path__hidden {
+  color: var(--nowo-ui-muted, GrayText);
+}
+
+.nowo-wiki-path__menu,
+.nowo-wiki-children-chip {
+  position: relative;
+}
+
+.nowo-wiki-path__more,
+.nowo-wiki-children-chip__toggle {
+  cursor: pointer;
+  list-style: none;
+}
+
+.nowo-wiki-path__more::-webkit-details-marker,
+.nowo-wiki-children-chip__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.nowo-wiki-path__panel,
+.nowo-wiki-children-chip__panel {
+  position: absolute;
+  inset-block-start: calc(100% + 0.25rem);
+  inset-inline-start: 0;
+  z-index: 4;
+  min-width: 12rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  border: 1px solid var(--nowo-ui-border, GrayText);
+  border-radius: var(--nowo-ui-radius, 0.5rem);
+  background: var(--nowo-ui-surface, Canvas);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.nowo-wiki-path__panel :is(a, span),
+.nowo-wiki-children-chip__link {
+  display: block;
+  padding: 0.35rem 0.6rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Under 30rem (a 390px phone): only the parent, as "‹ Parent". */
+@media (max-width: 30rem) {
+  .nowo-wiki-path__item:not(.nowo-wiki-path__item--parent) {
+    display: none;
+  }
+
+  .nowo-wiki-path__item.nowo-wiki-path__item--parent::before {
+    content: "‹";
+    padding-inline: 0 0.35rem;
+  }
+}
+
+/* 1.30 "Pages in this section" (web_ui.children). */
+.nowo-wiki-children__list {
+  margin: 0;
+  padding: 0.5rem;
+  list-style: none;
+}
+
+.nowo-wiki-children__link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--nowo-ui-radius, 0.375rem);
+  text-decoration: none;
+}
+
+.nowo-wiki-children__link:hover,
+.nowo-wiki-children__link:focus-visible {
+  background: var(--nowo-ui-surface-muted, Canvas);
+}
+
+.nowo-wiki-children__icon {
+  display: inline-flex;
+  color: var(--nowo-ui-muted, GrayText);
+}
+
+/* children: auto — only while the tree is collapsed or on one column. */
+@media (min-width: 62rem) {
+  .nowo-wiki-layout:not(:has([data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'])) .nowo-wiki-children--auto {
+    display: none;
+  }
+}
+
 /* 1.30 fix (title: dedupe): the read-only editor's first <h1> that repeats the title is hidden through a marker on the
    view wrapper (wiki.js), never in the editor's own DOM (ProseMirror redraws a node whose attributes change). */
 .nowo-wiki-comments-view[data-nowo-wiki-title-deduped] .ProseMirror > h1:first-child {

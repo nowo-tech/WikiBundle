@@ -233,6 +233,14 @@ wiki:
     page_of: "Seite %page% von %pages%"
   quota:
     denied: "Damit würde ein Limit Ihres Tarifs überschritten."
+  # 1.30: in-wiki path (web_ui.page_header.path: card) and sub-pages (web_ui.children).
+  path:
+    label: 'Seitenpfad'
+    hidden: 'Eingeschränkte Seite'
+    more: '%count% weitere Ebenen anzeigen'
+  children:
+    count: '{1} 1 Unterseite|]1,Inf[ %count% Unterseiten'
+    title: 'Seiten in diesem Abschnitt'
 wiki_page_form:
   title:
     placeholder: "Seitentitel"

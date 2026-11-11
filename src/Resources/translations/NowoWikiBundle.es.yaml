@@ -233,6 +233,14 @@ wiki:
     page_of: "Página %page% de %pages%"
   quota:
     denied: "Esto superaría un límite de tu plan."
+  # 1.30: in-wiki path (web_ui.page_header.path: card) and sub-pages (web_ui.children).
+  path:
+    label: 'Ruta de la página'
+    hidden: 'Página restringida'
+    more: 'Mostrar %count% niveles más'
+  children:
+    count: '{1} 1 subpágina|]1,Inf[ %count% subpáginas'
+    title: 'Páginas de esta sección'
 wiki_page_form:
   title:
     placeholder: "Título de la página"

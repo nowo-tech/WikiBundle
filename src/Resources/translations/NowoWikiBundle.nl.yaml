@@ -233,6 +233,14 @@ wiki:
     page_of: "Pagina %page% van %pages%"
   quota:
     denied: "Hiermee zou een limiet van je abonnement worden overschreden."
+  # 1.30: in-wiki path (web_ui.page_header.path: card) and sub-pages (web_ui.children).
+  path:
+    label: 'Paginapad'
+    hidden: 'Beperkte pagina'
+    more: 'Nog %count% niveaus tonen'
+  children:
+    count: '{1} 1 subpagina|]1,Inf[ %count% subpagina''s'
+    title: 'Pagina''s in deze sectie'
 wiki_page_form:
   title:
     placeholder: "Paginatitel"

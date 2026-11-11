@@ -101,7 +101,21 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   `--nowo-wiki-card-toolbar-inset`), above the content (z-index 3) and before it in the tab order; the body's first
   block keeps clear of it (`--nowo-wiki-card-toolbar-width`, published by wiki.js). Under 40rem it is a row above
   the content. With `title: body` the page starts with the card and its `<h1>`. Default `header` (1.29).
-- Translation key `wiki.page.toolbar` (the card toolbar's name).
+- **`web_ui.page_header.path: card`:** the in-wiki path (space › ancestors) above the page body, each level a link
+  (`manage/_page_path.html.twig`). More than three levels fold the middle ones into a "…" disclosure menu; under 30rem
+  only "‹ Parent" shows. An ancestor the viewer may not read is "…" with a generic hidden text: no link, no title, no
+  name in any attribute (defence in depth: the read rule already hides pages below a hidden one). No extra query (the
+  ancestors are those the tree already loaded). Default `none`.
+- **`web_ui.children: auto|always`:** the readable, non-archived direct sub-pages in tree order, as a "N subpages" chip
+  above the body (a disclosure with the list) and a "Pages in this section" card after the body. One query
+  (`WikiPageChildrenFinderInterface::findActiveChildren()`, implemented by `DoctrineOrmWikiPageRepository`; a host
+  repository without it falls back to `findActiveBySpace()`), capped at `pagination.max_tree_pages`; the count is the
+  count of the visible pages. `auto` shows both only while the tree is collapsed or on one column. Default `never`.
+- **`web_ui.breadcrumb_current_label`** (literal boolean, default `false`): with BreadcrumbKit >= 2.17 installed, the
+  page view names the current crumb after the page title through
+  `Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface` (optional reference; without BreadcrumbKit or
+  with an older one nothing happens). `composer.json` suggests `nowo-tech/breadcrumb-kit-bundle` ^2.17; no conflict.
+- Translation keys `wiki.page.toolbar`, `wiki.path.label|hidden|more`, `wiki.children.count|title`.
 
 ### Fixed
 

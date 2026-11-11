@@ -38,7 +38,10 @@
   page_header.title: body with title_in_body (the body starts with the title) renders the header without title and
   subtitle (UiKit compact presentation); page_header.tabs: toolbar puts Edit / History as icon buttons in the toolbar
   (no tab row); page_header.toolbar_position: card prints the toolbar (_page_toolbar.html.twig) sticky at the top right
-  of the content, around the server body and the read-only editor (.nowo-wiki-card-frame).
+  of the content, around the server body and the read-only editor (.nowo-wiki-card-frame). page_path
+  (page_header.path: card, _page_path.html.twig) and the page_children chip (web_ui.children,
+  _page_children_chip.html.twig) above the body (.nowo-wiki-page-head); "Pages in this section"
+  (_page_children.html.twig) after wiki_page_after_body.
   Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the rich-content assets + wiki.js: scrolls the current page of the tree into view, draws rich content; 1.16 + nowo-ui-side-panel.js with comments), nowo_ui_page_header (the UiKit header without its tabs + the tab row), nowo_ui_content (1.16: inside the side panel container with comments), nowo_ui_show_sections (sidebar tree + content + "Used in").
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
@@ -136,6 +139,13 @@
                     </div>
                 {% endif %}
             {% endif %}
+            {#- 1.30: the in-wiki path (page_header.path: card) and the sub-pages chip (web_ui.children) above the body -#}
+            {% if page_path|default(null) or page_children.items|default([]) is not empty %}
+                <div class="nowo-wiki-page-head" data-testid="wiki-page-head">
+                    {% if page_path|default(null) %}{{ include('@NowoWikiBundle/manage/_page_path.html.twig', {page_path: page_path}, false) }}{% endif %}
+                    {{ include('@NowoWikiBundle/manage/_page_children_chip.html.twig', {page_children: page_children|default(null), bundle: _b}, false) }}
+                </div>
+            {% endif %}
             {# 1.16: commenters get the page as a read-only editor (highlights, the thread component); hidden until it is ready #}
             {% if comments_view|default(null) %}
                 {{ include('@NowoWikiBundle/manage/_comments_view.html.twig', {comments_view: comments_view}, false) }}
@@ -150,6 +160,8 @@
             {% if _in_card %}</div>{% endif %}
             {#- 1.29: after the body, before "Used in" (empty; e.g. a host's backlinks) -#}
             {% block wiki_page_after_body %}{% endblock %}
+            {#- 1.30 (web_ui.children): "Pages in this section" -#}
+            {% if page_children|default(null) %}{{ include('@NowoWikiBundle/manage/_page_children.html.twig', {page_children: page_children, bundle: _b}, false) }}{% endif %}
             {% if used_in|default([]) is not empty %}
                 <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-used-in" aria-labelledby="nowo-wiki-used-in-title"{{ nowo_ui_attrs('card', _b) }}>
                     <header class="{{ nowo_ui_class('card_header', _b) }}">
