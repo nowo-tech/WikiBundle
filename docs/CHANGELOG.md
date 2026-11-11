@@ -103,6 +103,15 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   block keeps clear of it (`--nowo-wiki-card-toolbar-width`, published by wiki.js). Under 40rem it is a row above
   the content. With `title: body` the page starts with the card and its `<h1>`. Default `header` (1.29).
 - Translation key `wiki.page.toolbar` (the card toolbar's name).
+- **`web_ui.read_view.seamless_swap`** (literal boolean, default `false`): the read-only editor of commenters is
+  mounted in the same box as the server body (`.nowo-wiki-read-swap`, one grid cell: the taller of the two is reserved
+  from the first paint, so nothing moves), laid out invisibly, and cross-faded in when ready
+  (`--nowo-wiki-read-swap-duration`, 150ms; no fade with `prefers-reduced-motion` or UiKit `data-motion="reduce"`).
+  The editor gets the body's UiKit `card` / `card_body` box and drops its own frame; both bodies take the same
+  typography from `--nowo-wiki-read-*` tokens (h1–h3, p, lists, code, pre, blockquote, tables, links). The server
+  body leaves the tab order and the accessibility tree at the swap (`inert`, `aria-hidden`). Checked in Chromium at
+  1280 and 390 px with the real Milkdown editor: same box, every block at the same y, CLS 0
+  (`make check-seamless-swap`, `tests/Browser/seamless-swap`).
 
 ### Fixed
 
@@ -110,6 +119,8 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   twice. wiki.js set `hidden` on the editor's first `<h1>`, which ProseMirror reverts at once (it redraws a node whose
   DOM attributes change). The view wrapper now gets `data-nowo-wiki-title-deduped` and wiki.css hides
   `.ProseMirror > h1:first-child`; the editor's own DOM is never touched.
+  The server prints the marker when the body starts with the title (`comments_view.title_deduped`), so the
+  heading is hidden from the editor's first paint, not when it becomes ready.
 
 ## [1.29.1] - 2026-11-11
 

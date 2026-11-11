@@ -597,6 +597,8 @@ nowo_wiki:
         reading_width: full            # readable: the main column centred at --nowo-wiki-reading-width
         tree_collapsed_mode: rail      # 1.30 hidden: a collapsed tree disappears; its expand button is in the toolbar
         reading_align: center          # 1.30 start: the readable column next to the tree
+        read_view:
+            seamless_swap: false       # 1.30 true: the read-only editor swaps in with no reflow and the same typography
         page_header:
             layout: stacked            # compact: tabs and actions (split, comments toggle at the end) on one row
             title: both                # dedupe: a first body <h1> equal to the title is not shown twice
@@ -619,8 +621,25 @@ nowo_wiki:
 | `web_ui.page_header.title` (1.30) | | `body`: when the body starts with an `<h1>` equal to the title (the `dedupe` match), the page view header uses the UiKit compact presentation: no visible title, no subtitle, no breadcrumbs or back link; the title stays a visually hidden `<h1>`, and tabs, actions and toolbar stay. The body (server and read-only editor) keeps its heading. Otherwise the header is unchanged |
 | `web_ui.page_header.tabs` | `row` | 1.30. `toolbar`: no tabs. Page view: Edit (pencil) and History (clock) icon buttons, toolbar order tree toggle, Edit, History, host buttons, comments, actions / "more". Edit form and history: "Back to page", Edit, History; the current one has `aria-current="page"`. Implies the one-row header (whatever `layout` is). Icons follow `web_ui.tab_icons` when the UiKit icon set can draw them |
 | `web_ui.page_header.toolbar_position` | `header` | 1.30, page view. `card`: the toolbar (tree toggle, tab buttons with `tabs: toolbar`, host buttons, comments toggle, actions) leaves the header for the top right of the content, sticky (`role="toolbar"`, "Page actions"). The header keeps the title and the tabs (unless `tabs: toolbar`); with `title: body` it is empty and collapses. Tokens: `--nowo-wiki-card-toolbar-top` (0.5rem), `--nowo-wiki-card-toolbar-inset` (0.75rem); `--nowo-wiki-card-toolbar-width` is set by wiki.js (12rem without it) |
+| `web_ui.read_view.seamless_swap` | `false` | 1.30, literal boolean, page view with the read-only editor (commenters with the page source). The editor and the server body share one grid cell (`.nowo-wiki-read-swap`, `data-nowo-wiki-read-swap="pending|ready"`), the editor in the same UiKit `card` / `card_body` box, invisible until ready, then cross-faded (`--nowo-wiki-read-swap-duration`, 150ms; none with reduced motion). Both bodies use the `--nowo-wiki-read-*` typography tokens below; the server body becomes `inert` after the swap. Off: the 1.29 swap (hidden body, shown editor) |
 | `web_ui.slots.page_header_toolbar` | null | 1.30. Template of host buttons for the page header toolbar (page view, edit form; only pages with tabs). Same place as the block `wiki_page_header_toolbar` |
 | `comments.dock_min_width` | `md` | See [Comments](#comments-116) |
+
+Read typography tokens (1.30, `read_view.seamless_swap`; set them on `.nowo-wiki-read-swap` or an ancestor — they
+style the server body and the read-only editor alike, so match them to your Markdown typography instead of styling
+the body with your own class): `--nowo-wiki-read-font-family` (inherit), `--nowo-wiki-read-font-size` (inherit),
+`--nowo-wiki-read-line-height` (1.7), `--nowo-wiki-read-color` (inherit), `--nowo-wiki-read-h1-size` (2em),
+`--nowo-wiki-read-h2-size` (1.5em), `--nowo-wiki-read-h3-size` (1.25em), `--nowo-wiki-read-heading-line-height` (1.25),
+`--nowo-wiki-read-heading-weight` (600), `--nowo-wiki-read-heading-font-family` (inherit),
+`--nowo-wiki-read-heading-margin` (1.5em 0 0.5em), `--nowo-wiki-read-block-margin` (0 0 1em: p, lists, pre,
+blockquote, tables), `--nowo-wiki-read-list-indent` (1.5em), `--nowo-wiki-read-list-item-margin` (0.25em 0),
+`--nowo-wiki-read-code-font-family` (ui-monospace…), `--nowo-wiki-read-code-font-size` (0.875em),
+`--nowo-wiki-read-code-padding` (0.1em 0.3em), `--nowo-wiki-read-code-color` (inherit),
+`--nowo-wiki-read-code-background` (`--nowo-ui-surface-muted`), `--nowo-wiki-read-code-radius` (`--nowo-ui-radius`),
+`--nowo-wiki-read-pre-padding` (0.75rem 1rem), `--nowo-wiki-read-link-color` (`--nowo-ui-primary`),
+`--nowo-wiki-read-blockquote-padding` (0.25rem 1rem), `--nowo-wiki-read-blockquote-border` (3px solid
+`--nowo-ui-border-strong`), `--nowo-wiki-read-blockquote-color` (`--nowo-ui-muted`), `--nowo-wiki-read-table-width`
+(auto), `--nowo-wiki-read-cell-padding` (0.4rem 0.6rem), `--nowo-wiki-read-swap-duration` (150ms).
 
 Tokens: `--nowo-wiki-reading-width` (reading column), 1.30 `--nowo-wiki-card-toolbar-top` / `-inset` (card toolbar), UiKit `--nowo-ui-rail-width` (rail), `--nowo-ui-reading-width`,
 `--nowo-ui-side-panel-width` (comments panel, 22rem).

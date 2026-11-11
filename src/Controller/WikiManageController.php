@@ -372,6 +372,9 @@ final class WikiManageController extends AbstractController
         // 1.29 (web_ui.page_header.title: dedupe): a first body <h1> repeating the title is not shown twice.
         $dedupe  = ($this->layout['title'] ?? 'both') === 'dedupe';
         $content = $this->revisionBody($revision);
+        // 1.30: the read-only editor hides its leading <h1> from the first paint (CSS on the view, set by the server),
+        // not only once wiki.js has checked it.
+        $titleDeduped = $dedupe && WikiTitleDedupe::startsWithTitle($content, $page->getTitle());
         if ($dedupe) {
             $content = WikiTitleDedupe::strip($content, $page->getTitle());
         }
@@ -397,7 +400,8 @@ final class WikiManageController extends AbstractController
                     'markdown' => $this->editorBody($revision),
                     'options'  => $this->commentsPanel->editorOptions($options, $comments, $page),
                     // 1.29: wiki.js hides the read-only editor's first <h1> when it repeats this title.
-                    'dedupe_title' => $dedupe ? $page->getTitle() : null,
+                    'dedupe_title'  => $dedupe ? $page->getTitle() : null,
+                    'title_deduped' => $titleDeduped,
                 ];
             }
         }

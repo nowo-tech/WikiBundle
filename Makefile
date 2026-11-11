@@ -1,6 +1,6 @@
 # Wiki Bundle - Development
 SHELL := /bin/bash
-.PHONY: help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
+.PHONY: check-seamless-swap help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
 
 COMPOSE_FILE ?= docker-compose.yml
 # Prefer Compose V2; absolute docker path avoids shadowing by local docker/ (REQ-MAKE-010).
@@ -164,6 +164,15 @@ release-check-demos:
 # REQ-TEST-011: boot primary demo + HTTP 200
 demo-smoke:
 	@$(MAKE) -C demo demo-smoke
+
+# 1.30: web_ui.read_view.seamless_swap — Chromium (Playwright image) checks that the read-only editor swaps in with no
+# movement at 1280 and 390 px (tests/Browser/seamless-swap). Needs `make assets` first; files are copied over var/.
+SEAMLESS_DIR := $(CURDIR)/var/seamless-swap
+check-seamless-swap:
+	mkdir -p $(SEAMLESS_DIR)/mk
+	cp tests/Browser/seamless-swap/index.html tests/Browser/seamless-swap/cls.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(SEAMLESS_DIR)/
+	cp -r vendor/nowo-tech/milkdown-editor-bundle/src/Resources/public/. $(SEAMLESS_DIR)/mk/
+	docker run --rm -v $(SEAMLESS_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/cls.js'
 
 check-open-prs:
 	@chmod +x .scripts/check-open-prs.sh

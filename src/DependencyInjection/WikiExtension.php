@@ -1005,9 +1005,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      * @throws InvalidConfigurationException when a slot is not a template name
      *
      * 1.29: `layout` (tree_rail, narrow_tree_position, reading_width, page_header, title, comments_dock), read by the
-     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`.
+     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, seamless_swap.
      *
-     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string}}
+     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, seamless_swap: bool}}
      */
     public static function ui(array $webUi): array
     {
@@ -1033,7 +1033,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      *
      * @param array<string, mixed> $webUi processed `web_ui` node
      *
-     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string}
+     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, seamless_swap: bool}
      */
     public static function layout(array $webUi): array
     {
@@ -1054,6 +1054,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'toolbar_position'    => ($header['toolbar_position'] ?? 'header') === 'card' ? 'card' : 'header',
             'tree_collapsed_mode' => ($webUi['tree_collapsed_mode'] ?? 'rail') === 'hidden' ? 'hidden' : 'rail',
             'reading_align'       => ($webUi['reading_align'] ?? 'center') === 'start' ? 'start' : 'center',
+            'seamless_swap'       => ($webUi['read_view']['seamless_swap'] ?? false) === true,
         ];
     }
 

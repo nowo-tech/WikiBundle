@@ -7,10 +7,12 @@ import {
     normaliseTitle,
     openRequestedPanel,
     PANEL_ID,
+    READ_SWAP_ATTR,
     setCommentsCount,
     setNavigator,
     setStatePoster,
     showCommentsEditor,
+    swapReadView,
     type SidePanelApi,
 } from './wiki-comments';
 
@@ -345,5 +347,61 @@ describe('wiki comments 1.29: requested panel and title dedupe', () => {
         delete (window as { matchMedia?: unknown }).matchMedia;
         expect(isDrawerLayout(panel)).toBe(false);
         expect(isDrawerLayout(panel, null)).toBe(false);
+    });
+});
+
+describe('wiki comments 1.30: seamless read swap', () => {
+    const swapMarkup = `
+        <div class="nowo-wiki-read-swap" data-nowo-wiki-read-swap="pending" id="swap">
+            <div data-nowo-wiki-comments-view data-nowo-wiki-dedupe-title="Deploy" data-nowo-wiki-title-deduped id="view"><div class="nowo-milkdown" id="root"></div></div>
+            <article data-nowo-wiki-server-body id="server"><a href="/x">Body</a></article>
+        </div>
+        <div data-nowo-wiki-server-body id="outside">Elsewhere</div>
+        <aside id="${PANEL_ID}"><div data-nowo-wiki-comments-fallback id="fallback"></div></aside>`;
+
+    beforeEach(() => {
+        document.body.innerHTML = swapMarkup;
+        bindWikiComments(document);
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('keeps both in the same box and marks it ready when the editor is ready, never hiding either (1.30)', () => {
+        const swap = document.getElementById('swap') as HTMLElement;
+        const view = document.getElementById('view') as HTMLElement;
+        const server = document.getElementById('server') as HTMLElement;
+        const root = document.getElementById('root') as HTMLElement;
+        // Before: the server body shows, the editor is laid out invisibly (CSS), the heading already deduped (server).
+        expect(swap.getAttribute(READ_SWAP_ATTR)).toBe('pending');
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(true);
+
+        root.innerHTML = '<div class="ProseMirror" contenteditable="false"><h1>Deploy</h1><p>Steps</p></div>';
+        fire(root, 'nowo-milkdown:ready');
+
+        expect(swap.getAttribute(READ_SWAP_ATTR)).toBe('ready');
+        // No `hidden` on either: the cell keeps its size (no reflow); the body leaves the tab order and the a11y tree.
+        expect(view.hidden).toBe(false);
+        expect(server.hidden).toBe(false);
+        expect(server.hasAttribute('inert')).toBe(true);
+        expect(server.getAttribute('aria-hidden')).toBe('true');
+        // The dedupe stays (the editor's heading equals the title); a body outside the box is left alone.
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(true);
+        const outside = document.getElementById('outside') as HTMLElement;
+        expect(outside.hidden).toBe(false);
+        expect(outside.hasAttribute('inert')).toBe(false);
+        expect((document.getElementById('fallback') as HTMLElement).hidden).toBe(true);
+
+        // Once only.
+        expect(swapReadView(swap)).toBe(false);
+    });
+
+    it('drops a server dedupe mark that the editor does not confirm (1.30)', () => {
+        const view = document.getElementById('view') as HTMLElement;
+        const root = document.getElementById('root') as HTMLElement;
+        root.innerHTML = '<div class="ProseMirror"><h1>Other</h1></div>';
+        fire(root, 'nowo-milkdown:ready');
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(false);
     });
 });

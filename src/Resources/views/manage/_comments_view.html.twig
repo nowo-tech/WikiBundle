@@ -5,5 +5,17 @@
   without Milkdown never compile the function. Variables: comments_view ({markdown, options, dedupe_title}).
   1.29: dedupe_title (web_ui.page_header.title: dedupe) — wiki.js hides the editor's first <h1> when its text equals
   this title (the document is not changed, so comment anchors stay).
+  1.30: comments_view.title_deduped (the server body started with that <h1>) prints data-nowo-wiki-title-deduped at
+  once, so wiki.css hides the heading before the editor's first paint. seamless (web_ui.read_view.seamless_swap): the
+  view is not `hidden` but laid out invisibly in the same grid cell as the server body (.nowo-wiki-read-swap, wiki.css),
+  in the same UiKit card / card_body box, until wiki.js cross-fades it in. Optional: seamless, bundle.
 #}
-<div class="nowo-wiki-comments-view" data-nowo-wiki-comments-view data-testid="wiki-comments-view"{% if comments_view.dedupe_title|default(null) is not null %} data-nowo-wiki-dedupe-title="{{ comments_view.dedupe_title }}"{% endif %} hidden>{{ nowo_milkdown_view(comments_view.markdown, comments_view.options) }}</div>
+{% set _seamless = seamless|default(false) is same as(true) %}
+{% set _b = bundle|default(null) %}
+<div class="{% if _seamless %}{{ nowo_ui_class('card', _b) }} {% endif %}nowo-wiki-comments-view" data-nowo-wiki-comments-view data-testid="wiki-comments-view"{% if comments_view.dedupe_title|default(null) is not null %} data-nowo-wiki-dedupe-title="{{ comments_view.dedupe_title }}"{% endif %}{% if comments_view.title_deduped|default(false) %} data-nowo-wiki-title-deduped{% endif %}{% if _seamless %}{{ nowo_ui_attrs('card', _b) }}{% else %} hidden{% endif %}>
+    {%- if _seamless -%}
+        <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-comments-view__body">{{ nowo_milkdown_view(comments_view.markdown, comments_view.options) }}</div>
+    {%- else -%}
+        {{ nowo_milkdown_view(comments_view.markdown, comments_view.options) }}
+    {%- endif -%}
+</div>

@@ -370,6 +370,26 @@ backlinks, related objects) — override one block instead of copying `nowo_ui_s
   ```
 
   A host that overrides `wiki_page_body` keeps the card toolbar: it wraps the read-only editor and that block.
+- **Seamless read view** (`web_ui.read_view.seamless_swap: true`): commenters no longer see the page change style or
+  jump when the read-only editor is ready. Map your Markdown typography onto the read tokens, for example:
+
+  ```css
+  .nowo-wiki-read-swap {
+      --nowo-wiki-read-font-size: 1rem;
+      --nowo-wiki-read-line-height: 1.75;
+      --nowo-wiki-read-h1-size: 1.875rem;
+      --nowo-wiki-read-h2-size: 1.5rem;
+      --nowo-wiki-read-h3-size: 1.25rem;
+      --nowo-wiki-read-heading-margin: 2rem 0 0.75rem;
+      --nowo-wiki-read-block-margin: 0 0 1rem;
+      --nowo-wiki-read-code-background: var(--surface-2);
+      --nowo-wiki-read-link-color: var(--link);
+  }
+  ```
+
+  A `wiki_page_body` override keeps working (the box wraps the block); give its card the same UiKit `card` /
+  `card_body` classes as the bundle's, and drop typography rules of your own class there (`.md-content`), or set them
+  with the same values, so both bodies match.
 
 ## Translations (REQ-I18N-001)
 

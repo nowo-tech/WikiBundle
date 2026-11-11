@@ -12,7 +12,8 @@
  *   source): the page is loaded again with `?comments=1`, so the list is only read when someone opens it;
  * - `nowo-milkdown:ready` of a comments editor → the no-JavaScript list is hidden, and on the read view the read-only
  *   editor replaces the server-rendered body (1.29: without its first `<h1>` when that repeats the page title,
- *   `data-nowo-wiki-dedupe-title`);
+ *   `data-nowo-wiki-dedupe-title`; 1.30: with `web_ui.read_view.seamless_swap` in the same box, cross-faded,
+ *   {@link swapReadView});
  * - 1.29: a panel asked for in the URL (`?comments=1`, `data-nowo-wiki-comments-requested`) that started closed (a
  *   server-open `lg` / `xl` panel under its breakpoint, UiKit LV-L2) is opened as a drawer after load
  *   ({@link openRequestedPanel}).
@@ -114,10 +115,41 @@ export function showCommentsEditor(doc: Document, root: Element): void {
         return;
     }
     hideDuplicateTitle(view);
+    const swap = view.closest<HTMLElement>(`[${READ_SWAP_ATTR}]`);
+    if (swap) {
+        swapReadView(swap);
+
+        return;
+    }
     view.hidden = false;
     doc.querySelectorAll<HTMLElement>('[data-nowo-wiki-server-body]').forEach((body) => {
         body.hidden = true;
     });
+}
+
+/** The shared box of the read-only editor and the server body (1.30, `web_ui.read_view.seamless_swap`). */
+export const READ_SWAP_ATTR = 'data-nowo-wiki-read-swap';
+
+/**
+ * 1.30 (`web_ui.read_view.seamless_swap`): the read-only editor and the server body sit in one grid cell
+ * (`.nowo-wiki-read-swap`), so the box keeps its size; the editor was laid out invisibly. Marking the box `ready` lets
+ * wiki.css cross-fade (none with reduced motion); the server body leaves the tab order and the accessibility tree at
+ * once (`inert`, `aria-hidden`). Neither element is `hidden`, so nothing reflows.
+ *
+ * @param swap - The shared box (`[data-nowo-wiki-read-swap]`).
+ * @returns Whether the box was swapped now (false when it already was).
+ */
+export function swapReadView(swap: HTMLElement): boolean {
+    if (swap.getAttribute(READ_SWAP_ATTR) === 'ready') {
+        return false;
+    }
+    swap.querySelectorAll<HTMLElement>('[data-nowo-wiki-server-body]').forEach((body) => {
+        body.setAttribute('inert', '');
+        body.setAttribute('aria-hidden', 'true');
+    });
+    swap.setAttribute(READ_SWAP_ATTR, 'ready');
+
+    return true;
 }
 
 /**
