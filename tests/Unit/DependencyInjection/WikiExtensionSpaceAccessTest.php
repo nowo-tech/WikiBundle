@@ -8,18 +8,28 @@ use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
 use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
 use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
+use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
+use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
+use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\DependencyInjection\Reference;
+
+use function array_map;
 
 final class WikiExtensionSpaceAccessTest extends TestCase
 {
@@ -35,6 +45,22 @@ final class WikiExtensionSpaceAccessTest extends TestCase
         self::assertNull($container->getDefinition(WikiTenantUrlGenerator::class)->getDecoratedService());
         self::assertFalse($container->getParameter('nowo_wiki.attachments')['enabled']);
         self::assertArrayHasKey(WikiObjectLinkResolverInterface::class, $container->getAutoconfiguredInstanceof());
+    }
+
+    public function testTheRequestMemosAreEmptiedAtEveryBoundary(): void
+    {
+        // 1.29.1 (REQ-RUNTIME-002): not only by kernel.reset.
+        $definition = $this->load([])->getDefinition(WikiRequestBoundaryResetter::class);
+
+        self::assertTrue($definition->hasTag('kernel.event_subscriber'));
+        $memos = $definition->getArgument('$memos');
+        self::assertInstanceOf(IteratorArgument::class, $memos);
+        $ids = array_map(static fn (mixed $reference): string => $reference instanceof Reference ? (string) $reference : '', $memos->getValues());
+        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class], $ids);
+        foreach ($memos->getValues() as $reference) {
+            self::assertInstanceOf(Reference::class, $reference);
+            self::assertSame(ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE, $reference->getInvalidBehavior(), 'only built memos are reset; missing ones are skipped');
+        }
     }
 
     public function testTenantPathsDecorateTheRouterAndCustomStorageIsAliased(): void

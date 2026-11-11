@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.29.1] - 2026-11-11](#1291---2026-11-11)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
 - [[1.28.0] - 2026-11-10](#1280---2026-11-10)
 - [[1.27.0] - 2026-11-09](#1270---2026-11-09)
@@ -109,6 +110,35 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   twice. wiki.js set `hidden` on the editor's first `<h1>`, which ProseMirror reverts at once (it redraws a node whose
   DOM attributes change). The view wrapper now gets `data-nowo-wiki-title-deduped` and wiki.css hides
   `.ProseMirror > h1:first-child`; the editor's own DOM is never touched.
+
+## [1.29.1] - 2026-11-11
+
+Target: **1.29.1** (patch, security; REQ-RUNTIME-002 — request memos correct without the services resetter).
+
+### Security
+
+- **Revoked space memberships kept granting access where the services resetter does not run** (affects 1.13.0–1.29.0,
+  default space checker). `LegacyWikiSpaceAccessChecker` memoised the spaces of a user per user object and emptied the
+  memo only on `kernel.reset`. This mattered only when the services resetter does not run between requests: a host that removes or bypasses `services_resetter` or drives `http_kernel` directly, Messenger consumers started with `messenger:consume --no-reset`, and long-running console commands. The stock Symfony kernel still runs `services_resetter` before every request in FrankenPHP worker mode, even with `FRANKENPHP_RESET_KERNEL=false` (`Kernel::handle()` → `boot()`), so a stock worker was not affected. Without the resetter
+  the host's EntityManager keeps the signed-in user managed, so the firewall hands the same object to every later
+  request of that worker, and a membership revoked in the database (team left, space moved to another owner) kept
+  granting the space until the worker restarted. The memo now belongs to one main request (dropped when the main request
+  changes, not kept at all outside a request: console and Messenger read memberships on every call), and memberships are
+  re-read through `WikiSpaceAccessResolverInterface` (a query) when a new request starts; team memberships (team mode)
+  come from the host's `WikiTeamMembershipResolverInterface`, which decides how it reads them. Hosts
+  with their own `WikiSpaceAccessCheckerInterface` (Beacon) are not affected by this checker, but should check their own
+  memos the same way.
+- New `WikiRequestBoundaryResetter` (internal, registered by the bundle) empties every request memo — the space checker,
+  `WikiAvatars` (avatar URLs), `WikiFilePreviewFrames` (preview frame tokens), `WikiRenderContext` and
+  `WikiEventDeferral` — on the main `kernel.request`, `kernel.terminate`, `console.terminate` and Messenger
+  `WorkerMessageHandledEvent` / `WorkerMessageFailedEvent`, in addition to `kernel.reset`. It resets only memos already
+  built (`IGNORE_ON_UNINITIALIZED_REFERENCE`, as the services resetter does), so no boundary instantiates a service.
+  Before, a process without the resetter served avatar URLs a user had since changed and let the memos grow up to their bounds.
+- Tests: `LegacySpaceCheckerWorkerTest` (one kernel, requests straight through `http_kernel`, no services resetter, the
+  host EntityManager never cleared): a membership revoked with plain SQL is refused on the next request, and two people
+  in turn over 60 rounds never see each other's spaces, a space moved half-way changes hands at once, and memory stays
+  within 2 MiB; a boundary builds no memo but still empties one in use. Unit tests for the request-scoped memo and the
+  boundary subscriber.
 
 ## [1.29.0] - 2026-11-11
 
@@ -1519,7 +1549,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.29.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.29.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
