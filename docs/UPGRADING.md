@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.30.0](#to-1300)
 - [To 1.29.1](#to-1291)
 - [To 1.29.0](#to-1290)
 - [To 1.29.0](#to-1290-1)
@@ -80,6 +81,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.30.0
+
+From **1.29.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 Target **1.30.0**. Nothing to change: every new option is off by default and the 1.29 pages render the same markup.
 
