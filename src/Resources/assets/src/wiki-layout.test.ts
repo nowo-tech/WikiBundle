@@ -82,7 +82,7 @@ describe('wiki layout 1.30: card toolbar width', () => {
         document.body.innerHTML = '<div data-nowo-wiki-card-frame id="frame"><div data-nowo-wiki-card-toolbar><div role="toolbar" id="bar"></div></div></div>';
         const bar = document.getElementById('bar') as HTMLElement;
         let width = 120.2;
-        bar.getBoundingClientRect = () => ({ width }) as DOMRect;
+        bar.getBoundingClientRect = () => ({ width, height: 40.5 }) as DOMRect;
         const callbacks: Array<() => void> = [];
         const observe = vi.fn();
         class FakeObserver {
@@ -95,6 +95,7 @@ describe('wiki layout 1.30: card toolbar width', () => {
         expect(observeCardToolbar(document, FakeObserver as unknown as typeof ResizeObserver)).toBe(1);
         const frame = document.getElementById('frame') as HTMLElement;
         expect(frame.style.getPropertyValue('--nowo-wiki-card-toolbar-width')).toBe('121px');
+        expect(frame.style.getPropertyValue('--nowo-wiki-card-toolbar-height')).toBe('41px');
         expect(observe).toHaveBeenCalledWith(bar);
         width = 80;
         callbacks[0]();

@@ -1,0 +1,775 @@
+/*
+ * NowoWikiBundle styles (1.10, REQ-UI-003).
+ *
+ * Only the wiki-specific regions the UiKit scaffolds do not draw: the two-column space / page layout, the page tree,
+ * the rendered page body, the lists inside cards, the diff lines and the search excerpt. Colours, borders and radii
+ * come from the UiKit tokens (`--nowo-ui-*`, remapped once by the host under nowo_ui_kit.theme.tokens); cards,
+ * buttons, forms, tables, dialogs and flashes are UiKit's. Selectors stay at one or two classes: enough to beat the
+ * element rules of the host stack (Bootstrap reboot list padding, heading sizes), easy for a host rule to override.
+ */
+
+/* Space / page layout: sidebar tree + main column; one column on narrow screens. */
+.nowo-wiki-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 62rem) {
+  .nowo-wiki-layout {
+    grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  }
+
+  .nowo-wiki-layout__aside {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .nowo-wiki-sidebar__body {
+    max-height: calc(100vh - 8rem);
+    /* iOS Safari: the dynamic viewport excludes the browser bars (100vh stays the fallback). */
+    max-height: calc(100dvh - 8rem);
+    overflow-y: auto;
+  }
+}
+
+.nowo-wiki-layout__main {
+  display: grid;
+  /* 1.29: one track that may shrink below its content, so a long code line or a wide table never widens the page card
+     (an implicit `auto` track grew to the widest item); every item may shrink too. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+.nowo-wiki-layout > *,
+.nowo-wiki-layout__main > *,
+.nowo-wiki-comments-view,
+.nowo-wiki-comments-view .nowo-milkdown,
+.nowo-wiki-page {
+  min-width: 0;
+}
+
+/* 1.29: the read-only editor's CodeMirror code blocks (mounted when they scroll into view) scroll in their own box. */
+.nowo-wiki-comments-view .nowo-milkdown,
+:is(.nowo-wiki-comments-view, .nowo-wiki-content) .cm-editor {
+  max-width: 100%;
+}
+
+:is(.nowo-wiki-comments-view, .nowo-wiki-content) .cm-scroller {
+  overflow-x: auto;
+}
+
+/* 1.29 web_ui.reading_width: readable — the main column centred at a comfortable measure (UiKit .nowo-ui-readable). */
+.nowo-wiki-reading {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch));
+  margin-inline: auto;
+}
+
+/* 1.29 web_ui.narrow_tree_position: after — one column: the page first, its tree after it. */
+@media (max-width: 61.99rem) {
+  .nowo-wiki-layout--tree-after > .nowo-wiki-layout__aside {
+    order: 2;
+  }
+}
+
+/* 1.29 web_ui.tree_rail: the tree card is a UiKit rail host (rail_toggle, js/nowo-ui-rail.js). Its header holds the title
+   and the toggle; collapsed, the side column shrinks to the rail (--nowo-ui-rail-width) and the title shows vertically
+   in the toggle. Under 62rem (one column) a collapsed tree is a one-row bar with the toggle instead of a strip. */
+.nowo-wiki-sidebar[data-nowo-ui-rail-host] > .nowo-wiki-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* The vertical "Pages" of the rail reads in the text colour (a theme's muted button colour fails AA on a tinted card
+   header, e.g. Bootstrap secondary on the card-header grey: 4.41:1). */
+.nowo-wiki-sidebar[data-nowo-ui-rail-host] .nowo-ui-rail-toggle__title {
+  color: var(--nowo-ui-text, CanvasText);
+}
+
+@media (min-width: 62rem) {
+  .nowo-wiki-layout:has(> .nowo-wiki-layout__aside > [data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed']) {
+    grid-template-columns: var(--nowo-ui-rail-width, 2.75rem) minmax(0, 1fr);
+  }
+
+  .nowo-wiki-sidebar[data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'] > .nowo-wiki-sidebar__header {
+    justify-content: center;
+    padding-inline: 0;
+    border-block-end: 0;
+  }
+}
+
+@media (max-width: 61.99rem) {
+  .nowo-wiki-sidebar[data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'] {
+    inline-size: auto;
+    max-inline-size: none;
+  }
+
+  .nowo-wiki-sidebar[data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'] .nowo-ui-rail-toggle {
+    flex-direction: row;
+    padding-block: 0.25rem;
+  }
+
+  .nowo-wiki-sidebar[data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed'] .nowo-ui-rail-toggle__title {
+    writing-mode: horizontal-tb;
+  }
+}
+
+/* 1.30 web_ui.tree_collapsed_mode: hidden — a collapsed tree is not drawn at all (the main column takes the whole
+   width); its expand button is in the page toolbar (_tree_toggle.html.twig), shown only while the tree is collapsed. */
+.nowo-wiki-layout--tree-hidden:has(> .nowo-wiki-layout__aside [data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed']) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.nowo-wiki-layout--tree-hidden > .nowo-wiki-layout__aside:has([data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed']) {
+  display: none;
+}
+
+.nowo-wiki-tree-toggle[aria-expanded='true'] {
+  display: none;
+}
+
+/* 1.30 web_ui.reading_align: start — the readable column next to the tree, same maximum width. */
+.nowo-wiki-reading.nowo-wiki-reading--start {
+  margin-inline: 0;
+}
+
+/* 1.30 web_ui.page_header.toolbar_position: card — the page toolbar at the top right of the content (server body and
+   read-only editor), sticky while the page scrolls (--nowo-wiki-card-toolbar-top, default 0.5rem; inset from the card
+   edge --nowo-wiki-card-toolbar-inset, default 0.75rem). It takes no height of its own: the body's first block (the
+   title) keeps clear of it by the toolbar width that wiki.js publishes (--nowo-wiki-card-toolbar-width; 12rem without
+   JavaScript). It stays above the content (z-index 3, its "more" menu inside it) and in the tab order before it.
+   Under 40rem it is a plain row above the content. */
+.nowo-wiki-card-frame {
+  position: relative;
+  min-width: 0;
+}
+
+.nowo-wiki-card-toolbar {
+  position: sticky;
+  top: var(--nowo-wiki-card-toolbar-top, 0.5rem);
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  block-size: 0;
+  overflow: visible;
+  padding-inline-end: var(--nowo-wiki-card-toolbar-inset, 0.75rem);
+}
+
+.nowo-wiki-card-toolbar__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  block-size: max-content;
+  margin-block-start: var(--nowo-wiki-card-toolbar-inset, 0.75rem);
+  padding: 0.25rem;
+  border-radius: var(--nowo-ui-radius, 0.5rem);
+  background: var(--nowo-ui-surface, Canvas);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
+}
+
+.nowo-wiki-card-frame :is(.nowo-wiki-content, .ProseMirror) > :first-child {
+  padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
+}
+
+@media (max-width: 39.99rem) {
+  .nowo-wiki-card-toolbar {
+    position: static;
+    block-size: auto;
+    padding-inline-end: 0;
+    margin-block-end: 0.5rem;
+  }
+
+  .nowo-wiki-card-toolbar__bar {
+    margin-block-start: 0;
+  }
+
+  .nowo-wiki-card-frame :is(.nowo-wiki-content, .ProseMirror) > :first-child {
+    padding-inline-end: 0;
+  }
+}
+
+@media print {
+  .nowo-wiki-card-toolbar {
+    display: none;
+  }
+}
+
+/* 1.30 web_ui.read_view.seamless_swap — the read-only editor and the server body in ONE grid cell
+   (.nowo-wiki-read-swap): the box is as tall as the taller of the two from the first paint, so the swap moves nothing.
+   The editor is laid out invisibly until wiki.js marks the box ready, then the two cross-fade
+   (--nowo-wiki-read-swap-duration, 150ms; none with prefers-reduced-motion or UiKit data-motion="reduce"). */
+.nowo-wiki-read-swap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.nowo-wiki-read-swap > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.nowo-wiki-read-swap > .nowo-wiki-comments-view,
+.nowo-wiki-read-swap[data-nowo-wiki-read-swap='ready'] > [data-nowo-wiki-server-body] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--nowo-wiki-read-swap-duration, 150ms) ease, visibility 0s linear var(--nowo-wiki-read-swap-duration, 150ms);
+}
+
+.nowo-wiki-read-swap[data-nowo-wiki-read-swap='ready'] > .nowo-wiki-comments-view {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity var(--nowo-wiki-read-swap-duration, 150ms) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nowo-wiki-read-swap > * {
+    transition: none !important;
+  }
+}
+
+:root[data-motion='reduce'] .nowo-wiki-read-swap > * {
+  transition: none !important;
+}
+
+/* The editor drops its own frame (border, padding, minimum height, fonts) inside the shared card box. */
+.nowo-wiki-read-swap .nowo-milkdown,
+.nowo-wiki-read-swap .nowo-milkdown .milkdown {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+
+.nowo-wiki-read-swap .nowo-milkdown .nowo-milkdown__surface {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.nowo-wiki-read-swap .nowo-milkdown .milkdown .ProseMirror {
+  min-height: 0;
+  padding: 0;
+}
+
+/* Typography parity: the same rules, from the same tokens, on the server body and the editor. Tokens (set them on
+   .nowo-wiki-read-swap or any ancestor, e.g. to your Markdown typography): --nowo-wiki-read-font-family,
+   --nowo-wiki-read-font-size, --nowo-wiki-read-line-height, --nowo-wiki-read-color, --nowo-wiki-read-h1-size,
+   --nowo-wiki-read-h2-size, --nowo-wiki-read-h3-size, --nowo-wiki-read-heading-line-height,
+   --nowo-wiki-read-heading-weight, --nowo-wiki-read-heading-font-family, --nowo-wiki-read-heading-margin,
+   --nowo-wiki-read-block-margin, --nowo-wiki-read-list-indent, --nowo-wiki-read-list-item-margin,
+   --nowo-wiki-read-code-font-family, --nowo-wiki-read-code-font-size, --nowo-wiki-read-code-padding,
+   --nowo-wiki-read-code-color, --nowo-wiki-read-code-background, --nowo-wiki-read-code-radius,
+   --nowo-wiki-read-pre-padding, --nowo-wiki-read-link-color, --nowo-wiki-read-blockquote-padding,
+   --nowo-wiki-read-blockquote-border, --nowo-wiki-read-blockquote-color, --nowo-wiki-read-table-width,
+   --nowo-wiki-read-cell-padding. */
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) {
+  font-family: var(--nowo-wiki-read-font-family, inherit);
+  font-size: var(--nowo-wiki-read-font-size, inherit);
+  line-height: var(--nowo-wiki-read-line-height, 1.7);
+  color: var(--nowo-wiki-read-color, inherit);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(h1, h2, h3) {
+  margin: var(--nowo-wiki-read-heading-margin, 1.5em 0 0.5em);
+  font-family: var(--nowo-wiki-read-heading-font-family, inherit);
+  font-weight: var(--nowo-wiki-read-heading-weight, 600);
+  line-height: var(--nowo-wiki-read-heading-line-height, 1.25);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h1 {
+  font-size: var(--nowo-wiki-read-h1-size, 2em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h2 {
+  font-size: var(--nowo-wiki-read-h2-size, 1.5em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h3 {
+  font-size: var(--nowo-wiki-read-h3-size, 1.25em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(p, ul, ol, pre, blockquote, table),
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) > div {
+  margin: var(--nowo-wiki-read-block-margin, 0 0 1em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(p, li, blockquote, td, th) {
+  line-height: inherit;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(p, h1, h2, h3, h4, h5, h6) {
+  padding-block: 0;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(td, th, .nowo-wiki-table-scroll) > p,
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(.nowo-wiki-table-scroll, .milkdown-table-block) table {
+  margin: 0;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(ul, ol) {
+  padding-inline-start: var(--nowo-wiki-read-list-indent, 1.5em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) li {
+  margin: var(--nowo-wiki-read-list-item-margin, 0.25em 0);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) li > p {
+  margin: 0;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(code, pre) {
+  font-family: var(--nowo-wiki-read-code-font-family, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: var(--nowo-wiki-read-code-font-size, 0.875em);
+  line-height: inherit;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) code {
+  display: inline;
+  padding: var(--nowo-wiki-read-code-padding, 0.1em 0.3em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(code, pre) {
+  color: var(--nowo-wiki-read-code-color, inherit);
+  background: var(--nowo-wiki-read-code-background, var(--nowo-ui-surface-muted, #f6f8fb));
+  border-radius: var(--nowo-wiki-read-code-radius, var(--nowo-ui-radius, 0.375rem));
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) a {
+  color: var(--nowo-wiki-read-link-color, var(--nowo-ui-primary, LinkText));
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) table {
+  width: var(--nowo-wiki-read-table-width, auto);
+  table-layout: auto;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) pre {
+  padding: var(--nowo-wiki-read-pre-padding, 0.75rem 1rem);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) pre code {
+  font-size: inherit;
+  padding: 0;
+  background: none;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) blockquote {
+  box-sizing: border-box;
+  padding: var(--nowo-wiki-read-blockquote-padding, 0.25rem 1rem);
+  border-inline-start: var(--nowo-wiki-read-blockquote-border, 3px solid var(--nowo-ui-border-strong, #cbd5e1));
+  color: var(--nowo-wiki-read-blockquote-color, var(--nowo-ui-muted, #64748b));
+}
+
+.nowo-wiki-read-swap .nowo-milkdown .milkdown .ProseMirror blockquote::before {
+  content: none;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(th, td) {
+  padding: var(--nowo-wiki-read-cell-padding, 0.4rem 0.6rem);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) > :first-child,
+.nowo-wiki-read-swap .nowo-wiki-comments-view[data-nowo-wiki-title-deduped] .ProseMirror > h1:first-child + * {
+  margin-block-start: 0;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) > :last-child {
+  margin-block-end: 0;
+}
+
+/* 1.30 fix (title: dedupe): the read-only editor's first <h1> that repeats the title is hidden through a marker on the
+   view wrapper, never in the editor's own DOM (ProseMirror redraws a node whose attributes change). The server sets
+   the marker when the body starts with the title, so the heading is hidden from the editor's first paint; wiki.js
+   confirms it against the editor once it is ready. */
+.nowo-wiki-comments-view[data-nowo-wiki-title-deduped] .ProseMirror > h1:first-child {
+  display: none;
+}
+
+/* Page tree: nested lists, indentation from the nesting. */
+/* 1.21 tree tokens (defaults = the 1.20 look; set them on .nowo-wiki-sidebar or any ancestor):
+   --nowo-wiki-tree-gap (space between rows, 0), --nowo-wiki-tree-indent (nested list offset, 0.85rem),
+   --nowo-wiki-tree-guide (nesting line colour), --nowo-wiki-tree-link-padding (0.25rem 0.5rem),
+   --nowo-wiki-tree-font-size / --nowo-wiki-tree-line-height (inherit), --nowo-wiki-tree-radius,
+   --nowo-wiki-tree-hover-bg, --nowo-wiki-tree-current-bg, --nowo-wiki-tree-current-fg. */
+.nowo-wiki-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nowo-wiki-tree--nested {
+  margin-block-start: var(--nowo-wiki-tree-gap, 0);
+  margin-inline-start: var(--nowo-wiki-tree-indent, 0.85rem);
+  padding-inline-start: 0.5rem;
+  border-inline-start: 1px solid var(--nowo-wiki-tree-guide, var(--nowo-ui-border, #e2e8f0));
+}
+
+.nowo-wiki-tree__item {
+  margin: 0;
+  padding: 0;
+}
+
+.nowo-wiki-tree__item + .nowo-wiki-tree__item {
+  margin-block-start: var(--nowo-wiki-tree-gap, 0);
+}
+
+.nowo-wiki-tree__link {
+  display: block;
+  padding: var(--nowo-wiki-tree-link-padding, 0.25rem 0.5rem);
+  border-radius: var(--nowo-wiki-tree-radius, var(--nowo-ui-radius, 0.375rem));
+  color: var(--nowo-ui-text, inherit);
+  font-size: var(--nowo-wiki-tree-font-size, inherit);
+  line-height: var(--nowo-wiki-tree-line-height, inherit);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.nowo-wiki-tree__link:hover, .nowo-wiki-tree__link:focus-visible {
+  background: var(--nowo-wiki-tree-hover-bg, var(--nowo-ui-surface-muted, #f6f8fb));
+}
+
+.nowo-wiki-tree__link--current {
+  background: var(--nowo-wiki-tree-current-bg, var(--nowo-ui-surface-muted, #f6f8fb));
+  color: var(--nowo-wiki-tree-current-fg, var(--nowo-ui-primary, #2563eb));
+  font-weight: 600;
+}
+
+/* 1.14 (tree.enabled): items of the UiKit tree read in the text colour (a theme's link colour fails AA on the tint
+   of the current row); the current page is told apart by the tint, the weight and aria-current. */
+.nowo-wiki-sidebar [role='tree'] [role='treeitem'] {
+  color: var(--nowo-ui-text, inherit);
+}
+
+.nowo-wiki-tree__truncated {
+  margin: 0.75rem 0 0;
+}
+
+/* Rendered page body (sanitized HTML of the current revision). */
+.nowo-wiki-content {
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.nowo-wiki-content img, .nowo-wiki-content video, .nowo-wiki-content iframe {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--nowo-ui-radius, 0.375rem);
+}
+
+.nowo-wiki-content pre, .nowo-wiki-content code {
+  background: var(--nowo-ui-surface-muted, #f6f8fb);
+  border-radius: var(--nowo-ui-radius, 0.375rem);
+}
+
+.nowo-wiki-content pre {
+  padding: 0.75rem 1rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.nowo-wiki-content code {
+  padding: 0.1rem 0.3rem;
+}
+
+.nowo-wiki-content pre code {
+  padding: 0;
+  background: none;
+}
+
+.nowo-wiki-content blockquote {
+  margin: 1rem 0;
+  padding: 0.25rem 1rem;
+  border-inline-start: 3px solid var(--nowo-ui-border-strong, #cbd5e1);
+  color: var(--nowo-ui-muted, #64748b);
+}
+
+/* 1.29: a wide table scrolls sideways in its own box instead of widening the page. The box is a wrapper
+   (.nowo-wiki-table-scroll, nowo_wiki_scroll_tables: UiKit scroll region with a label, keyboard reachable while it
+   overflows); the table keeps its table display, so its semantics stay (audit MA-L1, over the UiKit 2.48
+   rendered-content rule that makes the table itself a block). A table is as wide as its content. */
+.nowo-wiki-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.nowo-wiki-content table {
+  display: table;
+  inline-size: auto;
+  max-inline-size: none;
+  overflow: visible;
+  border-collapse: collapse;
+}
+
+.nowo-wiki-content th, .nowo-wiki-content td {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--nowo-ui-border, #e2e8f0);
+}
+
+/* 1.16.2: GFM column alignment (`:---:`) as classes, so no inline style is needed (CSP). */
+.nowo-wiki-content .nowo-wiki-align--left { text-align: left; }
+.nowo-wiki-content .nowo-wiki-align--center { text-align: center; }
+.nowo-wiki-content .nowo-wiki-align--right { text-align: right; }
+
+/* 1.16.2: footnotes and leaf directives (`::beacon{…}`) no host renders. */
+.nowo-wiki-content .nowo-md-footnotes {
+  font-size: 0.9em;
+  color: var(--nowo-ui-muted, #475569);
+}
+
+.nowo-wiki-content .nowo-md-footnote-backref {
+  text-decoration: none;
+}
+
+.nowo-wiki-content [id^='nowo-h-'], .nowo-wiki-content [id^='nowo-fn-'] {
+  scroll-margin-top: 4rem;
+}
+
+.nowo-wiki-content .nowo-wiki-directive {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--nowo-ui-border, #e2e8f0);
+  border-radius: var(--nowo-ui-radius, 0.375rem);
+}
+
+/* Card titles of the wiki regions (sidebar, archived pages, "Used in", AI answer). */
+.nowo-wiki-region-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Lists inside cards (archived pages, "Used in", AI sources). */
+.nowo-wiki-archived__list, .nowo-wiki-used-in__list, .nowo-wiki-sources {
+  list-style: none;
+  margin: 0;
+}
+
+.nowo-wiki-sources__item {
+  padding: 0.35rem 0;
+}
+
+.nowo-wiki-sources__item + .nowo-wiki-sources__item {
+  border-top: 1px solid var(--nowo-ui-border, #e2e8f0);
+}
+
+.nowo-wiki-archived__item, .nowo-wiki-used-in__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+}
+
+.nowo-wiki-archived__item + .nowo-wiki-archived__item, .nowo-wiki-used-in__item + .nowo-wiki-used-in__item {
+  border-top: 1px solid var(--nowo-ui-border, #e2e8f0);
+}
+
+/* Revision diff. */
+.nowo-wiki-diff__lines {
+  display: block;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.nowo-wiki-diff__line {
+  display: block;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--nowo-ui-radius, 0.375rem);
+}
+
+.nowo-wiki-diff__line--same {
+  color: var(--nowo-ui-muted, #64748b);
+}
+
+.nowo-wiki-diff__line--add {
+  background: var(--nowo-ui-success-bg, #ecfdf5);
+  color: var(--nowo-ui-success-text, #166534);
+}
+
+.nowo-wiki-diff__line--remove {
+  background: var(--nowo-ui-danger-bg, #fef2f2);
+  color: var(--nowo-ui-danger-text, #991b1b);
+}
+
+/* The +/- marker is shown; its meaning ("Added:" / "Removed:") is for screen readers only (1.12: own class, so the
+   text stays hidden on hosts without Bootstrap / UiKit's .visually-hidden). */
+.nowo-wiki-diff__marker {
+  font-weight: 600;
+  user-select: none;
+}
+
+.nowo-wiki-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Search excerpt and AI answer. */
+.nowo-wiki-results__excerpt {
+  color: var(--nowo-ui-muted, #64748b);
+}
+
+.nowo-wiki-ai {
+  display: grid;
+  gap: 1rem;
+}
+
+.nowo-wiki-ai__text {
+  line-height: 1.7;
+}
+
+/* 1.16: the page tab row (Page / Edit / History) with the comments toggle at its end (UiKit tabs + side panel toggle). */
+.nowo-wiki-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: 1rem;
+}
+
+.nowo-wiki-tabs > nav {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nowo-wiki-tabs__end {
+  margin-inline-start: auto;
+}
+
+/* 1.16: author with avatar (history, comments). */
+.nowo-wiki-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* 1.16: comments panel body (no-JavaScript list and form; the Milkdown thread component styles itself). */
+.nowo-wiki-comments__list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.nowo-wiki-comments__thread {
+  border-block-end: 1px solid var(--nowo-ui-border, #e2e8f0);
+  padding-block-end: 0.75rem;
+}
+
+.nowo-wiki-comment + .nowo-wiki-comment {
+  margin-block-start: 0.5rem;
+  padding-inline-start: 0.75rem;
+}
+
+.nowo-wiki-comment__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.nowo-wiki-comment__author {
+  font-weight: 600;
+}
+
+.nowo-wiki-comment__time,
+.nowo-wiki-comments__empty,
+.nowo-wiki-comment__deleted {
+  color: var(--nowo-ui-muted, #64748b);
+}
+
+.nowo-wiki-comment__body {
+  overflow-wrap: anywhere;
+}
+
+.nowo-wiki-comments__form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* 1.16: quote of an inline thread in the server-rendered comments list (no highlight without the page source). */
+.nowo-wiki-comment__quote {
+  margin: 0 0 0.375rem;
+  padding-inline-start: 0.5rem;
+  border-inline-start: 3px solid var(--nowo-ui-border, #e2e8f0);
+  color: var(--nowo-ui-muted, #64748b);
+  overflow-wrap: anywhere;
+}
+
+/* 1.20 (page_files): the files the page refers to. */
+.nowo-wiki-files__link {
+  overflow-wrap: anywhere;
+}
+
+/* 1.21 comments panel extras: the notice of a refused write and the moderation list (comments.error_notices /
+   comments.moderation_panel). */
+.nowo-wiki-comments__notice[data-tone='error'] {
+  color: var(--nowo-ui-danger, #b91c1c);
+}
+
+/* 1.21 web_ui.import_export: dialog: the export links of the dialog. */
+.nowo-wiki-import-export__export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.nowo-wiki-moderation {
+  margin-block-start: 1rem;
+}
+
+.nowo-wiki-moderation__summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.nowo-wiki-moderation__list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.nowo-wiki-moderation__item {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-block-start: 1px solid var(--nowo-ui-border, #e2e8f0);
+}
+
+.nowo-wiki-moderation__label, .nowo-wiki-moderation__meta {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.nowo-wiki-moderation__meta {
+  color: var(--nowo-ui-muted, #64748b);
+  font-size: 0.875em;
+}
+
+.nowo-wiki-moderation__confirm {
+  max-width: min(28rem, calc(100vw - 2rem));
+}

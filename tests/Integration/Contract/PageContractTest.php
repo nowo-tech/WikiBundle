@@ -315,9 +315,10 @@ final class PageContractTest extends PageContractTestCase
         // Toolbar in the card: the header keeps nothing but the (hidden) title; the frame holds the toolbar first, then
         // the read-only editor and the server body.
         $card = $this->renderWithKitHeader(self::layout130(PageFixtures::pageView(true, self::compactFactory(), false)), '@NowoWikiBundle/manage/page_view.html.twig');
-        self::assertSame(1, preg_match('#data-nowo-ui-region="header"(?:(?!</h1>).)*</h1>\s*</div>\s*</div>#s', $card), 'No toolbar row left in the header.');
-        self::assertStringContainsString('data-nowo-ui-page-header-empty', $card);
-        self::assertSame(1, preg_match('#<div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>\s*<div class="nowo-wiki-card-toolbar" data-nowo-wiki-card-toolbar>\s*<div class="nowo-wiki-card-toolbar__bar" role="toolbar" aria-label="Page actions" data-testid="wiki-card-toolbar">.*?data-testid="wiki-tree-toggle".*?data-testid="wiki-toolbar-edit".*?data-testid="wiki-comments-toggle".*?data-nowo-ui-header-actions.*?data-testid="wiki-comments-view".*?data-nowo-wiki-server-body#s', $card));
+        // Audit MG-1-I1: nothing left in the header, so it is not printed (no second, hidden <h1>).
+        self::assertStringNotContainsString('data-nowo-ui-region="header"', $card);
+        self::assertStringNotContainsString('visually-hidden">Deploy</h1>', $card);
+        self::assertSame(1, preg_match('#<div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>\s*<div class="nowo-wiki-card-toolbar" data-nowo-wiki-card-toolbar>\s*<div class="nowo-wiki-card-toolbar__bar" role="group" aria-label="Page actions" data-testid="wiki-card-toolbar">.*?data-testid="wiki-tree-toggle".*?data-testid="wiki-toolbar-edit".*?data-testid="wiki-comments-toggle".*?data-nowo-ui-header-actions.*?data-testid="wiki-comments-view".*?data-nowo-wiki-server-body#s', $card));
         self::assertSame(1, substr_count($card, 'data-testid="wiki-comments-toggle"'));
         self::assertSame(1, substr_count($card, 'data-testid="host-toolbar-button"'));
         self::assertSame(1, substr_count($card, 'data-testid="wiki-tree-toggle"'));

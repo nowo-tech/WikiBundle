@@ -178,6 +178,12 @@
   padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
 }
 
+/* Audit MG-1-L2 (WCAG 2.4.11): a focused element scrolled into view stops below the sticky toolbar. Hosts with a
+   sticky top bar set --nowo-wiki-card-toolbar-top to its height plus a gap. */
+.nowo-wiki-card-frame :is(a[href], button, input, select, textarea, summary, [tabindex], [contenteditable]) {
+  scroll-margin-block-start: calc(var(--nowo-wiki-card-toolbar-top, 0.5rem) + var(--nowo-wiki-card-toolbar-height, 3rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
+}
+
 @media (max-width: 39.99rem) {
   .nowo-wiki-card-toolbar {
     position: static;
