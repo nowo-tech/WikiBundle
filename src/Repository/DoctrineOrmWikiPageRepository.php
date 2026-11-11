@@ -254,6 +254,8 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->setParameter('space', $space)
             ->orderBy('p.position', SortDirection::Ascending)
             ->addOrderBy('p.title', SortDirection::Ascending)
+            // Audit MG-2-L6: a total order, so offset paging never skips or repeats a page.
+            ->addOrderBy('p.id', SortDirection::Ascending)
             ->setMaxResults($limit)
             ->getQuery()
             ->setHint(Query::HINT_REFRESH, true)
@@ -271,6 +273,8 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->setParameter('parent', $parent)
             ->orderBy('p.position', SortDirection::Ascending)
             ->addOrderBy('p.title', SortDirection::Ascending)
+            // Audit MG-2-L6: a total order, so offset paging never skips or repeats a page.
+            ->addOrderBy('p.id', SortDirection::Ascending)
             ->setMaxResults(max(1, $limit))
             ->setFirstResult(max(0, $offset))
             ->getQuery()

@@ -118,7 +118,8 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   (`WikiPageChildrenFinderInterface::findActiveChildren()`, implemented by `DoctrineOrmWikiPageRepository`; a host
   repository without it falls back to `findActiveBySpace()` bounded like the tree), at most `pagination.max_tree_pages`
   readable pages: the cap counts readable pages only (hidden ones are skipped in further batches when needed) and more
-  shows as "N+ subpages" (`truncated`; audit MG-2-L1/L3). `findActiveChildren()` reads with `HINT_REFRESH` (MG-2-L2).
+  shows as "N+ subpages" (`truncated`; audit MG-2-L1/L3). `findActiveChildren()` reads with `HINT_REFRESH` (MG-2-L2), at most 3 batches over a total order with ids
+  deduplicated (MG-2-L5/L6).
   `auto` shows both only while the tree is collapsed or on one column. Default `never`.
 - **`web_ui.breadcrumb_current_label`** (literal boolean, default `false`): with BreadcrumbKit >= 2.17 installed, the
   page view names the current crumb after the page title through

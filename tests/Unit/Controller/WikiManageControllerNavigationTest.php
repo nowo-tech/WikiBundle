@@ -22,6 +22,7 @@ use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
+use Nowo\WikiBundle\Repository\WikiPageChildrenFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -46,6 +47,8 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use function array_column;
 use function array_filter;
 use function array_map;
+use function array_unique;
+use function array_values;
 use function count;
 use function in_array;
 use function json_encode;
@@ -253,6 +256,54 @@ final class WikiManageControllerNavigationTest extends TestCase
     }
 
     /**
+     * Audit MG-2-L5: at most CHILDREN_MAX_BATCHES finder calls, then truncated; a host finder that ignores the offset
+     * (the same batch again) stops at the second call instead of looping forever.
+     */
+    public function testTheBatchesAreCappedAndAFinderIgnoringTheOffsetStops(): void
+    {
+        $hidden = [];
+        for ($i = 1; $i <= 9; ++$i) {
+            $child = $this->page('h' . $i, 'Hidden ' . $i, $this->run);
+            $child->setPosition($i);
+            $hidden[] = $child->getId();
+        }
+        $this->em->flush();
+        $decide = static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !in_array($page?->getId(), $hidden, true);
+
+        // Cap 1: batches of 2, all hidden but Secret runbooks (position 0) — three calls, then truncated.
+        $finder = $this->countingFinder(false);
+        $this->controller(['children' => 'always'], $decide, pages: $finder, maxTreePages: 1)->viewPage('eng', 'run');
+        self::assertSame(WikiManageController::CHILDREN_MAX_BATCHES, $finder->calls);
+        self::assertSame(['Secret runbooks'], array_column($this->twig->context['page_children']['items'], 'label'));
+        self::assertTrue($this->twig->context['page_children']['truncated']);
+
+        // A finder that ignores the offset: the second batch brings nothing new.
+        $finder = $this->countingFinder(true);
+        $this->controller(['children' => 'always'], $decide, pages: $finder, maxTreePages: 1)->viewPage('eng', 'run');
+        self::assertSame(2, $finder->calls);
+        self::assertTrue($this->twig->context['page_children']['truncated']);
+    }
+
+    /**
+     * Audit MG-2-L6: equal positions and titles still page in one total order (id last): no page is skipped or repeated.
+     */
+    public function testOffsetPagingOverEqualSortKeysIsTotal(): void
+    {
+        for ($i = 0; $i < 6; ++$i) {
+            $this->page('same-' . $i, 'Same', $this->leaf);
+        }
+        $repository = new DoctrineOrmWikiPageRepository($this->em);
+        $ids        = [];
+        for ($offset = 0; $offset < 6; $offset += 2) {
+            foreach ($repository->findActiveChildren($this->leaf, 2, $offset) as $page) {
+                $ids[] = $page->getId();
+            }
+        }
+        self::assertCount(6, array_unique($ids));
+        self::assertSame($ids, array_values(array_map(static fn (WikiPage $page): string => $page->getId(), $repository->findActiveChildren($this->leaf, 10))));
+    }
+
+    /**
      * Audit MG-2-L2: findActiveChildren() reads the rows again over a page the EntityManager kept (worker mode).
      */
     public function testTheChildrenFinderRefreshesKeptPages(): void
@@ -302,6 +353,57 @@ final class WikiManageControllerNavigationTest extends TestCase
         $this->em->flush();
 
         return $page;
+    }
+
+    /**
+     * A host repository with the children finder that counts its calls and may ignore the offset.
+     */
+    private function countingFinder(bool $ignoreOffset): WikiPageRepositoryInterface&WikiPageChildrenFinderInterface
+    {
+        return new class(new DoctrineOrmWikiPageRepository($this->em), $ignoreOffset) implements WikiPageRepositoryInterface, WikiPageChildrenFinderInterface {
+            public int $calls = 0;
+
+            public function __construct(private readonly DoctrineOrmWikiPageRepository $inner, private readonly bool $ignoreOffset)
+            {
+            }
+
+            public function findActiveChildren(WikiPage $parent, int $limit, int $offset = 0): array
+            {
+                ++$this->calls;
+
+                return $this->inner->findActiveChildren($parent, $limit, $this->ignoreOffset ? 0 : $offset);
+            }
+
+            public function save(WikiPage $page): void
+            {
+                $this->inner->save($page);
+            }
+
+            public function findById(string $id): ?WikiPage
+            {
+                return $this->inner->findById($id);
+            }
+
+            public function findBySlug(WikiSpace $space, string $slug): ?WikiPage
+            {
+                return $this->inner->findBySlug($space, $slug);
+            }
+
+            public function findActiveBySpace(WikiSpace $space, ?int $limit = null): array
+            {
+                return $this->inner->findActiveBySpace($space, $limit);
+            }
+
+            public function findArchivedBySpace(WikiSpace $space, int $limit = 100): array
+            {
+                return $this->inner->findArchivedBySpace($space, $limit);
+            }
+
+            public function countBySpaceAndSlug(WikiSpace $space, string $slug, ?string $excludePageId = null): int
+            {
+                return $this->inner->countBySpaceAndSlug($space, $slug, $excludePageId);
+            }
+        };
     }
 
     /**

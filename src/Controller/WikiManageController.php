@@ -85,7 +85,6 @@ use Throwable;
 use function array_fill_keys;
 use function array_filter;
 use function array_map;
-use function array_push;
 use function array_reverse;
 use function array_slice;
 use function array_values;
@@ -124,6 +123,9 @@ final class WikiManageController extends AbstractController
     ];
 
     /** Defaults of the nowo_wiki.pagination config node (REQ-PERF-001). */
+    /** 1.30 (audit MG-2-L5): most queries the sub-pages of one page view may cost. */
+    public const CHILDREN_MAX_BATCHES = 3;
+
     public const DEFAULT_PAGINATION = [
         'spaces_per_page'    => 24,
         'revisions_per_page' => 25,
@@ -1665,7 +1667,8 @@ final class WikiManageController extends AbstractController
      * 1.30 (`web_ui.children`): the direct sub-pages of the page the user may read, not archived, in tree order, at
      * most `pagination.max_tree_pages`. Audit MG-2-L1: the cap applies to readable pages: batches of cap + 1 are read
      * until cap + 1 readable ones are found or the children run out, so `truncated` (more than the cap) is honest and
-     * the usual case is one query. Without {@see WikiPageChildrenFinderInterface} the children come from the space's
+     * the usual case is one query; at most {@see self::CHILDREN_MAX_BATCHES} batches (MG-2-L5), after which, or when a
+     * batch brings no new page, the list is marked truncated. Without {@see WikiPageChildrenFinderInterface} the children come from the space's
      * first `max_tree_pages` + 1 active pages, the tree's own bound (audit MG-2-L3); `truncated` is then also set when
      * that list was capped.
      *
@@ -1678,10 +1681,34 @@ final class WikiManageController extends AbstractController
         $found    = [];
         $capped   = false;
         if ($this->pageRepository instanceof WikiPageChildrenFinderInterface) {
-            for ($offset = 0; count($found) <= $limit; $offset += $limit + 1) {
-                $batch = $this->pageRepository->findActiveChildren($page, $limit + 1, $offset);
-                array_push($found, ...array_values(array_filter($batch, $readable)));
-                if (count($batch) <= $limit) {
+            // Audit MG-2-L5/L6: at most CHILDREN_MAX_BATCHES queries, ids deduplicated (offset paging over a total order
+            // in the bundle's finder, but a host finder may ignore the offset or repeat rows): a batch that brings no
+            // new page, or the batch cap, stops the walk and marks the list truncated.
+            $seen = [];
+            for ($batchNo = 0;; ++$batchNo) {
+                if ($batchNo === self::CHILDREN_MAX_BATCHES) {
+                    $capped = true;
+
+                    break;
+                }
+                $batch = $this->pageRepository->findActiveChildren($page, $limit + 1, $batchNo * ($limit + 1));
+                $new   = 0;
+                foreach ($batch as $child) {
+                    if (isset($seen[$child->getId()])) {
+                        continue;
+                    }
+                    $seen[$child->getId()] = true;
+                    ++$new;
+                    if ($readable($child)) {
+                        $found[] = $child;
+                    }
+                }
+                if (count($found) > $limit || count($batch) <= $limit) {
+                    break;
+                }
+                if ($new === 0) {
+                    $capped = true;
+
                     break;
                 }
             }
