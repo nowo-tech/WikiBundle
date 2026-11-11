@@ -233,6 +233,15 @@ wiki:
     page_of: "Page %page% sur %pages%"
   quota:
     denied: "Cela dépasserait une limite de votre offre."
+  # 1.30: in-wiki path (web_ui.page_header.path: card) and sub-pages (web_ui.children).
+  path:
+    label: 'Chemin de la page'
+    hidden: 'Page restreinte'
+    more: 'Afficher %count% niveaux de plus'
+  children:
+    count: '{1} 1 sous-page|]1,Inf[ %count% sous-pages'
+    count_more: '%count%+ sous-pages'
+    title: 'Pages de cette section'
 wiki_page_form:
   title:
     placeholder: "Titre de la page"

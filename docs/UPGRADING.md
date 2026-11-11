@@ -91,6 +91,9 @@ Target **1.30.0**. Nothing to change: every new option is off by default and the
   ([CONFIGURATION](CONFIGURATION.md#page-layout-129)). A host sidebar (`wiki_sidebar` / `web_ui.slots.sidebar`) that
   keeps the rail markup (`id="nowo-wiki-tree"`, `data-nowo-ui-rail-host`, the body `id="nowo-wiki-tree-body"`) works
   with `tree_collapsed_mode: hidden` unchanged.
+- A host page repository (not `DoctrineOrmWikiPageRepository`) may implement the new optional
+  `WikiPageChildrenFinderInterface` for `web_ui.children`; without it the sub-pages come from `findActiveBySpace()`.
+- `web_ui.breadcrumb_current_label` needs BreadcrumbKit >= 2.17 (suggested, not required).
 - `title: dedupe` now hides the read-only editor's heading through wiki.css: a host that bundles the assets
   (`web_ui.assets: false`) rebuilds from `wiki.css` / `wiki.ts`.
 

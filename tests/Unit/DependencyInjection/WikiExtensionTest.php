@@ -813,7 +813,7 @@ final class WikiExtensionTest extends TestCase
         $container = new ContainerBuilder();
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
-        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'tree_collapsed_mode' => 'rail', 'reading_align' => 'center', 'seamless_swap' => false];
+        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'tree_collapsed_mode' => 'rail', 'reading_align' => 'center', 'path' => 'none', 'children' => 'never', 'breadcrumb_current_label' => false, 'seamless_swap' => false];
         self::assertSame($defaults, $container->getParameter('nowo_wiki.web_ui.layout'));
         /** @var array<string, mixed> $webUi */
         $webUi = $container->getParameter('nowo_wiki.web_ui');
@@ -827,9 +827,9 @@ final class WikiExtensionTest extends TestCase
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([[
             'user_class' => 'App\\Entity\\User',
-            'web_ui'     => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => ['layout' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card'], 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'read_view' => ['seamless_swap' => true]],
+            'web_ui'     => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => ['layout' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'path' => 'card'], 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'children' => 'auto', 'breadcrumb_current_label' => true, 'read_view' => ['seamless_swap' => true]],
         ]], $container);
-        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'seamless_swap' => true];
+        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'path' => 'card', 'children' => 'auto', 'breadcrumb_current_label' => true, 'seamless_swap' => true];
         self::assertSame($layout, $container->getParameter('nowo_wiki.web_ui.layout'));
         /** @var array<string, array{path: string, name: string}> $routes */
         $routes = $container->getParameter('nowo_wiki.routes');
@@ -871,6 +871,8 @@ final class WikiExtensionTest extends TestCase
         self::assertSame($defaults, WikiExtension::layout(['tree_rail' => 'yes', 'page_header' => 'compact']));
         // 1.30: title body.
         self::assertSame('body', WikiExtension::layout(['page_header' => ['title' => 'body']])['title']);
+        self::assertSame('always', WikiExtension::layout(['children' => 'always'])['children']);
+        self::assertFalse(WikiExtension::layout(['breadcrumb_current_label' => '%env(bool:X)%'])['breadcrumb_current_label']);
         self::assertFalse(WikiExtension::layout(['read_view' => ['seamless_swap' => '%env(bool:X)%']])['seamless_swap']);
     }
 

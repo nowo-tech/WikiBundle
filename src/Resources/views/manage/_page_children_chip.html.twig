@@ -1,0 +1,18 @@
+{#
+  1.30 (web_ui.children): the "N subpages" chip near the top of the page; a native <details> disclosure that opens the
+  list (no JavaScript). page_children.mode auto: shown only while the tree is collapsed or on one column (wiki.css).
+  Variables: page_children ({mode, items: list of {label, href}, truncated: more readable sub-pages than the
+  pagination.max_tree_pages cap, shown as "N+ subpages"}), bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _children = page_children|default(null) %}
+{% if _children and _children.items is not empty %}
+<details class="nowo-wiki-children-chip{{ _children.mode == 'auto' ? ' nowo-wiki-children--auto' }}" data-testid="wiki-children-chip">
+    <summary class="{{ nowo_ui_class('badge_neutral', bundle|default(null)) }} nowo-wiki-children-chip__toggle">{{ _children.truncated|default(false) ? 'wiki.children.count_more'|trans({'%count%': _children.items|length}) : 'wiki.children.count'|trans({'%count%': _children.items|length}) }}</summary>
+    <ul class="nowo-wiki-children-chip__panel">
+        {% for child in _children.items %}
+            <li><a class="nowo-wiki-children-chip__link" href="{{ child.href }}">{{ child.label }}</a></li>
+        {% endfor %}
+    </ul>
+</details>
+{% endif %}
