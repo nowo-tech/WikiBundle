@@ -6,9 +6,9 @@
  *   is collapsed). UiKit `js/nowo-ui-rail.js` toggles and stores the state; this module only moves the focus, which
  *   would otherwise be lost with the button that disappears: collapsing moves it to the toolbar button, expanding to
  *   the tree card's own toggle ({@link bindTreeHiddenFocus}).
- * - `web_ui.page_header.toolbar_position: card` (`[data-nowo-wiki-card-frame]`): the width of the sticky toolbar is
- *   published as `--nowo-wiki-card-toolbar-width` on the frame, so the first block of the body (the title `<h1>`)
- *   keeps clear of it ({@link observeCardToolbar}).
+ * - `web_ui.page_header.toolbar_position: card` (`[data-nowo-wiki-card-frame]`): the size of the sticky toolbar is
+ *   published as `--nowo-wiki-card-toolbar-width` / `-height` on the frame, so the first block of the body (the title
+ *   `<h1>`) keeps clear of it and a focused element scrolled into view stops below it ({@link observeCardToolbar}).
  *
  * Delegated listeners, no inline handlers or styles other than one custom property; nothing kept between pages.
  */
@@ -62,7 +62,9 @@ export function observeCardToolbar(root: ParentNode = document, Observer: typeof
         const frame = bar.parentElement as HTMLElement;
         const inner = bar.firstElementChild instanceof HTMLElement ? bar.firstElementChild : bar;
         const publish = (): void => {
-            frame.style.setProperty('--nowo-wiki-card-toolbar-width', `${Math.ceil(inner.getBoundingClientRect().width)}px`);
+            const box = inner.getBoundingClientRect();
+            frame.style.setProperty('--nowo-wiki-card-toolbar-width', `${Math.ceil(box.width)}px`);
+            frame.style.setProperty('--nowo-wiki-card-toolbar-height', `${Math.ceil(box.height)}px`);
         };
         publish();
         if (typeof Observer === 'function') {
