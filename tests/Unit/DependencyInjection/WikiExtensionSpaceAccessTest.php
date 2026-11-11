@@ -59,7 +59,7 @@ final class WikiExtensionSpaceAccessTest extends TestCase
         self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class], $ids);
         foreach ($memos->getValues() as $reference) {
             self::assertInstanceOf(Reference::class, $reference);
-            self::assertSame(ContainerInterface::IGNORE_ON_INVALID_REFERENCE, $reference->getInvalidBehavior(), 'file previews off: skipped');
+            self::assertSame(ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE, $reference->getInvalidBehavior(), 'only built memos are reset; missing ones are skipped');
         }
     }
 

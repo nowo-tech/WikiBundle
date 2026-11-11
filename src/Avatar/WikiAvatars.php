@@ -21,7 +21,7 @@ use function is_string;
  * through the UiKit avatar URL policy. Callers prime only users whose real name they show (the privacy gate of
  * {@see WikiAuthorLabel::presentAll()}). The memo is bounded and cleared on `kernel.reset`
  * and, since 1.29.1, at every request / console / Messenger boundary by
- * {@see WikiRequestBoundaryResetter} (FrankenPHP worker with kernel reset false).
+ * {@see WikiRequestBoundaryResetter} (where the services resetter does not run).
  *
  * @internal
  */

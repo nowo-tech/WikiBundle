@@ -8,7 +8,7 @@
 | Method | Manual review of every PHP file under `src/` (DI extension, compiler pass, `services.yaml`, controller, services, repositories, Doctrine listener, security, AI services, interchange, form type, route loader, commands); entities, DTOs and enums skimmed |
 | Remediation (2026-09-23) | W-01, W-02, W-03 and W-04 fixed (uncommitted, `[Unreleased]`); W-05 unchanged (Info). Regression tests simulate consecutive requests on one container without `reset()` |
 | Re-audit (2026-10-30, 1.9.0) | Every class added or changed for 1.9.0 (space-aware access, tenant paths, page links, attachments, restore / unarchive, events, editor options event, `WikiPostActionType`) re-read: all new services are `final readonly` or hold only `readonly` constructor arguments; no memo cache, static property or `ResetInterface` needed. Host hooks (`WikiSpaceAccessCheckerInterface`, `WikiSpaceLocatorInterface`, `WikiObjectLinkResolverInterface`, `WikiAttachmentStorageInterface`, `WikiAttachmentScannerInterface`, `WikiAttachmentLimitsProviderInterface`) must stay stateless or implement `ResetInterface` (see usage recommendations) |
-| Re-audit (2026-11-11, 1.29.1, REQ-RUNTIME-002) | Request memos were emptied only by `kernel.reset` (W-06, Medium, security): fixed with `Service\WikiRequestBoundaryResetter` and a request-scoped space-checker memo; worker test `tests/Api/LegacySpaceCheckerWorkerTest.php` |
+| Re-audit (2026-11-11, 1.29.1, REQ-RUNTIME-002) | Request memos were emptied only by `kernel.reset` (W-06, security; only where the services resetter does not run — host removes or bypasses it, `messenger:consume --no-reset`, long-running commands; the stock kernel runs it before every request even with `FRANKENPHP_RESET_KERNEL=false`): fixed with `Service\WikiRequestBoundaryResetter` and a request-scoped space-checker memo; worker test `tests/Api/LegacySpaceCheckerWorkerTest.php` |
 | **Verdict** | ✅ **Viable under scenario B** — repositories and search resolve the EntityManager per call (closed manager recovered, reads refreshed from the database), access decisions ignore a token left by a previous request, failed exports leave no ZIP, and AI calls can use a bundle HTTP client with timeout. Hosts still own the identity-map lifetime and firewall layout (see usage recommendations). |
 
 ## Table of contents
@@ -139,7 +139,8 @@ Good patterns observed: all services are `final readonly` or have no properties;
 
 - **Where:** `src/Security/LegacyWikiSpaceAccessChecker.php` (memo since 1.13.0, CV-L1), `src/Avatar/WikiAvatars.php`
   (1.16.0), `src/Markdown/Milkdown/WikiFilePreviewFrames.php` (1.28.0). Each was tagged `kernel.reset` and nothing else.
-- **Worker impact (scenario B, `FRANKENPHP_RESET_KERNEL=false`):** the host's EntityManager is not cleared either, so the
+- **Precondition (audit MC, 2026-11-11):** only when the services resetter does not run between requests: a host that removes or bypasses `services_resetter` or drives `http_kernel` directly, Messenger consumers started with `messenger:consume --no-reset`, and long-running console commands. The stock Symfony kernel still runs `services_resetter` before every request in FrankenPHP worker mode, even with `FRANKENPHP_RESET_KERNEL=false` (`Kernel::handle()` → `boot()`), so a stock worker was not affected. Scenario B below is that case.
+- **Worker impact (scenario B, no services resetter):** the host's EntityManager is not cleared either, so the
   firewall refreshes the signed-in user to the **same managed object** on every request. The space checker's memo was
   keyed by that object: a membership revoked in the database (team left, space moved to another owner) kept granting
   the space in that worker until it restarted. This matters wherever the checker is the gate (a host locator that finds
@@ -150,12 +151,15 @@ Good patterns observed: all services are `final readonly` or have no properties;
   - `Service\WikiRequestBoundaryResetter` (registered by `WikiExtension`, `kernel.event_subscriber`) empties the five
     request memos on the main `kernel.request` (priority 2048, before the firewall and router), `kernel.terminate`,
     `console.terminate` and Messenger `WorkerMessageHandledEvent` / `WorkerMessageFailedEvent` (subscribed by class
-    name; `symfony/messenger` stays optional). Services this configuration does not register are skipped.
+    name; `symfony/messenger` stays optional). Only memos already built are reset (`IGNORE_ON_UNINITIALIZED_REFERENCE`,
+    as the services resetter does): a boundary instantiates nothing, and services this configuration does not register
+    (file previews off, a host checker) are skipped.
   - `LegacyWikiSpaceAccessChecker` scopes its memo to the main request it was read for (`RequestStack`, weak reference):
     a new main request starts empty even if no boundary event ran, and outside a request (console, Messenger) nothing is
-    memoised. Memberships are always re-read through `WikiSpaceAccessResolverInterface` (`findAccessible()` with
-    `HINT_REFRESH`), never from a collection of the user entity; `WikiTeamMembershipResolverInterface` documents the same
-    rule for host resolvers.
+    memoised (a host loop over many checks pays one lookup each). Memberships are re-read through
+    `WikiSpaceAccessResolverInterface` (its existing queries already use `HINT_REFRESH`) when a new request starts. In
+    team mode the host's `WikiTeamMembershipResolverInterface` decides how teams are read; its docblock recommends a
+    query over a collection loaded on the user entity.
   - **Worker test:** `tests/Api/LegacySpaceCheckerWorkerTest.php` boots one kernel (debug off) and sends every request
     straight through the container's `http_kernel` (`handle()` + `terminate()`), so neither the kernel's boot check nor
     `services_resetter` runs, and the host EntityManager is never cleared. (1) Ana is granted and served her space twice;
@@ -164,6 +168,8 @@ Good patterns observed: all services are `final readonly` or have no properties;
     very next request; memory from round 5 to the end stays within 2 MiB. Both fail on 1.29.0 (the revoked space is
     still served). Unit tests: `LegacyWikiSpaceAccessCheckerTest` (a new request re-reads, no memo outside a request,
     `reset()`), `WikiRequestBoundaryResetterTest` (every boundary; sub-requests keep the memo), `WikiExtensionSpaceAccessTest`.
+    `LegacySpaceCheckerWorkerTest::testABoundaryBuildsNoMemoAndStillEmptiesTheOnesInUse` proves that a boundary does
+    not build an unused memo and still empties one in use.
 
 ### Igor findings (2026-11-11)
 
@@ -181,7 +187,7 @@ Good patterns observed: all services are `final readonly` or have no properties;
 
 - The bundle works without `services_resetter` (scenario B). Keeping it enabled is still recommended for the rest of the application (Doctrine identity map, token storage).
 - Put all wiki routes behind a secured firewall: outside one the bundle now treats the user as anonymous. Use a real `security.access_checker` or the default role-based checker; `security.allow_unauthenticated: true` intentionally allows everything.
-- Custom `WikiTeamMembershipResolverInterface`, `WikiAccessCheckerInterface` or `WikiSpaceAccessResolverInterface` implementations must stay stateless (no per-user cache in properties) or empty their cache at every request boundary (`kernel.request` / `kernel.terminate`, Messenger worker events, `console.terminate`) as well as on `kernel.reset`; otherwise team/space membership of one user can leak to the next request. Read memberships with a query on every call, not from a collection of the user entity (the host EntityManager can keep the user across requests).
+- Custom `WikiTeamMembershipResolverInterface`, `WikiAccessCheckerInterface` or `WikiSpaceAccessResolverInterface` implementations must stay stateless (no per-user cache in properties) or empty their cache at every request boundary (`kernel.request` / `kernel.terminate`, Messenger worker events, `console.terminate`) as well as on `kernel.reset`; otherwise team/space membership of one user can leak to the next request. Where the services resetter does not run, prefer reading memberships with a query over a collection loaded on the user entity (the host EntityManager can keep the user across requests).
 - The same applies to the 1.9 host hooks: a `WikiSpaceAccessCheckerInterface` that memoises permission decisions per user / space (a common optimisation, since templates ask every `WikiAction` per page), a `WikiSpaceLocatorInterface` that caches provisioned spaces, a `WikiObjectLinkResolverInterface` that caches visible objects, or a `WikiAttachmentLimitsProviderInterface` that caches per-space settings must implement `ResetInterface` (autoconfigured as `kernel.reset`) **and** be safe under scenario B — key the cache by user identifier and clear it at the start of each request — or not cache at all.
 - `LocalWikiAttachmentStorage` writes under `attachments.storage_dir`; in a worker that directory must be on a persistent volume shared by every worker / replica (the bundle keeps no file handle open between requests).
 - Set `http_client: 'nowo_wiki.ai.http_client'` on the AI platform (tune `nowo_wiki.ai.http_timeout`) and set FrankenPHP `max_wait_time`.

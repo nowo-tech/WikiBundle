@@ -28,14 +28,14 @@ use function count;
  * object and identifier, bounded, and cleared by {@see self::reset()} (`kernel.reset`), so a FrankenPHP worker never
  * carries it over. Call {@see self::reset()} after changing memberships inside one request or in a long-running loop.
  *
- * 1.29.1 (REQ-RUNTIME-002, kernel reset false): `kernel.reset` alone let a worker that never runs the services
- * resetter keep a user's memberships for as long as the host's EntityManager kept that user object managed (the
+ * 1.29.1 (REQ-RUNTIME-002): `kernel.reset` alone let a process where the services resetter does not run (a host that
+ * removes or bypasses it, `messenger:consume --no-reset`, long-running commands) keep a user's memberships for as long as the host's EntityManager kept that user object managed (the
  * identity map hands the same instance to every later request), so a revoked membership kept granting access. The
  * memo now belongs to one main request: it is dropped when the main request changes, it is not kept at all outside a
  * request (console, Messenger: memberships are read on every call), and
  * {@see WikiRequestBoundaryResetter} also empties it at every request, console and Messenger
- * boundary. Memberships are always re-read through {@see WikiSpaceAccessResolverInterface} (a query), never taken from
- * a collection of the user entity.
+ * boundary. Memberships are re-read through {@see WikiSpaceAccessResolverInterface} when a new request starts; in team
+ * mode the host's {@see WikiTeamMembershipResolverInterface} decides how teams are read.
  */
 final class LegacyWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterface, ResetInterface
 {

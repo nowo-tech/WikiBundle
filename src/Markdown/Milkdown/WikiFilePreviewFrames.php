@@ -29,7 +29,7 @@ use function str_contains;
  * `referrerpolicy="no-referrer"`) is ever written back.
  *
  * Request-scoped: emptied by `kernel.reset` and, since 1.29.1, at every request / console / Messenger boundary by
- * {@see WikiRequestBoundaryResetter} (FrankenPHP worker mode, kernel reset false), and bounded to {@see self::MAX_FRAMES} frames
+ * {@see WikiRequestBoundaryResetter} (where the services resetter does not run), and bounded to {@see self::MAX_FRAMES} frames
  * waiting for hydration; a token is used once. Renders that are never hydrated run {@see self::withoutFrames()}.
  */
 final class WikiFilePreviewFrames implements ResetInterface

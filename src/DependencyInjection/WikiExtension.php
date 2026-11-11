@@ -417,13 +417,14 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
     /**
      * 1.29.1 (REQ-RUNTIME-002): the request memos are emptied at every request, console and Messenger boundary, not only
-     * by `kernel.reset` (FrankenPHP worker mode with kernel reset false). Services that this configuration does not
-     * register (file previews off) are skipped.
+     * by `kernel.reset` (when the services resetter does not run). Only services already built are reset
+     * (`IGNORE_ON_UNINITIALIZED_REFERENCE`, as the services resetter does): a boundary never instantiates a memo, and
+     * services this configuration does not register (file previews off, a host checker) are skipped.
      */
     private function registerRequestBoundary(ContainerBuilder $container): void
     {
         $memos = array_map(
-            static fn (string $id): Reference => new Reference($id, ContainerInterface::IGNORE_ON_INVALID_REFERENCE),
+            static fn (string $id): Reference => new Reference($id, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE),
             [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class],
         );
         $container->setDefinition(WikiRequestBoundaryResetter::class, (new Definition(WikiRequestBoundaryResetter::class))

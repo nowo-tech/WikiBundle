@@ -14,9 +14,10 @@ use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Contracts\Service\ResetInterface;
 
 /**
- * 1.29.1 (REQ-RUNTIME-002, FrankenPHP worker mode with kernel reset false): empties the bundle's request memos at every
- * request boundary the bundle can see, so their correctness never depends on the host running `services_resetter`
- * (`kernel.reset`). Without it a worker kept the space memberships {@see LegacyWikiSpaceAccessChecker} read for a user
+ * 1.29.1 (REQ-RUNTIME-002): empties the bundle's request memos at every request boundary the bundle can see, so their
+ * correctness never depends on `services_resetter` (`kernel.reset`) running: a host may remove or bypass it, and
+ * `messenger:consume --no-reset` and long-running commands do not run it. Only memos already built are passed in
+ * (`IGNORE_ON_UNINITIALIZED_REFERENCE`), so a boundary never instantiates one. Without it a worker kept the space memberships {@see LegacyWikiSpaceAccessChecker} read for a user
  * object the host EntityManager keeps managed, and a revoked membership kept granting access in that worker.
  *
  * Boundaries: the main `kernel.request` (before anything of the request runs) and `kernel.terminate`, the console's

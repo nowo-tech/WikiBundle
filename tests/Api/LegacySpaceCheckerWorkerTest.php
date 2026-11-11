@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Api;
 
 use Doctrine\DBAL\Connection;
+use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
+use ReflectionProperty;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\HttpKernel\TerminableInterface;
 
 use function assert;
@@ -22,10 +27,10 @@ use function memory_get_usage;
 use function sprintf;
 
 /**
- * 1.29.1 (REQ-RUNTIME-002, FrankenPHP worker mode with kernel reset false): one kernel serves every request straight
- * through the container's `http_kernel` (`handle()` + `terminate()`, the session cookie by hand), so neither the kernel's
- * boot check nor the services resetter (`kernel.reset`) ever runs between requests, as in a FrankenPHP worker with
- * `FRANKENPHP_RESET_KERNEL=false`. The host's EntityManager is never cleared either, so the firewall refreshes the
+ * 1.29.1 (REQ-RUNTIME-002, no services resetter): one kernel serves every request straight through the container's
+ * `http_kernel` (`handle()` + `terminate()`, the session cookie by hand), so neither the kernel's boot check nor the
+ * services resetter (`kernel.reset`) ever runs between requests, as with a host that removes or bypasses the resetter
+ * (the stock kernel still runs it before every request, even with `FRANKENPHP_RESET_KERNEL=false`). The host's EntityManager is never cleared either, so the firewall refreshes the
  * signed-in user to the same managed object on every request.
  *
  * The bundle's {@see LegacyWikiSpaceAccessChecker} decides alone (a host locator finds spaces
@@ -104,6 +109,43 @@ final class LegacySpaceCheckerWorkerTest extends ApiTestCase
 
         gc_collect_cycles();
         self::assertLessThan(self::MEMORY_MARGIN, memory_get_usage() - $baseline, 'flat memory over the run');
+    }
+
+    public function testABoundaryBuildsNoMemoAndStillEmptiesTheOnesInUse(): void
+    {
+        $container  = static::getContainer();
+        $dispatcher = $container->get('event_dispatcher');
+        assert($dispatcher instanceof EventDispatcherInterface);
+        self::assertFalse($container->initialized(WikiAvatars::class), 'nothing has used the avatar memo yet');
+
+        // Only memos already built are reset (IGNORE_ON_UNINITIALIZED_REFERENCE): a boundary instantiates none.
+        $dispatcher->dispatch($this->terminateEvent(), KernelEvents::TERMINATE);
+        self::assertFalse($container->initialized(WikiAvatars::class), 'the boundary did not build the avatar memo');
+
+        // Once in use, the memo is still emptied at the boundary.
+        $avatars = $container->get(WikiAvatars::class);
+        assert($avatars instanceof WikiAvatars);
+        $avatars->prime([$this->ana]);
+        $urls = new ReflectionProperty(WikiAvatars::class, 'urls');
+        self::assertCount(1, (array) $urls->getValue($avatars));
+        $dispatcher->dispatch($this->terminateEvent(), KernelEvents::TERMINATE);
+        self::assertSame([], $urls->getValue($avatars), 'an initialised memo is still emptied');
+
+        // The space checker, built by a request, is emptied by the next main request.
+        $ana = $this->signIn($this->ana);
+        self::assertSame(200, $this->raw('/tools/wiki/spaces/ana-notes', $ana)->getStatusCode());
+        self::assertTrue($container->initialized(LegacyWikiSpaceAccessChecker::class));
+        $this->transfer('ana-notes', 'u-nobody');
+        self::assertSame(404, $this->raw('/tools/wiki/spaces/ana-notes', $ana)->getStatusCode());
+    }
+
+    /** A `kernel.terminate` event of an unrelated request (a boundary the resetter listens to). */
+    private function terminateEvent(): TerminateEvent
+    {
+        $kernel = static::getContainer()->get('http_kernel');
+        assert($kernel instanceof HttpKernelInterface);
+
+        return new TerminateEvent($kernel, Request::create('/elsewhere'), new Response());
     }
 
     /** Moves a space to another owner with plain SQL. */
