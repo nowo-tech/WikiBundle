@@ -373,7 +373,7 @@ final class ConfigurationTest extends TestCase
     public function testCommentsDefaultsAndShortcutValidation(): void
     {
         $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
-        self::assertSame(['enabled' => false, 'rate_limiter' => null, 'page_rate_limiter' => null, 'limits' => ['threads_per_page' => 500, 'total_threads_per_page' => 1000, 'user_threads_per_page' => 50, 'comments_per_thread' => 500, 'reactions_per_comment' => 20, 'user_reactions_per_comment' => 10], 'state_store' => null, 'moderation_panel' => false, 'error_notices' => false, 'dock_min_width' => 'md', 'read_view_source' => false, 'shortcut' => null], $defaults['comments']);
+        self::assertSame(['enabled' => false, 'rate_limiter' => null, 'page_rate_limiter' => null, 'limits' => ['threads_per_page' => 500, 'total_threads_per_page' => 1000, 'user_threads_per_page' => 50, 'comments_per_thread' => 500, 'reactions_per_comment' => 20, 'user_reactions_per_comment' => 10], 'state_store' => null, 'moderation_panel' => false, 'error_notices' => false, 'dock_min_width' => 'md', 'layout' => 'inline', 'thread_list' => 'plain', 'read_view_source' => false, 'shortcut' => null], $defaults['comments']);
         // 1.29 layout defaults keep the 1.28 page.
         self::assertFalse($defaults['web_ui']['tree_rail']);
         self::assertSame('before', $defaults['web_ui']['narrow_tree_position']);

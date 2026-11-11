@@ -80,6 +80,36 @@ final class WikiSearchServiceTest extends TestCase
         self::assertSame('Overview This runbook covers deploys. One Two lines A B', $results[0]['excerpt']);
     }
 
+    /**
+     * 1.31 fix: a leading heading equal to the title is not repeated in the excerpt (the row shows the title).
+     */
+    public function testExcerptLeavesOutALeadingTitleHeading(): void
+    {
+        $space = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't1');
+        $page  = new WikiPage($space, 'showcase', 'Content  showcase');
+        $other = new WikiPage($space, 'only', 'Only title');
+        $prose = new WikiPage($space, 'prose', 'Deploy');
+        $sub   = new WikiPage($space, 'sub', 'Steps');
+
+        $service = new WikiSearchService($this->entityManager([
+            [$page, 'contentHtml' => '<h1 id="nowo-h-x">Content <em>showcase</em></h1><p>This page shows every block.</p>'],
+            [$other, 'contentHtml' => '<h2>only TITLE</h2>'],
+            // Not a heading: kept as written.
+            [$prose, 'contentHtml' => '<p>Deploy the service first.</p>'],
+            // A heading that is not the title: kept.
+            [$sub, 'contentHtml' => '<h2>Overview</h2><p>Steps follow.</p>'],
+            // The plain-text column with the HTML: the HTML decides, the text is trimmed.
+            [$sub, 'contentHtml' => '<h3>Steps</h3><p>Then go.</p>', 'contentText' => 'Steps Then go.'],
+        ]));
+        $results = $service->search($space, 'e');
+
+        self::assertSame('This page shows every block.', $results[0]['excerpt']);
+        self::assertSame('', $results[1]['excerpt']);
+        self::assertSame('Deploy the service first.', $results[2]['excerpt']);
+        self::assertSame('Overview Steps follow.', $results[3]['excerpt']);
+        self::assertSame('Then go.', $results[4]['excerpt']);
+    }
+
     public function testSearchIgnoresInvalidRows(): void
     {
         $space   = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't1');

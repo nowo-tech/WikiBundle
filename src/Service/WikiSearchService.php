@@ -11,13 +11,21 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Search\WikiPlainText;
+use Nowo\WikiBundle\Util\WikiTitleDedupe;
 
+use function array_map;
+use function implode;
 use function is_array;
 use function is_string;
 use function mb_strtolower;
 use function min;
+use function preg_quote;
+use function preg_replace;
+use function preg_split;
 use function str_contains;
 use function trim;
+
+use const PREG_SPLIT_NO_EMPTY;
 
 /**
  * Full-text search across page titles and the plain text of the current revisions (per space or all accessible
@@ -138,7 +146,7 @@ final readonly class WikiSearchService
             }
             $text = $row['contentText'] ?? WikiPlainText::fromHtml($row['contentHtml'] ?? '');
             if ($inTitle || str_contains(mb_strtolower($text), $needle)) {
-                $kept[] = ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => $this->excerpt($page->getTitle(), $text, $query)];
+                $kept[] = ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => $this->excerpt($page->getTitle(), $text, $query, $row['contentHtml'])];
             }
         }
 
@@ -204,17 +212,28 @@ final readonly class WikiSearchService
             $results[] = [
                 'page'    => $page,
                 'space'   => $page->getSpace(),
-                'excerpt' => $this->excerpt($page->getTitle(), $text, $query),
+                'excerpt' => $this->excerpt($page->getTitle(), $text, $query, is_string($row['contentHtml'] ?? null) ? $row['contentHtml'] : null),
             ];
         }
 
         return $results;
     }
 
-    private function excerpt(string $title, string $text, string $query): string
+    /**
+     * @param string|null $html the body's HTML (1.31: a leading heading equal to the title is left out of the excerpt)
+     */
+    private function excerpt(string $title, string $text, string $query, ?string $html = null): string
     {
         if ($text === '') {
             return $title;
+        }
+        // 1.31 fix: the result row already shows the title; a body that starts with it as a heading would repeat it.
+        if ($html !== null && WikiTitleDedupe::startsWithHeading($html, $title)) {
+            $words = preg_split('/\s+/u', trim($title), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $text  = trim(preg_replace('/^\s*' . implode('\s+', array_map(static fn (string $word): string => preg_quote($word, '/'), $words)) . '(?:\s+|$)/iu', '', $text, 1) ?? $text);
+            if ($text === '') {
+                return '';
+            }
         }
 
         $pos = mb_stripos($text, $query);

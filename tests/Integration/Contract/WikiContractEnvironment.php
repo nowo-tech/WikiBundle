@@ -26,7 +26,8 @@ trait WikiContractEnvironment
 
     protected static function translationDirs(): array
     {
-        return [dirname(__DIR__, 3) . '/src/Resources/translations'];
+        // 1.31: the Milkdown catalogue too (the thread list reads the component's own "Open thread" label).
+        return [dirname(__DIR__, 3) . '/src/Resources/translations', dirname(__DIR__, 3) . '/vendor/nowo-tech/milkdown-editor-bundle/src/Resources/translations'];
     }
 
     protected static function templatesDocument(): string

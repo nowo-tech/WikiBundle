@@ -397,6 +397,58 @@ backlinks, related objects) — override one block instead of copying `nowo_ui_s
 - **BreadcrumbKit** (`web_ui.breadcrumb_current_label: true`, BreadcrumbKit >= 2.17 optional): the host's breadcrumb
   ends with the page title instead of the route's static label.
 
+#### 1.31 additions
+
+From the Symfony Beacon wiki UX review (content first, nothing repeated above the content). Every option is off by
+default; the fixes apply to everyone.
+
+- **Title in the card** (`web_ui.page_header.title: card`): the page view header never shows the title. A page that
+  does not start with `# <title>` gets the title as the content card's `<h1>` (`.nowo-wiki-page-title`, after the path
+  and the sub-pages chip, before the body, `--nowo-wiki-read-h1-size`); a page that does keeps its own heading, as
+  with `body`. With `tabs: toolbar` and `toolbar_position: card` the header is not printed at all and that `<h1>` is
+  the page's only one; otherwise the header keeps its visually hidden `<h1>` and the card line is visual only
+  (`aria-hidden`).
+- **Revision line in the card** (`web_ui.page_meta: card`): "v3 · Updated Nov 11, 2026, 9:40 PM" as the card's muted
+  footer (`.nowo-wiki-page-meta`, `<time datetime>`), in the reader's locale (`IntlDateFormatter` medium date + short
+  time with the request locale; `Y-m-d H:i` without ext-intl), instead of the scaffold's Revision / Updated list.
+- **Comments as a drawer** (`comments.layout: overlay`): the UiKit side panel with `layout: overlay` at every width
+  (full height, backdrop, Escape, focus trap from UiKit); the text keeps its width. It starts closed on every page
+  (the remembered state is not applied); `?comments=1` (notification links) still opens it. A host partial that forced
+  the overlay (`theme.bundles.NowoWikiBundle.partials.side_panel`) can go.
+- **UiKit thread list** (`comments.thread_list: uikit`): the thread component's list in UiKit list rows, the count as a
+  neutral badge with a real plural ("1 comment", "3 comments"; `wiki.comments.list.count_one|many|other`, `#` is the
+  number, chosen with the browser's CLDR plural rules for the page `lang`), "Show resolved" as a UiKit checkbox and
+  "Comment thread" for a thread without a title.
+- **Edit form with `tabs: toolbar`**: no "‹ Back" link and no space name under the title (the toolbar has "Back to
+  page"); "Reset collaboration" is the last item of the ⋮ menu, in the danger style, still behind its confirmation.
+- **BreadcrumbKit on the child pages** (`web_ui.breadcrumb_current_label: true`): the edit, history, compare and move
+  pages name their page crumb after the page too ("… › Wiki › Deploy runbook › Edit" instead of "… › Page › Edit"),
+  through a `BreadcrumbTrailBuiltEvent` listener (`Ui\WikiBreadcrumbParentLabel`, registered only with BreadcrumbKit).
+- **Read tokens for h4–h6 and callouts** (seamless swap): `--nowo-wiki-read-h4-size` (1em), `-h5-size` (0.875em),
+  `-h6-size` (0.85em); `--nowo-wiki-read-callout-margin|padding|radius|gap|icon-size` for `.nowo-md-callout`.
+
+Beacon, everything on:
+
+```yaml
+nowo_wiki:
+    web_ui:
+        page_meta: card
+        breadcrumb_current_label: true
+        page_header:
+            title: card
+            tabs: toolbar
+            toolbar_position: card
+    comments:
+        layout: overlay
+        thread_list: uikit
+```
+
+Fixes in 1.31 (no option): Crepe's leading `.ProseMirror-widget` no longer pushes the title down at the seamless swap
+(nor breaks `title: dedupe`); the toolbar's tree button chevron points into the page; the page head takes the full
+width under 40rem; search excerpts leave out a leading heading equal to the title; the shared `content_html` cache
+stores hidden references as an empty, language-neutral marker (see [UPGRADING](UPGRADING.md#to-1310)); the sanitizer
+keeps the disabled task checkboxes of MilkdownEditorBundle >= 1.17.
+
 ## Translations (REQ-I18N-001)
 
 Every UI string uses the **`NowoWikiBundle`** domain (`src/Resources/translations/NowoWikiBundle.<locale>.yaml`). Shipped locales: `en` (reference), `es`, `it`, `fr`, `pt`, `de`, `nl`; `make validate-translations` checks YAML syntax and key parity across them.

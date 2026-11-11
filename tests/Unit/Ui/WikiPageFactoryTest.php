@@ -157,6 +157,43 @@ final class WikiPageFactoryTest extends TestCase
         self::assertSame(['create', 'edit', 'delete', 'delete'], $kinds);
     }
 
+    /**
+     * 1.31: page_header.tabs: toolbar (the edit form without back link and space intro, Reset collaboration a danger
+     * item of the split "more" menu) and page_meta: card (no scaffold meta).
+     */
+    public function testTheTabsToolbarEditFormAndTheMetaInTheCard(): void
+    {
+        $space    = PageFixtures::space('eng', 'Engineering');
+        [, $page] = PageFixtures::pages($space);
+        $page->setCurrentRevision(new WikiPageRevision($page, 2, '<p>x</p>', new TestUser()));
+        $form  = PageFixtures::searchForm(null);
+        $reset = PageFixtures::postForm('wiki_collab_reset');
+
+        $default = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), '');
+        $header  = $default->pageForm($space, $page, $form, $reset)->header;
+        self::assertSame('Engineering', $header->intro);
+        self::assertNotNull($header->back);
+        self::assertSame('toolbar', $header->actionsLayout);
+        self::assertNull($header->actions[0]->variant);
+        self::assertCount(2, $default->pageView($space, $page, ['edit' => true])->meta);
+
+        $toolbar = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), '', tabsToolbar: true, metaInCard: true);
+        $header  = $toolbar->pageForm($space, $page, $form, $reset)->header;
+        self::assertNull($header->intro);
+        self::assertNull($header->back);
+        self::assertSame('split', $header->actionsLayout);
+        $split = $header->splitActions();
+        self::assertNull($split->primary);
+        self::assertSame(['delete'], array_map(static fn (Action $a): string => $a->kind, $split->more));
+        self::assertSame('danger', $split->more[0]->resolvedVariant());
+        self::assertNotNull($split->more[0]->confirm);
+        self::assertSame([], $toolbar->pageView($space, $page, ['edit' => true])->meta);
+        // A new page has no toolbar: its header is unchanged.
+        $new = $toolbar->pageForm($space, null, $form)->header;
+        self::assertSame('Engineering', $new->intro);
+        self::assertNotNull($new->back);
+    }
+
     public function testThePageTabsCarryTheirIcons(): void
     {
         $routes   = PageFixtures::routes();

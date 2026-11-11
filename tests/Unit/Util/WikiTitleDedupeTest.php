@@ -44,6 +44,16 @@ final class WikiTitleDedupeTest extends TestCase
         self::assertSame($expected !== $html, WikiTitleDedupe::startsWithTitle($html, $title));
     }
 
+    /** 1.31 (search excerpts): a leading heading of any level equal to the title. */
+    public function testStartsWithHeading(): void
+    {
+        self::assertTrue(WikiTitleDedupe::startsWithHeading('<h1>Deploy</h1><p>x</p>', 'deploy'));
+        self::assertTrue(WikiTitleDedupe::startsWithHeading("<!-- c -->\n<h3 id=\"a\">Deploy  <em>guide</em></h3>", 'Deploy guide'));
+        self::assertFalse(WikiTitleDedupe::startsWithHeading('<p>Deploy</p>', 'Deploy'));
+        self::assertFalse(WikiTitleDedupe::startsWithHeading('<h2>Other</h2>', 'Deploy'));
+        self::assertFalse(WikiTitleDedupe::startsWithHeading('<h2></h2>', ' '));
+    }
+
     public function testNormalise(): void
     {
         self::assertSame('a b c', WikiTitleDedupe::normalise("  A\t b\nC "));

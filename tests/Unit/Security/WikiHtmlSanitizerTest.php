@@ -20,6 +20,53 @@ final class WikiHtmlSanitizerTest extends TestCase
         self::assertStringContainsString('<p>Hi</p>', $result);
     }
 
+    /**
+     * 1.31 (MilkdownEditorBundle 1.17): the task checkbox of the server render is kept, rebuilt from a fixed set.
+     */
+    public function testKeepsTheTaskCheckboxOfMilkdown117(): void
+    {
+        $html = '<ul><li class="nowo-milkdown-task" data-checked="true"><input type="checkbox" class="nowo-milkdown-task__box" disabled="" checked="" aria-label="Done"><div class="nowo-milkdown-task__content"><p>Ship</p></div></li>'
+            . '<li class="nowo-milkdown-task" data-checked="false"><input type="checkbox" class="nowo-milkdown-task__box" disabled="" aria-label="Hecho &quot;ya&quot;"><div class="nowo-milkdown-task__content">Test</div></li></ul>';
+
+        self::assertSame(
+            '<ul><li class="nowo-milkdown-task" data-checked="true"><input type="checkbox" class="nowo-milkdown-task__box" disabled checked aria-label="Done" /><div class="nowo-milkdown-task__content"><p>Ship</p></div></li>'
+            . '<li class="nowo-milkdown-task" data-checked="false"><input type="checkbox" class="nowo-milkdown-task__box" disabled aria-label="Hecho &#34;ya&#34;" /><div class="nowo-milkdown-task__content">Test</div></li></ul>',
+            (new WikiHtmlSanitizer())->sanitize($html),
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function hostileInputs(): iterable
+    {
+        yield 'text input with a handler' => ['<li class="nowo-milkdown-task"><input type=text onfocus="alert(1)" autofocus name="n" value="v" style="x" form="f"><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled /><div>a</div></li>'];
+        yield 'image input with src and formaction' => ['<li class="nowo-milkdown-task"><input type=image src="https://evil.test/x.png" formaction="javascript:alert(1)" checked><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled checked /><div>a</div></li>'];
+        yield 'input outside a task item' => ['<p><input type="checkbox" class="nowo-milkdown-task__box" disabled checked>x</p>', '<p>x</p>'];
+        yield 'input in a plain item' => ['<ul><li class="other"><input type="checkbox" disabled>x</li></ul>', '<ul><li class="other">x</li></ul>'];
+        yield 'input in a task-like class' => ['<ul><li class="nowo-milkdown-task-x"><input type="checkbox">x</li></ul>', '<ul><li class="nowo-milkdown-task-x">x</li></ul>'];
+        yield 'input after the content' => ['<ul><li class="nowo-milkdown-task"><div>a</div><input type="checkbox"></li></ul>', '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
+        yield 'bare input' => ['<input type="hidden" name="csrf" value="x"><input>', ''];
+        yield 'attribute breaking in the label' => ['<li class="nowo-milkdown-task"><input type="checkbox" aria-label=\'a" onmouseover="alert(1)" checked x="\'><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled aria-label="a&#34; onmouseover&#61;&#34;alert(1)&#34; checked x&#61;&#34;" /><div>a</div></li>'];
+        yield 'attribute breaking in the class' => ['<li class="nowo-milkdown-task"><input class=\'x" checked onfocus="y\' aria-label="ok"><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled aria-label="ok" /><div>a</div></li>'];
+        yield 'tag breaking in the label' => ['<li class="nowo-milkdown-task"><input aria-label="</li><img src=x onerror=alert(1)>"><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled aria-label="&lt;/li&gt;&lt;img src&#61;x onerror&#61;alert(1)&gt;" /><div>a</div></li>'];
+    }
+
+    #[DataProvider('hostileInputs')]
+    public function testAnInputIsOnlyEverADisabledTaskCheckbox(string $html, string $expected): void
+    {
+        $result = (new WikiHtmlSanitizer())->sanitize($html);
+
+        self::assertSame($expected, $result);
+        self::assertDoesNotMatchRegularExpression('#<[^>]*\s(?:on[a-z]+|name|value|form|formaction|style|src)=#i', $result);
+    }
+
+    public function testAHostCannotAllowInputs(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new WikiHtmlSanitizer(extraAllowedElements: ['input' => ['value']]);
+    }
+
     public function testStripsEventHandlers(): void
     {
         $sanitizer = new WikiHtmlSanitizer();

@@ -32,7 +32,7 @@ use function strtok;
  * remembered state), the badge count, the no-JavaScript URLs and the Milkdown options that mount the thread
  * component into the panel (`panel: container`). Viewers without the right get null: no toggle, no panel, no count.
  *
- * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, truncated: bool, reload_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null, moderation: bool, error_notices: bool, drawer_below: string, persist: string|null, open_requested: bool}
+ * @phpstan-type Panel array{id: string, open: bool, count: int, shortcut: string|null, toggle_href: string, close_href: string, comments_url: string, csrf_token: string, state_url: string|null, state_token: string|null, mounted: bool, edit_href: string|null, truncated: bool, reload_href: string|null, can: array{view: bool, comment: bool, resolve: bool, moderate: bool}, page_threads: list<array<string, mixed>>, form: FormView|null, moderation: bool, error_notices: bool, drawer_below: string, persist: string|null, open_requested: bool, layout: string, thread_list: string}
  */
 final readonly class WikiCommentsPanel
 {
@@ -58,6 +58,10 @@ final readonly class WikiCommentsPanel
      * @param string $dockMinWidth 1.29 `comments.dock_min_width`: md | lg | xl (UiKit `drawer_below`; anything else: md)
      * @param bool $sessionStore 1.29: the state store is the bundle's session store (without a session the panel
      *                           keeps its state in localStorage, UiKit `persist`)
+     * @param bool $overlay 1.31 `comments.layout: overlay`: the panel is a drawer at every width (UiKit side panel
+     *                      `layout: overlay`) and starts closed (the remembered state is not applied)
+     * @param bool $uikitThreadList 1.31 `comments.thread_list: uikit`: wiki.js gives the thread component's list UiKit
+     *                              rows, plural count badges and a UiKit checkbox
      */
     public function __construct(
         private WikiCommentService $comments,
@@ -73,6 +77,8 @@ final readonly class WikiCommentsPanel
         private bool $errorNotices = false,
         private string $dockMinWidth = 'md',
         private bool $sessionStore = false,
+        private bool $overlay = false,
+        private bool $uikitThreadList = false,
     ) {
     }
 
@@ -104,8 +110,10 @@ final readonly class WikiCommentsPanel
             return null;
         }
 
-        $query   = $request?->query->get('comments');
-        $open    = $query === '1' ? true : ($query === '0' ? false : $this->state->isOpen($user, WikiPanelStateStoreInterface::COMMENTS));
+        $query = $request?->query->get('comments');
+        // 1.31 (comments.layout: overlay): a drawer is opened on demand; the remembered state (a desktop column choice)
+        // is not applied. ?comments=1 still reads the list and opens the drawer after load (open_requested).
+        $open    = $query === '1' ? true : ($query === '0' || $this->overlay ? false : $this->state->isOpen($user, WikiPanelStateStoreInterface::COMMENTS));
         $here    = $request instanceof Request ? (string) strtok($request->getRequestUri(), '?') : '';
         $state   = $this->routes['space_panel_state']['name'] ?? null;
         $threads = $open ? $this->comments->pageThreads($user, $space, $page, !$mounted, WikiCommentService::LIST_CAP + 1) : [];
@@ -141,6 +149,10 @@ final readonly class WikiCommentsPanel
             'drawer_below'   => in_array($this->dockMinWidth, self::DOCK_WIDTHS, true) ? $this->dockMinWidth : 'md',
             'persist'        => $this->sessionStore && $request?->hasSession() !== true ? self::PERSIST_KEY : null,
             'open_requested' => $query === '1',
+            // 1.31 comments.layout: inline | overlay (UiKit side panel layout).
+            'layout' => $this->overlay ? 'overlay' : 'inline',
+            // 1.31 comments.thread_list: plain | uikit.
+            'thread_list' => $this->uikitThreadList ? 'uikit' : 'plain',
         ];
     }
 

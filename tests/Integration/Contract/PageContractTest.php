@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Integration\Contract;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use Nowo\UiKitBundle\Test\PageContractTestCase;
 use Nowo\UiKitBundle\Test\PageFixture;
 use Nowo\UiKitBundle\Test\StubHost;
+use Nowo\WikiBundle\Dto\WikiPageFormData;
+use Nowo\WikiBundle\Form\WikiPageFormType;
 use Nowo\WikiBundle\Tests\Support\PageFixtures;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
@@ -68,6 +72,101 @@ final class PageContractTest extends PageContractTestCase
         yield 'page view (layout 1.30, toolbar in the header)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layout130(PageFixtures::pageView(true, self::compactFactory(), false), 'header'));
         yield 'page edit (tabs toolbar)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', self::layout130(PageFixtures::pageForm(true, null, true)));
         yield 'history (tabs toolbar)' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', self::historyTabs());
+        // 1.31 options: everything on.
+        yield 'page view (layout 1.31)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layout131(PageFixtures::pageView(true, self::factory131(), false)));
+        yield 'page view (layout 1.31, toolbar in the header)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layout131(PageFixtures::pageView(true, self::factory131(), false), 'header'));
+        yield 'page edit (layout 1.31)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', self::edit131());
+    }
+
+    /**
+     * 1.31: the factory of page_header.tabs: toolbar and page_meta: card (compact header too).
+     */
+    private static function factory131(): WikiPageFactory
+    {
+        return new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), null, WikiPageFactory::TAB_ICONS, false, true, true, true);
+    }
+
+    /**
+     * 1.31: every option on top of 1.30's: title in the card (the body has no title heading), the revision line in the
+     * card, the comments drawer at every width with the UiKit thread list.
+     *
+     * @param array<string, mixed> $context
+     *
+     * @return array<string, mixed>
+     */
+    private static function layout131(array $context, string $position = 'card'): array
+    {
+        $context                                            = self::layout130($context, $position);
+        $context['nowo_wiki_web_ui']['layout']['title']     = 'card';
+        $context['nowo_wiki_web_ui']['layout']['page_meta'] = 'card';
+        $context['title_in_card']                           = true;
+        $context['page_meta']                               = ['revision' => 3, 'updated_at' => new DateTimeImmutable('2026-11-11 21:40', new DateTimeZone('UTC'))];
+        $context['comments']                                = ['layout' => 'overlay', 'thread_list' => 'uikit'] + $context['comments'];
+
+        return $context;
+    }
+
+    /**
+     * 1.31: the edit form with the tabs in the toolbar and the Reset collaboration action.
+     *
+     * @return array<string, mixed>
+     */
+    private static function edit131(): array
+    {
+        $context         = self::layout130(PageFixtures::pageForm(true, null, true));
+        $space           = PageFixtures::space('engineering', 'Engineering');
+        [, $page]        = PageFixtures::pages($space);
+        $form            = PageFixtures::formFactory()->create(WikiPageFormType::class, new WikiPageFormData($page->getTitle(), '<p>Body</p>'), ['csrf_token_id' => 'wiki_edit_1'])->createView();
+        $context['page'] = self::factory131()->pageForm($space, $page, $form, PageFixtures::postForm('wiki_collab_reset_1'), ['history' => true]);
+
+        return $context;
+    }
+
+    /**
+     * 1.31: title card, the revision line, the comments overlay and thread list, the edit form toolbar; each off
+     * keeps the 1.30 markup.
+     */
+    public function testTheLayout131Options(): void
+    {
+        // Title in the card with the header not printed: the card's <h1> after the page head, before the body; the
+        // only <h1> of the page. The revision line closes the card; the scaffold meta list is empty.
+        $card = $this->renderWithKitHeader(self::layout131(PageFixtures::pageView(true, self::factory131(), false)), '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertSame(1, substr_count($card, '<h1'));
+        self::assertSame(1, preg_match('#data-nowo-wiki-card-frame>.*?data-testid="wiki-card-toolbar".*?data-testid="wiki-page-head".*?<h1 class="nowo-wiki-page-title" data-testid="wiki-page-title">Deploy</h1>.*?data-testid="wiki-read-swap".*?</article>\s*</div>\s*<p class="[^"]*nowo-wiki-page-meta" data-testid="wiki-page-meta">v3 · Updated <time datetime="2026-11-11T21:40:00\+00:00">[^<]+</time></p>\s*</div>#s', $card));
+        self::assertStringNotContainsString('>Revision<', $card);
+        // The comments drawer at every width, the thread list configuration on the mount.
+        self::assertStringContainsString('nowo-ui-side-panel--overlay', $card);
+        self::assertStringContainsString('data-nowo-wiki-thread-list="{&quot;list&quot;:&quot;nowo-ui-list', $card);
+        self::assertStringContainsString('&quot;count&quot;:{&quot;one&quot;:&quot;# comment&quot;,&quot;many&quot;:&quot;# comments&quot;,&quot;other&quot;:&quot;# comments&quot;}', $card);
+        self::assertStringContainsString('&quot;thread_label&quot;:&quot;Comment thread&quot;', $card);
+
+        // Toolbar in the header: the header keeps its visually hidden <h1>, the card line is only visual.
+        $header = $this->renderWithKitHeader(self::layout131(PageFixtures::pageView(true, self::factory131(), false), 'header'), '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertSame(1, substr_count($header, '<h1'));
+        self::assertSame(1, preg_match('#<h1 class="[^"]*visually-hidden">Deploy</h1>#', $header));
+        self::assertStringContainsString('<p class="nowo-wiki-page-title" aria-hidden="true" data-testid="wiki-page-title">Deploy</p>', $header);
+        // Without a card frame the revision line follows the body (and its swap box).
+        self::assertSame(1, preg_match('#</article>\s*</div>\s*<p class="[^"]*nowo-wiki-page-meta"#', $header));
+        self::assertStringNotContainsString('data-nowo-wiki-card-frame', $header);
+
+        // Off: no card title, no revision line (the scaffold meta), the inline panel, the plain mount.
+        $off = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(true, null, false)))->html;
+        self::assertStringNotContainsString('nowo-wiki-page-title', $off);
+        self::assertStringNotContainsString('nowo-wiki-page-meta', $off);
+        self::assertStringContainsString('Revision', $off);
+        self::assertStringContainsString('nowo-ui-side-panel--inline', $off);
+        self::assertStringNotContainsString('data-nowo-wiki-thread-list', $off);
+
+        // Edit form with the tabs in the toolbar: no back link, no space intro; Reset collaboration is the last item of
+        // the "more" menu, in the danger style, behind its confirmation.
+        $edit = $this->renderWithKitHeader(self::edit131(), '@NowoWikiBundle/manage/page_edit.html.twig');
+        self::assertStringNotContainsString('data-testid="wiki-back"', $edit);
+        self::assertStringNotContainsString('nowo-ui-page-header__intro', $edit);
+        self::assertSame(1, preg_match('#data-nowo-ui-header-more.*?data-testid="wiki-collab-reset"#s', $edit));
+        self::assertStringContainsString('Reset the shared session?', $edit);
+        // Off: the back link and the space intro stay (1.30).
+        $plain = $this->renderWithKitHeader(PageFixtures::pageForm(), '@NowoWikiBundle/manage/page_edit.html.twig');
+        self::assertStringContainsString('data-testid="wiki-back"', $plain);
     }
 
     /**

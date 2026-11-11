@@ -428,6 +428,13 @@ revisions written before 1.16 with `bin/console wiki:search:backfill-text` (`--d
 
 ## Sanitizer allowlist (1.11)
 
+1.31: the built-in allowlist keeps the disabled task checkbox of MilkdownEditorBundle >= 1.17
+(`li.nowo-milkdown-task > input.nowo-milkdown-task__box`): an `<input>` survives only as the first child of a
+`li.nowo-milkdown-task`, rebuilt as `type="checkbox" class="nowo-milkdown-task__box" disabled` plus `checked` and
+`aria-label` when present (`WikiHtmlSanitizer::TASK_BOX_ATTRIBUTES`); any other `<input>`, and any other attribute
+(`on*`, `name`, `value`, `form`, `formaction`, `src`, `style`), is removed. `input` stays forbidden in
+`extra_allowed_elements`.
+
 Page bodies (HTML revisions and the render cache of Markdown revisions) go through `WikiHtmlSanitizer`. An editor dialect that emits more markup declares it here:
 
 ```yaml
@@ -603,13 +610,17 @@ nowo_wiki:
             layout: stacked            # compact: tabs and actions (split, comments toggle at the end) on one row
             title: both                # dedupe: a first body <h1> equal to the title is not shown twice
                                        # 1.30 body: the header leaves its title (and subtitle) to that <h1>
+                                       # 1.31 card: never in the header; the card prints it when the body has none
             tabs: row                  # 1.30 toolbar: Edit / History (Back to page) as toolbar icon buttons
             toolbar_position: header   # 1.30 card: the toolbar sticky at the top right of the content
             path: none                 # 1.30 card: Space › ancestors above the body (hidden ones as "…")
         children: never                # 1.30 auto / always: "N subpages" chip + "Pages in this section"
         breadcrumb_current_label: false  # 1.30: BreadcrumbKit >= 2.17 names its current crumb after the page
+        page_meta: scaffold            # 1.31 card: "v3 · Updated …" (reader's locale) as the card's footer line
     comments:
         dock_min_width: md             # lg / xl: dock from 1200 / 1440 px, a drawer below
+        layout: inline                 # 1.31 overlay: a drawer at every width, starting closed
+        thread_list: plain             # 1.31 uikit: UiKit rows, plural count badges, UiKit checkbox
 ```
 
 | Key | Default | Meaning |
@@ -627,9 +638,13 @@ nowo_wiki:
 | `web_ui.read_view.seamless_swap` | `false` | 1.30, literal boolean, page view with the read-only editor (commenters with the page source). The editor and the server body share one grid cell (`.nowo-wiki-read-swap`, `data-nowo-wiki-read-swap="pending|ready"`), the editor in the same UiKit `card` / `card_body` box, invisible until ready, then cross-faded (`--nowo-wiki-read-swap-duration`, 150ms; none with reduced motion). Both bodies use the `--nowo-wiki-read-*` typography tokens below; every other child of the box (the server body, also a host `wiki_page_body` without `data-nowo-wiki-server-body`) becomes `inert` / `aria-hidden` and is faded out after the swap, and focus inside it first moves to the same link in the editor, else to the view (`tabindex="-1"`). Audit MG-3-I1: the swap is now invisible, so a difference between the server render and the editor render (a Markdown feature one of them draws differently, a host style that only targets one body) no longer shows as a style change: what readers see after the fade is the editor's version; keep the read tokens mapped and compare both renders when you change the body styles. MG-3-I2: without JavaScript the editor never mounts and the box keeps the server body (plus at most the height of the editor's raw textarea, invisible). Off: the 1.29 swap (hidden body, shown editor) |
 | `web_ui.page_header.path` | `none` | 1.30, page view. `card`: the in-wiki path above the body (`data-testid="wiki-page-path"`): the space, then the ancestors, each a link (an archived ancestor is plain text). More than three levels: the middle ones in a "…" disclosure menu. Under 30rem only "‹ Parent". An ancestor the viewer may not read renders "…" (hidden text "Restricted page"), without link, title or name. Tokens `--nowo-wiki-path-separator` ("›"), `--nowo-wiki-path-item-max` (14rem), `--nowo-wiki-path-font-size` |
 | `web_ui.children` | `never` | 1.30, page view. The direct sub-pages the viewer may read, not archived, in tree order: a "N subpages" chip above the body (disclosure with the list) and a "Pages in this section" card after the body. `always`: both; `auto`: only while the tree is collapsed (`tree_rail`) or under 62rem. Usually one query (`WikiPageChildrenFinderInterface::findActiveChildren(parent, limit, offset)`, refreshed rows; batches of `max_tree_pages` + 1 until enough readable ones), at most 3 batches (`WikiManageController::CHILDREN_MAX_BATCHES`) over a total order (position, title, id), ids deduplicated; a batch with no new page or the batch cap marks the list truncated), else `findActiveBySpace()` bounded like the tree. At most `pagination.max_tree_pages` readable pages; more shows as "N+ subpages". Audit MG-2-I4: without the finder, only the sub-pages among the space's first `max_tree_pages` + 1 active pages are listed (then marked truncated); a host page repository should implement `WikiPageChildrenFinderInterface` |
-| `web_ui.breadcrumb_current_label` | `false` | 1.30, literal boolean. With `nowo-tech/breadcrumb-kit-bundle` >= 2.17: the page view calls `BreadcrumbCurrentLabelInterface::setCurrentLabel(<page title>)` (BreadcrumbKit scopes the label to the current route and its parameters; outside a routed request it is a no-op; safe in worker mode). Without BreadcrumbKit or with an older one: nothing. No `conflict`: the integration is optional |
+| `web_ui.breadcrumb_current_label` | `false` | 1.30, literal boolean. With `nowo-tech/breadcrumb-kit-bundle` >= 2.17: the page view calls `BreadcrumbCurrentLabelInterface::setCurrentLabel(<page title>)` (BreadcrumbKit scopes the label to the current route and its parameters; outside a routed request it is a no-op; safe in worker mode). 1.31: the edit, history, compare (`page_diff`) and move pages name their page crumb after the page too: once the viewer passed the page's checks the controller puts the title on the request (attribute `_nowo_wiki_crumb_page_title`), and a `BreadcrumbTrailBuiltEvent` listener (`Ui\WikiBreadcrumbParentLabel`, registered only with the option and BreadcrumbKit) renames the non-current crumb whose URL path is that page's view; nothing is kept in a service. Without BreadcrumbKit or with an older one: nothing. No `conflict`: the integration is optional |
+| `web_ui.page_header.title` (1.31) | | `card`: the page view header never shows the title (the `body` header). When the body does not start with the title `<h1>`, the title is printed in the content card after the path / sub-pages head and before the body (`.nowo-wiki-page-title`, `data-testid="wiki-page-title"`, `--nowo-wiki-read-h1-size`, heading weight / line height / font tokens, `--nowo-wiki-page-title-gap` 0.75rem below). It is an `<h1>` when the header is not printed (`toolbar_position: card` + `tabs: toolbar`, no status), else a `<p aria-hidden="true">` beside the header's visually hidden `<h1>` (one `<h1>` per page either way) |
+| `web_ui.page_meta` | `scaffold` | 1.31, page view. `card`: no scaffold meta list; "v3 · Updated <date>" as the muted footer line of the content (`.nowo-wiki-page-meta`, `data-testid="wiki-page-meta"`, inside `.nowo-wiki-card-frame` with `toolbar_position: card`, else after the body), `<time datetime="ISO 8601">`. The date is `IntlDateFormatter` MEDIUM date + SHORT time in the request locale and the date's time zone (Twig filter `nowo_wiki_datetime(locale)`); without ext-intl, or for a locale the polyfill cannot format, `Y-m-d H:i`. Keys `wiki.page.meta_revision`, `wiki.page.meta_updated`; token `--nowo-wiki-page-meta-font-size` |
 | `web_ui.slots.page_header_toolbar` | null | 1.30. Template of host buttons for the page header toolbar (page view, edit form; only pages with tabs). Same place as the block `wiki_page_header_toolbar` |
 | `comments.dock_min_width` | `md` | See [Comments](#comments-116) |
+| `comments.layout` | `inline` | 1.31. `overlay`: the panel is UiKit's side panel with `layout: overlay` — a drawer over the page at every width (`nowo-ui-side-panel--overlay`), the text keeps its width. It starts closed: the remembered open state (`state_store`, `localStorage`) is not applied and the drawer's open / close is not stored; `?comments=1` renders it open (notification links, the reload of a server-rendered list). `dock_min_width` has no effect |
+| `comments.thread_list` | `plain` | 1.31. `uikit`: the comments mount carries `data-nowo-wiki-thread-list` (UiKit `list` / `list_item` macro classes, `badge_neutral`, `check`, `check_input`, the translated labels) and wiki.js decorates the Milkdown thread component's list on every redraw: list rows, the count as a badge with the plural form of `wiki.comments.list.count_one|many|other` (`#` = the number; `Intl.PluralRules` of the page `lang`, `other` when a category has no form), a UiKit checkbox for "Show resolved", and `wiki.comments.list.thread` instead of the component's "Open thread" |
 
 Read typography tokens (1.30, `read_view.seamless_swap`; set them on `.nowo-wiki-read-swap` or an ancestor — they
 style the server body and the read-only editor alike, so match them to your Markdown typography instead of styling
@@ -645,7 +660,14 @@ blockquote, tables), `--nowo-wiki-read-list-indent` (1.5em), `--nowo-wiki-read-l
 `--nowo-wiki-read-pre-padding` (0.75rem 1rem), `--nowo-wiki-read-link-color` (`--nowo-ui-primary`),
 `--nowo-wiki-read-blockquote-padding` (0.25rem 1rem), `--nowo-wiki-read-blockquote-border` (3px solid
 `--nowo-ui-border-strong`), `--nowo-wiki-read-blockquote-color` (`--nowo-ui-muted`), `--nowo-wiki-read-table-width`
-(auto), `--nowo-wiki-read-cell-padding` (0.4rem 0.6rem), `--nowo-wiki-read-swap-duration` (150ms).
+(auto), `--nowo-wiki-read-cell-padding` (0.4rem 0.6rem), `--nowo-wiki-read-swap-duration` (150ms). 1.31:
+`--nowo-wiki-read-h4-size` (1em), `--nowo-wiki-read-h5-size` (0.875em), `--nowo-wiki-read-h6-size` (0.85em) (h4–h6 also
+take the heading margin, weight, line height and font); callouts (`.nowo-md-callout`, `--{type}`, `__icon`, `__body`,
+the server render and the read-only editor of MilkdownEditorBundle >= 1.17): `--nowo-wiki-read-callout-margin` (the
+block margin), `--nowo-wiki-read-callout-padding` (0.5rem 0.75rem), `--nowo-wiki-read-callout-radius`
+(`--nowo-ui-radius`), `--nowo-wiki-read-callout-gap` (0.5rem, icon / body), `--nowo-wiki-read-callout-icon-size`
+(1.25em); the body's first and last blocks have no outer margin. A leading `.ProseMirror-widget` (Crepe) is not a block:
+it has no margin and the first block after it is the one without a top margin (1.31 fix).
 
 Tokens: `--nowo-wiki-reading-width` (reading column), 1.30 `--nowo-wiki-card-toolbar-top` / `-inset` (card toolbar), UiKit `--nowo-ui-rail-width` (rail), `--nowo-ui-reading-width`,
 `--nowo-ui-side-panel-width` (comments panel, 22rem).

@@ -1,4 +1,5 @@
 import { bindWikiComments, openRequestedPanel } from './wiki-comments';
+import { bindThreadList } from './wiki-comments-list';
 import { bindCommentsModeration } from './wiki-comments-moderation';
 import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 import { bindTreeHiddenFocus, observeCardToolbar } from './wiki-layout';
@@ -366,6 +367,7 @@ initWikiTrees();
 bindWikiTree();
 bindWikiComments();
 bindCommentsModeration();
+bindThreadList();
 bindTreeHiddenFocus();
 observeCardToolbar();
 whenLoaded(() => {

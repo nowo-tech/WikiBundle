@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\DependencyInjection;
 
 use ArrayObject;
 use LogicException;
+use Nowo\BreadcrumbKitBundle\Event\BreadcrumbTrailBuiltEvent;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Markdown\HostSchemes;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
@@ -119,6 +120,7 @@ use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
+use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Nowo\WikiBundle\User\WikiUserClassPolicy;
@@ -663,7 +665,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      */
     private function registerComments(ContainerBuilder $container, array $config, Reference $entityManager, string $anchorClass = CommentAnchor::class): void
     {
-        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, moderation_panel: mixed, error_notices: bool, dock_min_width: string, limits: array{threads_per_page: int, total_threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
+        /** @var array{enabled: bool, rate_limiter: string|null, page_rate_limiter: string|null, state_store: string|null, shortcut: string|null, read_view_source: bool, moderation_panel: mixed, error_notices: bool, dock_min_width: string, layout?: string, thread_list?: string, limits: array{threads_per_page: int, total_threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int}} $comments */
         $comments = $config['comments'];
         if (!$comments['enabled']) {
             return;
@@ -725,7 +727,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$moderationPanel', $this->literalBool($comments['moderation_panel'], 'comments.moderation_panel'))
             ->setArgument('$errorNotices', $comments['error_notices'])
             ->setArgument('$dockMinWidth', $comments['dock_min_width'])
-            ->setArgument('$sessionStore', $this->sessionPanelStore($comments)));
+            ->setArgument('$sessionStore', $this->sessionPanelStore($comments))
+            // 1.31: comments.layout (UiKit side panel layout; overlay starts closed).
+            ->setArgument('$overlay', ($comments['layout'] ?? 'inline') === 'overlay')
+            // 1.31: comments.thread_list (UiKit rows, badges and plural counts in the thread component's list).
+            ->setArgument('$uikitThreadList', ($comments['thread_list'] ?? 'plain') === 'uikit'));
     }
 
     /**
@@ -981,7 +987,19 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$dashboardRoute', $config['dashboard_route'])
             ->setArgument('$tabIcons', $config['web_ui']['tab_icons'])
             ->setArgument('$importExportDialog', $config['web_ui']['import_export'] === 'dialog')
-            ->setArgument('$compactHeader', ($config['web_ui']['page_header']['layout'] ?? 'stacked') === 'compact'));
+            ->setArgument('$compactHeader', ($config['web_ui']['page_header']['layout'] ?? 'stacked') === 'compact')
+            // 1.31: page_header.tabs: toolbar (the edit form's header without back link and intro, Reset collaboration
+            // in the "more" menu) and page_meta: card (the revision line in the content card, not the scaffold meta).
+            ->setArgument('$tabsToolbar', ($config['web_ui']['page_header']['tabs'] ?? 'row') === 'toolbar')
+            ->setArgument('$metaInCard', ($config['web_ui']['page_meta'] ?? 'scaffold') === 'card'));
+        // 1.31 (web_ui.breadcrumb_current_label, BreadcrumbKit >= 2.17 installed): the page crumb of the edit, history,
+        // compare and move pages is named after the page (a trail listener; the title rides on the request).
+        if (self::layout($config['web_ui'])['breadcrumb_current_label'] && class_exists(BreadcrumbTrailBuiltEvent::class)) {
+            $container->setDefinition(WikiBreadcrumbParentLabel::class, (new Definition(WikiBreadcrumbParentLabel::class))
+                ->setArgument('$urlGenerator', new Reference('router'))
+                ->setArgument('$routes', $config['routes'])
+                ->addTag('kernel.event_listener', ['event' => BreadcrumbTrailBuiltEvent::class, 'method' => '__invoke']));
+        }
         if ($config['search']['excluded_spaces'] !== [] && $config['search']['scope'] !== 'space') {
             throw new LogicException('nowo_wiki.search.excluded_spaces needs search.scope: space.');
         }
@@ -1005,9 +1023,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      * @throws InvalidConfigurationException when a slot is not a template name
      *
      * 1.29: `layout` (tree_rail, narrow_tree_position, reading_width, page_header, title, comments_dock), read by the
-     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap.
+     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap. 1.31: title `card`, page_meta.
      *
-     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool}}
+     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string}}
      */
     public static function ui(array $webUi): array
     {
@@ -1033,7 +1051,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      *
      * @param array<string, mixed> $webUi processed `web_ui` node
      *
-     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool}
+     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string}
      */
     public static function layout(array $webUi): array
     {
@@ -1047,6 +1065,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'title'                => match ($header['title'] ?? 'both') {
                 'dedupe' => 'dedupe',
                 'body'   => 'body',
+                'card'   => 'card',
                 default  => 'both',
             },
             // 1.30
@@ -1062,6 +1081,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             },
             'breadcrumb_current_label' => ($webUi['breadcrumb_current_label'] ?? false) === true,
             'seamless_swap'            => ($webUi['read_view']['seamless_swap'] ?? false) === true,
+            // 1.31
+            'page_meta' => ($webUi['page_meta'] ?? 'scaffold') === 'card' ? 'card' : 'scaffold',
         ];
     }
 

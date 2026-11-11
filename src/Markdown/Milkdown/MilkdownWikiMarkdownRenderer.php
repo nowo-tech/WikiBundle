@@ -68,7 +68,8 @@ use function trim;
  * - at most `max_references` distinct page ids and handles reach each resolver (and the link index).
  *
  * Two environments are built once (worker-safe, no request state): the **neutral** one (no page, user or host
- * directive resolution: page links read *Content not visible*, mentions stay `@handle`) renders the `content_html`
+ * directive resolution: page links are hidden references — 1.31: an empty, language-neutral marker, see
+ * {@see WikiNeutralTranslator} — and mentions stay `@handle`) renders the `content_html`
  * cache that every reader, search excerpt and AI context share; the **viewer** one resolves page links, mentions and
  * host leaf directives for the current request ({@see self::renderForViewer()}). Task lists get the wiki markup
  * ({@see WikiTaskListNormalizer}) and icons the sanitizer-safe placeholder of {@see WikiTablerIconRenderer}.
@@ -121,7 +122,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      * @param IconResolverInterface $icons icon allowlist and sprite
      * @param iterable<DirectiveRendererInterface> $directiveRenderers host leaf-directive renderers (viewer only)
      * @param iterable<ExtensionInterface> $extensions extensions tagged nowo_wiki.markdown_extension
-     * @param TranslatorInterface|null $translator translates *Content not visible*
+     * @param TranslatorInterface|null $translator translates *Content not visible* (viewer environment; 1.31: the neutral one stores a marker)
      * @param LoggerInterface|null $logger logs resolver failures (never content)
      * @param HostSchemes|null $hostSchemes 1.25: Milkdown's host schemes and URL patterns (viewer only; null: none)
      * @param HostFileResolverInterface|null $hostFiles 1.25: the host's file resolver (viewer only; null: every host reference is refused)
@@ -153,7 +154,8 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         $this->maxReferences    = $this->intOption($options, 'max_references', DocumentProcessor::DEFAULT_MAX_REFERENCES);
         $extensions             = iterator_to_array($extensions, false);
 
-        $neutral       = $this->environment($options, new NullPageResolver(), new NullUserResolver(), $icons, [], $extensions, $translator, $logger);
+        // 1.31 fix: the shared cache stores a language-neutral marker for hidden references, never a translated text.
+        $neutral       = $this->environment($options, new NullPageResolver(), new NullUserResolver(), $icons, [], $extensions, new WikiNeutralTranslator($translator), $logger);
         $this->neutral = new MarkdownConverter($neutral);
         $this->parser  = new MarkdownParser($neutral);
         $this->viewer  = new MarkdownConverter($this->environment(

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Search;
 
+use Nowo\WikiBundle\Entity\WikiPageRevision;
+
 use function chr;
 use function dechex;
 use function hexdec;
@@ -23,8 +25,9 @@ use const ENT_QUOTES;
  *
  * - {@see self::fromHtml()} reduces the rendered, sanitized HTML (the revision's viewer-neutral `content_html`): tags
  *   are dropped with one space at every block boundary, so attribute values (`data-icon="bulb"`, callout types, link
- *   targets) never become text. It fills the revision's `content_text` column on save ({@see
- *   \Nowo\WikiBundle\Entity\WikiPageRevision::getContentText()}) and `wiki:search:backfill-text`.
+ *   targets) never become text; 1.31: the placeholder of a hidden reference (in any language) is dropped. It fills
+ *   the revision's `content_text` column on save ({@see WikiPageRevision::getContentText()})
+ *   and `wiki:search:backfill-text` (`--all` rewrites texts saved before 1.31).
  * - {@see self::fromMarkdown()} reduces Markdown in the Milkdown dialect without rendering it: directive fences and
  *   `{…}` attribute blocks, icon shortcodes (`:tabler-bulb:`), page links (`[[wiki:<uuid>]]`, never a title) and the
  *   Markdown punctuation are dropped, link and image texts are kept. Use it where only the source is at hand (for
@@ -42,12 +45,19 @@ final class WikiPlainText
     private const NON_TEXT = '~<(script|style|svg|template)\b[^>]*>.*?</\1\s*>~is';
 
     /**
+     * 1.31: the placeholder of a reference the reader may not see (`nowo-md-ref--hidden`). Since 1.31 the shared cache
+     * stores it empty; revisions saved before hold a text translated in the saver's locale, which is dropped too.
+     */
+    private const HIDDEN_REF = '~<span\b[^>]*\bclass\s*=\s*(["\'])[^"\']*\bnowo-md-ref--hidden\b[^"\']*\1[^>]*>[^<]*</span\s*>~i';
+
+    /**
      * The text of rendered HTML with one space between blocks: "<h2>Overview</h2><p>This runbook…" reads
      * "Overview This runbook…"; entities are decoded and runs of whitespace (no-break spaces included) collapse.
      */
     public static function fromHtml(string $html): string
     {
         $html   = preg_replace(self::NON_TEXT, ' ', $html) ?? $html;
+        $html   = preg_replace(self::HIDDEN_REF, ' ', $html) ?? $html;
         $spaced = preg_replace(self::BLOCK_BOUNDARY, ' $0', $html) ?? $html;
         $text   = html_entity_decode(strip_tags($spaced), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 

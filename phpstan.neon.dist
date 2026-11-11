@@ -4,9 +4,10 @@ parameters:
         - src
     scanDirectories:
         - vendor/symfony/ai-agent/src
-    # 1.30: the optional BreadcrumbKit (>= 2.17) port of web_ui.breadcrumb_current_label (not a dependency)
+    # 1.30 / 1.31: the optional BreadcrumbKit (>= 2.17) port, trail DTOs and event of web_ui.breadcrumb_current_label (not a dependency)
     scanFiles:
         - tests/Stub/BreadcrumbKit/BreadcrumbCurrentLabelInterface.php
+        - tests/Stub/BreadcrumbKit/BreadcrumbTrail.php
     excludePaths:
         - src/Resources/assets/*
     treatPhpDocTypesAsCertain: false

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Twig;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use Nowo\MilkdownEditorBundle\Markdown\MarkdownRendererInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\AllowlistIconResolver;
 use Nowo\MilkdownEditorBundle\Twig\MilkdownEditorTwig;
@@ -28,6 +30,17 @@ final class WikiHtmlTwigExtensionTest extends TestCase
         $output = $twig->render('t', ['html' => '<p>ok</p><img src=x onerror=alert(1)>']);
 
         self::assertSame('<p>ok</p><img src="x" />', $output);
+    }
+
+    /** 1.31: nowo_wiki_datetime formats in the given locale (escaped text), the fixed format without one. */
+    public function testTheDatetimeFilter(): void
+    {
+        $twig = new Environment(new ArrayLoader(['t' => '{{ date|nowo_wiki_datetime(locale) }}']));
+        $twig->addExtension(new WikiHtmlTwigExtension(new WikiHtmlSanitizer()));
+        $date = new DateTimeImmutable('2026-11-11 21:40', new DateTimeZone('UTC'));
+
+        self::assertSame('Nov 11, 2026, 9:40 PM', $twig->render('t', ['date' => $date, 'locale' => 'en']));
+        self::assertSame('2026-11-11 21:40', $twig->render('t', ['date' => $date, 'locale' => null]));
     }
 
     public function testFilterReturnsEmptyStringForEmptyInput(): void

@@ -134,6 +134,16 @@
   display: none;
 }
 
+/* 1.31 fix: the toolbar button opens a tree that is out of sight, so its chevron points into the page ("›" in LTR,
+   "‹" in RTL), as the UiKit rail toggle does only inside a collapsed rail host. */
+.nowo-wiki-tree-toggle.nowo-ui-rail-toggle {
+  --nowo-ui-rail-toggle-flip: -1;
+}
+
+.nowo-wiki-tree-toggle.nowo-ui-rail-toggle:dir(rtl) {
+  --nowo-ui-rail-toggle-flip: 1;
+}
+
 /* 1.30 web_ui.reading_align: start — the readable column next to the tree, same maximum width. */
 .nowo-wiki-reading.nowo-wiki-reading--start {
   margin-inline: 0;
@@ -174,7 +184,8 @@
   box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
 }
 
-.nowo-wiki-card-frame :is(.nowo-wiki-content, .ProseMirror) > :first-child {
+/* 1.31 fix: "the first block" is the first child that is not a ProseMirror widget (Crepe draws one before it). */
+.nowo-wiki-card-frame :is(.nowo-wiki-content, .ProseMirror) > :not(.ProseMirror-widget):not(:not(.ProseMirror-widget) ~ *) {
   padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
 }
 
@@ -196,7 +207,12 @@
     margin-block-start: 0;
   }
 
-  .nowo-wiki-card-frame :is(.nowo-wiki-content, .ProseMirror) > :first-child {
+  .nowo-wiki-card-frame :is(.nowo-wiki-content, .ProseMirror) > :not(.ProseMirror-widget):not(:not(.ProseMirror-widget) ~ *) {
+    padding-inline-end: 0;
+  }
+
+  /* 1.31 fix (item 9a of the Beacon review): the toolbar is its own row here, so the page head takes the full width. */
+  .nowo-wiki-card-frame > .nowo-wiki-page-head {
     padding-inline-end: 0;
   }
 }
@@ -272,14 +288,16 @@
 /* Typography parity: the same rules, from the same tokens, on the server body and the editor. Tokens (set them on
    .nowo-wiki-read-swap or any ancestor, e.g. to your Markdown typography): --nowo-wiki-read-font-family,
    --nowo-wiki-read-font-size, --nowo-wiki-read-line-height, --nowo-wiki-read-color, --nowo-wiki-read-h1-size,
-   --nowo-wiki-read-h2-size, --nowo-wiki-read-h3-size, --nowo-wiki-read-heading-line-height,
+   --nowo-wiki-read-h2-size, --nowo-wiki-read-h3-size, (1.31) --nowo-wiki-read-h4-size, --nowo-wiki-read-h5-size,
+   --nowo-wiki-read-h6-size, --nowo-wiki-read-heading-line-height,
    --nowo-wiki-read-heading-weight, --nowo-wiki-read-heading-font-family, --nowo-wiki-read-heading-margin,
    --nowo-wiki-read-block-margin, --nowo-wiki-read-list-indent, --nowo-wiki-read-list-item-margin,
    --nowo-wiki-read-code-font-family, --nowo-wiki-read-code-font-size, --nowo-wiki-read-code-padding,
    --nowo-wiki-read-code-color, --nowo-wiki-read-code-background, --nowo-wiki-read-code-radius,
    --nowo-wiki-read-pre-padding, --nowo-wiki-read-link-color, --nowo-wiki-read-blockquote-padding,
    --nowo-wiki-read-blockquote-border, --nowo-wiki-read-blockquote-color, --nowo-wiki-read-table-width,
-   --nowo-wiki-read-cell-padding. */
+   --nowo-wiki-read-cell-padding; (1.31) callouts: --nowo-wiki-read-callout-margin, --nowo-wiki-read-callout-padding,
+   --nowo-wiki-read-callout-radius, --nowo-wiki-read-callout-gap, --nowo-wiki-read-callout-icon-size. */
 .nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) {
   font-family: var(--nowo-wiki-read-font-family, inherit);
   font-size: var(--nowo-wiki-read-font-size, inherit);
@@ -287,7 +305,7 @@
   color: var(--nowo-wiki-read-color, inherit);
 }
 
-.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(h1, h2, h3) {
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(h1, h2, h3, h4, h5, h6) {
   margin: var(--nowo-wiki-read-heading-margin, 1.5em 0 0.5em);
   font-family: var(--nowo-wiki-read-heading-font-family, inherit);
   font-weight: var(--nowo-wiki-read-heading-weight, 600);
@@ -306,8 +324,21 @@
   font-size: var(--nowo-wiki-read-h3-size, 1.25em);
 }
 
+/* 1.31: h4–h6 from tokens too (default: the text size, then slightly smaller), so both bodies match. */
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h4 {
+  font-size: var(--nowo-wiki-read-h4-size, 1em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h5 {
+  font-size: var(--nowo-wiki-read-h5-size, 0.875em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h6 {
+  font-size: var(--nowo-wiki-read-h6-size, 0.85em);
+}
+
 .nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) :is(p, ul, ol, pre, blockquote, table),
-.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) > div {
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) > div:not(.ProseMirror-widget) {
   margin: var(--nowo-wiki-read-block-margin, 0 0 1em);
 }
 
@@ -387,13 +418,98 @@
   padding: var(--nowo-wiki-read-cell-padding, 0.4rem 0.6rem);
 }
 
-.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) > :first-child,
-.nowo-wiki-read-swap .nowo-wiki-comments-view[data-nowo-wiki-title-deduped] .ProseMirror > h1:first-child + * {
+/* 1.31: callouts (.nowo-md-callout, the server render and, with MilkdownEditorBundle >= 1.17, the read-only editor
+   alike) take the same box from tokens: margin (default the block margin), padding, radius, the icon / body gap and the
+   icon size; the body's first and last blocks lose their outer margins. */
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) .nowo-md-callout.nowo-md-callout {
+  margin: var(--nowo-wiki-read-callout-margin, var(--nowo-wiki-read-block-margin, 0 0 1em));
+  padding: var(--nowo-wiki-read-callout-padding, 0.5rem 0.75rem);
+  border-radius: var(--nowo-wiki-read-callout-radius, var(--nowo-ui-radius, 0.375rem));
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) .nowo-md-callout--icon {
+  gap: var(--nowo-wiki-read-callout-gap, 0.5rem);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) .nowo-md-callout__icon {
+  font-size: var(--nowo-wiki-read-callout-icon-size, 1.25em);
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) .nowo-md-callout__body > :first-child {
+  margin-block-start: 0;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) .nowo-md-callout__body > :last-child {
+  margin-block-end: 0;
+}
+
+/* 1.31 fix: Crepe's leading .ProseMirror-widget is not a block: it gets no margin, and "the first block" (no top
+   margin) is the first child that is not a widget, so the title no longer moves down 14–24 px at the swap. */
+.nowo-wiki-read-swap .nowo-milkdown .milkdown .ProseMirror > .ProseMirror-widget {
+  margin: 0;
+}
+
+.nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) > :not(.ProseMirror-widget):not(:not(.ProseMirror-widget) ~ *),
+.nowo-wiki-read-swap .nowo-wiki-comments-view[data-nowo-wiki-title-deduped] .ProseMirror > h1:not(:not(.ProseMirror-widget) ~ *) ~ :not(.ProseMirror-widget):not(:not(.ProseMirror-widget) ~ :not(.ProseMirror-widget) ~ *) {
   margin-block-start: 0;
 }
 
 .nowo-wiki-read-swap :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) > :last-child {
   margin-block-end: 0;
+}
+
+/* 1.31 page_header.title: card — the title printed in the content card when the body does not start with it, with the
+   read view's h1 tokens (--nowo-wiki-read-h1-size, heading weight, line height and font). It keeps clear of the card
+   toolbar like the body's first block. */
+.nowo-wiki-page-title {
+  margin: 0 0 var(--nowo-wiki-page-title-gap, 0.75rem);
+  font-family: var(--nowo-wiki-read-heading-font-family, inherit);
+  font-size: var(--nowo-wiki-read-h1-size, 2em);
+  font-weight: var(--nowo-wiki-read-heading-weight, 600);
+  line-height: var(--nowo-wiki-read-heading-line-height, 1.25);
+  overflow-wrap: anywhere;
+}
+
+.nowo-wiki-card-frame > .nowo-wiki-page-title {
+  padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
+}
+
+@media (max-width: 39.99rem) {
+  .nowo-wiki-card-frame > .nowo-wiki-page-title {
+    padding-inline-end: 0;
+  }
+}
+
+/* 1.31 web_ui.page_meta: card — "v3 · Updated …" as the card's muted footer line. */
+.nowo-wiki-page-meta {
+  margin: 0.75rem 0 0;
+  font-size: var(--nowo-wiki-page-meta-font-size, 0.8125rem);
+}
+
+/* 1.31 comments.thread_list: uikit — the thread component's list in UiKit rows (wiki-comments-list.ts adds the
+   classes): the row button takes the row, the count badge sits at its end. */
+.nowo-wiki-comments__mount .nowo-ui-list-item.nowo-milkdown-comments__item {
+  display: block;
+  padding: 0;
+}
+
+.nowo-wiki-comments__mount .nowo-ui-list-item > .nowo-milkdown-comments__card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  inline-size: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.nowo-wiki-comments__mount .nowo-ui-list-item > .nowo-milkdown-comments__card > .nowo-ui-badge {
+  margin-inline-start: auto;
 }
 
 /* 1.30 page head (above the body): the in-wiki path (page_header.path: card) and the sub-pages chip (children). In
@@ -546,7 +662,7 @@
    view wrapper, never in the editor's own DOM (ProseMirror redraws a node whose attributes change). The server sets
    the marker when the body starts with the title, so the heading is hidden from the editor's first paint; wiki.js
    confirms it against the editor once it is ready. */
-.nowo-wiki-comments-view[data-nowo-wiki-title-deduped] .ProseMirror > h1:first-child {
+.nowo-wiki-comments-view[data-nowo-wiki-title-deduped] .ProseMirror > h1:not(:not(.ProseMirror-widget) ~ *) {
   display: none;
 }
 

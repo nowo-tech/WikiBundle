@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.31.0](#to-1310)
 - [To 1.30.0](#to-1300)
 - [To 1.29.1](#to-1291)
 - [To 1.29.0](#to-1290)
@@ -81,6 +82,38 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.31.0
+
+From **1.30.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+Target **1.31.0** (Symfony Beacon wiki UX review). The new options are off by default (`web_ui.page_header.title:
+card`, `web_ui.page_meta: card`, `comments.layout: overlay`, `comments.thread_list: uikit`; with
+`page_header.tabs: toolbar` the edit form drops its back link and space intro and moves Reset collaboration into the
+"more" menu). See [USAGE › 1.31 additions](USAGE.md#131-additions). Changes that apply to everyone:
+
+- **Hidden references in the shared cache.** The viewer-neutral `content_html` of a Milkdown revision (search, excerpts,
+  AI context, the API's `content_html`) now stores a hidden page link or host file as an empty
+  `<span class="nowo-md-ref nowo-md-ref--hidden"></span>` instead of "Content not visible" translated in the saver's
+  locale. Readers of a page are unaffected (the page view renders per viewer, in their locale). Plain text drops the
+  placeholder whatever its language, so refresh the search column of older revisions once:
+  `bin/console wiki:search:backfill-text --all`. Revisions saved before 1.31 keep the old text in `content_html`
+  until they are saved again; an API client that showed that text should treat the hidden span as the marker.
+- **Search excerpts** leave out a leading heading equal to the page title (a page whose body is only that heading has
+  an empty excerpt).
+- **Task checkboxes.** The sanitizer keeps the disabled checkbox of MilkdownEditorBundle >= 1.17 task items (only as
+  the first child of `li.nowo-milkdown-task`, rebuilt from a fixed attribute set). Stored HTML is sanitized again at
+  render time (`nowo_wiki_safe_html`) and the page view renders Milkdown revisions per viewer, so nothing needs
+  re-saving; caches never contained the input (1.30 stripped it). The bundle's own Markdown render still writes
+  task lists as `data-type="taskItem"` items without an input (unchanged).
+- **CSS fixes** (wiki.css / wiki.ts; hosts with `web_ui.assets: false` rebuild from the sources): the seamless swap and
+  `title: dedupe` skip Crepe's leading `.ProseMirror-widget`; the toolbar tree button's chevron points into the page;
+  the card page head has no end padding under 40rem; new read tokens h4–h6 and callouts.
+- MilkdownEditorBundle stays `^1.13` (suggested); 1.17 is needed only for its read-only task and callout markup.
 
 ## To 1.30.0
 

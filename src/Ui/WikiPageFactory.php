@@ -77,6 +77,11 @@ final readonly class WikiPageFactory
      *                                 dialog instead of the export actions (and the import card)
      * @param bool $compactHeader 1.29 `web_ui.page_header.layout: compact`: the page view's header actions use the
      *                            UiKit `split` layout (icon buttons, one primary, a "more" menu) beside the inline tabs
+     * @param bool $tabsToolbar 1.31 `web_ui.page_header.tabs: toolbar`: the edit form of a page has no back link and no
+     *                          space intro (Back to page is in its toolbar), and Reset collaboration is a danger item of
+     *                          the "more" menu (UiKit `split` layout)
+     * @param bool $metaInCard 1.31 `web_ui.page_meta: card`: the page view leaves the revision out of the scaffold meta
+     *                         (the template prints it as the content card's footer line)
      */
     public function __construct(
         private UrlGeneratorInterface $urlGenerator,
@@ -86,6 +91,8 @@ final readonly class WikiPageFactory
         private array $tabIcons = self::TAB_ICONS,
         private bool $importExportDialog = false,
         private bool $compactHeader = false,
+        private bool $tabsToolbar = false,
+        private bool $metaInCard = false,
     ) {
     }
 
@@ -274,7 +281,7 @@ final readonly class WikiPageFactory
 
         $revision = $page->getCurrentRevision();
         $meta     = [];
-        if ($revision instanceof WikiPageRevision) {
+        if ($revision instanceof WikiPageRevision && !$this->metaInCard) {
             $meta[] = new DetailItem(WikiPages::label('wiki.page.revision'), 'v' . $revision->getRevisionNumber());
             $meta[] = new DetailItem(WikiPages::label('wiki.page.updated'), $this->date($revision->getCreatedAt()));
         }
@@ -301,6 +308,9 @@ final readonly class WikiPageFactory
             ? $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()])
             : $this->url('space', ['spaceSlug' => $space->getSlug()]);
         $actions = [];
+        // 1.31 (page_header.tabs: toolbar): the edit form of a page shows its toolbar (Back to page / Edit / History);
+        // the back link and the space intro would repeat it.
+        $toolbar = $this->tabsToolbar && $page instanceof WikiPage;
         // 1.13: co-editing — the editor's explicit reset of the shared session (POST + CSRF behind a confirm).
         if ($page instanceof WikiPage && $collabResetForm instanceof FormView) {
             $actions[] = new Action(
@@ -308,6 +318,8 @@ final readonly class WikiPageFactory
                 WikiPages::label('wiki.collab.reset'),
                 (string) ($collabResetForm->vars['action'] ?? ''),
                 method: 'POST',
+                // 1.31: a danger item at the end of the "more" menu (UiKit split layout), not a large button.
+                variant: $toolbar ? 'danger' : null,
                 confirm: new Confirm(
                     WikiPages::label('wiki.collab.reset_confirm_title'),
                     WikiPages::label('wiki.collab.reset_confirm_message'),
@@ -322,12 +334,13 @@ final readonly class WikiPageFactory
         return new FormPage(
             header: new PageHeader(
                 $page instanceof WikiPage ? WikiPages::label('wiki.page.edit_title', ['%title%' => $page->getTitle()]) : WikiPages::label('wiki.page.new'),
-                $space->getName(),
+                $toolbar ? null : $space->getName(),
                 $actions,
                 breadcrumbs: $this->crumbs($space, $page, WikiPages::label($page instanceof WikiPage ? 'wiki.page.edit' : 'wiki.page.new')),
                 // 1.16 (B-Q1): the edit view of an existing page gets the tab row (Edit is the current tab).
                 tabs: $page instanceof WikiPage ? $this->pageTabs($space, $page, ['edit' => true, 'history' => $can['history'] ?? false], 'edit') : null,
-                back: new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
+                back: $toolbar ? null : new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
+                actionsLayout: $toolbar ? 'split' : 'toolbar',
             ),
             form: $form,
             submitLabel: WikiPages::label('wiki.form.save'),

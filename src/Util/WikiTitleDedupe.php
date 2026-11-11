@@ -37,6 +37,9 @@ final class WikiTitleDedupe
     /** A leading `<h1>` (after whitespace or comments only) and its content. */
     private const LEADING_H1 = '#^(?:\s|<!--.*?-->)*<h1\b[^>]*>(.*?)</h1\s*>#is';
 
+    /** 1.31: a leading heading of any level (after whitespace or comments only) and its content. */
+    private const LEADING_HEADING = '#^(?:\s|<!--.*?-->)*<(h[1-6])\b[^>]*>(.*?)</\1\s*>#is';
+
     /** Content that is more than text: such a heading is kept. */
     private const NON_TEXT = '#<(?:img|svg|picture|video|audio|iframe|object|embed|canvas|input|math|button|select|textarea)\b#i';
 
@@ -78,6 +81,22 @@ final class WikiTitleDedupe
     public static function startsWithTitle(string $html, string $title): bool
     {
         return self::leadingTitle($html, $title) !== null;
+    }
+
+    /**
+     * 1.31 (search excerpts): whether the body starts with a heading of any level whose text equals the title (the same
+     * normalised comparison as {@see startsWithTitle()}).
+     *
+     * @param string $html the rendered body
+     * @param string $title the page title
+     */
+    public static function startsWithHeading(string $html, string $title): bool
+    {
+        $wanted = self::normalise($title);
+
+        return $wanted !== ''
+            && preg_match(self::LEADING_HEADING, $html, $match) === 1
+            && self::normalise(html_entity_decode(strip_tags($match[2]), ENT_QUOTES | ENT_HTML5, 'UTF-8')) === $wanted;
     }
 
     /**

@@ -38,7 +38,9 @@ final class MilkdownWikiMarkdownRendererTest extends TestCase
             'See [[wiki:' . self::PAGE . "]] and @ana_b :tabler-home: :tabler-nope:\n\n::beacon{type=issue}\n",
         );
 
-        self::assertStringContainsString('<span class="nowo-md-ref nowo-md-ref--hidden">Content not visible</span>', $html);
+        // 1.31: a language-neutral marker, no text (the reader's render translates it).
+        self::assertStringContainsString('<span class="nowo-md-ref nowo-md-ref--hidden"></span>', $html);
+        self::assertStringNotContainsString('Content not visible', $html);
         self::assertStringContainsString('@ana_b', $html);
         self::assertStringNotContainsString('nowo-md-mention', $html);
         self::assertStringContainsString('<span class="nowo-md-icon" data-icon="home" role="img" aria-label="home"></span>', $html);

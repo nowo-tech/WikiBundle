@@ -11,6 +11,7 @@ use Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
@@ -35,14 +36,17 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
+use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\HttpFoundation\Request;
 
 use function array_column;
 use function array_filter;
@@ -339,6 +343,49 @@ final class WikiManageControllerNavigationTest extends TestCase
         $this->controller(['breadcrumb_current_label' => true])->viewPage('eng', 'deep');
         $this->controller(['breadcrumb_current_label' => true], breadcrumb: new stdClass())->viewPage('eng', 'deep');
         self::assertArrayHasKey('page', $this->twig->context);
+    }
+
+    /** 1.31: title card (the card prints the title only without a leading title heading) and page_meta card. */
+    public function testTheTitleInTheCardAndTheRevisionLine(): void
+    {
+        $this->controller(['title' => 'card', 'page_meta' => 'card'])->viewPage('eng', 'deep');
+        self::assertTrue($this->twig->context['title_in_body']);
+        self::assertTrue($this->twig->context['title_in_card']);
+        self::assertArrayNotHasKey('page_meta', $this->twig->context);
+
+        $author = new TestUserEntity('id-author');
+        $this->em->persist($author);
+        $revision = new WikiPageRevision($this->deep, 4, '<h1>Deep</h1><p>Body</p>', $author);
+        $this->em->persist($revision);
+        $this->deep->setCurrentRevision($revision);
+        $this->em->flush();
+        $this->controller(['title' => 'card', 'page_meta' => 'card'])->viewPage('eng', 'deep');
+        self::assertTrue($this->twig->context['title_in_body']);
+        self::assertArrayNotHasKey('title_in_card', $this->twig->context);
+        self::assertSame(['revision' => 4, 'updated_at' => $revision->getCreatedAt()], $this->twig->context['page_meta']);
+
+        // title: body without the heading, and the defaults: nothing.
+        $this->controller(['title' => 'body'])->viewPage('eng', 'leaf');
+        self::assertArrayNotHasKey('title_in_body', $this->twig->context);
+        self::assertArrayNotHasKey('title_in_card', $this->twig->context);
+        $this->controller([])->viewPage('eng', 'deep');
+        self::assertArrayNotHasKey('page_meta', $this->twig->context);
+    }
+
+    /** 1.31: the child pages put the page title on the request for the BreadcrumbKit trail listener. */
+    public function testTheChildPagesNameTheirPageCrumb(): void
+    {
+        $label   = $this->createStub(BreadcrumbCurrentLabelInterface::class);
+        $request = Request::create('/h');
+        $this->controller(['breadcrumb_current_label' => true], breadcrumb: $label)->pageHistory('eng', 'deep', $request);
+        self::assertSame('Deep', $request->attributes->get(WikiBreadcrumbParentLabel::ATTRIBUTE));
+
+        // Off, or without BreadcrumbKit: nothing on the request.
+        foreach ([$this->controller([], breadcrumb: $label), $this->controller(['breadcrumb_current_label' => true])] as $controller) {
+            $request = Request::create('/h');
+            $controller->pageHistory('eng', 'deep', $request);
+            self::assertFalse($request->attributes->has(WikiBreadcrumbParentLabel::ATTRIBUTE));
+        }
     }
 
     private function queries(): int

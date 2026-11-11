@@ -25,6 +25,12 @@ wiki:
     truncated: "Nur die ersten %count% offenen Threads werden angezeigt."
     more_in_editor: "%count% frühere(r) Kommentar(e) im Editor"
     unknown_author: "Ehemalige Person"
+    # 1.31 (comments.thread_list: uikit): the thread list of the panel; # is the number (CLDR plural category).
+    list:
+      thread: "Kommentar-Thread"
+      count_one: "# Kommentar"
+      count_many: "# Kommentare"
+      count_other: "# Kommentare"
     error:
       invalid: "Der Kommentar ist leer oder ungültig."
       too_large: "Der Kommentar ist zu lang (höchstens 10.000 Zeichen)."
@@ -125,6 +131,9 @@ wiki:
     archive_confirm_message: "„%title%“ verschwindet aus dem Seitenbaum und der Suche. Wer archivieren darf, kann sie im Bereich wiederherstellen."
     revision: "Revision"
     updated: "Aktualisiert"
+    # 1.31 (web_ui.page_meta: card): the footer line "v3 · Updated …" of the content card.
+    meta_revision: "v%number%"
+    meta_updated: "Aktualisiert am %date%"
     error:
       invalid_slug: "Der Seitentitel ergibt keine gültige Adresse; verwenden Sie Buchstaben oder Ziffern."
       slug_exists: "In diesem Bereich gibt es bereits eine Seite mit diesem Titel."

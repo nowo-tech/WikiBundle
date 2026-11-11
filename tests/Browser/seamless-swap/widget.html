@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<!-- 1.31 (item 4a of the Beacon review): Crepe draws a .ProseMirror-widget before the first block of the read-only
+     editor. Static copies of both bodies in their swap boxes: the server body and the editor DOM with a leading widget
+     (a div and a span), and the deduped title. The first block must start at the same offset in each. -->
+<link rel="stylesheet" href="nowo-ui.css"><link rel="stylesheet" href="wiki.css"><link rel="stylesheet" href="mk/milkdown-editor.css">
+<style>body{margin:1rem;font-family:system-ui,sans-serif}</style></head><body class="nowo-ui">
+<div class="nowo-wiki-read-swap" data-testid="server"><article class="nowo-ui-card nowo-wiki-page"><div class="nowo-ui-card__body nowo-wiki-content"><h1>Title</h1><p>Intro</p></div></article></div>
+<div class="nowo-wiki-read-swap" data-testid="editor-div"><div class="nowo-ui-card nowo-wiki-comments-view"><div class="nowo-ui-card__body"><div class="nowo-milkdown"><div class="milkdown"><div class="ProseMirror"><div class="ProseMirror-widget" contenteditable="false"></div><h1>Title</h1><p>Intro</p></div></div></div></div></div></div>
+<div class="nowo-wiki-read-swap" data-testid="editor-span"><div class="nowo-ui-card nowo-wiki-comments-view"><div class="nowo-ui-card__body"><div class="nowo-milkdown"><div class="milkdown"><div class="ProseMirror"><span class="ProseMirror-widget"></span><h1>Title</h1><p>Intro</p></div></div></div></div></div></div>
+<div class="nowo-wiki-read-swap" data-testid="server-deduped"><article class="nowo-ui-card nowo-wiki-page"><div class="nowo-ui-card__body nowo-wiki-content"><p>Intro</p></div></article></div>
+<div class="nowo-wiki-read-swap" data-testid="editor-deduped"><div class="nowo-ui-card nowo-wiki-comments-view" data-nowo-wiki-title-deduped><div class="nowo-ui-card__body"><div class="nowo-milkdown"><div class="milkdown"><div class="ProseMirror"><div class="ProseMirror-widget" contenteditable="false"></div><h1>Title</h1><p>Intro</p></div></div></div></div></div></div>
+</body></html>
