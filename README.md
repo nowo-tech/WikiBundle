@@ -10,7 +10,7 @@ Symfony bundle for a **versionable team wiki**: spaces, page trees, immutable re
 
 ![FrankenPHP Friendly Worker Mode](docs/images/frankenphp-friendly.png)
 
-This bundle is **FrankenPHP worker mode friendly**.
+This bundle is **FrankenPHP worker mode friendly**, including worker mode with the kernel kept alive and **not reset** between requests (`FRANKENPHP_RESET_KERNEL=false`): its request memos are emptied at every request, console and Messenger boundary, not only by `kernel.reset` (see [docs/FRANKENPHP-WORKER-AUDIT.md](docs/FRANKENPHP-WORKER-AUDIT.md)).
 
 | Page view | Space home | Version history |
 | --- | --- | --- |

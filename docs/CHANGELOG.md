@@ -71,6 +71,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: **1.29.1** (patch, security; REQ-RUNTIME-002 — FrankenPHP worker mode with kernel reset false).
+
+### Security
+
+- **Revoked space memberships kept granting access in a worker that never resets the kernel** (affects 1.13.0–1.29.0,
+  default space checker). `LegacyWikiSpaceAccessChecker` memoised the spaces of a user per user object and emptied the
+  memo only on `kernel.reset`. In FrankenPHP worker mode without the services resetter (`FRANKENPHP_RESET_KERNEL=false`)
+  the host's EntityManager keeps the signed-in user managed, so the firewall hands the same object to every later
+  request of that worker, and a membership revoked in the database (team left, space moved to another owner) kept
+  granting the space until the worker restarted. The memo now belongs to one main request (dropped when the main request
+  changes, not kept at all outside a request: console and Messenger read memberships on every call), and memberships are
+  always re-read through `WikiSpaceAccessResolverInterface` (a query), never from a collection of the user entity. Hosts
+  with their own `WikiSpaceAccessCheckerInterface` (Beacon) are not affected by this checker, but should check their own
+  memos the same way.
+- New `WikiRequestBoundaryResetter` (internal, registered by the bundle) empties every request memo — the space checker,
+  `WikiAvatars` (avatar URLs), `WikiFilePreviewFrames` (preview frame tokens), `WikiRenderContext` and
+  `WikiEventDeferral` — on the main `kernel.request`, `kernel.terminate`, `console.terminate` and Messenger
+  `WorkerMessageHandledEvent` / `WorkerMessageFailedEvent`, in addition to `kernel.reset`. Before, a worker without the
+  resetter served avatar URLs a user had since changed and let the memos grow up to their bounds.
+- Tests: `LegacySpaceCheckerWorkerTest` (one kernel, requests straight through `http_kernel`, no services resetter, the
+  host EntityManager never cleared): a membership revoked with plain SQL is refused on the next request, and two people
+  in turn over 60 rounds never see each other's spaces, a space moved half-way changes hands at once, and memory stays
+  within 2 MiB. Unit tests for the request-scoped memo and the boundary subscriber.
+
 ## [1.29.0] - 2026-11-11
 
 Target: **1.29.0** (Symfony Beacon 1.149 wiki plan, **block A: layout** — the comments aside as a drawer, a

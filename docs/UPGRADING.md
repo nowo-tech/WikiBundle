@@ -80,6 +80,15 @@
 
 ## Unreleased
 
+Target **1.29.1** (security patch, no configuration change). Update with `composer update nowo-tech/wiki-bundle`.
+
+- The default space checker (`LegacyWikiSpaceAccessChecker`) keeps the memberships it read for one main request only;
+  outside a request (console, Messenger) it reads them on every call. A host that changes memberships inside one request
+  still calls `reset()` on it, as before.
+- If you implement `WikiTeamMembershipResolverInterface`, read the teams with a query on every call, not from a
+  collection of the user entity (in worker mode the host EntityManager can keep the user, and its loaded collection,
+  across requests).
+
 ## To 1.29.0
 
 From **1.28.0**:
