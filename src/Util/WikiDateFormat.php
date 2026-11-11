@@ -40,10 +40,13 @@ final class WikiDateFormat
         $zone = $date->getTimezone();
         try {
             $formatted = (new IntlDateFormatter($locale, IntlDateFormatter::MEDIUM, IntlDateFormatter::SHORT, $zone instanceof DateTimeZone ? $zone : null))->format($date);
+            // @codeCoverageIgnoreStart
         } catch (Throwable) {
-            // The intl polyfill formats `en` only (a real extension does not throw here).
-            $formatted = false; // @codeCoverageIgnore
+            // The intl polyfill formats `en` only (a real extension does not throw here): which branch runs depends on
+            // the extension, so neither environment covers both.
+            $formatted = false;
         }
+        // @codeCoverageIgnoreEnd
 
         return is_string($formatted) && $formatted !== '' ? $formatted : $date->format(self::FALLBACK);
     }
