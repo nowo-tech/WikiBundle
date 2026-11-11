@@ -182,6 +182,7 @@ Good patterns observed: all services are `final readonly` or have no properties;
 | `Api/Operation/WikiApiCommentWriteOperations::deleteThread()` | closure capturing local state injected into a shared service | `WikiApiComments::call()` and `WikiEventDeferral::run()` invoke the closure at once and never store it. |
 | `Api/Security/WikiApiRequestListener` | mutation of the injected rate limiter | Counting failed tokens across requests is the purpose of the host rate limiter (its storage bounds it); the default `DenyingWikiApiRateLimiter` is `readonly` and keeps nothing. |
 | `Api/WikiApiInput::ignore()` / `take()` | mutation of `read` / `ignored` | `WikiApiInput` is a per-request value object built by `fromRequest()`; it is not a service. |
+| `Controller/WikiManageController::viewPage()` (1.30) | mutation of the injected `breadcrumbCurrentLabel` | Optional BreadcrumbKit >= 2.17 port (`web_ui.breadcrumb_current_label`): BreadcrumbKit scopes the label to the current main request (route and parameters) and drops it at the request boundary; outside a routed request the call is a no-op. Wiki stores nothing. |
 
 ## Usage recommendations in worker mode
 

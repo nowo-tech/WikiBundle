@@ -397,6 +397,7 @@ final class WikiManageController extends AbstractController
         // 1.30 (web_ui.breadcrumb_current_label): BreadcrumbKit >= 2.17 names its current crumb after the page (optional
         // integration: without BreadcrumbKit, or with an older one, the reference is null or another object).
         if (($this->layout['breadcrumb_current_label'] ?? false) === true && $this->breadcrumbCurrentLabel instanceof BreadcrumbCurrentLabelInterface) {
+            // @igor-ignore - BreadcrumbKit keeps the label for the current main request only (route + params scope, reset at the request boundary); the controller keeps nothing.
             $this->breadcrumbCurrentLabel->setCurrentLabel($page->getTitle());
         }
 
