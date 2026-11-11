@@ -1,0 +1,43 @@
+{#
+  1.30 (web_ui.page_header.path: card): the in-wiki path above the page body — the space, then the ancestors from the
+  root to the parent, each a link. With more than three levels the middle ones fold into a "…" disclosure menu
+  (native <details>, no JavaScript). Under 30rem only the parent shows, as "‹ Parent". An ancestor the viewer may
+  not read has no label (WikiManageController::pagePath()): it prints "…" with a generic hidden text, no link, no
+  title and no name in any attribute. Separators come from CSS (never read out).
+  Variables: page_path (list of {label: string|null, href: string|null}).
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% macro level(item) %}
+    {%- if item.label is null -%}
+        <span class="nowo-wiki-path__hidden"><span aria-hidden="true">…</span><span class="visually-hidden">{{ 'wiki.path.hidden'|trans({}, 'NowoWikiBundle') }}</span></span>
+    {%- elseif item.href -%}
+        <a class="nowo-wiki-path__link" href="{{ item.href }}">{{ item.label }}</a>
+    {%- else -%}
+        <span class="nowo-wiki-path__text">{{ item.label }}</span>
+    {%- endif -%}
+{% endmacro %}
+{% set _levels = page_path|default([]) %}
+{% set _fold = _levels|length > 3 %}
+{% if _levels is not empty %}
+<nav class="nowo-wiki-path" aria-label="{{ 'wiki.path.label'|trans }}" data-testid="wiki-page-path">
+    <ol class="nowo-wiki-path__list">
+        {% for item in _levels %}
+            {% if _fold and loop.index == 2 %}
+                <li class="nowo-wiki-path__item nowo-wiki-path__item--more">
+                    <details class="nowo-wiki-path__menu" data-testid="wiki-page-path-more">
+                        <summary class="nowo-wiki-path__more" aria-label="{{ 'wiki.path.more'|trans({'%count%': _levels|length - 2}) }}"><span aria-hidden="true">…</span></summary>
+                        <ul class="nowo-wiki-path__panel">
+                            {% for middle in _levels|slice(1, _levels|length - 2) %}
+                                <li>{{ _self.level(middle) }}</li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                </li>
+            {% endif %}
+            {% if not _fold or loop.first or loop.last %}
+                <li class="nowo-wiki-path__item{{ loop.last ? ' nowo-wiki-path__item--parent' }}">{{ _self.level(item) }}</li>
+            {% endif %}
+        {% endfor %}
+    </ol>
+</nav>
+{% endif %}

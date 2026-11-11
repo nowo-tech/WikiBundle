@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Controller;
 
 use InvalidArgumentException;
+use Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
@@ -34,6 +35,7 @@ use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
+use Nowo\WikiBundle\Repository\WikiPageChildrenFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
@@ -83,6 +85,7 @@ use Throwable;
 use function array_fill_keys;
 use function array_filter;
 use function array_map;
+use function array_reverse;
 use function array_slice;
 use function array_values;
 use function ceil;
@@ -120,6 +123,9 @@ final class WikiManageController extends AbstractController
     ];
 
     /** Defaults of the nowo_wiki.pagination config node (REQ-PERF-001). */
+    /** 1.30 (audit MG-2-L5): most queries the sub-pages of one page view may cost. */
+    public const CHILDREN_MAX_BATCHES = 3;
+
     public const DEFAULT_PAGINATION = [
         'spaces_per_page'    => 24,
         'revisions_per_page' => 25,
@@ -153,7 +159,8 @@ final class WikiManageController extends AbstractController
      * @param WikiQuotaGate|null $quota asks the host before a new page, an unarchive or an import (1.21, `nowo_wiki.quota.check`)
      * @param string $searchScope `search.scope` (1.21): `space` leaves the "all spaces" choice out of the index search form
      * @param WikiTreeRail|null $treeRail the page tree rail (1.29, `web_ui.tree_rail`; null = off)
-     * @param array{title?: string, tabs?: string} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title; 1.30 `title: body` drops the header title instead)
+     * @param object|null $breadcrumbCurrentLabel 1.30: BreadcrumbKit's BreadcrumbCurrentLabelInterface (>= 2.17) when installed, else null (optional integration)
+     * @param array{title?: string, tabs?: string, path?: string, children?: string, breadcrumb_current_label?: bool} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title; 1.30 `title: body` drops the header title instead)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -196,6 +203,7 @@ final class WikiManageController extends AbstractController
         private readonly string $searchScope = 'all',
         private readonly ?WikiTreeRail $treeRail = null,
         private readonly array $layout = [],
+        private readonly ?object $breadcrumbCurrentLabel = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -379,6 +387,21 @@ final class WikiManageController extends AbstractController
         // read-only editor draws the same Markdown, so it keeps the heading too.
         if (($this->layout['title'] ?? 'both') === 'body' && WikiTitleDedupe::startsWithTitle($content, $page->getTitle())) {
             $vars['title_in_body'] = true;
+        }
+        // 1.30 (web_ui.page_header.path: card): the in-wiki path above the body, hidden ancestors without a name.
+        if (($this->layout['path'] ?? 'none') === 'card') {
+            $vars['page_path'] = $this->pagePath($user, $space, $page);
+        }
+        // 1.30 (web_ui.children): the readable direct sub-pages, one query.
+        $childrenMode = $this->layout['children'] ?? 'never';
+        if ($childrenMode !== 'never') {
+            $vars['page_children'] = ['mode' => $childrenMode] + $this->pageChildren($user, $space, $page);
+        }
+        // 1.30 (web_ui.breadcrumb_current_label): BreadcrumbKit >= 2.17 names its current crumb after the page (optional
+        // integration: without BreadcrumbKit, or with an older one, the reference is null or another object).
+        if (($this->layout['breadcrumb_current_label'] ?? false) === true && $this->breadcrumbCurrentLabel instanceof BreadcrumbCurrentLabelInterface) {
+            // @igor-ignore - BreadcrumbKit keeps the label for the current main request only (route + params scope, reset at the request boundary); the controller keeps nothing.
+            $this->breadcrumbCurrentLabel->setCurrentLabel($page->getTitle());
         }
 
         // 1.16: the comments toggle and panel (viewers with ViewComments only). The read-only Milkdown mount that holds
@@ -1613,6 +1636,99 @@ final class WikiManageController extends AbstractController
 
         // The truncation flag counts readable pages only, so it does not reveal that hidden pages exist.
         return [$this->pageTreeBuilder->build(array_slice($visible, 0, $max)), count($visible) > $max];
+    }
+
+    /**
+     * 1.30 (`web_ui.page_header.path: card`): the space, then the ancestors of the page from the root to its parent.
+     * An ancestor the user may not read ({@see WikiAction::View}) has neither label nor link, so neither its title
+     * nor its slug reaches the page. A parent cycle stops the walk.
+     *
+     * @return list<array{label: string|null, href: string|null}>
+     */
+    private function pagePath(UserInterface $user, WikiSpace $space, WikiPage $page): array
+    {
+        $ancestors = [];
+        $seen      = [$page->getId() => true];
+        for ($parent = $page->getParent(); $parent instanceof WikiPage && !isset($seen[$parent->getId()]); $parent = $parent->getParent()) {
+            $seen[$parent->getId()] = true;
+            $readable               = $this->spaceGuard->isGranted($user, WikiAction::View, $space, $parent);
+            $ancestors[]            = [
+                'label' => $readable ? $parent->getTitle() : null,
+                // Audit MG-2-L4: an archived ancestor (its view is a 404) is plain text.
+                'href' => $readable && !$parent->isArchived() ? $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $parent->getSlug()]) : null,
+            ];
+        }
+        $root = ['label' => $space->getName(), 'href' => isset($this->routes['space']) ? $this->generateUrl($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]) : null];
+
+        return [$root, ...array_reverse($ancestors)];
+    }
+
+    /**
+     * 1.30 (`web_ui.children`): the direct sub-pages of the page the user may read, not archived, in tree order, at
+     * most `pagination.max_tree_pages`. Audit MG-2-L1: the cap applies to readable pages: batches of cap + 1 are read
+     * until cap + 1 readable ones are found or the children run out, so `truncated` (more than the cap) is honest and
+     * the usual case is one query; at most {@see self::CHILDREN_MAX_BATCHES} batches (MG-2-L5), after which, or when a
+     * batch brings no new page, the list is marked truncated. Without {@see WikiPageChildrenFinderInterface} the children come from the space's
+     * first `max_tree_pages` + 1 active pages, the tree's own bound (audit MG-2-L3); `truncated` is then also set when
+     * that list was capped.
+     *
+     * @return array{items: list<array{label: string, href: string}>, truncated: bool}
+     */
+    private function pageChildren(UserInterface $user, WikiSpace $space, WikiPage $page): array
+    {
+        $limit    = max(1, $this->pagination['max_tree_pages']);
+        $readable = fn (WikiPage $child): bool => !$child->isArchived() && $this->spaceGuard->isGranted($user, WikiAction::View, $space, $child);
+        $found    = [];
+        $capped   = false;
+        if ($this->pageRepository instanceof WikiPageChildrenFinderInterface) {
+            // Audit MG-2-L5/L6: at most CHILDREN_MAX_BATCHES queries, ids deduplicated (offset paging over a total order
+            // in the bundle's finder, but a host finder may ignore the offset or repeat rows): a batch that brings no
+            // new page, or the batch cap, stops the walk and marks the list truncated.
+            $seen = [];
+            for ($batchNo = 0;; ++$batchNo) {
+                if ($batchNo === self::CHILDREN_MAX_BATCHES) {
+                    $capped = true;
+
+                    break;
+                }
+                $batch = $this->pageRepository->findActiveChildren($page, $limit + 1, $batchNo * ($limit + 1));
+                $new   = 0;
+                foreach ($batch as $child) {
+                    if (isset($seen[$child->getId()])) {
+                        continue;
+                    }
+                    $seen[$child->getId()] = true;
+                    ++$new;
+                    if ($readable($child)) {
+                        $found[] = $child;
+                    }
+                }
+                if (count($found) > $limit || count($batch) <= $limit) {
+                    break;
+                }
+                if ($new === 0) {
+                    $capped = true;
+
+                    break;
+                }
+            }
+        } else {
+            $pages  = $this->pageRepository->findActiveBySpace($space, $limit + 1);
+            $capped = count($pages) > $limit;
+            $found  = array_values(array_filter(
+                $pages,
+                static fn (WikiPage $child): bool => $child->getParent()?->getId() === $page->getId() && $readable($child),
+            ));
+        }
+        $items = [];
+        foreach (array_slice($found, 0, $limit) as $child) {
+            $items[] = [
+                'label' => $child->getTitle(),
+                'href'  => $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $child->getSlug()]),
+            ];
+        }
+
+        return ['items' => $items, 'truncated' => $capped || count($found) > $limit];
     }
 
     /**

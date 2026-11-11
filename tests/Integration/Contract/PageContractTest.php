@@ -85,8 +85,27 @@ final class PageContractTest extends PageContractTestCase
         $context['nowo_wiki_web_ui']['slots']  = ['page_header_toolbar' => 'slots/page_header_toolbar.html.twig'];
         $context['title_in_body']              = true;
         $context['tree_rail']['collapsed']     = true;
+        // 1.30 items 7-8: the path (a hidden ancestor, folded) and the sub-pages.
+        $context['page_path']     = self::path();
+        $context['page_children'] = ['mode' => 'auto', 'items' => [['label' => 'Alpha <b>', 'href' => '/p/alpha'], ['label' => 'Bravo', 'href' => '/p/bravo']]];
 
         return $context;
+    }
+
+    /**
+     * 1.30: a path of five levels with a hidden ancestor (WikiManageController::pagePath()).
+     *
+     * @return list<array{label: string|null, href: string|null}>
+     */
+    private static function path(): array
+    {
+        return [
+            ['label' => 'Engineering', 'href' => '/s/eng'],
+            ['label' => 'Operations', 'href' => '/p/ops'],
+            ['label' => null, 'href' => null],
+            ['label' => 'Deep & "dark"', 'href' => '/p/deep'],
+            ['label' => 'Parent', 'href' => '/p/parent'],
+        ];
     }
 
     /**
@@ -372,6 +391,71 @@ final class PageContractTest extends PageContractTestCase
         $reader = $this->renderWithKitHeader(self::historyTabs(false), '@NowoWikiBundle/manage/page_history.html.twig');
         self::assertStringNotContainsString('wiki-toolbar-edit', $reader);
         self::assertStringNotContainsString('wiki-toolbar-back', $this->renderWithKitHeader(PageFixtures::history(), '@NowoWikiBundle/manage/page_history.html.twig'));
+    }
+
+    /**
+     * 1.30 page_header.path: card and web_ui.children: the path above the body (links, the middle levels folded into
+     * the "…" menu, a hidden ancestor without any name), the sub-pages chip and the "Pages in this section" card;
+     * nothing without them.
+     */
+    public function testThePathAndTheSubPages(): void
+    {
+        $default = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView()))->html;
+        foreach (['wiki-page-head', 'wiki-page-path', 'wiki-children'] as $absent) {
+            self::assertStringNotContainsString($absent, $default);
+        }
+
+        $context = PageFixtures::pageView() + [
+            'page_path'     => self::path(),
+            'page_children' => ['mode' => 'always', 'items' => [['label' => 'Alpha <b>', 'href' => '/p/alpha'], ['label' => 'Bravo', 'href' => '/p/bravo']]],
+        ];
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $context))->html;
+
+        self::assertSame(1, preg_match('#<div class="nowo-wiki-page-head" data-testid="wiki-page-head">\s*<nav class="nowo-wiki-path" aria-label="Page path" data-testid="wiki-page-path">(.*?)</nav>#s', $html, $nav));
+        // First and last level visible, the three in between in the "…" disclosure, in order.
+        self::assertSame(1, preg_match('#<a class="nowo-wiki-path__link" href="/s/eng">Engineering</a>.*?<details class="nowo-wiki-path__menu" data-testid="wiki-page-path-more">\s*<summary class="nowo-wiki-path__more" aria-label="Show 3 more levels"><span aria-hidden="true">…</span></summary>.*?href="/p/ops">Operations</a>.*?nowo-wiki-path__hidden.*?href="/p/deep">Deep &amp; &quot;dark&quot;</a>.*?</details>.*?<li class="nowo-wiki-path__item nowo-wiki-path__item--parent"><a class="nowo-wiki-path__link" href="/p/parent">Parent</a></li>#s', $nav[1]));
+        // The hidden ancestor: "…" and a generic text, no link, no title, no name in any attribute.
+        self::assertStringContainsString('<span class="nowo-wiki-path__hidden"><span aria-hidden="true">…</span><span class="visually-hidden">Restricted page</span></span>', $nav[1]);
+        self::assertSame(4, substr_count($nav[1], '<a '));
+        self::assertStringNotContainsString('title=', $nav[1]);
+
+        // Three levels or fewer: no menu.
+        $short                  = $context;
+        $short['page_path']     = [['label' => 'Engineering', 'href' => '/s/eng'], ['label' => 'Parent', 'href' => '/p/parent']];
+        $short['page_children'] = null;
+        $flat                   = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $short))->html;
+        self::assertStringNotContainsString('wiki-page-path-more', $flat);
+        self::assertSame(1, preg_match('#<li class="nowo-wiki-path__item"><a class="nowo-wiki-path__link" href="/s/eng">Engineering</a></li>\s*<li class="nowo-wiki-path__item nowo-wiki-path__item--parent">#', $flat));
+        self::assertStringNotContainsString('wiki-children', $flat);
+        // A space without a link prints its name as text.
+        $short['page_path'] = [['label' => 'Engineering', 'href' => null]];
+        self::assertStringContainsString('<span class="nowo-wiki-path__text">Engineering</span>', $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $short))->html);
+
+        // The chip (count, escaped list) and the section after the body, in tree order.
+        self::assertSame(1, preg_match('#<details class="nowo-wiki-children-chip" data-testid="wiki-children-chip">\s*<summary class="[^"]*nowo-wiki-children-chip__toggle">2 subpages</summary>.*?href="/p/alpha">Alpha &lt;b&gt;</a>#s', $html));
+        self::assertSame(1, preg_match('#data-testid="wiki-content".*?<section class="[^"]*nowo-wiki-children" aria-labelledby="nowo-wiki-children-title" data-testid="wiki-children"[^>]*>.*?Pages in this section.*?<span class="nowo-wiki-children__label">Alpha &lt;b&gt;</span>.*?<span class="nowo-wiki-children__label">Bravo</span>#s', $html));
+        self::assertStringNotContainsString('nowo-wiki-children--auto', $html);
+
+        // auto: the CSS hook on both; one sub-page: singular; none: neither the chip nor the card (nor an empty head).
+        $auto                  = $context;
+        $auto['page_path']     = null;
+        $auto['page_children'] = ['mode' => 'auto', 'items' => [['label' => 'Alpha', 'href' => '/p/alpha']]];
+        $html                  = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $auto))->html;
+        self::assertSame(2, substr_count($html, 'nowo-wiki-children--auto'));
+        self::assertStringContainsString('>1 subpage</summary>', $html);
+        // More readable sub-pages than the cap: "N+" on the chip and under the list.
+        $auto['page_children'] = ['mode' => 'always', 'items' => [['label' => 'Alpha', 'href' => '/p/alpha']], 'truncated' => true];
+        $html                  = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $auto))->html;
+        self::assertStringContainsString('>1+ subpages</summary>', $html);
+        self::assertStringContainsString('data-testid="wiki-children-more">1+ subpages</p>', $html);
+        $auto['page_children'] = ['mode' => 'always', 'items' => []];
+        $html                  = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $auto))->html;
+        self::assertStringNotContainsString('wiki-page-head', $html);
+        self::assertStringNotContainsString('wiki-children', $html);
+
+        // With the card toolbar the head sits in the frame, after the toolbar and before the body.
+        $card = $this->renderWithKitHeader(self::layout130(PageFixtures::pageView(true, self::compactFactory(), false)), '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertSame(1, preg_match('#data-nowo-wiki-card-frame>.*?data-testid="wiki-card-toolbar".*?data-testid="wiki-page-head".*?data-testid="wiki-page-path".*?data-testid="wiki-children-chip".*?data-testid="wiki-comments-view"#s', $card));
     }
 
     public function testPageTreeNestsListsAndMarksTheCurrentPage(): void

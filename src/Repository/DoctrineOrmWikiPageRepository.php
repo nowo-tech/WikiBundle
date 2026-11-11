@@ -17,12 +17,13 @@ use SortDirection;
 use Throwable;
 
 use function array_values;
+use function max;
 
 /**
  * Lookups refresh already-managed pages ({@see Query::HINT_REFRESH}) so a page renamed or archived
  * by another worker is not served from a stale identity map.
  */
-final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepositoryInterface, WikiPageBatchFinderInterface, WikiPageTreeWriterInterface, WikiPageLockInterface, WikiPageMetadataFinderInterface
+final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepositoryInterface, WikiPageBatchFinderInterface, WikiPageChildrenFinderInterface, WikiPageTreeWriterInterface, WikiPageLockInterface, WikiPageMetadataFinderInterface
 {
     /**
      * Creates the repository.
@@ -253,8 +254,31 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->setParameter('space', $space)
             ->orderBy('p.position', SortDirection::Ascending)
             ->addOrderBy('p.title', SortDirection::Ascending)
+            // Audit MG-2-L6: a total order, so offset paging never skips or repeats a page.
+            ->addOrderBy('p.id', SortDirection::Ascending)
             ->setMaxResults($limit)
             ->getQuery()
+            ->setHint(Query::HINT_REFRESH, true)
+            ->getResult();
+    }
+
+    public function findActiveChildren(WikiPage $parent, int $limit, int $offset = 0): array
+    {
+        /* @var list<WikiPage> */
+        return $this->entityManager()->createQueryBuilder()
+            ->select('p')
+            ->from(WikiPage::class, 'p')
+            ->where('p.parent = :parent')
+            ->andWhere('p.archivedAt IS NULL')
+            ->setParameter('parent', $parent)
+            ->orderBy('p.position', SortDirection::Ascending)
+            ->addOrderBy('p.title', SortDirection::Ascending)
+            // Audit MG-2-L6: a total order, so offset paging never skips or repeats a page.
+            ->addOrderBy('p.id', SortDirection::Ascending)
+            ->setMaxResults(max(1, $limit))
+            ->setFirstResult(max(0, $offset))
+            ->getQuery()
+            // Audit MG-2-L2: like findActiveBySpace(), the rows win over a page the EntityManager kept (worker mode).
             ->setHint(Query::HINT_REFRESH, true)
             ->getResult();
     }

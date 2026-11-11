@@ -370,6 +370,12 @@ backlinks, related objects) — override one block instead of copying `nowo_ui_s
   ```
 
   A host that overrides `wiki_page_body` keeps the card toolbar: it wraps the read-only editor and that block.
+- **Path and sub-pages** (`web_ui.page_header.path: card`, `web_ui.children: auto`): "Space › Parent" above the
+  body, a "N subpages" chip and a "Pages in this section" card, permission-filtered (a hidden ancestor shows as "…").
+  With `title: body` and `toolbar_position: card` the page starts with the card: toolbar at the top right, the path,
+  then the body's `<h1>`.
+- **BreadcrumbKit** (`web_ui.breadcrumb_current_label: true`, BreadcrumbKit >= 2.17 optional): the host's breadcrumb
+  ends with the page title instead of the route's static label.
 
 ## Translations (REQ-I18N-001)
 
