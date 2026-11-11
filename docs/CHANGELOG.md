@@ -112,6 +112,8 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   mounted in the same box as the server body (`.nowo-wiki-read-swap`, one grid cell: the taller of the two is reserved
   from the first paint, so nothing moves), laid out invisibly, and cross-faded in when ready
   (`--nowo-wiki-read-swap-duration`, 150ms; no fade with `prefers-reduced-motion` or UiKit `data-motion="reduce"`).
+  Audit MG-3: every non-editor child of the box (also a host `wiki_page_body` without the marker) is hidden and made
+  inert at the swap, after the focus it held moved to the editor (same link, else the view).
   The editor gets the body's UiKit `card` / `card_body` box and drops its own frame; both bodies take the same
   typography from `--nowo-wiki-read-*` tokens (h1–h3, p, lists, code, pre, blockquote, tables, links). The server
   body leaves the tab order and the accessibility tree at the swap (`inert`, `aria-hidden`). Checked in Chromium at

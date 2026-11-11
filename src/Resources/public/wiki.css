@@ -209,7 +209,8 @@
 
 /* 1.30 web_ui.read_view.seamless_swap — the read-only editor and the server body in ONE grid cell
    (.nowo-wiki-read-swap): the box is as tall as the taller of the two from the first paint, so the swap moves nothing.
-   The editor is laid out invisibly until wiki.js marks the box ready, then the two cross-fade
+   The editor is laid out invisibly until wiki.js marks the box ready, then it and every other child of the box (the
+   server body, or a host's wiki_page_body without data-nowo-wiki-server-body; audit MG-3-L2) cross-fade
    (--nowo-wiki-read-swap-duration, 150ms; none with prefers-reduced-motion or UiKit data-motion="reduce"). */
 .nowo-wiki-read-swap {
   display: grid;
@@ -224,7 +225,7 @@
 }
 
 .nowo-wiki-read-swap > .nowo-wiki-comments-view,
-.nowo-wiki-read-swap[data-nowo-wiki-read-swap='ready'] > [data-nowo-wiki-server-body] {
+.nowo-wiki-read-swap[data-nowo-wiki-read-swap='ready'] > :not(.nowo-wiki-comments-view) {
   visibility: hidden;
   opacity: 0;
   pointer-events: none;

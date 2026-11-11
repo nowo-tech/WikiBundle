@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     bindWikiComments,
     DEDUPED_ATTR,
+    focusInView,
     hideDuplicateTitle,
     isDrawerLayout,
     normaliseTitle,
@@ -353,8 +354,9 @@ describe('wiki comments 1.29: requested panel and title dedupe', () => {
 describe('wiki comments 1.30: seamless read swap', () => {
     const swapMarkup = `
         <div class="nowo-wiki-read-swap" data-nowo-wiki-read-swap="pending" id="swap">
-            <div data-nowo-wiki-comments-view data-nowo-wiki-dedupe-title="Deploy" data-nowo-wiki-title-deduped id="view"><div class="nowo-milkdown" id="root"></div></div>
-            <article data-nowo-wiki-server-body id="server"><a href="/x">Body</a></article>
+            <div class="nowo-wiki-comments-view" data-nowo-wiki-comments-view data-nowo-wiki-dedupe-title="Deploy" data-nowo-wiki-title-deduped id="view"><div class="nowo-milkdown" id="root"></div></div>
+            <article data-nowo-wiki-server-body id="server"><a href="/x" id="server-link">Body</a> <a href="/only-here" id="lonely">Only</a> <button type="button" id="server-button">B</button></article>
+            <section id="host">A host body without the marker</section>
         </div>
         <div data-nowo-wiki-server-body id="outside">Elsewhere</div>
         <aside id="${PANEL_ID}"><div data-nowo-wiki-comments-fallback id="fallback"></div></aside>`;
@@ -395,6 +397,57 @@ describe('wiki comments 1.30: seamless read swap', () => {
 
         // Once only.
         expect(swapReadView(swap)).toBe(false);
+    });
+
+    it('hides every other child of the box, also a host body without the marker (audit MG-3-L2)', () => {
+        const root = document.getElementById('root') as HTMLElement;
+        root.innerHTML = '<div class="ProseMirror"><p>Body</p></div>';
+        fire(root, 'nowo-milkdown:ready');
+        const host = document.getElementById('host') as HTMLElement;
+        expect(host.hasAttribute('inert')).toBe(true);
+        expect(host.getAttribute('aria-hidden')).toBe('true');
+        expect((document.getElementById('view') as HTMLElement).hasAttribute('inert')).toBe(false);
+    });
+
+    it('moves the focus out of the body before it becomes inert (audit MG-3-L1)', () => {
+        const swap = document.getElementById('swap') as HTMLElement;
+        const view = document.getElementById('view') as HTMLElement;
+        const root = document.getElementById('root') as HTMLElement;
+        root.innerHTML = '<div class="ProseMirror"><p><a href="/x" id="editor-link">Body</a></p></div>';
+
+        // A focused link: its twin in the editor.
+        (document.getElementById('server-link') as HTMLElement).focus();
+        expect(swapReadView(swap)).toBe(true);
+        expect(document.activeElement?.id).toBe('editor-link');
+        expect(view.hasAttribute('tabindex')).toBe(false);
+
+        // A link without a twin, then a button: the view itself, once made focusable.
+        for (const id of ['lonely', 'server-button']) {
+            swap.setAttribute(READ_SWAP_ATTR, 'pending');
+            (document.getElementById('server') as HTMLElement).removeAttribute('inert');
+            (document.getElementById(id) as HTMLElement).focus();
+            expect(document.activeElement?.id).toBe(id);
+            swapReadView(swap);
+            expect(document.activeElement).toBe(view);
+            expect(view.getAttribute('tabindex')).toBe('-1');
+        }
+
+        // Focus elsewhere: left where it is.
+        swap.setAttribute(READ_SWAP_ATTR, 'pending');
+        const outside = document.getElementById('outside') as HTMLElement;
+        outside.tabIndex = 0;
+        outside.focus();
+        swapReadView(swap);
+        expect(document.activeElement).toBe(outside);
+    });
+
+    it('swaps a box without the read-only view too (nothing to focus)', () => {
+        const swap = document.getElementById('swap') as HTMLElement;
+        (document.getElementById('view') as HTMLElement).remove();
+        (document.getElementById('server-link') as HTMLElement).focus();
+        expect(swapReadView(swap)).toBe(true);
+        expect((document.getElementById('server') as HTMLElement).hasAttribute('inert')).toBe(true);
+        expect(focusInView).toBeTypeOf('function');
     });
 
     it('drops a server dedupe mark that the editor does not confirm (1.30)', () => {
