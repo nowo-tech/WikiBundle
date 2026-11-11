@@ -25,7 +25,10 @@
 {% set _header = header.withActions((_with_actions ? header.actions : [])|merge(extra_actions|default([]))) %}
 {% set _tabs_toolbar = tabs_toolbar|default(false) is same as(true) %}
 {% set _in_card = toolbar_in_card|default(false) is same as(true) %}
-{% if _tabs_toolbar or _in_card %}
+{#- Audit MG-1-I1: title: body with the toolbar in the card and the tabs in it leaves the header nothing to show; it is
+    not printed, so the body's <h1> is the page's only one (UiKit's header always carries an <h1>). -#}
+{% if title_in_body|default(false) is same as(true) and _in_card and (_tabs_toolbar or not header.tabs) and not (header.status ?? null) %}
+{% elseif _tabs_toolbar or _in_card %}
     {#- 1.30: the toolbar in its fixed order (or nowhere: the page view prints it in the content card) -#}
     {% set _toolbar %}{% if not _in_card %}{{ include('@NowoWikiBundle/manage/_page_toolbar.html.twig', {header: _header, tabs: _tabs_toolbar ? header.tabs : null, tree_toggle: tree_toggle|default(''), host_toolbar: host_toolbar|default(''), comments: comments|default(null), bundle: _b, nowo_ui_page_type: _pt}, false) }}{% endif %}{% endset %}
     {{ include(nowo_ui_partial('page_header', _b), {

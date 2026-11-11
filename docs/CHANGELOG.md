@@ -102,6 +102,11 @@ unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129)
   `--nowo-wiki-card-toolbar-inset`), above the content (z-index 3) and before it in the tab order; the body's first
   block keeps clear of it (`--nowo-wiki-card-toolbar-width`, published by wiki.js). Under 40rem it is a row above
   the content. With `title: body` the page starts with the card and its `<h1>`. Default `header` (1.29).
+  Audit MG: the toolbar is a `role="group"` named "Page actions" (its buttons stay in the tab order); focusable
+  elements in the content get a `scroll-margin-block-start` of the toolbar's top + height + inset, so a focused link
+  is never scrolled under it (WCAG 2.4.11; wiki.js publishes `--nowo-wiki-card-toolbar-height`); hosts with a sticky
+  top bar set `--nowo-wiki-card-toolbar-top`. With `title: body` and `tabs: toolbar` the empty header is not printed,
+  so the body's `<h1>` is the only one.
 - **`web_ui.page_header.path: card`:** the in-wiki path (space › ancestors) above the page body, each level a link
   (`manage/_page_path.html.twig`). More than three levels fold the middle ones into a "…" disclosure menu; under 30rem
   only "‹ Parent" shows. An ancestor the viewer may not read is "…" with a generic hidden text: no link, no title, no

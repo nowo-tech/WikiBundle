@@ -135,7 +135,7 @@
                 <div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>
                 {% if _toolbar|trim is not empty %}
                     <div class="nowo-wiki-card-toolbar" data-nowo-wiki-card-toolbar>
-                        <div class="nowo-wiki-card-toolbar__bar" role="toolbar" aria-label="{{ 'wiki.page.toolbar'|trans }}" data-testid="wiki-card-toolbar">{{ _toolbar|trim|raw }}</div>
+                        <div class="nowo-wiki-card-toolbar__bar" role="group" aria-label="{{ 'wiki.page.toolbar'|trans }}" data-testid="wiki-card-toolbar">{{ _toolbar|trim|raw }}</div>
                     </div>
                 {% endif %}
             {% endif %}
