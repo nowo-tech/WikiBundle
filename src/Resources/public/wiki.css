@@ -86,6 +86,12 @@
   gap: 0.5rem;
 }
 
+/* The vertical "Pages" of the rail reads in the text colour (a theme's muted button colour fails AA on a tinted card
+   header, e.g. Bootstrap secondary on the card-header grey: 4.41:1). */
+.nowo-wiki-sidebar[data-nowo-ui-rail-host] .nowo-ui-rail-toggle__title {
+  color: var(--nowo-ui-text, CanvasText);
+}
+
 @media (min-width: 62rem) {
   .nowo-wiki-layout:has(> .nowo-wiki-layout__aside > [data-nowo-ui-rail-host][data-nowo-ui-rail='collapsed']) {
     grid-template-columns: var(--nowo-ui-rail-width, 2.75rem) minmax(0, 1fr);
