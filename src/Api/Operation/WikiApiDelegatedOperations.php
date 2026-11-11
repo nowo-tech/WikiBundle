@@ -188,8 +188,10 @@ final readonly class WikiApiDelegatedOperations
         }
         $response = $this->files->download($principal, $wiki, $fileUuid) ?? throw WikiApiRefusal::notFound();
         if (!str_starts_with(strtolower(trim((string) $response->headers->get('Content-Disposition'))), 'attachment')) {
+            // @igor-ignore - Response built per call by the files hook; not a shared service.
             $response->headers->set('Content-Disposition', 'attachment');
         }
+        // @igor-ignore - Response built per call by the files hook; not a shared service.
         $response->headers->set('Content-Security-Policy', self::DOWNLOAD_CSP);
 
         return $response;

@@ -70,6 +70,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: **1.28.1** (patch).
+
+### Changed
+
+- **Igor worker-state audit in CI.** A standalone `igor` job runs `composer igor` (igor-php, REQ-CS-008) on every push
+  and pull request. The four findings igor reported on `src/Api/*` are false positives, each justified inline with
+  `// @igor-ignore` and recorded in [FRANKENPHP-WORKER-AUDIT](FRANKENPHP-WORKER-AUDIT.md#igor-findings-2026-11-11):
+  the download `Response` is built per call, the comment-thread closure runs synchronously, the failed-token counter
+  lives in the host rate limiter by design and `WikiApiInput` is a per-request value object. No behaviour change.
+
 ## [1.28.0] - 2026-11-10
 
 Target: **1.28.0** (Symfony Beacon spec 212 block B: file previews on the wiki read page). See
