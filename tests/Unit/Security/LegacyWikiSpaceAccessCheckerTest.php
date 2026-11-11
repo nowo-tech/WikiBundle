@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Security;
 
+use ArrayObject;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
@@ -13,6 +14,8 @@ use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 final class LegacyWikiSpaceAccessCheckerTest extends TestCase
 {
@@ -91,7 +94,7 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         $other    = new WikiSpace('hr', 'HR', WikiSpaceOwnerScope::Team, 't');
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->expects(self::exactly(4))->method('listSpacesForUser')->willReturn([$space]);
-        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver);
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, self::requestStack());
         $ana     = new TestUser('u1', 'ana@x.test');
 
         for ($i = 0; $i < 500; ++$i) {
@@ -113,7 +116,7 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't');
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->expects(self::exactly(LegacyWikiSpaceAccessChecker::MAX_MEMO + 2))->method('listSpacesForUser')->willReturn([$space]);
-        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver);
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, self::requestStack());
         $users   = [];
         for ($i = 0; $i <= LegacyWikiSpaceAccessChecker::MAX_MEMO; ++$i) {
             $users[] = new TestUser('u' . $i, 'u' . $i . '@x.test');
@@ -121,5 +124,66 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         }
 
         self::assertTrue($checker->isGranted($users[0], WikiAction::View, $space), 'emptied past MAX_MEMO: read again');
+    }
+
+    public function testANewMainRequestReadsTheMembershipsAgain(): void
+    {
+        // 1.29.1 (REQ-RUNTIME-002): a worker that never runs kernel.reset hands the same user object (kept managed by
+        // the host's EntityManager) to the next request; the membership revoked in between must not be served.
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't');
+        $member   = new ArrayObject([true]);
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->expects(self::exactly(2))->method('listSpacesForUser')->willReturnCallback(static fn (): array => $member[0] ? [$space] : []);
+        $stack   = self::requestStack();
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, $stack);
+        $ana     = new TestUser('u1', 'ana@x.test');
+
+        self::assertTrue($checker->isGranted($ana, WikiAction::View, $space));
+        $member[0] = false;
+        self::assertTrue($checker->isGranted($ana, WikiAction::View, $space), 'memoised within one request');
+
+        $stack->pop();
+        $stack->push(Request::create('/next'));
+        self::assertFalse($checker->isGranted($ana, WikiAction::View, $space), 'the next request reads the revocation');
+    }
+
+    public function testNothingIsMemoisedOutsideARequest(): void
+    {
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't');
+        $member   = new ArrayObject([true]);
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->expects(self::exactly(4))->method('listSpacesForUser')->willReturnCallback(static fn (): array => $member[0] ? [$space] : []);
+        $ana = new TestUser('u1', 'ana@x.test');
+
+        foreach ([new RequestStack(), null] as $stack) {
+            $member[0] = true;
+            $checker   = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, $stack);
+            self::assertTrue($checker->isGranted($ana, WikiAction::View, $space));
+            $member[0] = false;
+            self::assertFalse($checker->isGranted($ana, WikiAction::View, $space), 'console / Messenger: read on every call');
+        }
+    }
+
+    public function testResetForgetsTheRequestToo(): void
+    {
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't');
+        $member   = new ArrayObject([true]);
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->expects(self::exactly(2))->method('listSpacesForUser')->willReturnCallback(static fn (): array => $member[0] ? [$space] : []);
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, self::requestStack());
+        $ana     = new TestUser('u1', 'ana@x.test');
+
+        self::assertTrue($checker->isGranted($ana, WikiAction::View, $space));
+        $member[0] = false;
+        $checker->reset();
+        self::assertFalse($checker->isGranted($ana, WikiAction::View, $space), 'read again after reset() in the same request');
+    }
+
+    private static function requestStack(): RequestStack
+    {
+        $stack = new RequestStack();
+        $stack->push(Request::create('/'));
+
+        return $stack;
     }
 }

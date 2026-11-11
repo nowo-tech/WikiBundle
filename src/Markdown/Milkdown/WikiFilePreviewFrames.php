@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Markdown\Milkdown;
 
 use Nowo\MilkdownEditorBundle\Markdown\FileCard;
+use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Symfony\Contracts\Service\ResetInterface;
 
 use function bin2hex;
@@ -27,7 +28,8 @@ use function str_contains;
  * `safeUrl()` and the wiki link policy, the `file_preview_sandbox` sandbox, `loading="lazy"`,
  * `referrerpolicy="no-referrer"`) is ever written back.
  *
- * Request-scoped: emptied by `kernel.reset` (FrankenPHP worker mode) and bounded to {@see self::MAX_FRAMES} frames
+ * Request-scoped: emptied by `kernel.reset` and, since 1.29.1, at every request / console / Messenger boundary by
+ * {@see WikiRequestBoundaryResetter} (where the services resetter does not run), and bounded to {@see self::MAX_FRAMES} frames
  * waiting for hydration; a token is used once. Renders that are never hydrated run {@see self::withoutFrames()}.
  */
 final class WikiFilePreviewFrames implements ResetInterface

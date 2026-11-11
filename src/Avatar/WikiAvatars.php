@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Avatar;
 
 use Nowo\UiKitBundle\Avatar\AvatarUrlPolicy;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
+use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
@@ -19,7 +20,8 @@ use function is_string;
  * {@see WikiUserAvatarResolverInterface} once for every user not seen yet, {@see self::urlOf()} reads the result
  * through the UiKit avatar URL policy. Callers prime only users whose real name they show (the privacy gate of
  * {@see WikiAuthorLabel::presentAll()}). The memo is bounded and cleared on `kernel.reset`
- * (FrankenPHP worker).
+ * and, since 1.29.1, at every request / console / Messenger boundary by
+ * {@see WikiRequestBoundaryResetter} (where the services resetter does not run).
  *
  * @internal
  */

@@ -111,6 +111,7 @@ use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Nowo\WikiBundle\Service\WikiPageMover;
+use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
@@ -125,6 +126,7 @@ use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Argument\IteratorArgument;
 use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -142,6 +144,7 @@ use function array_diff_key;
 use function array_filter;
 use function array_intersect_key;
 use function array_key_exists;
+use function array_map;
 use function array_merge;
 use function array_unique;
 use function array_values;
@@ -409,6 +412,24 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
         $this->registerAiServices($container, $config['ai']);
         $this->registerApi($container, $loader, $config);
+        $this->registerRequestBoundary($container);
+    }
+
+    /**
+     * 1.29.1 (REQ-RUNTIME-002): the request memos are emptied at every request, console and Messenger boundary, not only
+     * by `kernel.reset` (when the services resetter does not run). Only services already built are reset
+     * (`IGNORE_ON_UNINITIALIZED_REFERENCE`, as the services resetter does): a boundary never instantiates a memo, and
+     * services this configuration does not register (file previews off, a host checker) are skipped.
+     */
+    private function registerRequestBoundary(ContainerBuilder $container): void
+    {
+        $memos = array_map(
+            static fn (string $id): Reference => new Reference($id, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE),
+            [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class],
+        );
+        $container->setDefinition(WikiRequestBoundaryResetter::class, (new Definition(WikiRequestBoundaryResetter::class))
+            ->setArgument('$memos', new IteratorArgument($memos))
+            ->addTag('kernel.event_subscriber'));
     }
 
     /**

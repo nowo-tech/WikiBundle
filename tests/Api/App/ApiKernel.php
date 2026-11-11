@@ -13,7 +13,9 @@ use Nowo\UiKitBundle\NowoUiKitBundle;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\RecordingQuotaListener;
@@ -48,10 +50,18 @@ final class ApiKernel extends Kernel
     /**
      * @param array<string, mixed> $api `nowo_wiki.api`, merged over the test host's hooks
      * @param array<string, mixed> $wiki the rest of `nowo_wiki`
+     * @param bool $legacySpaceChecker 1.29.1: the bundle's LegacyWikiSpaceAccessChecker decides (not the test host), behind
+     *                                 a locator that finds spaces by slug only
+     * @param bool $debug false for memory measurements (the debug collectors keep every request until kernel.reset)
      */
-    public function __construct(private readonly array $api = [], private readonly array $wiki = [], private readonly bool $withFirewall = true)
-    {
-        parent::__construct('test', true);
+    public function __construct(
+        private readonly array $api = [],
+        private readonly array $wiki = [],
+        private readonly bool $withFirewall = true,
+        private readonly bool $legacySpaceChecker = false,
+        bool $debug = true,
+    ) {
+        parent::__construct('test', $debug);
     }
 
     public function registerBundles(): iterable
@@ -75,7 +85,7 @@ final class ApiKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return $this->getProjectDir() . '/' . md5(serialize([$this->api, $this->wiki, $this->withFirewall, WikiTestDatabase::url()])) . '/cache';
+        return $this->getProjectDir() . '/' . md5(serialize([$this->api, $this->wiki, $this->withFirewall, $this->legacySpaceChecker, $this->debug, WikiTestDatabase::url()])) . '/cache';
     }
 
     public function getLogDir(): string
@@ -122,7 +132,12 @@ final class ApiKernel extends Kernel
         $services->set('logger', RecordingLogger::class)->public();
         $services->set('app.api_host', ApiTestHost::class)->autowire()->public();
         $services->set('app.api_firewall', ApiFirewallAuthenticator::class)->args([service('app.api_host')]);
-        $services->alias(WikiSpaceAccessCheckerInterface::class, 'app.api_host');
+        if ($this->legacySpaceChecker) {
+            $services->set('app.slug_locator', ApiSlugLocator::class)->args([service(WikiSpaceRepositoryInterface::class)]);
+            $services->alias(WikiSpaceLocatorInterface::class, 'app.slug_locator');
+        } else {
+            $services->alias(WikiSpaceAccessCheckerInterface::class, 'app.api_host');
+        }
         $services->set('app.audit', ApiAuditRecorder::class)->public()->args([service('doctrine.dbal.default_connection')])
             ->tag('kernel.event_listener', ['event' => WikiEvents::API_WRITE, 'method' => 'record'])
             ->tag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED, 'method' => 'saved'])
