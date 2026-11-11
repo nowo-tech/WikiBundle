@@ -128,6 +128,19 @@ final class WikiPageFactoryTest extends TestCase
         self::assertSame('wiki.tree.move', $this->label($move->submitLabel)->key);
     }
 
+    /** 1.29 web_ui.page_header.layout: compact — the read view's header actions use the UiKit split layout. */
+    public function testTheCompactHeaderSplitsThePageViewActions(): void
+    {
+        $space    = PageFixtures::space('eng', 'Engineering');
+        [, $page] = PageFixtures::pages($space);
+        $default  = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), '');
+        self::assertSame('toolbar', $default->pageView($space, $page, ['edit' => true])->header->actionsLayout);
+        $compact = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), '', compactHeader: true);
+        $header  = $compact->pageView($space, $page, ['edit' => true])->header;
+        self::assertSame('split', $header->actionsLayout);
+        self::assertNotNull($header->tabs);
+    }
+
     public function testThePageTabsCarryTheirIcons(): void
     {
         $routes   = PageFixtures::routes();

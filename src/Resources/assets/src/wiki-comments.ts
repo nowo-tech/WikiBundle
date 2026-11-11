@@ -10,7 +10,11 @@
  * - opening a closed panel whose threads are rendered by the server (`data-reload-href`, readers without the page
  *   source): the page is loaded again with `?comments=1`, so the list is only read when someone opens it;
  * - `nowo-milkdown:ready` of a comments editor → the no-JavaScript list is hidden, and on the read view the read-only
- *   editor replaces the server-rendered body.
+ *   editor replaces the server-rendered body (1.29: without its first `<h1>` when that repeats the page title,
+ *   `data-nowo-wiki-dedupe-title`);
+ * - 1.29: a panel asked for in the URL (`?comments=1`, `data-nowo-wiki-comments-requested`) that started closed (a
+ *   server-open `lg` / `xl` panel under its breakpoint, UiKit LV-L2) is opened as a drawer after load
+ *   ({@link openRequestedPanel}).
  */
 
 /** Id of the comments panel (WikiCommentsPanel::ID). */
@@ -108,10 +112,59 @@ export function showCommentsEditor(doc: Document, root: Element): void {
     if (!view) {
         return;
     }
+    hideDuplicateTitle(view);
     view.hidden = false;
     doc.querySelectorAll<HTMLElement>('[data-nowo-wiki-server-body]').forEach((body) => {
         body.hidden = true;
     });
+}
+
+/**
+ * Trimmed, whitespace collapsed, lower case (as `WikiTitleDedupe::normalise()`).
+ *
+ * @param text - The text.
+ */
+export function normaliseTitle(text: string): string {
+    return text.replace(/\s+/gu, ' ').trim().toLowerCase();
+}
+
+/**
+ * 1.29 (`web_ui.page_header.title: dedupe`): hides the read-only editor's first block when it is an `<h1>` whose text
+ * equals the page title (`data-nowo-wiki-dedupe-title`). Only the DOM node is hidden: the editor document, and so the
+ * comment anchors, stay as they are.
+ *
+ * @param view - The read-only view (`[data-nowo-wiki-comments-view]`).
+ * @returns Whether a heading was hidden.
+ */
+export function hideDuplicateTitle(view: HTMLElement): boolean {
+    const title = normaliseTitle(view.dataset.nowoWikiDedupeTitle ?? '');
+    const editor = view.querySelector<HTMLElement>('[contenteditable]') ?? view.querySelector<HTMLElement>('.ProseMirror');
+    const first = editor?.firstElementChild;
+    if (title === '' || !(first instanceof HTMLHeadingElement) || first.tagName !== 'H1' || normaliseTitle(`${first.textContent}`) !== title) {
+        return false;
+    }
+    first.hidden = true;
+
+    return true;
+}
+
+/**
+ * 1.29: opens the comments panel asked for in the URL (`?comments=1` → `data-nowo-wiki-comments-requested`) when it is
+ * still closed after load: a server-open `lg` / `xl` panel starts closed under its breakpoint (UiKit 2.48 LV-L2), so a
+ * no-JavaScript link or the reload of a server-rendered list would otherwise leave it shut. No-op without the UiKit
+ * script, without the request, or when the panel is already open.
+ *
+ * @param doc - The document.
+ * @returns Whether the panel was opened.
+ */
+export function openRequestedPanel(doc: Document = document): boolean {
+    const api = sidePanel(doc);
+    const panel = doc.getElementById(PANEL_ID);
+    if (!api || !panel || !panel.hasAttribute('data-nowo-wiki-comments-requested') || api.isOpen(PANEL_ID)) {
+        return false;
+    }
+
+    return api.open(PANEL_ID);
 }
 
 const boundDocs = new WeakSet<Document>();

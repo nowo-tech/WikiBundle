@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f95e2ed4e7ac5eed903f446bbf8a3d83",
+    "content-hash": "e23172a43ad1ef8cca8628dfcc8052b8",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -1917,16 +1917,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.31.0",
+            "version": "v2.48.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "5bf589ebd072370d9503a1928147b3c4b3a93993"
+                "reference": "7f65af5ed35fcf6403d87b38beb5452bc8367622"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/5bf589ebd072370d9503a1928147b3c4b3a93993",
-                "reference": "5bf589ebd072370d9503a1928147b3c4b3a93993",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/7f65af5ed35fcf6403d87b38beb5452bc8367622",
+                "reference": "7f65af5ed35fcf6403d87b38beb5452bc8367622",
                 "shasum": ""
             },
             "require": {
@@ -1942,9 +1942,13 @@
                 "twig/string-extra": "^3.12",
                 "twig/twig": "^3.8"
             },
+            "conflict": {
+                "nowo-tech/brand-contracts": "<1.0 || >=2.0"
+            },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
                 "igor-php/igor-php": "^0.9.7 || ^0.10.0",
+                "nowo-tech/brand-contracts": "^1.0",
                 "nowo-tech/phpstan-frankenphp": "^1.0",
                 "phpstan/extension-installer": "^1.0",
                 "phpstan/phpstan": "^2.0",
@@ -1961,12 +1965,16 @@
                 "vincentlanglet/twig-cs-fixer": "^3.0 || ^4.0"
             },
             "suggest": {
+                "nowo-tech/brand-contracts": "2.40: with a BrandProviderInterface service (^1.0) and appearance.provider null, the brand drives the appearance name, colours and logos (spec 220)",
                 "phpunit/phpunit": "UI bundles: require-dev, to run Nowo\\UiKitBundle\\Test\\PageContractTestCase (REQ-UI-003 contract test)",
                 "symfony/form": "For the optional AppearanceType / AppearancePaletteType forms (appearance SPI)",
                 "symfony/http-client": "For the optional release_check feature (GitHub release-version dialog)",
                 "symfony/ux-icons": "For icon_set: ux_icon in row actions and icons",
                 "symfony/validator": "Colour validation in the optional appearance forms"
             },
+            "bin": [
+                "bin/nowo-ui-token-lint"
+            ],
             "type": "symfony-bundle",
             "autoload": {
                 "psr-4": {
@@ -2007,8 +2015,8 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-11-06T05:28:49+00:00",
-            "published-time": "2026-11-06T05:30:40+00:00"
+            "time": "2026-11-11T15:01:35+00:00",
+            "published-time": "2026-11-11T15:03:35+00:00"
         },
         {
             "name": "psr/cache",

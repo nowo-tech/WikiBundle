@@ -11,6 +11,8 @@
   with the request attribute csp_nonce when set; 1.16 + nowo-ui-side-panel.js and wiki.js with comments),
   nowo_ui_page_header (the UiKit header without its tabs + the tab row), nowo_ui_content (1.16: inside the side panel
   container with comments); nowo_ui_form_body keeps the default REQ-TWIG-003 child loop.
+  1.29: web_ui.page_header.layout: compact prints _page_header_compact.html.twig (tabs and actions on one row, no tab
+  row); comments.drawer_below / persist as on the read view (js/nowo-ui-layout-state.js in the head when needed).
 #}
 {% extends '@NowoUiKit/page/form.html.twig' %}
 
@@ -19,6 +21,11 @@
     {% if nowo_wiki_web_ui.assets.styles ?? true %}
         {{ parent() }}
         <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {% endif %}
+    {#- 1.29: a remembered panel state and lg / xl panels applied before the first paint (blocking, external) -#}
+    {% if (nowo_wiki_web_ui.assets.scripts ?? true) and comments|default(null) and (comments.drawer_below|default('md') != 'md' or comments.persist|default(null)) %}
+        {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+        <script src="{{ asset('js/nowo-ui-layout-state.js', 'nowo_ui_kit') }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
 {% endblock %}
 
@@ -39,15 +46,20 @@
 {% endblock %}
 
 {% block nowo_ui_page_header %}
-    {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'form', extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], header_actions: true}, false) }}
-    {% if page.header.tabs %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle}, false) }}{% endif %}
+    {#- 1.29 web_ui.page_header.layout: compact = tabs and actions in the header, one row (no tab row) -#}
+    {% if (nowo_wiki_web_ui.layout.page_header ?? 'stacked') == 'compact' and page.header.tabs %}
+        {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: comments|default(null), extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], bundle: page.bundle, nowo_ui_page_type: 'form'}, false) }}
+    {% else %}
+        {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'form', extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], header_actions: true}, false) }}
+        {% if page.header.tabs %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle}, false) }}{% endif %}
+    {% endif %}
 {% endblock %}
 
 {% block nowo_ui_content %}
     {% if collab_conflict|default(null) %}{{ include('@NowoWikiBundle/manage/_collab_conflict.html.twig', {collab_conflict: collab_conflict, bundle: page.bundle}, false) }}{% endif %}
     {% if comments|default(null) %}
         {% set _wiki_content %}{{ parent() }}{% endset %}
-        {% embed nowo_ui_partial('side_panel_container', page.bundle) with {bundle: page.bundle, attr: {'data-testid': 'wiki-comments-layout'}} %}
+        {% embed nowo_ui_partial('side_panel_container', page.bundle) with {bundle: page.bundle, drawer_below: comments.drawer_below|default('md'), attr: {'data-testid': 'wiki-comments-layout'}} %}
             {% block nowo_ui_side_panel_main %}{{ _wiki_content }}{% endblock %}
             {% block nowo_ui_side_panel_panel %}{{ include('@NowoWikiBundle/manage/_comments_panel.html.twig', {comments: comments, bundle: bundle}, false) }}{% endblock %}
         {% endembed %}

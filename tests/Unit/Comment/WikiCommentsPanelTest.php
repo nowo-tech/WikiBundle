@@ -28,6 +28,8 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Session\Session;
+use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Security\Csrf\CsrfToken;
@@ -71,6 +73,34 @@ final class WikiCommentsPanelTest extends TestCase
         // The list is for moderators only.
         [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments], moderationPanel: true);
         self::assertFalse($panel->panel(null, $user, $space, $page)['moderation'] ?? true);
+    }
+
+    /** 1.29: the dock breakpoint, the localStorage fallback without a session, and the panel asked for in the URL. */
+    public function testTheDockBreakpointThePersistFallbackAndTheRequestedPanel(): void
+    {
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments]);
+        $default                       = $panel->panel(Request::create('/x'), $user, $space, $page);
+        self::assertNotNull($default);
+        self::assertSame('md', $default['drawer_below']);
+        self::assertNull($default['persist']);
+        self::assertFalse($default['open_requested']);
+
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments], dockMinWidth: 'lg');
+        self::assertSame('lg', $panel->panel(null, $user, $space, $page)['drawer_below'] ?? null);
+        self::assertTrue($panel->panel(Request::create('/x?comments=1'), $user, $space, $page)['open_requested'] ?? null);
+        self::assertFalse($panel->panel(Request::create('/x?comments=0'), $user, $space, $page)['open_requested'] ?? null);
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments], dockMinWidth: 'huge');
+        self::assertSame('md', $panel->panel(null, $user, $space, $page)['drawer_below'] ?? null);
+
+        // The session store without a session (stateless firewall): the browser keeps the state.
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments], sessionStore: true);
+        self::assertSame(WikiCommentsPanel::PERSIST_KEY, $panel->panel(Request::create('/x'), $user, $space, $page)['persist'] ?? null);
+        self::assertSame(WikiCommentsPanel::PERSIST_KEY, $panel->panel(null, $user, $space, $page)['persist'] ?? null);
+        $request = Request::create('/x');
+        $request->setSession(new Session(new MockArraySessionStorage()));
+        $withSession = $panel->panel($request, $user, $space, $page);
+        self::assertNotNull($withSession);
+        self::assertNull($withSession['persist']);
     }
 
     public function testThePanelOfAViewer(): void
@@ -177,7 +207,7 @@ final class WikiCommentsPanelTest extends TestCase
      *
      * @return array{0: WikiCommentsPanel, 1: UserInterface, 2: WikiSpace, 3: WikiPage, 4: WikiCommentService}
      */
-    private function panel(array $granted, bool $profiles = true, bool $readViewSource = false, bool $moderationPanel = false, bool $errorNotices = false): array
+    private function panel(array $granted, bool $profiles = true, bool $readViewSource = false, bool $moderationPanel = false, bool $errorNotices = false, string $dockMinWidth = 'md', bool $sessionStore = false): array
     {
         $this->granted = $granted;
         $em            = SqliteWikiEntityManager::create();
@@ -226,6 +256,8 @@ final class WikiCommentsPanelTest extends TestCase
             $readViewSource,
             $moderationPanel,
             $errorNotices,
+            $dockMinWidth,
+            $sessionStore,
         );
 
         return [$panel, $user, $space, $page, $service];

@@ -239,7 +239,36 @@ final class WikiCommentControllerTest extends TestCase
         $controller->panelState($this->raw('POST', ['panel' => 'comments', 'open' => true, '_token' => $token], ['HTTP_ORIGIN' => 'https://evil.test']), 'eng');
     }
 
-    private function controller(bool $enabled = true, bool $user = true, bool $trusted = true, bool $translated = false): WikiCommentController
+    /** 1.29 web_ui.tree_rail: the endpoint also takes `tree_rail`, alone (no comments) or beside the comments. */
+    public function testTheTreeRailState(): void
+    {
+        // Comments on, rail off: tree_rail is refused.
+        $controller = $this->controller();
+        $token      = WikiControllerContainerBuilder::csrfToken($this->container, WikiCommentController::panelTokenId($this->space));
+        self::assertSame(422, $controller->panelState($this->raw('POST', ['panel' => 'tree_rail', 'open' => true, '_token' => $token]), 'eng')->getStatusCode());
+
+        // Rail only: tree_rail is stored, comments refused.
+        $controller = $this->controller(enabled: false, treeRail: true);
+        $token      = WikiControllerContainerBuilder::csrfToken($this->container, WikiCommentController::panelTokenId($this->space));
+        self::assertSame(204, $controller->panelState($this->raw('POST', ['panel' => 'tree_rail', 'open' => true, '_token' => $token]), 'eng')->getStatusCode());
+        self::assertTrue($this->store->isOpen($this->user, WikiPanelStateStoreInterface::TREE_RAIL));
+        self::assertFalse($this->store->isOpen($this->user, WikiPanelStateStoreInterface::COMMENTS));
+        self::assertSame(422, $controller->panelState($this->raw('POST', ['panel' => 'comments', 'open' => true, '_token' => $token]), 'eng')->getStatusCode());
+        self::assertSame(422, $controller->panelState($this->raw('POST', ['panel' => ['tree_rail'], 'open' => true, '_token' => $token]), 'eng')->getStatusCode());
+
+        // Both: each is its own flag.
+        $controller = $this->controller(treeRail: true);
+        $token      = WikiControllerContainerBuilder::csrfToken($this->container, WikiCommentController::panelTokenId($this->space));
+        $controller->panelState($this->raw('POST', ['panel' => 'comments', 'open' => true, '_token' => $token]), 'eng');
+        self::assertTrue($this->store->isOpen($this->user, WikiPanelStateStoreInterface::COMMENTS));
+        self::assertFalse($this->store->isOpen($this->user, WikiPanelStateStoreInterface::TREE_RAIL));
+
+        // A forged token is refused for the rail as well.
+        $this->expectException(AccessDeniedHttpException::class);
+        $controller->panelState($this->raw('POST', ['panel' => 'tree_rail', 'open' => true, '_token' => 'bad']), 'eng');
+    }
+
+    private function controller(bool $enabled = true, bool $user = true, bool $trusted = true, bool $translated = false, bool $treeRail = false): WikiCommentController
     {
         $guard = new WikiSpaceGuard(new FixedSpaceLocator($this->space), new CallbackSpaceAccessChecker(fn (WikiAction $action): bool => in_array($action, $this->granted, true)));
         // An untrusted token: a main request that went through no secured firewall.
@@ -255,7 +284,7 @@ final class WikiCommentControllerTest extends TestCase
             new DoctrineOrmWikiPageRepository($this->em),
             ['page_view' => ['path' => '/p', 'name' => 'nowo_wiki_page_view']],
             $enabled ? $this->service($guard) : null,
-            $enabled ? $this->store : null,
+            $enabled || $treeRail ? $this->store : null,
             $tokenGuard,
             $translated ? new class implements TranslatorInterface {
                 public function trans(string $id, array $parameters = [], ?string $domain = null, ?string $locale = null): string
@@ -268,6 +297,7 @@ final class WikiCommentControllerTest extends TestCase
                     return 'en';
                 }
             } : null,
+            ['tree_rail' => $treeRail],
         );
         $this->container = WikiControllerContainerBuilder::bind($controller, $user ? $this->user : null);
 

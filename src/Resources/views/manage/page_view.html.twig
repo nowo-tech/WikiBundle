@@ -20,6 +20,16 @@
   tree card) for templates that extend this one, filled by the web_ui.slots.page_header_extra / sidebar templates when
   set (included with the page variables); web_ui.assets.styles / scripts: false leave nowo_ui_styles /
   nowo_ui_scripts empty.
+  1.29 (layout, every option off by default; Twig global nowo_wiki_web_ui.layout): tree_rail (WikiTreeRail::rail(),
+  web_ui.tree_rail) folds the tree card to a rail (UiKit rail_toggle + js/nowo-ui-rail.js); web_ui.narrow_tree_position:
+  after puts the tree after the page below 62rem; web_ui.reading_width: readable centres the main column at
+  --nowo-wiki-reading-width; web_ui.page_header.layout: compact prints _page_header_compact.html.twig (tabs and actions
+  on one row, no tab row); comments.drawer_below (comments.dock_min_width) docks the panel only from lg / xl;
+  comments.persist / tree_rail.persist (no session) and lg / xl panels add the blocking js/nowo-ui-layout-state.js in
+  the head (no flash). Always: the body is UiKit rendered content (data-nowo-ui-rendered-content: wide code blocks
+  and tables scroll sideways inside the column, js/nowo-ui-scroll-region.js makes them keyboard reachable) and the main
+  column never widens past its track (grid fix). Blocks wiki_page_body (the body card) and wiki_page_after_body (after
+  it, before "Used in"; empty) for templates that extend this one.
   Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the rich-content assets + wiki.js: scrolls the current page of the tree into view, draws rich content; 1.16 + nowo-ui-side-panel.js with comments), nowo_ui_page_header (the UiKit header without its tabs + the tab row), nowo_ui_content (1.16: inside the side panel container with comments), nowo_ui_show_sections (sidebar tree + content + "Used in").
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
@@ -31,6 +41,11 @@
         {{ parent() }}
         <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
     {% endif %}
+    {#- 1.29: remembered panel / rail states and lg / xl panels applied before the first paint (blocking, external, no inline code) -#}
+    {% if (nowo_wiki_web_ui.assets.scripts ?? true) and ((comments|default(null) and (comments.drawer_below|default('md') != 'md' or comments.persist|default(null))) or tree_rail.persist|default(null)) %}
+        {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
+        <script src="{{ asset('js/nowo-ui-layout-state.js', 'nowo_ui_kit') }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+    {% endif %}
 {% endblock %}
 
 {% block nowo_ui_scripts %}
@@ -41,21 +56,29 @@
         {% if rich_content|default(false) %}{{ nowo_wiki_rich_content_assets() }}{% endif %}
         {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
         {% if comments|default(null) %}<script src="{{ asset('js/nowo-ui-side-panel.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
+        {% if tree_rail|default(null) %}<script src="{{ asset('js/nowo-ui-rail.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
+        <script src="{{ asset('js/nowo-ui-scroll-region.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
         <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
 {% endblock %}
 
 {% block nowo_ui_page_header %}
-    {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'show', extra_actions: [], header_actions: true}, false) }}
+    {#- 1.29 web_ui.page_header.layout: compact = tabs and actions in the header, one row (no tab row) -#}
+    {% set _compact_header = (nowo_wiki_web_ui.layout.page_header ?? 'stacked') == 'compact' and page.header.tabs %}
+    {% if _compact_header %}
+        {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: comments|default(null), bundle: page.bundle, nowo_ui_page_type: 'show'}, false) }}
+    {% else %}
+        {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'show', extra_actions: [], header_actions: true}, false) }}
+    {% endif %}
     {#- 1.21: after the header, before the tab row (web_ui.slots.page_header_extra, else nothing) -#}
     {% block wiki_page_header_extra %}{% if nowo_wiki_web_ui.slots.page_header_extra ?? null %}{{ include(nowo_wiki_web_ui.slots.page_header_extra) }}{% endif %}{% endblock %}
-    {% if page.header.tabs %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle}, false) }}{% endif %}
+    {% if page.header.tabs and not _compact_header %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle}, false) }}{% endif %}
 {% endblock %}
 
 {% block nowo_ui_content %}
     {% if comments|default(null) %}
         {% set _wiki_content %}{{ parent() }}{% endset %}
-        {% embed nowo_ui_partial('side_panel_container', page.bundle) with {bundle: page.bundle, attr: {'data-testid': 'wiki-comments-layout'}} %}
+        {% embed nowo_ui_partial('side_panel_container', page.bundle) with {bundle: page.bundle, drawer_below: comments.drawer_below|default('md'), attr: {'data-testid': 'wiki-comments-layout'}} %}
             {% block nowo_ui_side_panel_main %}{{ _wiki_content }}{% endblock %}
             {% block nowo_ui_side_panel_panel %}{{ include('@NowoWikiBundle/manage/_comments_panel.html.twig', {comments: comments, bundle: bundle}, false) }}{% endblock %}
         {% endembed %}
@@ -66,28 +89,33 @@
 
 {% block nowo_ui_show_sections %}
     {% set _b = page.bundle %}
-    <div class="nowo-wiki-layout">
+    {% set _layout = nowo_wiki_web_ui.layout ?? {} %}
+    <div class="nowo-wiki-layout{{ (_layout.narrow_tree_position ?? 'before') == 'after' ? ' nowo-wiki-layout--tree-after' }}">
         <div class="nowo-wiki-layout__aside">
             {% block wiki_sidebar %}
                 {%- if nowo_wiki_web_ui.slots.sidebar ?? null -%}
                     {{ include(nowo_wiki_web_ui.slots.sidebar) }}
                 {%- else -%}
-                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), bundle: _b}, false) }}
+                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), tree_rail: tree_rail|default(null), bundle: _b}, false) }}
                 {%- endif -%}
             {% endblock %}
         </div>
-        <div class="nowo-wiki-layout__main">
+        <div class="nowo-wiki-layout__main{{ (_layout.reading_width ?? 'full') == 'readable' ? ' nowo-wiki-reading nowo-ui-readable' }}">
             {# 1.15: editors only; a separate template so pages without Milkdown 1.5 never compile the function #}
             {% if copy_markdown|default(null) %}{{ include('@NowoWikiBundle/manage/_copy_markdown.html.twig', {source: copy_markdown, bundle: _b}, false) }}{% endif %}
             {# 1.16: commenters get the page as a read-only editor (highlights, the thread component); hidden until it is ready #}
             {% if comments_view|default(null) %}
                 {{ include('@NowoWikiBundle/manage/_comments_view.html.twig', {comments_view: comments_view}, false) }}
             {% endif %}
+            {% block wiki_page_body %}
             <article class="{{ nowo_ui_class('card', _b) }} nowo-wiki-page"{% if comments_view|default(null) %} data-nowo-wiki-server-body{% endif %}{{ nowo_ui_attrs('card', _b) }}>
-                <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-content{% if rich_content|default(false) %} nowo-md{% endif %}" data-testid="wiki-content"{% if rich_content|default(false) %} data-wiki-rich-content{% endif %}>
+                <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-content{% if rich_content|default(false) %} nowo-md{% endif %}" data-testid="wiki-content" data-nowo-ui-rendered-content{% if rich_content|default(false) %} data-wiki-rich-content{% endif %}>
                     {{ content_html|default('')|nowo_wiki_safe_html }}
                 </div>
             </article>
+            {% endblock %}
+            {#- 1.29: after the body, before "Used in" (empty; e.g. a host's backlinks) -#}
+            {% block wiki_page_after_body %}{% endblock %}
             {% if used_in|default([]) is not empty %}
                 <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-used-in" aria-labelledby="nowo-wiki-used-in-title"{{ nowo_ui_attrs('card', _b) }}>
                     <header class="{{ nowo_ui_class('card_header', _b) }}">

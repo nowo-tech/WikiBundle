@@ -29,6 +29,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function array_keys;
 use function array_values;
+use function in_array;
 use function is_array;
 use function is_bool;
 use function is_string;
@@ -62,7 +63,9 @@ use const JSON_THROW_ON_ERROR;
  * 413) and well-formed (400 / 422). Answers are never cached.
  *
  * Also `POST …/spaces/{spaceSlug}/panel-state` `{panel: "comments", open}` (route key `space_panel_state`, CSRF token
- * {@see self::panelTokenId()}, 204): the open / closed state of the panel for the next render.
+ * {@see self::panelTokenId()}, 204): the open / closed state of the panel for the next render. 1.29: also
+ * `{panel: "tree_rail", open}` (open = the page tree collapsed to its rail) with `web_ui.tree_rail`; each panel name is
+ * accepted only while its feature is on (422 otherwise).
  */
 final class WikiCommentController extends AbstractController
 {
@@ -87,6 +90,7 @@ final class WikiCommentController extends AbstractController
      * @param array<string, array{path: string, name: string}> $routes the nowo_wiki routes (no-JavaScript redirects)
      * @param WikiCommentService|null $comments the comments (null: disabled, every endpoint 404)
      * @param WikiPanelStateStoreInterface|null $panelState the panel state store (null: disabled)
+     * @param array{tree_rail?: bool} $layout 1.29 `web_ui` layout options (`tree_rail`: the store also takes `tree_rail`)
      */
     public function __construct(
         private readonly WikiSpaceGuard $spaceGuard,
@@ -96,6 +100,7 @@ final class WikiCommentController extends AbstractController
         private readonly ?WikiPanelStateStoreInterface $panelState = null,
         private readonly ?WikiTokenGuard $tokenGuard = null,
         private readonly ?TranslatorInterface $translator = null,
+        private readonly array $layout = [],
     ) {
     }
 
@@ -156,9 +161,9 @@ final class WikiCommentController extends AbstractController
     }
 
     /**
-     * Records the open / closed state of a side panel (`{panel: "comments", open: bool}`).
+     * Records the open / closed state of a side panel (`{panel: "comments" | "tree_rail", open: bool}`).
      *
-     * @throws NotFoundHttpException when comments are disabled or the space is not readable
+     * @throws NotFoundHttpException when neither comments nor the tree rail are on, or the space is not readable
      * @throws AccessDeniedHttpException without a trusted user, a valid CSRF token or the same origin
      */
     #[Route(path: '/tools/wiki/spaces/{spaceSlug}/panel-state', name: 'nowo_wiki_space_panel_state', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'space_panel_state'], methods: ['POST'])]
@@ -177,13 +182,32 @@ final class WikiCommentController extends AbstractController
         if (!$this->isCsrfTokenValid(self::panelTokenId($space), $token)) {
             throw new AccessDeniedHttpException('Invalid CSRF token.');
         }
-        if (($body['panel'] ?? null) !== WikiPanelStateStoreInterface::COMMENTS || !is_bool($body['open'] ?? null)) {
+        $panel = $body['panel'] ?? null;
+        if (!is_string($panel) || !in_array($panel, $this->panels(), true) || !is_bool($body['open'] ?? null)) {
             return new JsonResponse(['error' => 'invalid'], Response::HTTP_UNPROCESSABLE_ENTITY, self::NO_STORE);
         }
         // @igor-ignore - The store writes to the request's session (or the host's storage), not to itself.
-        $store->setOpen($user, WikiPanelStateStoreInterface::COMMENTS, $body['open']);
+        $store->setOpen($user, $panel, $body['open']);
 
         return new Response(null, Response::HTTP_NO_CONTENT, self::NO_STORE);
+    }
+
+    /**
+     * The panel names the state endpoint takes: `comments` with the comments, `tree_rail` with the tree rail (1.29).
+     *
+     * @return list<string>
+     */
+    private function panels(): array
+    {
+        $panels = [];
+        if ($this->comments instanceof WikiCommentService) {
+            $panels[] = WikiPanelStateStoreInterface::COMMENTS;
+        }
+        if (($this->layout['tree_rail'] ?? false) === true) {
+            $panels[] = WikiPanelStateStoreInterface::TREE_RAIL;
+        }
+
+        return $panels;
     }
 
     /**

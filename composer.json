@@ -41,7 +41,7 @@
         "league/html-to-markdown": "^5.1",
         "nowo-tech/form-kit-bundle": "^2.0",
         "nowo-tech/tiptap-editor-bundle": "^1.6",
-        "nowo-tech/ui-kit-bundle": "^2.31",
+        "nowo-tech/ui-kit-bundle": "^2.48",
         "psr/log": "^1.1 || ^2.0 || ^3.0",
         "symfony/config": "^7.4 || ^8.0",
         "symfony/console": "^7.4 || ^8.0",

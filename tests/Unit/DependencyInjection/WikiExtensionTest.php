@@ -47,6 +47,7 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Panel\WikiTreeRail;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
@@ -800,6 +801,92 @@ final class WikiExtensionTest extends TestCase
         // Styles and scripts apart.
         self::assertSame(['styles' => false, 'scripts' => true], WikiExtension::ui(['assets' => ['styles' => false, 'scripts' => true]])['assets']);
         self::assertSame(['styles' => true, 'scripts' => true], WikiExtension::ui([])['assets']);
+    }
+
+    /**
+     * 1.29 layout: every option off by default (the 1.28 markup); the tree rail wires the panel state store and its
+     * endpoint without comments; the comments dock breakpoint; the compact header switches the page view actions to
+     * the split layout.
+     */
+    public function testTheLayoutOptions(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both'];
+        self::assertSame($defaults, $container->getParameter('nowo_wiki.web_ui.layout'));
+        /** @var array<string, mixed> $webUi */
+        $webUi = $container->getParameter('nowo_wiki.web_ui');
+        self::assertSame($defaults, $webUi['layout']);
+        self::assertFalse($container->hasDefinition(WikiTreeRail::class));
+        self::assertFalse($container->hasAlias(WikiPanelStateStoreInterface::class));
+        self::assertArrayNotHasKey('space_panel_state', (array) $container->getParameter('nowo_wiki.routes'));
+        self::assertFalse($container->getDefinition(WikiPageFactory::class)->getArgument('$compactHeader'));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => ['layout' => 'compact', 'title' => 'dedupe']],
+        ]], $container);
+        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe'];
+        self::assertSame($layout, $container->getParameter('nowo_wiki.web_ui.layout'));
+        /** @var array<string, array{path: string, name: string}> $routes */
+        $routes = $container->getParameter('nowo_wiki.routes');
+        self::assertSame('nowo_wiki_space_panel_state', $routes['space_panel_state']['name']);
+        self::assertArrayNotHasKey('page_comments', $routes);
+        self::assertSame(SessionWikiPanelStateStore::class, (string) $container->getAlias(WikiPanelStateStoreInterface::class));
+        $rail = $container->getDefinition(WikiTreeRail::class);
+        self::assertSame(WikiPanelStateStoreInterface::class, (string) $rail->getArgument('$state'));
+        self::assertTrue($rail->getArgument('$sessionStore'));
+        self::assertSame($routes, $rail->getArgument('$routes'));
+        self::assertFalse($container->hasDefinition(WikiCommentsPanel::class));
+        self::assertTrue($container->getDefinition(WikiPageFactory::class)->getArgument('$compactHeader'));
+
+        // With comments and a host store: one store for both, the dock breakpoint reaches the panel.
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'editor'     => ['type' => 'milkdown'],
+            'web_ui'     => ['tree_rail' => true],
+            'comments'   => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'state_store' => 'app.panel_state', 'dock_min_width' => 'lg'],
+        ]], $container);
+        self::assertSame('app.panel_state', (string) $container->getAlias(WikiPanelStateStoreInterface::class));
+        self::assertFalse($container->hasDefinition(SessionWikiPanelStateStore::class));
+        self::assertFalse($container->getDefinition(WikiTreeRail::class)->getArgument('$sessionStore'));
+        self::assertSame('lg', $container->getDefinition(WikiCommentsPanel::class)->getArgument('$dockMinWidth'));
+        self::assertFalse($container->getDefinition(WikiCommentsPanel::class)->getArgument('$sessionStore'));
+
+        // Comments with the session store: the dock default md, and the panel may fall back to localStorage.
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c']]], $container);
+        self::assertSame('md', $container->getDefinition(WikiCommentsPanel::class)->getArgument('$dockMinWidth'));
+        self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$sessionStore'));
+        self::assertFalse($container->hasDefinition(WikiTreeRail::class));
+
+        // Partial / odd input of the static helper.
+        self::assertSame($defaults, WikiExtension::layout([]));
+        self::assertSame($defaults, WikiExtension::layout(['tree_rail' => 'yes', 'page_header' => 'compact']));
+    }
+
+    public function testTheTreeRailIsALiteralBoolean(): void
+    {
+        $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        $container->registerExtension(new WikiExtension());
+        $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'web_ui' => ['tree_rail' => '%env(bool:WIKI_RAIL)%']]);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('nowo_wiki.web_ui.tree_rail must be a literal boolean');
+        (new MergeExtensionConfigurationPass())->process($container);
+    }
+
+    public function testTheDockWidthIsAnEnum(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'comments' => ['dock_min_width' => 'sm']]]);
     }
 
     public function testASlotMustBeATemplateName(): void

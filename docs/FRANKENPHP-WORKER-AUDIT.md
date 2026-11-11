@@ -80,6 +80,7 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 | `Attachment\WikiAttachmentService`, `LocalWikiAttachmentStorage`, `WikiAttachmentReferenceFilter`, `ConfiguredWikiAttachmentLimitsProvider`, `NullWikiAttachmentScanner` (1.9) | yes | none (`final readonly`); streams opened and closed in the same call | ✅ | ✅ |
 | `Link\WikiPageLinkService`, `DoctrineOrmWikiPageLinkRepository`, `DoctrineOrmWikiAttachmentRepository` (1.9) | yes | none (`final readonly`, `WikiEntityManagerProvider`) | ✅ | ✅ |
 | `Util\WikiSlugger` | yes | none | ✅ | ✅ |
+| `Panel\WikiTreeRail`, `Util\WikiTitleDedupe` (1.29) | yes | none (`final readonly` deps; the rail state is read from the panel state store per call, the dedupe is a pure static function); N-request test with two users in `WikiTreeRailTest` | ✅ | ✅ |
 | 2 console commands | yes | `readonly` deps; CLI only | ✅ N/A | ✅ N/A |
 
 Entities (`WikiSpace`, `WikiPage`, `WikiPageRevision`), DTOs, events and `Uuid` are created per call and are never stored in a service property. Because the resource block does not exclude `Entity/`, `Dto/` or `ValueObject/`, those classes are also registered as private services; they are never injected, so the container removes them at compile time.

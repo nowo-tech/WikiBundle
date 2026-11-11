@@ -75,6 +75,8 @@ final readonly class WikiPageFactory
      *                                             '' = no icon on that tab)
      * @param bool $importExportDialog 1.21 `web_ui.import_export: dialog`: one header action opens the Import & export
      *                                 dialog instead of the export actions (and the import card)
+     * @param bool $compactHeader 1.29 `web_ui.page_header.layout: compact`: the page view's header actions use the
+     *                            UiKit `split` layout (icon buttons, one primary, a "more" menu) beside the inline tabs
      */
     public function __construct(
         private UrlGeneratorInterface $urlGenerator,
@@ -83,6 +85,7 @@ final readonly class WikiPageFactory
         private ?string $dashboardRoute = null,
         private array $tabIcons = self::TAB_ICONS,
         private bool $importExportDialog = false,
+        private bool $compactHeader = false,
     ) {
     }
 
@@ -273,7 +276,7 @@ final readonly class WikiPageFactory
         }
 
         return new ShowPage(
-            header: (new PageHeader($page->getTitle(), $space->getName(), $actions, $this->crumbs($space, $page)))->withTabs($tabs),
+            header: (new PageHeader($page->getTitle(), $space->getName(), $actions, $this->crumbs($space, $page), actionsLayout: $this->compactHeader ? 'split' : 'toolbar'))->withTabs($tabs),
             meta: $meta,
             bundle: WikiPages::BUNDLE,
             layout: $this->pages->layout(),

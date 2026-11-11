@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { bindWikiComments, PANEL_ID, setCommentsCount, setNavigator, setStatePoster, showCommentsEditor, type SidePanelApi } from './wiki-comments';
+import {
+    bindWikiComments,
+    hideDuplicateTitle,
+    normaliseTitle,
+    openRequestedPanel,
+    PANEL_ID,
+    setCommentsCount,
+    setNavigator,
+    setStatePoster,
+    showCommentsEditor,
+    type SidePanelApi,
+} from './wiki-comments';
 
 type PanelWindow = Window & { NowoUiSidePanel?: SidePanelApi };
 
@@ -204,5 +215,74 @@ describe('wiki comments default transport', () => {
             headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-Token': 't' },
             body: JSON.stringify({ panel: 'comments', open: true }),
         });
+    });
+});
+
+describe('wiki comments 1.29: requested panel and title dedupe', () => {
+    beforeEach(() => {
+        document.body.innerHTML = markup;
+        bindWikiComments(document);
+    });
+
+    afterEach(() => {
+        delete (window as PanelWindow).NowoUiSidePanel;
+        document.body.innerHTML = '';
+    });
+
+    it('opens the panel asked for in the URL when it started closed (1.29)', () => {
+        const api = { open: vi.fn(() => true), isOpen: vi.fn(() => false), setCount: vi.fn() };
+        // Not asked for: nothing.
+        (window as PanelWindow).NowoUiSidePanel = api;
+        expect(openRequestedPanel(document)).toBe(false);
+
+        const panel = document.getElementById(PANEL_ID) as HTMLElement;
+        panel.setAttribute('data-nowo-wiki-comments-requested', '');
+        expect(openRequestedPanel()).toBe(true);
+        expect(api.open).toHaveBeenCalledWith(PANEL_ID);
+
+        // Already open (docked on a wide screen): no second open.
+        api.open.mockClear();
+        api.isOpen.mockReturnValue(true);
+        expect(openRequestedPanel(document)).toBe(false);
+        expect(api.open).not.toHaveBeenCalled();
+
+        // Without the UiKit script or without the panel.
+        delete (window as PanelWindow).NowoUiSidePanel;
+        expect(openRequestedPanel(document)).toBe(false);
+        (window as PanelWindow).NowoUiSidePanel = api;
+        panel.remove();
+        expect(openRequestedPanel(document)).toBe(false);
+    });
+
+    it('hides the read-only editor heading that repeats the title (1.29)', () => {
+        const view = document.getElementById('view') as HTMLElement;
+        const root = document.getElementById('root') as HTMLElement;
+        root.innerHTML = '<div class="ProseMirror" contenteditable="false"><h1> Deploy\n  RUNBOOK </h1><p>Steps</p></div>';
+        const heading = root.querySelector('h1') as HTMLElement;
+
+        // No title asked for: untouched.
+        expect(hideDuplicateTitle(view)).toBe(false);
+        expect(heading.hidden).toBe(false);
+
+        view.dataset.nowoWikiDedupeTitle = 'Deploy runbook';
+        fire(root, 'nowo-milkdown:ready');
+        expect(heading.hidden).toBe(true);
+        expect(view.hidden).toBe(false);
+        expect(normaliseTitle('  A \t B ')).toBe('a b');
+    });
+
+    it('keeps headings that differ, are not first or are not h1 (1.29)', () => {
+        const view = document.getElementById('view') as HTMLElement;
+        const root = document.getElementById('root') as HTMLElement;
+        view.dataset.nowoWikiDedupeTitle = 'Deploy';
+        for (const html of ['<h1>Deploy v2</h1>', '<h2>Deploy</h2>', '<p>x</p><h1>Deploy</h1>', '']) {
+            root.innerHTML = `<div class="ProseMirror">${html}</div>`;
+            expect(hideDuplicateTitle(view)).toBe(false);
+        }
+        root.innerHTML = '';
+        expect(hideDuplicateTitle(view)).toBe(false);
+        root.innerHTML = '<div class="ProseMirror"><h1></h1></div>';
+        view.dataset.nowoWikiDedupeTitle = '';
+        expect(hideDuplicateTitle(view)).toBe(false);
     });
 });

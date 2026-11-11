@@ -7,6 +7,7 @@
 - [Access control](#access-control)
 - [Content safety](#content-safety)
 - [Comments threat model (1.16)](#comments-threat-model-116)
+- [Page layout (1.29)](#page-layout-129)
 - [REST API (1.24, spec 218)](#rest-api-124-spec-218)
 - [Secrets and cryptography](#secrets-and-cryptography)
 - [Logging](#logging)
@@ -191,6 +192,19 @@ A page form saved outside the live session (hub down, editor standalone or offli
 | Live updates | With co-editing only: private Mercure topic `<collab topic>/comments`, granted with the co-editing topic in one subscriber cookie to viewers with `ViewComments`; messages carry thread ids, never bodies. |
 | Page source | **By default the read view never sends the Markdown source to viewers who may not edit the page** (DN-I2): they get the server-rendered body and, in the panel, the open threads rendered by the server (inline ones with their quote, which is text the anchor already holds). Only editors get the read-only Milkdown mount (they can read the source in the editor anyway); its responses are `Cache-Control: private, no-store`. **`comments.read_view_source: true` (opt-in, default false)** gives the mount — and so the whole source — to every viewer with `ViewComments`: HTML comments, raw link targets, reference definitions, hidden or disabled blocks, front matter, page ids and directive arguments that the per-viewer render hides. Enable it only when everyone with `ViewComments` may read the source. |
 | Storage | Threads, comments and reactions are deleted with their page: the trash purge deletes them explicitly (`WikiCommentRepositoryInterface::deleteForPages()`, children first) and the foreign keys cascade too on platforms that enforce them (audit EI-L5; SQLite without `foreign_keys` relies on the explicit deletes; a host deleting pages or spaces itself must call `deleteForPages()`). A user's deletion keeps their comments without an author (`SET NULL`) and drops their reactions; their page revisions stay too, shown as *Former person* (1.26, `author_id ... ON DELETE SET NULL`; until 1.25 they were deleted). Comments are not in exports, AI context or search. Every response that carries the panel or thread data is `Cache-Control: private, no-store`. |
+
+## Page layout (1.29)
+
+Re-verification pending (independent audit of 1.29.0 before the tag).
+
+| Item | Behaviour |
+|---|---|
+| Panel state endpoint | Unchanged checks (firewall-trusted user, readable space, same origin, CSRF token per space, JSON ≤ 16 KiB). It now also accepts `{panel: "tree_rail", open}`, only while `web_ui.tree_rail` is on, and `comments` only while comments are on (422 otherwise). The route exists when either feature is on. The stored value is a boolean per user and panel; nothing else is written. |
+| Rail and panel markup | Every value is server-built and escaped by Twig: the rail toggle `href` is the request path + `?tree=rail|full` and goes through UiKit `nowo_ui_safe_href()`, `state_url` likewise (a refused URL renders no store attributes); `js/nowo-ui-rail.js` posts only to its own origin. The comments toggle in the compact header is bundle-rendered markup; no user input is printed raw. The dedupe title is an attribute-escaped data attribute read with `dataset` and compared as text. |
+| localStorage | Only without a session and with the bundle's session store: keys `nowo-ui-panel:wiki-comments` / `nowo-ui-rail:wiki-tree` hold `open|closed` / `collapsed|expanded`, nothing per page or per user id; errors are ignored. |
+| Title dedupe | A render-time removal of the leading `<h1>` of the body when it equals the title, before the usual sanitizing; the stored revision, search, export and the API are unchanged. It never adds markup. |
+| Rendered content | The body gets `data-nowo-ui-rendered-content` (CSS and the UiKit scroll-region script only add `tabindex` / `role` to overflowing `pre` / `table`); the sanitizer allow-list is unchanged. |
+| Worker mode | `WikiTreeRail` is a stateless readonly service; the layout options are container parameters; nothing is kept between requests (N-request test with two users in `WikiTreeRailTest`). |
 
 ## REST API (1.24, spec 218)
 

@@ -70,9 +70,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Target: **1.28.1** (patch).
+Target: **1.29.0** (Symfony Beacon 1.149 wiki plan, **block A: layout** — the comments aside as a drawer, a
+collapsible page tree rail, a readable column with code / table overflow, a compact header). Needs
+`nowo-tech/ui-kit-bundle` **^2.48**. Every option is off by default; see [UPGRADING](UPGRADING.md#to-1290) for the
+two default changes (wide content scrolls inside the column; the UiKit scroll-region script on the read view). Page
+templates (block B) follow in 1.30.
+
+### Added
+
+- **Comments dock breakpoint (`comments.dock_min_width`: `md` default | `lg` | `xl`).** The panel docks as a column
+  only from 768 / 1200 / 1440 px and is the overlay drawer (focus moved in and back, Escape, backdrop, inert page,
+  Tab cycle — UiKit side panel) below. Passed to UiKit 2.48 `drawer_below` on the panel and its container. A panel the
+  server renders open (the remembered state) starts **closed** below an `lg` / `xl` breakpoint instead of opening as a
+  modal drawer on every load (UiKit audit LV-L2); the toggle opens it as a drawer. `?comments=1` (notification links,
+  the no-JavaScript link, the reload of a server-rendered list) still opens it: `wiki.js` opens it after load
+  (`data-nowo-wiki-comments-requested`).
+- **Remembered state without a session.** With the default session store and no session (stateless firewall), the
+  comments panel and the tree rail keep their state in `localStorage` (UiKit `persist`, keys `wiki-comments` /
+  `wiki-tree`); the blocking UiKit `js/nowo-ui-layout-state.js` is printed in the head when needed (lg / xl dock or a
+  `persist` key) so the remembered state applies before the first paint. A host store (`comments.state_store`) stays
+  primary and never uses `localStorage`.
+- **Page tree rail (`web_ui.tree_rail`, literal boolean, default `false`).** The tree card of the space home and the
+  page view gets the UiKit `rail_toggle` ("Collapse Pages" / "Expand Pages", `aria-controls`, `aria-expanded`, a link
+  to `?tree=rail|full` without JavaScript). Collapsed, the side column shrinks to `--nowo-ui-rail-width` (2.75rem)
+  with "Pages" written vertically; the title and the tree are `display: none` (out of the tab order and the
+  accessibility tree); focus stays on the toggle; no width transition under reduced motion. Below 62rem a collapsed
+  tree is a one-row bar. The state is per user in the panel state store (`WikiPanelStateStoreInterface::TREE_RAIL`,
+  "open" = collapsed, so nothing stored keeps the expanded tree), posted by `js/nowo-ui-rail.js` to the existing
+  `space_panel_state` endpoint (same CSRF token and same-origin check), which is now registered with the comments
+  **or** the rail. New service `Panel\WikiTreeRail` (stateless).
+- **`web_ui.narrow_tree_position`** (`before` default | `after`): on the page view below 62rem, the tree after the
+  page (replaces a host `order: 2` rule).
+- **`web_ui.reading_width`** (`full` default | `readable`): the page view's main column centred at
+  `--nowo-wiki-reading-width` (default the UiKit `--nowo-ui-reading-width`, `75ch`; class `nowo-wiki-reading` +
+  UiKit `nowo-ui-readable`).
+- **Compact header (`web_ui.page_header.layout`: `stacked` default | `compact`).** On the read and edit views the
+  page tabs and the actions share one row under the title (UiKit 2.48 `tabs_inline`); the read view's actions use the
+  UiKit `split` layout (icon buttons, one primary, a "more" menu) and the comments toggle sits at the end of that row,
+  so the separate tab row is not printed. New partials `_page_header_compact.html.twig` and `_comments_toggle.html.twig`
+  (the toggle, extracted from `_page_tabs.html.twig`; same markup).
+- **Title dedupe (`web_ui.page_header.title`: `both` default | `dedupe`).** On the read view a body that starts with
+  an `<h1>` whose text equals the page title (trimmed, whitespace collapsed, case-insensitive) does not repeat it:
+  the server body drops it at render time (`Util\WikiTitleDedupe`) and `wiki.js` hides that heading in the read-only
+  Milkdown view (`data-nowo-wiki-dedupe-title`; the document and the comment anchors are unchanged). The stored
+  revision, the editor, search, export and the API are untouched.
+- Twig blocks `wiki_page_body` (the body card) and `wiki_page_after_body` (after it, empty; e.g. backlinks) on the page
+  view.
 
 ### Changed
+
+- **Wide content no longer widens the page (default).** The main column is a `minmax(0, 1fr)` grid whose items may
+  shrink (`min-width: 0`), so a long code line or a wide table stays inside the column (the read-only Milkdown view's
+  CodeMirror blocks included: `.cm-editor` `max-width: 100%`, `.cm-scroller` scrolls). Hosts can drop their own
+  workaround (Beacon 1.148 `.nowo-wiki-comments-view { min-width: 0 }` / `.cm-editor { max-width: 100% }`).
+- **Tables scroll sideways (default).** The page body is UiKit rendered content (`data-nowo-ui-rendered-content`): a
+  table is a block as wide as its content, at most the column, and scrolls sideways (it was `width: 100%` and could
+  push the card past the viewport); narrow tables no longer stretch to the full width. `<pre>` keeps
+  `overflow-x: auto` and gets `max-width: 100%`.
+- The read view loads UiKit `js/nowo-ui-scroll-region.js`: an overflowing code block or table gets a tab stop (axe
+  `scrollable-region-focusable`). `wiki-code-blocks.ts` (1.17) is **deprecated** (it still names the code blocks it
+  marks and covers pages without the UiKit script; removed in 2.0).
+- `nowo-tech/ui-kit-bundle` constraint `^2.31` → `^2.48`.
+- `WikiCommentsPanel::panel()` adds `drawer_below`, `persist` and `open_requested`; `WikiCommentController` and
+  `WikiManageController` take an optional `$layout` (and the manage controller `?WikiTreeRail $treeRail`);
+  `WikiPageFactory` an optional `$compactHeader`. All optional, defaults keep 1.28.
+- The Twig global `nowo_wiki_web_ui` gains `layout` (`tree_rail`, `narrow_tree_position`, `reading_width`,
+  `page_header`, `title`); parameter `nowo_wiki.web_ui.layout`.
 
 - **Igor worker-state audit in CI.** A standalone `igor` job runs `composer igor` (igor-php, REQ-CS-008) on every push
   and pull request. The four findings igor reported on `src/Api/*` are false positives, each justified inline with

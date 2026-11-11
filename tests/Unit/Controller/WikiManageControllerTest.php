@@ -46,6 +46,7 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
+use Nowo\WikiBundle\Panel\WikiTreeRail;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -585,6 +586,60 @@ final class WikiManageControllerTest extends TestCase
 
         $this->expectException(AccessDeniedHttpException::class);
         $controller->archivePage($request, 'eng', 'welcome');
+    }
+
+    /**
+     * 1.29: the tree rail on the space home and the page view (web_ui.tree_rail), and the title dedupe of the read view
+     * (web_ui.page_header.title: dedupe) in the server body and as a hint for the read-only editor.
+     */
+    public function testTheTreeRailAndTheTitleDedupe(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<h1>Welcome</h1><p>Hi</p>', $user, "# Welcome\n\nHi"));
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $pageRepo->method('findActiveBySpace')->willReturn([$page]);
+        $router = $this->createStub(UrlGeneratorInterface::class);
+        $router->method('generate')->willReturnCallback(static fn (string $name): string => '/' . $name);
+        $csrf = $this->createStub(CsrfTokenManagerInterface::class);
+        $csrf->method('getToken')->willReturnCallback(static fn (string $id): CsrfToken => new CsrfToken($id, 'tok'));
+        $stack = new RequestStack();
+        $rail  = new WikiTreeRail(new SessionWikiPanelStateStore($stack), $router, $csrf, ['space_panel_state' => ['path' => '/s', 'name' => 'nowo_wiki_space_panel_state']]);
+
+        // Defaults: no rail, the body as written.
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        $twig       = $this->capturingTwig();
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->viewPage('eng', 'welcome');
+        self::assertArrayNotHasKey('tree_rail', $twig->context);
+        self::assertSame('<h1>Welcome</h1><p>Hi</p>', $twig->context['content_html']);
+        $controller->space('eng');
+        self::assertArrayNotHasKey('tree_rail', $twig->context);
+
+        // On: the rail on both views, the duplicate heading gone from the read view.
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'milkdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments]), treeRail: $rail, layout: ['title' => 'dedupe']);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        /** @var RequestStack $requests */
+        $requests = $container->get('request_stack');
+        $stack->push($requests->getCurrentRequest() ?? Request::create('/'));
+        $controller->viewPage('eng', 'welcome');
+        self::assertSame(WikiTreeRail::ID, $twig->context['tree_rail']['id']);
+        self::assertFalse($twig->context['tree_rail']['collapsed']);
+        self::assertSame('/nowo_wiki_space_panel_state', $twig->context['tree_rail']['state_url']);
+        self::assertSame('<p>Hi</p>', $twig->context['content_html']);
+        self::assertSame('Welcome', $twig->context['comments_view']['dedupe_title']);
+        $controller->space('eng');
+        self::assertSame(WikiTreeRail::ID, $twig->context['tree_rail']['id']);
+
+        // Without dedupe the read-only editor gets no hint.
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, editor: ['type' => 'milkdown', 'tiptap_config' => 'notion'], commentsPanel: $this->commentsPanel($space, [WikiAction::ViewComments]));
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->viewPage('eng', 'welcome');
+        self::assertNull($twig->context['comments_view']['dedupe_title']);
     }
 
     public function testSpaceRendersTree(): void
@@ -2562,6 +2617,8 @@ MD);
         ?WikiHistoryTimeline $timeline = null,
         ?WikiCommentsPanel $commentsPanel = null,
         ?WikiQuotaGate $quota = null,
+        ?WikiTreeRail $treeRail = null,
+        array $layout = [],
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -2612,6 +2669,8 @@ MD);
             timeline: $timeline,
             commentsPanel: $commentsPanel,
             quota: $quota,
+            treeRail: $treeRail,
+            layout: $layout,
         );
     }
 
