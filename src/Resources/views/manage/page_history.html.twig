@@ -7,7 +7,8 @@
   and session (number of saves on the newest row of a session, else empty); row action Copy to new page (POST + CSRF).
   1.16: rows also hold author_named (the author is shown under a real name) and author_avatar (picture URL or ''): a
   named author gets the UiKit avatar (xs, decorative) before the name; a hidden one never gets an avatar.
-  Blocks filled: nowo_ui_styles, nowo_ui_list_row (the current revision gets a badge).
+  1.30: history_tabs (web_ui.page_header.tabs: toolbar) adds Back to page / Edit / History as header icon buttons.
+  Blocks filled: nowo_ui_styles, nowo_ui_page_header (1.30), nowo_ui_list_row (the current revision gets a badge).
 #}
 {% extends '@NowoUiKit/page/list.html.twig' %}
 {% trans_default_domain 'NowoWikiBundle' %}
@@ -23,6 +24,16 @@
 {% block nowo_ui_scripts %}
     {#- 1.21 web_ui.assets.scripts: false = the host bundles the assets (nothing printed here) -#}
     {% if nowo_wiki_web_ui.assets.scripts ?? true %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}
+
+{#- 1.30 web_ui.page_header.tabs: toolbar: Back to page / Edit / History (current, aria-current) as header icon buttons
+    (history_tabs from WikiPageFactory::pageTabs(…, 'history'), set by the controller only with that option). -#}
+{% block nowo_ui_page_header %}
+    {% if history_tabs|default(null) %}
+        {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header, bundle: page.bundle, nowo_ui_page_type: 'list', extra_actions: nowo_wiki_tab_actions(history_tabs, nowo_ui_kit_icon_set|default('bootstrap-icons')), header_actions: true}, false) }}
+    {% else %}
         {{ parent() }}
     {% endif %}
 {% endblock %}

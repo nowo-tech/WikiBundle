@@ -115,6 +115,7 @@ wiki:
     history: History
     unarchive: 'Restore page'
     used_in: 'Used in'
+    toolbar: 'Page actions'
     files: 'Files'
     file: 'File'
     file_image: 'Image'

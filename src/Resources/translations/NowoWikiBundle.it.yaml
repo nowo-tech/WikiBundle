@@ -115,6 +115,7 @@ wiki:
     history: Cronologia
     unarchive: 'Ripristina pagina'
     used_in: 'Usata in'
+    toolbar: 'Azioni della pagina'
     files: 'File'
     file: 'File'
     file_image: 'Immagine'

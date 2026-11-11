@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     bindWikiComments,
+    DEDUPED_ATTR,
     hideDuplicateTitle,
     isDrawerLayout,
     normaliseTitle,
@@ -263,12 +264,22 @@ describe('wiki comments 1.29: requested panel and title dedupe', () => {
 
         // No title asked for: untouched.
         expect(hideDuplicateTitle(view)).toBe(false);
-        expect(heading.hidden).toBe(false);
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(false);
 
         view.dataset.nowoWikiDedupeTitle = 'Deploy runbook';
         fire(root, 'nowo-milkdown:ready');
-        expect(heading.hidden).toBe(true);
+        // 1.30: the wrapper is marked (wiki.css hides the heading); the editor's own DOM is never changed, so a
+        // ProseMirror redraw cannot bring the title back.
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(true);
+        expect(heading.hidden).toBe(false);
+        expect(heading.getAttributeNames()).toEqual([]);
         expect(view.hidden).toBe(false);
+        // Redrawn by the editor (a new node): the marker still applies; a later non-matching body clears it.
+        root.querySelector('.ProseMirror')!.innerHTML = '<h1>Deploy runbook</h1>';
+        expect(hideDuplicateTitle(view)).toBe(true);
+        root.querySelector('.ProseMirror')!.innerHTML = '<h1>Other</h1>';
+        expect(hideDuplicateTitle(view)).toBe(false);
+        expect(view.hasAttribute(DEDUPED_ATTR)).toBe(false);
         expect(normaliseTitle('  A \t B ')).toBe('a b');
     });
 

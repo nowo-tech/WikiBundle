@@ -71,6 +71,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: **1.30.0** (minor; Symfony Beacon 1.149 wiki follow-up). Every new option is off by default: the 1.29 pages are
+unchanged. See [CONFIGURATION › Page layout](CONFIGURATION.md#page-layout-129) and
+[USAGE › Page layout](USAGE.md#page-layout-129).
+
+### Added
+
+- **Host toolbar slot:** block `wiki_page_header_toolbar` on the page view and the edit form, also filled by the new
+  `web_ui.slots.page_header_toolbar` template. Host buttons go into the toolbar of the compact header (or the end of
+  the stacked tab row, or the content-card toolbar) before the tree and comments toggles, through the UiKit
+  `page_header` contract (`toolbar`), so a host no longer overrides `nowo_ui_page_header` to add its buttons.
+- **`web_ui.page_header.title: body`:** when the body starts with an `<h1>` equal to the title (the `dedupe` match,
+  `WikiTitleDedupe::startsWithTitle()`), the page view header is drawn in the UiKit compact presentation: no visible
+  title, no space subtitle, no breadcrumbs (the title stays a visually hidden `<h1>`). The body, server-rendered and
+  read-only Milkdown alike, keeps its heading. No matching heading: the header is unchanged.
+- **`web_ui.tree_collapsed_mode: hidden`** (with `tree_rail`): a collapsed tree is not drawn at all and the main
+  column takes the width; an expand button (UiKit `rail_toggle`, `manage/_tree_toggle.html.twig`) sits in the page
+  toolbar next to the comments toggle, shown only while the tree is collapsed. State as before (panel state store,
+  `?tree=`); wiki.js moves the focus between the two toggles. Default `rail` (1.29).
+- **`web_ui.reading_align: start`** (with `reading_width: readable`): the reading column sits next to the tree with
+  the same maximum width. Default `center` (1.29).
+- **`web_ui.page_header.tabs: toolbar`:** no tab row; on the page view Edit (pencil) and History (clock) are icon
+  buttons of the toolbar, in the order tree toggle, Edit, History, host buttons, comments, actions / "more"; on the
+  edit form and the history "Back to page" replaces the Page tab. The current view keeps `aria-current="page"`; the
+  buttons are named by their translated labels. Twig function `nowo_wiki_tab_actions()` (`Ui\WikiTabActions`): the
+  tab icon when the UiKit icon set can draw it, else a canonical kind. Default `row` (1.29).
+- **`web_ui.page_header.toolbar_position: card`:** the page view toolbar moves to the top right of the content
+  (server body and read-only editor, `.nowo-wiki-card-frame`), sticky while scrolling (`--nowo-wiki-card-toolbar-top`,
+  `--nowo-wiki-card-toolbar-inset`), above the content (z-index 3) and before it in the tab order; the body's first
+  block keeps clear of it (`--nowo-wiki-card-toolbar-width`, published by wiki.js). Under 40rem it is a row above
+  the content. With `title: body` the page starts with the card and its `<h1>`. Default `header` (1.29).
+- Translation key `wiki.page.toolbar` (the card toolbar's name).
+
+### Fixed
+
+- **`title: dedupe` on the read-only Milkdown view:** editors (and commenters with the page source) saw the title
+  twice. wiki.js set `hidden` on the editor's first `<h1>`, which ProseMirror reverts at once (it redraws a node whose
+  DOM attributes change). The view wrapper now gets `data-nowo-wiki-title-deduped` and wiki.css hides
+  `.ProseMirror > h1:first-child`; the editor's own DOM is never touched.
+
 ## [1.29.0] - 2026-11-11
 
 Target: **1.29.0** (Symfony Beacon 1.149 wiki plan, **block A: layout** — the comments aside as a drawer, a

@@ -80,6 +80,19 @@
 
 ## Unreleased
 
+Target **1.30.0**. Nothing to change: every new option is off by default and the 1.29 pages render the same markup.
+
+- A host that overrides `nowo_ui_page_header` of the page view / edit form only to add toolbar buttons can drop the
+  override and fill the block `wiki_page_header_toolbar` (or `web_ui.slots.page_header_toolbar`); see
+  [USAGE › 1.30 additions](USAGE.md#130-additions).
+- Opt in to `web_ui.tree_collapsed_mode`, `web_ui.reading_align`, `web_ui.page_header.title: body`,
+  `web_ui.page_header.tabs` and `web_ui.page_header.toolbar_position` as needed
+  ([CONFIGURATION](CONFIGURATION.md#page-layout-129)). A host sidebar (`wiki_sidebar` / `web_ui.slots.sidebar`) that
+  keeps the rail markup (`id="nowo-wiki-tree"`, `data-nowo-ui-rail-host`, the body `id="nowo-wiki-tree-body"`) works
+  with `tree_collapsed_mode: hidden` unchanged.
+- `title: dedupe` now hides the read-only editor's heading through wiki.css: a host that bundles the assets
+  (`web_ui.assets: false`) rebuilds from `wiki.css` / `wiki.ts`.
+
 ## To 1.29.0
 
 From **1.28.0**:

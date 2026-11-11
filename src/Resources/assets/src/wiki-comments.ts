@@ -132,31 +132,33 @@ export function normaliseTitle(text: string): string {
 /** Content that is more than text (as `WikiTitleDedupe::NON_TEXT`): such a heading is never hidden. */
 export const NON_TEXT = 'img, svg, picture, video, audio, iframe, object, embed, canvas, input, math, button, select, textarea';
 
+/** Marker of a read-only view whose first heading repeats the title (wiki.css hides that heading). */
+export const DEDUPED_ATTR = 'data-nowo-wiki-title-deduped';
+
 /**
  * 1.29 (`web_ui.page_header.title: dedupe`): hides the read-only editor's first block when it is an `<h1>` whose text
  * equals the page title (`data-nowo-wiki-dedupe-title`). Only the DOM node is hidden: the editor document, and so the
  * comment anchors, stay as they are.
+ *
+ * 1.30 fix: the heading is hidden by wiki.css through a marker on the view wrapper (`data-nowo-wiki-title-deduped`,
+ * `.ProseMirror > h1:first-child`), never by changing the editor's own DOM: ProseMirror watches its DOM and redraws a
+ * node whose attributes changed, so the 1.29 `hidden` attribute was dropped right away and editors saw the title twice.
  *
  * @param view - The read-only view (`[data-nowo-wiki-comments-view]`).
  * @returns Whether a heading was hidden.
  */
 export function hideDuplicateTitle(view: HTMLElement): boolean {
     const title = normaliseTitle(view.dataset.nowoWikiDedupeTitle ?? '');
-    const editor = view.querySelector<HTMLElement>('[contenteditable]') ?? view.querySelector<HTMLElement>('.ProseMirror');
-    const first = editor?.firstElementChild;
-    if (
-        title === ''
-        || !(first instanceof HTMLHeadingElement)
-        || first.tagName !== 'H1'
+    const first = view.querySelector<HTMLElement>('.ProseMirror')?.firstElementChild;
+    const match = title !== ''
+        && first instanceof HTMLHeadingElement
+        && first.tagName === 'H1'
         // Audit MA-I1: a heading with more than text stays.
-        || first.querySelector(NON_TEXT) !== null
-        || normaliseTitle(`${first.textContent}`) !== title
-    ) {
-        return false;
-    }
-    first.hidden = true;
+        && first.querySelector(NON_TEXT) === null
+        && normaliseTitle(`${first.textContent}`) === title;
+    view.toggleAttribute(DEDUPED_ATTR, match);
 
-    return true;
+    return match;
 }
 
 /**

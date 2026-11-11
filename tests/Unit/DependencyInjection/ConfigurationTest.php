@@ -378,7 +378,24 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($defaults['web_ui']['tree_rail']);
         self::assertSame('before', $defaults['web_ui']['narrow_tree_position']);
         self::assertSame('full', $defaults['web_ui']['reading_width']);
-        self::assertSame(['layout' => 'stacked', 'title' => 'both'], $defaults['web_ui']['page_header']);
+        self::assertSame(['layout' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header'], $defaults['web_ui']['page_header']);
+        // 1.30 layout defaults keep the 1.29 page.
+        self::assertSame('rail', $defaults['web_ui']['tree_collapsed_mode']);
+        self::assertSame('center', $defaults['web_ui']['reading_align']);
+        self::assertNull($defaults['web_ui']['slots']['page_header_toolbar']);
+        $on = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'web_ui' => ['tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'page_header' => ['title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => 'card'], 'slots' => ['page_header_toolbar' => 'wiki/_toolbar.html.twig']]]]);
+        self::assertSame(['title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'layout' => 'stacked'], $on['web_ui']['page_header']);
+        self::assertSame('hidden', $on['web_ui']['tree_collapsed_mode']);
+        self::assertSame('start', $on['web_ui']['reading_align']);
+        self::assertSame('wiki/_toolbar.html.twig', $on['web_ui']['slots']['page_header_toolbar']);
+        foreach ([['tree_collapsed_mode' => 'gone'], ['reading_align' => 'end'], ['page_header' => ['tabs' => 'menu']], ['page_header' => ['toolbar_position' => 'footer']], ['page_header' => ['title' => 'none']]] as $bad) {
+            try {
+                (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'web_ui' => $bad]]);
+                self::fail('Accepted a bad layout value.');
+            } catch (InvalidConfigurationException $exception) {
+                self::assertStringContainsString('web_ui', $exception->getMessage());
+            }
+        }
         self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}', $defaults['routes']['page_comments']['path']);
         self::assertSame('nowo_wiki_space_panel_state', $defaults['routes']['space_panel_state']['name']);
         $ok = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'comments' => ['shortcut' => 'Control+Alt+M']]]);

@@ -10,6 +10,8 @@
   Variables: tabs (View\AreaNav), comments (WikiCommentsPanel::panel() or null), bundle.
   1.29: the toggle is _comments_toggle.html.twig; with web_ui.page_header.layout: compact this row is not printed (the
   tabs and the toggle go into the header, _page_header_compact.html.twig).
+  1.30: host_toolbar (block wiki_page_header_toolbar / web_ui.slots.page_header_toolbar) and tree_toggle
+  (web_ui.tree_collapsed_mode: hidden) are printed at the end of the row, before the comments toggle.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
 {% set _b = bundle|default(null) %}
@@ -24,9 +26,12 @@
         level: 'secondary',
         bundle: _b,
     }, false) }}
-    {% if comments|default(null) %}
+    {% set _host = host_toolbar|default('')|trim %}
+    {% set _tree = tree_toggle|default('')|trim %}
+    {% if comments|default(null) or _host is not empty or _tree is not empty %}
         <div class="nowo-wiki-tabs__end">
-            {{ include('@NowoWikiBundle/manage/_comments_toggle.html.twig', {comments: comments, bundle: _b}, false) }}
+            {{- _host|raw -}}{{- _tree|raw -}}
+            {% if comments|default(null) %}{{ include('@NowoWikiBundle/manage/_comments_toggle.html.twig', {comments: comments, bundle: _b}, false) }}{% endif %}
         </div>
     {% endif %}
 </div>

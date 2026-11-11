@@ -63,6 +63,45 @@ final class PageContractTest extends PageContractTestCase
         yield 'page view (layout 1.29, reader, no session)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layoutContext(PageFixtures::pageView(false, self::compactFactory(), true, false), true));
         yield 'space (tree rail)' => new PageFixture('@NowoWikiBundle/manage/space.html.twig', self::layoutContext(PageFixtures::spaceHome()));
         yield 'page edit (compact header)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', self::layoutContext(PageFixtures::pageForm(true, null, true)));
+        // 1.30 layout options: everything on.
+        yield 'page view (layout 1.30)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layout130(PageFixtures::pageView(true, self::compactFactory(), false)));
+        yield 'page view (layout 1.30, toolbar in the header)' => new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', self::layout130(PageFixtures::pageView(true, self::compactFactory(), false), 'header'));
+        yield 'page edit (tabs toolbar)' => new PageFixture('@NowoWikiBundle/manage/page_edit.html.twig', self::layout130(PageFixtures::pageForm(true, null, true)));
+        yield 'history (tabs toolbar)' => new PageFixture('@NowoWikiBundle/manage/page_history.html.twig', self::historyTabs());
+    }
+
+    /**
+     * 1.30: every layout option on (tree hidden mode, reading column at the start, title in the body, tabs in the
+     * toolbar, toolbar in the content card unless $position is header, a host toolbar slot), on top of 1.29's.
+     *
+     * @param array<string, mixed> $context
+     *
+     * @return array<string, mixed>
+     */
+    private static function layout130(array $context, string $position = 'card'): array
+    {
+        $context                               = self::layoutContext($context);
+        $context['nowo_wiki_web_ui']['layout'] = ['tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => $position] + $context['nowo_wiki_web_ui']['layout'];
+        $context['nowo_wiki_web_ui']['slots']  = ['page_header_toolbar' => 'slots/page_header_toolbar.html.twig'];
+        $context['title_in_body']              = true;
+        $context['tree_rail']['collapsed']     = true;
+
+        return $context;
+    }
+
+    /**
+     * 1.30: the history with the tabs as header buttons (web_ui.page_header.tabs: toolbar, the controller's history_tabs).
+     *
+     * @return array<string, mixed>
+     */
+    private static function historyTabs(bool $edit = true): array
+    {
+        $context                 = PageFixtures::history();
+        $space                   = PageFixtures::space('engineering', 'Engineering');
+        [, $page]                = PageFixtures::pages($space);
+        $context['history_tabs'] = PageFixtures::factory()->pageTabs($space, $page, ['edit' => $edit, 'history' => true], 'history');
+
+        return $context;
     }
 
     /**
@@ -204,6 +243,134 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringContainsString('nowo-ui-page-header--tabs-inline', $plain);
         self::assertStringNotContainsString('wiki-comments-toggle', $plain);
         self::assertStringNotContainsString('nowo-ui-layout-state.js', $plain);
+    }
+
+    /**
+     * 1.30 host toolbar slot: the block wiki_page_header_toolbar (or web_ui.slots.page_header_toolbar) is printed in
+     * the toolbar of the compact header before the comments toggle, at the end of the stacked tab row, and on the edit
+     * form; nothing without it (the 1.29 markup).
+     */
+    public function testTheHostToolbarSlot(): void
+    {
+        $default = $this->renderWithKitHeader(self::layoutContext(PageFixtures::pageView(true, self::compactFactory(), false)), '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertStringNotContainsString('host-toolbar-button', $default);
+        self::assertStringNotContainsString('host-block-button', $default);
+
+        // Compact header, config slot: in the toolbar after the split actions, before the comments toggle.
+        $context                              = self::layoutContext(PageFixtures::pageView(true, self::compactFactory(), false));
+        $context['nowo_wiki_web_ui']['slots'] = ['page_header_toolbar' => 'slots/page_header_toolbar.html.twig'];
+        $html                                 = $this->renderWithKitHeader($context, '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertSame(1, substr_count($html, 'data-testid="host-toolbar-button">Copy NowoWikiBundle</button>'));
+        self::assertSame(1, preg_match('#nowo-ui-page-header__bar.*?data-nowo-ui-header-actions.*?data-testid="host-toolbar-button".*?data-testid="wiki-comments-toggle"#s', $html));
+
+        // A host template that extends the page view: the block, with the page variables, and parent() = the slot.
+        $html = $this->renderWithKitHeader($context, 'host/page_view_toolbar.html.twig');
+        self::assertSame(1, preg_match('#data-testid="host-block-button">Copy</button><button type="button" data-testid="host-toolbar-button">#', $html));
+
+        // Stacked header: at the end of the tab row, before the comments toggle.
+        $stacked = PageFixtures::pageView(true, null, false) + ['nowo_wiki_web_ui' => ['slots' => ['page_header_toolbar' => 'slots/page_header_toolbar.html.twig']]];
+        $html    = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $stacked))->html;
+        self::assertSame(1, preg_match('#data-testid="wiki-tabs".*?nowo-wiki-tabs__end.*?data-testid="host-toolbar-button".*?data-testid="wiki-comments-toggle"#s', $html));
+        // Without comments the end of the row holds the host buttons alone.
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView() + ['nowo_wiki_web_ui' => ['slots' => ['page_header_toolbar' => 'slots/page_header_toolbar.html.twig']]]))->html;
+        self::assertSame(1, preg_match('#nowo-wiki-tabs__end">\s*<button type="button" data-testid="host-toolbar-button">#', $html));
+
+        // Edit form, compact and stacked.
+        $edit = $this->renderWithKitHeader(self::layoutContext(PageFixtures::pageForm(true, null, true)), 'host/page_edit_toolbar.html.twig');
+        self::assertSame(1, preg_match('#nowo-ui-page-header__bar.*?data-testid="host-block-button">Edit help</button>.*?data-testid="wiki-comments-toggle"#s', $edit));
+        $edit = $this->renderPage(new PageFixture('host/page_edit_toolbar.html.twig', PageFixtures::pageForm(true, null, true)))->html;
+        self::assertSame(1, preg_match('#nowo-wiki-tabs__end">.*?data-testid="host-block-button"#s', $edit));
+        // A new page has no tabs, so no toolbar slot.
+        $new = $this->renderPage(new PageFixture('host/page_edit_toolbar.html.twig', PageFixtures::pageForm(false)))->html;
+        self::assertStringNotContainsString('host-block-button', $new);
+    }
+
+    /**
+     * 1.30 layout options: tree_collapsed_mode hidden (expand button in the toolbar, rail host CSS hook),
+     * reading_align start, title body (UiKit compact presentation of the header), tabs toolbar (icon buttons with
+     * labels, aria-current, no tab row) and toolbar_position card (the toolbar in the content frame, out of the header).
+     */
+    public function testTheLayout130Options(): void
+    {
+        // Toolbar in the header: one row, no tabs, the order tree / Edit / History / host / comments / actions.
+        $header = $this->renderWithKitHeader(self::layout130(PageFixtures::pageView(true, self::compactFactory(), false), 'header'), '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertStringNotContainsString('data-testid="wiki-tab-edit"', $header);
+        self::assertStringNotContainsString('data-testid="wiki-tabs"', $header);
+        self::assertStringNotContainsString('wiki-toolbar-back', $header);
+        self::assertSame(1, preg_match('#data-testid="wiki-tree-toggle".*?data-testid="wiki-toolbar-edit".*?data-testid="wiki-toolbar-history".*?data-testid="host-toolbar-button".*?data-testid="wiki-comments-toggle".*?data-nowo-ui-header-actions#s', $header));
+        // Icon buttons named by their (translated) label; the tree toggle controls the tree body, without the vertical title.
+        self::assertSame(1, preg_match('#<a [^>]*href="/nowo_wiki_page_edit\?spaceSlug=engineering&amp;pageSlug=deploy"[^>]*data-testid="wiki-toolbar-edit"[^>]*aria-label="Edit"#', $header));
+        self::assertSame(1, preg_match('#data-testid="wiki-toolbar-history"[^>]*aria-label="History"#', $header));
+        self::assertSame(1, preg_match('#class="[^"]*nowo-wiki-tree-toggle[^"]*" aria-controls="nowo-wiki-tree-body" aria-expanded="false"[^>]*data-testid="wiki-tree-toggle"#', $header));
+        self::assertSame(1, substr_count($header, 'nowo-ui-rail-toggle__title'), 'Only the card toggle shows the vertical title.');
+        // Title in the body: the UiKit compact presentation (title visually hidden, no subtitle).
+        self::assertStringContainsString('nowo-ui-page-header--compact', $header);
+        self::assertSame(1, preg_match('#<h1 class="[^"]*visually-hidden">Deploy</h1>#', $header));
+        self::assertStringNotContainsString('nowo-ui-page-header__intro', $header);
+        // Tree hidden mode and the reading column at the start.
+        self::assertStringContainsString('nowo-wiki-layout--tree-hidden', $header);
+        self::assertStringContainsString('nowo-wiki-reading nowo-ui-readable nowo-wiki-reading--start', $header);
+        self::assertStringNotContainsString('data-nowo-wiki-card-frame', $header);
+
+        // Toolbar in the card: the header keeps nothing but the (hidden) title; the frame holds the toolbar first, then
+        // the read-only editor and the server body.
+        $card = $this->renderWithKitHeader(self::layout130(PageFixtures::pageView(true, self::compactFactory(), false)), '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertSame(1, preg_match('#data-nowo-ui-region="header"(?:(?!</h1>).)*</h1>\s*</div>\s*</div>#s', $card), 'No toolbar row left in the header.');
+        self::assertStringContainsString('data-nowo-ui-page-header-empty', $card);
+        self::assertSame(1, preg_match('#<div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>\s*<div class="nowo-wiki-card-toolbar" data-nowo-wiki-card-toolbar>\s*<div class="nowo-wiki-card-toolbar__bar" role="toolbar" aria-label="Page actions" data-testid="wiki-card-toolbar">.*?data-testid="wiki-tree-toggle".*?data-testid="wiki-toolbar-edit".*?data-testid="wiki-comments-toggle".*?data-nowo-ui-header-actions.*?data-testid="wiki-comments-view".*?data-nowo-wiki-server-body#s', $card));
+        self::assertSame(1, substr_count($card, 'data-testid="wiki-comments-toggle"'));
+        self::assertSame(1, substr_count($card, 'data-testid="host-toolbar-button"'));
+        self::assertSame(1, substr_count($card, 'data-testid="wiki-tree-toggle"'));
+
+        // Card position with the tabs kept (tabs: row): the tabs stay in the header, no tab buttons in the card.
+        $context                                        = self::layout130(PageFixtures::pageView(true, self::compactFactory(), false));
+        $context['nowo_wiki_web_ui']['layout']['tabs']  = 'row';
+        $context['nowo_wiki_web_ui']['layout']['title'] = 'both';
+        unset($context['title_in_body']);
+        $rowTabs = $this->renderWithKitHeader($context, '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertSame(1, preg_match('#nowo-ui-page-header__bar.*?data-testid="wiki-tab-edit"#s', $rowTabs));
+        self::assertStringNotContainsString('wiki-toolbar-edit', $rowTabs);
+        self::assertStringContainsString('data-testid="wiki-card-toolbar"', $rowTabs);
+        self::assertStringNotContainsString('nowo-ui-page-header--compact', $rowTabs);
+
+        // Card position for a reader without anything to show: no empty toolbar box.
+        $reader                               = PageFixtures::pageView(false, self::compactFactory());
+        $reader['nowo_wiki_web_ui']['layout'] = ['toolbar_position' => 'card'];
+        $html                                 = $this->renderWithKitHeader($reader, '@NowoWikiBundle/manage/page_view.html.twig');
+        self::assertStringContainsString('data-nowo-wiki-card-frame', $html);
+        self::assertStringNotContainsString('data-nowo-wiki-card-toolbar', $html);
+
+        // Stacked header with the tree hidden mode: the expand button at the end of the tab row.
+        $stacked                     = PageFixtures::pageView(true, null, false);
+        $stacked['nowo_wiki_web_ui'] = ['layout' => ['tree_collapsed_mode' => 'hidden']];
+        $stacked['tree_rail']        = self::layoutContext([])['tree_rail'];
+        $html                        = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $stacked))->html;
+        self::assertSame(1, preg_match('#nowo-wiki-tabs__end">.*?data-testid="wiki-tree-toggle".*?data-testid="wiki-comments-toggle"#s', $html));
+        self::assertStringContainsString('nowo-wiki-layout--tree-hidden', $html);
+        // The hidden mode without the tree rail does nothing.
+        unset($stacked['tree_rail']);
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', $stacked))->html;
+        self::assertStringNotContainsString('wiki-tree-toggle', $html);
+        self::assertStringNotContainsString('nowo-wiki-layout--tree-hidden', $html);
+        // reading_align start without reading_width readable: nothing.
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', ['nowo_wiki_web_ui' => ['layout' => ['reading_align' => 'start']]] + PageFixtures::pageView()))->html;
+        self::assertStringNotContainsString('nowo-wiki-reading--start', $html);
+
+        // Title in the body with the stacked header: the UiKit compact presentation too.
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', ['title_in_body' => true] + PageFixtures::pageView()))->html;
+        self::assertStringContainsString('data-testid="wiki-tabs"', $html);
+
+        // Edit form with the tabs in the toolbar: Back to page, Edit current (aria-current), History.
+        $edit = $this->renderWithKitHeader(self::layout130(PageFixtures::pageForm(true, null, true)), '@NowoWikiBundle/manage/page_edit.html.twig');
+        self::assertStringNotContainsString('data-testid="wiki-tab-page"', $edit);
+        self::assertSame(1, preg_match('#data-testid="wiki-toolbar-back"[^>]*aria-label="Back to the page".*?data-testid="wiki-toolbar-edit" aria-current="page".*?data-testid="wiki-toolbar-history".*?data-testid="host-toolbar-button".*?data-testid="wiki-comments-toggle"#s', $edit));
+
+        // History with the tabs as header buttons.
+        $history = $this->renderWithKitHeader(self::historyTabs(), '@NowoWikiBundle/manage/page_history.html.twig');
+        self::assertSame(1, preg_match('#data-testid="wiki-toolbar-back".*?data-testid="wiki-toolbar-edit".*?data-testid="wiki-toolbar-history" aria-current="page"#s', $history));
+        $reader = $this->renderWithKitHeader(self::historyTabs(false), '@NowoWikiBundle/manage/page_history.html.twig');
+        self::assertStringNotContainsString('wiki-toolbar-edit', $reader);
+        self::assertStringNotContainsString('wiki-toolbar-back', $this->renderWithKitHeader(PageFixtures::history(), '@NowoWikiBundle/manage/page_history.html.twig'));
     }
 
     public function testPageTreeNestsListsAndMarksTheCurrentPage(): void
@@ -364,6 +531,10 @@ final class PageContractTest extends PageContractTestCase
             'slots/sidebar.html.twig'           => '<aside data-testid="host-sidebar">{{ page.bundle }}</aside>',
             'slots/space_intro.html.twig'       => '<p data-testid="host-intro">{{ page.bundle }}</p>',
             'slots/page_header_extra.html.twig' => '<p data-testid="host-header-extra">{{ page.bundle }}</p>',
+            // 1.30: host toolbar buttons (slot and block).
+            'slots/page_header_toolbar.html.twig' => '<button type="button" data-testid="host-toolbar-button">Copy {{ page.bundle }}</button>',
+            'host/page_view_toolbar.html.twig'    => "{% extends '@NowoWikiBundle/manage/page_view.html.twig' %}{% block wiki_page_header_toolbar %}<button type=\"button\" data-testid=\"host-block-button\">{{ can_edit ? 'Copy' : 'none' }}</button>{{ parent() }}{% endblock %}",
+            'host/page_edit_toolbar.html.twig'    => "{% extends '@NowoWikiBundle/manage/page_edit.html.twig' %}{% block wiki_page_header_toolbar %}<button type=\"button\" data-testid=\"host-block-button\">Edit help</button>{% endblock %}",
             // Audit HO-L2: the shape of a host template that replaces the block with no parent().
             'host/page_edit_bare.html.twig' => "{% extends '@NowoWikiBundle/manage/page_edit.html.twig' %}{% block nowo_ui_content %}{% if collab_conflict|default(null) %}{{ include('@NowoWikiBundle/manage/_collab_conflict.html.twig', {collab_conflict: collab_conflict, bundle: page.bundle}, false) }}{% endif %}{{ form_start(page.form, {attr: page.formAttributes}) }}{{ form_end(page.form) }}{% endblock %}",
         ]), $twig->getLoader()]));

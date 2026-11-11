@@ -8,22 +8,49 @@
   the stacked header.
   Variables: header (View\PageHeader with tabs), comments (WikiCommentsPanel::panel() or null), extra_actions (list of
   View\Action, optional), bundle, nowo_ui_page_type.
+  1.30 (all optional; without them the 1.29 markup): host_toolbar (pre-rendered host buttons, block
+  wiki_page_header_toolbar / web_ui.slots.page_header_toolbar) and tree_toggle (_tree_toggle.html.twig) go before the
+  comments toggle; tabs_toolbar (web_ui.page_header.tabs: toolbar) leaves the tabs out and puts them in the toolbar as
+  icon buttons, in the order of _page_toolbar.html.twig; toolbar_in_card (toolbar_position: card) leaves the whole
+  toolbar out (the page view prints it in the content card); title_in_body (title: body, the body starts with the
+  title) renders the header in the UiKit compact presentation (no breadcrumbs, intro or back link; the title a
+  visually hidden h1).
 #}
 {% set _b = bundle|default(null) %}
 {% set _pt = nowo_ui_page_type|default(null) %}
-{% set _presentation = nowo_ui_header_presentation(null) %}
+{% set _host_presentation = nowo_ui_header_presentation(null) %}
+{% set _presentation = title_in_body|default(false) is same as(true) ? 'compact' : _host_presentation %}
 {% set _compact = _presentation == 'compact' %}
-{% set _with_actions = not (_compact and nowo_ui_header.compactActions() == 'bar') %}
+{% set _with_actions = not (_host_presentation == 'compact' and nowo_ui_header.compactActions() == 'bar') %}
 {% set _header = header.withActions((_with_actions ? header.actions : [])|merge(extra_actions|default([]))) %}
-{% set _toggle %}{% if comments|default(null) %}{{ include('@NowoWikiBundle/manage/_comments_toggle.html.twig', {comments: comments, bundle: _b}, false) }}{% endif %}{% endset %}
-{{ include(nowo_ui_partial('page_header', _b), {
-    header: _header,
-    actions: _header.actions,
-    toolbar: _toggle|trim is empty ? null : _toggle|trim,
-    region: 'header',
-    bundle: _b,
-    nowo_ui_page_type: _pt,
-    presentation: _presentation,
-    title_hidden: _compact or _presentation in ['no_title', 'no_header'],
-    tabs_inline: true,
-}, false) }}
+{% set _tabs_toolbar = tabs_toolbar|default(false) is same as(true) %}
+{% set _in_card = toolbar_in_card|default(false) is same as(true) %}
+{% if _tabs_toolbar or _in_card %}
+    {#- 1.30: the toolbar in its fixed order (or nowhere: the page view prints it in the content card) -#}
+    {% set _toolbar %}{% if not _in_card %}{{ include('@NowoWikiBundle/manage/_page_toolbar.html.twig', {header: _header, tabs: _tabs_toolbar ? header.tabs : null, tree_toggle: tree_toggle|default(''), host_toolbar: host_toolbar|default(''), comments: comments|default(null), bundle: _b, nowo_ui_page_type: _pt}, false) }}{% endif %}{% endset %}
+    {{ include(nowo_ui_partial('page_header', _b), {
+        header: _tabs_toolbar ? _header.withTabs(null) : _header,
+        actions: _header.actions,
+        toolbar: _toolbar|trim is empty ? null : _toolbar|trim,
+        header_actions_rendered: true,
+        region: 'header',
+        bundle: _b,
+        nowo_ui_page_type: _pt,
+        presentation: _presentation,
+        title_hidden: _compact or _presentation in ['no_title', 'no_header'],
+        tabs_inline: true,
+    }, false) }}
+{% else %}
+    {% set _toggle %}{{ host_toolbar|default('')|raw }}{{ tree_toggle|default('')|raw }}{% if comments|default(null) %}{{ include('@NowoWikiBundle/manage/_comments_toggle.html.twig', {comments: comments, bundle: _b}, false) }}{% endif %}{% endset %}
+    {{ include(nowo_ui_partial('page_header', _b), {
+        header: _header,
+        actions: _header.actions,
+        toolbar: _toggle|trim is empty ? null : _toggle|trim,
+        region: 'header',
+        bundle: _b,
+        nowo_ui_page_type: _pt,
+        presentation: _presentation,
+        title_hidden: _compact or _presentation in ['no_title', 'no_header'],
+        tabs_inline: true,
+    }, false) }}
+{% endif %}

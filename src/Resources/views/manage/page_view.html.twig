@@ -31,6 +31,14 @@
   so it keeps its table semantics — js/nowo-ui-scroll-region.js makes them keyboard reachable) and the main
   column never widens past its track (grid fix). Blocks wiki_page_body (the body card) and wiki_page_after_body (after
   it, before "Used in"; empty) for templates that extend this one.
+  1.30 (every option off by default): block wiki_page_header_toolbar (host buttons, web_ui.slots.page_header_toolbar)
+  printed in the toolbar before the tree and comments toggles; web_ui.tree_collapsed_mode: hidden (with tree_rail) hides
+  a collapsed tree entirely (.nowo-wiki-layout--tree-hidden) and puts its expand button (_tree_toggle.html.twig) in the
+  toolbar; web_ui.reading_align: start keeps the readable column at the start (.nowo-wiki-reading--start);
+  page_header.title: body with title_in_body (the body starts with the title) renders the header without title and
+  subtitle (UiKit compact presentation); page_header.tabs: toolbar puts Edit / History as icon buttons in the toolbar
+  (no tab row); page_header.toolbar_position: card prints the toolbar (_page_toolbar.html.twig) sticky at the top right
+  of the content, around the server body and the read-only editor (.nowo-wiki-card-frame).
   Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the rich-content assets + wiki.js: scrolls the current page of the tree into view, draws rich content; 1.16 + nowo-ui-side-panel.js with comments), nowo_ui_page_header (the UiKit header without its tabs + the tab row), nowo_ui_content (1.16: inside the side panel container with comments), nowo_ui_show_sections (sidebar tree + content + "Used in").
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
@@ -63,17 +71,28 @@
     {% endif %}
 {% endblock %}
 
+{#- 1.30: host buttons of the page header toolbar (web_ui.slots.page_header_toolbar, else empty). A template that extends
+    this one fills it; it is printed where the toolbar is (header, tab row or content card), with the page variables. -#}
+{% block wiki_page_header_toolbar %}{% if nowo_wiki_web_ui.slots.page_header_toolbar ?? null %}{{ include(nowo_wiki_web_ui.slots.page_header_toolbar) }}{% endif %}{% endblock %}
+
 {% block nowo_ui_page_header %}
+    {% set _layout = nowo_wiki_web_ui.layout ?? {} %}
+    {#- 1.30: page_header.tabs: toolbar and toolbar_position: card use the one-row header too -#}
+    {% set _tabs_toolbar = (_layout.tabs ?? 'row') == 'toolbar' %}
+    {% set _in_card = (_layout.toolbar_position ?? 'header') == 'card' %}
     {#- 1.29 web_ui.page_header.layout: compact = tabs and actions in the header, one row (no tab row) -#}
-    {% set _compact_header = (nowo_wiki_web_ui.layout.page_header ?? 'stacked') == 'compact' and page.header.tabs %}
+    {% set _compact_header = ((_layout.page_header ?? 'stacked') == 'compact' or _tabs_toolbar or _in_card) and page.header.tabs %}
+    {% set _host_toolbar %}{% if page.header.tabs and not _in_card %}{{ block('wiki_page_header_toolbar') }}{% endif %}{% endset %}
+    {#- 1.30 web_ui.tree_collapsed_mode: hidden — the tree's expand button sits in the toolbar -#}
+    {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' and page.header.tabs and not _in_card %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: page.bundle}, false) }}{% endif %}{% endset %}
     {% if _compact_header %}
-        {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: comments|default(null), bundle: page.bundle, nowo_ui_page_type: 'show'}, false) }}
+        {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: _in_card ? null : comments|default(null), bundle: page.bundle, nowo_ui_page_type: 'show', host_toolbar: _host_toolbar, tree_toggle: _tree_toggle, tabs_toolbar: _tabs_toolbar, toolbar_in_card: _in_card, title_in_body: title_in_body|default(false)}, false) }}
     {% else %}
-        {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'show', extra_actions: [], header_actions: true}, false) }}
+        {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'show', extra_actions: [], header_actions: true, presentation: title_in_body|default(false) ? 'compact' : null}, false) }}
     {% endif %}
     {#- 1.21: after the header, before the tab row (web_ui.slots.page_header_extra, else nothing) -#}
     {% block wiki_page_header_extra %}{% if nowo_wiki_web_ui.slots.page_header_extra ?? null %}{{ include(nowo_wiki_web_ui.slots.page_header_extra) }}{% endif %}{% endblock %}
-    {% if page.header.tabs and not _compact_header %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle}, false) }}{% endif %}
+    {% if page.header.tabs and not _compact_header %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle, host_toolbar: _host_toolbar, tree_toggle: _tree_toggle}, false) }}{% endif %}
 {% endblock %}
 
 {% block nowo_ui_content %}
@@ -91,7 +110,7 @@
 {% block nowo_ui_show_sections %}
     {% set _b = page.bundle %}
     {% set _layout = nowo_wiki_web_ui.layout ?? {} %}
-    <div class="nowo-wiki-layout{{ (_layout.narrow_tree_position ?? 'before') == 'after' ? ' nowo-wiki-layout--tree-after' }}">
+    <div class="nowo-wiki-layout{{ (_layout.narrow_tree_position ?? 'before') == 'after' ? ' nowo-wiki-layout--tree-after' }}{{ tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' and page.header.tabs ? ' nowo-wiki-layout--tree-hidden' }}">
         <div class="nowo-wiki-layout__aside">
             {% block wiki_sidebar %}
                 {%- if nowo_wiki_web_ui.slots.sidebar ?? null -%}
@@ -101,9 +120,22 @@
                 {%- endif -%}
             {% endblock %}
         </div>
-        <div class="nowo-wiki-layout__main{{ (_layout.reading_width ?? 'full') == 'readable' ? ' nowo-wiki-reading nowo-ui-readable' }}">
+        <div class="nowo-wiki-layout__main{{ (_layout.reading_width ?? 'full') == 'readable' ? ' nowo-wiki-reading nowo-ui-readable' ~ ((_layout.reading_align ?? 'center') == 'start' ? ' nowo-wiki-reading--start') }}">
             {# 1.15: editors only; a separate template so pages without Milkdown 1.5 never compile the function #}
             {% if copy_markdown|default(null) %}{{ include('@NowoWikiBundle/manage/_copy_markdown.html.twig', {source: copy_markdown, bundle: _b}, false) }}{% endif %}
+            {#- 1.30 web_ui.page_header.toolbar_position: card — the toolbar at the top right of the content (server body and
+                read-only editor alike), sticky while the page scrolls -#}
+            {% set _in_card = (_layout.toolbar_position ?? 'header') == 'card' and page.header.tabs %}
+            {% if _in_card %}
+                {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: _b}, false) }}{% endif %}{% endset %}
+                {% set _toolbar %}{{ include('@NowoWikiBundle/manage/_page_toolbar.html.twig', {header: page.header, tabs: (_layout.tabs ?? 'row') == 'toolbar' ? page.header.tabs : null, tree_toggle: _tree_toggle, host_toolbar: block('wiki_page_header_toolbar'), comments: comments|default(null), bundle: _b, nowo_ui_page_type: 'show'}, false) }}{% endset %}
+                <div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>
+                {% if _toolbar|trim is not empty %}
+                    <div class="nowo-wiki-card-toolbar" data-nowo-wiki-card-toolbar>
+                        <div class="nowo-wiki-card-toolbar__bar" role="toolbar" aria-label="{{ 'wiki.page.toolbar'|trans }}" data-testid="wiki-card-toolbar">{{ _toolbar|trim|raw }}</div>
+                    </div>
+                {% endif %}
+            {% endif %}
             {# 1.16: commenters get the page as a read-only editor (highlights, the thread component); hidden until it is ready #}
             {% if comments_view|default(null) %}
                 {{ include('@NowoWikiBundle/manage/_comments_view.html.twig', {comments_view: comments_view}, false) }}
@@ -115,6 +147,7 @@
                 </div>
             </article>
             {% endblock %}
+            {% if _in_card %}</div>{% endif %}
             {#- 1.29: after the body, before "Used in" (empty; e.g. a host's backlinks) -#}
             {% block wiki_page_after_body %}{% endblock %}
             {% if used_in|default([]) is not empty %}

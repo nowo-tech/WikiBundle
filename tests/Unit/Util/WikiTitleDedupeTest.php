@@ -40,6 +40,8 @@ final class WikiTitleDedupeTest extends TestCase
     public function testStrip(string $html, string $title, string $expected): void
     {
         self::assertSame($expected, WikiTitleDedupe::strip($html, $title));
+        // 1.30 (title: body): the same match tells whether the body starts with the title.
+        self::assertSame($expected !== $html, WikiTitleDedupe::startsWithTitle($html, $title));
     }
 
     public function testNormalise(): void

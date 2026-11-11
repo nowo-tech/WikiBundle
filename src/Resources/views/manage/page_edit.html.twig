@@ -13,6 +13,8 @@
   container with comments); nowo_ui_form_body keeps the default REQ-TWIG-003 child loop.
   1.29: web_ui.page_header.layout: compact prints _page_header_compact.html.twig (tabs and actions on one row, no tab
   row); comments.drawer_below / persist as on the read view (js/nowo-ui-layout-state.js in the head when needed).
+  1.30: block wiki_page_header_toolbar (web_ui.slots.page_header_toolbar) for host buttons in the toolbar / tab row;
+  page_header.tabs: toolbar puts Back to page / Edit (aria-current) / History in the toolbar as icon buttons.
 #}
 {% extends '@NowoUiKit/page/form.html.twig' %}
 
@@ -45,13 +47,21 @@
     {% endif %}
 {% endblock %}
 
+{#- 1.30: host buttons of the page header toolbar (web_ui.slots.page_header_toolbar, else empty), printed in the toolbar
+    (compact header) or at the end of the tab row (stacked), before the comments toggle; only with the page tabs. -#}
+{% block wiki_page_header_toolbar %}{% if nowo_wiki_web_ui.slots.page_header_toolbar ?? null %}{{ include(nowo_wiki_web_ui.slots.page_header_toolbar) }}{% endif %}{% endblock %}
+
 {% block nowo_ui_page_header %}
+    {% set _layout = nowo_wiki_web_ui.layout ?? {} %}
+    {#- 1.30 page_header.tabs: toolbar = Back to page / Edit (current) / History as toolbar buttons, one-row header -#}
+    {% set _tabs_toolbar = (_layout.tabs ?? 'row') == 'toolbar' %}
+    {% set _host_toolbar %}{% if page.header.tabs %}{{ block('wiki_page_header_toolbar') }}{% endif %}{% endset %}
     {#- 1.29 web_ui.page_header.layout: compact = tabs and actions in the header, one row (no tab row) -#}
-    {% if (nowo_wiki_web_ui.layout.page_header ?? 'stacked') == 'compact' and page.header.tabs %}
-        {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: comments|default(null), extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], bundle: page.bundle, nowo_ui_page_type: 'form'}, false) }}
+    {% if ((_layout.page_header ?? 'stacked') == 'compact' or _tabs_toolbar) and page.header.tabs %}
+        {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: comments|default(null), extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], bundle: page.bundle, nowo_ui_page_type: 'form', host_toolbar: _host_toolbar, tabs_toolbar: _tabs_toolbar}, false) }}
     {% else %}
         {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'form', extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], header_actions: true}, false) }}
-        {% if page.header.tabs %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle}, false) }}{% endif %}
+        {% if page.header.tabs %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle, host_toolbar: _host_toolbar}, false) }}{% endif %}
     {% endif %}
 {% endblock %}
 
