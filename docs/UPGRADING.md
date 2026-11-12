@@ -103,6 +103,8 @@ card`, `web_ui.page_meta: card`, `comments.layout: overlay`, `comments.thread_li
   placeholder whatever its language, so refresh the search column of older revisions once:
   `bin/console wiki:search:backfill-text --all`. Revisions saved before 1.31 keep the old text in `content_html`
   until they are saved again; an API client that showed that text should treat the hidden span as the marker.
+  HTML revisions lose the `nowo-md-ref*` classes on save (an author cannot hide text from search with a forged
+  marker); stored ones are cleaned on their next save, and `--all` only drops spans whose class has the exact token.
 - **Search excerpts** leave out a leading heading equal to the page title (a page whose body is only that heading has
   an empty excerpt).
 - **Task checkboxes.** The sanitizer keeps the disabled checkbox of MilkdownEditorBundle >= 1.17 task items (only as

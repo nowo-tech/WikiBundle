@@ -434,6 +434,8 @@ revisions written before 1.16 with `bin/console wiki:search:backfill-text` (`--d
 `aria-label` when present (`WikiHtmlSanitizer::TASK_BOX_ATTRIBUTES`); any other `<input>`, and any other attribute
 (`on*`, `name`, `value`, `form`, `formaction`, `src`, `style`), is removed. `input` stays forbidden in
 `extra_allowed_elements`.
+HTML revisions (authored HTML) also lose the renderers' reference classes (`nowo-md-ref`, `nowo-md-ref--*`) on save, so
+only rendered Markdown carries the hidden-reference marker that plain text and search drop (audit NB-W-1).
 
 Page bodies (HTML revisions and the render cache of Markdown revisions) go through `WikiHtmlSanitizer`. An editor dialect that emits more markup declares it here:
 

@@ -128,6 +128,14 @@ and [UPGRADING](UPGRADING.md#to-1310).
   (`Markdown\Milkdown\WikiNeutralTranslator`); plain text drops hidden references in any language (run
   `wiki:search:backfill-text --all` once). The neutral cache still resolves nothing (no title, id or URL of a hidden
   target), and readers keep getting the per-viewer render.
+- **Audit NB-W-1 (Low):** the hidden-marker match of the plain text needed a whole class token (`-` was a boundary, so
+  `foo-nowo-md-ref--hidden-x` matched), and authored HTML could wrap its own text in that marker to keep it out of
+  `content_text` and search. The match now uses `(?<![\w-])nowo-md-ref--hidden(?![\w-])` on the `class` attribute
+  only, and HTML revisions lose the renderers' `nowo-md-ref*` classes on save
+  (`WikiHtmlSanitizer::withoutServerClasses()`); rendered Markdown keeps its marker.
+- **Audit NB-W-2 (Info):** the auditor's fuzz payloads for the task-checkbox post-pass are pinned as regression tests
+  (case, unquoted attributes, two inputs, comments, CDATA, `<input` in attributes / text / pre, forged and suffixed
+  task classes, nested lists, svg / math / textarea wrappers, hostile labels, `checked` only as a value).
 
 ## [1.30.0] - 2026-11-11
 

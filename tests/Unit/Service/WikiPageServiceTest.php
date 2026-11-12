@@ -5,12 +5,18 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Service;
 
 use InvalidArgumentException;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\AllowlistIconResolver;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullPageResolver;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullUserResolver;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
+use Nowo\WikiBundle\Search\WikiPlainText;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Service\WikiPageArchivedEvent;
 use Nowo\WikiBundle\Service\WikiPageService;
@@ -43,6 +49,26 @@ final class WikiPageServiceTest extends TestCase
 
         self::assertSame('hello', $page->getSlug());
         self::assertTrue($dispatched);
+    }
+
+    /**
+     * Audit NB-W-1: authored HTML cannot forge the hidden-reference marker (its text stays searchable); the marker the
+     * Milkdown renderer writes for a hidden page link survives the same save path.
+     */
+    public function testAuthoredHtmlCannotForgeTheHiddenMarker(): void
+    {
+        $pageRepo = $this->createStub(WikiPageRepositoryInterface::class);
+        $pageRepo->method('countBySpaceAndSlug')->willReturn(0);
+        $space    = new WikiSpace('docs', 'Docs', WikiSpaceOwnerScope::Team, 't1');
+        $renderer = new MilkdownWikiMarkdownRenderer([], new NullPageResolver(), new NullUserResolver(), new AllowlistIconResolver('/icons.svg', []));
+        $service  = new WikiPageService($pageRepo, $this->createStub(WikiPageRevisionRepositoryInterface::class), new WikiSlugger(), new WikiHtmlSanitizer(), new EventDispatcher(), markdownRenderer: $renderer);
+
+        $html = $service->create($space, 'Forged', '<p>Shown <span class="nowo-md-ref nowo-md-ref--hidden">secret words</span></p>', new TestUser());
+        self::assertSame('<p>Shown <span>secret words</span></p>', $html->getCurrentRevision()?->getContentHtml());
+        self::assertSame('Shown secret words', WikiPlainText::fromHtml((string) $html->getCurrentRevision()?->getContentHtml()));
+
+        $markdown = $service->create($space, 'Linked', 'See [[wiki:0b6f4f0e-3c55-4d0a-9a43-1f7a2c9e8d10]].', new TestUser(), format: WikiPageRevision::FORMAT_MARKDOWN);
+        self::assertStringContainsString('<span class="nowo-md-ref nowo-md-ref--hidden"></span>', (string) $markdown->getCurrentRevision()?->getContentHtml());
     }
 
     public function testRejectsDuplicateSlug(): void

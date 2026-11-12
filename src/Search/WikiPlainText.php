@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Search;
 
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 
 use function chr;
 use function dechex;
@@ -46,9 +47,11 @@ final class WikiPlainText
 
     /**
      * 1.31: the placeholder of a reference the reader may not see (`nowo-md-ref--hidden`). Since 1.31 the shared cache
-     * stores it empty; revisions saved before hold a text translated in the saver's locale, which is dropped too.
+     * stores it empty; revisions saved before hold a text translated in the saver's locale, which is dropped too. The
+     * class must be a whole token of the `class` attribute (audit NB-W-1: `-` is not a boundary, `data-class` is not
+     * `class`); since 1.31 authored HTML cannot carry it ({@see WikiHtmlSanitizer::withoutServerClasses()}).
      */
-    private const HIDDEN_REF = '~<span\b[^>]*\bclass\s*=\s*(["\'])[^"\']*\bnowo-md-ref--hidden\b[^"\']*\1[^>]*>[^<]*</span\s*>~i';
+    private const HIDDEN_REF = '~<span\b[^>]*\sclass\s*=\s*(["\'])(?:(?!\1).)*?(?<![\w-])nowo-md-ref--hidden(?![\w-])(?:(?!\1).)*\1[^>]*>[^<]*</span\s*>~is';
 
     /**
      * The text of rendered HTML with one space between blocks: "<h2>Overview</h2><p>This runbook…" reads

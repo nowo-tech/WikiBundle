@@ -13,21 +13,27 @@ use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizerInterface;
 
 use function array_diff;
+use function array_filter;
 use function array_keys;
 use function array_merge;
 use function array_unique;
 use function array_values;
 use function get_debug_type;
+use function implode;
 use function in_array;
 use function is_array;
 use function is_string;
 use function preg_match;
 use function preg_replace;
 use function preg_replace_callback;
+use function preg_split;
 use function sprintf;
 use function str_starts_with;
 use function stripos;
 use function strtolower;
+use function trim;
+
+use const PREG_SPLIT_NO_EMPTY;
 
 /**
  * Allowlist-based HTML sanitizer for wiki page bodies (mitigates stored XSS).
@@ -249,6 +255,27 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
         $html = preg_replace('#<iframe\b(?![^>]*\ssrc=")[^>]*>.*?</iframe>#is', '', $html) ?? $html;
 
         return $this->taskBoxes($html);
+    }
+
+    /**
+     * 1.31 (audit NB-W-1): `class="…"` of sanitized HTML without the server-only reference classes (`nowo-md-ref`,
+     * `nowo-md-ref--*`), which only the Markdown renderers write: the hidden-reference marker the plain text drops and the
+     * resolved-link style. Applied to authored HTML (HTML revisions), never to rendered Markdown, so an author cannot
+     * hide text from search with a forged marker. Works on the sanitizer's canonical, double-quoted output; a class
+     * attribute left empty is removed.
+     */
+    public static function withoutServerClasses(string $html): string
+    {
+        if (stripos($html, 'nowo-md-ref') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback('#\sclass="([^"]*)"#i', static function (array $match): string {
+            $tokens = preg_split('/\s+/', trim($match[1]), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $kept   = array_filter($tokens, static fn (string $token): bool => preg_match('/^nowo-md-ref(?:--[\w-]*)?$/i', $token) !== 1);
+
+            return $kept === [] ? '' : ' class="' . implode(' ', $kept) . '"';
+        }, $html) ?? $html;
     }
 
     /**
