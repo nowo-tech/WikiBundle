@@ -9,7 +9,10 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function preg_match_all;
 use function substr_count;
+
+use const PHP_VERSION_ID;
 
 final class WikiHtmlSanitizerTest extends TestCase
 {
@@ -77,7 +80,9 @@ final class WikiHtmlSanitizerTest extends TestCase
         yield 'two inputs in one item' => ['<ul><li class="nowo-milkdown-task"><input type="checkbox" checked><input type="text" onfocus="x"><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task">' . $box . ' checked /><div>a</div></li></ul>'];
         yield 'not the first child' => ['<ul><li class="nowo-milkdown-task"><div>a</div><input type="checkbox"></li></ul>', '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
         yield 'comment before the input (the sanitizer drops it)' => ['<ul><li class="nowo-milkdown-task"><!-- c --><input type="checkbox" checked><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task">' . $box . ' checked /><div>a</div></li></ul>'];
-        yield 'CDATA' => ['<ul><li class="nowo-milkdown-task"><![CDATA[<input type="checkbox">]]><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
+        // The parser decides what CDATA in HTML leaves behind: PHP >= 8.4 (native Dom\HTMLDocument) keeps "]]>" as text,
+        // the older parser drops it. Either way no input or markup comes through (asserted for every case below).
+        yield 'CDATA' => ['<ul><li class="nowo-milkdown-task"><![CDATA[<input type="checkbox">]]><div>a</div></li></ul>', PHP_VERSION_ID >= 80400 ? '<ul><li class="nowo-milkdown-task">]]&gt;<div>a</div></li></ul>' : '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
         yield '<input in attribute values' => ['<p title="<input type=checkbox>">x</p><ul><li class="nowo-milkdown-task" title="<input checked>"><div>a</div></li></ul>', '<p title="&lt;input type&#61;checkbox&gt;">x</p><ul><li class="nowo-milkdown-task" title="&lt;input checked&gt;"><div>a</div></li></ul>'];
         yield '<input in text and pre' => ['<p>&lt;input type="checkbox"&gt; and <code>&lt;input&gt;</code></p><pre>&lt;input checked&gt;</pre>', '<p>&lt;input type&#61;&#34;checkbox&#34;&gt; and <code>&lt;input&gt;</code></p><pre>&lt;input checked&gt;</pre>'];
         yield 'task class inside a title' => ['<ul><li title=\' class="nowo-milkdown-task"\'><input type="checkbox"><div>a</div></li></ul>', '<ul><li title=" class&#61;&#34;nowo-milkdown-task&#34;"><div>a</div></li></ul>'];
@@ -99,6 +104,12 @@ final class WikiHtmlSanitizerTest extends TestCase
         self::assertSame($expected, $result);
         self::assertDoesNotMatchRegularExpression('#<input\b[^>]*\s(?:on[a-z]+|name|value|form|formaction|style|src|autofocus|title)\b#i', $result);
         self::assertSame(substr_count($result, '<input'), substr_count($result, '<input type="checkbox" class="nowo-milkdown-task__box" disabled'));
+        self::assertDoesNotMatchRegularExpression('#<(?:img|script|svg|math|textarea)\b|\son[a-z]+\s*=#i', $result);
+        // Every rebuilt box carries only the allowed attributes.
+        preg_match_all('#<input\b([^>]*)/>#', $result, $boxes);
+        foreach ($boxes[1] as $attributes) {
+            self::assertMatchesRegularExpression('#^ type="checkbox" class="nowo-milkdown-task__box" disabled(?: checked)?(?: aria-label="[^"]*")? $#', $attributes);
+        }
     }
 
     /** Audit NB-W-1: the renderers' reference classes leave authored HTML; other classes and attributes stay. */
