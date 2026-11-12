@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiSpaceService;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class WikiSpaceServiceTest extends TestCase
@@ -32,6 +33,30 @@ final class WikiSpaceServiceTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
         (new WikiSpaceService($repo, new WikiSlugger()))->create('X', WikiSpaceOwnerScope::Team, 'team-1');
+    }
+
+    /**
+     * 1.31.1 (house rule LQ): an owner id a collation could confuse with another owner's is refused before any lookup.
+     */
+    #[DataProvider('unusableOwnerIds')]
+    public function testRejectsUnusableOwnerId(string $ownerId): void
+    {
+        $repo = $this->createMock(WikiSpaceRepositoryInterface::class);
+        $repo->expects(self::never())->method('findBySlug');
+        $repo->expects(self::never())->method('save');
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid space owner id');
+        (new WikiSpaceService($repo, new WikiSlugger()))->create('X', WikiSpaceOwnerScope::User, $ownerId);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function unusableOwnerIds(): iterable
+    {
+        yield 'trailing space' => ['alice '];
+        yield 'leading space' => [' alice'];
+        yield 'zero-width space' => ["ali\u{200B}ce"];
+        yield 'empty' => [''];
     }
 
     public function testRejectsInvalidSlug(): void

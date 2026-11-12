@@ -8,10 +8,13 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
+use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\User\UserInterface;
+
+use function str_repeat;
 
 final class WikiSpaceAccessResolverTest extends TestCase
 {
@@ -76,5 +79,48 @@ final class WikiSpaceAccessResolverTest extends TestCase
             ->listSpacesForUser(new TestUser());
 
         self::assertSame([], $spaces);
+    }
+
+    /**
+     * 1.31.1 (house rule LQ): an id a collation could confuse with another owner's (padded, control or format
+     * characters, too long, invalid UTF-8) is never sent to the database; integer ids are compared as strings.
+     */
+    public function testDropsUnusableTeamIdsAndStringifiesIntegers(): void
+    {
+        $teams = $this->createMock(WikiTeamMembershipResolverInterface::class);
+        $teams->method('getTeamIdsForUser')->willReturn(['team-1', 'team-1 ', ' team-1', "team\u{200B}1", "team\t1", '', str_repeat('t', 65), "\xC3", 7]);
+
+        $repo = $this->createMock(WikiSpaceRepositoryInterface::class);
+        $repo->expects(self::once())
+            ->method('findAccessible')
+            ->with(WikiSpaceOwnerScope::Team->value, ['team-1', '7'])
+            ->willReturn([]);
+
+        (new WikiSpaceAccessResolver($repo, $teams, 'team'))->listSpacesForUser(new TestUser());
+    }
+
+    /** 1.31.1 (house rule LQ): a padded user identifier owns nothing, so no query runs for it. */
+    public function testPaddedUserIdentifierSeesNoSpace(): void
+    {
+        $user = new class implements UserInterface {
+            public function getUserIdentifier(): string
+            {
+                return 'alice ';
+            }
+
+            public function getRoles(): array
+            {
+                return ['ROLE_USER'];
+            }
+
+            public function eraseCredentials(): void
+            {
+            }
+        };
+
+        $repo = $this->createMock(WikiSpaceRepositoryInterface::class);
+        $repo->expects(self::once())->method('findAccessible')->with(WikiSpaceOwnerScope::User->value, [])->willReturn([]);
+
+        self::assertSame([], (new WikiSpaceAccessResolver($repo, new NullWikiTeamMembershipResolver(), 'user'))->listSpacesForUser($user));
     }
 }

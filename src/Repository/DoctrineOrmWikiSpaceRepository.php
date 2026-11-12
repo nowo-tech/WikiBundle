@@ -11,6 +11,10 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use SortDirection;
 
+use function array_filter;
+use function array_values;
+use function in_array;
+
 /**
  * Lookups refresh already-managed spaces ({@see Query::HINT_REFRESH}) so changes made by another
  * worker are not hidden by a stale identity map.
@@ -68,8 +72,8 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
      */
     public function findBySlug(WikiSpaceOwnerScope $scopeType, string $ownerScopeId, string $slug): ?WikiSpace
     {
-        /** @var WikiSpace|null $space */
-        $space = $this->entityManager()->createQueryBuilder()
+        /** @var list<WikiSpace> $spaces */
+        $spaces = $this->entityManager()->createQueryBuilder()
             ->select('s')
             ->from(WikiSpace::class, 's')
             ->where('s.ownerScopeType = :scopeType')
@@ -78,12 +82,19 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
             ->setParameter('scopeType', $scopeType->value)
             ->setParameter('scopeId', $ownerScopeId)
             ->setParameter('slug', $slug)
-            ->setMaxResults(1)
             ->getQuery()
             ->setHint(Query::HINT_REFRESH, true)
-            ->getOneOrNullResult();
+            ->getResult();
 
-        return $space;
+        // 1.31.1 (house rule LQ): the SQL match is only a pre-filter. A case- or accent-folding or PAD SPACE
+        // collation also returns the space of a look-alike owner (`Alice`, `alice `); only the exact one counts.
+        foreach ($spaces as $space) {
+            if ($space->getOwnerScopeType() === $scopeType && $space->getOwnerScopeId() === $ownerScopeId && $space->getSlug() === $slug) {
+                return $space;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -124,8 +135,8 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
             return [];
         }
 
-        /* @var list<WikiSpace> */
-        return $this->entityManager()->createQueryBuilder()
+        /** @var list<WikiSpace> $spaces */
+        $spaces = $this->entityManager()->createQueryBuilder()
             ->select('s')
             ->from(WikiSpace::class, 's')
             ->where('s.ownerScopeType = :scopeType')
@@ -136,6 +147,14 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
             ->getQuery()
             ->setHint(Query::HINT_REFRESH, true)
             ->getResult();
+
+        // 1.31.1 (house rule LQ): re-check the owner with `===`. The column collation may fold case and accents and
+        // ignore trailing spaces, so the SQL `IN` also returns the spaces of look-alike owners (`Alice`, `alice `).
+        return array_values(array_filter(
+            $spaces,
+            static fn (WikiSpace $space): bool => $space->getOwnerScopeType()->value === $ownerScopeType
+                && in_array($space->getOwnerScopeId(), $ownerScopeIds, true),
+        ));
     }
 
     private function entityManager(): EntityManagerInterface

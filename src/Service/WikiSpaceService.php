@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use Nowo\WikiBundle\ValueObject\WikiOwnerScopeId;
 
 /**
  * Creates and resolves wiki spaces.
@@ -35,7 +36,9 @@ final readonly class WikiSpaceService implements WikiSpaceServiceInterface
      * @param string $ownerScopeId identifier of the owning team or user
      * @param string|null $slug explicit slug, or null to slugify the name
      *
-     * @throws InvalidArgumentException when the slug is invalid or already used by this owner
+     * @throws InvalidArgumentException when the owner id is not usable ({@see WikiOwnerScopeId}: leading or trailing
+     *                                  whitespace, control or format characters, over 64 characters), or when the slug
+     *                                  is invalid or already used by this owner
      *
      * @return WikiSpace the persisted space
      */
@@ -45,6 +48,11 @@ final readonly class WikiSpaceService implements WikiSpaceServiceInterface
         string $ownerScopeId,
         ?string $slug = null,
     ): WikiSpace {
+        // 1.31.1 (house rule LQ): an owner id that a collation could confuse with another one is refused, never trimmed.
+        if (!WikiOwnerScopeId::isUsable($ownerScopeId)) {
+            throw new InvalidArgumentException('Invalid space owner id: no leading or trailing whitespace, control or format characters, at most 64 characters.');
+        }
+
         $slug ??= $this->slugger->slugify($name);
         if (!$this->slugger->isValid($slug)) {
             throw new InvalidArgumentException('Invalid space slug.');

@@ -165,6 +165,50 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- --testsuite database,api
 
+  mariadb:
+    name: Look-alike owner test on MariaDB
+    runs-on: ubuntu-latest
+    env:
+      COMPOSER_IGNORE_PLATFORM_REQ: ext-pdo
+
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: wiki_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      # 1.31.1 (house rule LQ): MariaDB's default collation is PAD SPACE, so the look-alike owner test runs here too.
+      # Only that test for now: the rest of the database suite is not yet green on MariaDB (savepoint handling in
+      # WikiPageSnapshotTest, tracked separately).
+      - name: Run the look-alike owner test against MariaDB
+        env:
+          WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: composer test -- tests/Database/WikiSpaceLookalikeOwnerTest.php
+
   pgsql:
     name: Database tests on PostgreSQL
     runs-on: ubuntu-latest

@@ -83,6 +83,57 @@
 
 ## Unreleased
 
+Target **1.31.1** (patch, security; house rule LQ). From **1.31.0**: `composer update nowo-tech/wiki-bundle`.
+
+**Look-alike owner ids.** Spaces are now matched to their owner exactly (`===` in PHP after every SQL lookup), so this
+applies to every host; on MySQL / MariaDB the column also needs the new collation.
+
+1. **Owner ids that are refused.** A team or user id with leading or trailing whitespace, a control or format
+   character (zero-width space, bidi marks, BOM), invalid UTF-8 or more than 64 characters owns no space:
+   `WikiSpaceAccessResolver` lists nothing for it and `WikiSpaceService::create()` throws `InvalidArgumentException`.
+   Integer and UUID ids, e-mails and usernames without such characters are unaffected. Look for existing rows that
+   are now unreachable:
+
+   ```sql
+   SELECT id, owner_scope_type, owner_scope_id FROM wiki_spaces
+    WHERE owner_scope_id <> TRIM(owner_scope_id) OR owner_scope_id REGEXP '[[:cntrl:]]' OR CHAR_LENGTH(owner_scope_id) = 0;
+   ```
+
+   Move them to the owner's real id (`UPDATE wiki_spaces SET owner_scope_id = ... WHERE id = ...`); format characters
+   such as U+200B are not matched by `[[:cntrl:]]`: compare `CHAR_LENGTH()` with what you expect, or list them in PHP.
+
+2. **Exact matching is case- and accent-sensitive.** Before, on a `*_ci` collation, a space stored for `alice` was
+   also listed for the principal `Alice`. Now only the exact id counts. If your user or team resolver returns ids in a
+   form that differs from the stored one (case, accents, Unicode normalisation), make it return the stored form, or
+   update the rows to the form it returns.
+
+3. **Collation (MySQL / MariaDB only).** `doctrine:schema:update --dump-sql` / `doctrine:migrations:diff` now generate
+   the change; by hand (table `<table_prefix>_spaces`, default `wiki_spaces`):
+
+   ```sql
+   -- MySQL 8.0.17+ / 8.4
+   ALTER TABLE wiki_spaces MODIFY owner_scope_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin NOT NULL;
+   -- MariaDB 10.2+ / 11.x
+   ALTER TABLE wiki_spaces MODIFY owner_scope_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_nopad_bin NOT NULL;
+   -- MySQL 5.7 (PAD SPACE; the PHP re-check covers trailing spaces)
+   ALTER TABLE wiki_spaces MODIFY owner_scope_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL;
+   ```
+
+   The unique key `wiki_space_scope_slug (owner_scope_type, owner_scope_id, slug)` is rebuilt with it and becomes
+   exact, so the `ALTER` never fails on existing data (a binary collation only separates values, it never merges
+   them). Before running it, check for look-alike owners that already share rows:
+
+   ```sql
+   SELECT owner_scope_type, LOWER(TRIM(owner_scope_id)) AS folded, GROUP_CONCAT(DISTINCT CONCAT('[', owner_scope_id, ']'))
+     FROM wiki_spaces GROUP BY owner_scope_type, folded HAVING COUNT(DISTINCT BINARY owner_scope_id) > 1;
+   ```
+
+   Each group lists ids that the old collation treated as one owner: their principals could see each other's spaces.
+   After the upgrade each id sees only its own spaces; decide per group which principal owns each space and fix
+   `owner_scope_id` (and review what was exposed). PostgreSQL and SQLite need no change. Without the `ALTER` the
+   bundle is still safe (the PHP re-check), but two owners that differ only in case cannot both create a space with
+   the same slug (the folding unique key refuses the second one).
+
 ## To 1.31.0
 
 From **1.30.0**:
