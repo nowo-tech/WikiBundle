@@ -12,12 +12,31 @@
   rate limit; a UiKit toast when the toast script is loaded, from the <template>s below, else the polite live region);
   comments.moderation (comments.moderation_panel and WikiAction::ModerateComments) adds *Moderate threads*: every
   thread of the page with *Delete thread* behind a confirm dialog (wiki.js, wiki-comments-moderation.ts).
+  1.31 (comments.thread_list: uikit; default plain = the 1.30 mount): the mount carries data-nowo-wiki-thread-list: the UiKit classes (list / list_item macros, badge_neutral, check,
+  check_input) and the translated labels wiki.js (wiki-comments-list.ts) gives the thread component's list — rows,
+  a badge with the plural count of each thread (wiki.comments.list.count_*, CLDR plural category of the locale) and a
+  UiKit checkbox for "Show resolved"; a thread without a title reads wiki.comments.list.thread.
   Variables: comments (WikiCommentsPanel::panel()), bundle.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
+{% import '@NowoUiKitBundle/macros/ui.html.twig' as _ui %}
 {% set _b = bundle|default(null) %}
 {% if comments.mounted is not defined or comments.mounted %}
-    <div class="nowo-wiki-comments__mount" data-nowo-wiki-comments-mount data-testid="wiki-comments-mount"></div>
+    {% set _thread_list = comments.thread_list|default('plain') != 'uikit' ? null : {
+        list: _ui.list()|trim,
+        item: _ui.list_item()|trim,
+        badge: nowo_ui_class('badge_neutral', _b),
+        check: nowo_ui_class('check', _b),
+        check_input: nowo_ui_class('check_input', _b),
+        open_label: 'comments.open'|trans({}, 'NowoMilkdownEditorBundle'),
+        thread_label: 'wiki.comments.list.thread'|trans,
+        count: {
+            one: 'wiki.comments.list.count_one'|trans,
+            many: 'wiki.comments.list.count_many'|trans,
+            other: 'wiki.comments.list.count_other'|trans,
+        },
+    } %}
+    <div class="nowo-wiki-comments__mount" data-nowo-wiki-comments-mount{% if _thread_list %} data-nowo-wiki-thread-list="{{ _thread_list|json_encode }}"{% endif %} data-testid="wiki-comments-mount"></div>
 {% endif %}
 <div class="nowo-wiki-comments__fallback"{% if comments.mounted is not defined or comments.mounted %} data-nowo-wiki-comments-fallback{% endif %} data-testid="wiki-comments-fallback">
     {% if comments.page_threads is empty %}

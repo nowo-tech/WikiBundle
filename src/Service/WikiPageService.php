@@ -22,6 +22,7 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\WikiPageLockInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
+use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\Util\WikiSlugger;
@@ -407,7 +408,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
             return $current->getContentMarkdown() === $this->normalizeMarkdown($content);
         }
 
-        return !$current->isMarkdown() && $current->getContentHtml() === $this->clean($page->getSpace(), $content);
+        return !$current->isMarkdown() && $current->getContentHtml() === $this->cleanAuthored($page->getSpace(), $content);
     }
 
     /**
@@ -455,7 +456,16 @@ final readonly class WikiPageService implements WikiPageServiceInterface
             return new WikiPageRevision($page, $number, $this->clean($page->getSpace(), $this->markdownRenderer->render($markdown)), $author, $markdown);
         }
 
-        return new WikiPageRevision($page, $number, $this->clean($page->getSpace(), $content), $author);
+        return new WikiPageRevision($page, $number, $this->cleanAuthored($page->getSpace(), $content), $author);
+    }
+
+    /**
+     * 1.31 (audit NB-W-1): authored HTML never keeps the renderers' reference classes (a forged hidden marker would keep
+     * the author's text out of search).
+     */
+    private function cleanAuthored(WikiSpace $space, string $html): string
+    {
+        return WikiHtmlSanitizer::withoutServerClasses($this->clean($space, $html));
     }
 
     private function normalizeMarkdown(string $content): string

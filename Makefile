@@ -170,7 +170,7 @@ demo-smoke:
 SEAMLESS_DIR := $(CURDIR)/var/seamless-swap
 check-seamless-swap:
 	mkdir -p $(SEAMLESS_DIR)/mk
-	cp tests/Browser/seamless-swap/index.html tests/Browser/seamless-swap/cls.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(SEAMLESS_DIR)/
+	cp tests/Browser/seamless-swap/index.html tests/Browser/seamless-swap/widget.html tests/Browser/seamless-swap/cls.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(SEAMLESS_DIR)/
 	cp -r vendor/nowo-tech/milkdown-editor-bundle/src/Resources/public/. $(SEAMLESS_DIR)/mk/
 	docker run --rm -v $(SEAMLESS_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/cls.js'
 

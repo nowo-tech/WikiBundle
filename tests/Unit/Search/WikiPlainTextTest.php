@@ -48,6 +48,16 @@ final class WikiPlainTextTest extends TestCase
         self::assertSame($text, WikiPlainText::fromMarkdown($markdown));
     }
 
+    /** 1.31: a hidden reference is never text, whatever the language it was stored in (legacy caches) or empty. */
+    public function testHiddenReferencesAreNeverText(): void
+    {
+        self::assertSame('See and more', WikiPlainText::fromHtml('<p>See <span class="nowo-md-ref nowo-md-ref--hidden">Contenido no visible</span> and <span class=\'nowo-md-ref--hidden\'></span>more</p>'));
+        self::assertSame('Kept', WikiPlainText::fromHtml('<p><span class="nowo-md-ref">Kept</span></p>'));
+        // Audit NB-W-1: only a whole class token of the class attribute.
+        self::assertSame('a b c d', WikiPlainText::fromHtml('<p><span class="foo-nowo-md-ref--hidden-x">a</span> <span class="nowo-md-ref--hidden-x">b</span> <span class="x-nowo-md-ref--hidden">c</span> <span data-class="nowo-md-ref--hidden">d</span></p>'));
+        self::assertSame('e', WikiPlainText::fromHtml('<p><span class="a nowo-md-ref--hidden b">gone</span>e</p>'));
+    }
+
     public function testDirectiveAttributeValuesAreNeverText(): void
     {
         $text = WikiPlainText::fromMarkdown(":::callout{icon=\"bulb\" type=\"info\"}\nUse a torch.\n:::");

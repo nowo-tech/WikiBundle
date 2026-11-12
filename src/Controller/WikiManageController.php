@@ -58,6 +58,7 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
+use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Nowo\WikiBundle\Util\WikiTitleDedupe;
@@ -91,6 +92,7 @@ use function array_values;
 use function ceil;
 use function count;
 use function ctype_digit;
+use function in_array;
 use function is_string;
 use function max;
 use function min;
@@ -160,7 +162,7 @@ final class WikiManageController extends AbstractController
      * @param string $searchScope `search.scope` (1.21): `space` leaves the "all spaces" choice out of the index search form
      * @param WikiTreeRail|null $treeRail the page tree rail (1.29, `web_ui.tree_rail`; null = off)
      * @param object|null $breadcrumbCurrentLabel 1.30: BreadcrumbKit's BreadcrumbCurrentLabelInterface (>= 2.17) when installed, else null (optional integration)
-     * @param array{title?: string, tabs?: string, path?: string, children?: string, breadcrumb_current_label?: bool} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title; 1.30 `title: body` drops the header title instead)
+     * @param array{title?: string, tabs?: string, path?: string, children?: string, breadcrumb_current_label?: bool, page_meta?: string} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title; 1.30 `title: body` drops the header title instead; 1.31 `title: card` prints it in the card, `page_meta: card`)
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -388,8 +390,19 @@ final class WikiManageController extends AbstractController
         }
         // 1.30 (title: body): the body keeps its <h1> and the header leaves out the title and the space subtitle. The
         // read-only editor draws the same Markdown, so it keeps the heading too.
-        if (($this->layout['title'] ?? 'both') === 'body' && WikiTitleDedupe::startsWithTitle($content, $page->getTitle())) {
+        $titleMode = $this->layout['title'] ?? 'both';
+        $inBody    = in_array($titleMode, ['body', 'card'], true) && WikiTitleDedupe::startsWithTitle($content, $page->getTitle());
+        if ($inBody) {
             $vars['title_in_body'] = true;
+        }
+        // 1.31 (title: card): the header never shows the title; without a leading <h1> title the card prints it.
+        if ($titleMode === 'card' && !$inBody) {
+            $vars['title_in_body'] = true;
+            $vars['title_in_card'] = true;
+        }
+        // 1.31 (web_ui.page_meta: card): the revision line in the content card (date in the reader's locale).
+        if (($this->layout['page_meta'] ?? 'scaffold') === 'card' && $revision instanceof WikiPageRevision) {
+            $vars['page_meta'] = ['revision' => $revision->getRevisionNumber(), 'updated_at' => $revision->getCreatedAt()];
         }
         // 1.30 (web_ui.page_header.path: card): the in-wiki path above the body, hidden ancestors without a name.
         if (($this->layout['path'] ?? 'none') === 'card') {
@@ -476,6 +489,7 @@ final class WikiManageController extends AbstractController
         // DI-I6: the parent is read once; every check and the scope's stale guard use the same one.
         $from = $page->getParent();
         $this->requireMovable($user, $space, $page, $from, $from);
+        $this->nameParentCrumb($request, $page);
 
         $parents = $this->moveParents($user, $space, $page);
         $form    = $this->container->get('form.factory')->createNamed('', WikiPageMoveType::class, ['parent' => $page->getParent()?->getId(), 'position' => null], [
@@ -533,6 +547,7 @@ final class WikiManageController extends AbstractController
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::Edit, $space, $page);
+        $this->nameParentCrumb($request, $page);
 
         $data = new WikiPageFormData(
             $page->getTitle(),
@@ -800,6 +815,7 @@ final class WikiManageController extends AbstractController
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::History, $space, $page);
+        $this->nameParentCrumb($request ?? $this->currentRequest(), $page);
         $perPage = max(1, $this->pagination['revisions_per_page']);
         $current = max(1, $request?->query->getInt('page', 1) ?? 1);
         // One extra row: tells whether an older page exists and gives the last row its "compare" target.
@@ -862,6 +878,7 @@ final class WikiManageController extends AbstractController
         }
 
         $diff = $this->revisionDiffService->diff($from, $to);
+        $this->nameParentCrumb($request, $page);
 
         return $this->renderPage('page_diff', [
             'page'            => $this->pages()->diff($space, $page, $from->getRevisionNumber(), $to->getRevisionNumber()),
@@ -1851,6 +1868,18 @@ final class WikiManageController extends AbstractController
     }
 
     /** The current request (null outside one). */
+    /**
+     * 1.31 (web_ui.breadcrumb_current_label, BreadcrumbKit >= 2.17): the BreadcrumbKit crumb of the page view on the
+     * edit, history, compare and move pages is named after the page ({@see WikiBreadcrumbParentLabel}). Called after
+     * the viewer passed the page's checks; the title rides on the request being handled, nothing is kept here.
+     */
+    private function nameParentCrumb(?Request $request, WikiPage $page): void
+    {
+        if ($request instanceof Request && ($this->layout['breadcrumb_current_label'] ?? false) === true && $this->breadcrumbCurrentLabel instanceof BreadcrumbCurrentLabelInterface) {
+            WikiBreadcrumbParentLabel::remember($request, $page->getTitle());
+        }
+    }
+
     private function currentRequest(): ?Request
     {
         $stack = $this->container->has('request_stack') ? $this->container->get('request_stack') : null;

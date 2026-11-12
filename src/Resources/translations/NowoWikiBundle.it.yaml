@@ -25,6 +25,12 @@ wiki:
     truncated: "Sono mostrate solo le prime %count% discussioni aperte."
     more_in_editor: "%count% commento/i precedente/i nell’editor"
     unknown_author: "Ex collaboratore"
+    # 1.31 (comments.thread_list: uikit): the thread list of the panel; # is the number (CLDR plural category).
+    list:
+      thread: "Discussione"
+      count_one: "# commento"
+      count_many: "# di commenti"
+      count_other: "# commenti"
     error:
       invalid: "Il commento è vuoto o non valido."
       too_large: "Il commento è troppo lungo (al massimo 10.000 caratteri)."
@@ -125,6 +131,9 @@ wiki:
     archive_confirm_message: "\"%title%\" esce dall’albero delle pagine e dalla ricerca. Chi può archiviare può ripristinarla dallo spazio."
     revision: "Revisione"
     updated: "Aggiornata"
+    # 1.31 (web_ui.page_meta: card): the footer line "v3 · Updated …" of the content card.
+    meta_revision: "v%number%"
+    meta_updated: "Aggiornata il %date%"
     error:
       invalid_slug: "Il titolo della pagina genera un indirizzo non valido; usa lettere o numeri."
       slug_exists: "In questo spazio esiste già una pagina con questo titolo."

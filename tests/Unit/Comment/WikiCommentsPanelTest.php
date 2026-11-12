@@ -103,6 +103,31 @@ final class WikiCommentsPanelTest extends TestCase
         self::assertNull($withSession['persist']);
     }
 
+    /** 1.31: comments.layout overlay never opens from the remembered state; thread_list uikit. */
+    public function testTheOverlayLayoutAndTheThreadList(): void
+    {
+        $this->remembered              = true;
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments]);
+        $inline                        = $panel->panel(Request::create('/x'), $user, $space, $page);
+        self::assertNotNull($inline);
+        self::assertTrue($inline['open']);
+        self::assertSame('inline', $inline['layout']);
+        self::assertSame('plain', $inline['thread_list']);
+
+        [$panel, $user, $space, $page] = $this->panel([WikiAction::ViewComments], overlay: true, uikitThreadList: true);
+        $overlay                       = $panel->panel(Request::create('/x'), $user, $space, $page);
+        self::assertNotNull($overlay);
+        self::assertFalse($overlay['open']);
+        self::assertSame('overlay', $overlay['layout']);
+        self::assertSame('uikit', $overlay['thread_list']);
+        // Asked for in the URL (a notification link): open, and wiki.js opens it after load.
+        $requested = $panel->panel(Request::create('/x?comments=1'), $user, $space, $page);
+        self::assertNotNull($requested);
+        self::assertTrue($requested['open']);
+        self::assertTrue($requested['open_requested']);
+        self::assertFalse($panel->panel(Request::create('/x?comments=0'), $user, $space, $page)['open'] ?? null);
+    }
+
     public function testThePanelOfAViewer(): void
     {
         [$panel, $user, $space, $page, $service] = $this->panel([WikiAction::ViewComments, WikiAction::Comment]);
@@ -207,7 +232,7 @@ final class WikiCommentsPanelTest extends TestCase
      *
      * @return array{0: WikiCommentsPanel, 1: UserInterface, 2: WikiSpace, 3: WikiPage, 4: WikiCommentService}
      */
-    private function panel(array $granted, bool $profiles = true, bool $readViewSource = false, bool $moderationPanel = false, bool $errorNotices = false, string $dockMinWidth = 'md', bool $sessionStore = false): array
+    private function panel(array $granted, bool $profiles = true, bool $readViewSource = false, bool $moderationPanel = false, bool $errorNotices = false, string $dockMinWidth = 'md', bool $sessionStore = false, bool $overlay = false, bool $uikitThreadList = false): array
     {
         $this->granted = $granted;
         $em            = SqliteWikiEntityManager::create();
@@ -258,6 +283,8 @@ final class WikiCommentsPanelTest extends TestCase
             $errorNotices,
             $dockMinWidth,
             $sessionStore,
+            $overlay,
+            $uikitThreadList,
         );
 
         return [$panel, $user, $space, $page, $service];

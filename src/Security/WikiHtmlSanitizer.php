@@ -13,18 +13,27 @@ use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizerInterface;
 
 use function array_diff;
+use function array_filter;
 use function array_keys;
 use function array_merge;
 use function array_unique;
 use function array_values;
 use function get_debug_type;
+use function implode;
 use function in_array;
 use function is_array;
 use function is_string;
 use function preg_match;
+use function preg_replace;
+use function preg_replace_callback;
+use function preg_split;
 use function sprintf;
 use function str_starts_with;
+use function stripos;
 use function strtolower;
+use function trim;
+
+use const PREG_SPLIT_NO_EMPTY;
 
 /**
  * Allowlist-based HTML sanitizer for wiki page bodies (mitigates stored XSS).
@@ -44,6 +53,14 @@ use function strtolower;
  * on any element, even one allowed by a host — is dropped (DOM clobbering). Table cell alignment travels as the
  * `nowo-wiki-align--left|center|right` class (no `align` attribute, no new `style`), so it works under a CSP without
  * inline styles.
+ *
+ * 1.31 (MilkdownEditorBundle 1.17 read-only parity): the disabled checkbox of a task item,
+ * `<li class="nowo-milkdown-task" data-checked="…"><input type="checkbox" class="nowo-milkdown-task__box" disabled
+ * [checked] aria-label="…"><div class="nowo-milkdown-task__content">…</div></li>`, is kept. `<input>` is allowed with
+ * `type`, `class`, `disabled`, `checked` and `aria-label` only (no common or host attributes), then a post-pass
+ * ({@see self::taskBoxes()}) rebuilds each one as exactly `type="checkbox" class="nowo-milkdown-task__box" disabled`
+ * plus `checked` / `aria-label` when present, and removes every `<input>` that is not the first child of a
+ * `li.nowo-milkdown-task`. `input` stays a forbidden element for host allowlists.
  */
 final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
 {
@@ -100,6 +117,14 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
         'mark'       => [],
         'iframe'     => ['src', 'width', 'height', 'allowfullscreen', 'frameborder'],
     ];
+
+    /** 1.31: the only attributes an `<input>` (a task checkbox) may carry into the post-pass. */
+    public const TASK_BOX_ATTRIBUTES = ['type', 'class', 'disabled', 'checked', 'aria-label'];
+
+    /** 1.31: class of a task item and of its checkbox (MilkdownEditorBundle 1.17 server render and editor). */
+    public const TASK_ITEM_CLASS = 'nowo-milkdown-task';
+
+    public const TASK_BOX_CLASS = 'nowo-milkdown-task__box';
 
     /** Harmless wrappers that are removed while their text content is kept (like strip_tags did). */
     private const BLOCKED_ELEMENTS = [
@@ -162,6 +187,8 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
         foreach ($elements as $element => $attributes) {
             $config = $config->allowElement($element, array_values(array_unique(array_merge(self::COMMON_ATTRIBUTES, $extraAllowedAttributes, $attributes))));
         }
+        // 1.31: task checkboxes, with their own fixed attribute set (never the common or host attributes).
+        $config = $config->allowElement('input', self::TASK_BOX_ATTRIBUTES);
         foreach (array_diff(self::BLOCKED_ELEMENTS, array_keys($elements)) as $element) {
             $config = $config->blockElement($element);
         }
@@ -225,6 +252,61 @@ final readonly class WikiHtmlSanitizer implements WikiHtmlSanitizerInterface
 
         // The sanitizer only drops a rejected iframe `src`; remove iframes left without one.
         // Output is canonical here (double-quoted, entity-encoded attributes), so this match is reliable.
-        return preg_replace('#<iframe\b(?![^>]*\ssrc=")[^>]*>.*?</iframe>#is', '', $html) ?? $html;
+        $html = preg_replace('#<iframe\b(?![^>]*\ssrc=")[^>]*>.*?</iframe>#is', '', $html) ?? $html;
+
+        return $this->taskBoxes($html);
+    }
+
+    /**
+     * 1.31 (audit NB-W-1): `class="…"` of sanitized HTML without the server-only reference classes (`nowo-md-ref`,
+     * `nowo-md-ref--*`), which only the Markdown renderers write: the hidden-reference marker the plain text drops and the
+     * resolved-link style. Applied to authored HTML (HTML revisions), never to rendered Markdown, so an author cannot
+     * hide text from search with a forged marker. Works on the sanitizer's canonical, double-quoted output; a class
+     * attribute left empty is removed.
+     */
+    public static function withoutServerClasses(string $html): string
+    {
+        if (stripos($html, 'nowo-md-ref') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback('#\sclass="([^"]*)"#i', static function (array $match): string {
+            $tokens = preg_split('/\s+/', trim($match[1]), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $kept   = array_filter($tokens, static fn (string $token): bool => preg_match('/^nowo-md-ref(?:--[\w-]*)?$/i', $token) !== 1);
+
+            return $kept === [] ? '' : ' class="' . implode(' ', $kept) . '"';
+        }, $html) ?? $html;
+    }
+
+    /**
+     * 1.31: keeps an `<input>` only as the first child of a `li.nowo-milkdown-task`, rebuilt as a disabled checkbox with
+     * the box class, `checked` when it was checked and its `aria-label`; every other `<input>` is removed. Runs on the
+     * sanitizer's canonical output: attribute values are double-quoted with `"`, `<`, `>` and `=` encoded, so neither
+     * a tag nor an attribute can start inside a value.
+     */
+    private function taskBoxes(string $html): string
+    {
+        if (stripos($html, '<input') === false) {
+            return $html;
+        }
+
+        return preg_replace_callback('#(<li\b[^>]*>\s*)?<input\b([^>]*)>#i', static function (array $match): string {
+            $item = $match[1];
+            if ($item === '' || preg_match('#\sclass="(?:[^"]*\s)?' . self::TASK_ITEM_CLASS . '(?:\s[^"]*)?"#', $item) !== 1) {
+                return $item;
+            }
+
+            $attributes = $match[2];
+            $names      = preg_replace('#="[^"]*"#', '', $attributes) ?? '';
+            $box        = '<input type="checkbox" class="' . self::TASK_BOX_CLASS . '" disabled';
+            if (preg_match('#(?:^|\s)checked(?:\s|/|$)#', $names) === 1) {
+                $box .= ' checked';
+            }
+            if (preg_match('#\saria-label="([^"]*)"#', $attributes, $label) === 1) {
+                $box .= ' aria-label="' . $label[1] . '"';
+            }
+
+            return $item . $box . ' />';
+        }, $html) ?? $html;
     }
 }

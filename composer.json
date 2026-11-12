@@ -118,7 +118,7 @@
         "nowo-tech/breadcrumb-kit-bundle": "^2.17: the current crumb named after the wiki page (nowo_wiki.web_ui.breadcrumb_current_label); optional, older versions are ignored.",
         "symfony/mercure-bundle": "Co-editing of Milkdown pages (nowo_wiki.collaboration): private Mercure updates and the subscriber cookie.",
         "symfony/rate-limiter": "Rate limits of the co-editing endpoints (nowo_wiki.collaboration.rate_limiter).",
-        "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.13): page links, mentions, icons, math and Mermaid.",
+        "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.13): page links, mentions, icons, math and Mermaid; >= 1.17 for the read-only task-list checkboxes and callouts that match the server render.",
         "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
         "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
         "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales."

@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
 
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\DoctrineExtension;
 use LogicException;
+use Nowo\BreadcrumbKitBundle\Event\BreadcrumbTrailBuiltEvent;
 use Nowo\MilkdownEditorBundle\Form\MilkdownEditorType;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\FilePreviewResolverInterface;
@@ -68,6 +69,7 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
+use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use PHPUnit\Framework\TestCase;
@@ -813,7 +815,7 @@ final class WikiExtensionTest extends TestCase
         $container = new ContainerBuilder();
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
-        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'tree_collapsed_mode' => 'rail', 'reading_align' => 'center', 'path' => 'none', 'children' => 'never', 'breadcrumb_current_label' => false, 'seamless_swap' => false];
+        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'tree_collapsed_mode' => 'rail', 'reading_align' => 'center', 'path' => 'none', 'children' => 'never', 'breadcrumb_current_label' => false, 'seamless_swap' => false, 'page_meta' => 'scaffold'];
         self::assertSame($defaults, $container->getParameter('nowo_wiki.web_ui.layout'));
         /** @var array<string, mixed> $webUi */
         $webUi = $container->getParameter('nowo_wiki.web_ui');
@@ -829,7 +831,7 @@ final class WikiExtensionTest extends TestCase
             'user_class' => 'App\\Entity\\User',
             'web_ui'     => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => ['layout' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'path' => 'card'], 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'children' => 'auto', 'breadcrumb_current_label' => true, 'read_view' => ['seamless_swap' => true]],
         ]], $container);
-        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'path' => 'card', 'children' => 'auto', 'breadcrumb_current_label' => true, 'seamless_swap' => true];
+        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'path' => 'card', 'children' => 'auto', 'breadcrumb_current_label' => true, 'seamless_swap' => true, 'page_meta' => 'scaffold'];
         self::assertSame($layout, $container->getParameter('nowo_wiki.web_ui.layout'));
         /** @var array<string, array{path: string, name: string}> $routes */
         $routes = $container->getParameter('nowo_wiki.routes');
@@ -871,9 +873,49 @@ final class WikiExtensionTest extends TestCase
         self::assertSame($defaults, WikiExtension::layout(['tree_rail' => 'yes', 'page_header' => 'compact']));
         // 1.30: title body.
         self::assertSame('body', WikiExtension::layout(['page_header' => ['title' => 'body']])['title']);
+        self::assertSame('card', WikiExtension::layout(['page_header' => ['title' => 'card']])['title']);
+        self::assertSame('scaffold', WikiExtension::layout(['page_meta' => 'nope'])['page_meta']);
         self::assertSame('always', WikiExtension::layout(['children' => 'always'])['children']);
         self::assertFalse(WikiExtension::layout(['breadcrumb_current_label' => '%env(bool:X)%'])['breadcrumb_current_label']);
         self::assertFalse(WikiExtension::layout(['read_view' => ['seamless_swap' => '%env(bool:X)%']])['seamless_swap']);
+    }
+
+    /**
+     * 1.31: title card, page_meta card, comments layout / thread list, the edit form toolbar flags, and the BreadcrumbKit
+     * trail listener (only with the option and BreadcrumbKit's event class).
+     */
+    public function testThe131Options(): void
+    {
+        require_once __DIR__ . '/../../Stub/BreadcrumbKit/BreadcrumbTrail.php';
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
+        self::assertFalse($container->getDefinition(WikiPageFactory::class)->getArgument('$tabsToolbar'));
+        self::assertFalse($container->getDefinition(WikiPageFactory::class)->getArgument('$metaInCard'));
+        self::assertFalse($container->hasDefinition(WikiBreadcrumbParentLabel::class));
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'editor'     => ['type' => 'milkdown'],
+            'web_ui'     => ['page_header' => ['title' => 'card', 'tabs' => 'toolbar'], 'page_meta' => 'card', 'breadcrumb_current_label' => true],
+            'comments'   => ['enabled' => true, 'rate_limiter' => 'limiter.c', 'layout' => 'overlay', 'thread_list' => 'uikit'],
+        ]], $container);
+        /** @var array<string, bool|string> $layout */
+        $layout = $container->getParameter('nowo_wiki.web_ui.layout');
+        self::assertSame('card', $layout['title']);
+        self::assertSame('card', $layout['page_meta']);
+        self::assertTrue($container->getDefinition(WikiPageFactory::class)->getArgument('$tabsToolbar'));
+        self::assertTrue($container->getDefinition(WikiPageFactory::class)->getArgument('$metaInCard'));
+        self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$overlay'));
+        self::assertTrue($container->getDefinition(WikiCommentsPanel::class)->getArgument('$uikitThreadList'));
+        $listener = $container->getDefinition(WikiBreadcrumbParentLabel::class);
+        self::assertSame([['event' => BreadcrumbTrailBuiltEvent::class, 'method' => '__invoke']], $listener->getTag('kernel.event_listener'));
+        self::assertSame('router', (string) $listener->getArgument('$urlGenerator'));
+
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'comments' => ['layout' => 'floating']]]);
     }
 
     public function testTheTreeRailIsALiteralBoolean(): void

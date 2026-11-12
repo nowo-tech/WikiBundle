@@ -8,6 +8,8 @@
   1.29: drawer_below (comments.dock_min_width: md | lg | xl) docks the panel only from that width (a drawer below; a
   server-open lg / xl panel starts closed there, UiKit LV-L2), persist (no session: localStorage, UiKit 2.48), and
   data-nowo-wiki-comments-requested (?comments=1): wiki.js opens the panel after load if it started closed.
+  1.31: layout (comments.layout: inline | overlay; overlay = a drawer at every width, never opened from the remembered
+  state).
   Variables: comments (WikiCommentsPanel::panel()), bundle.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
@@ -18,7 +20,7 @@
     title: _title,
     open: comments.open,
     side: 'end',
-    layout: 'inline',
+    layout: comments.layout|default('inline') == 'overlay' ? 'overlay' : 'inline',
     drawer_below: comments.drawer_below|default('md'),
     persist: comments.persist|default(null),
     close_href: comments.close_href,

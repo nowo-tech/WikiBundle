@@ -25,6 +25,12 @@ wiki:
     truncated: "Solo se muestran los primeros %count% hilos abiertos."
     more_in_editor: "%count% comentario(s) anterior(es) en el editor"
     unknown_author: "Persona antigua"
+    # 1.31 (comments.thread_list: uikit): the thread list of the panel; # is the number (CLDR plural category).
+    list:
+      thread: "Hilo de comentarios"
+      count_one: "# comentario"
+      count_many: "# de comentarios"
+      count_other: "# comentarios"
     error:
       invalid: "El comentario está vacío o no es válido."
       too_large: "El comentario es demasiado largo (10.000 caracteres como máximo)."
@@ -125,6 +131,9 @@ wiki:
     archive_confirm_message: "\"%title%\" saldrá del árbol de páginas y de la búsqueda. Quien pueda archivar podrá restaurarla desde el espacio."
     revision: "Revisión"
     updated: "Actualizada"
+    # 1.31 (web_ui.page_meta: card): the footer line "v3 · Updated …" of the content card.
+    meta_revision: "v%number%"
+    meta_updated: "Actualizada el %date%"
     error:
       invalid_slug: "El título de la página da una dirección no válida; usa letras o números."
       slug_exists: "Ya existe una página con este título en este espacio."

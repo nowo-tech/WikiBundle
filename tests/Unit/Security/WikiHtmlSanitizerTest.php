@@ -9,6 +9,11 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function preg_match_all;
+use function substr_count;
+
+use const PHP_VERSION_ID;
+
 final class WikiHtmlSanitizerTest extends TestCase
 {
     public function testStripsScriptTags(): void
@@ -18,6 +23,109 @@ final class WikiHtmlSanitizerTest extends TestCase
 
         self::assertStringNotContainsString('script', $result);
         self::assertStringContainsString('<p>Hi</p>', $result);
+    }
+
+    /**
+     * 1.31 (MilkdownEditorBundle 1.17): the task checkbox of the server render is kept, rebuilt from a fixed set.
+     */
+    public function testKeepsTheTaskCheckboxOfMilkdown117(): void
+    {
+        $html = '<ul><li class="nowo-milkdown-task" data-checked="true"><input type="checkbox" class="nowo-milkdown-task__box" disabled="" checked="" aria-label="Done"><div class="nowo-milkdown-task__content"><p>Ship</p></div></li>'
+            . '<li class="nowo-milkdown-task" data-checked="false"><input type="checkbox" class="nowo-milkdown-task__box" disabled="" aria-label="Hecho &quot;ya&quot;"><div class="nowo-milkdown-task__content">Test</div></li></ul>';
+
+        self::assertSame(
+            '<ul><li class="nowo-milkdown-task" data-checked="true"><input type="checkbox" class="nowo-milkdown-task__box" disabled checked aria-label="Done" /><div class="nowo-milkdown-task__content"><p>Ship</p></div></li>'
+            . '<li class="nowo-milkdown-task" data-checked="false"><input type="checkbox" class="nowo-milkdown-task__box" disabled aria-label="Hecho &#34;ya&#34;" /><div class="nowo-milkdown-task__content">Test</div></li></ul>',
+            (new WikiHtmlSanitizer())->sanitize($html),
+        );
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function hostileInputs(): iterable
+    {
+        yield 'text input with a handler' => ['<li class="nowo-milkdown-task"><input type=text onfocus="alert(1)" autofocus name="n" value="v" style="x" form="f"><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled /><div>a</div></li>'];
+        yield 'image input with src and formaction' => ['<li class="nowo-milkdown-task"><input type=image src="https://evil.test/x.png" formaction="javascript:alert(1)" checked><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled checked /><div>a</div></li>'];
+        yield 'input outside a task item' => ['<p><input type="checkbox" class="nowo-milkdown-task__box" disabled checked>x</p>', '<p>x</p>'];
+        yield 'input in a plain item' => ['<ul><li class="other"><input type="checkbox" disabled>x</li></ul>', '<ul><li class="other">x</li></ul>'];
+        yield 'input in a task-like class' => ['<ul><li class="nowo-milkdown-task-x"><input type="checkbox">x</li></ul>', '<ul><li class="nowo-milkdown-task-x">x</li></ul>'];
+        yield 'input after the content' => ['<ul><li class="nowo-milkdown-task"><div>a</div><input type="checkbox"></li></ul>', '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
+        yield 'bare input' => ['<input type="hidden" name="csrf" value="x"><input>', ''];
+        yield 'attribute breaking in the label' => ['<li class="nowo-milkdown-task"><input type="checkbox" aria-label=\'a" onmouseover="alert(1)" checked x="\'><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled aria-label="a&#34; onmouseover&#61;&#34;alert(1)&#34; checked x&#61;&#34;" /><div>a</div></li>'];
+        yield 'attribute breaking in the class' => ['<li class="nowo-milkdown-task"><input class=\'x" checked onfocus="y\' aria-label="ok"><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled aria-label="ok" /><div>a</div></li>'];
+        yield 'tag breaking in the label' => ['<li class="nowo-milkdown-task"><input aria-label="</li><img src=x onerror=alert(1)>"><div>a</div></li>', '<li class="nowo-milkdown-task"><input type="checkbox" class="nowo-milkdown-task__box" disabled aria-label="&lt;/li&gt;&lt;img src&#61;x onerror&#61;alert(1)&gt;" /><div>a</div></li>'];
+    }
+
+    #[DataProvider('hostileInputs')]
+    public function testAnInputIsOnlyEverADisabledTaskCheckbox(string $html, string $expected): void
+    {
+        $result = (new WikiHtmlSanitizer())->sanitize($html);
+
+        self::assertSame($expected, $result);
+        self::assertDoesNotMatchRegularExpression('#<[^>]*\s(?:on[a-z]+|name|value|form|formaction|style|src)=#i', $result);
+    }
+
+    /**
+     * Audit NB-W-2: the auditor's fuzz payloads, pinned to the exact output, so a symfony/html-sanitizer upgrade that
+     * changes the canonical form the task-box post-pass relies on is caught.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function fuzzedTaskBoxes(): iterable
+    {
+        $box = '<input type="checkbox" class="nowo-milkdown-task__box" disabled';
+        yield 'upper case' => ['<LI CLASS="nowo-milkdown-task"><INPUT TYPE=TEXT FORMACTION=javascript:1 ONFOCUS=alert(1) AUTOFOCUS><div>a</div></LI>', '<li class="nowo-milkdown-task">' . $box . ' /><div>a</div></li>'];
+        yield 'unquoted' => ['<li class=nowo-milkdown-task><input type=text onfocus=alert(1) autofocus formaction=x><div>a</div></li>', '<li class="nowo-milkdown-task">' . $box . ' /><div>a</div></li>'];
+        yield 'two inputs in one item' => ['<ul><li class="nowo-milkdown-task"><input type="checkbox" checked><input type="text" onfocus="x"><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task">' . $box . ' checked /><div>a</div></li></ul>'];
+        yield 'not the first child' => ['<ul><li class="nowo-milkdown-task"><div>a</div><input type="checkbox"></li></ul>', '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
+        yield 'comment before the input (the sanitizer drops it)' => ['<ul><li class="nowo-milkdown-task"><!-- c --><input type="checkbox" checked><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task">' . $box . ' checked /><div>a</div></li></ul>'];
+        // The parser decides what CDATA in HTML leaves behind: PHP >= 8.4 (native Dom\HTMLDocument) keeps "]]>" as text,
+        // the older parser drops it. Either way no input or markup comes through (asserted for every case below).
+        yield 'CDATA' => ['<ul><li class="nowo-milkdown-task"><![CDATA[<input type="checkbox">]]><div>a</div></li></ul>', PHP_VERSION_ID >= 80400 ? '<ul><li class="nowo-milkdown-task">]]&gt;<div>a</div></li></ul>' : '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
+        yield '<input in attribute values' => ['<p title="<input type=checkbox>">x</p><ul><li class="nowo-milkdown-task" title="<input checked>"><div>a</div></li></ul>', '<p title="&lt;input type&#61;checkbox&gt;">x</p><ul><li class="nowo-milkdown-task" title="&lt;input checked&gt;"><div>a</div></li></ul>'];
+        yield '<input in text and pre' => ['<p>&lt;input type="checkbox"&gt; and <code>&lt;input&gt;</code></p><pre>&lt;input checked&gt;</pre>', '<p>&lt;input type&#61;&#34;checkbox&#34;&gt; and <code>&lt;input&gt;</code></p><pre>&lt;input checked&gt;</pre>'];
+        yield 'task class inside a title' => ['<ul><li title=\' class="nowo-milkdown-task"\'><input type="checkbox"><div>a</div></li></ul>', '<ul><li title=" class&#61;&#34;nowo-milkdown-task&#34;"><div>a</div></li></ul>'];
+        yield 'task class with a suffix' => ['<ul><li class="nowo-milkdown-task-evil"><input type="checkbox"><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task-evil"><div>a</div></li></ul>'];
+        yield 'task class among others (kept)' => ['<ul><li class="a nowo-milkdown-task b"><input type="checkbox" checked aria-label="Done"><div>a</div></li></ul>', '<ul><li class="a nowo-milkdown-task b">' . $box . ' checked aria-label="Done" /><div>a</div></li></ul>'];
+        yield 'nested lists' => ['<ul><li class="nowo-milkdown-task"><input type="checkbox"><div>a<ul><li class="nowo-milkdown-task"><input type="checkbox" checked><div>b</div></li><li><input type="checkbox"></li></ul></div></li></ul>', '<ul><li class="nowo-milkdown-task">' . $box . ' /><div>a<ul><li class="nowo-milkdown-task">' . $box . ' checked /><div>b</div></li><li></li></ul></div></li></ul>'];
+        yield 'svg wrapper' => ['<ul><li class="nowo-milkdown-task"><svg><input type="checkbox"></svg><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
+        yield 'math wrapper' => ['<ul><li class="nowo-milkdown-task"><math><input type="checkbox"></math><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
+        yield 'textarea wrapper' => ['<ul><li class="nowo-milkdown-task"><textarea><input type="checkbox"></textarea><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task"><div>a</div></li></ul>'];
+        yield 'label with quotes, >, entities and NUL' => ["<ul><li class=\"nowo-milkdown-task\"><input aria-label=\"a&quot;b'c>d &amp; &#x3c;e\0f\"><div>a</div></li></ul>", '<ul><li class="nowo-milkdown-task">' . $box . " aria-label=\"a&#34;b&#039;c&gt;d &amp; &lt;e\u{FFFD}f\" /><div>a</div></li></ul>"];
+        yield 'checked only as a value' => ['<ul><li class="nowo-milkdown-task"><input disabled="checked" class="checked"><div>a</div></li></ul>', '<ul><li class="nowo-milkdown-task">' . $box . ' /><div>a</div></li></ul>'];
+    }
+
+    #[DataProvider('fuzzedTaskBoxes')]
+    public function testTheTaskBoxFuzzPayloads(string $html, string $expected): void
+    {
+        $result = (new WikiHtmlSanitizer())->sanitize($html);
+
+        self::assertSame($expected, $result);
+        self::assertDoesNotMatchRegularExpression('#<input\b[^>]*\s(?:on[a-z]+|name|value|form|formaction|style|src|autofocus|title)\b#i', $result);
+        self::assertSame(substr_count($result, '<input'), substr_count($result, '<input type="checkbox" class="nowo-milkdown-task__box" disabled'));
+        self::assertDoesNotMatchRegularExpression('#<(?:img|script|svg|math|textarea)\b|\son[a-z]+\s*=#i', $result);
+        // Every rebuilt box carries only the allowed attributes.
+        preg_match_all('#<input\b([^>]*)/>#', $result, $boxes);
+        foreach ($boxes[1] as $attributes) {
+            self::assertMatchesRegularExpression('#^ type="checkbox" class="nowo-milkdown-task__box" disabled(?: checked)?(?: aria-label="[^"]*")? $#', $attributes);
+        }
+    }
+
+    /** Audit NB-W-1: the renderers' reference classes leave authored HTML; other classes and attributes stay. */
+    public function testWithoutServerClasses(): void
+    {
+        self::assertSame(
+            '<p>a<span>hidden</span> <span class="x">b</span> <a href="/p" class="keep nowo-md-reference">c</a> <span data-class="nowo-md-ref">d</span></p>',
+            WikiHtmlSanitizer::withoutServerClasses('<p>a<span class="nowo-md-ref nowo-md-ref--hidden">hidden</span> <span class="nowo-md-ref--page x">b</span> <a href="/p" class="keep nowo-md-reference">c</a> <span data-class="nowo-md-ref">d</span></p>'),
+        );
+        self::assertSame('<p>plain</p>', WikiHtmlSanitizer::withoutServerClasses('<p>plain</p>'));
+    }
+
+    public function testAHostCannotAllowInputs(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new WikiHtmlSanitizer(extraAllowedElements: ['input' => ['value']]);
     }
 
     public function testStripsEventHandlers(): void

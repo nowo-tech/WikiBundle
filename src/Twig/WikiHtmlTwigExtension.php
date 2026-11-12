@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Ui\WikiTabActions;
+use Nowo\WikiBundle\Util\WikiDateFormat;
 use Nowo\WikiBundle\Util\WikiTableScroll;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
@@ -24,6 +25,9 @@ use Twig\TwigFunction;
  *
  * 1.28 (`editor.milkdown.file_previews`): after sanitizing, the file preview frames the per-viewer render registered
  * ({@see WikiFilePreviewFrames}) are put back in place of their placeholders.
+ *
+ * 1.31: `nowo_wiki_datetime(locale)` formats a date in the given locale ({@see WikiDateFormat::medium()}); the page view
+ * passes the request locale, so nothing is kept between requests.
  */
 final class WikiHtmlTwigExtension extends AbstractExtension
 {
@@ -54,6 +58,8 @@ final class WikiHtmlTwigExtension extends AbstractExtension
             new TwigFilter('nowo_wiki_safe_html', $this->sanitize(...), ['is_safe' => ['html']]),
             // 1.29 (MA-L1): tables of an already sanitized body in labelled scroll boxes.
             new TwigFilter('nowo_wiki_scroll_tables', static fn (mixed $html, string $label): string => WikiTableScroll::wrap((string) $html, $label), ['is_safe' => ['html']]),
+            // 1.31 (web_ui.page_meta: card): a date in the reader's locale (medium date, short time); plain text.
+            new TwigFilter('nowo_wiki_datetime', WikiDateFormat::medium(...)),
         ];
     }
 

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [1.31.0 (unreleased)](#1310-unreleased)
 - [[1.30.0] - 2026-11-11](#1300---2026-11-11)
 - [[1.29.1] - 2026-11-11](#1291---2026-11-11)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
@@ -72,6 +73,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
 
 ## [Unreleased]
+
+### 1.31.0 (unreleased)
+
+Target: **1.31.0** (minor; Symfony Beacon wiki UX review 2026-11-11). Every new option is off by default: with them off
+the 1.30 pages render the same markup except for the fixes below. See [USAGE › 1.31 additions](USAGE.md#131-additions)
+and [UPGRADING](UPGRADING.md#to-1310).
+
+#### Added
+
+- **`web_ui.page_header.title: card`:** the page view header never shows the title; when the body does not start with
+  an `<h1>` equal to it, the title is printed in the content card after the path / sub-pages head and before the body
+  (`.nowo-wiki-page-title`, `--nowo-wiki-read-h1-size`) — the page's `<h1>` when the header is not printed, else a
+  visual line hidden from assistive technology beside the header's visually hidden `<h1>`.
+- **`web_ui.page_meta: card`:** "v3 · Updated …" as the muted footer line of the content card instead of the scaffold
+  meta list, the date in the reader's locale (`IntlDateFormatter` medium date + short time, request locale; `Y-m-d
+  H:i` without ext-intl). Twig filter `nowo_wiki_datetime(locale)` (`Util\WikiDateFormat`).
+- **`comments.layout: inline|overlay`:** `overlay` passes UiKit's side panel `layout: overlay` (a drawer at every
+  width); it starts closed (the remembered state is not applied; `?comments=1` still opens it).
+- **`comments.thread_list: plain|uikit`:** `uikit` gives the Milkdown thread list UiKit rows, neutral count badges with
+  CLDR plurals (`wiki.comments.list.count_one|many|other`), a UiKit "Show resolved" checkbox and "Comment thread" for an
+  untitled thread (`wiki-comments-list.ts`, re-applied on every redraw). Translated in the 7 catalogues.
+- **Edit form with `page_header.tabs: toolbar`:** no back link and no space intro (the toolbar has "Back to page");
+  Reset collaboration is a danger item of the ⋮ menu (UiKit split actions), still behind its confirmation.
+- **`web_ui.breadcrumb_current_label` on the child pages:** the edit, history, compare and move pages name their
+  BreadcrumbKit page crumb after the page (`Ui\WikiBreadcrumbParentLabel`, a `BreadcrumbTrailBuiltEvent` listener
+  registered only with BreadcrumbKit; the title rides on the request, no service state). The `@?` integration stays
+  optional.
+- **Read tokens** `--nowo-wiki-read-h4-size` … `--nowo-wiki-read-h6-size` (h4–h6 also take the heading tokens) and
+  `--nowo-wiki-read-callout-margin|padding|radius|gap|icon-size` for `.nowo-md-callout` (server render and
+  MilkdownEditorBundle >= 1.17 read-only editor).
+- **Sanitizer:** the disabled task checkbox of MilkdownEditorBundle >= 1.17
+  (`li.nowo-milkdown-task > input.nowo-milkdown-task__box`) is kept: `<input>` is allowed with `type`, `class`,
+  `disabled`, `checked` and `aria-label` only, then rebuilt as `type="checkbox"` + `disabled` with the box class;
+  every other `<input>` (other type, outside a task item, not its first child) is removed. Hosts still cannot allow
+  `input`. XSS tests: text input with handlers, image input with `src` / `formaction`, inputs outside task items,
+  attribute and tag breaking in the label and class.
+- Translation keys `wiki.page.meta_revision`, `wiki.page.meta_updated`, `wiki.comments.list.*`.
+
+#### Fixed
+
+- **Seamless swap / `title: dedupe` with Crepe:** the read-only editor's leading `.ProseMirror-widget` took the
+  "first child" reset and the `> div` block margin, so the title moved 14–24 px down at the swap (and `dedupe` missed
+  the heading). Widgets get no margin and the first non-widget block is the one reset. Chromium check
+  `make check-seamless-swap` now also loads `tests/Browser/seamless-swap/widget.html` (div and span widgets, the
+  deduped title) at 1280 and 390 px; it fails on 1.30's CSS and passes now.
+- **Tree button chevron:** the toolbar's tree toggle (`tree_collapsed_mode: hidden`) pointed outward; it now points
+  into the page (flipped in LTR and RTL).
+- **Page head under 40rem:** `.nowo-wiki-card-frame > .nowo-wiki-page-head` no longer keeps the toolbar's width clear
+  when the toolbar is its own row.
+- **Search excerpts** no longer repeat the title: a leading heading (any level) equal to the title is left out.
+- **"Content not visible" in the shared cache:** the viewer-neutral `content_html` stored the placeholder translated in
+  the saver's locale (Spanish under an English UI). It now stores an empty, language-neutral marker
+  (`Markdown\Milkdown\WikiNeutralTranslator`); plain text drops hidden references in any language (run
+  `wiki:search:backfill-text --all` once). The neutral cache still resolves nothing (no title, id or URL of a hidden
+  target), and readers keep getting the per-viewer render.
+- **Audit NB-W-1 (Low):** the hidden-marker match of the plain text needed a whole class token (`-` was a boundary, so
+  `foo-nowo-md-ref--hidden-x` matched), and authored HTML could wrap its own text in that marker to keep it out of
+  `content_text` and search. The match now uses `(?<![\w-])nowo-md-ref--hidden(?![\w-])` on the `class` attribute
+  only, and HTML revisions lose the renderers' `nowo-md-ref*` classes on save
+  (`WikiHtmlSanitizer::withoutServerClasses()`); rendered Markdown keeps its marker.
+- **Audit NB-W-2 (Info):** the auditor's fuzz payloads for the task-checkbox post-pass are pinned as regression tests
+  (case, unquoted attributes, two inputs, comments, CDATA, `<input` in attributes / text / pre, forged and suffixed
+  task classes, nested lists, svg / math / textarea wrappers, hostile labels, `checked` only as a value).
 
 ## [1.30.0] - 2026-11-11
 

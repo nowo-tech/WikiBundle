@@ -43,6 +43,12 @@
   (page_header.path: card, _page_path.html.twig) and the page_children chip (web_ui.children,
   _page_children_chip.html.twig) above the body (.nowo-wiki-page-head); "Pages in this section"
   (_page_children.html.twig) after wiki_page_after_body.
+  1.31 (every option off by default): page_header.title: card with title_in_card (the body does not start with the
+  title) prints the title in the content card, after the page head and before the body (.nowo-wiki-page-title: the
+  page's <h1> when the header is not printed, else a visual line hidden from assistive technology, the header keeping
+  its visually hidden <h1>); web_ui.page_meta: card with page_meta ({revision, updated_at}) prints "v3 · Updated …" as
+  the card's muted footer line (.nowo-wiki-page-meta; the date in the request locale, nowo_wiki_datetime) and the
+  scaffold meta list is empty.
   Blocks filled: nowo_ui_styles, nowo_ui_scripts (parent() + the rich-content assets + wiki.js: scrolls the current page of the tree into view, draws rich content; 1.16 + nowo-ui-side-panel.js with comments), nowo_ui_page_header (the UiKit header without its tabs + the tab row), nowo_ui_content (1.16: inside the side panel container with comments), nowo_ui_show_sections (sidebar tree + content + "Used in").
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
@@ -147,6 +153,16 @@
                     {{ include('@NowoWikiBundle/manage/_page_children_chip.html.twig', {page_children: page_children|default(null), bundle: _b}, false) }}
                 </div>
             {% endif %}
+            {#- 1.31 (page_header.title: card): the title in the card when the body does not start with it. It is the page's
+                <h1> when the header is not printed (toolbar and tabs in the card, no status: audit MG-1-I1), else the
+                header keeps its visually hidden <h1> and this line is only visual. -#}
+            {% if title_in_card|default(false) %}
+                {% if _in_card and (_layout.tabs ?? 'row') == 'toolbar' and not (page.header.status ?? null) %}
+                    <h1 class="nowo-wiki-page-title" data-testid="wiki-page-title">{{ page.header.title|nowo_ui_trans }}</h1>
+                {% else %}
+                    <p class="nowo-wiki-page-title" aria-hidden="true" data-testid="wiki-page-title">{{ page.header.title|nowo_ui_trans }}</p>
+                {% endif %}
+            {% endif %}
             {#- 1.30 web_ui.read_view.seamless_swap: the read-only editor and the server body share one grid cell (no reflow when
                 the editor is ready; wiki.js cross-fades), with the same typography (--nowo-wiki-read-* tokens) -#}
             {% set _swap = (_layout.seamless_swap ?? false) and comments_view|default(null) %}
@@ -163,6 +179,11 @@
             </article>
             {% endblock %}
             {% if _swap %}</div>{% endif %}
+            {#- 1.31 (web_ui.page_meta: card): "v3 · Updated …", the date in the reader's locale -#}
+            {% if page_meta|default(null) %}
+                {% set _updated = ('wiki.page.meta_updated'|trans({'%date%': '%date%'}))|split('%date%', 2) %}
+                <p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-page-meta" data-testid="wiki-page-meta">{{ 'wiki.page.meta_revision'|trans({'%number%': page_meta.revision}) }} · {{ _updated[0] }}<time datetime="{{ page_meta.updated_at|date('c') }}">{{ page_meta.updated_at|nowo_wiki_datetime(app.request ? app.request.locale : null) }}</time>{{ _updated[1] ?? '' }}</p>
+            {% endif %}
             {% if _in_card %}</div>{% endif %}
             {#- 1.29: after the body, before "Used in" (empty; e.g. a host's backlinks) -#}
             {% block wiki_page_after_body %}{% endblock %}
