@@ -8,8 +8,11 @@ use LogicException;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\User\WikiUsers;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+use function array_map;
 use function hash_hmac;
 use function is_string;
 use function method_exists;
@@ -31,16 +34,20 @@ final readonly class WikiAuthorLabel
 {
     /**
      * @param WikiAvatars|null $avatars the response's avatar memo (null: no pictures)
+     * @param WikiUsers|null $users 1.32 (`database.user_reference: id`): the host users behind stored ids
      */
     public function __construct(
         private string $secret,
         private bool $showNames = false,
         private ?WikiAvatars $avatars = null,
+        private ?WikiUsers $users = null,
     ) {
     }
 
     public function label(object $author, WikiPage $page): string
     {
+        $author = $this->users?->resolve($author) ?? $author;
+
         return $this->realName($author) ?? $this->opaque($author, $page);
     }
 
@@ -65,6 +72,8 @@ final readonly class WikiAuthorLabel
     {
         $names = [];
         $named = [];
+        // 1.32: a stored id reference is presented as the host user the directory finds for it (else by its id).
+        $authors = array_map(fn (object $author): object => $this->users?->resolve($author) ?? $author, $authors);
         foreach ($authors as $index => $author) {
             $names[$index] = $this->realName($author);
             if ($names[$index] !== null && $author instanceof UserInterface) {
@@ -111,8 +120,12 @@ final readonly class WikiAuthorLabel
         if ($this->secret === '') {
             throw new LogicException('nowo_wiki.history needs a non-empty kernel.secret to derive the author labels.');
         }
-        $identifier = $author instanceof UserInterface ? $author->getUserIdentifier() : '';
-        $hash       = hash_hmac('sha256', $page->getId() . '|' . $identifier, hash_hmac('sha256', 'nowo_wiki_collab_label', $this->secret));
+        $identifier = match (true) {
+            $author instanceof UserInterface     => $author->getUserIdentifier(),
+            $author instanceof WikiStoredUserRef => "\0id:" . $author->id, // 1.32: a stored id the directory did not resolve
+            default                              => '',
+        };
+        $hash = hash_hmac('sha256', $page->getId() . '|' . $identifier, hash_hmac('sha256', 'nowo_wiki_collab_label', $this->secret));
 
         return 'Editor ' . substr($hash, 6, 4);
     }

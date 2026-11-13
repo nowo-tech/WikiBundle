@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
+use Nowo\WikiBundle\User\WikiUsers;
 
 use function array_filter;
 use function array_values;
@@ -24,6 +25,7 @@ final readonly class WikiApiPeople
         private WikiAuthorLabel $labels,
         private WikiApiUsersInterface $users,
         private WikiApiGuard $guard,
+        private ?WikiUsers $directory = null,
     ) {
     }
 
@@ -43,8 +45,9 @@ final readonly class WikiApiPeople
                 $answer[] = null;
                 continue;
             }
+            // 1.32 (database.user_reference: id): the host's api id of the user behind a stored id reference.
             $answer[] = [
-                'id'   => $this->guard->isUser($principal, $person) ? $this->users->apiId($person) : null,
+                'id'   => $this->guard->isUser($principal, $person) ? $this->users->apiId($this->directory?->resolve($person) ?? $person) : null,
                 'name' => $presented[$index++]['name'],
             ];
         }

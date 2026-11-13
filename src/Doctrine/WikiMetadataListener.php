@@ -6,7 +6,10 @@ namespace Nowo\WikiBundle\Doctrine;
 
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\ORM\Mapping\JoinColumnMapping;
+use Doctrine\ORM\Mapping\ToOneOwningSideMapping;
 use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
+use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Entity\WikiApiIdempotencyRecord;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
@@ -20,17 +23,26 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiRevisionLabel;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 
 use function array_replace_recursive;
 use function array_reverse;
 use function array_values;
 use function ltrim;
+use function sha1;
+use function substr;
 
 /**
  * Applies configurable table names and user entity mapping to wiki entities.
  */
 final readonly class WikiMetadataListener
 {
+    /** `database.user_reference: entity` (default): the user fields are `ManyToOne` relations to `user_class`. */
+    public const USER_REFERENCE_ENTITY = 'entity';
+
+    /** `database.user_reference: id` (1.32): the user fields are string id columns ({@see WikiUserRefType}). */
+    public const USER_REFERENCE_ID = 'id';
+
     /**
      * Stores the configured table names and the application user class.
      *
@@ -52,6 +64,8 @@ final readonly class WikiMetadataListener
      * @param bool $commentsEnabled false: the comment tables are left out of the generated schema (1.16)
      * @param string $apiIdempotencyTableName table name for the REST API's idempotency store (1.24)
      * @param bool $apiIdempotencyEnabled true only with `api.enabled` and the bundle's own store (1.24)
+     * @param string $userReference `database.user_reference` (1.32): `entity` maps the user fields as relations to
+     *                              `$userClass`, `id` as string id columns ({@see WikiUserRefType})
      */
     public function __construct(
         private string $spacesTableName,
@@ -71,6 +85,7 @@ final readonly class WikiMetadataListener
         private bool $commentsEnabled = true,
         private string $apiIdempotencyTableName = 'wiki_api_idempotency',
         private bool $apiIdempotencyEnabled = false,
+        private string $userReference = self::USER_REFERENCE_ENTITY,
     ) {
     }
 
@@ -207,6 +222,12 @@ final readonly class WikiMetadataListener
             return;
         }
 
+        if ($this->userReference === self::USER_REFERENCE_ID) {
+            $this->mapUserReference($metadata, $field);
+
+            return;
+        }
+
         $mapping      = $metadata->associationMappings[$field];
         $targetEntity = ltrim($this->userClass, '\\');
 
@@ -215,5 +236,30 @@ final readonly class WikiMetadataListener
         $newMapping['fieldName'] = $mapping->fieldName;
         unset($metadata->associationMappings[$field]);
         $metadata->mapManyToOne($newMapping);
+    }
+
+    /**
+     * 1.32.0 (`database.user_reference: id`, REQ-ARCH-001 rule 2): the user field becomes a string column holding the
+     * user's id, under the join column's name and nullability, with an index and no foreign key (a row outlives its
+     * user: the history is never deleted with the account). The binary NO PAD collation is set on MySQL / MariaDB by
+     * {@see WikiSpaceCollationListener} when the schema is generated (REQ-SEC-006 item 3). Works on attribute and XML
+     * metadata alike: only the loaded metadata is read.
+     *
+     * @param ClassMetadata<object> $metadata
+     */
+    private function mapUserReference(ClassMetadata $metadata, string $fieldName): void
+    {
+        $mapping = $metadata->associationMappings[$fieldName];
+        $join    = $mapping instanceof ToOneOwningSideMapping ? ($mapping->joinColumns[0] ?? null) : null;
+        $column  = $join instanceof JoinColumnMapping ? $join->name : $fieldName . '_id';
+        unset($metadata->associationMappings[$fieldName]);
+        $metadata->mapField([
+            'fieldName'  => $fieldName,
+            'type'       => WikiUserRefType::NAME,
+            'columnName' => $column,
+            'length'     => WikiStoredUserRef::MAX_LENGTH,
+            'nullable'   => !$join instanceof JoinColumnMapping || $join->nullable !== false,
+        ]);
+        $metadata->table['indexes']['idx_' . substr(sha1($metadata->getTableName() . '.' . $column), 0, 16)] = ['columns' => [$column]];
     }
 }

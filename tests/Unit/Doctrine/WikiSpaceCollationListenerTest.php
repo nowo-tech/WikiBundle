@@ -20,12 +20,18 @@ use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\ORM\Tools\ToolEvents;
 use Doctrine\Persistence\ManagerRegistry;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
+use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+
+use function count;
 
 /**
  * 1.31.1 (house rule LQ): `wiki_spaces.owner_scope_id` gets a binary NO PAD collation on MySQL / MariaDB.
@@ -91,6 +97,30 @@ final class WikiSpaceCollationListenerTest extends TestCase
         self::assertSame('utf8mb4', $table->getColumn('owner_scope_id')->getPlatformOptions()['charset'] ?? null);
     }
 
+    /** 1.32 (`database.user_reference: id`, REQ-SEC-006 item 3): every stored user id column is collated too. */
+    #[DataProvider('platforms')]
+    public function testIdModeCollatesTheUserColumns(AbstractPlatform $platform, ?string $expected): void
+    {
+        $logger = new RecordingLogger();
+        $table  = $this->generatedTable(new WikiSpaceCollationListener($this->entityManagerOn($platform), $logger), WikiCommentThread::class, WikiMetadataListener::USER_REFERENCE_ID);
+
+        foreach (['created_by_id', 'resolved_by_id'] as $column) {
+            self::assertSame($expected, $table->getColumn($column)->getPlatformOptions()['collation'] ?? null, $column);
+        }
+        self::assertArrayNotHasKey('collation', $table->getColumn('quote')->getPlatformOptions());
+        // REQ-SEC-006 item 8: the PAD SPACE fallback is reported.
+        self::assertSame($expected === 'utf8mb4_bin' ? 1 : 0, count($logger->records));
+    }
+
+    public function testFieldsOf(): void
+    {
+        $em = WikiTestDatabase::connect(null, WikiMetadataListener::USER_REFERENCE_ID);
+        self::assertSame(['ownerScopeId'], WikiSpaceCollationListener::fieldsOf($em->getClassMetadata(WikiSpace::class)));
+        self::assertSame(['author'], WikiSpaceCollationListener::fieldsOf($em->getClassMetadata(WikiPageRevision::class)));
+        self::assertSame([], WikiSpaceCollationListener::fieldsOf(WikiTestDatabase::connect()->getClassMetadata(WikiPageRevision::class)));
+        $em->getConnection()->close();
+    }
+
     private function entityManagerOn(AbstractPlatform $platform): EntityManagerInterface
     {
         $connection = $this->createMock(Connection::class);
@@ -103,11 +133,11 @@ final class WikiSpaceCollationListenerTest extends TestCase
     }
 
     /** @param class-string $class */
-    private function generatedTable(WikiSpaceCollationListener $listener, string $class): Table
+    private function generatedTable(WikiSpaceCollationListener $listener, string $class, string $userReference = WikiMetadataListener::USER_REFERENCE_ENTITY): Table
     {
         // The schema is built from the wiki mapping on SQLite in memory; the listener reads the platform of its own
         // entity manager, so a MySQL / MariaDB platform there decides the collation.
-        $em = WikiTestDatabase::connect();
+        $em = WikiTestDatabase::connect(null, $userReference);
         self::assertInstanceOf(EntityManager::class, $em);
         $em->getEventManager()->addEventListener(ToolEvents::postGenerateSchemaTable, $listener);
         $metadata = $em->getMetadataFactory()->getMetadataFor($class);

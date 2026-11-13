@@ -10,7 +10,10 @@ use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentReaction;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\User\WikiUserFields;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 
+use function array_chunk;
 use function array_filter;
 use function array_key_last;
 use function array_map;
@@ -19,6 +22,7 @@ use function array_values;
 use function count;
 use function explode;
 use function implode;
+use function is_string;
 use function max;
 use function mb_strtolower;
 use function strtr;
@@ -148,7 +152,22 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
     public function reaction(WikiComment $comment, object $user, string $emoji): ?WikiCommentReaction
     {
-        $reaction = $this->entityManager()->getRepository(WikiCommentReaction::class)->findOneBy(['comment' => $comment->getId(), 'user' => $user, 'emoji' => $emoji]);
+        $em = $this->entityManager();
+        if (WikiUserFields::byId($em, WikiCommentReaction::class, 'user')) {
+            // 1.32 (database.user_reference: id): every candidate re-checked byte for byte (REQ-SEC-006 items 2 and 6).
+            $id = WikiUserFields::exactId($user);
+            if ($id === null) {
+                return null;
+            }
+            foreach ($em->getRepository(WikiCommentReaction::class)->findBy(['comment' => $comment->getId(), 'user' => $id, 'emoji' => $emoji]) as $candidate) {
+                if (WikiUserFields::is($candidate->getUser(), $id) && $candidate->getEmoji() === $emoji) {
+                    return $candidate;
+                }
+            }
+
+            return null;
+        }
+        $reaction = $em->getRepository(WikiCommentReaction::class)->findOneBy(['comment' => $comment->getId(), 'user' => $user, 'emoji' => $emoji]);
 
         return $reaction instanceof WikiCommentReaction ? $reaction : null;
     }
@@ -178,20 +197,24 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
     public function byAuthor(object $user): array
     {
+        $parameter = $this->userParameter(WikiComment::class, 'author', $user);
+        if ($parameter === null) {
+            return [];
+        }
         /** @var list<WikiComment> $comments */
         $comments = $this->entityManager()->createQueryBuilder()
             ->select('c', 't')
             ->from(WikiComment::class, 'c')
             ->innerJoin('c.thread', 't')
             ->where('c.author = :user')
-            ->setParameter('user', $user)
+            ->setParameter('user', $parameter)
             ->orderBy('t.createdAt', 'ASC')
             ->addOrderBy('t.id', 'ASC')
             ->addOrderBy('c.position', 'ASC')
             ->getQuery()
             ->getResult();
 
-        return $comments;
+        return is_string($parameter) ? array_values(array_filter($comments, static fn (WikiComment $c): bool => WikiUserFields::is($c->getAuthor(), $parameter))) : $comments;
     }
 
     public function eraseAuthor(object $user, bool $deleteBodies): int
@@ -206,6 +229,11 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         }
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
         $em->flush();
+        if (WikiUserFields::byId($em, WikiCommentReaction::class, 'user')) {
+            $this->eraseStoredId($em, WikiUserFields::exactId($user));
+
+            return count($comments);
+        }
         $em->createQueryBuilder()->delete(WikiCommentReaction::class, 'r')->where('r.user = :user')->setParameter('user', $user)->getQuery()->execute();
         foreach (['createdBy', 'resolvedBy'] as $field) {
             $em->createQueryBuilder()->update(WikiCommentThread::class, 't')->set('t.' . $field, ':none')
@@ -298,7 +326,28 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
     public function countOpenBy(WikiPage $page, object $user): int
     {
-        return (int) $this->entityManager()->createQueryBuilder()
+        $em = $this->entityManager();
+        if (WikiUserFields::byId($em, WikiCommentThread::class, 'createdBy')) {
+            // 1.32: counted in PHP after an exact re-check of each opener (REQ-SEC-006 item 2).
+            $id = WikiUserFields::exactId($user);
+            if ($id === null) {
+                return 0;
+            }
+            $openers = $em->createQueryBuilder()
+                ->select('t.createdBy AS opener')
+                ->from(WikiCommentThread::class, 't')
+                ->where('t.page = :page')
+                ->andWhere('t.resolvedAt IS NULL')
+                ->andWhere('t.createdBy = :user')
+                ->setParameter('page', $page->getId())
+                ->setParameter('user', $id)
+                ->getQuery()
+                ->getArrayResult();
+
+            return count(array_filter($openers, static fn (array $row): bool => self::storedId($row['opener']) === $id));
+        }
+
+        return (int) $em->createQueryBuilder()
             ->select('COUNT(t.id)')
             ->from(WikiCommentThread::class, 't')
             ->where('t.page = :page')
@@ -312,6 +361,10 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
     public function reactionsBy(object $user): array
     {
+        $parameter = $this->userParameter(WikiCommentReaction::class, 'user', $user);
+        if ($parameter === null) {
+            return [];
+        }
         /** @var list<WikiCommentReaction> $reactions */
         $reactions = $this->entityManager()->createQueryBuilder()
             ->select('r', 'c', 't')
@@ -319,28 +372,92 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
             ->innerJoin('r.comment', 'c')
             ->innerJoin('c.thread', 't')
             ->where('r.user = :user')
-            ->setParameter('user', $user)
+            ->setParameter('user', $parameter)
             ->orderBy('r.id', 'ASC')
             ->getQuery()
             ->getResult();
 
-        return $reactions;
+        return is_string($parameter) ? array_values(array_filter($reactions, static fn (WikiCommentReaction $r): bool => WikiUserFields::is($r->getUser(), $parameter))) : $reactions;
     }
 
     public function threadsBy(object $user, string $role): array
     {
+        $field     = $role === 'resolvedBy' ? 'resolvedBy' : 'createdBy';
+        $parameter = $this->userParameter(WikiCommentThread::class, $field, $user);
+        if ($parameter === null) {
+            return [];
+        }
         /** @var list<WikiCommentThread> $threads */
         $threads = $this->entityManager()->createQueryBuilder()
             ->select('t')
             ->from(WikiCommentThread::class, 't')
-            ->where('t.' . ($role === 'resolvedBy' ? 'resolvedBy' : 'createdBy') . ' = :user')
-            ->setParameter('user', $user)
+            ->where('t.' . $field . ' = :user')
+            ->setParameter('user', $parameter)
             ->orderBy('t.createdAt', 'ASC')
             ->addOrderBy('t.id', 'ASC')
             ->getQuery()
             ->getResult();
 
-        return $threads;
+        if (!is_string($parameter)) {
+            return $threads;
+        }
+
+        return array_values(array_filter($threads, static fn (WikiCommentThread $t): bool => WikiUserFields::is($field === 'resolvedBy' ? $t->getResolvedBy() : $t->getCreatedBy(), $parameter)));
+    }
+
+    /**
+     * The query parameter of a user field (1.32): the user object for a relation; in the id mode its exact id, or null
+     * when it has none (it then matches nothing). Results of an id parameter are re-checked with `===` by the caller.
+     *
+     * @param class-string $class the wiki entity class
+     */
+    private function userParameter(string $class, string $field, object $user): object|string|null
+    {
+        return WikiUserFields::byId($this->entityManager(), $class, $field) ? WikiUserFields::exactId($user) : $user;
+    }
+
+    /**
+     * The stored id of a scalar row value of a user field (converted to a {@see WikiStoredUserRef} by its column type;
+     * null for a value that identifies nobody).
+     */
+    private static function storedId(mixed $value): ?string
+    {
+        return $value instanceof WikiStoredUserRef ? $value->id : null;
+    }
+
+    /**
+     * 1.32 (database.user_reference: id): the erasure of a user's reactions and thread links selects the rows first,
+     * keeps those whose stored id is exactly the user's, then deletes / updates them by primary key (REQ-SEC-006 item 2):
+     * a look-alike id on a folding collation is never touched.
+     */
+    private function eraseStoredId(EntityManagerInterface $em, ?string $id): void
+    {
+        if ($id === null) {
+            return;
+        }
+        $exact = static function (array $rows) use ($id): array {
+            $ids = [];
+            foreach ($rows as $row) {
+                if (self::storedId($row['ref']) === $id) {
+                    $ids[] = (string) $row['id'];
+                }
+            }
+
+            return $ids;
+        };
+        $reactions = $exact($em->createQueryBuilder()->select('r.id AS id', 'r.user AS ref')->from(WikiCommentReaction::class, 'r')
+            ->where('r.user = :user')->setParameter('user', $id)->getQuery()->getArrayResult());
+        foreach (array_chunk($reactions, 500) as $chunk) {
+            $em->createQueryBuilder()->delete(WikiCommentReaction::class, 'r')->where('r.id IN (:ids)')->setParameter('ids', $chunk)->getQuery()->execute();
+        }
+        foreach (['createdBy', 'resolvedBy'] as $field) {
+            $threads = $exact($em->createQueryBuilder()->select('t.id AS id', 't.' . $field . ' AS ref')->from(WikiCommentThread::class, 't')
+                ->where('t.' . $field . ' = :user')->setParameter('user', $id)->getQuery()->getArrayResult());
+            foreach (array_chunk($threads, 500) as $chunk) {
+                $em->createQueryBuilder()->update(WikiCommentThread::class, 't')->set('t.' . $field, ':none')
+                    ->where('t.id IN (:ids)')->setParameter('none', null)->setParameter('ids', $chunk)->getQuery()->execute();
+            }
+        }
     }
 
     public function add(WikiCommentThread|WikiComment|WikiCommentReaction $entity): void

@@ -55,6 +55,7 @@ use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
+use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
@@ -125,7 +126,9 @@ use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Nowo\WikiBundle\User\WikiUserClassPolicy;
+use Nowo\WikiBundle\User\WikiUserDirectoryInterface;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
+use Nowo\WikiBundle\User\WikiUsers;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
@@ -280,6 +283,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.database.user_reference', $database['user_reference']);
         $container->setParameter('nowo_wiki.database.private_entity_manager', (bool) $database['private_entity_manager']);
         $container->setParameter('nowo_wiki.user_directory', $config['user_directory']);
+        // 1.32 (database.user_reference: id): the host's user directory, when configured.
+        if (is_string($config['user_directory']) && $config['user_directory'] !== '') {
+            $container->setAlias(WikiUserDirectoryInterface::class, $config['user_directory']);
+        }
         $container->setParameter('nowo_wiki.space_scope', $config['space_scope']);
         $container->setParameter('nowo_wiki.route_prefix', self::pathPrefix($config));
         $container->setParameter('nowo_wiki.dashboard_route', $config['dashboard_route']);
@@ -394,12 +401,14 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$historyTimeline', $config['history']['timeline'])
             ->setArgument('$commentTablePrefix', $prefix)
             ->setArgument('$commentsEnabled', $config['comments']['enabled'])
+            ->setArgument('$userReference', $database['user_reference'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
         // 1.31.1 (house rule LQ): binary NO PAD collation on wiki_spaces.owner_scope_id on MySQL / MariaDB.
         $container->setDefinition(WikiSpaceCollationListener::class, (new Definition(WikiSpaceCollationListener::class))
             ->setArgument('$entityManager', $emProviderRef)
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE))
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchemaTable']));
 
         $container->setDefinition(WikiSpaceAccessResolver::class, (new Definition(WikiSpaceAccessResolver::class))
@@ -438,7 +447,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     {
         $memos = array_map(
             static fn (string $id): Reference => new Reference($id, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE),
-            [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class],
+            [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class],
         );
         $container->setDefinition(WikiRequestBoundaryResetter::class, (new Definition(WikiRequestBoundaryResetter::class))
             ->setArgument('$memos', new IteratorArgument($memos))
@@ -662,7 +671,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(WikiAuthorLabel::class, (new Definition(WikiAuthorLabel::class))
             ->setArgument('$secret', '%kernel.secret%')
             ->setArgument('$showNames', (bool) $config['history']['show_names'])
-            ->setArgument('$avatars', new Reference(WikiAvatars::class)));
+            ->setArgument('$avatars', new Reference(WikiAvatars::class))
+            ->setArgument('$users', new Reference(WikiUsers::class)));
     }
 
     /**
@@ -1301,8 +1311,29 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         // 1.32.0: database.mapping_type (attribute by default, as up to 1.31; xml for DDD hosts).
         WikiDoctrineMapping::prepend($container);
 
+        // 1.32 (database.user_reference: id): the column type of the stored user ids.
+        if ($container->hasExtension('doctrine') && self::userReferencesById($container)) {
+            $container->prependExtensionConfig('doctrine', ['dbal' => ['types' => [WikiUserRefType::NAME => WikiUserRefType::class]]]);
+        }
+
         $this->prependFormKitDefaults($container);
         $this->prependUiKitDefaults($container);
+    }
+
+    /**
+     * Whether the host configuration sets `database.user_reference: id` (1.32; the last value wins, as in the tree).
+     */
+    private static function userReferencesById(ContainerBuilder $container): bool
+    {
+        $mode = 'entity';
+        foreach ($container->getExtensionConfig(Configuration::ALIAS) as $config) {
+            $value = $config['database']['user_reference'] ?? null;
+            if (is_string($value)) {
+                $mode = $value;
+            }
+        }
+
+        return $mode === 'id';
     }
 
     /**
