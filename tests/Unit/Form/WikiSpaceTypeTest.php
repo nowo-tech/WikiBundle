@@ -8,6 +8,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Form\WikiSpaceIconType;
 use Nowo\WikiBundle\Form\WikiSpaceType;
+use Symfony\Component\Form\Extension\Core\Type\FormType;
 use Symfony\Component\Form\Extension\Validator\ValidatorExtension;
 use Symfony\Component\Form\PreloadedExtension;
 use Symfony\Component\Form\Test\TypeTestCase;
@@ -92,5 +93,24 @@ final class WikiSpaceTypeTest extends TypeTestCase
 
         self::assertFalse($form->isValid());
         self::assertCount(1, $form->get('icon')->getErrors());
+    }
+
+    public function testBlockPrefixesAndViews(): void
+    {
+        $view = $this->factory->create(WikiSpaceType::class, $this->space(), ['icon_field' => true])->createView();
+
+        self::assertContains('nowo_wiki_space', $view->vars['block_prefixes']);
+        self::assertContains('nowo_wiki_space_icon', $view['icon']->vars['block_prefixes']);
+        self::assertSame(64, $view['icon']->vars['attr']['maxlength']);
+    }
+
+    public function testTheSetterLeavesOtherDataAlone(): void
+    {
+        $form = $this->factory->createBuilder(FormType::class, new class {
+            public ?string $icon = null;
+        })->add('icon', WikiSpaceIconType::class)->getForm();
+        $form->submit(['icon' => 'tabler:book']);
+
+        self::assertTrue($form->isValid());
     }
 }

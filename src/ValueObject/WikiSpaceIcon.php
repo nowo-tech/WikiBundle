@@ -13,7 +13,7 @@ use function strlen;
 /**
  * Validation of the UX icon name of a wiki space (1.32), e.g. {@code tabler:book}. Stateless: pure functions only.
  */
-final class WikiSpaceIcon
+abstract class WikiSpaceIcon
 {
     /** Longest icon name stored. */
     public const MAX_LENGTH = 64;
@@ -23,10 +23,6 @@ final class WikiSpaceIcon
 
     /** Icon sets accepted unless `space_icon.allowed_prefixes` says otherwise. */
     public const DEFAULT_PREFIXES = ['tabler'];
-
-    private function __construct()
-    {
-    }
 
     /**
      * Tells whether a value is an acceptable icon name.
