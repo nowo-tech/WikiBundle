@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\User;
 
 use Stringable;
 
+use function in_array;
 use function is_int;
 use function is_numeric;
 use function is_string;
@@ -58,6 +59,13 @@ final readonly class WikiUserClassPolicy
     {
         if ($this->isCreatorClass($user)) {
             return true;
+        }
+        if ($user instanceof WikiRefUser) {
+            // 1.32: a framework-free host's reference stands for its class: accepted only when it names user_class or
+            // a listed class exactly (no subclass or look-alike match).
+            $class = ltrim($user->getUserClass(), '\\');
+
+            return $class === ltrim($this->userClass, '\\') || in_array($class, $this->acceptedUserClasses, true);
         }
 
         foreach ($this->acceptedUserClasses as $class) {

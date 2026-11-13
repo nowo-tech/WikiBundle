@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\PageFile\WikiPageFile;
 use Nowo\WikiBundle\User\WikiUserId;
@@ -49,5 +53,29 @@ final readonly class WikiPageFilesPurgedEvent
     public function actorId(): ?string
     {
         return WikiUserId::of($this->actor);
+    }
+
+    /**
+     * 1.32: the space's id.
+     */
+    public function spaceId(): string
+    {
+        return $this->space->getId();
+    }
+
+    /**
+     * 1.32: the space as a framework-free snapshot.
+     */
+    public function spaceSnapshot(): WikiSpaceSnapshot
+    {
+        return WikiSnapshots::space($this->space);
+    }
+
+    /**
+     * 1.32: the actor as a framework-free reference; null without an actor.
+     */
+    public function actorRef(): ?WikiUserRef
+    {
+        return WikiUserRefs::fromUserOrNull($this->actor);
     }
 }

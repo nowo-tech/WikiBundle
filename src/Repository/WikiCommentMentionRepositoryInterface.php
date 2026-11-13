@@ -19,6 +19,9 @@ use Nowo\WikiBundle\Entity\WikiCommentThread;
  * eraser relies on that contract to finish (audit FG2-I4): a page holds at most `$limit` rows, only ids strictly after
  * `$afterId`, in ascending id order; a store that ignores `$afterId` makes the eraser loop, one that skips rows leaves
  * mentions behind.
+ *
+ * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
+ * hosts reach wiki data through the services, the id operations and the events.
  */
 interface WikiCommentMentionRepositoryInterface
 {

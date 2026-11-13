@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Link;
 
+use Nowo\WikiBundle\Port\WikiObjectLinkSourceGate;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -28,7 +29,7 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
 {
     /**
      * @param WikiPageLinkRepositoryInterface $linkRepository link persistence
-     * @param iterable<WikiObjectLinkResolverInterface> $resolvers host resolvers
+     * @param iterable<object> $resolvers host resolvers (WikiObjectLinkResolverInterface, or since 1.32 WikiObjectLinkSourceInterface)
      * @param EventDispatcherInterface $eventDispatcher dispatcher of the link events
      * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored link creator for a non-entity user
      */
@@ -123,8 +124,10 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
 
     private function resolverFor(string $type): ?WikiObjectLinkResolverInterface
     {
-        foreach ($this->resolvers as $resolver) {
-            if ($resolver->supports($type)) {
+        foreach ($this->resolvers as $service) {
+            // 1.32: a framework-free WikiObjectLinkSourceInterface is asked through its gate.
+            $resolver = WikiObjectLinkSourceGate::of($service);
+            if ($resolver instanceof WikiObjectLinkResolverInterface && $resolver->supports($type)) {
                 return $resolver;
             }
         }

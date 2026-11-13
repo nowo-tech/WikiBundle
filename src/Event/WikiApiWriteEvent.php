@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Symfony\Contracts\EventDispatcher\Event;
 
@@ -28,5 +29,13 @@ final class WikiApiWriteEvent extends Event
         public readonly array $targetIds = [],
         public readonly array $changedFields = [],
     ) {
+    }
+
+    /**
+     * 1.32: the person behind the token, as a framework-free reference.
+     */
+    public function actorRef(): WikiUserRef
+    {
+        return $this->principal->userRef();
     }
 }

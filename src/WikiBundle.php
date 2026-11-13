@@ -8,6 +8,7 @@ use Nowo\WikiBundle\DependencyInjection\Compiler\CsrfProtectionPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\TwigPathsPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiApiSafetyPass;
+use Nowo\WikiBundle\DependencyInjection\Compiler\WikiPortsPass;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
@@ -31,6 +32,8 @@ final class WikiBundle extends Bundle
         $container->addCompilerPass(new CsrfProtectionPass());
         $container->addCompilerPass(new MilkdownBridgePass());
         $container->addCompilerPass(new WikiApiSafetyPass());
+        // 1.32: framework-free twins of the host ports (REQ-ARCH-001).
+        $container->addCompilerPass(new WikiPortsPass());
     }
 
     /**

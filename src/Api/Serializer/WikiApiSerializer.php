@@ -27,7 +27,7 @@ final readonly class WikiApiSerializer
     public function wiki(WikiApiWiki $wiki): array
     {
         $body = [
-            'id'          => $wiki->space?->getId(),
+            'id'          => $wiki->spaceId,
             'slug'        => $wiki->slug,
             'name'        => $wiki->name,
             'description' => $wiki->description,
