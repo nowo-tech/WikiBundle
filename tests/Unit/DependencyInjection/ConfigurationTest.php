@@ -19,6 +19,15 @@ use const E_USER_DEPRECATED;
 
 final class ConfigurationTest extends TestCase
 {
+    public function testSpaceIconPrefixesAreConfigurableAndValidated(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'space_icon' => ['allowed_prefixes' => ['tabler', 'lucide']]]]);
+        self::assertSame(['tabler', 'lucide'], $config['space_icon']['allowed_prefixes']);
+
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'space_icon' => ['allowed_prefixes' => ['Bad Prefix']]]]);
+    }
+
     public function testDefaultConfig(): void
     {
         $config = (new Processor())->processConfiguration(new Configuration(), [[
@@ -42,6 +51,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame(['ROLE_ADMIN'], Configuration::resolveRoles($config['security'])['import']);
         self::assertSame(Configuration::DEFAULT_ROLES, Configuration::resolveRoles($config['security']));
         self::assertSame(['ROLE_USER'], $config['security']['access_roles']);
+        self::assertSame(['tabler'], $config['space_icon']['allowed_prefixes']);
         self::assertNull($config['web_ui']['css_framework']);
         self::assertNull($config['web_ui']['layout_template']);
         self::assertNull($config['web_ui']['path_prefix']);

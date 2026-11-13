@@ -232,3 +232,9 @@ services:
         resource: '../../Form/'
         exclude: '../../Form/DataTransformer/'
         tags: ['form.type']
+
+    # 1.32: the space icon field checks the configured icon set prefixes.
+    Nowo\WikiBundle\Form\WikiSpaceIconType:
+        arguments:
+            $allowedPrefixes: '%nowo_wiki.space_icon.allowed_prefixes%'
+        tags: ['form.type']

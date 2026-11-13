@@ -6,8 +6,10 @@ namespace Nowo\WikiBundle\Entity;
 
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
+use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\ValueObject\Uuid;
+use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 
 /**
  * A wiki workspace (team or user scoped).
@@ -26,6 +28,10 @@ class WikiSpace
 
     #[ORM\Column(name: 'updated_at', type: 'datetime_immutable')]
     private DateTimeImmutable $updatedAt;
+
+    /** 1.32: UX icon name such as `tabler:book`; null shows the default book icon. */
+    #[ORM\Column(type: 'string', length: WikiSpaceIcon::MAX_LENGTH, nullable: true)]
+    private ?string $icon = null;
 
     /**
      * Creates a space with a generated UUID and both timestamps set to now.
@@ -132,5 +138,34 @@ class WikiSpace
     public function getUpdatedAt(): DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    /**
+     * Returns the UX icon name of the space (1.32).
+     *
+     * @return string|null icon name such as `tabler:book`, or null for the default book icon
+     */
+    public function getIcon(): ?string
+    {
+        return $this->icon;
+    }
+
+    /**
+     * Sets or clears the UX icon name of the space (1.32) and refreshes the update timestamp.
+     *
+     * @param string|null $icon `<prefix>:<name>` (lowercase letters, digits, dashes; max 64 characters), or null
+     * @param list<string> $allowedPrefixes accepted icon set prefixes (`space_icon.allowed_prefixes`)
+     *
+     * @throws InvalidArgumentException when the value is not a valid icon name
+     */
+    public function setIcon(?string $icon, array $allowedPrefixes = WikiSpaceIcon::DEFAULT_PREFIXES): void
+    {
+        if ($icon !== null) {
+            WikiSpaceIcon::assertValid($icon, $allowedPrefixes);
+        }
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->icon = $icon;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->updatedAt = new DateTimeImmutable();
     }
 }

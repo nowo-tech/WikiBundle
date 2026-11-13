@@ -108,6 +108,10 @@ wiki:
     open: "Openen"
     actions: "Acties"
   space:
+    name: "Naam"
+    icon: "Pictogram"
+    icon_help: "UX-pictogramnaam zoals tabler:book. Leeg laten voor het standaard boekpictogram."
+    icon_invalid: "Gebruik een pictogramnaam zoals tabler:book uit een toegestane set (kleine letters, cijfers en streepjes, maximaal 64 tekens)."
     new_page: Nieuwe pagina
     pick_page: Kies een pagina in de zijbalk of maak er een aan.
     pick_page_read_only: "Kies een pagina in de zijbalk."

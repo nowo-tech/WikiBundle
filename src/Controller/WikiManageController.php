@@ -294,6 +294,7 @@ final class WikiManageController extends AbstractController
 
         return $this->renderPage('space', $vars + [
             'page'             => $pages->space($space, $can),
+            'space_icon'       => $space->getIcon(),
             'tree'             => $treeNodes,
             'tree_truncated'   => $treeTruncated,
             'max_tree_pages'   => $this->pagination['max_tree_pages'],

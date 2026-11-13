@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.32.0](#to-1320)
 - [To 1.31.1](#to-1311)
 - [To 1.31.0](#to-1310)
 - [To 1.30.0](#to-1300)
@@ -83,6 +84,31 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.32.0
+
+From **1.31.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+`WikiSpace` gets a nullable `icon` column (`VARCHAR(64)`). The bundle ships no migrations: generate one
+(`doctrine:migrations:diff`) or run the statement for your database (adjust the table name if you changed
+`table_prefix`):
+
+```sql
+-- MySQL / MariaDB
+ALTER TABLE wiki_spaces ADD icon VARCHAR(64) DEFAULT NULL;
+-- PostgreSQL
+ALTER TABLE wiki_spaces ADD icon VARCHAR(64) DEFAULT NULL;
+-- SQLite
+ALTER TABLE wiki_spaces ADD COLUMN icon VARCHAR(64) DEFAULT NULL;
+```
+
+Nothing else changes unless you use the field: `WikiSpaceType` shows it only with `icon_field: true`, and
+`nowo_wiki.space_icon.allowed_prefixes` (default `[tabler]`) lists the accepted icon sets. Existing spaces keep a null
+icon (the default book icon in the list). Old exports stay importable (the icon is not part of them).
 
 ## To 1.31.1
 

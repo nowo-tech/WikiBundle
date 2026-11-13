@@ -646,6 +646,13 @@
   background: var(--nowo-ui-surface-muted, Canvas);
 }
 
+.nowo-wiki-space-icon {
+  display: inline-flex;
+  margin-inline-end: 0.4em;
+  vertical-align: middle;
+  color: var(--nowo-ui-muted, GrayText);
+}
+
 .nowo-wiki-children__icon {
   display: inline-flex;
   color: var(--nowo-ui-muted, GrayText);

@@ -207,6 +207,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Optional space icon (1.32.0)**: `WikiSpace::icon` (nullable string, UX icon name such as `tabler:book`) with
+  `getIcon()` / `setIcon()`. The setter and the new `WikiSpaceIconType` field reject a value that is not
+  `^[a-z0-9-]+:[a-z0-9-]+$` (a trailing newline too), is longer than 64 characters or has a prefix outside
+  `nowo_wiki.space_icon.allowed_prefixes` (default `[tabler]`). New `WikiSpaceType` with the option `icon_field`
+  (default `false`). The icon shows in the space list and in the sidebar of the space view (default book icon in the list).
+  New column `icon` on `wiki_spaces`: see UPGRADING.
+
 ## [1.31.1] - 2026-11-13
 
 Target: **1.31.1** (patch, security; house rule LQ — look-alike owner ids).

@@ -28,7 +28,7 @@
 {% block nowo_ui_list_row %}
     {% set _cell = nowo_ui_class('table_cell', page.bundle) %}
     <td class="{{ _cell }}" data-label="{{ 'wiki.index.name'|trans }}" data-required="1">
-        <a href="{{ row.href }}" class="nowo-wiki-link">{{ row.name }}</a>
+        <span class="nowo-wiki-space-icon" aria-hidden="true">{{ include('@NowoUiKitBundle/components/_icon.html.twig', {name: row.icon|default('book'), label: ''}, false)|trim|raw }}</span><a href="{{ row.href }}" class="nowo-wiki-link">{{ row.name }}</a>
     </td>
     <td class="{{ _cell }}" data-label="{{ 'wiki.index.slug'|trans }}" data-nowo-ui-priority="2">
         <code class="{{ nowo_ui_class('code', page.bundle) }}">{{ row.slug }}</code>

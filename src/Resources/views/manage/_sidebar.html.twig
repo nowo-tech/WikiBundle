@@ -2,7 +2,7 @@
   Space sidebar of the space and page views: the page tree in a UiKit card (slots card, card_header, card_title,
   card_body), the truncation notice with a link to the space search. Variables: tree (value-free nodes),
   tree_truncated, max_tree_pages, tree_search_href (null = no link), bundle, actions (optional list of View\Action
-  printed in the header, e.g. New page).
+  printed in the header, e.g. New page). 1.32: space_icon (UX icon name of the space, optional) is shown before the title.
   1.14: tree_ui ({nodes, attr, movable} from WikiPageFactory::uiTree() / treeAttributes(), tree.enabled) renders the
   UiKit `tree` partial instead of the nested list (disclosures, fold state, moves; js/nowo-ui-tree.js + wiki.js).
   1.29: tree_rail (WikiTreeRail::rail(), web_ui.tree_rail; null = as before) makes the card a UiKit rail host
@@ -15,7 +15,7 @@
 {% set _rail = tree_rail|default(null) %}
 <aside class="{{ nowo_ui_class('card', bundle) }} nowo-wiki-sidebar"{% if _rail %} id="{{ _rail.id }}" data-nowo-ui-rail-host data-nowo-ui-rail="{{ _rail.collapsed ? 'collapsed' : 'expanded' }}"{% endif %} data-wiki-sidebar{{ nowo_ui_attrs('card', bundle) }}>
     <header class="{{ nowo_ui_class('card_header', bundle) }} nowo-wiki-sidebar__header">
-        <h2 class="{{ nowo_ui_class('card_title', bundle) }} nowo-wiki-region-title"{% if _rail %} data-nowo-ui-rail-body{% endif %}>{{ 'wiki.space.pages'|trans }}</h2>
+        <h2 class="{{ nowo_ui_class('card_title', bundle) }} nowo-wiki-region-title"{% if _rail %} data-nowo-ui-rail-body{% endif %}>{% if space_icon is defined %}<span class="nowo-wiki-space-icon" aria-hidden="true">{{ include('@NowoUiKitBundle/components/_icon.html.twig', {name: space_icon|default('book'), label: ''}, false)|trim|raw }}</span>{% endif %}{{ 'wiki.space.pages'|trans }}</h2>
         {% if _rail %}
             {{ include(nowo_ui_partial('rail_toggle', bundle), {
                 target: _rail.body_id,

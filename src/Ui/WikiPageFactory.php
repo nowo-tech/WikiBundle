@@ -136,6 +136,7 @@ final readonly class WikiPageFactory
                 'id'   => $space->getSlug(),
                 'name' => $space->getName(),
                 'slug' => $space->getSlug(),
+                'icon' => $space->getIcon(),
                 'href' => $this->url('space', ['spaceSlug' => $space->getSlug()]),
             ];
         }
