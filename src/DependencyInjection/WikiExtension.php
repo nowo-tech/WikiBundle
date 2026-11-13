@@ -275,6 +275,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.pages_table', $pagesTable);
         $container->setParameter('nowo_wiki.revisions_table', $revisionsTable);
         $container->setParameter('nowo_wiki.database', $database);
+        $container->setParameter('nowo_wiki.database.mapping_type', $database['mapping_type']);
+        $container->setParameter('nowo_wiki.database.user_reference', $database['user_reference']);
+        $container->setParameter('nowo_wiki.database.private_entity_manager', (bool) $database['private_entity_manager']);
+        $container->setParameter('nowo_wiki.user_directory', $config['user_directory']);
         $container->setParameter('nowo_wiki.space_scope', $config['space_scope']);
         $container->setParameter('nowo_wiki.route_prefix', self::pathPrefix($config));
         $container->setParameter('nowo_wiki.dashboard_route', $config['dashboard_route']);

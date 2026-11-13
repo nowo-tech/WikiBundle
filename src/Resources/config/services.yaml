@@ -48,6 +48,8 @@ services:
             # 1.20: registered by WikiExtension only with page_files.enabled (the page view gets null otherwise).
             - '../../PageFile/'
             - '../../Search/'
+            # 1.32: port gates and helpers, wired by WikiPortsPass / WikiExtension only.
+            - '../../Port/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
