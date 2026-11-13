@@ -17,12 +17,19 @@ use function str_contains;
  * "Back to page". The current view's button keeps `aria-current="page"`. The icon follows the tab icon
  * (`web_ui.tab_icons`) when the UiKit icon set can draw it, else a canonical kind. Pure function, no state (worker
  * mode).
+ *
+ * 1.33 (`web_ui.page_header.edit_toolbar.back: view`): a Page tab carrying {@see self::BACK_VIEW_ATTRIBUTE} becomes a
+ * "View page" button (eye icon) instead of "Back to page".
  */
 final class WikiTabActions
 {
+    /** 1.33: attribute of the Page tab of the edit form that turns "Back to page" into "View page". */
+    public const BACK_VIEW_ATTRIBUTE = 'data-nowo-wiki-back';
+
     /** Default icon of each button when its tab has none (`web_ui.tab_icons` set to null). */
     public const ICONS = [
         'back'    => 'tabler:arrow-left',
+        'view'    => 'tabler:eye',
         'edit'    => 'tabler:pencil',
         'history' => 'tabler:history',
     ];
@@ -33,6 +40,7 @@ final class WikiTabActions
      */
     public const FALLBACK_KINDS = [
         'back'    => 'prev',
+        'view'    => 'view',
         'edit'    => 'edit',
         'history' => 'restore',
     ];
@@ -53,7 +61,9 @@ final class WikiTabActions
             if ($id === 'wiki-tab-page') {
                 // On the page itself the Page tab is not needed; elsewhere it is the way back.
                 if (!$item->active) {
-                    $actions[] = new Action('view', WikiPages::label('wiki.action.back_to_page'), $item->href, icon: self::icon(self::ICONS['back'], 'back', $iconSet), variant: 'neutral', attributes: ['data-testid' => 'wiki-toolbar-back'], display: 'icon');
+                    $actions[] = ($item->attributes[self::BACK_VIEW_ATTRIBUTE] ?? null) === 'view'
+                        ? new Action('view', WikiPages::label('wiki.action.view_page'), $item->href, icon: self::icon(self::ICONS['view'], 'view', $iconSet), variant: 'neutral', attributes: ['data-testid' => 'wiki-toolbar-view'], display: 'icon')
+                        : new Action('view', WikiPages::label('wiki.action.back_to_page'), $item->href, icon: self::icon(self::ICONS['back'], 'back', $iconSet), variant: 'neutral', attributes: ['data-testid' => 'wiki-toolbar-back'], display: 'icon');
                 }
 
                 continue;
@@ -74,7 +84,7 @@ final class WikiTabActions
      * `tabler:` name, bootstrap-icons a `bi:` name (without the prefix); a name without a prefix as written; anything
      * else the button's canonical kind.
      *
-     * @param 'back'|'edit'|'history' $button
+     * @param 'back'|'edit'|'history'|'view' $button
      */
     private static function icon(string $icon, string $button, string $iconSet): string
     {

@@ -477,6 +477,47 @@ width under 40rem; search excerpts leave out a leading heading equal to the titl
 stores hidden references as an empty, language-neutral marker (see [UPGRADING](UPGRADING.md#to-1310)); the sanitizer
 keeps the disabled task checkboxes of MilkdownEditorBundle >= 1.17.
 
+#### 1.33 additions
+
+Every option is off by default (the 1.32 edit form).
+
+- **Edit in the read layout** (`web_ui.edit_view.layout: read`): the edit page is the read page with the editor in
+  place of the content. The same tree aside (folded or hidden with `tree_rail` / `tree_collapsed_mode`, the same
+  remembered state and expand button), the same reading column, the same card toolbar (`toolbar_position: card`) and
+  the same path above the content; the title field, the editor and Save / Cancel sit where the body is, and the editor
+  takes the read typography (`--nowo-wiki-read-*` tokens, `.nowo-wiki-edit-body`). Creating a page keeps the form.
+- **Edit toolbar** (`web_ui.page_header.edit_toolbar`): `current_tab: hidden` drops the Edit tab while editing (the
+  tabs read Page / History); `back: view` adds a "View page" eye button (with `tabs: toolbar` it takes the place of
+  "Back to page").
+- **Filling the form in a host template.** The block `wiki_page_form_body` holds the whole form in the read layout
+  (default: the UiKit form). Override `nowo_ui_form_body` to change the fields only; override `wiki_page_form_body` to
+  draw the form yourself (`page.form` is untouched then), or add around it with `{{ parent() }}`:
+
+  ```twig
+  {% extends '@NowoWikiBundle/manage/page_edit.html.twig' %}
+
+  {% block wiki_page_form_body %}
+      <p class="app-edit-hint">{{ 'app.wiki.edit_hint'|trans }}</p>
+      {{ parent() }}
+  {% endblock %}
+  ```
+- **BreadcrumbKit on tenant routes** (fix): with `breadcrumb_current_label: true`, the edit / history / compare / move
+  pages of tenant routes (`tenant_paths`, e.g. `app_project_nowo_wiki_page_edit`) read "Project › Wiki › <title> ›
+  Edit" instead of a generic "Page".
+
+Beacon (replaces a host `.wiki-edit-layout`):
+
+```yaml
+nowo_wiki:
+    web_ui:
+        edit_view:
+            layout: read
+        page_header:
+            edit_toolbar:
+                current_tab: hidden
+                back: view
+```
+
 ## Translations (REQ-I18N-001)
 
 Every UI string uses the **`NowoWikiBundle`** domain (`src/Resources/translations/NowoWikiBundle.<locale>.yaml`). Shipped locales: `en` (reference), `es`, `it`, `fr`, `pt`, `de`, `nl`; `make validate-translations` checks YAML syntax and key parity across them.

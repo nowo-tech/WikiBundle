@@ -983,6 +983,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     private function registerPages(ContainerBuilder $container, array $config): void
     {
         $templates = self::templates($config);
+        $layout    = self::layout($config['web_ui']);
         $container->setDefinition(WikiPages::class, (new Definition(WikiPages::class))
             ->setArgument('$layoutTemplate', $templates['layout'])
             ->setArgument('$templates', array_diff_key($templates, ['layout' => true]))
@@ -998,10 +999,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             // 1.31: page_header.tabs: toolbar (the edit form's header without back link and intro, Reset collaboration
             // in the "more" menu) and page_meta: card (the revision line in the content card, not the scaffold meta).
             ->setArgument('$tabsToolbar', ($config['web_ui']['page_header']['tabs'] ?? 'row') === 'toolbar')
-            ->setArgument('$metaInCard', ($config['web_ui']['page_meta'] ?? 'scaffold') === 'card'));
+            ->setArgument('$metaInCard', ($config['web_ui']['page_meta'] ?? 'scaffold') === 'card')
+            // 1.33: page_header.edit_toolbar (the Edit tab left out of the edit form; a "View page" button).
+            ->setArgument('$editToolbar', ['current_tab' => $layout['edit_current_tab'], 'back' => $layout['edit_back']]));
         // 1.31 (web_ui.breadcrumb_current_label, BreadcrumbKit >= 2.17 installed): the page crumb of the edit, history,
         // compare and move pages is named after the page (a trail listener; the title rides on the request).
-        if (self::layout($config['web_ui'])['breadcrumb_current_label'] && class_exists(BreadcrumbTrailBuiltEvent::class)) {
+        if ($layout['breadcrumb_current_label'] && class_exists(BreadcrumbTrailBuiltEvent::class)) {
             $container->setDefinition(WikiBreadcrumbParentLabel::class, (new Definition(WikiBreadcrumbParentLabel::class))
                 ->setArgument('$urlGenerator', new Reference('router'))
                 ->setArgument('$routes', $config['routes'])
@@ -1030,9 +1033,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      * @throws InvalidConfigurationException when a slot is not a template name
      *
      * 1.29: `layout` (tree_rail, narrow_tree_position, reading_width, page_header, title, comments_dock), read by the
-     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap. 1.31: title `card`, page_meta.
+     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap. 1.31: title `card`, page_meta. 1.33: edit_layout, edit_current_tab, edit_back.
      *
-     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string}}
+     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string}}
      */
     public static function ui(array $webUi): array
     {
@@ -1058,7 +1061,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      *
      * @param array<string, mixed> $webUi processed `web_ui` node
      *
-     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string}
+     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string}
      */
     public static function layout(array $webUi): array
     {
@@ -1090,6 +1093,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'seamless_swap'            => ($webUi['read_view']['seamless_swap'] ?? false) === true,
             // 1.31
             'page_meta' => ($webUi['page_meta'] ?? 'scaffold') === 'card' ? 'card' : 'scaffold',
+            // 1.33
+            'edit_layout'      => ($webUi['edit_view']['layout'] ?? 'form') === 'read' ? 'read' : 'form',
+            'edit_current_tab' => ($header['edit_toolbar']['current_tab'] ?? 'shown') === 'hidden' ? 'hidden' : 'shown',
+            'edit_back'        => ($header['edit_toolbar']['back'] ?? 'none') === 'view' ? 'view' : 'none',
         ];
     }
 
