@@ -10,6 +10,7 @@
         <id name="id" type="string" length="36"/>
         <field name="createdAt" type="datetime_immutable" column="created_at"/>
         <field name="updatedAt" type="datetime_immutable" column="updated_at"/>
+        <field name="icon" type="string" length="64" nullable="true"/>
         <field name="slug" type="string" length="120"/>
         <field name="name" type="string" length="255"/>
         <field name="ownerScopeType" type="string" column="owner_scope_type" length="16" enum-type="Nowo\WikiBundle\Enum\WikiSpaceOwnerScope"/>

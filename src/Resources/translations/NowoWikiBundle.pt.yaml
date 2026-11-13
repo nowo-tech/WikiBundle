@@ -108,6 +108,10 @@ wiki:
     open: "Abrir"
     actions: "Ações"
   space:
+    name: "Nome"
+    icon: "Ícone"
+    icon_help: "Nome de ícone UX, por exemplo tabler:book. Vazio para o ícone de livro predefinido."
+    icon_invalid: "Use um nome de ícone como tabler:book de um conjunto permitido (minúsculas, dígitos e hífenes, até 64 caracteres)."
     new_page: Nova página
     pick_page: Selecione uma página na barra lateral ou crie uma.
     pick_page_read_only: "Selecione uma página na barra lateral."

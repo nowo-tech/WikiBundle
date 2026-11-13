@@ -108,6 +108,10 @@ wiki:
     open: "Open"
     actions: "Actions"
   space:
+    name: "Name"
+    icon: "Icon"
+    icon_help: "UX icon name such as tabler:book. Leave empty for the default book icon."
+    icon_invalid: "Use an icon name like tabler:book from an allowed icon set (lowercase letters, digits and dashes, up to 64 characters)."
     new_page: New page
     pick_page: Select a page from the sidebar or create one.
     pick_page_read_only: "Select a page from the sidebar."

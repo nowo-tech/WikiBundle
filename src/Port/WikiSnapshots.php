@@ -33,6 +33,7 @@ final class WikiSnapshots
             $space->getOwnerScopeId(),
             $space->getCreatedAt(),
             $space->getUpdatedAt(),
+            $space->getIcon(),
         );
     }
 

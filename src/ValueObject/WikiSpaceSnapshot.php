@@ -22,6 +22,7 @@ final readonly class WikiSpaceSnapshot
      * @param string $ownerScopeId owner id, exactly as stored
      * @param DateTimeImmutable $createdAt creation time
      * @param DateTimeImmutable $updatedAt last change of the space row
+     * @param string|null $icon UX icon name such as `tabler:book` (1.32); null for the default icon
      */
     public function __construct(
         public string $id,
@@ -31,6 +32,7 @@ final readonly class WikiSpaceSnapshot
         public string $ownerScopeId,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        public ?string $icon = null,
     ) {
     }
 }

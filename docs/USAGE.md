@@ -9,6 +9,7 @@
 - [Application integration](#application-integration)
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
+- [Space icon (1.32)](#space-icon-132)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
   - [Page layout (1.29)](#page-layout-129)
@@ -195,6 +196,33 @@ List pages of the manage UI are bounded by default (`nowo_wiki.pagination`, see 
 | Search results | 25 hits | — |
 
 Each list is one query (no N+1): spaces through `WikiSpaceRepositoryInterface::findAccessible()`, the tree through `findActiveBySpace($space, $max + 1)`, history through `findByPage($page, $limit, $offset)`. Exports (`/export`, `wiki:export`) are synchronous, write to a temp directory and stream the ZIP; they are bounded by PHP `max_execution_time` — use the `wiki:export` console command for very large spaces.
+
+## Space icon (1.32)
+
+A space has an optional `icon`: a UX icon name such as `tabler:book` or `tabler:rocket` (`WikiSpace::getIcon()` /
+`setIcon()`).
+
+- Rendering (1.32): a `<prefix>:<name>` value is drawn only when the host sets `nowo_ui_kit.icon_set: ux_icon` (Symfony UX
+  Icons) and the icon set is installed (`tabler` and `bi` are the ones the UiKit icon component maps); with another icon
+  set the UiKit component falls back to its own icon names. A name that matches the format but does not exist makes
+  `ux_icon()` throw `IconNotFoundException` (HTTP 500) in the list and the sidebar: set `ux_icons.ignore_not_found: true`
+  in the host. When `symfony/ux-icons` is installed, `WikiSpaceIconType` also rejects an icon that does not exist.
+- The icon shows in the space list (a book when null) and before the "Pages" title of the sidebar in the space view and
+  the page view (nothing when null).
+- Format `^[a-z0-9-]+:[a-z0-9-]+$` (a trailing newline is rejected), at most 64 characters, prefix in
+  `nowo_wiki.space_icon.allowed_prefixes` (default `[tabler]`). `setIcon()` throws `InvalidArgumentException`; pass the
+  configured prefixes as the second argument when a host allows more than `tabler`.
+- `WikiSpaceType` (name + icon) shows the icon field only with the option `icon_field: true` (off by default).
+- A host form adds the field with `WikiSpaceIconType`; on a form whose data is a `WikiSpace` it writes through
+  `setIcon()` with the configured prefixes, on a DTO or an array through the property path (the field name or `property_path`).
+
+```php
+$form = $this->createForm(WikiSpaceType::class, $space, ['icon_field' => true]);
+// or in your own form type:
+$builder->add('icon', WikiSpaceIconType::class);
+```
+
+Space exports carry no space metadata beyond the title (the pages are exported), so the icon is not part of them.
 
 ## Twig overrides (REQ-TWIG-001)
 

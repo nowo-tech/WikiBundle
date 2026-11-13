@@ -36,6 +36,9 @@ final class WikiSnapshotsTest extends TestCase
         self::assertSame('team-1', $spaceSnapshot->ownerScopeId);
         self::assertSame($space->getCreatedAt(), $spaceSnapshot->createdAt);
         self::assertSame($space->getUpdatedAt(), $spaceSnapshot->updatedAt);
+        self::assertNull($spaceSnapshot->icon);
+        $space->setIcon('tabler:book');
+        self::assertSame('tabler:book', WikiSnapshots::space($space)->icon);
 
         $pageSnapshot = WikiSnapshots::page($page);
         self::assertSame($page->getId(), $pageSnapshot->id);

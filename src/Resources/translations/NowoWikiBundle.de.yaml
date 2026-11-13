@@ -108,6 +108,10 @@ wiki:
     open: "Öffnen"
     actions: "Aktionen"
   space:
+    name: "Name"
+    icon: "Symbol"
+    icon_help: "UX-Symbolname wie tabler:book. Leer lassen für das Standard-Buchsymbol."
+    icon_invalid: "Verwenden Sie einen Symbolnamen wie tabler:book aus einem erlaubten Symbolsatz (Kleinbuchstaben, Ziffern und Bindestriche, bis zu 64 Zeichen)."
     new_page: Neue Seite
     pick_page: Wählen Sie eine Seite in der Seitenleiste oder erstellen Sie eine.
     pick_page_read_only: "Wählen Sie eine Seite in der Seitenleiste."

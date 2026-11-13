@@ -13,24 +13,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Deprecated](#deprecated)
   - [Changed](#changed)
   - [Tests](#tests)
+- [[1.32.0] - 2026-11-13](#1320---2026-11-13)
+  - [Added](#added-1)
 - [[1.31.1] - 2026-11-13](#1311---2026-11-13)
   - [Security](#security-1)
   - [Tests](#tests-1)
 - [[1.31.0] - 2026-11-12](#1310---2026-11-12)
   - [1.31.0 (unreleased)](#1310-unreleased)
 - [[1.30.0] - 2026-11-11](#1300---2026-11-11)
-  - [Added](#added-2)
+  - [Added](#added-3)
   - [Fixed](#fixed-1)
 - [[1.29.1] - 2026-11-11](#1291---2026-11-11)
   - [Security](#security-2)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
-  - [Added](#added-3)
+  - [Added](#added-4)
   - [Changed](#changed-1)
 - [[1.28.0] - 2026-11-10](#1280---2026-11-10)
-  - [Added](#added-4)
+  - [Added](#added-5)
   - [Changed](#changed-2)
 - [[1.27.0] - 2026-11-09](#1270---2026-11-09)
-  - [Added](#added-5)
+  - [Added](#added-6)
 - [[1.26.0] - 2026-11-09](#1260---2026-11-09)
   - [Fixed](#fixed-2)
   - [Changed](#changed-3)
@@ -38,34 +40,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
   - [Fixed](#fixed-3)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
-  - [Added](#added-6)
+  - [Added](#added-7)
   - [Changed](#changed-4)
 - [[1.24.1] - 2026-11-08](#1241---2026-11-08)
   - [Security](#security-3)
-  - [Added](#added-7)
+  - [Added](#added-8)
   - [Known limitation](#known-limitation)
   - [Changed](#changed-5)
 - [[1.24.0] - 2026-11-08](#1240---2026-11-08)
-  - [Added](#added-8)
+  - [Added](#added-9)
   - [Changed](#changed-6)
   - [Security](#security-4)
   - [Tests](#tests-2)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
   - [Fixed](#fixed-4)
   - [Changed](#changed-7)
-  - [Added](#added-9)
+  - [Added](#added-10)
 - [[1.22.0] - 2026-11-07](#1220---2026-11-07)
   - [Fixed](#fixed-5)
-  - [Added](#added-10)
+  - [Added](#added-11)
 - [[1.21.1] - 2026-11-07](#1211---2026-11-07)
   - [Security](#security-5)
   - [Fixed](#fixed-6)
   - [Documentation](#documentation-1)
 - [[1.21.0] - 2026-11-06](#1210---2026-11-06)
-  - [Added](#added-11)
+  - [Added](#added-12)
   - [Fixed](#fixed-7)
 - [[1.20.0] - 2026-11-06](#1200---2026-11-06)
-  - [Added](#added-12)
+  - [Added](#added-13)
 - [[1.19.1] - 2026-11-06](#1191---2026-11-06)
   - [Fixed](#fixed-8)
 - [[1.19.0] - 2026-11-06](#1190---2026-11-06)
@@ -73,60 +75,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Dependencies](#dependencies)
 - [[1.18.0] - 2026-11-05](#1180---2026-11-05)
   - [Changed](#changed-9)
-  - [Added](#added-13)
+  - [Added](#added-14)
   - [Dependencies](#dependencies-1)
 - [[1.17.0] - 2026-11-05](#1170---2026-11-05)
-  - [Added](#added-14)
+  - [Added](#added-15)
 - [[1.16.2] - 2026-11-04](#1162---2026-11-04)
   - [Fixed](#fixed-9)
 - [[1.16.1] - 2026-11-04](#1161---2026-11-04)
-  - [Added](#added-15)
+  - [Added](#added-16)
   - [Changed](#changed-10)
   - [Fixed](#fixed-10)
 - [[1.16.0] - 2026-11-04](#1160---2026-11-04)
-  - [Added](#added-16)
+  - [Added](#added-17)
   - [Changed](#changed-11)
 - [[1.15.1] - 2026-11-04](#1151---2026-11-04)
   - [Fixed](#fixed-11)
 - [[1.15.0] - 2026-11-04](#1150---2026-11-04)
-  - [Added](#added-17)
+  - [Added](#added-18)
 - [[1.14.1] - 2026-11-03](#1141---2026-11-03)
   - [Fixed](#fixed-12)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
-  - [Added](#added-18)
+  - [Added](#added-19)
   - [Changed](#changed-12)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
   - [Security](#security-6)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
   - [Fixed](#fixed-13)
   - [Changed](#changed-13)
-  - [Added](#added-19)
+  - [Added](#added-20)
   - [Documentation](#documentation-2)
 - [[1.13.0] - 2026-11-03](#1130---2026-11-03)
-  - [Added](#added-20)
+  - [Added](#added-21)
   - [Changed](#changed-14)
 - [[1.12.0] - 2026-10-31](#1120---2026-10-31)
-  - [Added](#added-21)
+  - [Added](#added-22)
   - [Changed](#changed-15)
   - [Fixed](#fixed-14)
 - [[1.11.1] - 2026-10-30](#1111---2026-10-30)
   - [Fixed](#fixed-15)
 - [[1.11.0] - 2026-10-30](#1110---2026-10-30)
-  - [Added](#added-22)
+  - [Added](#added-23)
   - [Changed](#changed-16)
 - [[1.10.0] - 2026-10-30](#1100---2026-10-30)
-  - [Added](#added-23)
+  - [Added](#added-24)
   - [Changed](#changed-17)
   - [Security](#security-7)
   - [Deprecated](#deprecated-1)
   - [Removed](#removed)
 - [[1.9.0] - 2026-10-30](#190---2026-10-30)
-  - [Added](#added-24)
+  - [Added](#added-25)
   - [Changed](#changed-18)
 - [[1.8.1] - 2026-10-29](#181---2026-10-29)
   - [Changed](#changed-19)
 - [[1.8.0] - 2026-10-29](#180---2026-10-29)
-  - [Added](#added-25)
+  - [Added](#added-26)
   - [Changed](#changed-20)
   - [Fixed](#fixed-16)
   - [Removed](#removed-1)
@@ -136,7 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-8)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
   - [Changed](#changed-21)
-  - [Added](#added-26)
+  - [Added](#added-27)
   - [Changed](#changed-22)
 - [[1.6.4] - 2026-10-24](#164---2026-10-24)
   - [Changed](#changed-23)
@@ -152,7 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Changed](#changed-26)
 - [[1.5.0] - 2026-10-13](#150---2026-10-13)
   - [Security](#security-9)
-  - [Added](#added-27)
+  - [Added](#added-28)
 - [[1.4.1] - 2026-10-13](#141---2026-10-13)
   - [Changed](#changed-27)
   - [Dependencies](#dependencies-2)
@@ -162,7 +164,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Dependencies](#dependencies-3)
 - [[1.3.5] - 2026-09-27](#135---2026-09-27)
   - [Fixed](#fixed-21)
-  - [Added](#added-28)
+  - [Added](#added-29)
   - [Changed](#changed-29)
 - [[1.3.4] - 2026-08-24](#134---2026-08-24)
   - [Changed](#changed-30)
@@ -175,10 +177,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Fixed](#fixed-22)
 - [[1.3.0] - 2026-08-04](#130---2026-08-04)
   - [Changed](#changed-33)
-  - [Added](#added-29)
+  - [Added](#added-30)
   - [Changed](#changed-34)
 - [[1.2.0] - 2026-08-03](#120---2026-08-03)
-  - [Added](#added-30)
+  - [Added](#added-31)
   - [Changed](#changed-35)
   - [Compatibility](#compatibility)
   - [Upgrade](#upgrade)
@@ -187,27 +189,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Tests](#tests-3)
   - [Upgrade](#upgrade-1)
 - [[1.1.0] - 2026-07-30](#110---2026-07-30)
-  - [Added](#added-31)
+  - [Added](#added-32)
   - [Changed](#changed-36)
   - [Documentation](#documentation-3)
 - [[1.0.5] - 2026-07-29](#105---2026-07-29)
-  - [Added](#added-32)
+  - [Added](#added-33)
   - [Changed](#changed-37)
 - [[1.0.4] - 2026-07-22](#104---2026-07-22)
-  - [Added](#added-33)
+  - [Added](#added-34)
   - [Changed](#changed-38)
 - [[1.0.3] - 2026-07-16](#103---2026-07-16)
   - [Fixed](#fixed-24)
-  - [Added](#added-34)
+  - [Added](#added-35)
   - [Changed](#changed-39)
 - [[1.0.2] - 2026-07-16](#102---2026-07-16)
   - [Changed](#changed-40)
 - [[1.0.1] - 2026-07-16](#101---2026-07-16)
   - [Fixed](#fixed-25)
-  - [Added](#added-35)
+  - [Added](#added-36)
   - [Changed](#changed-41)
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
-  - [Added](#added-36)
+  - [Added](#added-37)
   - [Security](#security-10)
 
 ## [Unreleased]
@@ -228,7 +230,7 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   `WikiCollabSubscriptionPolicyInterface`, `WikiApiRequestAuthenticatorInterface`, `WikiApiFileStoreInterface`,
   `WikiApiPlanPolicyInterface`, `WikiApiWikiDirectoryInterface`, `WikiAiAnswererInterface`,
   `WikiAttachmentLimitsPolicyInterface`. Their values: `ValueObject\WikiUserRef` (class, id, identifier, roles; compare
-  with `isSameUserAs()`), `WikiSpaceSnapshot`, `WikiPageSnapshot`, `WikiRevisionSnapshot`, `WikiRequestContext` (never a
+  with `isSameUserAs()`), `WikiSpaceSnapshot` (with the 1.32 `icon`), `WikiPageSnapshot`, `WikiRevisionSnapshot`, `WikiRequestContext` (never a
   credential header or a cookie; the REST API credential only as `$credential`), `Api\Value\WikiApiUpload`,
   `Api\Value\WikiApiDownload`, `Collaboration\WikiCollabCookie`, `Ai\WikiAiReply`.
 - **Selection rule.** The same configuration key or alias takes either interface. A service implementing the deprecated
@@ -250,7 +252,7 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   argument; with a space too, both must name the same space).
 - **XML mapping (opt-in, rule 2).** `nowo_wiki.database.mapping_type: xml` (literal value) maps the 13 wiki entities
   from `src/Resources/config/doctrine-xml/*.orm.xml` (generated from the attributes by `scripts/generate-xml-mapping.php`,
-  same tables, columns, indexes and constraints) on `database.entity_manager`. `XmlMappingParityTest` compares the
+  same tables, columns, indexes and constraints, the 1.32 `wiki_spaces.icon` included) on `database.entity_manager`. `XmlMappingParityTest` compares the
   metadata and the schema on SQLite, MySQL and PostgreSQL and fails on drift.
 - `DependencyInjection\Compiler\WikiMappingManagerPass` (DoctrineBundle 3.4 `auto_discover_entities`): the wiki entities
   are transient on every other entity manager that does not map them explicitly (`Doctrine\WikiExcludedEntityNamespaceDriver`).
@@ -306,6 +308,17 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   kernel through `http_kernel->handle()` / `terminate()` with a memory bound). Private manager parts and worker tests
   (`tests/Api/PrivateEntityManager`), port gate equivalence tests, `WikiPortsPass`, XML parity, id-mode look-alike tests
   on SQLite, MySQL 8.4 and MariaDB 11.4.
+
+## [1.32.0] - 2026-11-13
+
+### Added
+
+- **Optional space icon (1.32.0)**: `WikiSpace::icon` (nullable string, UX icon name such as `tabler:book`) with
+  `getIcon()` / `setIcon()`. The setter and the new `WikiSpaceIconType` field reject a value that is not
+  `^[a-z0-9-]+:[a-z0-9-]+$` (a trailing newline too), is longer than 64 characters or has a prefix outside
+  `nowo_wiki.space_icon.allowed_prefixes` (default `[tabler]`). New `WikiSpaceType` with the option `icon_field`
+  (default `false`). The icon shows in the space list and in the sidebar of the space and page views (default book icon in the list, none in the sidebar).
+  New column `icon` on `wiki_spaces`: see UPGRADING.
 
 ## [1.31.1] - 2026-11-13
 
@@ -1918,7 +1931,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.31.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.32.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

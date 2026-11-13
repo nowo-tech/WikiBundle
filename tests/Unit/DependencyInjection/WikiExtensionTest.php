@@ -1057,6 +1057,7 @@ final class WikiExtensionTest extends TestCase
         self::assertEquals(new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE), $definition->getArgument('$logger'));
         self::assertSame([['channel' => 'nowo_wiki']], $definition->getTag('monolog.logger'));
         self::assertSame(['spaces_per_page' => 24, 'revisions_per_page' => 25, 'max_tree_pages' => 500], $container->getParameter('nowo_wiki.pagination'));
+        self::assertSame(['tabler'], $container->getParameter('nowo_wiki.space_icon.allowed_prefixes'));
     }
 
     public function testRepositoriesAndSearchResolveEntityManagerPerCall(): void
