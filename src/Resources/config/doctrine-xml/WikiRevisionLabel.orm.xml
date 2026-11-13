@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated from the ORM attributes by scripts/generate-xml-mapping.php (1.32.0, REQ-ARCH-001 rule 2). Do not edit. -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+    <entity name="Nowo\WikiBundle\Entity\WikiRevisionLabel" table="wiki_revision_labels">
+        <unique-constraints>
+            <unique-constraint name="wiki_revision_label_revision" columns="revision_id"/>
+        </unique-constraints>
+        <id name="id" type="string" length="36"/>
+        <field name="createdAt" type="datetime_immutable" column="created_at"/>
+        <field name="label" type="string" length="120"/>
+        <many-to-one field="revision" target-entity="Nowo\WikiBundle\Entity\WikiPageRevision">
+            <join-column name="revision_id" nullable="false" on-delete="CASCADE"/>
+        </many-to-one>
+    </entity>
+</doctrine-mapping>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated from the ORM attributes by scripts/generate-xml-mapping.php (1.32.0, REQ-ARCH-001 rule 2). Do not edit. -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+    <entity name="Nowo\WikiBundle\Entity\WikiTrashEntry" table="wiki_page_trash">
+        <indexes>
+            <index name="wiki_page_trash_batch" columns="batch_id"/>
+            <index name="wiki_page_trash_deleted" columns="deleted_at"/>
+        </indexes>
+        <unique-constraints>
+            <unique-constraint name="wiki_page_trash_page" columns="page_id"/>
+        </unique-constraints>
+        <id name="id" type="string" length="36"/>
+        <field name="batchId" type="string" column="batch_id" length="36"/>
+        <field name="root" type="boolean" column="is_root"/>
+        <field name="wasArchived" type="boolean" column="was_archived"/>
+        <field name="deletedAt" type="datetime_immutable" column="deleted_at"/>
+        <many-to-one field="page" target-entity="Nowo\WikiBundle\Entity\WikiPage">
+            <join-column name="page_id" nullable="false" on-delete="CASCADE"/>
+        </many-to-one>
+    </entity>
+</doctrine-mapping>

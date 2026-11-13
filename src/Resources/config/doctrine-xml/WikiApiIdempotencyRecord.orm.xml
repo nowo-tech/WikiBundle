@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated from the ORM attributes by scripts/generate-xml-mapping.php (1.32.0, REQ-ARCH-001 rule 2). Do not edit. -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+    <entity name="Nowo\WikiBundle\Entity\WikiApiIdempotencyRecord" table="wiki_api_idempotency">
+        <indexes>
+            <index name="wiki_api_idempotency_expires_idx" columns="expires_at"/>
+        </indexes>
+        <id name="scope" type="string" length="64"/>
+        <id name="keyHash" type="string" column="key_hash" length="64"/>
+        <field name="fingerprint" type="string" length="64"/>
+        <field name="createdAt" type="datetime_immutable" column="created_at"/>
+        <field name="expiresAt" type="datetime_immutable" column="expires_at"/>
+        <field name="status" type="smallint" nullable="true"/>
+        <field name="body" type="text" nullable="true"/>
+        <field name="wikiSlug" type="string" column="wiki_slug" length="120" nullable="true"/>
+        <field name="pageId" type="string" column="page_id" length="36" nullable="true"/>
+    </entity>
+</doctrine-mapping>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated from the ORM attributes by scripts/generate-xml-mapping.php (1.32.0, REQ-ARCH-001 rule 2). Do not edit. -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+    <entity name="Nowo\WikiBundle\Entity\WikiCommentThread" table="wiki_comment_threads">
+        <indexes>
+            <index name="wiki_comment_thread_page" columns="page_id,resolved_at"/>
+        </indexes>
+        <id name="id" type="string" length="36"/>
+        <field name="resolvedAt" type="datetime_immutable" column="resolved_at" nullable="true"/>
+        <field name="createdAt" type="datetime_immutable" column="created_at"/>
+        <field name="updatedAt" type="datetime_immutable" column="updated_at"/>
+        <field name="anchor" type="text" nullable="true"/>
+        <field name="quote" type="text" nullable="true"/>
+        <many-to-one field="resolvedBy" target-entity="Symfony\Component\Security\Core\User\UserInterface">
+            <join-column name="resolved_by_id" on-delete="SET NULL"/>
+        </many-to-one>
+        <many-to-one field="page" target-entity="Nowo\WikiBundle\Entity\WikiPage">
+            <join-column name="page_id" nullable="false" on-delete="CASCADE"/>
+        </many-to-one>
+        <many-to-one field="createdBy" target-entity="Symfony\Component\Security\Core\User\UserInterface">
+            <join-column name="created_by_id" on-delete="SET NULL"/>
+        </many-to-one>
+    </entity>
+</doctrine-mapping>

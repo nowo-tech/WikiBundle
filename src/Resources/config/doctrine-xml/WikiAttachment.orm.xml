@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated from the ORM attributes by scripts/generate-xml-mapping.php (1.32.0, REQ-ARCH-001 rule 2). Do not edit. -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+    <entity name="Nowo\WikiBundle\Entity\WikiAttachment" table="wiki_attachments">
+        <indexes>
+            <index name="wiki_attachment_space" columns="space_id"/>
+        </indexes>
+        <id name="id" type="string" length="36"/>
+        <field name="uploadedAt" type="datetime_immutable" column="uploaded_at"/>
+        <field name="originalName" type="string" column="original_name" length="255"/>
+        <field name="storageKey" type="string" column="storage_key" length="255" unique="true"/>
+        <field name="mimeType" type="string" column="mime_type" length="100"/>
+        <field name="size" type="bigint"/>
+        <field name="sha256" type="string" length="64"/>
+        <many-to-one field="page" target-entity="Nowo\WikiBundle\Entity\WikiPage">
+            <join-column name="page_id" nullable="false" on-delete="CASCADE"/>
+        </many-to-one>
+        <many-to-one field="space" target-entity="Nowo\WikiBundle\Entity\WikiSpace">
+            <join-column name="space_id" nullable="false" on-delete="CASCADE"/>
+        </many-to-one>
+        <many-to-one field="uploadedBy" target-entity="Symfony\Component\Security\Core\User\UserInterface">
+            <join-column name="uploaded_by_id" on-delete="SET NULL"/>
+        </many-to-one>
+    </entity>
+</doctrine-mapping>

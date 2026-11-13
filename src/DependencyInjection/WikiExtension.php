@@ -268,6 +268,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $revisionsTable = $prefix . '_page_revisions';
         $database       = $config['database'];
         $emName         = (string) $database['entity_manager'];
+        WikiDoctrineMapping::check($container, $database);
 
         $container->setParameter('nowo_wiki.user_class', $config['user_class']);
         $container->setParameter('nowo_wiki.accepted_user_classes', $config['accepted_user_classes']);
@@ -1297,18 +1298,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ]);
         }
 
-        if ($container->hasExtension('doctrine')) {
-            $container->prependExtensionConfig('doctrine', [
-                'orm' => [
-                    'mappings' => [
-                        'WikiBundle' => [
-                            'type'      => 'attribute',
-                            'is_bundle' => true,
-                        ],
-                    ],
-                ],
-            ]);
-        }
+        // 1.32.0: database.mapping_type (attribute by default, as up to 1.31; xml for DDD hosts).
+        WikiDoctrineMapping::prepend($container);
 
         $this->prependFormKitDefaults($container);
         $this->prependUiKitDefaults($container);

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated from the ORM attributes by scripts/generate-xml-mapping.php (1.32.0, REQ-ARCH-001 rule 2). Do not edit. -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+    <entity name="Nowo\WikiBundle\Entity\WikiCollabUpdate" table="wiki_page_collab_updates">
+        <indexes>
+            <index name="wiki_collab_update_page" columns="page_id,id"/>
+        </indexes>
+        <id name="id" type="integer">
+            <generator strategy="AUTO"/>
+        </id>
+        <field name="createdAt" type="datetime_immutable" column="created_at"/>
+        <field name="pageId" type="string" column="page_id" length="36"/>
+        <field name="kind" type="string" column="kind" length="16"/>
+        <field name="data" type="text" column="data"/>
+        <field name="coversSeq" type="integer" column="covers_seq" nullable="true"/>
+    </entity>
+</doctrine-mapping>
