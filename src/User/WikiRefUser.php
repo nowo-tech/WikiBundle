@@ -9,7 +9,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * The security user the bundle works with when a framework-free host hands it a {@see WikiUserRef} without a Symfony
- * user object (1.33.0: a twin port such as the REST API authenticator, the id operations). Its id is the reference's;
+ * user object (1.34.0: a twin port such as the REST API authenticator, the id operations). Its id is the reference's;
  * with `user_reference: entity` it is stored as `user_class` by that id when the reference names `user_class` (or an
  * accepted class), else refused like any other foreign user (audit JX-W1).
  *

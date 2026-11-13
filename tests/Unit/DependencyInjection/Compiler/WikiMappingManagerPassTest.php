@@ -15,7 +15,7 @@ use Symfony\Component\DependencyInjection\Definition;
 use function array_map;
 
 /**
- * 1.33.0: the wiki entities stay off the managers other than `database.entity_manager` (DoctrineBundle 3.4).
+ * 1.34.0: the wiki entities stay off the managers other than `database.entity_manager` (DoctrineBundle 3.4).
  */
 final class WikiMappingManagerPassTest extends TestCase
 {

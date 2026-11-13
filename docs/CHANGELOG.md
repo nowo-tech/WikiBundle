@@ -214,15 +214,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Target: **1.33.0** (minor; REQ-ARCH-001 — standard Symfony by default, DDD / hexagonal host path opt-in; REQ-RUNTIME-002
+Target: **1.34.0** (minor; REQ-ARCH-001 — standard Symfony by default, DDD / hexagonal host path opt-in; REQ-RUNTIME-002
 and REQ-SEC-006 kept). Every change is additive: with an unchanged configuration and unchanged host services the wiki
-behaves exactly as 1.32 (the whole API suite also runs through the new ports and through the private entity manager,
-see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRADING.md#to-1330).
+behaves exactly as 1.33 (the whole API suite also runs through the new ports and through the private entity manager,
+see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRADING.md#to-1340).
 
 ### Added
 
 - **Framework-free host ports (REQ-ARCH-001 rules 1 and 3).** Every host port typed with a Symfony `UserInterface`,
-  `Request`, `Response`, `UploadedFile` or a wiki entity has a 1.33 twin that takes and returns only bundle value
+  `Request`, `Response`, `UploadedFile` or a wiki entity has a 1.34 twin that takes and returns only bundle value
   objects, enums and scalars (table in [ARCHITECTURE › Host ports](ARCHITECTURE.md#host-ports)):
   `WikiAccessPolicyInterface`, `WikiSpaceAccessPolicyInterface`, `WikiTeamMembershipSourceInterface`,
   `WikiSpaceReachInterface`, `WikiSpaceIdLocatorInterface`, `WikiObjectLinkSourceInterface`,
@@ -234,7 +234,7 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   credential header or a cookie; the REST API credential only as `$credential`), `Api\Value\WikiApiUpload`,
   `Api\Value\WikiApiDownload`, `Collaboration\WikiCollabCookie`, `Ai\WikiAiReply`.
 - **Selection rule.** The same configuration key or alias takes either interface. A service implementing the deprecated
-  interface is asked exactly as in 1.32, also when it implements the twin too; one implementing only the twin is asked
+  interface is asked exactly as in 1.33, also when it implements the twin too; one implementing only the twin is asked
   through an internal gate (`Port\*Gate`). `DependencyInjection\Compiler\WikiPortsPass` fails the build when a configured
   port implements neither (naming the key), or when two different host services serve one port; a factory or synthetic
   service is checked when it is built and fails closed.
@@ -285,7 +285,7 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
 
 ### Deprecated
 
-- The 16 host port interfaces replaced by a twin (removed in 2.0; still asked exactly as in 1.32).
+- The 16 host port interfaces replaced by a twin (removed in 2.0; still asked exactly as in 1.33).
 - Symfony-typed public members: `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user`, `WikiEditorOptionsEvent::$user`
   (read `userRef()`).
 

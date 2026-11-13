@@ -13,7 +13,7 @@ use function array_key_exists;
 use function array_values;
 
 /**
- * Asks a framework-free {@see WikiUserAvatarSourceInterface} (1.33.0) and keys its pictures like the deprecated
+ * Asks a framework-free {@see WikiUserAvatarSourceInterface} (1.34.0) and keys its pictures like the deprecated
  * interface ({@see WikiAvatarKey}).
  *
  * @internal

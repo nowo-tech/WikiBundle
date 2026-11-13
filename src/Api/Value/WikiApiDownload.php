@@ -11,7 +11,7 @@ use function is_resource;
 use function is_string;
 
 /**
- * A file the REST API sends (1.33.0): the framework-free twin of the Symfony `Response` that
+ * A file the REST API sends (1.34.0): the framework-free twin of the Symfony `Response` that
  * `Api\Hook\WikiApiFilesInterface::download()` returns ({@see WikiApiFileStoreInterface}).
  * Either a local path or an open stream; the bundle builds the response, always as an attachment with a restrictive
  * Content-Security-Policy.

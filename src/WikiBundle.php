@@ -35,11 +35,11 @@ final class WikiBundle extends Bundle
         $container->addCompilerPass(new CsrfProtectionPass());
         $container->addCompilerPass(new MilkdownBridgePass());
         $container->addCompilerPass(new WikiApiSafetyPass());
-        // 1.33.0: the wiki entities only on database.entity_manager (DoctrineBundle 3.4 auto_discover_entities).
+        // 1.34.0: the wiki entities only on database.entity_manager (DoctrineBundle 3.4 auto_discover_entities).
         $container->addCompilerPass(new WikiMappingManagerPass());
-        // 1.33: framework-free twins of the host ports (REQ-ARCH-001).
+        // 1.34: framework-free twins of the host ports (REQ-ARCH-001).
         $container->addCompilerPass(new WikiPortsPass());
-        // 1.33.0: the private entity manager's rollback middleware on the source manager's connection only (before
+        // 1.34.0: the private entity manager's rollback middleware on the source manager's connection only (before
         // DoctrineBundle's MiddlewaresPass).
         $container->addCompilerPass(new PrivateEntityManagerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 10);
     }

@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Service;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Finds the space a URL slug names for a user, framework-free (1.33.0): the twin of the deprecated
+ * Finds the space a URL slug names for a user, framework-free (1.34.0): the twin of the deprecated
  * {@see WikiSpaceLocatorInterface} (alias either interface to your service). Return the space's id; the bundle loads
  * it and refuses it unless both its id and its slug are equal byte for byte to what was asked and returned.
  */

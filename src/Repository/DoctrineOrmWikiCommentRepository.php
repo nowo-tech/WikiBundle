@@ -155,7 +155,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
     {
         $em = $this->entityManager();
         if (WikiUserFields::byId($em, WikiCommentReaction::class, 'user')) {
-            // 1.33 (database.user_reference: id): every candidate re-checked byte for byte (REQ-SEC-006 items 2 and 6).
+            // 1.34 (database.user_reference: id): every candidate re-checked byte for byte (REQ-SEC-006 items 2 and 6).
             $id = WikiUserFields::exactId($user);
             if ($id === null) {
                 return null;
@@ -236,7 +236,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
             return count($comments);
         }
-        // 1.33.0: in a savepoint inside the application's transaction (private entity manager only).
+        // 1.34.0: in a savepoint inside the application's transaction (private entity manager only).
         WikiSavepoint::write($em, static function () use ($em, $user): void {
             $em->createQueryBuilder()->delete(WikiCommentReaction::class, 'r')->where('r.user = :user')->setParameter('user', $user)->getQuery()->execute();
             foreach (['createdBy', 'resolvedBy'] as $field) {
@@ -333,7 +333,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
     {
         $em = $this->entityManager();
         if (WikiUserFields::byId($em, WikiCommentThread::class, 'createdBy')) {
-            // 1.33: counted in PHP after an exact re-check of each opener (REQ-SEC-006 item 2).
+            // 1.34: counted in PHP after an exact re-check of each opener (REQ-SEC-006 item 2).
             $id = WikiUserFields::exactId($user);
             if ($id === null) {
                 return 0;
@@ -411,7 +411,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
     }
 
     /**
-     * The query parameter of a user field (1.33): the user object for a relation; in the id mode its exact id, or null
+     * The query parameter of a user field (1.34): the user object for a relation; in the id mode its exact id, or null
      * when it has none (it then matches nothing). Results of an id parameter are re-checked with `===` by the caller.
      *
      * @param class-string $class the wiki entity class
@@ -431,7 +431,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
     }
 
     /**
-     * 1.33 (database.user_reference: id): the erasure of a user's reactions and thread links selects the rows first,
+     * 1.34 (database.user_reference: id): the erasure of a user's reactions and thread links selects the rows first,
      * keeps those whose stored id is exactly the user's, then deletes / updates them by primary key (REQ-SEC-006 item 2):
      * a look-alike id on a folding collation is never touched.
      */

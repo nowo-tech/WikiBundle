@@ -8,7 +8,7 @@ use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * The AI assistant, framework-free (1.33.0): the twin of the deprecated {@see WikiAiAssistantInterface} (alias either
+ * The AI assistant, framework-free (1.34.0): the twin of the deprecated {@see WikiAiAssistantInterface} (alias either
  * interface to your service).
  */
 interface WikiAiAnswererInterface

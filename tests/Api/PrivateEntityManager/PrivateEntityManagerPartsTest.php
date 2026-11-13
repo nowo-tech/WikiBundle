@@ -50,7 +50,7 @@ use function json_encode;
 use function random_bytes;
 
 /**
- * 1.33.0 (REQ-ARCH-001 rule 6): the parts of the opt-in private entity manager, adapted from TaskBoardBundle 2.15.0 /
+ * 1.34.0 (REQ-ARCH-001 rule 6): the parts of the opt-in private entity manager, adapted from TaskBoardBundle 2.15.0 /
  * AuthKitBundle 1.46.0 (audits NJ-2, NJV-1, NF-2, NF2-2, NF3-2, NF-7, NZ): the rollback middleware, the replacement
  * rules, the boundary drop that cannot be poisoned, the adopted host users, the repositories, the savepoint helper, the
  * savepoint rollback that never hides the original failure, and the build pass.

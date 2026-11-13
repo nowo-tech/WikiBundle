@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use stdClass;
 
 /**
- * 1.33.0 (`database.user_reference: id`): the column type of the stored user ids.
+ * 1.34.0 (`database.user_reference: id`): the column type of the stored user ids.
  */
 final class WikiUserRefTypeTest extends TestCase
 {

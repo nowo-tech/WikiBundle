@@ -289,7 +289,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.database.user_reference', $database['user_reference']);
         $container->setParameter('nowo_wiki.database.private_entity_manager', (bool) $database['private_entity_manager']);
         $container->setParameter('nowo_wiki.user_directory', $config['user_directory']);
-        // 1.33 (database.user_reference: id): the host's user directory, when configured.
+        // 1.34 (database.user_reference: id): the host's user directory, when configured.
         if (is_string($config['user_directory']) && $config['user_directory'] !== '') {
             $container->setAlias(WikiUserDirectoryInterface::class, $config['user_directory']);
         }
@@ -375,7 +375,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         $container->setParameter('nowo_wiki.database.entity_manager', $emName);
-        // 1.33.0 (REQ-ARCH-001 rule 6): the opt-in private entity manager.
+        // 1.34.0 (REQ-ARCH-001 rule 6): the opt-in private entity manager.
         $private = $database['private_entity_manager'] === true;
         if ($private) {
             $container->setDefinition(WikiEntityManager::class, (new Definition(WikiEntityManager::class))
@@ -472,7 +472,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $memos = array_map(
             static fn (string $id): Reference => new Reference($id, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE),
             [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class,
-                // 1.33.0: the private entity manager last, after the memos that may still hold its rows.
+                // 1.34.0: the private entity manager last, after the memos that may still hold its rows.
                 WikiEntityManager::class],
         );
         $container->setDefinition(WikiRequestBoundaryResetter::class, (new Definition(WikiRequestBoundaryResetter::class))
@@ -965,7 +965,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 ->setArgument('$hub', $hub));
         }
 
-        // 1.33: the authorizer is asked through its interface id, so WikiPortsPass can put the twin's gate there.
+        // 1.34: the authorizer is asked through its interface id, so WikiPortsPass can put the twin's gate there.
         $container->setAlias(WikiCollabSubscriberAuthorizerInterface::class, $authorizer);
         $container->setDefinition(WikiCollabCookieListener::class, (new Definition(WikiCollabCookieListener::class))
             ->addTag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onResponse']));
@@ -1006,7 +1006,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(AccessibleWikiSpaceLocator::class, (new Definition(AccessibleWikiSpaceLocator::class))->setAutowired(true));
         $container->setAlias(WikiSpaceLocatorInterface::class, AccessibleWikiSpaceLocator::class);
         $container->registerForAutoconfiguration(WikiObjectLinkResolverInterface::class)->addTag('nowo_wiki.object_link_resolver');
-        // 1.33: the framework-free twin takes the same tag (WikiPageLinkService asks it through a gate).
+        // 1.34: the framework-free twin takes the same tag (WikiPageLinkService asks it through a gate).
         $container->registerForAutoconfiguration(WikiObjectLinkSourceInterface::class)->addTag('nowo_wiki.object_link_resolver');
 
         $container->setDefinition(WikiTenantPaths::class, (new Definition(WikiTenantPaths::class))
@@ -1341,10 +1341,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ]);
         }
 
-        // 1.33.0: database.mapping_type (attribute by default, as up to 1.31; xml for DDD hosts).
+        // 1.34.0: database.mapping_type (attribute by default, as up to 1.31; xml for DDD hosts).
         WikiDoctrineMapping::prepend($container);
 
-        // 1.33 (database.user_reference: id): the column type of the stored user ids.
+        // 1.34 (database.user_reference: id): the column type of the stored user ids.
         if ($container->hasExtension('doctrine') && self::userReferencesById($container)) {
             $container->prependExtensionConfig('doctrine', ['dbal' => ['types' => [WikiUserRefType::NAME => WikiUserRefType::class]]]);
         }
@@ -1354,7 +1354,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
-     * Whether the host configuration sets `database.user_reference: id` (1.33; the last value wins, as in the tree).
+     * Whether the host configuration sets `database.user_reference: id` (1.34; the last value wins, as in the tree).
      */
     private static function userReferencesById(ContainerBuilder $container): bool
     {

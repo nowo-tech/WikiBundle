@@ -13,7 +13,7 @@ use function sprintf;
 /**
  * Resolves the configured wiki entity manager on every call.
  *
- * 1.33.0: with `database.private_entity_manager: true` it is the wiki's private manager ({@see WikiEntityManager}),
+ * 1.34.0: with `database.private_entity_manager: true` it is the wiki's private manager ({@see WikiEntityManager}),
  * so a wiki write never flushes, clears or closes the application's manager (REQ-ARCH-001 rule 6).
  *
  * A manager closed by a failed flush in an earlier request is reset through the registry, so a
@@ -26,7 +26,7 @@ final readonly class WikiEntityManagerProvider
      *
      * @param ManagerRegistry $registry Doctrine manager registry
      * @param string $managerName name of the wiki entity manager
-     * @param WikiEntityManager|null $private 1.33.0 (`database.private_entity_manager: true`): the wiki's private
+     * @param WikiEntityManager|null $private 1.34.0 (`database.private_entity_manager: true`): the wiki's private
      *                                        manager on the connection and mapping of `$managerName`
      */
     public function __construct(

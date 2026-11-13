@@ -61,7 +61,7 @@ final readonly class WikiUserClassPolicy
             return true;
         }
         if ($user instanceof WikiRefUser) {
-            // 1.33: a framework-free host's reference stands for its class: accepted only when it names user_class or
+            // 1.34: a framework-free host's reference stands for its class: accepted only when it names user_class or
             // a listed class exactly (no subclass or look-alike match).
             $class = ltrim($user->getUserClass(), '\\');
 

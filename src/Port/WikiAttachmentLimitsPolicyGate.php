@@ -10,7 +10,7 @@ use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Entity\WikiSpace;
 
 /**
- * Asks a framework-free {@see WikiAttachmentLimitsPolicyInterface} (1.33.0) with the space's snapshot.
+ * Asks a framework-free {@see WikiAttachmentLimitsPolicyInterface} (1.34.0) with the space's snapshot.
  *
  * @internal
  */

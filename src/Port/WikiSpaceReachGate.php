@@ -13,7 +13,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use function is_string;
 
 /**
- * Asks a framework-free {@see WikiSpaceReachInterface} (1.33.0). The space ids it returns are loaded one by one and
+ * Asks a framework-free {@see WikiSpaceReachInterface} (1.34.0). The space ids it returns are loaded one by one and
  * kept only when a stored space has exactly that id (REQ-SEC-006: no look-alike id reaches a space); duplicates are
  * dropped.
  *

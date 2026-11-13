@@ -8,7 +8,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 
 /**
- * Mode-aware access to the user fields of the wiki rows (1.33.0, `database.user_reference`). The mode is read from the
+ * Mode-aware access to the user fields of the wiki rows (1.34.0, `database.user_reference`). The mode is read from the
  * loaded metadata: a relation to `user_class` (`entity`, default) or a {@see WikiStoredUserRef} column (`id`), so the
  * repositories need no extra configuration and the default path is unchanged.
  *

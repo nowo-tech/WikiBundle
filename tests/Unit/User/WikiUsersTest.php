@@ -24,7 +24,7 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use function str_repeat;
 
 /**
- * 1.33.0 (`database.user_reference: id`): the host users behind stored ids, the exact id rules and the resolver.
+ * 1.34.0 (`database.user_reference: id`): the host users behind stored ids, the exact id rules and the resolver.
  */
 final class WikiUsersTest extends TestCase
 {

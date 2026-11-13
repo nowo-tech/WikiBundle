@@ -12,7 +12,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use function in_array;
 
 /**
- * Asks a framework-free {@see WikiObjectLinkSourceInterface} (1.33.0). Only objects of the asked type, keyed by an
+ * Asks a framework-free {@see WikiObjectLinkSourceInterface} (1.34.0). Only objects of the asked type, keyed by an
  * asked id (byte for byte) and describing that id, are kept.
  *
  * @internal

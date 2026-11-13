@@ -23,7 +23,7 @@ final class WikiEditorOptionsEvent
     /**
      * @param WikiSpace $space space of the page
      * @param WikiPage|null $page page being edited, or null for a new page
-     * @param UserInterface $user editor; deprecated since 1.33 as a public member (a Symfony type), removed in 2.0: read
+     * @param UserInterface $user editor; deprecated since 1.34 as a public member (a Symfony type), removed in 2.0: read
      *                            {@see self::userRef()}
      * @param array<string, mixed> $options TiptapEditorType options to merge
      */
@@ -36,7 +36,7 @@ final class WikiEditorOptionsEvent
     }
 
     /**
-     * 1.33: the space's id.
+     * 1.34: the space's id.
      */
     public function spaceId(): string
     {
@@ -44,7 +44,7 @@ final class WikiEditorOptionsEvent
     }
 
     /**
-     * 1.33: the space as a framework-free snapshot.
+     * 1.34: the space as a framework-free snapshot.
      */
     public function spaceSnapshot(): WikiSpaceSnapshot
     {
@@ -52,7 +52,7 @@ final class WikiEditorOptionsEvent
     }
 
     /**
-     * 1.33: the page's id; null for a new page.
+     * 1.34: the page's id; null for a new page.
      */
     public function pageId(): ?string
     {
@@ -60,7 +60,7 @@ final class WikiEditorOptionsEvent
     }
 
     /**
-     * 1.33: the page as a snapshot; null for a new page.
+     * 1.34: the page as a snapshot; null for a new page.
      */
     public function pageSnapshot(): ?WikiPageSnapshot
     {
@@ -68,7 +68,7 @@ final class WikiEditorOptionsEvent
     }
 
     /**
-     * 1.33: the editor as a framework-free reference (use it instead of {@see self::$user}).
+     * 1.34: the editor as a framework-free reference (use it instead of {@see self::$user}).
      */
     public function userRef(): WikiUserRef
     {

@@ -11,7 +11,7 @@ use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 
 /**
- * The REST API's wiki directory, framework-free (1.33.0): the twin of the deprecated {@see WikiApiDirectoryInterface}
+ * The REST API's wiki directory, framework-free (1.34.0): the twin of the deprecated {@see WikiApiDirectoryInterface}
  * (`nowo_wiki.api.hooks.directory` takes either). Name a wiki's space by id (`WikiApiWiki::$spaceId`, no entity);
  * the bundle loads it and refuses an id that names no stored space.
  */

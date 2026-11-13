@@ -36,7 +36,7 @@ final readonly class WikiAttachmentEvent
     }
 
     /**
-     * 1.33: the attachment's id.
+     * 1.34: the attachment's id.
      */
     public function attachmentId(): string
     {
@@ -44,7 +44,7 @@ final readonly class WikiAttachmentEvent
     }
 
     /**
-     * 1.33: the id of the attachment's space.
+     * 1.34: the id of the attachment's space.
      */
     public function spaceId(): string
     {
@@ -52,7 +52,7 @@ final readonly class WikiAttachmentEvent
     }
 
     /**
-     * 1.33: the id of the attachment's page.
+     * 1.34: the id of the attachment's page.
      */
     public function pageId(): string
     {
@@ -60,7 +60,7 @@ final readonly class WikiAttachmentEvent
     }
 
     /**
-     * 1.33: the attachment's page as a snapshot.
+     * 1.34: the attachment's page as a snapshot.
      */
     public function pageSnapshot(): WikiPageSnapshot
     {
@@ -68,7 +68,7 @@ final readonly class WikiAttachmentEvent
     }
 
     /**
-     * 1.33: the actor as a framework-free reference; null without an actor.
+     * 1.34: the actor as a framework-free reference; null without an actor.
      */
     public function actorRef(): ?WikiUserRef
     {

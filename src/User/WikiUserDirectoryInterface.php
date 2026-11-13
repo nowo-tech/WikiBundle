@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\User;
 
 /**
- * Finds a host user by id (1.33.0, `nowo_wiki.database.user_reference: id`; config key `user_directory`).
+ * Finds a host user by id (1.34.0, `nowo_wiki.database.user_reference: id`; config key `user_directory`).
  *
  * With the id mode a wiki row keeps only the user's id (`ValueObject\WikiStoredUserRef`); the bundle asks this port
  * when it needs more than the id: names and avatars of revision and comment authors, the REST API's people. Return the

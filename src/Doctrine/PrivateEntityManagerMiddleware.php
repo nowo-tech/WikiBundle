@@ -9,7 +9,7 @@ use Doctrine\DBAL\Driver\Middleware;
 use Nowo\WikiBundle\DependencyInjection\Compiler\PrivateEntityManagerPass;
 
 /**
- * DBAL middleware on the connection of the private entity manager (1.33.0, adapted from AuthKitBundle 1.46.0): tells {@see WikiEntityManager} when a
+ * DBAL middleware on the connection of the private entity manager (1.34.0, adapted from AuthKitBundle 1.46.0): tells {@see WikiEntityManager} when a
  * transaction or a savepoint is rolled back, so a private identity map that may describe rolled-back rows is replaced
  * before the next write (otherwise a second identical save would compute no change and the row would stay lost).
  *

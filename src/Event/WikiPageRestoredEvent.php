@@ -42,7 +42,7 @@ final readonly class WikiPageRestoredEvent
     }
 
     /**
-     * 1.33: the id of the page's space.
+     * 1.34: the id of the page's space.
      */
     public function spaceId(): string
     {
@@ -50,7 +50,7 @@ final readonly class WikiPageRestoredEvent
     }
 
     /**
-     * 1.33: the page's id.
+     * 1.34: the page's id.
      */
     public function pageId(): string
     {
@@ -58,7 +58,7 @@ final readonly class WikiPageRestoredEvent
     }
 
     /**
-     * 1.33: the page as a framework-free snapshot (REQ-ARCH-001).
+     * 1.34: the page as a framework-free snapshot (REQ-ARCH-001).
      */
     public function pageSnapshot(): WikiPageSnapshot
     {
@@ -66,7 +66,7 @@ final readonly class WikiPageRestoredEvent
     }
 
     /**
-     * 1.33: the id of the new revision.
+     * 1.34: the id of the new revision.
      */
     public function revisionId(): string
     {
@@ -74,7 +74,7 @@ final readonly class WikiPageRestoredEvent
     }
 
     /**
-     * 1.33: the new revision as a snapshot.
+     * 1.34: the new revision as a snapshot.
      */
     public function revisionSnapshot(): WikiRevisionSnapshot
     {
@@ -82,7 +82,7 @@ final readonly class WikiPageRestoredEvent
     }
 
     /**
-     * 1.33: the id of the revision whose body was restored.
+     * 1.34: the id of the revision whose body was restored.
      */
     public function restoredFromId(): string
     {
@@ -90,7 +90,7 @@ final readonly class WikiPageRestoredEvent
     }
 
     /**
-     * 1.33: the revision whose body was restored, as a snapshot.
+     * 1.34: the revision whose body was restored, as a snapshot.
      */
     public function restoredFromSnapshot(): WikiRevisionSnapshot
     {
@@ -98,7 +98,7 @@ final readonly class WikiPageRestoredEvent
     }
 
     /**
-     * 1.33: the actor as a framework-free reference; null without an actor.
+     * 1.34: the actor as a framework-free reference; null without an actor.
      */
     public function actorRef(): ?WikiUserRef
     {

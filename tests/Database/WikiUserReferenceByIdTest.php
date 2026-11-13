@@ -34,7 +34,7 @@ use function array_values;
 use function sort;
 
 /**
- * 1.33.0 (`database.user_reference: id`, REQ-ARCH-001 rule 2 and REQ-SEC-006): the seven user fields are string id
+ * 1.34.0 (`database.user_reference: id`, REQ-ARCH-001 rule 2 and REQ-SEC-006): the seven user fields are string id
  * columns read back as {@see WikiStoredUserRef}; every lookup and erasure keyed by a user id keeps only the rows whose
  * id is equal byte for byte, so `Bob`, `bób` or the NFD form of `bób` never reach the rows of `bob`.
  *

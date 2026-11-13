@@ -30,7 +30,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * 1.33 (REQ-ARCH-001 rule 1): the id operations call the entity ports with the rows the ids name exactly, and refuse
+ * 1.34 (REQ-ARCH-001 rule 1): the id operations call the entity ports with the rows the ids name exactly, and refuse
  * unknown or look-alike ids.
  */
 final class WikiIdOperationsTest extends TestCase

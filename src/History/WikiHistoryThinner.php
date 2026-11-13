@@ -71,7 +71,7 @@ final readonly class WikiHistoryThinner
             if ($dryRun) {
                 continue;
             }
-            // 1.33.0: in a savepoint inside the application's transaction (private entity manager only).
+            // 1.34.0: in a savepoint inside the application's transaction (private entity manager only).
             WikiSavepoint::write($em, static function () use ($em, $ids): void {
                 foreach (array_chunk($ids, self::DELETE_CHUNK) as $chunk) {
                     $em->createQueryBuilder()

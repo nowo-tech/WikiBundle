@@ -55,7 +55,7 @@ use function array_map;
 use function array_values;
 
 /**
- * 1.33.0 (`database.user_reference: id`, REQ-ARCH-001 rule 2): `user_class` is a plain security user (no Doctrine
+ * 1.34.0 (`database.user_reference: id`, REQ-ARCH-001 rule 2): `user_class` is a plain security user (no Doctrine
  * entity); revisions, links and comments store its id, names and avatars come from the host's directory, and every
  * ownership check matches the id byte for byte.
  */

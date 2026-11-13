@@ -12,7 +12,7 @@ use function is_array;
 use function strtolower;
 
 /**
- * Adds the cookies of a framework-free co-editing subscription grant (1.33.0,
+ * Adds the cookies of a framework-free co-editing subscription grant (1.34.0,
  * {@see WikiCollabSubscriptionPolicyInterface}) to the response of the request they were granted for. They ride on that
  * request's attributes only (no service state), so they never reach another request in a kept-alive worker.
  *

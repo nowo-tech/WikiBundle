@@ -48,7 +48,7 @@ use const CASE_LOWER;
 use const PHP_VERSION_ID;
 
 /**
- * 1.33.0 (REQ-ARCH-001 rule 2): the XML mapping of `Resources/config/doctrine-xml` (`database.mapping_type: xml`) gives
+ * 1.34.0 (REQ-ARCH-001 rule 2): the XML mapping of `Resources/config/doctrine-xml` (`database.mapping_type: xml`) gives
  * exactly the metadata of the ORM attributes, entity by entity (table, indexes, unique constraints, fields with their
  * columns, types, lengths, options and enum types, associations with their join columns, lifecycle callbacks), under
  * the default and the underscore naming strategies, with the bundle's metadata listener applied (table names, the user

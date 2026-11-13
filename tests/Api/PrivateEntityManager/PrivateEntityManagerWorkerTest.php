@@ -24,7 +24,7 @@ use function memory_get_usage;
 use function sprintf;
 
 /**
- * 1.33.0 (REQ-ARCH-001 rule 6 with REQ-RUNTIME-002): with `database.private_entity_manager: true`, one kept-alive kernel
+ * 1.34.0 (REQ-ARCH-001 rule 6 with REQ-RUNTIME-002): with `database.private_entity_manager: true`, one kept-alive kernel
  * (`http_kernel->handle()` + `terminate()`, no services resetter, the host's manager never cleared) serves two people in
  * turn. Every wiki write goes through the private manager: a change the application left pending in its own manager is
  * never flushed, the private manager is dropped at every request end, nobody sees the other's answers, and memory stays

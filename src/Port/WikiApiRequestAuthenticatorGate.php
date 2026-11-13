@@ -11,7 +11,7 @@ use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Asks a framework-free {@see WikiApiRequestAuthenticatorInterface} (1.33.0) with the request context; the bearer
+ * Asks a framework-free {@see WikiApiRequestAuthenticatorInterface} (1.34.0) with the request context; the bearer
  * credential is its only credential.
  *
  * @internal

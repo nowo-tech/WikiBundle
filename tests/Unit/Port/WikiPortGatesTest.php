@@ -80,7 +80,7 @@ use function tempnam;
 use function unlink;
 
 /**
- * 1.33 (REQ-ARCH-001): every gate asks its framework-free twin with value objects, and hands the bundle what the
+ * 1.34 (REQ-ARCH-001): every gate asks its framework-free twin with value objects, and hands the bundle what the
  * deprecated interface would have.
  */
 final class WikiPortGatesTest extends TestCase

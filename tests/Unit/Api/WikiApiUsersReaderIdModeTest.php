@@ -14,7 +14,7 @@ use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use PHPUnit\Framework\TestCase;
 
 /**
- * 1.33.0 (`database.user_reference: id`): the REST API finds the authors of the page list through the directory, never
+ * 1.34.0 (`database.user_reference: id`): the REST API finds the authors of the page list through the directory, never
  * through the user table.
  */
 final class WikiApiUsersReaderIdModeTest extends TestCase

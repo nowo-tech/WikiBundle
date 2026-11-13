@@ -157,7 +157,7 @@ abstract class ApiTestCase extends WebTestCase
 
     protected function page(WikiSpace $space, string $title, string $markdown, ?WikiPage $parent = null, ?TestUserEntity $author = null): WikiPage
     {
-        // 1.33: the wiki rows through the wiki's own manager (the private one with WIKI_TEST_PRIVATE_EM=1), as a host
+        // 1.34: the wiki rows through the wiki's own manager (the private one with WIKI_TEST_PRIVATE_EM=1), as a host
         // does with database.private_entity_manager: wiki entities are loaded through the wiki, never the host manager.
         $em = $this->wikiEm();
 

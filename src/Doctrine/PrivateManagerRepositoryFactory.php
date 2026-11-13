@@ -13,7 +13,7 @@ use Doctrine\ORM\Repository\RepositoryFactory;
 use function is_a;
 
 /**
- * Since 1.33.0: the repository factory of ONE private manager ({@see WikiEntityManager}; audit NZ's corrected
+ * Since 1.34.0: the repository factory of ONE private manager ({@see WikiEntityManager}; audit NZ's corrected
  * pattern, as Yopass 1.20.2).
  *
  * DoctrineBundle's shared ContainerRepositoryFactory (and ORM's DefaultRepositoryFactory) keep one repository per manager

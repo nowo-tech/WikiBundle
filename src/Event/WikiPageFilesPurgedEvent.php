@@ -56,7 +56,7 @@ final readonly class WikiPageFilesPurgedEvent
     }
 
     /**
-     * 1.33: the space's id.
+     * 1.34: the space's id.
      */
     public function spaceId(): string
     {
@@ -64,7 +64,7 @@ final readonly class WikiPageFilesPurgedEvent
     }
 
     /**
-     * 1.33: the space as a framework-free snapshot.
+     * 1.34: the space as a framework-free snapshot.
      */
     public function spaceSnapshot(): WikiSpaceSnapshot
     {
@@ -72,7 +72,7 @@ final readonly class WikiPageFilesPurgedEvent
     }
 
     /**
-     * 1.33: the actor as a framework-free reference; null without an actor.
+     * 1.34: the actor as a framework-free reference; null without an actor.
      */
     public function actorRef(): ?WikiUserRef
     {

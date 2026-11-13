@@ -13,14 +13,14 @@ use function bin2hex;
 use function random_bytes;
 
 /**
- * Since 1.33.0 (private entity manager only, REQ-ARCH-001 rule 6): runs one wiki DBAL / bulk DQL write inside a
+ * Since 1.34.0 (private entity manager only, REQ-ARCH-001 rule 6): runs one wiki DBAL / bulk DQL write inside a
  * savepoint when a transaction is already open on the connection. A failing wiki statement then rolls back to the
  * savepoint only, so it never leaves the application's transaction aborted (PostgreSQL) and the application's own COMMIT
  * keeps its rows. When rolling back to the savepoint fails too (a connection lost, a transaction the server already
  * ended), the ORIGINAL exception is rethrown, never the rollback's.
  *
  * Outside a transaction, on a platform without savepoints, or when the statement goes through the application's manager
- * (the default mode), the write runs exactly as in 1.32.
+ * (the default mode), the write runs exactly as in 1.33.
  *
  * @internal
  */

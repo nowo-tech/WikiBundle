@@ -28,7 +28,7 @@ use function sys_get_temp_dir;
 use const PHP_VERSION_ID;
 
 /**
- * 1.33.0 (REQ-ARCH-001, "both host kinds are tested"): a strict DDD / hexagonal host. Its users are plain PHP objects
+ * 1.34.0 (REQ-ARCH-001, "both host kinds are tested"): a strict DDD / hexagonal host. Its users are plain PHP objects
  * with no Doctrine mapping (no user table at all), the wiki entities are mapped from the XML files, host users are
  * stored by id, the wiki writes through its private entity manager, and every host port is answered through its
  * framework-free twin. Nothing of the host extends or uses a bundle base class or trait.

@@ -152,7 +152,7 @@ own messages in one listener:
         }
     }
 
-**The DDD host path (1.33, opt-in)** — see [ARCHITECTURE](ARCHITECTURE.md) for the whole picture:
+**The DDD host path (1.34, opt-in)** — see [ARCHITECTURE](ARCHITECTURE.md) for the whole picture:
 
         nowo_wiki:
             user_class: App\Security\User          # any class with getId(); no Doctrine entity needed with user_reference: id

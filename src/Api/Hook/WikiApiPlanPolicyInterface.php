@@ -8,7 +8,7 @@ use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Whether the person's plan includes the wiki, framework-free (1.33.0): the twin of the deprecated
+ * Whether the person's plan includes the wiki, framework-free (1.34.0): the twin of the deprecated
  * {@see WikiApiPlanGateInterface} (`nowo_wiki.api.hooks.plan_gate` takes either).
  */
 interface WikiApiPlanPolicyInterface

@@ -22,7 +22,7 @@ use Symfony\Component\DependencyInjection\Reference;
 use function array_map;
 
 /**
- * 1.33.0 (`database.user_reference: id`): the column type, the directory and the per-unit-of-work memo.
+ * 1.34.0 (`database.user_reference: id`): the column type, the directory and the per-unit-of-work memo.
  */
 final class WikiExtensionUserReferenceTest extends TestCase
 {

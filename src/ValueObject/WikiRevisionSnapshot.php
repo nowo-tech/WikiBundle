@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\ValueObject;
 use DateTimeImmutable;
 
 /**
- * A page revision as host ports and events see it (1.33.0, REQ-ARCH-001 rules 1 and 3): ids, number, format and
+ * A page revision as host ports and events see it (1.34.0, REQ-ARCH-001 rules 1 and 3): ids, number, format and
  * author id copied from the bundle's `WikiPageRevision` row (no body). Build one with `Port\WikiSnapshots::revision()`.
  */
 final readonly class WikiRevisionSnapshot

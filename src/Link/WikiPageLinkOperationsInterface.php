@@ -8,7 +8,7 @@ use InvalidArgumentException;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * The page ↔ host object links by page id (1.33.0, REQ-ARCH-001 rule 1): the framework-free twin of
+ * The page ↔ host object links by page id (1.34.0, REQ-ARCH-001 rule 1): the framework-free twin of
  * {@see WikiPageLinkServiceInterface} (public alias; same events). An unknown page id fails closed.
  */
 interface WikiPageLinkOperationsInterface

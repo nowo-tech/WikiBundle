@@ -16,7 +16,7 @@ use function is_object;
 use function is_string;
 
 /**
- * The column type of the user fields with `nowo_wiki.database.user_reference: id` (1.33.0, REQ-ARCH-001 rule 2):
+ * The column type of the user fields with `nowo_wiki.database.user_reference: id` (1.34.0, REQ-ARCH-001 rule 2):
  * the host user's id in a string column, read back as {@see WikiStoredUserRef}.
  *
  * A {@see WikiStoredUserRef}, a string id or a host user object (stored by its `getId()`) can be written. REQ-SEC-006

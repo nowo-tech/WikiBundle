@@ -36,7 +36,7 @@ use function memory_get_usage;
 use function sprintf;
 
 /**
- * 1.33.0 (REQ-ARCH-001, "both host kinds are tested"): the DDD host path end to end. The standard host path is the rest of
+ * 1.34.0 (REQ-ARCH-001, "both host kinds are tested"): the DDD host path end to end. The standard host path is the rest of
  * the suite (attribute mapping, a Doctrine `user_class`, the deprecated ports, the application's manager).
  *
  * The host ({@see DddHostKernel}) has no user table, no bundle base class or trait, maps the wiki from XML, stores its

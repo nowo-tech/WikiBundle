@@ -37,7 +37,7 @@ final readonly class WikiSpaceCollationListener
 
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki's entity manager (its platform decides the collation)
-     * @param LoggerInterface|null $logger 1.33 (REQ-SEC-006 item 8): warned when only the PAD SPACE `utf8mb4_bin` is available
+     * @param LoggerInterface|null $logger 1.34 (REQ-SEC-006 item 8): warned when only the PAD SPACE `utf8mb4_bin` is available
      */
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
@@ -96,7 +96,7 @@ final readonly class WikiSpaceCollationListener
 
     /**
      * The fields of a wiki class that hold an owner or user id: `owner_scope_id` of the spaces and, with
-     * `database.user_reference: id` (1.33), every {@see WikiUserRefType} column (REQ-SEC-006 item 3).
+     * `database.user_reference: id` (1.34), every {@see WikiUserRefType} column (REQ-SEC-006 item 3).
      *
      * @param ClassMetadata<object> $metadata the class metadata
      *

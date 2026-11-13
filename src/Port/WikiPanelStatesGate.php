@@ -9,7 +9,7 @@ use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * Asks a framework-free {@see WikiPanelStatesInterface} (1.33.0).
+ * Asks a framework-free {@see WikiPanelStatesInterface} (1.34.0).
  *
  * @internal
  */

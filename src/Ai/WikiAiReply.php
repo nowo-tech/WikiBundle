@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Ai;
 
 /**
- * The answer of a framework-free AI assistant (1.33.0, {@see WikiAiAnswererInterface}): the text and the pages used as
+ * The answer of a framework-free AI assistant (1.34.0, {@see WikiAiAnswererInterface}): the text and the pages used as
  * context, by id. The bundle loads the pages, keeps those that exist in the named space and that the user may open,
  * and turns the reply into a {@see WikiAiAnswer}.
  */

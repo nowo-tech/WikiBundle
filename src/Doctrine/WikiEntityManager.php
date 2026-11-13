@@ -39,11 +39,11 @@ use function strrpos;
 use function substr;
 
 /**
- * The wiki's private entity manager (1.33.0, REQ-ARCH-001 rule 6; opt-in with
+ * The wiki's private entity manager (1.34.0, REQ-ARCH-001 rule 6; opt-in with
  * `nowo_wiki.database.private_entity_manager: true` until 2.0). Adapted from AuthKitBundle 1.46.0 (audits NV,
  * NJ-2, NJV-1, NF-2, NF2-2, NF3-2, NF-7) with audit NZ's repository factory.
  *
- * Up to 1.32 the bundle wrote its rows through `database.entity_manager` (the application's `default` manager unless
+ * Up to 1.33 the bundle wrote its rows through `database.entity_manager` (the application's `default` manager unless
  * configured): every wiki save flushed whatever the application had left pending in that unit of work, and a failed
  * wiki write closed the application's manager. With the option on, every wiki service writes and reads through
  * this **private** manager, created on the connection, mapping, caches, proxies and event manager of the source manager
@@ -100,7 +100,7 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
 
     /**
      * @param ManagerRegistry $registry The application's Doctrine registry (the source manager is resolved per call)
-     * @param string $sourceManagerName `database.entity_manager` (the manager 1.32 wrote the wiki rows through)
+     * @param string $sourceManagerName `database.entity_manager` (the manager 1.33 wrote the wiki rows through)
      * @param LoggerInterface|null $logger warns when a boundary drops pending changes
      */
     public function __construct(

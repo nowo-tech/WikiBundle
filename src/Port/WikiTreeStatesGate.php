@@ -12,7 +12,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use function is_string;
 
 /**
- * Asks a framework-free {@see WikiTreeStatesInterface} (1.33.0) with the space's id; non-string page ids are dropped.
+ * Asks a framework-free {@see WikiTreeStatesInterface} (1.34.0) with the space's id; non-string page ids are dropped.
  *
  * @internal
  */

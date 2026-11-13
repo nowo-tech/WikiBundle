@@ -34,7 +34,7 @@ final readonly class WikiAuthorLabel
 {
     /**
      * @param WikiAvatars|null $avatars the response's avatar memo (null: no pictures)
-     * @param WikiUsers|null $users 1.33 (`database.user_reference: id`): the host users behind stored ids
+     * @param WikiUsers|null $users 1.34 (`database.user_reference: id`): the host users behind stored ids
      */
     public function __construct(
         private string $secret,
@@ -72,7 +72,7 @@ final readonly class WikiAuthorLabel
     {
         $names = [];
         $named = [];
-        // 1.33: a stored id reference is presented as the host user the directory finds for it (else by its id).
+        // 1.34: a stored id reference is presented as the host user the directory finds for it (else by its id).
         $authors = array_map(fn (object $author): object => $this->users?->resolve($author) ?? $author, $authors);
         foreach ($authors as $index => $author) {
             $names[$index] = $this->realName($author);
@@ -122,7 +122,7 @@ final readonly class WikiAuthorLabel
         }
         $identifier = match (true) {
             $author instanceof UserInterface     => $author->getUserIdentifier(),
-            $author instanceof WikiStoredUserRef => "\0id:" . $author->id, // 1.33: a stored id the directory did not resolve
+            $author instanceof WikiStoredUserRef => "\0id:" . $author->id, // 1.34: a stored id the directory did not resolve
             default                              => '',
         };
         $hash = hash_hmac('sha256', $page->getId() . '|' . $identifier, hash_hmac('sha256', 'nowo_wiki_collab_label', $this->secret));

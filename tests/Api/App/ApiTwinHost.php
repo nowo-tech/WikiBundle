@@ -31,7 +31,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * 1.33 (`WIKI_TEST_PORTS=twin`): the API test host through the framework-free twins only. Every answer is the
+ * 1.34 (`WIKI_TEST_PORTS=twin`): the API test host through the framework-free twins only. Every answer is the
  * {@see ApiTestHost} answer, so the whole API suite proves the twins and their gates behave like the deprecated ports.
  * Spaces travel by id (no entity in a {@see WikiApiWiki}).
  */

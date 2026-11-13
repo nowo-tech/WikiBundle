@@ -14,7 +14,7 @@ use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 
 /**
- * The REST API's host files, framework-free (1.33.0): the twin of the deprecated {@see WikiApiFilesInterface}
+ * The REST API's host files, framework-free (1.34.0): the twin of the deprecated {@see WikiApiFilesInterface}
  * (`nowo_wiki.api.hooks.files` takes either).
  */
 interface WikiApiFileStoreInterface

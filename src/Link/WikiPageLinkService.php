@@ -29,7 +29,7 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
 {
     /**
      * @param WikiPageLinkRepositoryInterface $linkRepository link persistence
-     * @param iterable<object> $resolvers host resolvers (WikiObjectLinkResolverInterface, or since 1.33 WikiObjectLinkSourceInterface)
+     * @param iterable<object> $resolvers host resolvers (WikiObjectLinkResolverInterface, or since 1.34 WikiObjectLinkSourceInterface)
      * @param EventDispatcherInterface $eventDispatcher dispatcher of the link events
      * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored link creator for a non-entity user
      */
@@ -125,7 +125,7 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
     private function resolverFor(string $type): ?WikiObjectLinkResolverInterface
     {
         foreach ($this->resolvers as $service) {
-            // 1.33: a framework-free WikiObjectLinkSourceInterface is asked through its gate.
+            // 1.34: a framework-free WikiObjectLinkSourceInterface is asked through its gate.
             $resolver = WikiObjectLinkSourceGate::of($service);
             if ($resolver instanceof WikiObjectLinkResolverInterface && $resolver->supports($type)) {
                 return $resolver;

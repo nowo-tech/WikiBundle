@@ -3,7 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
-- [To 1.33.0](#to-1330)
+- [To 1.34.0](#to-1340)
   - [Host ports: move to the framework-free twins (optional until 2.0)](#host-ports-move-to-the-framework-free-twins-optional-until-20)
   - [XML mapping (`database.mapping_type: xml`)](#xml-mapping-databasemapping_type-xml)
   - [User references by id (`database.user_reference: id`)](#user-references-by-id-databaseuser_reference-id)
@@ -90,10 +90,10 @@
 
 ## Unreleased
 
-## To 1.33.0
+## To 1.34.0
 
 REQ-ARCH-001: the DDD / hexagonal host path, opt-in. **Nothing to do**: with an unchanged configuration and unchanged
-host services the wiki behaves exactly as 1.32 (same schema, same mapping, same entity manager, every deprecated port
+host services the wiki behaves exactly as 1.33 (same schema, same mapping, same entity manager, every deprecated port
 asked exactly as before). Overview of both host kinds: [ARCHITECTURE](ARCHITECTURE.md).
 
 ### Host ports: move to the framework-free twins (optional until 2.0)

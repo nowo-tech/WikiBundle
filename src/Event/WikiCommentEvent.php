@@ -55,7 +55,7 @@ final readonly class WikiCommentEvent
     }
 
     /**
-     * 1.33: the id of the page's space.
+     * 1.34: the id of the page's space.
      */
     public function spaceId(): string
     {
@@ -63,7 +63,7 @@ final readonly class WikiCommentEvent
     }
 
     /**
-     * 1.33: the page's id.
+     * 1.34: the page's id.
      */
     public function pageId(): string
     {
@@ -71,7 +71,7 @@ final readonly class WikiCommentEvent
     }
 
     /**
-     * 1.33: the page as a framework-free snapshot (REQ-ARCH-001).
+     * 1.34: the page as a framework-free snapshot (REQ-ARCH-001).
      */
     public function pageSnapshot(): WikiPageSnapshot
     {
@@ -79,7 +79,7 @@ final readonly class WikiCommentEvent
     }
 
     /**
-     * 1.33: the thread's id.
+     * 1.34: the thread's id.
      */
     public function threadId(): string
     {
@@ -87,7 +87,7 @@ final readonly class WikiCommentEvent
     }
 
     /**
-     * 1.33: the comment's id; null for a thread-level change.
+     * 1.34: the comment's id; null for a thread-level change.
      */
     public function commentId(): ?string
     {
@@ -95,7 +95,7 @@ final readonly class WikiCommentEvent
     }
 
     /**
-     * 1.33: the actor as a framework-free reference.
+     * 1.34: the actor as a framework-free reference.
      */
     public function actorRef(): WikiUserRef
     {

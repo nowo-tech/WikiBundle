@@ -99,13 +99,13 @@ final class ApiKernel extends Kernel
         return WikiTestDatabase::url() ?? 'sqlite:///' . $this->getCacheDir() . '/api.sqlite';
     }
 
-    /** 1.33: whether the API host ports are asked through their framework-free twins (`WIKI_TEST_PORTS=twin`). */
+    /** 1.34: whether the API host ports are asked through their framework-free twins (`WIKI_TEST_PORTS=twin`). */
     public static function twinPorts(): bool
     {
         return ($_SERVER['WIKI_TEST_PORTS'] ?? getenv('WIKI_TEST_PORTS')) === 'twin';
     }
 
-    /** 1.33: whether the wiki writes through its private entity manager (`WIKI_TEST_PRIVATE_EM=1`). */
+    /** 1.34: whether the wiki writes through its private entity manager (`WIKI_TEST_PRIVATE_EM=1`). */
     public static function privateEntityManager(): bool
     {
         return ($_SERVER['WIKI_TEST_PRIVATE_EM'] ?? getenv('WIKI_TEST_PRIVATE_EM')) === '1';
@@ -143,7 +143,7 @@ final class ApiKernel extends Kernel
         $services = $container->services();
         $services->set('logger', RecordingLogger::class)->public();
         $services->set('app.api_host', ApiTestHost::class)->autowire()->public();
-        // 1.33 (REQ-ARCH-001): WIKI_TEST_PORTS=twin asks every API host port through its framework-free twin.
+        // 1.34 (REQ-ARCH-001): WIKI_TEST_PORTS=twin asks every API host port through its framework-free twin.
         $hostPorts = 'app.api_host';
         $filesPort = 'app.api_files';
         if (self::twinPorts()) {

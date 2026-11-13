@@ -12,7 +12,7 @@ use function is_string;
 use function str_contains;
 
 /**
- * The Doctrine mapping of the wiki entities, prepended to DoctrineBundle's configuration (1.33.0, REQ-ARCH-001 rule 2).
+ * The Doctrine mapping of the wiki entities, prepended to DoctrineBundle's configuration (1.34.0, REQ-ARCH-001 rule 2).
  *
  * - `database.mapping_type: attribute` (default): the ORM attributes, mapped exactly as up to 1.31 (the `WikiBundle`
  *   bundle mapping of the top-level `doctrine.orm`, i.e. the manager named `default`).

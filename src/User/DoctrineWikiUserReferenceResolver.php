@@ -20,7 +20,7 @@ use function sprintf;
  * manager (no query); any other user is refused (AccessDeniedException). Without an entity manager the user is
  * returned unchanged.
  *
- * 1.33.0 (`database.user_reference: id`): the stored value is a {@see WikiStoredUserRef} with the user's exact id
+ * 1.34.0 (`database.user_reference: id`): the stored value is a {@see WikiStoredUserRef} with the user's exact id
  * (`user_class` need not be a Doctrine entity); the same class rules apply, and a user whose id cannot be matched
  * exactly (REQ-SEC-006 item 1) is refused.
  */
@@ -30,7 +30,7 @@ final readonly class DoctrineWikiUserReferenceResolver implements WikiUserRefere
      * @param string $userClass `nowo_wiki.user_class`
      * @param WikiEntityManagerProvider|null $entityManagers wiki entity manager (`database.entity_manager`)
      * @param WikiUserClassPolicy|null $classes accepted security-user classes (null = `user_class` only)
-     * @param string $userReference `database.user_reference` (1.33): `entity` or `id`
+     * @param string $userReference `database.user_reference` (1.34): `entity` or `id`
      */
     public function __construct(
         private string $userClass,
@@ -69,7 +69,7 @@ final readonly class DoctrineWikiUserReferenceResolver implements WikiUserRefere
     }
 
     /**
-     * The id reference stored for a user in the id mode (1.33.0).
+     * The id reference stored for a user in the id mode (1.34.0).
      *
      * @throws AccessDeniedException for a user of another class or without an id that can be matched exactly
      */

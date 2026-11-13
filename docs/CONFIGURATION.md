@@ -10,10 +10,10 @@ Root key: `nowo_wiki`.
 | `space_scope` | `team` | `team` or `user` |
 | `team_membership_resolver` | null | Service id implementing `WikiTeamMembershipResolverInterface` |
 | `database.entity_manager` | `default` | Doctrine entity manager used by the wiki repositories and search |
-| `database.mapping_type` | `attribute` | 1.33: `xml` maps the 13 wiki entities from `Resources/config/doctrine-xml` (same schema) on `database.entity_manager`. Literal value only (read before the configuration is processed). See [ARCHITECTURE](ARCHITECTURE.md#mapping-and-user-references) |
-| `database.user_reference` | `entity` | 1.33: `id` stores revision authors, link creators, uploaders, comment authors, resolvers and reactions as the user's id (`VARCHAR(128)`, binary collation on MySQL / MariaDB, no foreign key); `user_class` need not be a Doctrine entity. Schema migration: [UPGRADING](UPGRADING.md#to-1330) |
-| `database.private_entity_manager` | `false` | 1.33: `true` reads and writes the wiki rows through a private entity manager on the connection and mapping of `database.entity_manager`: a wiki write never flushes, clears or closes your manager. The only mode in 2.0 |
-| `user_directory` | `null` | 1.33: service id of a `User\WikiUserDirectoryInterface` (`find(string $id): ?object`, exact id) for names and avatars of users stored by id |
+| `database.mapping_type` | `attribute` | 1.34: `xml` maps the 13 wiki entities from `Resources/config/doctrine-xml` (same schema) on `database.entity_manager`. Literal value only (read before the configuration is processed). See [ARCHITECTURE](ARCHITECTURE.md#mapping-and-user-references) |
+| `database.user_reference` | `entity` | 1.34: `id` stores revision authors, link creators, uploaders, comment authors, resolvers and reactions as the user's id (`VARCHAR(128)`, binary collation on MySQL / MariaDB, no foreign key); `user_class` need not be a Doctrine entity. Schema migration: [UPGRADING](UPGRADING.md#to-1340) |
+| `database.private_entity_manager` | `false` | 1.34: `true` reads and writes the wiki rows through a private entity manager on the connection and mapping of `database.entity_manager`: a wiki write never flushes, clears or closes your manager. The only mode in 2.0 |
+| `user_directory` | `null` | 1.34: service id of a `User\WikiUserDirectoryInterface` (`find(string $id): ?object`, exact id) for names and avatars of users stored by id |
 | `database.driver` | `doctrine_orm` | **Deprecated since 1.6, no effect** (only Doctrine ORM is supported); remove it from your config |
 | `database.platform` | `mysql` | **Deprecated since 1.6, no effect** (the platform comes from the Doctrine connection); remove it from your config |
 | `firewall` | `main` | **Deprecated since 1.6, no effect** (the bundle trusts any secured firewall that handles the wiki routes); remove it from your config |

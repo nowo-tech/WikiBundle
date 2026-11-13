@@ -16,7 +16,7 @@ use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use function sprintf;
 
 /**
- * Asks a framework-free {@see WikiApiWikiDirectoryInterface} (1.33.0). A wiki named with a space id gets that space,
+ * Asks a framework-free {@see WikiApiWikiDirectoryInterface} (1.34.0). A wiki named with a space id gets that space,
  * loaded and re-checked byte for byte; an id that names no stored space fails closed (`LogicException`: a wrong
  * directory must never make the API provision a second space or open another one).
  *

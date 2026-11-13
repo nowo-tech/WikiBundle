@@ -14,7 +14,7 @@ use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use PHPUnit\Framework\TestCase;
 
 /**
- * 1.33.0 (audit NZ pattern): a service repository is the source factory's answer, unchanged.
+ * 1.34.0 (audit NZ pattern): a service repository is the source factory's answer, unchanged.
  */
 final class PrivateManagerRepositoryFactoryTest extends TestCase
 {

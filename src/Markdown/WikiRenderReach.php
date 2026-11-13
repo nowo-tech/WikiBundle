@@ -11,7 +11,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
  * page link, file or block of a space outside it reads as *Content not visible* even when the person could open it.
  * The UI renders without one (the person's access only).
  *
- * @internal implemented by the bundle only (the REST API's reach); not a host port (1.33, REQ-ARCH-001)
+ * @internal implemented by the bundle only (the REST API's reach); not a host port (1.34, REQ-ARCH-001)
  */
 interface WikiRenderReach
 {

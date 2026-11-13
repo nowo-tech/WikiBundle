@@ -72,7 +72,7 @@ final readonly class WikiApiUsersReader
     }
 
     /**
-     * 1.33 (`database.user_reference: id`): the users behind stored ids, through the host's directory (each answer
+     * 1.34 (`database.user_reference: id`): the users behind stored ids, through the host's directory (each answer
      * re-checked byte for byte); an id the directory does not resolve stays a {@see WikiStoredUserRef}.
      *
      * @param list<int|string> $ids distinct ids (numeric ones come back as array keys)

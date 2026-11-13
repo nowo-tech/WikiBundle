@@ -11,7 +11,7 @@ use function mb_strlen;
 use function preg_match;
 
 /**
- * A host user stored on a wiki row by id (1.33.0, `nowo_wiki.database.user_reference: id`, REQ-ARCH-001 rule 2).
+ * A host user stored on a wiki row by id (1.34.0, `nowo_wiki.database.user_reference: id`, REQ-ARCH-001 rule 2).
  *
  * With the id mode the revision author, the link creator, the uploader, the comment and thread authors, the resolver
  * and the reaction's user are no Doctrine relation to `user_class`: the row keeps the user's id in a string column

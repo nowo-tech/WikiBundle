@@ -4,7 +4,7 @@ WikiBundle works out of the box in a **standard Symfony application** (attribute
 `user_class`, the bundle's controllers and services on your entity manager, Twig overrides) and can be used from a
 **strict DDD / hexagonal host** (plain-PHP domain, framework-free ports, XML mapping, users referenced by id, the wiki as
 a separate bounded context). The standard path is the zero-config default; the DDD path is opt-in and never forced
-(REQ-ARCH-001, since 1.33.0). Both work in FrankenPHP worker mode with the kernel kept alive and not reset
+(REQ-ARCH-001, since 1.34.0). Both work in FrankenPHP worker mode with the kernel kept alive and not reset
 (REQ-RUNTIME-002, see [FRANKENPHP-WORKER-AUDIT](FRANKENPHP-WORKER-AUDIT.md)), and every string identity the bundle stores
 or matches is compared byte for byte (REQ-SEC-006, see [SECURITY](SECURITY.md)).
 
@@ -36,11 +36,11 @@ entities.
 
 ## Host ports
 
-A host extends the wiki through ports it implements (configuration keys or service aliases). Since 1.33 every port that
+A host extends the wiki through ports it implements (configuration keys or service aliases). Since 1.34 every port that
 took a Symfony `UserInterface`, `Request`, `Response`, `UploadedFile` or a wiki entity has a **twin** that takes and
 returns only bundle value objects, enums and scalars:
 
-| Configuration key / alias | Deprecated interface (removed in 2.0) | 1.33 twin |
+| Configuration key / alias | Deprecated interface (removed in 2.0) | 1.34 twin |
 |---|---|---|
 | `security.access_checker` | `Security\WikiAccessCheckerInterface` | `Security\WikiAccessPolicyInterface` |
 | `WikiSpaceAccessCheckerInterface` alias | `Security\WikiSpaceAccessCheckerInterface` | `Security\WikiSpaceAccessPolicyInterface` |
@@ -69,7 +69,7 @@ Value objects of the twins: `ValueObject\WikiUserRef` (class, id, identifier and
 `Ai\WikiAiReply`.
 
 **Selection rule.** The same configuration key or alias takes either interface. A service implementing the deprecated
-interface is asked exactly as in 1.32, also when it implements the twin too. One implementing only the twin is asked
+interface is asked exactly as in 1.33, also when it implements the twin too. One implementing only the twin is asked
 through an internal gate (`Port\*Gate`). A host may also alias the twin interface itself; two different host services
 (one per interface) fail the build. `DependencyInjection\Compiler\WikiPortsPass` stops the build when a configured
 service implements neither, naming the configuration key; a factory or synthetic service, whose class the build cannot
@@ -89,10 +89,10 @@ reimplements the wiki's persistence. `Markdown\WikiRenderReach` is internal.
 
 ## Operations by id
 
-The 1.27 service ports take and return wiki entities. Their 1.33 id twins (public aliases) take ids and `WikiUserRef`
+The 1.27 service ports take and return wiki entities. Their 1.34 id twins (public aliases) take ids and `WikiUserRef`
 users and return snapshots, with the same events and checks:
 
-| 1.27 entity port | 1.33 id operations |
+| 1.27 entity port | 1.34 id operations |
 |---|---|
 | `Service\WikiPageServiceInterface` | `Service\WikiPageOperationsInterface`: `findPage`, `createPage`, `saveRevision`, `restoreRevision`, `archivePage`, `unarchivePage` |
 | `Service\WikiSpaceServiceInterface` | `Service\WikiSpaceOperationsInterface`: `findSpace`, `createSpace`, `findSpaceBySlug` |
@@ -117,7 +117,7 @@ bookkeeping, inside the transaction); hosts listen to `PAGE_SAVED`.
 ## Persistence
 
 **Standard host (default).** The wiki reads and writes through `database.entity_manager` (`default`), exactly as up to
-1.32: a wiki save flushes that manager, including what your application left pending in it.
+1.33: a wiki save flushes that manager, including what your application left pending in it.
 
 **Private entity manager (opt-in, `database.private_entity_manager: true`; the only mode in 2.0).** Every wiki service
 reads and writes through `Doctrine\WikiEntityManager`, a private manager created on the connection, mapping, caches,

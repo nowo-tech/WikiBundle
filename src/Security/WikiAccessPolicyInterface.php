@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Security;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Global wiki rights, framework-free (1.33.0): the twin of the deprecated {@see WikiAccessCheckerInterface}
+ * Global wiki rights, framework-free (1.34.0): the twin of the deprecated {@see WikiAccessCheckerInterface}
  * (`nowo_wiki.security.access_checker` takes either). The user is a {@see WikiUserRef}; null when the bundle asks
  * without one (decide from your own security context, as the default checker does from the token).
  */

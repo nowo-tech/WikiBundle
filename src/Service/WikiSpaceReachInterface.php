@@ -8,7 +8,7 @@ use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Which spaces a user reaches, framework-free (1.33.0): the twin of the deprecated
+ * Which spaces a user reaches, framework-free (1.34.0): the twin of the deprecated
  * {@see WikiSpaceAccessResolverInterface} (alias either interface to your service). Spaces are named by id; the
  * bundle loads them and keeps only ids equal byte for byte to a stored space.
  */

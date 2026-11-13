@@ -21,7 +21,7 @@ use function sprintf;
 use function str_starts_with;
 
 /**
- * Wires the framework-free twins of the host ports (1.33.0, REQ-ARCH-001 rules 1 and 3; {@see WikiPorts}).
+ * Wires the framework-free twins of the host ports (1.34.0, REQ-ARCH-001 rules 1 and 3; {@see WikiPorts}).
  *
  * For every port the bundle asks through its deprecated interface id:
  *

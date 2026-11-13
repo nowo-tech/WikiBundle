@@ -23,7 +23,7 @@ final readonly class WikiCommentAuthorErasedEvent
     }
 
     /**
-     * 1.33: the erased author's id; null without a usable id.
+     * 1.34: the erased author's id; null without a usable id.
      */
     public function userId(): ?string
     {
@@ -31,7 +31,7 @@ final readonly class WikiCommentAuthorErasedEvent
     }
 
     /**
-     * 1.33: the erased author as a framework-free reference.
+     * 1.34: the erased author as a framework-free reference.
      */
     public function userRef(): WikiUserRef
     {
