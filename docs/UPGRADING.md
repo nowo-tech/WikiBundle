@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.31.1](#to-1311)
 - [To 1.31.0](#to-1310)
 - [To 1.30.0](#to-1300)
 - [To 1.29.1](#to-1291)
@@ -82,6 +83,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.31.1
+
+From **1.31.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 Target **1.31.1** (patch, security; house rule LQ). From **1.31.0**: `composer update nowo-tech/wiki-bundle`.
 
