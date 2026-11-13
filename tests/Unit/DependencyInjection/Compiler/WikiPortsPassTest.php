@@ -154,7 +154,7 @@ final class WikiPortsPassTest extends TestCase
     public function testThePortFactoryBuildsEveryGate(): void
     {
         foreach (WikiPorts::PORTS as $name => [$legacy, $twin, $gate, $dependencies]) {
-            $built = WikiPorts::port($name, $this->createMock($twin), ...array_map(fn (string $class): object => $this->createMock($class), $dependencies));
+            $built = WikiPorts::port($name, $this->createMock($twin), ...array_map($this->createMock(...), $dependencies));
             self::assertInstanceOf($gate, $built, $name);
             self::assertInstanceOf($legacy, $built, $name);
         }

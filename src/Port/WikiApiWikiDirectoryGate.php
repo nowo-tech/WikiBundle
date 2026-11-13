@@ -44,14 +44,14 @@ final readonly class WikiApiWikiDirectoryGate implements WikiApiDirectoryInterfa
     {
         $wiki = $this->directory->find($principal, $slug);
 
-        return $wiki === null ? null : $this->hydrate($wiki);
+        return $wiki instanceof WikiApiWiki ? $this->hydrate($wiki) : null;
     }
 
     public function ofSpace(WikiApiPrincipal $principal, WikiSpace $space): ?WikiApiWiki
     {
         $wiki = $this->directory->ofSpace($principal, WikiSnapshots::space($space));
 
-        return $wiki === null ? null : $this->hydrate($wiki);
+        return $wiki instanceof WikiApiWiki ? $this->hydrate($wiki) : null;
     }
 
     public function provision(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiSpace

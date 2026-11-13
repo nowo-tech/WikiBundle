@@ -36,6 +36,7 @@ final readonly class WikiTreeStatesGate implements WikiTreeStateStoreInterface
 
     public function setExpanded(UserInterface $user, WikiSpace $space, string $pageId, bool $expanded): void
     {
+        // @igor-ignore - Host store write (the remembered state lives in the host's store); the gate keeps no state.
         $this->states->setExpanded(WikiUserRefs::fromUser($user), $space->getId(), $pageId, $expanded);
     }
 }

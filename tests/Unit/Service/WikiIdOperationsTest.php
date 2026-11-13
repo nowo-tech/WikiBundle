@@ -23,6 +23,8 @@ use Nowo\WikiBundle\Service\WikiSpaceServiceInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\User\WikiRefUser;
+use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -94,14 +96,14 @@ final class WikiIdOperationsTest extends TestCase
         $ops    = new WikiPageOperations($this->createMock(WikiPageServiceInterface::class), $this->pages(), $this->spaces(), $this->revisions());
         $author = WikiUserRef::ofId(TestUserEntity::class, '7');
         $cases  = [
-            'unknown space'         => static fn () => $ops->createPage('missing', 'T', 'b', $author),
-            'look-alike space'      => static fn () => $ops->createPage('folded', 'T', 'b', $author),
-            'parent in other space' => fn () => $ops->createPage($this->space->getId(), 'T', 'b', $author, $this->foreign->getId()),
-            'unknown page'          => static fn () => $ops->saveRevision('missing', 'T', 'b', $author),
+            'unknown space'         => static fn (): WikiPageSnapshot => $ops->createPage('missing', 'T', 'b', $author),
+            'look-alike space'      => static fn (): WikiPageSnapshot => $ops->createPage('folded', 'T', 'b', $author),
+            'parent in other space' => fn (): WikiPageSnapshot => $ops->createPage($this->space->getId(), 'T', 'b', $author, $this->foreign->getId()),
+            'unknown page'          => static fn (): WikiRevisionSnapshot => $ops->saveRevision('missing', 'T', 'b', $author),
             'look-alike page'       => static fn () => $ops->archivePage('folded'),
-            'unknown revision'      => fn () => $ops->restoreRevision($this->page->getId(), 'missing', $author),
-            'look-alike revision'   => fn () => $ops->restoreRevision($this->page->getId(), 'folded', $author),
-            'another page revision' => fn () => $ops->restoreRevision($this->page->getId(), $this->foreignRevision->getId(), $author),
+            'unknown revision'      => fn (): WikiRevisionSnapshot => $ops->restoreRevision($this->page->getId(), 'missing', $author),
+            'look-alike revision'   => fn (): WikiRevisionSnapshot => $ops->restoreRevision($this->page->getId(), 'folded', $author),
+            'another page revision' => fn (): WikiRevisionSnapshot => $ops->restoreRevision($this->page->getId(), $this->foreignRevision->getId(), $author),
         ];
         foreach ($cases as $case => $call) {
             try {

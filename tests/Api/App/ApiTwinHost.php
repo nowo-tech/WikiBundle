@@ -55,14 +55,14 @@ final readonly class ApiTwinHost implements WikiApiRequestAuthenticatorInterface
 
     public function list(WikiApiPrincipal $principal, WikiApiWikiFilter $filter): array
     {
-        return array_map(self::byId(...), $this->inner->list($principal, $filter));
+        return array_map($this->byId(...), $this->inner->list($principal, $filter));
     }
 
     public function find(WikiApiPrincipal $principal, string $slug): ?WikiApiWiki
     {
         $wiki = $this->inner->find($principal, $slug);
 
-        return $wiki === null ? null : self::byId($wiki);
+        return $wiki instanceof WikiApiWiki ? $this->byId($wiki) : null;
     }
 
     public function ofSpace(WikiApiPrincipal $principal, WikiSpaceSnapshot $space): ?WikiApiWiki
@@ -82,22 +82,22 @@ final readonly class ApiTwinHost implements WikiApiRequestAuthenticatorInterface
 
     public function create(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): WikiApiWiki
     {
-        return self::byId($this->inner->create($principal, $wiki));
+        return $this->byId($this->inner->create($principal, $wiki));
     }
 
     public function update(WikiApiPrincipal $principal, WikiApiWiki $wiki, WikiApiWikiPatch $patch): WikiApiWiki
     {
-        return self::byId($this->inner->update($principal, $wiki, $patch));
+        return $this->byId($this->inner->update($principal, $wiki, $patch));
     }
 
     public function archive(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiApiWiki
     {
-        return self::byId($this->inner->archive($principal, $wiki));
+        return $this->byId($this->inner->archive($principal, $wiki));
     }
 
     public function unarchive(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiApiWiki
     {
-        return self::byId($this->inner->unarchive($principal, $wiki));
+        return $this->byId($this->inner->unarchive($principal, $wiki));
     }
 
     public function consume(WikiApiPrincipal $principal): WikiApiRateLimitState
@@ -129,7 +129,7 @@ final readonly class ApiTwinHost implements WikiApiRequestAuthenticatorInterface
     {
         $manager      = $this->doctrine->getManager();
         $spaceEntity  = $manager->find(WikiSpace::class, $space->id);
-        $pageEntity   = $page === null ? null : $manager->find(WikiPage::class, $page->id);
+        $pageEntity   = $page instanceof WikiPageSnapshot ? $manager->find(WikiPage::class, $page->id) : null;
         $securityUser = WikiUserRefs::securityUser($user);
 
         return $spaceEntity instanceof WikiSpace && $securityUser instanceof UserInterface
@@ -137,7 +137,7 @@ final readonly class ApiTwinHost implements WikiApiRequestAuthenticatorInterface
     }
 
     /** The same wiki with its space named by id only, as a DDD host's directory answers. */
-    private static function byId(WikiApiWiki $wiki): WikiApiWiki
+    private function byId(WikiApiWiki $wiki): WikiApiWiki
     {
         return new WikiApiWiki($wiki->slug, null, $wiki->name, $wiki->description, $wiki->ownerType, $wiki->ownerId, $wiki->ownerKey, $wiki->archived, $wiki->restricted, $wiki->canOpen, $wiki->pageCount, $wiki->createdAt, $wiki->updatedAt, $wiki->spaceId);
     }

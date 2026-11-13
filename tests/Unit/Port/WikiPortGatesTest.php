@@ -218,7 +218,7 @@ final class WikiPortGatesTest extends TestCase
             public ?WikiSpaceSnapshot $checked = null;
 
             /** @param list<mixed> $ids */
-            public function __construct(private array $ids)
+            public function __construct(private readonly array $ids)
             {
             }
 
@@ -309,7 +309,7 @@ final class WikiPortGatesTest extends TestCase
     public function testAvatarSourceIsKeyedLikeTheDeprecatedInterface(): void
     {
         $source = new class implements WikiUserAvatarSourceInterface {
-            public function urlFor(WikiUserRef $user, int $size): ?string
+            public function urlFor(WikiUserRef $user, int $size): string
             {
                 return '/a/' . $user->id . '/' . $size;
             }
@@ -410,7 +410,7 @@ final class WikiPortGatesTest extends TestCase
         $authenticator = new class implements WikiApiRequestAuthenticatorInterface {
             public ?WikiRequestContext $request = null;
 
-            public function authenticate(WikiRequestContext $request): WikiApiPrincipal|WikiApiAuthFailure
+            public function authenticate(WikiRequestContext $request): WikiApiAuthFailure
             {
                 $this->request = $request;
 
@@ -442,7 +442,7 @@ final class WikiPortGatesTest extends TestCase
 
             public ?WikiApiUpload $upload = null;
 
-            public function __construct(private string $path)
+            public function __construct(private readonly string $path)
             {
             }
 
@@ -567,7 +567,7 @@ final class WikiPortGatesTest extends TestCase
         $answerer  = new class($this->page, $otherPage) implements WikiAiAnswererInterface {
             public ?WikiSpaceSnapshot $space = null;
 
-            public function __construct(private WikiPage $page, private WikiPage $otherPage)
+            public function __construct(private readonly WikiPage $page, private readonly WikiPage $otherPage)
             {
             }
 

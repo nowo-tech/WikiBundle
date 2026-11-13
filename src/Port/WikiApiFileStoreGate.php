@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Api\Hook\WikiApiFilesInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiFileStoreInterface;
+use Nowo\WikiBundle\Api\Value\WikiApiDownload;
 use Nowo\WikiBundle\Api\Value\WikiApiUploadedFile;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
@@ -38,6 +39,6 @@ final readonly class WikiApiFileStoreGate implements WikiApiFilesInterface
     {
         $download = $this->store->download($principal, $wiki, $fileUuid);
 
-        return $download === null ? null : WikiRequestContexts::response($download);
+        return $download instanceof WikiApiDownload ? WikiRequestContexts::response($download) : null;
     }
 }

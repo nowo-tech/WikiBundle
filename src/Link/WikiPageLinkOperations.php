@@ -25,12 +25,12 @@ final readonly class WikiPageLinkOperations implements WikiPageLinkOperationsInt
 
     public function linkPage(string $pageId, string $objectType, string $objectId, ?WikiUserRef $actor = null): void
     {
-        $this->links->link($this->page($pageId), $objectType, $objectId, $actor === null ? null : WikiUserRefs::object($actor));
+        $this->links->link($this->page($pageId), $objectType, $objectId, $actor instanceof WikiUserRef ? WikiUserRefs::object($actor) : null);
     }
 
     public function unlinkPage(string $pageId, string $objectType, string $objectId, ?WikiUserRef $actor = null): bool
     {
-        return $this->links->unlink($this->page($pageId), $objectType, $objectId, $actor === null ? null : WikiUserRefs::object($actor));
+        return $this->links->unlink($this->page($pageId), $objectType, $objectId, $actor instanceof WikiUserRef ? WikiUserRefs::object($actor) : null);
     }
 
     public function usedIn(string $pageId, WikiUserRef $viewer): array

@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\Response;
 
 use function fopen;
 use function fwrite;
@@ -49,7 +50,7 @@ final readonly class ApiTwinFiles implements WikiApiFileStoreInterface
     public function download(WikiApiPrincipal $principal, WikiApiWiki $wiki, string $fileUuid): ?WikiApiDownload
     {
         $response = $this->inner->download($principal, $wiki, $fileUuid);
-        if ($response === null) {
+        if (!$response instanceof Response) {
             return null;
         }
         $stream = fopen('php://memory', 'w+');

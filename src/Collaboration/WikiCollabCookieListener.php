@@ -48,7 +48,7 @@ final class WikiCollabCookieListener
         $event->getRequest()->attributes->remove(self::ATTRIBUTE);
         foreach ($cookies as $cookie) {
             if ($cookie instanceof WikiCollabCookie) {
-                $event->getResponse()->headers->setCookie(Cookie::create($cookie->name, $cookie->value, $cookie->expiresAt ?? 0, $cookie->path, $cookie->domain, $cookie->secure, $cookie->httpOnly, false, self::sameSite($cookie->sameSite)));
+                $event->getResponse()->headers->setCookie(Cookie::create($cookie->name, $cookie->value, $cookie->expiresAt ?? 0, $cookie->path, $cookie->domain, $cookie->secure, $cookie->httpOnly, false, $this->sameSite($cookie->sameSite)));
             }
         }
     }
@@ -56,7 +56,7 @@ final class WikiCollabCookieListener
     /**
      * @return 'lax'|'none'|'strict' the SameSite value (anything unknown is `strict`)
      */
-    private static function sameSite(string $value): string
+    private function sameSite(string $value): string
     {
         return match (strtolower($value)) {
             'lax'   => 'lax',

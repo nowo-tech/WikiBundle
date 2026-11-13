@@ -74,12 +74,12 @@ final readonly class WikiPageOperations implements WikiPageOperationsInterface
 
     public function archivePage(string $pageId, ?WikiUserRef $actor = null): void
     {
-        $this->pageService->archive($this->page($pageId), $actor === null ? null : WikiUserRefs::object($actor));
+        $this->pageService->archive($this->page($pageId), $actor instanceof WikiUserRef ? WikiUserRefs::object($actor) : null);
     }
 
     public function unarchivePage(string $pageId, ?WikiUserRef $actor = null): void
     {
-        $this->pageService->unarchive($this->page($pageId), $actor === null ? null : WikiUserRefs::object($actor));
+        $this->pageService->unarchive($this->page($pageId), $actor instanceof WikiUserRef ? WikiUserRefs::object($actor) : null);
     }
 
     private function page(string $pageId): WikiPage

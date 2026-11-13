@@ -26,6 +26,7 @@ final readonly class WikiPanelStatesGate implements WikiPanelStateStoreInterface
 
     public function setOpen(UserInterface $user, string $panel, bool $open): void
     {
+        // @igor-ignore - Host store write (the remembered state lives in the host's store); the gate keeps no state.
         $this->states->setOpen(WikiUserRefs::fromUser($user), $panel, $open);
     }
 }
