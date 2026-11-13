@@ -96,8 +96,13 @@ applies to every host; on MySQL / MariaDB the column also needs the new collatio
 
    ```sql
    SELECT id, owner_scope_type, owner_scope_id FROM wiki_spaces
-    WHERE owner_scope_id <> TRIM(owner_scope_id) OR owner_scope_id REGEXP '[[:cntrl:]]' OR CHAR_LENGTH(owner_scope_id) = 0;
+    WHERE CAST(owner_scope_id AS BINARY) <> CAST(TRIM(owner_scope_id) AS BINARY)
+       OR owner_scope_id REGEXP '[[:cntrl:]]' OR CHAR_LENGTH(owner_scope_id) = 0;
    ```
+
+   The comparison is done on bytes because a PAD SPACE collation (MariaDB's default `utf8mb4_uca1400_ai_ci`,
+   `utf8mb4_unicode_ci`, `utf8mb4_general_ci`) calls `alice ` and `alice` equal, so a plain
+   `owner_scope_id <> TRIM(owner_scope_id)` misses every id with trailing spaces there.
 
    Move them to the owner's real id (`UPDATE wiki_spaces SET owner_scope_id = ... WHERE id = ...`); format characters
    such as U+200B are not matched by `[[:cntrl:]]`: compare `CHAR_LENGTH()` with what you expect, or list them in PHP.
@@ -124,11 +129,15 @@ applies to every host; on MySQL / MariaDB the column also needs the new collatio
    them). Before running it, check for look-alike owners that already share rows:
 
    ```sql
-   SELECT owner_scope_type, LOWER(TRIM(owner_scope_id)) AS folded, GROUP_CONCAT(DISTINCT CONCAT('[', owner_scope_id, ']'))
-     FROM wiki_spaces GROUP BY owner_scope_type, folded HAVING COUNT(DISTINCT BINARY owner_scope_id) > 1;
+   SELECT owner_scope_type, LOWER(TRIM(owner_scope_id)) AS folded,
+          GROUP_CONCAT(DISTINCT CONCAT('[', owner_scope_id, '] ', HEX(owner_scope_id)) SEPARATOR ', ') AS spellings
+     FROM wiki_spaces GROUP BY owner_scope_type, folded
+   HAVING COUNT(DISTINCT CAST(owner_scope_id AS BINARY)) > 1;
    ```
 
-   Each group lists ids that the old collation treated as one owner: their principals could see each other's spaces.
+   Each spelling is listed between brackets with its bytes in hex (`[alice ] 616C69636520, [Alice] 416C696365, ...`):
+   the hex keeps `DISTINCT` from folding `Alice`, `álice` or `alice ` back into `alice` under the column's collation,
+   and shows trailing spaces and invisible characters. Each group lists ids that the old collation treated as one owner: their principals could see each other's spaces.
    After the upgrade each id sees only its own spaces; decide per group which principal owns each space and fix
    `owner_scope_id` (and review what was exposed). PostgreSQL and SQLite need no change. Without the `ALTER` the
    bundle is still safe (the PHP re-check), but two owners that differ only in case cannot both create a space with
