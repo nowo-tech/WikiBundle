@@ -14,7 +14,6 @@ use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\Event\PostLoadEventArgs;
-use Doctrine\ORM\PersistentCollection;
 use Doctrine\ORM\Query\Filter\Parameter;
 use Doctrine\ORM\Query\Filter\SQLFilter;
 use Doctrine\ORM\UnitOfWork;
@@ -27,11 +26,9 @@ use Symfony\Contracts\Service\ResetInterface;
 use Throwable;
 
 use function array_keys;
-use function array_pop;
 use function array_sum;
 use function in_array;
 use function is_a;
-use function is_iterable;
 use function is_object;
 use function is_string;
 use function ksort;
@@ -298,7 +295,14 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
                 throw $exception;
             }
             $this->connectionRolledBack(null);
-            $this->logGenericWarning($exception);
+            try {
+                $this->logger?->warning('Wiki: rolling back a wiki savepoint inside the application\'s transaction failed ({exception}); the original failure is rethrown by the caller.', [
+                    'bundle'    => 'nowo_wiki',
+                    'exception' => $exception::class,
+                ]);
+            } catch (Throwable) {
+                // A failing logger never hides the original failure either.
+            }
         }
     }
 
@@ -321,16 +325,16 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
     private function adoptForeignReferences(EntityManagerInterface $manager): void
     {
         $unitOfWork = $manager->getUnitOfWork();
-        $pending    = $unitOfWork->getScheduledEntityInsertions();
+        $rows       = $unitOfWork->getScheduledEntityInsertions();
         foreach ($unitOfWork->getIdentityMap() as $managed) {
             foreach ($managed as $entity) {
-                $pending[] = $entity;
+                $rows[] = $entity;
             }
         }
-        // New rows the flush will cascade (a history entry added to a task, a member to a task, ...) are adopted too: they
-        // are walked through the cascade-persist associations the flush would follow (never a lazy collection).
+        // The wiki entities map no cascade-persist association: every new wiki row is persisted explicitly, so the
+        // scheduled insertions and the identity map hold every row the flush writes.
         $seen = [];
-        while (($entity = array_pop($pending)) !== null) {
+        foreach ($rows as $entity) {
             $key = spl_object_id($entity);
             if (isset($seen[$key]) || !self::isBundleEntity($entity::class)) {
                 continue;
@@ -339,25 +343,13 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
             $metadata   = $manager->getClassMetadata($entity::class);
             foreach ($metadata->associationMappings as $field => $mapping) {
                 $value = $metadata->getFieldValue($entity, $field);
-                if ($mapping->isToOne() && is_object($value) && !$manager->contains($value) && $this->isSavedElsewhere($manager, $value)) {
-                    $target = $manager->getClassMetadata($value::class);
-                    $id     = $target->getIdentifierValues($value);
-                    if ($id !== [] && !in_array(null, $id, true)) {
-                        $metadata->setFieldValue($entity, $field, $manager->getReference($target->getName(), $id));
-                    }
-
+                if (!$mapping->isToOne() || !is_object($value) || $manager->contains($value) || !$this->isSavedElsewhere($manager, $value)) {
                     continue;
                 }
-                if (!$mapping->isCascadePersist() || $value === null) {
-                    continue;
-                }
-                if ($value instanceof PersistentCollection && !$value->isInitialized()) {
-                    continue;
-                }
-                foreach (is_iterable($value) ? $value : [$value] as $related) {
-                    if (is_object($related) && !$manager->contains($related)) {
-                        $pending[] = $related;
-                    }
+                $target = $manager->getClassMetadata($value::class);
+                $id     = $target->getIdentifierValues($value);
+                if ($id !== [] && !in_array(null, $id, true)) {
+                    $metadata->setFieldValue($entity, $field, $manager->getReference($target->getName(), $id));
                 }
             }
         }

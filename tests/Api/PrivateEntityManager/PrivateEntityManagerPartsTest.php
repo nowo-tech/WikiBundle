@@ -8,6 +8,7 @@ use Doctrine\DBAL\Driver;
 use Doctrine\DBAL\Driver\Connection as DriverConnection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
+use Doctrine\ORM\Event\PostLoadEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
@@ -31,10 +32,15 @@ use ReflectionProperty;
 use RuntimeException;
 use Stringable;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Event\ConsoleTerminateEvent;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpKernel\KernelInterface;
+use Throwable;
 
 use function array_filter;
 use function array_values;
@@ -73,10 +79,10 @@ final class PrivateEntityManagerPartsTest extends KernelTestCase
         $private->persist($space);
         $private->flush();
         self::assertTrue($private->isCreated());
-        self::getContainer()->get('event_dispatcher')->dispatch(new \Symfony\Component\Console\Event\ConsoleTerminateEvent(
-            new \Symfony\Component\Console\Command\Command('x'),
-            new \Symfony\Component\Console\Input\ArrayInput([]),
-            new \Symfony\Component\Console\Output\NullOutput(),
+        self::getContainer()->get('event_dispatcher')->dispatch(new ConsoleTerminateEvent(
+            new Command('x'),
+            new ArrayInput([]),
+            new NullOutput(),
             0,
         ), 'console.terminate');
         self::assertFalse($private->isCreated(), 'dropped at the console boundary');
@@ -211,7 +217,7 @@ final class PrivateEntityManagerPartsTest extends KernelTestCase
         $loaded = $private->find(WikiSpace::class, $space->getId());
         self::assertInstanceOf(WikiSpace::class, $loaded);
         $private->refresh($loaded);
-        $private->postLoad(new \Doctrine\ORM\Event\PostLoadEventArgs($loaded, $private->live()));
+        $private->postLoad(new PostLoadEventArgs($loaded, $private->live()));
         $private->getConnection()->rollBack();
         self::assertTrue($private->isStale(), 'NJV-1: a load inside a rolled-back transaction makes the identity map stale');
     }
@@ -232,8 +238,23 @@ final class PrivateEntityManagerPartsTest extends KernelTestCase
         self::assertCount(1, $this->warnings($logger), 'logged, never rethrown inside the application\'s transaction');
         $real->close();
 
+        $quiet = new WikiEntityManager($this->doctrine(), 'default', new class extends AbstractLogger {
+            public function log(mixed $level, string|Stringable $message, array $context = []): void
+            {
+                throw new RuntimeException('logger down');
+            }
+        });
+        $quietConnection = $quiet->getConnection();
+        $quietConnection->beginTransaction();
+        $quiet->beginTransaction();
+        $this->write($quiet);
+        $quietConnection->executeStatement('ROLLBACK');
+        $quiet->rollback();
+        self::assertTrue($quiet->isStale(), 'a failing logger never hides the original failure either');
+        $quietConnection->close();
+
         $outer = new WikiEntityManager($this->doctrine(), 'default', $logger);
-        $this->expectException(\Throwable::class);
+        $this->expectException(Throwable::class);
         $outer->rollback(); // no transaction: an outermost rollback that fails is rethrown
     }
 
@@ -337,14 +358,16 @@ final class PrivateEntityManagerPartsTest extends KernelTestCase
         $private->reset();
         self::assertNotSame($repository, $private->getRepository(WikiSpace::class), 'emptied with the manager at a boundary');
         self::assertInstanceOf(EntityRepository::class, $private->getRepository(WikiPage::class));
+        // Asked of the live manager itself (Doctrine internals, a validator): its own factory keeps one per class.
+        self::assertSame($private->live()->getRepository(WikiSpace::class), $private->live()->getRepository(WikiSpace::class));
     }
 
     #[Test]
     public function aServiceRepositoryIsAskedOfTheSourceFactory(): void
     {
-        $private  = $this->privateManager();
-        $metadata = $private->live()->getClassMetadata(TestUserEntity::class);
-        $before   = $metadata->customRepositoryClassName;
+        $private                             = $this->privateManager();
+        $metadata                            = $private->live()->getClassMetadata(TestUserEntity::class);
+        $before                              = $metadata->customRepositoryClassName;
         $metadata->customRepositoryClassName = HostServiceRepository::class;
         try {
             $private->getRepository(TestUserEntity::class);

@@ -35,7 +35,7 @@ final class ApiXmlMappingTest extends ApiTestCase
         $created = $this->json($response);
 
         $this->em()->clear();
-        $page = $this->em()->find(WikiPage::class, $created['id']);
+        $page = $this->wikiEm()->find(WikiPage::class, $created['id']);
         self::assertInstanceOf(WikiPage::class, $page);
         self::assertSame('Runbook', $page->getTitle());
         self::assertSame(1, $page->getCurrentRevision()?->getRevisionNumber());

@@ -56,10 +56,10 @@ use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
-use Nowo\WikiBundle\DependencyInjection\Compiler\PrivateEntityManagerPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
-use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
+use Nowo\WikiBundle\DependencyInjection\Compiler\PrivateEntityManagerPass;
 use Nowo\WikiBundle\Doctrine\PrivateEntityManagerMiddleware;
+use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
@@ -374,25 +374,25 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         $container->setParameter('nowo_wiki.database.entity_manager', $emName);
-        $providerDefinition = (new Definition(WikiEntityManagerProvider::class))
-            ->setArgument('$registry', new Reference('doctrine'))
-            ->setArgument('$managerName', $emName);
         // 1.33.0 (REQ-ARCH-001 rule 6): the opt-in private entity manager.
-        if ($database['private_entity_manager'] === true) {
+        $private = $database['private_entity_manager'] === true;
+        if ($private) {
             $container->setDefinition(WikiEntityManager::class, (new Definition(WikiEntityManager::class))
                 ->setArguments([new Reference('doctrine'), $emName, new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)])
                 ->addTag('kernel.reset', ['method' => 'reset'])
                 ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
                 // Loads of the private manager inside a transaction are tracked like its writes (audit NJV-1).
                 ->addTag('doctrine.event_listener', ['event' => 'postLoad', 'method' => 'postLoad', 'lazy' => true, 'entity_manager' => $emName]));
-            $providerDefinition->setArgument('$private', new Reference(WikiEntityManager::class));
             if (PrivateEntityManagerPass::supportsRollbackMiddleware()) {
                 $container->setDefinition(PrivateEntityManagerMiddleware::class, (new Definition(PrivateEntityManagerMiddleware::class))
                     ->setArguments([new Reference(WikiEntityManager::class)])
                     ->addTag('doctrine.middleware'));
             }
         }
-        $container->setDefinition(WikiEntityManagerProvider::class, $providerDefinition);
+        $container->setDefinition(WikiEntityManagerProvider::class, (new Definition(WikiEntityManagerProvider::class))
+            ->setArgument('$registry', new Reference('doctrine'))
+            ->setArgument('$managerName', $emName)
+            ->setArgument('$private', $private ? new Reference(WikiEntityManager::class) : null));
         $emProviderRef = new Reference(WikiEntityManagerProvider::class);
 
         foreach ([

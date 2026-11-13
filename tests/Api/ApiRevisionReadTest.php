@@ -97,7 +97,7 @@ final class ApiRevisionReadTest extends ApiTestCase
     {
         $page = $this->page($this->eng, 'Guide', 'first');
         $em   = $this->em();
-        $this->pages()->saveRevision($em->find(WikiPage::class, $page->getId()) ?? $page, 'Guide', "first\nsecond", $em->find(TestUserEntity::class, 'u-bob') ?? $this->bob, WikiPageRevision::FORMAT_MARKDOWN);
+        $this->pages()->saveRevision($this->wikiEm()->find(WikiPage::class, $page->getId()) ?? $page, 'Guide', "first\nsecond", $em->find(TestUserEntity::class, 'u-bob') ?? $this->bob, WikiPageRevision::FORMAT_MARKDOWN);
 
         return $page;
     }

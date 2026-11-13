@@ -7,11 +7,9 @@ namespace Nowo\WikiBundle\Tests\Api\DddHost;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
-use Doctrine\Persistence\Mapping\Driver\MappingDriverChain;
-use Doctrine\ORM\Mapping\Driver\SimplifiedXmlDriver;
+use InvalidArgumentException;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
-use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -19,10 +17,8 @@ use Nowo\WikiBundle\Link\WikiPageLinkOperationsInterface;
 use Nowo\WikiBundle\Service\WikiPageOperationsInterface;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Service\WikiSpaceOperationsInterface;
-use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
 use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
-use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -86,16 +82,7 @@ final class DddHostKernelTest extends WebTestCase
         foreach ($classes as $class) {
             self::assertStringStartsWith('Nowo\\WikiBundle\\Entity\\', $class, 'only wiki entities are mapped');
         }
-        $driver = $em->getConfiguration()->getMetadataDriverImpl();
-        self::assertInstanceOf(MappingDriverChain::class, $driver);
-        $wikiDriver = null;
-        foreach ($driver->getDrivers() as $namespace => $candidate) {
-            if ($namespace === 'Nowo\\WikiBundle\\Entity') {
-                $wikiDriver = $candidate;
-            }
-        }
-        self::assertInstanceOf(SimplifiedXmlDriver::class, $wikiDriver);
-
+        // The XML driver itself: ApiXmlMappingTest; XmlMappingParityTest proves the same metadata.
         $revision = $em->getClassMetadata(WikiPageRevision::class);
         self::assertFalse($revision->hasAssociation('author'), 'no relation to a host user');
         self::assertSame('author_id', $revision->getColumnName('author'));
