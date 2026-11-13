@@ -11,6 +11,9 @@ use Nowo\WikiBundle\Service\WikiPageService;
  * 1.24 (spec 218): the write lock of one page, for a save that must start from a known revision
  * ({@see WikiPageService::saveRevision()} with an expected revision). The Doctrine page
  * repository implements it; a host repository that does not cannot take an expected revision.
+ *
+ * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
+ * hosts reach wiki data through the services, the id operations and the events.
  */
 interface WikiPageLockInterface
 {

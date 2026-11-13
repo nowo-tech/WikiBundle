@@ -6,7 +6,11 @@ namespace Nowo\WikiBundle\Event;
 
 use DateTimeImmutable;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * Dispatched after a page was moved in the page tree (1.14, {@see WikiEvents::PAGE_MOVED}): the audit entry of a move
@@ -40,5 +44,53 @@ final readonly class WikiPageMovedEvent
     public function actorId(): ?string
     {
         return WikiUserId::of($this->actor);
+    }
+
+    /**
+     * 1.32: the id of the page's space.
+     */
+    public function spaceId(): string
+    {
+        return $this->page->getSpace()->getId();
+    }
+
+    /**
+     * 1.32: the page's id.
+     */
+    public function pageId(): string
+    {
+        return $this->page->getId();
+    }
+
+    /**
+     * 1.32: the page as a framework-free snapshot (REQ-ARCH-001).
+     */
+    public function pageSnapshot(): WikiPageSnapshot
+    {
+        return WikiSnapshots::page($this->page);
+    }
+
+    /**
+     * 1.32: the id of the former parent; null at the root.
+     */
+    public function fromParentId(): ?string
+    {
+        return $this->fromParent?->getId();
+    }
+
+    /**
+     * 1.32: the id of the new parent; null at the root.
+     */
+    public function toParentId(): ?string
+    {
+        return $this->toParent?->getId();
+    }
+
+    /**
+     * 1.32: the actor as a framework-free reference; null without an actor.
+     */
+    public function actorRef(): ?WikiUserRef
+    {
+        return WikiUserRefs::fromUserOrNull($this->actor);
     }
 }

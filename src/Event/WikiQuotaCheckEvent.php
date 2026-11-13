@@ -6,6 +6,11 @@ namespace Nowo\WikiBundle\Event;
 
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\EventDispatcher\Event;
 
@@ -52,7 +57,8 @@ final class WikiQuotaCheckEvent extends Event
     /**
      * @param string $action one of the action constants
      * @param WikiSpace $space space written to
-     * @param UserInterface $user user who acts
+     * @param UserInterface $user user who acts; deprecated since 1.32 as a public member (a Symfony type), removed in
+     *                            2.0: read {@see self::userRef()}
      * @param int $count pages (or files) the write adds
      * @param int $bytes bytes the write adds (upload, import archive)
      * @param WikiPage|null $page page concerned (unarchive, attachment, the copied page), null for a new page or an import
@@ -93,5 +99,45 @@ final class WikiQuotaCheckEvent extends Event
     public function getReason(): ?string
     {
         return $this->reason;
+    }
+
+    /**
+     * 1.32: the space's id.
+     */
+    public function spaceId(): string
+    {
+        return $this->space->getId();
+    }
+
+    /**
+     * 1.32: the space as a framework-free snapshot.
+     */
+    public function spaceSnapshot(): WikiSpaceSnapshot
+    {
+        return WikiSnapshots::space($this->space);
+    }
+
+    /**
+     * 1.32: the page's id; null for a new page or an import.
+     */
+    public function pageId(): ?string
+    {
+        return $this->page?->getId();
+    }
+
+    /**
+     * 1.32: the page as a snapshot; null for a new page or an import.
+     */
+    public function pageSnapshot(): ?WikiPageSnapshot
+    {
+        return WikiSnapshots::pageOrNull($this->page);
+    }
+
+    /**
+     * 1.32: the user who acts, as a framework-free reference (use it instead of {@see self::$user}).
+     */
+    public function userRef(): WikiUserRef
+    {
+        return WikiUserRefs::fromUser($this->user);
     }
 }

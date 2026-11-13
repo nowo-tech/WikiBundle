@@ -12,6 +12,9 @@ use Nowo\WikiBundle\Entity\WikiPage;
 /**
  * Storage of the comment threads, comments and reactions of pages (1.16, `comments.enabled`). Every lookup is scoped
  * to a page: an id of another page's thread or comment is not found.
+ *
+ * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
+ * hosts reach wiki data through the services, the id operations and the events.
  */
 interface WikiCommentRepositoryInterface
 {

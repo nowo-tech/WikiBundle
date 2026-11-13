@@ -47,10 +47,12 @@ use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
+use Nowo\WikiBundle\Collaboration\WikiCollabCookieListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
@@ -65,6 +67,7 @@ use Nowo\WikiBundle\History\WikiHistoryThinner;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Link\WikiObjectLinkSourceInterface;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
@@ -939,6 +942,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 ->setArgument('$hub', $hub));
         }
 
+        // 1.32: the authorizer is asked through its interface id, so WikiPortsPass can put the twin's gate there.
+        $container->setAlias(WikiCollabSubscriberAuthorizerInterface::class, $authorizer);
+        $container->setDefinition(WikiCollabCookieListener::class, (new Definition(WikiCollabCookieListener::class))
+            ->addTag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onResponse']));
+
         // 1.16: the comment writes publish their thread ids through the same publisher.
         $container->setAlias(WikiCollabPublisherInterface::class, $publisher);
         $container->setDefinition(WikiCollabService::class, (new Definition(WikiCollabService::class))
@@ -946,7 +954,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
             ->setArgument('$store', new Reference($store))
             ->setArgument('$publisher', new Reference($publisher))
-            ->setArgument('$authorizer', new Reference($authorizer))
+            ->setArgument('$authorizer', new Reference(WikiCollabSubscriberAuthorizerInterface::class))
             ->setArgument('$options', array_intersect_key($collab, WikiCollabService::DEFAULTS))
             ->setArgument('$rateLimiter', new Reference((string) $collab['rate_limiter']))
             ->setArgument('$userRateLimiter', is_string($collab['user_rate_limiter']) && $collab['user_rate_limiter'] !== '' ? new Reference($collab['user_rate_limiter']) : null)
@@ -975,6 +983,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(AccessibleWikiSpaceLocator::class, (new Definition(AccessibleWikiSpaceLocator::class))->setAutowired(true));
         $container->setAlias(WikiSpaceLocatorInterface::class, AccessibleWikiSpaceLocator::class);
         $container->registerForAutoconfiguration(WikiObjectLinkResolverInterface::class)->addTag('nowo_wiki.object_link_resolver');
+        // 1.32: the framework-free twin takes the same tag (WikiPageLinkService asks it through a gate).
+        $container->registerForAutoconfiguration(WikiObjectLinkSourceInterface::class)->addTag('nowo_wiki.object_link_resolver');
 
         $container->setDefinition(WikiTenantPaths::class, (new Definition(WikiTenantPaths::class))
             ->setArgument('$tenants', array_values($config['tenant_paths']))

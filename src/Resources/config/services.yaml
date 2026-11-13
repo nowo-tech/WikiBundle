@@ -120,6 +120,17 @@ services:
         alias: Nowo\WikiBundle\Link\WikiPageLinkService
         public: true
 
+    # 1.32: the same operations by id and value objects (REQ-ARCH-001 rule 1; public aliases).
+    Nowo\WikiBundle\Service\WikiPageOperationsInterface:
+        alias: Nowo\WikiBundle\Service\WikiPageOperations
+        public: true
+    Nowo\WikiBundle\Service\WikiSpaceOperationsInterface:
+        alias: Nowo\WikiBundle\Service\WikiSpaceOperations
+        public: true
+    Nowo\WikiBundle\Link\WikiPageLinkOperationsInterface:
+        alias: Nowo\WikiBundle\Link\WikiPageLinkOperations
+        public: true
+
     Nowo\WikiBundle\Service\WikiPageService:
         arguments:
             $logger: '@?logger'

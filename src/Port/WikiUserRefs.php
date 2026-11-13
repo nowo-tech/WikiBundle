@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Port;
 
+use Nowo\WikiBundle\User\WikiRefUser;
 use Nowo\WikiBundle\User\WikiUserId;
 use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
@@ -30,6 +31,9 @@ final class WikiUserRefs
      */
     public static function fromUser(object $user, string $storedUserClass = ''): WikiUserRef
     {
+        if ($user instanceof WikiRefUser) {
+            return $user->ref();
+        }
         if ($user instanceof WikiStoredUserRef) {
             return new WikiUserRef($storedUserClass !== '' ? $storedUserClass : WikiStoredUserRef::class, $user->id, '', [], $user);
         }
@@ -53,6 +57,34 @@ final class WikiUserRefs
     public static function fromUserOrNull(?object $user, string $storedUserClass = ''): ?WikiUserRef
     {
         return $user === null ? null : self::fromUser($user, $storedUserClass);
+    }
+
+    /**
+     * The security user the bundle works with for a reference: the object it was built from when that is a Symfony
+     * user, else a {@see WikiRefUser} standing for it.
+     *
+     * @param WikiUserRef $ref the reference
+     *
+     * @return UserInterface the security user
+     */
+    public static function securityUser(WikiUserRef $ref): UserInterface
+    {
+        $user = $ref->user();
+
+        return $user instanceof UserInterface ? $user : new WikiRefUser($ref);
+    }
+
+    /**
+     * The user object the bundle stores or hands on for a reference (an actor, an author): the object it was built
+     * from, else a {@see WikiRefUser}.
+     *
+     * @param WikiUserRef $ref the reference
+     *
+     * @return object the user object
+     */
+    public static function object(WikiUserRef $ref): object
+    {
+        return $ref->user() ?? new WikiRefUser($ref);
     }
 
     /**
