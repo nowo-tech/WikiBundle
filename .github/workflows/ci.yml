@@ -209,7 +209,7 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- tests/Database/WikiSpaceLookalikeOwnerTest.php
 
-      # 1.33 (database.user_reference: id, REQ-SEC-006): the stored user id columns and their exact matching.
+      # 1.34 (database.user_reference: id, REQ-SEC-006): the stored user id columns and their exact matching.
       - name: Run the user id reference test against MariaDB
         env:
           WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4
@@ -408,7 +408,7 @@ jobs:
           tools: composer:v2
 
       - run: composer install --prefer-dist --no-progress --no-interaction
-      # 1.33 (REQ-ARCH-001): every API host port answered through its twin only (equivalence with the deprecated ports).
+      # 1.34 (REQ-ARCH-001): every API host port answered through its twin only (equivalence with the deprecated ports).
       - name: Run the API suite with WIKI_TEST_PORTS=twin
         env:
           WIKI_TEST_PORTS: twin
@@ -445,7 +445,7 @@ jobs:
           tools: composer:v2
 
       - run: composer install --prefer-dist --no-progress --no-interaction
-      # 1.33 (REQ-ARCH-001 rule 6): every wiki write through the opt-in private entity manager, on SQLite and MySQL.
+      # 1.34 (REQ-ARCH-001 rule 6): every wiki write through the opt-in private entity manager, on SQLite and MySQL.
       - name: Run the API suite with WIKI_TEST_PRIVATE_EM=1 (SQLite)
         env:
           WIKI_TEST_PRIVATE_EM: '1'
