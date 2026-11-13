@@ -8,7 +8,9 @@ use Nowo\WikiBundle\Api\Operation\WikiApiDelegatedOperations;
 use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
+use Nowo\WikiBundle\Tests\Api\App\ApiKernel;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
+use Nowo\WikiBundle\Tests\Api\App\ApiTwinHost;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
@@ -94,7 +96,7 @@ final class ApiDelegatedTest extends ApiTestCase
         self::assertInstanceOf(RecordingLogger::class, $logger);
         $errors = array_values(array_filter($logger->records, static fn (array $r): bool => $r['message'] === 'Wiki API: the wiki management hook created a wiki under another owner than the one asked.'));
         self::assertCount(1, $errors);
-        self::assertSame(ApiTestHost::class, $errors[0]['context']['hook']);
+        self::assertSame(ApiKernel::twinPorts() ? ApiTwinHost::class : ApiTestHost::class, $errors[0]['context']['hook']);
         // The claim is kept: a retry with the same key does not create it again.
         $retry = $this->call('POST', '/wikis', 'owner-1', $body, ['Idempotency-Key' => 'k-misfiled']);
         self::assertNotSame(201, $retry->getStatusCode());
@@ -114,7 +116,8 @@ final class ApiDelegatedTest extends ApiTestCase
 
         $download = $this->call('GET', '/wikis/eng/files/' . $file['uuid']);
         self::assertSame(200, $download->getStatusCode());
-        self::assertSame('attachment', $download->headers->get('Content-Disposition'));
+        // 1.34: a twin file store's download is built by the bundle as an attachment with the file name.
+        self::assertSame(ApiKernel::twinPorts() ? "attachment; filename=download; filename*=utf-8''x.html" : 'attachment', $download->headers->get('Content-Disposition'));
         self::assertSame(WikiApiDelegatedOperations::DOWNLOAD_CSP, $download->headers->get('Content-Security-Policy'));
         self::assertSame('nosniff', $download->headers->get('X-Content-Type-Options'));
         $this->assertRefusal($this->call('GET', '/wikis/eng/files/22222222-2222-4222-8222-222222222222'), 404, 'ACCESS_001');

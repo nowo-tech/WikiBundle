@@ -13,7 +13,9 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\User\WikiUserFields;
 use SortDirection;
+use Stringable;
 use Throwable;
 
 use function array_values;
@@ -133,8 +135,10 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
      */
     public function pageMetadata(WikiSpace $space, WikiPageMetadataQuery $query): array
     {
-        $builder = $this->entityManager()->createQueryBuilder()
-            ->select('p', 'r.revisionNumber AS revisionNumber', 'r.createdAt AS revisedAt', 'IDENTITY(r.author) AS authorId')
+        $entityManager = $this->entityManager();
+        // 1.34: the author column itself with database.user_reference: id (IDENTITY() of the relation otherwise).
+        $builder = $entityManager->createQueryBuilder()
+            ->select('p', 'r.revisionNumber AS revisionNumber', 'r.createdAt AS revisedAt', WikiUserFields::identity($entityManager, WikiPageRevision::class, 'r', 'author') . ' AS authorId')
             ->from(WikiPage::class, 'p')
             ->leftJoin('p.currentRevision', 'r')
             ->where('p.space = :space')
@@ -152,7 +156,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
         }
 
         $metadata = [];
-        /** @var list<array{0: WikiPage, revisionNumber: int|string|null, revisedAt: DateTimeImmutable|null, authorId: int|string|null}> $rows */
+        /** @var list<array{0: WikiPage, revisionNumber: int|string|null, revisedAt: DateTimeImmutable|null, authorId: int|string|Stringable|null}> $rows */
         $rows = $builder->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
         foreach ($rows as $row) {
             $metadata[] = new WikiPageMetadata(

@@ -78,7 +78,7 @@ final class ApiOpenApiTest extends ApiTestCase
         $page    = $this->page($this->eng, 'Guide', '# Guide');
         $service = static::getContainer()->get(WikiCommentService::class);
         self::assertInstanceOf(WikiCommentService::class, $service);
-        $stored = $em->find(WikiPage::class, $page->getId());
+        $stored = $this->wikiEm()->find(WikiPage::class, $page->getId());
         self::assertInstanceOf(WikiPage::class, $stored);
         $thread = $service->create($em->find(TestUserEntity::class, 'u-ana') ?? $this->ana, $em->find(WikiSpace::class, $this->eng->getId()) ?? $this->eng, $stored, null, 'Hello');
         $base   = '/wikis/eng/pages/' . $page->getId();

@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\Api\Repository;
 
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Repository\WikiPageMetadataFinderInterface;
+use Nowo\WikiBundle\User\WikiUsers;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 
 use function array_fill_keys;
 use function array_keys;
@@ -28,6 +30,7 @@ final readonly class WikiApiUsersReader
     public function __construct(
         private WikiEntityManagerProvider $entityManager,
         private string $userClass,
+        private ?WikiUsers $users = null,
     ) {
     }
 
@@ -41,6 +44,9 @@ final readonly class WikiApiUsersReader
         $ids = array_keys(array_fill_keys($ids, true));
         if ($ids === []) {
             return [];
+        }
+        if ($this->users?->idMode() === true) {
+            return $this->byStoredIds($ids, $this->users);
         }
         $manager  = $this->entityManager->get();
         $metadata = $manager->getClassMetadata($this->userClass);
@@ -59,6 +65,27 @@ final readonly class WikiApiUsersReader
             $id     = count($values) === 1 ? reset($values) : null;
             if (is_object($user) && is_scalar($id)) {
                 $byId[(string) $id] = $user;
+            }
+        }
+
+        return $byId;
+    }
+
+    /**
+     * 1.34 (`database.user_reference: id`): the users behind stored ids, through the host's directory (each answer
+     * re-checked byte for byte); an id the directory does not resolve stays a {@see WikiStoredUserRef}.
+     *
+     * @param list<int|string> $ids distinct ids (numeric ones come back as array keys)
+     *
+     * @return array<string, object>
+     */
+    private function byStoredIds(array $ids, WikiUsers $users): array
+    {
+        $byId = [];
+        foreach ($ids as $key) {
+            $id = (string) $key;
+            if (WikiStoredUserRef::isValid($id)) {
+                $byId[$id] = $users->find($id) ?? new WikiStoredUserRef($id);
             }
         }
 

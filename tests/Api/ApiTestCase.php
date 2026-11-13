@@ -9,6 +9,7 @@ use Doctrine\ORM\Tools\SchemaTool;
 use JsonException;
 use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiWhere;
+use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -137,6 +138,15 @@ abstract class ApiTestCase extends WebTestCase
         return $em;
     }
 
+    /** The manager the wiki reads and writes through (`WikiEntityManagerProvider`). */
+    protected function wikiEm(): EntityManagerInterface
+    {
+        $provider = static::getContainer()->get(WikiEntityManagerProvider::class);
+        self::assertInstanceOf(WikiEntityManagerProvider::class, $provider);
+
+        return $provider->get();
+    }
+
     protected function pages(): WikiPageService
     {
         $service = static::getContainer()->get(WikiPageService::class);
@@ -147,7 +157,9 @@ abstract class ApiTestCase extends WebTestCase
 
     protected function page(WikiSpace $space, string $title, string $markdown, ?WikiPage $parent = null, ?TestUserEntity $author = null): WikiPage
     {
-        $em = $this->em();
+        // 1.34: the wiki rows through the wiki's own manager (the private one with WIKI_TEST_PRIVATE_EM=1), as a host
+        // does with database.private_entity_manager: wiki entities are loaded through the wiki, never the host manager.
+        $em = $this->wikiEm();
 
         return $this->pages()->create(
             $em->find(WikiSpace::class, $space->getId()) ?? $space,

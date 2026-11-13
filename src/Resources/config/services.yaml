@@ -21,6 +21,7 @@ services:
             - '../../Event/WikiQuotaCheckEvent.php'
             - '../../Event/WikiApiWriteEvent.php'
             - '../../User/WikiUserId.php'
+            - '../../User/WikiUserFields.php'
             - '../../Service/WikiSpaceAccessResolver.php'
             - '../../Service/WikiAuthorResolver.php'
             - '../../Attachment/LocalWikiAttachmentStorage.php'
@@ -48,6 +49,8 @@ services:
             # 1.20: registered by WikiExtension only with page_files.enabled (the page view gets null otherwise).
             - '../../PageFile/'
             - '../../Search/'
+            # 1.34: port gates and helpers, wired by WikiPortsPass / WikiExtension only.
+            - '../../Port/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
@@ -93,6 +96,16 @@ services:
             $userClass: '%nowo_wiki.user_class%'
             $entityManagers: '@Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider'
             $classes: '@Nowo\WikiBundle\User\WikiUserClassPolicy'
+            $userReference: '%nowo_wiki.database.user_reference%'
+
+    # 1.34 (database.user_reference: id): the host users behind stored ids, found through user_directory; per unit of
+    # work (emptied by WikiRequestBoundaryResetter at every boundary and at kernel.reset).
+    Nowo\WikiBundle\User\WikiUsers:
+        arguments:
+            $mode: '%nowo_wiki.database.user_reference%'
+            $directory: '@?Nowo\WikiBundle\User\WikiUserDirectoryInterface'
+        tags:
+            - { name: kernel.reset, method: reset }
 
     Nowo\WikiBundle\User\WikiUserReferenceResolverInterface: '@Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver'
 
@@ -105,6 +118,17 @@ services:
         public: true
     Nowo\WikiBundle\Link\WikiPageLinkServiceInterface:
         alias: Nowo\WikiBundle\Link\WikiPageLinkService
+        public: true
+
+    # 1.34: the same operations by id and value objects (REQ-ARCH-001 rule 1; public aliases).
+    Nowo\WikiBundle\Service\WikiPageOperationsInterface:
+        alias: Nowo\WikiBundle\Service\WikiPageOperations
+        public: true
+    Nowo\WikiBundle\Service\WikiSpaceOperationsInterface:
+        alias: Nowo\WikiBundle\Service\WikiSpaceOperations
+        public: true
+    Nowo\WikiBundle\Link\WikiPageLinkOperationsInterface:
+        alias: Nowo\WikiBundle\Link\WikiPageLinkOperations
         public: true
 
     Nowo\WikiBundle\Service\WikiPageService:

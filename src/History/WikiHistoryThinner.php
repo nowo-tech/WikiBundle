@@ -8,9 +8,12 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiSavepoint;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiRevisionLabel;
+use Nowo\WikiBundle\User\WikiUserFields;
+use Stringable;
 
 use function array_chunk;
 use function array_fill_keys;
@@ -68,13 +71,16 @@ final readonly class WikiHistoryThinner
             if ($dryRun) {
                 continue;
             }
-            foreach (array_chunk($ids, self::DELETE_CHUNK) as $chunk) {
-                $em->createQueryBuilder()
-                    ->delete(WikiPageRevision::class, 'r')
-                    ->where('r.id IN (:ids)')
-                    ->setParameter('ids', $chunk)
-                    ->getQuery()->execute();
-            }
+            // 1.34.0: in a savepoint inside the application's transaction (private entity manager only).
+            WikiSavepoint::write($em, static function () use ($em, $ids): void {
+                foreach (array_chunk($ids, self::DELETE_CHUNK) as $chunk) {
+                    $em->createQueryBuilder()
+                        ->delete(WikiPageRevision::class, 'r')
+                        ->where('r.id IN (:ids)')
+                        ->setParameter('ids', $chunk)
+                        ->getQuery()->execute();
+                }
+            });
         }
 
         return ['pages' => $pages, 'revisions' => $removed];
@@ -88,9 +94,9 @@ final readonly class WikiHistoryThinner
     private function thinnable(string $pageId, DateTimeImmutable $cutoff): array
     {
         $em = $this->em();
-        /** @var list<array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|null}> $old */
+        /** @var list<array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|Stringable|null}> $old */
         $old = $em->createQueryBuilder()
-            ->select('r.id AS id', 'r.revisionNumber AS number', 'r.createdAt AS createdAt', 'IDENTITY(r.author) AS author')
+            ->select('r.id AS id', 'r.revisionNumber AS number', 'r.createdAt AS createdAt', WikiUserFields::identity($em, WikiPageRevision::class, 'r', 'author') . ' AS author')
             ->from(WikiPageRevision::class, 'r')
             ->where('r.page = :page')->andWhere('r.createdAt < :cutoff')
             ->setParameter('page', $pageId)->setParameter('cutoff', $cutoff)
@@ -136,8 +142,8 @@ final readonly class WikiHistoryThinner
      * 1.26: a revision whose author was deleted (null) is a session of its own: nothing tells two former people apart,
      * so none of their revisions is thinned as an older save of someone else's session.
      *
-     * @param array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|null} $newer
-     * @param array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|null} $older
+     * @param array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|Stringable|null} $newer
+     * @param array{id: string, number: int, createdAt: DateTimeInterface, author: int|string|Stringable|null} $older
      * @param array<string, true> $named ids of the named versions (a session of their own)
      */
     private function breaks(array $newer, array $older, array $named): bool

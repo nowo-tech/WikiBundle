@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Event;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * A trash change (1.14, T065): {@see WikiEvents::PAGE_TRASHED}, {@see WikiEvents::TRASH_RESTORED} or
@@ -36,5 +40,29 @@ final readonly class WikiTrashEvent
     public function actorId(): ?string
     {
         return WikiUserId::of($this->actor);
+    }
+
+    /**
+     * 1.34: the space's id.
+     */
+    public function spaceId(): string
+    {
+        return $this->space->getId();
+    }
+
+    /**
+     * 1.34: the space as a framework-free snapshot.
+     */
+    public function spaceSnapshot(): WikiSpaceSnapshot
+    {
+        return WikiSnapshots::space($this->space);
+    }
+
+    /**
+     * 1.34: the actor as a framework-free reference; null without an actor.
+     */
+    public function actorRef(): ?WikiUserRef
+    {
+        return WikiUserRefs::fromUserOrNull($this->actor);
     }
 }

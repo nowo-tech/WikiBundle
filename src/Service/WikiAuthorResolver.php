@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\Service;
 
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
+use Nowo\WikiBundle\User\WikiUsers;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 
 use function sprintf;
 
@@ -19,10 +21,12 @@ final readonly class WikiAuthorResolver
      *
      * @param EntityManagerInterface $entityManager entity manager used to query users
      * @param string $userClass FQCN of the application user entity
+     * @param WikiUsers|null $users 1.34 (`database.user_reference: id`): the host users behind ids
      */
     public function __construct(
         private EntityManagerInterface $entityManager,
         private string $userClass,
+        private ?WikiUsers $users = null,
     ) {
     }
 
@@ -37,6 +41,16 @@ final readonly class WikiAuthorResolver
      */
     public function resolveByIdentifier(string $identifier): object
     {
+        if ($this->users?->idMode() === true) {
+            // 1.34 (database.user_reference: id): the user the directory finds with exactly this id, else the id itself
+            // (an erasure must still reach the rows of a user the host already deleted).
+            if (!WikiStoredUserRef::isValid($identifier)) {
+                throw new InvalidArgumentException(sprintf('User id "%s" cannot be matched exactly (whitespace at an edge, control or format characters, or more than 128 characters).', $identifier));
+            }
+
+            return $this->users->find($identifier) ?? new WikiStoredUserRef($identifier);
+        }
+
         if (!class_exists($this->userClass)) {
             throw new InvalidArgumentException(sprintf('User class "%s" does not exist.', $this->userClass));
         }

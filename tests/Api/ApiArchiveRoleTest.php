@@ -17,7 +17,7 @@ final class ApiArchiveRoleTest extends ApiTestCase
     public function testArchivedPagesNeedTheArchiveRole(): void
     {
         $old = $this->page($this->eng, 'Old', 'gone');
-        $this->pages()->archive($this->em()->find(WikiPage::class, $old->getId()) ?? $old);
+        $this->pages()->archive($this->wikiEm()->find(WikiPage::class, $old->getId()) ?? $old);
 
         $this->assertRefusal($this->call('GET', '/wikis/eng/pages/' . $old->getId()), 404, 'ACCESS_001');
         self::assertSame([], $this->json($this->call('GET', '/wikis/eng/pages?archived=true'))['pages']);

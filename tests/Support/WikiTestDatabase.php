@@ -9,12 +9,14 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Logging\Middleware as LoggingMiddleware;
 use Doctrine\DBAL\Tools\DsnParser;
+use Doctrine\DBAL\Types\Type;
 use Doctrine\ORM\Configuration;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Events;
 use Doctrine\ORM\ORMSetup;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\ORM\Tools\ToolEvents;
+use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -53,9 +55,9 @@ final class WikiTestDatabase
     }
 
     /** A fresh schema and an entity manager on it. */
-    public static function create(?LoggerInterface $sqlLogger = null): EntityManager
+    public static function create(?LoggerInterface $sqlLogger = null, string $userReference = WikiMetadataListener::USER_REFERENCE_ENTITY): EntityManager
     {
-        $em = self::connect($sqlLogger);
+        $em = self::connect($sqlLogger, $userReference);
         // 1.31.1 (house rule LQ): the binary NO PAD collation of `owner_scope_id` on MySQL / MariaDB, as in a host.
         $em->getEventManager()->addEventListener(ToolEvents::postGenerateSchemaTable, new WikiSpaceCollationListener($em));
         $tool = new SchemaTool($em);
@@ -69,8 +71,12 @@ final class WikiTestDatabase
     }
 
     /** Another entity manager (and connection) on the same database, schema untouched: for concurrency tests. */
-    public static function connect(?LoggerInterface $sqlLogger = null): EntityManager
+    public static function connect(?LoggerInterface $sqlLogger = null, string $userReference = WikiMetadataListener::USER_REFERENCE_ENTITY): EntityManager
     {
+        // 1.34 (database.user_reference: id): the column type of the stored user ids, as the bundle's prepend registers it.
+        if (!Type::hasType(WikiUserRefType::NAME)) {
+            Type::addType(WikiUserRefType::NAME, WikiUserRefType::class);
+        }
         $config = ORMSetup::createAttributeMetadataConfiguration(
             [dirname(__DIR__, 2) . '/src/Entity', __DIR__ . '/../Stub'],
             true,
@@ -94,6 +100,7 @@ final class WikiTestDatabase
             TestUserEntity::class,
             'wiki_page_links',
             'wiki_attachments',
+            userReference: $userReference,
         ));
 
         return new EntityManager(self::connection($config), $config, $events);

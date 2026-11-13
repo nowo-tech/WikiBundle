@@ -85,7 +85,7 @@ final class ApiKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return $this->getProjectDir() . '/' . md5(serialize([$this->api, $this->wiki, $this->withFirewall, $this->legacySpaceChecker, $this->debug, WikiTestDatabase::url()])) . '/cache';
+        return $this->getProjectDir() . '/' . md5(serialize([$this->api, $this->wiki, $this->withFirewall, $this->legacySpaceChecker, $this->debug, WikiTestDatabase::url(), self::twinPorts(), self::privateEntityManager()])) . '/cache';
     }
 
     public function getLogDir(): string
@@ -97,6 +97,18 @@ final class ApiKernel extends Kernel
     public function databaseUrl(): string
     {
         return WikiTestDatabase::url() ?? 'sqlite:///' . $this->getCacheDir() . '/api.sqlite';
+    }
+
+    /** 1.34: whether the API host ports are asked through their framework-free twins (`WIKI_TEST_PORTS=twin`). */
+    public static function twinPorts(): bool
+    {
+        return ($_SERVER['WIKI_TEST_PORTS'] ?? getenv('WIKI_TEST_PORTS')) === 'twin';
+    }
+
+    /** 1.34: whether the wiki writes through its private entity manager (`WIKI_TEST_PRIVATE_EM=1`). */
+    public static function privateEntityManager(): bool
+    {
+        return ($_SERVER['WIKI_TEST_PRIVATE_EM'] ?? getenv('WIKI_TEST_PRIVATE_EM')) === '1';
     }
 
     private function configureContainer(ContainerConfigurator $container): void
@@ -131,12 +143,21 @@ final class ApiKernel extends Kernel
         $services = $container->services();
         $services->set('logger', RecordingLogger::class)->public();
         $services->set('app.api_host', ApiTestHost::class)->autowire()->public();
+        // 1.34 (REQ-ARCH-001): WIKI_TEST_PORTS=twin asks every API host port through its framework-free twin.
+        $hostPorts = 'app.api_host';
+        $filesPort = 'app.api_files';
+        if (self::twinPorts()) {
+            $services->set('app.api_twin', ApiTwinHost::class)->args([service('app.api_host'), service('doctrine')])->public();
+            $services->set('app.api_files_twin', ApiTwinFiles::class)->args([service('app.api_files'), service('doctrine')])->public();
+            $hostPorts = 'app.api_twin';
+            $filesPort = 'app.api_files_twin';
+        }
         $services->set('app.api_firewall', ApiFirewallAuthenticator::class)->args([service('app.api_host')]);
         if ($this->legacySpaceChecker) {
             $services->set('app.slug_locator', ApiSlugLocator::class)->args([service(WikiSpaceRepositoryInterface::class)]);
             $services->alias(WikiSpaceLocatorInterface::class, 'app.slug_locator');
         } else {
-            $services->alias(WikiSpaceAccessCheckerInterface::class, 'app.api_host');
+            $services->alias(WikiSpaceAccessCheckerInterface::class, $hostPorts);
         }
         $services->set('app.audit', ApiAuditRecorder::class)->public()->args([service('doctrine.dbal.default_connection')])
             ->tag('kernel.event_listener', ['event' => WikiEvents::API_WRITE, 'method' => 'record'])
@@ -166,15 +187,15 @@ final class ApiKernel extends Kernel
             'tree'       => ['enabled' => true],
             'security'   => ['access_roles' => ['ROLE_USER']],
             'api'        => $this->api + ['enabled' => true, 'hooks' => [
-                'authenticator'   => 'app.api_host',
-                'directory'       => 'app.api_host',
-                'rate_limiter'    => 'app.api_host',
-                'plan_gate'       => 'app.api_host',
-                'users'           => 'app.api_host',
-                'wiki_management' => 'app.api_host',
-                'files'           => 'app.api_files',
+                'authenticator'   => $hostPorts,
+                'directory'       => $hostPorts,
+                'rate_limiter'    => $hostPorts,
+                'plan_gate'       => $hostPorts,
+                'users'           => $hostPorts,
+                'wiki_management' => $hostPorts,
+                'files'           => $filesPort,
             ]],
-        ], $this->wiki));
+        ], self::privateEntityManager() ? ['database' => ['private_entity_manager' => true]] : [], $this->wiki));
     }
 
     private function configureRoutes(RoutingConfigurator $routes): void

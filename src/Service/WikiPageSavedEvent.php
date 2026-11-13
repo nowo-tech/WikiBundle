@@ -6,7 +6,12 @@ namespace Nowo\WikiBundle\Service;
 
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * Dispatched when a page revision is saved.
@@ -39,5 +44,69 @@ final readonly class WikiPageSavedEvent
     public function actorId(): ?string
     {
         return WikiUserId::of($this->actor);
+    }
+
+    /**
+     * 1.34: the id of the page's space.
+     */
+    public function spaceId(): string
+    {
+        return $this->page->getSpace()->getId();
+    }
+
+    /**
+     * 1.34: the page's id.
+     */
+    public function pageId(): string
+    {
+        return $this->page->getId();
+    }
+
+    /**
+     * 1.34: the page as a framework-free snapshot (REQ-ARCH-001).
+     */
+    public function pageSnapshot(): WikiPageSnapshot
+    {
+        return WikiSnapshots::page($this->page);
+    }
+
+    /**
+     * 1.34: the id of the saved revision.
+     */
+    public function revisionId(): string
+    {
+        return $this->revision->getId();
+    }
+
+    /**
+     * 1.34: the saved revision as a snapshot.
+     */
+    public function revisionSnapshot(): WikiRevisionSnapshot
+    {
+        return WikiSnapshots::revision($this->revision);
+    }
+
+    /**
+     * 1.34: the id of the revision it replaced; null for a new page.
+     */
+    public function previousRevisionId(): ?string
+    {
+        return $this->previousRevision?->getId();
+    }
+
+    /**
+     * 1.34: the revision it replaced as a snapshot; null for a new page.
+     */
+    public function previousRevisionSnapshot(): ?WikiRevisionSnapshot
+    {
+        return WikiSnapshots::revisionOrNull($this->previousRevision);
+    }
+
+    /**
+     * 1.34: the actor as a framework-free reference; null without an actor.
+     */
+    public function actorRef(): ?WikiUserRef
+    {
+        return WikiUserRefs::fromUserOrNull($this->actor);
     }
 }

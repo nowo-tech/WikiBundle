@@ -124,7 +124,7 @@ final class ApiPageWriteTest extends ApiTestCase
     {
         $page = $this->page($this->eng, 'Runbook', 'one');
         $em   = $this->em();
-        $this->pages()->saveRevision($em->find(WikiPage::class, $page->getId()) ?? $page, 'Runbook', 'theirs', $em->find(TestUserEntity::class, 'u-bob') ?? $this->bob, WikiPageRevision::FORMAT_MARKDOWN);
+        $this->pages()->saveRevision($this->wikiEm()->find(WikiPage::class, $page->getId()) ?? $page, 'Runbook', 'theirs', $em->find(TestUserEntity::class, 'u-bob') ?? $this->bob, WikiPageRevision::FORMAT_MARKDOWN);
 
         $response = $this->call('PUT', '/wikis/eng/pages/' . $page->getId(), self::ANA, ['content_markdown' => 'mine', 'base_revision' => 1]);
 

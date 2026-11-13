@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Event;
 
 use Nowo\WikiBundle\Entity\WikiAttachment;
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * Dispatched after an attachment was uploaded or deleted (1.9).
@@ -29,5 +33,45 @@ final readonly class WikiAttachmentEvent
     public function actorId(): ?string
     {
         return WikiUserId::of($this->actor);
+    }
+
+    /**
+     * 1.34: the attachment's id.
+     */
+    public function attachmentId(): string
+    {
+        return $this->attachment->getId();
+    }
+
+    /**
+     * 1.34: the id of the attachment's space.
+     */
+    public function spaceId(): string
+    {
+        return $this->attachment->getSpace()->getId();
+    }
+
+    /**
+     * 1.34: the id of the attachment's page.
+     */
+    public function pageId(): string
+    {
+        return $this->attachment->getPage()->getId();
+    }
+
+    /**
+     * 1.34: the attachment's page as a snapshot.
+     */
+    public function pageSnapshot(): WikiPageSnapshot
+    {
+        return WikiSnapshots::page($this->attachment->getPage());
+    }
+
+    /**
+     * 1.34: the actor as a framework-free reference; null without an actor.
+     */
+    public function actorRef(): ?WikiUserRef
+    {
+        return WikiUserRefs::fromUserOrNull($this->actor);
     }
 }

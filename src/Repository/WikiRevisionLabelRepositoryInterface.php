@@ -9,6 +9,9 @@ use Nowo\WikiBundle\Entity\WikiRevisionLabel;
 
 /**
  * Named versions (1.15).
+ *
+ * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
+ * hosts reach wiki data through the services, the id operations and the events.
  */
 interface WikiRevisionLabelRepositoryInterface
 {

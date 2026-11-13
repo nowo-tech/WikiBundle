@@ -152,20 +152,37 @@ own messages in one listener:
         }
     }
 
+**The DDD host path (1.34, opt-in)** — see [ARCHITECTURE](ARCHITECTURE.md) for the whole picture:
+
+        nowo_wiki:
+            user_class: App\Security\User          # any class with getId(); no Doctrine entity needed with user_reference: id
+            user_directory: app.wiki_user_directory   # User\WikiUserDirectoryInterface: names and avatars by id
+            database:
+                mapping_type: xml               # the wiki entities from Resources/config/doctrine-xml
+                user_reference: id              # host users stored by id (no foreign key, no user table needed)
+                private_entity_manager: true    # wiki writes never flush, clear or close your manager
+
+- Implement the framework-free twins of the ports above (`WikiAccessPolicyInterface`, `WikiSpaceAccessPolicyInterface`,
+  `WikiTeamMembershipSourceInterface`, `WikiObjectLinkSourceInterface`, ...): they take `ValueObject\WikiUserRef` and
+  snapshots, never a Symfony user, a request or a wiki entity. Same configuration keys.
+- Call the wiki through `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface` and
+  `WikiPageLinkOperationsInterface` (ids in, snapshots out).
+- Listen to the events through their id accessors: `$event->pageId()`, `$event->revisionSnapshot()->revisionNumber`,
+  `$event->actorId()` / `$event->actorRef()`.
+
 **Known limitations**
 
-- `user_class` is required: revision authors, link creators, uploaders, comment authors and reactions are Doctrine
-  `ManyToOne` relations to that class, remapped at runtime by `WikiMetadataListener`. The host needs a Doctrine user
-  class in the wiki's entity manager (an infrastructure persistence model is enough); the security user may be another
-  class with the same `getId()` (see above). There is no plain-id mode.
+- Without `user_reference: id`, revision authors, link creators, uploaders, comment authors and reactions are Doctrine
+  `ManyToOne` relations to `user_class` (a Doctrine entity in the wiki's entity manager).
 - Deleting a user row keeps their page revisions without an author (1.26, `ON DELETE SET NULL`) and their comments
-  without an author; their reactions go with them.
-- Event payloads still carry wiki entities; the actor is `?object` plus `actorId(): ?string` (1.27). Page, space and
-  revision ids are read from the entities (`$event->page->getId()`).
+  without an author; their reactions go with them (with `user_reference: id` nothing is deleted with the user).
+- The event payloads keep their entity members next to the id accessors (not deprecated: a listener that changes a
+  page still needs them).
 - `WikiCommentService` is final and has no interface (it is the UI / REST comment engine; call its privacy methods
   from your adapter).
-- The bundle maps its entities in the default entity manager; with another `database.entity_manager`, add the
-  `WikiBundle` mapping to that manager yourself.
+- With the attribute mapping the bundle maps its entities in the default entity manager; with another
+  `database.entity_manager`, add the `WikiBundle` mapping to that manager yourself or use `mapping_type: xml`, which
+  maps it there.
 
 ## Pagination and list limits (REQ-PERF-001)
 

@@ -11,8 +11,11 @@ use Doctrine\DBAL\Platforms\MySQL80Platform;
 use Doctrine\DBAL\Schema\ColumnEditor;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Tools\Event\GenerateSchemaTableEventArgs;
+use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Psr\Log\LoggerInterface;
 
 use function method_exists;
 
@@ -34,9 +37,11 @@ final readonly class WikiSpaceCollationListener
 
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki's entity manager (its platform decides the collation)
+     * @param LoggerInterface|null $logger 1.34 (REQ-SEC-006 item 8): warned when only the PAD SPACE `utf8mb4_bin` is available
      */
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
+        private ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -59,7 +64,8 @@ final readonly class WikiSpaceCollationListener
     public function postGenerateSchemaTable(GenerateSchemaTableEventArgs $args): void
     {
         $metadata = $args->getClassMetadata();
-        if ($metadata->getName() !== WikiSpace::class) {
+        $fields   = self::fieldsOf($metadata);
+        if ($fields === []) {
             return;
         }
         $entityManager = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
@@ -67,9 +73,14 @@ final readonly class WikiSpaceCollationListener
         if ($collation === null) {
             return;
         }
+        if ($collation === 'utf8mb4_bin') {
+            $this->logger?->warning('nowo_wiki: the id columns of {table} get the PAD SPACE collation utf8mb4_bin (no binary NO PAD collation detected: MySQL before 8.0, or a doctrine server_version without the full version such as "8.0.36"); ids with trailing spaces are refused and every match is re-checked in PHP.', [
+                'table' => $metadata->getTableName(),
+            ]);
+        }
 
         $table = $args->getClassTable();
-        foreach (self::FIELDS as $field) {
+        foreach ($fields as $field) {
             /** @var non-empty-string $column mapped column names are never empty */
             $column = $metadata->getColumnName($field);
             // @phpstan-ignore function.alreadyNarrowedType (Table::edit() exists only from DBAL 4.5)
@@ -81,6 +92,26 @@ final readonly class WikiSpaceCollationListener
         if ($table !== $args->getClassTable()) {
             $args->setClassTable($table);
         }
+    }
+
+    /**
+     * The fields of a wiki class that hold an owner or user id: `owner_scope_id` of the spaces and, with
+     * `database.user_reference: id` (1.34), every {@see WikiUserRefType} column (REQ-SEC-006 item 3).
+     *
+     * @param ClassMetadata<object> $metadata the class metadata
+     *
+     * @return list<string> the field names
+     */
+    public static function fieldsOf(ClassMetadata $metadata): array
+    {
+        $fields = $metadata->getName() === WikiSpace::class ? self::FIELDS : [];
+        foreach ($metadata->fieldMappings as $field => $mapping) {
+            if ($mapping->type === WikiUserRefType::NAME) {
+                $fields[] = $field;
+            }
+        }
+
+        return $fields;
     }
 
     /**
