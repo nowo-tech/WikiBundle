@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api;
 
+use Nowo\WikiBundle\Api\Hook\WikiApiRequestAuthenticatorInterface;
 use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -16,7 +17,7 @@ final readonly class WikiApiPrincipal
 {
     /**
      * @param UserInterface $user the person behind the token; deprecated since 1.32 as a public member (a Symfony
-     *                           type): read {@see self::userRef()}, and build principals with {@see self::of()}
+     *                            type): read {@see self::userRef()}, and build principals with {@see self::of()}
      * @param string $channel `api`, or `mcp` for an in-process caller (spec 219), passed on to the audit event
      */
     public function __construct(
@@ -31,7 +32,7 @@ final readonly class WikiApiPrincipal
 
     /**
      * 1.32: a principal for a framework-free authenticator
-     * ({@see \Nowo\WikiBundle\Api\Hook\WikiApiRequestAuthenticatorInterface}): the person as a {@see WikiUserRef}.
+     * ({@see WikiApiRequestAuthenticatorInterface}): the person as a {@see WikiUserRef}.
      * The bundle works with the Symfony user the reference was built from, else with a user standing for it (stored by
      * its id).
      *

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
+use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
-use Nowo\WikiBundle\Entity\WikiPage;
-use Nowo\WikiBundle\Entity\WikiSpace;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\EventDispatcher\Event;
 
@@ -58,7 +58,7 @@ final class WikiQuotaCheckEvent extends Event
      * @param string $action one of the action constants
      * @param WikiSpace $space space written to
      * @param UserInterface $user user who acts; deprecated since 1.32 as a public member (a Symfony type), removed in
-     *                           2.0: read {@see self::userRef()}
+     *                            2.0: read {@see self::userRef()}
      * @param int $count pages (or files) the write adds
      * @param int $bytes bytes the write adds (upload, import archive)
      * @param WikiPage|null $page page concerned (unarchive, attachment, the copied page), null for a new page or an import

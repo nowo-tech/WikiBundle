@@ -8,7 +8,6 @@ use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipSourceInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
-use function array_values;
 use function is_string;
 
 /**
@@ -32,6 +31,6 @@ final readonly class WikiTeamMembershipSourceGate implements WikiTeamMembershipR
             }
         }
 
-        return array_values($ids);
+        return $ids;
     }
 }

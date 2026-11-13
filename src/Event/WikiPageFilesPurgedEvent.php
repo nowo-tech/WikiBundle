@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
-use Nowo\WikiBundle\Port\WikiSnapshots;
-use Nowo\WikiBundle\Port\WikiUserRefs;
-use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
-use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\PageFile\WikiPageFile;
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * {@see WikiEvents::PAGE_FILES_PURGED} (1.20, `page_files.purge_event`): pages were purged from the trash for good, and

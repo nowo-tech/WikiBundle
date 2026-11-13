@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Api\Value;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use Nowo\WikiBundle\Api\Hook\WikiApiWikiDirectoryInterface;
 use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Entity\WikiSpace;
 
@@ -25,7 +26,7 @@ final readonly class WikiApiWiki
      * @param bool $canOpen false: listed by name only (a restricted wiki without a grant, FR-011); its pages are 404
      * @param int|null $pageCount pages the person can read, when the host counts them (never shown with `$canOpen` false)
      * @param string|null $spaceId 1.32: the space by id, for a framework-free directory
-     *                             ({@see \Nowo\WikiBundle\Api\Hook\WikiApiWikiDirectoryInterface}) that holds no entity;
+     *                             ({@see WikiApiWikiDirectoryInterface}) that holds no entity;
      *                             the bundle loads it. With `$space` it must be that space's id.
      *
      * @throws InvalidArgumentException when `$space` and `$spaceId` name different spaces

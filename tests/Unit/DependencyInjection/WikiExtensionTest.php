@@ -20,9 +20,11 @@ use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
+use Nowo\WikiBundle\Collaboration\WikiCollabCookieListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
@@ -440,7 +442,10 @@ final class WikiExtensionTest extends TestCase
         $service = $container->getDefinition(WikiCollabService::class);
         self::assertSame(DoctrineWikiCollabStateStore::class, (string) $service->getArgument('$store'));
         self::assertSame(MercureWikiCollabPublisher::class, (string) $service->getArgument('$publisher'));
-        self::assertSame(MercureWikiCollabSubscriberAuthorizer::class, (string) $service->getArgument('$authorizer'));
+        // 1.32: asked through its interface id (WikiPortsPass may put a twin's gate there).
+        self::assertSame(WikiCollabSubscriberAuthorizerInterface::class, (string) $service->getArgument('$authorizer'));
+        self::assertSame(MercureWikiCollabSubscriberAuthorizer::class, (string) $container->getAlias(WikiCollabSubscriberAuthorizerInterface::class));
+        self::assertTrue($container->getDefinition(WikiCollabCookieListener::class)->hasTag('kernel.event_listener'));
         self::assertSame('limiter.wiki_collab', (string) $service->getArgument('$rateLimiter'));
         self::assertSame(4096, $service->getArgument('$options')['max_update_bytes']);
         self::assertSame(HubInterface::class, (string) $container->getDefinition(MercureWikiCollabPublisher::class)->getArgument('$hub'));
@@ -620,7 +625,7 @@ final class WikiExtensionTest extends TestCase
         $method->invoke(new WikiExtension(), $container, ['editor' => ['type' => 'milkdown'], 'collaboration' => $collab], 'Missing\\Hub');
 
         self::assertSame('app.pub', (string) $container->getDefinition(WikiCollabService::class)->getArgument('$publisher'));
-        self::assertSame('app.auth', (string) $container->getDefinition(WikiCollabService::class)->getArgument('$authorizer'));
+        self::assertSame('app.auth', (string) $container->getAlias(WikiCollabSubscriberAuthorizerInterface::class));
     }
 
     /**

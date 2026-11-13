@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Event;
 
 use Nowo\WikiBundle\Port\WikiUserRefs;
-use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
+
 /**
  * {@see WikiEvents::COMMENT_AUTHOR_ERASED} (1.16.1): a user's comments were erased (`bodiesDeleted`: blanked into
  * placeholders) or unlinked, their reactions deleted and their threads and resolutions unlinked. Hosts drop their own

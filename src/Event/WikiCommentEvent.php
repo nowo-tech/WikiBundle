@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
-use Nowo\WikiBundle\Port\WikiSnapshots;
-use Nowo\WikiBundle\Port\WikiUserRefs;
-use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
-use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * A comment change (1.16): {@see WikiEvents::COMMENT_CREATED} (a new thread), {@see WikiEvents::COMMENT_REPLIED},

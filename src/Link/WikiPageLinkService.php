@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Link;
 
-use Nowo\WikiBundle\Port\WikiObjectLinkSourceGate;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiPageLinkEvent;
+use Nowo\WikiBundle\Port\WikiObjectLinkSourceGate;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;

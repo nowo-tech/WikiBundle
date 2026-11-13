@@ -9,7 +9,6 @@ use Nowo\WikiBundle\Tree\WikiTreeStatesInterface;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
-use function array_values;
 use function is_string;
 
 /**
@@ -32,7 +31,7 @@ final readonly class WikiTreeStatesGate implements WikiTreeStateStoreInterface
             }
         }
 
-        return array_values($ids);
+        return $ids;
     }
 
     public function setExpanded(UserInterface $user, WikiSpace $space, string $pageId, bool $expanded): void

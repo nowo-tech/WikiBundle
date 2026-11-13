@@ -39,6 +39,7 @@ use Nowo\WikiBundle\Service\WikiSpaceReachInterface;
 use Nowo\WikiBundle\Tree\WikiTreeStatesInterface;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 
+use function array_values;
 use function get_debug_type;
 use function sprintf;
 
@@ -81,7 +82,7 @@ final class WikiPorts
      *
      * @param string $name port name ({@see self::PORTS})
      * @param mixed $service the configured service
-     * @param object ...$dependencies the gate's other constructor services
+     * @param object ...$dependencies the gate's other constructor services (in {@see self::PORTS} order)
      *
      * @throws LogicException when the port is unknown or the service implements neither interface (fail closed)
      *
@@ -93,14 +94,43 @@ final class WikiPorts
             throw new LogicException(sprintf('Unknown WikiBundle port "%s".', $name));
         }
 
-        [$legacy, $twin, $gate, , $option] = self::PORTS[$name];
+        [$legacy, $twin, , , $option] = self::PORTS[$name];
         if ($service instanceof $legacy) {
             return $service;
         }
-        if ($service instanceof $twin) {
-            return new $gate($service, ...$dependencies);
+        $gate = self::gate($name, $service, array_values($dependencies));
+        if ($gate !== null) {
+            return $gate;
         }
 
         throw new LogicException(sprintf('The service "%s" of %s must implement "%s" (or the deprecated "%s").', get_debug_type($service), $option, $twin, $legacy));
+    }
+
+    /**
+     * @param list<object> $dependencies
+     */
+    private static function gate(string $name, mixed $service, array $dependencies): ?object
+    {
+        $first  = $dependencies[0] ?? null;
+        $second = $dependencies[1] ?? null;
+
+        return match (true) {
+            $name === 'access_checker' && $service instanceof WikiAccessPolicyInterface                                                                                                     => new WikiAccessPolicyGate($service),
+            $name === 'space_access_checker' && $service instanceof WikiSpaceAccessPolicyInterface                                                                                          => new WikiSpaceAccessPolicyGate($service),
+            $name === 'team_membership_resolver' && $service instanceof WikiTeamMembershipSourceInterface                                                                                   => new WikiTeamMembershipSourceGate($service),
+            $name === 'space_access_resolver' && $service instanceof WikiSpaceReachInterface && $first instanceof WikiSpaceRepositoryInterface                                              => new WikiSpaceReachGate($service, $first),
+            $name === 'space_locator' && $service instanceof WikiSpaceIdLocatorInterface && $first instanceof WikiSpaceRepositoryInterface                                                  => new WikiSpaceIdLocatorGate($service, $first),
+            $name === 'avatar_resolver' && $service instanceof WikiUserAvatarSourceInterface                                                                                                => new WikiUserAvatarSourceGate($service),
+            $name === 'panel_state_store' && $service instanceof WikiPanelStatesInterface                                                                                                   => new WikiPanelStatesGate($service),
+            $name === 'tree_state_store' && $service instanceof WikiTreeStatesInterface                                                                                                     => new WikiTreeStatesGate($service),
+            $name === 'collab_subscriber_authorizer' && $service instanceof WikiCollabSubscriptionPolicyInterface                                                                           => new WikiCollabSubscriptionGate($service),
+            $name === 'api_authenticator' && $service instanceof WikiApiRequestAuthenticatorInterface                                                                                       => new WikiApiRequestAuthenticatorGate($service),
+            $name === 'api_files' && $service instanceof WikiApiFileStoreInterface                                                                                                          => new WikiApiFileStoreGate($service),
+            $name === 'api_plan_gate' && $service instanceof WikiApiPlanPolicyInterface                                                                                                     => new WikiApiPlanPolicyGate($service),
+            $name === 'api_directory' && $service instanceof WikiApiWikiDirectoryInterface && $first instanceof WikiSpaceRepositoryInterface                                                => new WikiApiWikiDirectoryGate($service, $first),
+            $name === 'ai_assistant' && $service instanceof WikiAiAnswererInterface && $first instanceof WikiPageRepositoryInterface && $second instanceof WikiSpaceAccessResolverInterface => new WikiAiAnswererGate($service, $first, $second),
+            $name === 'attachment_limits' && $service instanceof WikiAttachmentLimitsPolicyInterface                                                                                        => new WikiAttachmentLimitsPolicyGate($service),
+            default                                                                                                                                                                         => null,
+        };
     }
 }

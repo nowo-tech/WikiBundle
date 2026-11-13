@@ -75,7 +75,8 @@ final class WikiPortsPass implements CompilerPassInterface
             return;
         }
         $legacyClass = $this->classOf($container, $legacyTarget);
-        if ($legacyClass === null || !str_starts_with($legacyClass, 'Nowo\\WikiBundle\\')) {
+        // A bundle default (a class of the bundle, not of its test suite) gives way; a host service does not.
+        if ($legacyClass === null || !str_starts_with($legacyClass, 'Nowo\\WikiBundle\\') || str_starts_with($legacyClass, 'Nowo\\WikiBundle\\Tests\\')) {
             throw new LogicException(sprintf('nowo_wiki: "%s" is served by "%s" and the deprecated "%s" (%s) by "%s": keep only one of them.', $twin, $twinTarget, $legacy, $option, $legacyTarget));
         }
 

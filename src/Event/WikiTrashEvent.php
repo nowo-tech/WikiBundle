@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
+use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\User\WikiUserId;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
-use Nowo\WikiBundle\Entity\WikiSpace;
-use Nowo\WikiBundle\User\WikiUserId;
 
 /**
  * A trash change (1.14, T065): {@see WikiEvents::PAGE_TRASHED}, {@see WikiEvents::TRASH_RESTORED} or

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
+use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\User\WikiUserId;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
-use Nowo\WikiBundle\Entity\WikiPage;
-use Nowo\WikiBundle\Entity\WikiPageRevision;
-use Nowo\WikiBundle\User\WikiUserId;
 
 /**
  * Dispatched after an old revision was restored as a new revision (1.9).

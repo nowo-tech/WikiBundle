@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
-use Nowo\WikiBundle\Port\WikiSnapshots;
-use Nowo\WikiBundle\Port\WikiUserRefs;
-use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
-use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use DateTimeImmutable;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Port\WikiSnapshots;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * Dispatched after a page was moved in the page tree (1.14, {@see WikiEvents::PAGE_MOVED}): the audit entry of a move

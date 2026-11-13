@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Service;
 
+use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\User\WikiUserId;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
-use Nowo\WikiBundle\Entity\WikiPage;
-use Nowo\WikiBundle\User\WikiUserId;
 
 /**
  * Dispatched when a page is archived.

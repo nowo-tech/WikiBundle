@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api\Value;
 
+use Nowo\WikiBundle\Api\Hook\WikiApiFileStoreInterface;
 use RuntimeException;
 
 use function fopen;
@@ -11,7 +12,7 @@ use function sprintf;
 
 /**
  * A file uploaded through the REST API (1.32.0): the framework-free twin of the Symfony `UploadedFile` that
- * `Api\Hook\WikiApiFilesInterface::upload()` takes ({@see \Nowo\WikiBundle\Api\Hook\WikiApiFileStoreInterface}).
+ * `Api\Hook\WikiApiFilesInterface::upload()` takes ({@see WikiApiFileStoreInterface}).
  * The client name and type are what the client sent: never trust them.
  */
 final readonly class WikiApiUpload

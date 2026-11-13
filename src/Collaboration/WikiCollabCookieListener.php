@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 
 use function is_array;
+use function strtolower;
 
 /**
  * Adds the cookies of a framework-free co-editing subscription grant (1.32.0,
@@ -47,8 +48,20 @@ final class WikiCollabCookieListener
         $event->getRequest()->attributes->remove(self::ATTRIBUTE);
         foreach ($cookies as $cookie) {
             if ($cookie instanceof WikiCollabCookie) {
-                $event->getResponse()->headers->setCookie(Cookie::create($cookie->name, $cookie->value, $cookie->expiresAt ?? 0, $cookie->path, $cookie->domain, $cookie->secure, $cookie->httpOnly, false, $cookie->sameSite));
+                $event->getResponse()->headers->setCookie(Cookie::create($cookie->name, $cookie->value, $cookie->expiresAt ?? 0, $cookie->path, $cookie->domain, $cookie->secure, $cookie->httpOnly, false, self::sameSite($cookie->sameSite)));
             }
         }
+    }
+
+    /**
+     * @return 'lax'|'none'|'strict' the SameSite value (anything unknown is `strict`)
+     */
+    private static function sameSite(string $value): string
+    {
+        return match (strtolower($value)) {
+            'lax'   => 'lax',
+            'none'  => 'none',
+            default => 'strict',
+        };
     }
 }

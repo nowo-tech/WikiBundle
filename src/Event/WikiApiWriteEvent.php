@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Event;
 
-use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Symfony\Contracts\EventDispatcher\Event;
 
 /**
