@@ -14,7 +14,9 @@ use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Events;
 use Doctrine\ORM\ORMSetup;
 use Doctrine\ORM\Tools\SchemaTool;
+use Doctrine\ORM\Tools\ToolEvents;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
+use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Psr\Log\LoggerInterface;
 
@@ -53,7 +55,9 @@ final class WikiTestDatabase
     /** A fresh schema and an entity manager on it. */
     public static function create(?LoggerInterface $sqlLogger = null): EntityManager
     {
-        $em   = self::connect($sqlLogger);
+        $em = self::connect($sqlLogger);
+        // 1.31.1 (house rule LQ): the binary NO PAD collation of `owner_scope_id` on MySQL / MariaDB, as in a host.
+        $em->getEventManager()->addEventListener(ToolEvents::postGenerateSchemaTable, new WikiSpaceCollationListener($em));
         $tool = new SchemaTool($em);
         $all  = $em->getMetadataFactory()->getAllMetadata();
         if (self::isServer()) {

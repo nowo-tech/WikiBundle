@@ -5,6 +5,7 @@
 - [Attack surface](#attack-surface)
 - [Threats and mitigations](#threats-and-mitigations)
 - [Access control](#access-control)
+- [Look-alike owner ids (1.31.1)](#look-alike-owner-ids-1311)
 - [Content safety](#content-safety)
 - [Comments threat model (1.16)](#comments-threat-model-116)
 - [Page layout (1.29)](#page-layout-129)
@@ -34,6 +35,7 @@
 |--------|------|------------|
 | **Stored XSS** | Malicious HTML/JS in page body. | `WikiHtmlSanitizer` (symfony/html-sanitizer, per-element attribute allowlist) on every save **and** at render time (`nowo_wiki_safe_html` Twig filter); drops `script`, event handlers, `srcdoc`, `style` (except `text-align`), non http/https/mailto URLs and iframes outside the https embed host allowlist. |
 | **IDOR on spaces/pages** | User accesses another team's wiki. | `WikiSpaceAccessResolver` filters by team/user scope; controller resolves space via membership. |
+| **Look-alike owner ids** (fixed in 1.31.1) | `Alice`, `álice` or `alice ` reach the spaces of `alice` through a folding or PAD SPACE collation. | See [Look-alike owner ids](#look-alike-owner-ids-1311): `===` re-check after every owner lookup, padded / control / format ids refused, binary NO PAD collation on `owner_scope_id`. |
 | **Unauthorized edit** | Viewer modifies pages. | `WikiAccessCheckerInterface` on all manage actions (`canEdit`, `canCreate`, etc.). |
 | **CSRF on POST** | Forged save/archive requests. | `WikiCsrfTrait` validates tokens on edit, create, archive. |
 | **Slug injection** | Path traversal or invalid URLs. | Route requirements `[a-z0-9]+(?:-[a-z0-9]+)*`; `WikiSlugger` validation. |
@@ -122,6 +124,37 @@ mention candidates and the page picker (`suggestions` / `link_title_url` of the 
 apply the same rule: call `WikiSpaceGuard::isPageReadable()` (or `WikiPageVisibility::isReadable()` with your
 `WikiSpaceAccessCheckerInterface`) for every page they return, so a page under a hidden parent never shows up there
 either (audit DJ-I2).
+
+## Look-alike owner ids (1.31.1)
+
+**Affected:** 1.0.0–1.31.0, on MySQL and MariaDB. **Fixed:** 1.31.1 (house rule LQ).
+
+`wiki_spaces.owner_scope_id` (the team or user that owns a space) was matched by SQL alone (`findAccessible()`,
+`findBySlug()`), on the column's default collation. That result is the access source for `canAccessSpace()`, the space
+list, the page routes, search, AI retrieval and the REST API. Measured on MySQL 8.4 and MariaDB 11.4 with 1.31.0
+(`space_scope: user`, space owned by `alice`):
+
+| Column collation | Principals that saw the space of `alice` |
+|---|---|
+| `utf8mb4_0900_ai_ci` (MySQL 8 default) | `Alice`, `álice`, `alice` + U+200B |
+| `utf8mb4_uca1400_ai_ci` (MariaDB 11 default), `utf8mb4_unicode_ci` | the above plus `alice `, `ALICE  ` |
+| `utf8mb4_general_ci` | `Alice`, `álice`, `alice ` |
+| `utf8mb4_bin` (PAD SPACE) | `alice ` |
+| `utf8mb4_0900_bin`, `utf8mb4_nopad_bin` | none |
+
+Host conditions: owner ids that two principals can hold in look-alike forms. That is user scope with a user class
+without `getId()` (the bundle then uses `getUserIdentifier()`) or with string ids, or a team resolver
+(`WikiTeamMembershipResolverInterface`) returning such ids, plus a user store that lets both forms exist (another
+collation, LDAP / OAuth / in-memory users, an identifier that is not normalised). Integer and UUID ids are not affected;
+PostgreSQL and SQLite compare exactly.
+
+Mitigations since 1.31.1:
+
+- every lookup by owner re-checks owner, scope type and slug with `===` in PHP; the SQL match is only a pre-filter;
+- `WikiOwnerScopeId`: an id with leading or trailing whitespace, a control or format character, invalid UTF-8 or more
+  than 64 characters owns nothing (dropped by the resolver, refused by `WikiSpaceService::create()`), never normalised;
+- `WikiSpaceCollationListener`: binary NO PAD collation on `owner_scope_id` (MySQL 8 `utf8mb4_0900_bin`, MariaDB
+  `utf8mb4_nopad_bin`, MySQL 5.7 `utf8mb4_bin`). Existing tables: [UPGRADING › Unreleased](UPGRADING.md#unreleased).
 
 ## Content safety
 

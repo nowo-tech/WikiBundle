@@ -8,13 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Security](#security)
+  - [Tests](#tests)
 - [[1.31.0] - 2026-11-12](#1310---2026-11-12)
   - [1.31.0 (unreleased)](#1310-unreleased)
 - [[1.30.0] - 2026-11-11](#1300---2026-11-11)
   - [Added](#added-1)
   - [Fixed](#fixed-1)
 - [[1.29.1] - 2026-11-11](#1291---2026-11-11)
-  - [Security](#security)
+  - [Security](#security-1)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
   - [Added](#added-2)
   - [Changed](#changed)
@@ -33,15 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Added](#added-5)
   - [Changed](#changed-3)
 - [[1.24.1] - 2026-11-08](#1241---2026-11-08)
-  - [Security](#security-1)
+  - [Security](#security-2)
   - [Added](#added-6)
   - [Known limitation](#known-limitation)
   - [Changed](#changed-4)
 - [[1.24.0] - 2026-11-08](#1240---2026-11-08)
   - [Added](#added-7)
   - [Changed](#changed-5)
-  - [Security](#security-2)
-  - [Tests](#tests)
+  - [Security](#security-3)
+  - [Tests](#tests-1)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
   - [Fixed](#fixed-4)
   - [Changed](#changed-6)
@@ -50,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Fixed](#fixed-5)
   - [Added](#added-9)
 - [[1.21.1] - 2026-11-07](#1211---2026-11-07)
-  - [Security](#security-3)
+  - [Security](#security-4)
   - [Fixed](#fixed-6)
   - [Documentation](#documentation-1)
 - [[1.21.0] - 2026-11-06](#1210---2026-11-06)
@@ -88,7 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Added](#added-17)
   - [Changed](#changed-11)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
-  - [Security](#security-4)
+  - [Security](#security-5)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
   - [Fixed](#fixed-13)
   - [Changed](#changed-12)
@@ -109,7 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.10.0] - 2026-10-30](#1100---2026-10-30)
   - [Added](#added-22)
   - [Changed](#changed-16)
-  - [Security](#security-5)
+  - [Security](#security-6)
   - [Deprecated](#deprecated)
   - [Removed](#removed)
 - [[1.9.0] - 2026-10-30](#190---2026-10-30)
@@ -125,7 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
   - [Fixed](#fixed-17)
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
-  - [Security](#security-6)
+  - [Security](#security-7)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
   - [Changed](#changed-20)
   - [Added](#added-25)
@@ -143,7 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Deprecated](#deprecated-1)
   - [Changed](#changed-25)
 - [[1.5.0] - 2026-10-13](#150---2026-10-13)
-  - [Security](#security-7)
+  - [Security](#security-8)
   - [Added](#added-26)
 - [[1.4.1] - 2026-10-13](#141---2026-10-13)
   - [Changed](#changed-26)
@@ -176,7 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Upgrade](#upgrade)
 - [[1.1.1] - 2026-07-31](#111---2026-07-31)
   - [Fixed](#fixed-23)
-  - [Tests](#tests-1)
+  - [Tests](#tests-2)
   - [Upgrade](#upgrade-1)
 - [[1.1.0] - 2026-07-30](#110---2026-07-30)
   - [Added](#added-30)
@@ -200,9 +202,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Changed](#changed-40)
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
   - [Added](#added-35)
-  - [Security](#security-8)
+  - [Security](#security-9)
 
 ## [Unreleased]
+
+Target: **1.31.1** (patch, security; house rule LQ — look-alike owner ids).
+
+### Security
+
+- **A look-alike user or team id listed, and so could open, another owner's spaces** (affects 1.0.0–1.31.0, MySQL and
+  MariaDB only). `findAccessible()` matched `wiki_spaces.owner_scope_id` with SQL alone, on the column's default
+  collation, and its result is the access source of `canAccessSpace()`, the space list, search, AI retrieval and the
+  API. The MySQL 8 default `utf8mb4_0900_ai_ci` folds case and accents and ignores some invisible characters, and the
+  PAD SPACE collations (MariaDB's default `utf8mb4_uca1400_ai_ci`, `utf8mb4_unicode_ci`, `utf8mb4_general_ci`) also
+  ignore trailing spaces, so with `space_scope: user` the principal `Alice`, `álice`, `alice` + U+200B (or `alice ` on
+  a PAD SPACE collation) reached the personal spaces of `alice` (reproduced on MySQL 8.4 and MariaDB 11.4). It needs
+  owner ids that two principals can have in look-alike forms: user scope with a user that has no `getId()` (the
+  `getUserIdentifier()` is used) or string ids, or a host team resolver returning such ids. Integer and UUID ids were
+  not affected; PostgreSQL and SQLite compare exactly. Fixed in three layers:
+  - every space lookup by owner (`findAccessible()`, `findBySlug()`) re-checks owner, scope type and slug with `===`
+    in PHP;
+  - an owner id with leading or trailing whitespace, a control or format character (zero-width space, bidi marks,
+    BOM), invalid UTF-8 or more than 64 characters owns nothing: `WikiSpaceAccessResolver` drops it before the query
+    and `WikiSpaceService::create()` refuses it (`InvalidArgumentException`), never trimmed or folded;
+  - the new `WikiSpaceCollationListener` gives `owner_scope_id` a binary NO PAD collation in the generated schema
+    (MySQL 8.0+ `utf8mb4_0900_bin`, MariaDB `utf8mb4_nopad_bin`, MySQL 5.7 `utf8mb4_bin`). Existing tables need an
+    `ALTER TABLE`: see [UPGRADING › Unreleased](UPGRADING.md#unreleased).
+
+### Tests
+
+- `tests/Database/WikiSpaceLookalikeOwnerTest` runs the look-alike principals against the generated schema and against
+  a non-migrated `utf8mb4_unicode_ci` column (MySQL / MariaDB jobs); unit tests for the id rule, the re-checks and the
+  listener. CI gains a MariaDB 11.4 job for that test.
 
 ## [1.31.0] - 2026-11-12
 

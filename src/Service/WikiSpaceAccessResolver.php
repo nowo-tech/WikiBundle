@@ -8,6 +8,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
+use Nowo\WikiBundle\ValueObject\WikiOwnerScopeId;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
@@ -43,13 +44,36 @@ final readonly class WikiSpaceAccessResolver implements WikiSpaceAccessResolverI
         return match ($scope) {
             WikiSpaceOwnerScope::Team => $this->spaceRepository->findAccessible(
                 WikiSpaceOwnerScope::Team->value,
-                $this->teamMembershipResolver->getTeamIdsForUser($user),
+                $this->usable($this->teamMembershipResolver->getTeamIdsForUser($user)),
             ),
             WikiSpaceOwnerScope::User => $this->spaceRepository->findAccessible(
                 WikiSpaceOwnerScope::User->value,
-                [$this->resolveUserId($user)],
+                $this->usable([$this->resolveUserId($user)]),
             ),
         };
+    }
+
+    /**
+     * Keeps the ids that can own a space (1.31.1, house rule LQ): an id with leading or trailing whitespace, a control
+     * or format character, invalid UTF-8 or more than 64 characters owns nothing ({@see WikiOwnerScopeId}), so it is
+     * never sent to the database, where a folding or PAD SPACE collation could match another owner's spaces.
+     *
+     * @param list<string> $ids team or user ids
+     *
+     * @return list<string>
+     */
+    private function usable(array $ids): array
+    {
+        $usable = [];
+        foreach ($ids as $id) {
+            // A host resolver typed loosely may hand back integer ids: compare them as the strings they are stored as.
+            $id = (string) $id;
+            if (WikiOwnerScopeId::isUsable($id)) {
+                $usable[] = $id;
+            }
+        }
+
+        return $usable;
     }
 
     /**

@@ -57,6 +57,7 @@ use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
+use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\History\WikiHistoryThinner;
@@ -390,6 +391,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$commentsEnabled', $config['comments']['enabled'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
+
+        // 1.31.1 (house rule LQ): binary NO PAD collation on wiki_spaces.owner_scope_id on MySQL / MariaDB.
+        $container->setDefinition(WikiSpaceCollationListener::class, (new Definition(WikiSpaceCollationListener::class))
+            ->setArgument('$entityManager', $emProviderRef)
+            ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchemaTable']));
 
         $container->setDefinition(WikiSpaceAccessResolver::class, (new Definition(WikiSpaceAccessResolver::class))
             ->setAutowired(true)
