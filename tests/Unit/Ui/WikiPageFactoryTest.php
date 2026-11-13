@@ -90,9 +90,20 @@ final class WikiPageFactoryTest extends TestCase
             }
         }
 
-        self::assertSame(['id' => 'engineering', 'name' => 'Engineering', 'slug' => 'engineering', 'href' => '/nowo_wiki_space?spaceSlug=engineering'], $index->rows[0]);
+        self::assertSame(['id' => 'engineering', 'name' => 'Engineering', 'slug' => 'engineering', 'icon' => null, 'href' => '/nowo_wiki_space?spaceSlug=engineering'], $index->rows[0]);
         $welcome = new WikiPage(PageFixtures::space('engineering', 'E'), 'welcome', 'Welcome');
         self::assertSame([['id' => $welcome->getId(), 'title' => 'Welcome', 'href' => '/nowo_wiki_page_view?spaceSlug=engineering&pageSlug=welcome', 'current' => false, 'children' => []]], $factory->tree(PageFixtures::space('engineering', 'Engineering'), [['page' => $welcome, 'children' => 'not-a-list']]));
+    }
+
+    public function testIndexRowsCarryTheSpaceIcon(): void
+    {
+        $space = PageFixtures::space('eng', 'Engineering');
+        $space->setIcon('tabler:rocket');
+        $plain = PageFixtures::space('ops', 'Operations');
+        $rows  = PageFixtures::factory()->index([$space, $plain], PageFixtures::index()['page']->pagination, PageFixtures::searchForm(null), false)->rows;
+
+        self::assertSame('tabler:rocket', $rows[0]['icon']);
+        self::assertNull($rows[1]['icon']);
     }
 
     public function testTheTreeViewModels(): void

@@ -287,6 +287,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.ai', $config['ai']);
         $container->setParameter('nowo_wiki.import_export', $config['import_export']);
         $container->setParameter('nowo_wiki.pagination', $config['pagination']);
+        $container->setParameter('nowo_wiki.space_icon.allowed_prefixes', array_values($config['space_icon']['allowed_prefixes']));
         $container->setParameter('nowo_wiki.attachments', $config['attachments']);
         $container->setParameter('nowo_wiki.tenant_paths', $config['tenant_paths']);
         $container->setParameter('nowo_wiki.import_export.enabled', (bool) $config['import_export']['enabled']);

@@ -58,7 +58,7 @@
                 {%- if nowo_wiki_web_ui.slots.sidebar ?? null -%}
                     {{ include(nowo_wiki_web_ui.slots.sidebar) }}
                 {%- else -%}
-                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), tree_rail: tree_rail|default(null), bundle: _b}, false) }}
+                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), tree_rail: tree_rail|default(null), space_icon: space_icon|default(null), bundle: _b}, false) }}
                 {%- endif -%}
             {% endblock %}
         </div>
