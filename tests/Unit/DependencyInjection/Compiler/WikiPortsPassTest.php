@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiAccessPolicyInterface;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Service\WikiSpaceIdLocatorInterface;
 use Nowo\WikiBundle\Service\WikiSpaceReachInterface;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
@@ -90,6 +91,12 @@ final class WikiPortsPassTest extends TestCase
         $gate = $container->getDefinition(WikiPortsPass::GATE_PREFIX . 'access_checker');
         self::assertSame([WikiPorts::class, 'port'], $gate->getFactory());
         self::assertEquals(['access_checker', new Reference('app.factory')], $gate->getArguments());
+
+        // A service the build does not define yet (registered later or by another bundle) is checked when built too.
+        $later = new ContainerBuilder();
+        $later->setAlias(WikiAccessCheckerInterface::class, 'app.later');
+        (new WikiPortsPass())->process($later);
+        self::assertSame([WikiPorts::class, 'port'], $later->getDefinition(WikiPortsPass::GATE_PREFIX . 'access_checker')->getFactory());
     }
 
     public function testATwinAliasReplacesTheBundleDefault(): void
@@ -152,7 +159,7 @@ final class WikiPortsPassTest extends TestCase
             self::assertInstanceOf($legacy, $built, $name);
         }
         $this->expectException(LogicException::class);
-        WikiPorts::port('space_locator', $this->createMock(\Nowo\WikiBundle\Service\WikiSpaceIdLocatorInterface::class));
+        WikiPorts::port('space_locator', $this->createMock(WikiSpaceIdLocatorInterface::class));
     }
 
     public function testThePortFactoryFailsClosed(): void
