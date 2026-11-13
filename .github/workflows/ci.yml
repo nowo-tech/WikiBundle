@@ -209,6 +209,13 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- tests/Database/WikiSpaceLookalikeOwnerTest.php
 
+      # 1.32 (database.user_reference: id, REQ-SEC-006): the stored user id columns and their exact matching.
+      - name: Run the user id reference test against MariaDB
+        env:
+          WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: composer test -- tests/Database/WikiUserReferenceByIdTest.php
+
   pgsql:
     name: Database tests on PostgreSQL
     runs-on: ubuntu-latest

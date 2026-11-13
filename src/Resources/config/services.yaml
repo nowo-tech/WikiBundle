@@ -21,6 +21,7 @@ services:
             - '../../Event/WikiQuotaCheckEvent.php'
             - '../../Event/WikiApiWriteEvent.php'
             - '../../User/WikiUserId.php'
+            - '../../User/WikiUserFields.php'
             - '../../Service/WikiSpaceAccessResolver.php'
             - '../../Service/WikiAuthorResolver.php'
             - '../../Attachment/LocalWikiAttachmentStorage.php'
@@ -95,6 +96,16 @@ services:
             $userClass: '%nowo_wiki.user_class%'
             $entityManagers: '@Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider'
             $classes: '@Nowo\WikiBundle\User\WikiUserClassPolicy'
+            $userReference: '%nowo_wiki.database.user_reference%'
+
+    # 1.32 (database.user_reference: id): the host users behind stored ids, found through user_directory; per unit of
+    # work (emptied by WikiRequestBoundaryResetter at every boundary and at kernel.reset).
+    Nowo\WikiBundle\User\WikiUsers:
+        arguments:
+            $mode: '%nowo_wiki.database.user_reference%'
+            $directory: '@?Nowo\WikiBundle\User\WikiUserDirectoryInterface'
+        tags:
+            - { name: kernel.reset, method: reset }
 
     Nowo\WikiBundle\User\WikiUserReferenceResolverInterface: '@Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver'
 
