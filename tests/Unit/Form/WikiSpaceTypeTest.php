@@ -8,8 +8,11 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Form\WikiSpaceIconType;
 use Nowo\WikiBundle\Form\WikiSpaceType;
+use RuntimeException;
+use stdClass;
 use Symfony\Component\Form\Extension\Core\Type\FormType;
 use Symfony\Component\Form\Extension\Validator\ValidatorExtension;
+use Symfony\Component\Form\Forms;
 use Symfony\Component\Form\PreloadedExtension;
 use Symfony\Component\Form\Test\TypeTestCase;
 use Symfony\Component\Validator\Validation;
@@ -112,5 +115,56 @@ final class WikiSpaceTypeTest extends TypeTestCase
         $form->submit(['icon' => 'tabler:book']);
 
         self::assertTrue($form->isValid());
+    }
+
+    public function testDtoAndArrayDataReceiveTheIcon(): void
+    {
+        $dto = new class {
+            public ?string $icon = null;
+        };
+        $form = $this->factory->createBuilder(FormType::class, $dto)->add('icon', WikiSpaceIconType::class)->getForm();
+        $form->submit(['icon' => 'lucide:book']);
+        self::assertTrue($form->isValid());
+        self::assertSame('lucide:book', $dto->icon);
+
+        $form = $this->factory->createBuilder(FormType::class, ['icon' => null])->add('icon', WikiSpaceIconType::class)->getForm();
+        $form->submit(['icon' => 'tabler:rocket']);
+        self::assertSame(['icon' => 'tabler:rocket'], $form->getData());
+
+        $form = $this->factory->createBuilder(FormType::class, ['icon' => 'tabler:rocket'])->add('icon', WikiSpaceIconType::class)->getForm();
+        $form->submit(['icon' => 'mdi:bad']);
+        self::assertFalse($form->isValid());
+        self::assertSame(['icon' => 'tabler:rocket'], $form->getData());
+    }
+
+    public function testAMissingIconIsRejectedWhenARendererIsAvailable(): void
+    {
+        $renderer = new class {
+            public function renderIcon(string $name): string
+            {
+                if ($name !== 'tabler:book') {
+                    throw new RuntimeException('not found');
+                }
+
+                return '<svg/>';
+            }
+        };
+        $factory = Forms::createFormFactoryBuilder()
+            ->addExtensions([new ValidatorExtension(Validation::createValidator()), new PreloadedExtension([new WikiSpaceIconType(['tabler'], $renderer)], [])])
+            ->getFormFactory();
+
+        $ok = $factory->createBuilder(FormType::class, ['icon' => null])->add('icon', WikiSpaceIconType::class)->getForm();
+        $ok->submit(['icon' => 'tabler:book']);
+        self::assertTrue($ok->isValid());
+
+        $missing = $factory->createBuilder(FormType::class, ['icon' => null])->add('icon', WikiSpaceIconType::class)->getForm();
+        $missing->submit(['icon' => 'tabler:nope']);
+        self::assertFalse($missing->isValid());
+
+        $odd = Forms::createFormFactoryBuilder()
+            ->addExtensions([new ValidatorExtension(Validation::createValidator()), new PreloadedExtension([new WikiSpaceIconType(['tabler'], new stdClass())], [])])
+            ->getFormFactory()->createBuilder(FormType::class, ['icon' => null])->add('icon', WikiSpaceIconType::class)->getForm();
+        $odd->submit(['icon' => 'tabler:anything']);
+        self::assertTrue($odd->isValid());
     }
 }

@@ -237,4 +237,5 @@ services:
     Nowo\WikiBundle\Form\WikiSpaceIconType:
         arguments:
             $allowedPrefixes: '%nowo_wiki.space_icon.allowed_prefixes%'
+            $iconRenderer: '@?Symfony\UX\Icons\IconRendererInterface'
         tags: ['form.type']

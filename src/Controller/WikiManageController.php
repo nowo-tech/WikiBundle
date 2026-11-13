@@ -445,6 +445,7 @@ final class WikiManageController extends AbstractController
 
         return $this->renderPage('page_view', $vars + [
             'page'             => $pages->pageView($space, $page, $can, $archiveForm, $deleteForm),
+            'space_icon'       => $space->getIcon(),
             'content_html'     => $content,
             'rich_content'     => $this->bodyRenderer?->hasRichContent() ?? false,
             'tree'             => $treeNodes,

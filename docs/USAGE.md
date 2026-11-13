@@ -183,15 +183,21 @@ Each list is one query (no N+1): spaces through `WikiSpaceRepositoryInterface::f
 ## Space icon (1.32)
 
 A space has an optional `icon`: a UX icon name such as `tabler:book` or `tabler:rocket` (`WikiSpace::getIcon()` /
-`setIcon()`). It shows before the name in the space list and before the title of the sidebar card in the space view;
-without an icon the default book icon is used (the list) or none (the sidebar).
+`setIcon()`).
 
+- Rendering (1.32): a `<prefix>:<name>` value is drawn only when the host sets `nowo_ui_kit.icon_set: ux_icon` (Symfony UX
+  Icons) and the icon set is installed (`tabler` and `bi` are the ones the UiKit icon component maps); with another icon
+  set the UiKit component falls back to its own icon names. A name that matches the format but does not exist makes
+  `ux_icon()` throw `IconNotFoundException` (HTTP 500) in the list and the sidebar: set `ux_icons.ignore_not_found: true`
+  in the host. When `symfony/ux-icons` is installed, `WikiSpaceIconType` also rejects an icon that does not exist.
+- The icon shows in the space list (a book when null) and before the "Pages" title of the sidebar in the space view and
+  the page view (nothing when null).
 - Format `^[a-z0-9-]+:[a-z0-9-]+$` (a trailing newline is rejected), at most 64 characters, prefix in
   `nowo_wiki.space_icon.allowed_prefixes` (default `[tabler]`). `setIcon()` throws `InvalidArgumentException`; pass the
   configured prefixes as the second argument when a host allows more than `tabler`.
 - `WikiSpaceType` (name + icon) shows the icon field only with the option `icon_field: true` (off by default).
 - A host form adds the field with `WikiSpaceIconType`; on a form whose data is a `WikiSpace` it writes through
-  `setIcon()` with the configured prefixes.
+  `setIcon()` with the configured prefixes, on a DTO or an array through the property path (the field name or `property_path`).
 
 ```php
 $form = $this->createForm(WikiSpaceType::class, $space, ['icon_field' => true]);

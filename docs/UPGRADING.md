@@ -106,6 +106,12 @@ ALTER TABLE wiki_spaces ADD icon VARCHAR(64) DEFAULT NULL;
 ALTER TABLE wiki_spaces ADD COLUMN icon VARCHAR(64) DEFAULT NULL;
 ```
 
+Index rows now show a book icon before the space name by default (`row.icon` is null: the UiKit `book` icon). A
+`<prefix>:<name>` icon renders only with `nowo_ui_kit.icon_set: ux_icon` (Symfony UX Icons, `tabler` or `bi` sets); set
+`ux_icons.ignore_not_found: true` in the host, because an icon that matches the format but does not exist makes
+`ux_icon()` throw `IconNotFoundException` (HTTP 500) in the list and the sidebar. With `symfony/ux-icons` installed,
+`WikiSpaceIconType` also rejects such an icon. The sidebar shows the icon (space and page views) only when it is set.
+
 Nothing else changes unless you use the field: `WikiSpaceType` shows it only with `icon_field: true`, and
 `nowo_wiki.space_icon.allowed_prefixes` (default `[tabler]`) lists the accepted icon sets. Existing spaces keep a null
 icon (the default book icon in the list). Old exports stay importable (the icon is not part of them).
