@@ -3,6 +3,11 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.33.0](#to-1330)
+  - [Host ports: move to the framework-free twins (optional until 2.0)](#host-ports-move-to-the-framework-free-twins-optional-until-20)
+  - [XML mapping (`database.mapping_type: xml`)](#xml-mapping-databasemapping_type-xml)
+  - [User references by id (`database.user_reference: id`)](#user-references-by-id-databaseuser_reference-id)
+  - [Private entity manager (`database.private_entity_manager: true`; the only mode in 2.0)](#private-entity-manager-databaseprivate_entity_manager-true-the-only-mode-in-20)
 - [To 1.31.1](#to-1311)
 - [To 1.31.0](#to-1310)
 - [To 1.30.0](#to-1300)
@@ -83,6 +88,93 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.33.0
+
+REQ-ARCH-001: the DDD / hexagonal host path, opt-in. **Nothing to do**: with an unchanged configuration and unchanged
+host services the wiki behaves exactly as 1.32 (same schema, same mapping, same entity manager, every deprecated port
+asked exactly as before). Overview of both host kinds: [ARCHITECTURE](ARCHITECTURE.md).
+
+### Host ports: move to the framework-free twins (optional until 2.0)
+
+- Implement the twin of each port you serve (table in [ARCHITECTURE › Host ports](ARCHITECTURE.md#host-ports)) and
+  point the same configuration key or alias to it (or alias the twin interface). A service may implement both while you
+  migrate: the deprecated interface is used until you drop it. Two different services, one per interface, fail the
+  build: keep one.
+- Twins receive `ValueObject\WikiUserRef` users. Compare them with `isSameUserAs()` (class and id, byte for byte),
+  never `==`; `user()` gives back the object the bundle had, for the migration period.
+- A framework-free directory returns `new WikiApiWiki(..., spaceId: $id)` with `$space` null, and `provision()` returns
+  the new space's id; an id that names no space throws a `LogicException`. `WikiCollabSubscriptionPolicyInterface`
+  returns the cookies (e.g. the Mercure authorization cookie) instead of writing them. The AI twin returns
+  `WikiAiReply` sources by page and space id.
+- Call the wiki from your application layer through `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface` and
+  `WikiPageLinkOperationsInterface` (ids in, snapshots out) instead of the entity ports.
+- Listeners: read `spaceId()`, `pageId()`, `pageSnapshot()`, `actorRef()` / `actorId()` instead of the entities and
+  the user objects.
+- **Removed in 2.0:** the 16 deprecated port interfaces, `WikiApiPrincipal::$user` as a `UserInterface`,
+  `WikiQuotaCheckEvent::$user`, `WikiEditorOptionsEvent::$user`.
+
+### XML mapping (`database.mapping_type: xml`)
+
+- Set `nowo_wiki.database.mapping_type: xml` (a literal value, not a parameter or env var: the Doctrine mapping is
+  prepended before the configuration is processed). The schema does not change, so no migration is needed. The wiki
+  mapping is added to `database.entity_manager`.
+- Several entity managers on DoctrineBundle 3.4: the wiki entities are now transient on every manager other than
+  `database.entity_manager` that does not map them explicitly; `doctrine:schema:update --em=<other>` no longer lists
+  the wiki tables.
+- With a non-default `database.entity_manager` and the attribute mapping, keep mapping the bundle on that manager
+  yourself as before (`WikiBundle: {type: attribute, is_bundle: true}`), or switch to `xml`, which maps it there.
+- After changing an entity (bundle maintainers): `php scripts/generate-xml-mapping.php`; CI fails on drift.
+
+### User references by id (`database.user_reference: id`)
+
+This is a **schema and data migration**: plan a maintenance window and take a backup.
+
+1. Set `nowo_wiki.database.user_reference: id` and, for names and avatars, `nowo_wiki.user_directory: <service id>`
+   (a `User\WikiUserDirectoryInterface` whose `find(string $id)` returns the user with exactly that id, or null).
+2. Generate the migration (`doctrine:migrations:diff`): it drops the seven foreign keys to the user table, turns the
+   columns into `VARCHAR(128)` (binary collation on MySQL / MariaDB) and adds one index per column. Check that the
+   values are kept (an integer id keeps its digits as text).
+3. **Detection queries before the `ALTER` (REQ-SEC-006 item 9).** User ids that cannot be stored exactly (edge
+   whitespace, control characters, more than 128 characters) must be fixed in your user table first, and ids that
+   differ only by case, accents or trailing spaces must be checked so that two people never collapse into one:
+
+   ```sql
+   -- MySQL / MariaDB: user ids that fold onto another one (compare and group in binary; TRIM / LOWER / DISTINCT fold too)
+   SELECT LOWER(id) AS folded, COUNT(*) AS n, GROUP_CONCAT(HEX(id)) AS ids
+     FROM app_user GROUP BY LOWER(id) HAVING COUNT(DISTINCT CAST(id AS BINARY)) > 1;
+   -- ids with an edge space, a tab / newline, or longer than 128 characters
+   SELECT HEX(id) FROM app_user
+    WHERE CAST(id AS BINARY) <> CAST(TRIM(id) AS BINARY) OR id REGEXP '[[:cntrl:]]' OR CHAR_LENGTH(id) > 128;
+   ```
+
+   (replace `app_user` / `id` by your user table and id column; PostgreSQL and SQLite compare exactly.)
+4. The `ALTER` per column on MySQL 8 (MariaDB: `utf8mb4_nopad_bin`; MySQL 5.7: `utf8mb4_bin`, PAD SPACE):
+
+   ```sql
+   ALTER TABLE wiki_page_revisions DROP FOREIGN KEY <fk_name>;
+   ALTER TABLE wiki_page_revisions MODIFY author_id VARCHAR(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin NULL;
+   -- same for wiki_page_links.created_by_id, wiki_attachments.uploaded_by_id, wiki_comment_threads.created_by_id and
+   -- .resolved_by_id, wiki_comments.author_id (all NULL) and wiki_comment_reactions.user_id (NOT NULL)
+   ```
+
+   The binary collation is required for safety: on a folding collation the bundle's PHP re-check still keeps every
+   match exact, but lookups could not use the index exactly.
+5. After the switch the bundle never queries your user table: a user you delete keeps their id on the wiki rows (shown
+   as "Editor xxxx" when the directory no longer finds it), and `wiki:comments:erase-user <id>` still erases their
+   comments. Values read back from rows are `WikiStoredUserRef`: compare users by `getId()`, never with `===`.
+
+### Private entity manager (`database.private_entity_manager: true`; the only mode in 2.0)
+
+- Set `nowo_wiki.database.private_entity_manager: true`. The tables do not move; no migration.
+- Wiki writes no longer flush your entity manager: an entity of yours that you used to see saved "by" a wiki write
+  must now be flushed by you.
+- Load wiki rows you hand to the wiki services through the wiki (`Repository\*Interface`, the id operations), not
+  through your own manager. Saved wiki rows and host users your manager loaded are adopted as references when they sit
+  on a wiki row, but your instances are never written.
+- Users and rows read back through the wiki are the private manager's instances: compare by id, never with `===`.
+- With DBAL 4 a rollback of rows the private manager wrote replaces it at its next use (middleware on the source
+  connection only); with DBAL 3 it is replaced at the next boundary.
 
 ## To 1.31.1
 

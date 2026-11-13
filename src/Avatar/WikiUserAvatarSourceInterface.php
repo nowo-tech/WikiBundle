@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Avatar;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * User pictures, framework-free (1.32.0): the twin of the deprecated {@see WikiUserAvatarResolverInterface} (alias
+ * User pictures, framework-free (1.33.0): the twin of the deprecated {@see WikiUserAvatarResolverInterface} (alias
  * either interface to your service).
  */
 interface WikiUserAvatarSourceInterface

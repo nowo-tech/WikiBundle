@@ -10,7 +10,7 @@ use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Per-space and per-page rights, framework-free (1.32.0): the twin of the deprecated
+ * Per-space and per-page rights, framework-free (1.33.0): the twin of the deprecated
  * {@see WikiSpaceAccessCheckerInterface} (alias either interface to your service).
  */
 interface WikiSpaceAccessPolicyInterface

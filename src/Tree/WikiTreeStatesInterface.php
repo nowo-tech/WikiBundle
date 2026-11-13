@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Tree;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Remembered page tree folds, framework-free (1.32.0): the twin of the deprecated {@see WikiTreeStateStoreInterface}
+ * Remembered page tree folds, framework-free (1.33.0): the twin of the deprecated {@see WikiTreeStateStoreInterface}
  * (`nowo_wiki.tree.state_store` takes either). The space is named by id.
  */
 interface WikiTreeStatesInterface

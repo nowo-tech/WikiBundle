@@ -10,7 +10,7 @@ use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * Asks a framework-free {@see WikiApiPlanPolicyInterface} (1.32.0).
+ * Asks a framework-free {@see WikiApiPlanPolicyInterface} (1.33.0).
  *
  * @internal
  */

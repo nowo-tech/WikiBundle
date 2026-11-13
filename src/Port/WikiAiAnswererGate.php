@@ -14,7 +14,7 @@ use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * Asks a framework-free {@see WikiAiAnswererInterface} (1.32.0) and turns its reply into a {@see WikiAiAnswer}: a
+ * Asks a framework-free {@see WikiAiAnswererInterface} (1.33.0) and turns its reply into a {@see WikiAiAnswer}: a
  * source is kept only when its page exists with exactly that id, in exactly the named space, inside the asked space
  * (if any), and the user may access that space.
  *

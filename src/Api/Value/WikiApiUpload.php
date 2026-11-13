@@ -11,7 +11,7 @@ use function fopen;
 use function sprintf;
 
 /**
- * A file uploaded through the REST API (1.32.0): the framework-free twin of the Symfony `UploadedFile` that
+ * A file uploaded through the REST API (1.33.0): the framework-free twin of the Symfony `UploadedFile` that
  * `Api\Hook\WikiApiFilesInterface::upload()` takes ({@see WikiApiFileStoreInterface}).
  * The client name and type are what the client sent: never trust them.
  */

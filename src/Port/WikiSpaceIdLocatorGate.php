@@ -11,7 +11,7 @@ use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * Asks a framework-free {@see WikiSpaceIdLocatorInterface} (1.32.0) and loads the space it names. A space whose id or
+ * Asks a framework-free {@see WikiSpaceIdLocatorInterface} (1.33.0) and loads the space it names. A space whose id or
  * slug is not exactly what was returned and asked (REQ-SEC-006 items 2 and 4) is refused: null, the page answers 404.
  *
  * @internal

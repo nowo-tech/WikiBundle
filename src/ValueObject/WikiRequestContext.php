@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\ValueObject;
 use function strtolower;
 
 /**
- * The HTTP request a framework-free host port is asked about (1.32.0, REQ-ARCH-001 rule 3): the twin of the Symfony
+ * The HTTP request a framework-free host port is asked about (1.33.0, REQ-ARCH-001 rule 3): the twin of the Symfony
  * `Request` the deprecated ports take. Built with `Port\WikiRequestContexts::fromRequest()`.
  *
  * It never carries a credential header (`Authorization`, `Proxy-Authorization`, `Cookie`, `X-Api-Key`, `PHP-Auth-*`),

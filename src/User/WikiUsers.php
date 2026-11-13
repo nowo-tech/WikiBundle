@@ -12,7 +12,7 @@ use function array_key_exists;
 use function count;
 
 /**
- * The host users behind stored id references (1.32.0, `database.user_reference: id`).
+ * The host users behind stored id references (1.33.0, `database.user_reference: id`).
  *
  * A wiki row read in the id mode holds a {@see WikiStoredUserRef}; names, avatars and the REST API's people need the
  * host user, which the host's {@see WikiUserDirectoryInterface} (`user_directory`) finds by id. Every answer is

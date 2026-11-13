@@ -116,7 +116,7 @@ final class ApiDelegatedTest extends ApiTestCase
 
         $download = $this->call('GET', '/wikis/eng/files/' . $file['uuid']);
         self::assertSame(200, $download->getStatusCode());
-        // 1.32: a twin file store's download is built by the bundle as an attachment with the file name.
+        // 1.33: a twin file store's download is built by the bundle as an attachment with the file name.
         self::assertSame(ApiKernel::twinPorts() ? "attachment; filename=download; filename*=utf-8''x.html" : 'attachment', $download->headers->get('Content-Disposition'));
         self::assertSame(WikiApiDelegatedOperations::DOWNLOAD_CSP, $download->headers->get('Content-Security-Policy'));
         self::assertSame('nosniff', $download->headers->get('X-Content-Type-Options'));

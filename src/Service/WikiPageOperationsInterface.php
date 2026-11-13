@@ -11,7 +11,7 @@ use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * The page operations a host calls, by id and value objects (1.32.0, REQ-ARCH-001 rule 1): the framework-free twin of
+ * The page operations a host calls, by id and value objects (1.33.0, REQ-ARCH-001 rule 1): the framework-free twin of
  * {@see WikiPageServiceInterface} (public alias; same events, same checks). Ids are matched byte for byte; an id
  * naming no stored page, space or revision (or a revision of another page, a parent in another space) fails closed
  * with an `InvalidArgumentException`. The caller checks the user's rights, as with the entity port.

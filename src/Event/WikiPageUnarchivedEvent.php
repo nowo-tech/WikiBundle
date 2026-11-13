@@ -36,7 +36,7 @@ final readonly class WikiPageUnarchivedEvent
     }
 
     /**
-     * 1.32: the id of the page's space.
+     * 1.33: the id of the page's space.
      */
     public function spaceId(): string
     {
@@ -44,7 +44,7 @@ final readonly class WikiPageUnarchivedEvent
     }
 
     /**
-     * 1.32: the page's id.
+     * 1.33: the page's id.
      */
     public function pageId(): string
     {
@@ -52,7 +52,7 @@ final readonly class WikiPageUnarchivedEvent
     }
 
     /**
-     * 1.32: the page as a framework-free snapshot (REQ-ARCH-001).
+     * 1.33: the page as a framework-free snapshot (REQ-ARCH-001).
      */
     public function pageSnapshot(): WikiPageSnapshot
     {
@@ -60,7 +60,7 @@ final readonly class WikiPageUnarchivedEvent
     }
 
     /**
-     * 1.32: the actor as a framework-free reference; null without an actor.
+     * 1.33: the actor as a framework-free reference; null without an actor.
      */
     public function actorRef(): ?WikiUserRef
     {

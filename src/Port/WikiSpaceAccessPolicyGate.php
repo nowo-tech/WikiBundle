@@ -12,7 +12,7 @@ use Nowo\WikiBundle\Security\WikiSpaceAccessPolicyInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * Asks a framework-free {@see WikiSpaceAccessPolicyInterface} (1.32.0) with snapshots of the space and page.
+ * Asks a framework-free {@see WikiSpaceAccessPolicyInterface} (1.33.0) with snapshots of the space and page.
  *
  * @internal
  */

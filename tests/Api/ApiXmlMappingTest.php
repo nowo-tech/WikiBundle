@@ -13,7 +13,7 @@ use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use ReflectionObject;
 
 /**
- * 1.32.0 (REQ-ARCH-001 rule 2): a host on `database.mapping_type: xml` maps the wiki entities from the XML files only,
+ * 1.33.0 (REQ-ARCH-001 rule 2): a host on `database.mapping_type: xml` maps the wiki entities from the XML files only,
  * and the bundle works the same: pages written and read through the REST API, revisions with their author relation.
  */
 final class ApiXmlMappingTest extends ApiTestCase

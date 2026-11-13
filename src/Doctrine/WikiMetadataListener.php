@@ -40,7 +40,7 @@ final readonly class WikiMetadataListener
     /** `database.user_reference: entity` (default): the user fields are `ManyToOne` relations to `user_class`. */
     public const USER_REFERENCE_ENTITY = 'entity';
 
-    /** `database.user_reference: id` (1.32): the user fields are string id columns ({@see WikiUserRefType}). */
+    /** `database.user_reference: id` (1.33): the user fields are string id columns ({@see WikiUserRefType}). */
     public const USER_REFERENCE_ID = 'id';
 
     /**
@@ -64,7 +64,7 @@ final readonly class WikiMetadataListener
      * @param bool $commentsEnabled false: the comment tables are left out of the generated schema (1.16)
      * @param string $apiIdempotencyTableName table name for the REST API's idempotency store (1.24)
      * @param bool $apiIdempotencyEnabled true only with `api.enabled` and the bundle's own store (1.24)
-     * @param string $userReference `database.user_reference` (1.32): `entity` maps the user fields as relations to
+     * @param string $userReference `database.user_reference` (1.33): `entity` maps the user fields as relations to
      *                              `$userClass`, `id` as string id columns ({@see WikiUserRefType})
      */
     public function __construct(
@@ -239,7 +239,7 @@ final readonly class WikiMetadataListener
     }
 
     /**
-     * 1.32.0 (`database.user_reference: id`, REQ-ARCH-001 rule 2): the user field becomes a string column holding the
+     * 1.33.0 (`database.user_reference: id`, REQ-ARCH-001 rule 2): the user field becomes a string column holding the
      * user's id, under the join column's name and nullability, with an index and no foreign key (a row outlives its
      * user: the history is never deleted with the account). The binary NO PAD collation is set on MySQL / MariaDB by
      * {@see WikiSpaceCollationListener} when the schema is generated (REQ-SEC-006 item 3). Works on attribute and XML

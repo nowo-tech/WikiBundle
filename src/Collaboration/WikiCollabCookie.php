@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Collaboration;
 use DateTimeImmutable;
 
 /**
- * A cookie the co-editing subscription grant sets on the response (1.32.0): what
+ * A cookie the co-editing subscription grant sets on the response (1.33.0): what
  * {@see WikiCollabSubscriptionPolicyInterface::grant()} returns instead of writing to the HTTP `Request` (e.g. the
  * Mercure `mercureAuthorization` cookie with the subscriber JWT). The bundle adds it to the response of the request it
  * was granted for.

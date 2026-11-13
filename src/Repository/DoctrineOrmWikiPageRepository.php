@@ -136,7 +136,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
     public function pageMetadata(WikiSpace $space, WikiPageMetadataQuery $query): array
     {
         $entityManager = $this->entityManager();
-        // 1.32: the author column itself with database.user_reference: id (IDENTITY() of the relation otherwise).
+        // 1.33: the author column itself with database.user_reference: id (IDENTITY() of the relation otherwise).
         $builder = $entityManager->createQueryBuilder()
             ->select('p', 'r.revisionNumber AS revisionNumber', 'r.createdAt AS revisedAt', WikiUserFields::identity($entityManager, WikiPageRevision::class, 'r', 'author') . ' AS authorId')
             ->from(WikiPage::class, 'p')

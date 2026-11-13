@@ -8,204 +8,304 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
-- [[1.31.1] - 2026-11-13](#1311---2026-11-13)
+  - [Added](#added)
   - [Security](#security)
+  - [Deprecated](#deprecated)
+  - [Changed](#changed)
   - [Tests](#tests)
+- [[1.31.1] - 2026-11-13](#1311---2026-11-13)
+  - [Security](#security-1)
+  - [Tests](#tests-1)
 - [[1.31.0] - 2026-11-12](#1310---2026-11-12)
   - [1.31.0 (unreleased)](#1310-unreleased)
 - [[1.30.0] - 2026-11-11](#1300---2026-11-11)
-  - [Added](#added-1)
+  - [Added](#added-2)
   - [Fixed](#fixed-1)
 - [[1.29.1] - 2026-11-11](#1291---2026-11-11)
-  - [Security](#security-1)
+  - [Security](#security-2)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
-  - [Added](#added-2)
-  - [Changed](#changed)
-- [[1.28.0] - 2026-11-10](#1280---2026-11-10)
   - [Added](#added-3)
   - [Changed](#changed-1)
-- [[1.27.0] - 2026-11-09](#1270---2026-11-09)
+- [[1.28.0] - 2026-11-10](#1280---2026-11-10)
   - [Added](#added-4)
+  - [Changed](#changed-2)
+- [[1.27.0] - 2026-11-09](#1270---2026-11-09)
+  - [Added](#added-5)
 - [[1.26.0] - 2026-11-09](#1260---2026-11-09)
   - [Fixed](#fixed-2)
-  - [Changed](#changed-2)
+  - [Changed](#changed-3)
   - [Documentation](#documentation)
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
   - [Fixed](#fixed-3)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
-  - [Added](#added-5)
-  - [Changed](#changed-3)
-- [[1.24.1] - 2026-11-08](#1241---2026-11-08)
-  - [Security](#security-2)
   - [Added](#added-6)
-  - [Known limitation](#known-limitation)
   - [Changed](#changed-4)
-- [[1.24.0] - 2026-11-08](#1240---2026-11-08)
-  - [Added](#added-7)
-  - [Changed](#changed-5)
+- [[1.24.1] - 2026-11-08](#1241---2026-11-08)
   - [Security](#security-3)
-  - [Tests](#tests-1)
+  - [Added](#added-7)
+  - [Known limitation](#known-limitation)
+  - [Changed](#changed-5)
+- [[1.24.0] - 2026-11-08](#1240---2026-11-08)
+  - [Added](#added-8)
+  - [Changed](#changed-6)
+  - [Security](#security-4)
+  - [Tests](#tests-2)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
   - [Fixed](#fixed-4)
-  - [Changed](#changed-6)
-  - [Added](#added-8)
+  - [Changed](#changed-7)
+  - [Added](#added-9)
 - [[1.22.0] - 2026-11-07](#1220---2026-11-07)
   - [Fixed](#fixed-5)
-  - [Added](#added-9)
+  - [Added](#added-10)
 - [[1.21.1] - 2026-11-07](#1211---2026-11-07)
-  - [Security](#security-4)
+  - [Security](#security-5)
   - [Fixed](#fixed-6)
   - [Documentation](#documentation-1)
 - [[1.21.0] - 2026-11-06](#1210---2026-11-06)
-  - [Added](#added-10)
+  - [Added](#added-11)
   - [Fixed](#fixed-7)
 - [[1.20.0] - 2026-11-06](#1200---2026-11-06)
-  - [Added](#added-11)
+  - [Added](#added-12)
 - [[1.19.1] - 2026-11-06](#1191---2026-11-06)
   - [Fixed](#fixed-8)
 - [[1.19.0] - 2026-11-06](#1190---2026-11-06)
-  - [Changed](#changed-7)
+  - [Changed](#changed-8)
   - [Dependencies](#dependencies)
 - [[1.18.0] - 2026-11-05](#1180---2026-11-05)
-  - [Changed](#changed-8)
-  - [Added](#added-12)
+  - [Changed](#changed-9)
+  - [Added](#added-13)
   - [Dependencies](#dependencies-1)
 - [[1.17.0] - 2026-11-05](#1170---2026-11-05)
-  - [Added](#added-13)
+  - [Added](#added-14)
 - [[1.16.2] - 2026-11-04](#1162---2026-11-04)
   - [Fixed](#fixed-9)
 - [[1.16.1] - 2026-11-04](#1161---2026-11-04)
-  - [Added](#added-14)
-  - [Changed](#changed-9)
-  - [Fixed](#fixed-10)
-- [[1.16.0] - 2026-11-04](#1160---2026-11-04)
   - [Added](#added-15)
   - [Changed](#changed-10)
+  - [Fixed](#fixed-10)
+- [[1.16.0] - 2026-11-04](#1160---2026-11-04)
+  - [Added](#added-16)
+  - [Changed](#changed-11)
 - [[1.15.1] - 2026-11-04](#1151---2026-11-04)
   - [Fixed](#fixed-11)
 - [[1.15.0] - 2026-11-04](#1150---2026-11-04)
-  - [Added](#added-16)
+  - [Added](#added-17)
 - [[1.14.1] - 2026-11-03](#1141---2026-11-03)
   - [Fixed](#fixed-12)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
-  - [Added](#added-17)
-  - [Changed](#changed-11)
+  - [Added](#added-18)
+  - [Changed](#changed-12)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
-  - [Security](#security-5)
+  - [Security](#security-6)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
   - [Fixed](#fixed-13)
-  - [Changed](#changed-12)
-  - [Added](#added-18)
+  - [Changed](#changed-13)
+  - [Added](#added-19)
   - [Documentation](#documentation-2)
 - [[1.13.0] - 2026-11-03](#1130---2026-11-03)
-  - [Added](#added-19)
-  - [Changed](#changed-13)
-- [[1.12.0] - 2026-10-31](#1120---2026-10-31)
   - [Added](#added-20)
   - [Changed](#changed-14)
+- [[1.12.0] - 2026-10-31](#1120---2026-10-31)
+  - [Added](#added-21)
+  - [Changed](#changed-15)
   - [Fixed](#fixed-14)
 - [[1.11.1] - 2026-10-30](#1111---2026-10-30)
   - [Fixed](#fixed-15)
 - [[1.11.0] - 2026-10-30](#1110---2026-10-30)
-  - [Added](#added-21)
-  - [Changed](#changed-15)
-- [[1.10.0] - 2026-10-30](#1100---2026-10-30)
   - [Added](#added-22)
   - [Changed](#changed-16)
-  - [Security](#security-6)
-  - [Deprecated](#deprecated)
-  - [Removed](#removed)
-- [[1.9.0] - 2026-10-30](#190---2026-10-30)
+- [[1.10.0] - 2026-10-30](#1100---2026-10-30)
   - [Added](#added-23)
   - [Changed](#changed-17)
-- [[1.8.1] - 2026-10-29](#181---2026-10-29)
-  - [Changed](#changed-18)
-- [[1.8.0] - 2026-10-29](#180---2026-10-29)
+  - [Security](#security-7)
+  - [Deprecated](#deprecated-1)
+  - [Removed](#removed)
+- [[1.9.0] - 2026-10-30](#190---2026-10-30)
   - [Added](#added-24)
+  - [Changed](#changed-18)
+- [[1.8.1] - 2026-10-29](#181---2026-10-29)
   - [Changed](#changed-19)
+- [[1.8.0] - 2026-10-29](#180---2026-10-29)
+  - [Added](#added-25)
+  - [Changed](#changed-20)
   - [Fixed](#fixed-16)
   - [Removed](#removed-1)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
   - [Fixed](#fixed-17)
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
-  - [Security](#security-7)
+  - [Security](#security-8)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
-  - [Changed](#changed-20)
-  - [Added](#added-25)
   - [Changed](#changed-21)
-- [[1.6.4] - 2026-10-24](#164---2026-10-24)
+  - [Added](#added-26)
   - [Changed](#changed-22)
-- [[1.6.3] - 2026-10-18](#163---2026-10-18)
+- [[1.6.4] - 2026-10-24](#164---2026-10-24)
   - [Changed](#changed-23)
-- [[1.6.2] - 2026-10-13](#162---2026-10-13)
+- [[1.6.3] - 2026-10-18](#163---2026-10-18)
   - [Changed](#changed-24)
+- [[1.6.2] - 2026-10-13](#162---2026-10-13)
+  - [Changed](#changed-25)
 - [[1.6.1] - 2026-10-13](#161---2026-10-13)
   - [Fixed](#fixed-18)
 - [[1.6.0] - 2026-10-13](#160---2026-10-13)
   - [Fixed](#fixed-19)
-  - [Deprecated](#deprecated-1)
-  - [Changed](#changed-25)
-- [[1.5.0] - 2026-10-13](#150---2026-10-13)
-  - [Security](#security-8)
-  - [Added](#added-26)
-- [[1.4.1] - 2026-10-13](#141---2026-10-13)
+  - [Deprecated](#deprecated-2)
   - [Changed](#changed-26)
+- [[1.5.0] - 2026-10-13](#150---2026-10-13)
+  - [Security](#security-9)
+  - [Added](#added-27)
+- [[1.4.1] - 2026-10-13](#141---2026-10-13)
+  - [Changed](#changed-27)
   - [Dependencies](#dependencies-2)
 - [[1.4.0] - 2026-10-09](#140---2026-10-09)
-  - [Changed](#changed-27)
+  - [Changed](#changed-28)
   - [Fixed](#fixed-20)
   - [Dependencies](#dependencies-3)
 - [[1.3.5] - 2026-09-27](#135---2026-09-27)
   - [Fixed](#fixed-21)
-  - [Added](#added-27)
-  - [Changed](#changed-28)
-- [[1.3.4] - 2026-08-24](#134---2026-08-24)
+  - [Added](#added-28)
   - [Changed](#changed-29)
+- [[1.3.4] - 2026-08-24](#134---2026-08-24)
+  - [Changed](#changed-30)
   - [Notes](#notes)
 - [[1.3.3] - 2026-08-19](#133---2026-08-19)
-  - [Changed](#changed-30)
-- [[1.3.2] - 2026-08-18](#132---2026-08-18)
   - [Changed](#changed-31)
+- [[1.3.2] - 2026-08-18](#132---2026-08-18)
+  - [Changed](#changed-32)
 - [[1.3.1] - 2026-08-07](#131---2026-08-07)
   - [Fixed](#fixed-22)
 - [[1.3.0] - 2026-08-04](#130---2026-08-04)
-  - [Changed](#changed-32)
-  - [Added](#added-28)
   - [Changed](#changed-33)
-- [[1.2.0] - 2026-08-03](#120---2026-08-03)
   - [Added](#added-29)
   - [Changed](#changed-34)
+- [[1.2.0] - 2026-08-03](#120---2026-08-03)
+  - [Added](#added-30)
+  - [Changed](#changed-35)
   - [Compatibility](#compatibility)
   - [Upgrade](#upgrade)
 - [[1.1.1] - 2026-07-31](#111---2026-07-31)
   - [Fixed](#fixed-23)
-  - [Tests](#tests-2)
+  - [Tests](#tests-3)
   - [Upgrade](#upgrade-1)
 - [[1.1.0] - 2026-07-30](#110---2026-07-30)
-  - [Added](#added-30)
-  - [Changed](#changed-35)
-  - [Documentation](#documentation-3)
-- [[1.0.5] - 2026-07-29](#105---2026-07-29)
   - [Added](#added-31)
   - [Changed](#changed-36)
-- [[1.0.4] - 2026-07-22](#104---2026-07-22)
+  - [Documentation](#documentation-3)
+- [[1.0.5] - 2026-07-29](#105---2026-07-29)
   - [Added](#added-32)
   - [Changed](#changed-37)
-- [[1.0.3] - 2026-07-16](#103---2026-07-16)
-  - [Fixed](#fixed-24)
+- [[1.0.4] - 2026-07-22](#104---2026-07-22)
   - [Added](#added-33)
   - [Changed](#changed-38)
-- [[1.0.2] - 2026-07-16](#102---2026-07-16)
+- [[1.0.3] - 2026-07-16](#103---2026-07-16)
+  - [Fixed](#fixed-24)
+  - [Added](#added-34)
   - [Changed](#changed-39)
+- [[1.0.2] - 2026-07-16](#102---2026-07-16)
+  - [Changed](#changed-40)
 - [[1.0.1] - 2026-07-16](#101---2026-07-16)
   - [Fixed](#fixed-25)
-  - [Added](#added-34)
-  - [Changed](#changed-40)
-- [[1.0.0] - 2026-07-13](#100---2026-07-13)
   - [Added](#added-35)
-  - [Security](#security-9)
+  - [Changed](#changed-41)
+- [[1.0.0] - 2026-07-13](#100---2026-07-13)
+  - [Added](#added-36)
+  - [Security](#security-10)
 
 ## [Unreleased]
+
+Target: **1.33.0** (minor; REQ-ARCH-001 — standard Symfony by default, DDD / hexagonal host path opt-in; REQ-RUNTIME-002
+and REQ-SEC-006 kept). Every change is additive: with an unchanged configuration and unchanged host services the wiki
+behaves exactly as 1.32 (the whole API suite also runs through the new ports and through the private entity manager,
+see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRADING.md#to-1330).
+
+### Added
+
+- **Framework-free host ports (REQ-ARCH-001 rules 1 and 3).** Every host port typed with a Symfony `UserInterface`,
+  `Request`, `Response`, `UploadedFile` or a wiki entity has a 1.33 twin that takes and returns only bundle value
+  objects, enums and scalars (table in [ARCHITECTURE › Host ports](ARCHITECTURE.md#host-ports)):
+  `WikiAccessPolicyInterface`, `WikiSpaceAccessPolicyInterface`, `WikiTeamMembershipSourceInterface`,
+  `WikiSpaceReachInterface`, `WikiSpaceIdLocatorInterface`, `WikiObjectLinkSourceInterface`,
+  `WikiUserAvatarSourceInterface`, `WikiPanelStatesInterface`, `WikiTreeStatesInterface`,
+  `WikiCollabSubscriptionPolicyInterface`, `WikiApiRequestAuthenticatorInterface`, `WikiApiFileStoreInterface`,
+  `WikiApiPlanPolicyInterface`, `WikiApiWikiDirectoryInterface`, `WikiAiAnswererInterface`,
+  `WikiAttachmentLimitsPolicyInterface`. Their values: `ValueObject\WikiUserRef` (class, id, identifier, roles; compare
+  with `isSameUserAs()`), `WikiSpaceSnapshot`, `WikiPageSnapshot`, `WikiRevisionSnapshot`, `WikiRequestContext` (never a
+  credential header or a cookie; the REST API credential only as `$credential`), `Api\Value\WikiApiUpload`,
+  `Api\Value\WikiApiDownload`, `Collaboration\WikiCollabCookie`, `Ai\WikiAiReply`.
+- **Selection rule.** The same configuration key or alias takes either interface. A service implementing the deprecated
+  interface is asked exactly as in 1.32, also when it implements the twin too; one implementing only the twin is asked
+  through an internal gate (`Port\*Gate`). `DependencyInjection\Compiler\WikiPortsPass` fails the build when a configured
+  port implements neither (naming the key), or when two different host services serve one port; a factory or synthetic
+  service is checked when it is built and fails closed.
+- **What a twin returns is re-checked (REQ-SEC-006 items 2, 4, 7):** space ids are loaded and kept only when a stored
+  space has exactly that id (the locator also needs exactly the asked slug), an unknown directory space id fails closed
+  (no second provisioned space), linked objects only for the asked ids and type, AI sources only inside the asked space
+  and the user's reach. The 1.31.1 owner-id protections (GHSA-xpr3-grw5-6h9c) are unchanged.
+- **Operations by id (rule 1).** Public aliases `Service\WikiPageOperationsInterface`, `Service\WikiSpaceOperationsInterface`
+  and `Link\WikiPageLinkOperationsInterface`: the 1.27 entity ports by id, with `WikiUserRef` users, returning snapshots
+  (same events and checks; unknown, foreign or look-alike ids fail closed).
+- **Event accessors (rules 1 and 4).** `spaceId()`, `pageId()`, `pageSnapshot()`, `revisionId()`, `revisionSnapshot()`,
+  `threadId()`, `commentId()`, `attachmentId()`, `spaceSnapshot()`, `actorRef()`, `userRef()`, ... on every event that
+  carries a wiki entity or a user, built on call. Payloads and constructors unchanged.
+- `Api\WikiApiPrincipal::of(WikiUserRef, …)` / `userRef()`; `Api\Value\WikiApiWiki::$spaceId` (new trailing constructor
+  argument; with a space too, both must name the same space).
+- **XML mapping (opt-in, rule 2).** `nowo_wiki.database.mapping_type: xml` (literal value) maps the 13 wiki entities
+  from `src/Resources/config/doctrine-xml/*.orm.xml` (generated from the attributes by `scripts/generate-xml-mapping.php`,
+  same tables, columns, indexes and constraints) on `database.entity_manager`. `XmlMappingParityTest` compares the
+  metadata and the schema on SQLite, MySQL and PostgreSQL and fails on drift.
+- `DependencyInjection\Compiler\WikiMappingManagerPass` (DoctrineBundle 3.4 `auto_discover_entities`): the wiki entities
+  are transient on every other entity manager that does not map them explicitly (`Doctrine\WikiExcludedEntityNamespaceDriver`).
+- **User references by id (opt-in, rule 2).** `nowo_wiki.database.user_reference: id` stores the revision author, link
+  creator, uploader, comment thread creator and resolver, comment author and reaction user as the user's id in a string
+  column of the same name (`wiki_user_ref`, 128 characters, indexed, no foreign key; `ValueObject\WikiStoredUserRef`
+  when read back): `user_class` need not be a Doctrine entity and rows outlive their user. New optional
+  `user_directory` (`User\WikiUserDirectoryInterface::find(string $id)`) for names and avatars; each answer re-checked
+  with `===`, kept per unit of work (`User\WikiUsers`, emptied at every boundary and at `kernel.reset`, at most 1,000).
+- **Private entity manager (opt-in, rule 6).** `nowo_wiki.database.private_entity_manager: true` makes every wiki
+  service read and write through `Doctrine\WikiEntityManager`, a private manager on the connection, mapping and
+  listeners of `database.entity_manager`: a wiki write never flushes, clears or closes the application's manager.
+  Dropped at every request, Messenger and console boundary and at `kernel.reset` (dropped first, then pending changes
+  logged by class and count and cleared); recreated when closed, on another connection or after a rollback undid its
+  rows (DBAL 4 middleware on the source connection only); the source's SQL filters mirrored; a bundle-owned repository
+  factory (service repositories from the source factory, others per manager); host users and saved rows of another
+  manager adopted as references before each flush; bulk statements inside the application's transaction run in a
+  savepoint, and a failing savepoint rollback never hides the original failure. Adapted from TaskBoardBundle 2.15.0 /
+  AuthKitBundle 1.46.0.
+- [ARCHITECTURE.md](ARCHITECTURE.md): both host kinds, the ports, the events, persistence and mapping.
+
+### Security
+
+- REQ-SEC-006 on the new id columns (id mode only): binary NO PAD collation on MySQL / MariaDB
+  (`WikiSpaceCollationListener`, now also for every `wiki_user_ref` column; `utf8mb4_bin` on MySQL 5.7 and when the
+  `server_version` lacks the full version, with a logged warning); an unusable id (edge whitespace, control or format
+  character, invalid UTF-8, more than 128 characters) is refused before any write and a legacy one reads back as null;
+  every lookup keyed by a user id re-checks with `===` before any limit; erasures select the exact rows first and write
+  by primary key.
+
+### Deprecated
+
+- The 16 host port interfaces replaced by a twin (removed in 2.0; still asked exactly as in 1.32).
+- Symfony-typed public members: `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user`, `WikiEditorOptionsEvent::$user`
+  (read `userRef()`).
+
+### Changed
+
+- `Markdown\WikiRenderReach` is `@internal`; the repository interfaces are documented as the persistence adapters of
+  the bundle's own entities (not host ports).
+- `collaboration.subscriber_authorizer` is asked through the `WikiCollabSubscriberAuthorizerInterface` alias;
+  `Collaboration\WikiCollabCookieListener` (`kernel.response`) sets the cookies a twin grants.
+- Optional constructor arguments only (defaults keep 1.32): `WikiMetadataListener` (`$userReference`),
+  `WikiSpaceCollationListener` (`$logger`), `DoctrineWikiUserReferenceResolver` (`$userReference`), `WikiAuthorLabel`,
+  `WikiAuthorResolver`, `WikiApiPeople`, `WikiApiUsersReader` (`User\WikiUsers`), `WikiEntityManagerProvider`
+  (`$private`).
+
+### Tests
+
+- Both host kinds: the standard suite, its replays `WIKI_TEST_PORTS=twin` (CI `twin-ports`) and
+  `WIKI_TEST_PRIVATE_EM=1` (CI `private-entity-manager`, SQLite and MySQL), and the DDD host kernel
+  (`tests/Api/DddHost`: no user table, XML mapping, ids, private manager, twins only, two people in one kept-alive
+  kernel through `http_kernel->handle()` / `terminate()` with a memory bound). Private manager parts and worker tests
+  (`tests/Api/PrivateEntityManager`), port gate equivalence tests, `WikiPortsPass`, XML parity, id-mode look-alike tests
+  on SQLite, MySQL 8.4 and MariaDB 11.4.
 
 ## [1.31.1] - 2026-11-13
 

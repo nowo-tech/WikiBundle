@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Attachment;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 
 /**
- * Upload limits per space, framework-free (1.32.0): the twin of the deprecated
+ * Upload limits per space, framework-free (1.33.0): the twin of the deprecated
  * {@see WikiAttachmentLimitsProviderInterface} (alias either interface to your service).
  */
 interface WikiAttachmentLimitsPolicyInterface

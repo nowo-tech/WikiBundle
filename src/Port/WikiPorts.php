@@ -44,7 +44,7 @@ use function get_debug_type;
 use function sprintf;
 
 /**
- * The host ports that have a framework-free twin (1.32.0, REQ-ARCH-001 rules 1 and 3) and their selection rule: a
+ * The host ports that have a framework-free twin (1.33.0, REQ-ARCH-001 rules 1 and 3) and their selection rule: a
  * service implementing the deprecated interface is asked through it exactly as before (also when it implements the
  * twin too); a service implementing only the twin is asked through its gate. {@see WikiPortsPass} wires them at build
  * time; {@see self::port()} is the factory for services whose class the build cannot know.

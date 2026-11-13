@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 
 /**
- * A wiki space as host ports and events see it (1.32.0, REQ-ARCH-001 rules 1 and 3): copied from the bundle's
+ * A wiki space as host ports and events see it (1.33.0, REQ-ARCH-001 rules 1 and 3): copied from the bundle's
  * `WikiSpace` row when the port is called, so a host never holds the entity. Build one with
  * `Port\WikiSnapshots::space()`.
  */

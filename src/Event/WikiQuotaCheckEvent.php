@@ -57,7 +57,7 @@ final class WikiQuotaCheckEvent extends Event
     /**
      * @param string $action one of the action constants
      * @param WikiSpace $space space written to
-     * @param UserInterface $user user who acts; deprecated since 1.32 as a public member (a Symfony type), removed in
+     * @param UserInterface $user user who acts; deprecated since 1.33 as a public member (a Symfony type), removed in
      *                            2.0: read {@see self::userRef()}
      * @param int $count pages (or files) the write adds
      * @param int $bytes bytes the write adds (upload, import archive)
@@ -102,7 +102,7 @@ final class WikiQuotaCheckEvent extends Event
     }
 
     /**
-     * 1.32: the space's id.
+     * 1.33: the space's id.
      */
     public function spaceId(): string
     {
@@ -110,7 +110,7 @@ final class WikiQuotaCheckEvent extends Event
     }
 
     /**
-     * 1.32: the space as a framework-free snapshot.
+     * 1.33: the space as a framework-free snapshot.
      */
     public function spaceSnapshot(): WikiSpaceSnapshot
     {
@@ -118,7 +118,7 @@ final class WikiQuotaCheckEvent extends Event
     }
 
     /**
-     * 1.32: the page's id; null for a new page or an import.
+     * 1.33: the page's id; null for a new page or an import.
      */
     public function pageId(): ?string
     {
@@ -126,7 +126,7 @@ final class WikiQuotaCheckEvent extends Event
     }
 
     /**
-     * 1.32: the page as a snapshot; null for a new page or an import.
+     * 1.33: the page as a snapshot; null for a new page or an import.
      */
     public function pageSnapshot(): ?WikiPageSnapshot
     {
@@ -134,7 +134,7 @@ final class WikiQuotaCheckEvent extends Event
     }
 
     /**
-     * 1.32: the user who acts, as a framework-free reference (use it instead of {@see self::$user}).
+     * 1.33: the user who acts, as a framework-free reference (use it instead of {@see self::$user}).
      */
     public function userRef(): WikiUserRef
     {

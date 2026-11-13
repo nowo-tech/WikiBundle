@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Collaboration;
 use Nowo\WikiBundle\ValueObject\WikiRequestContext;
 
 /**
- * Lets a browser subscribe to co-editing topics, framework-free (1.32.0): the twin of the deprecated
+ * Lets a browser subscribe to co-editing topics, framework-free (1.33.0): the twin of the deprecated
  * {@see WikiCollabSubscriberAuthorizerInterface} / {@see WikiCollabTopicsAuthorizerInterface}
  * (`nowo_wiki.collaboration.subscriber_authorizer` takes either). Return the cookies to set (e.g. the hub's
  * subscriber JWT); the bundle adds them to the response of that request.

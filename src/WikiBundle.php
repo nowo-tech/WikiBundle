@@ -6,11 +6,13 @@ namespace Nowo\WikiBundle;
 
 use Nowo\WikiBundle\DependencyInjection\Compiler\CsrfProtectionPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
+use Nowo\WikiBundle\DependencyInjection\Compiler\PrivateEntityManagerPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\TwigPathsPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiApiSafetyPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiMappingManagerPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiPortsPass;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
+use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\ExtensionInterface;
 use Symfony\Component\HttpKernel\Bundle\Bundle;
@@ -33,10 +35,13 @@ final class WikiBundle extends Bundle
         $container->addCompilerPass(new CsrfProtectionPass());
         $container->addCompilerPass(new MilkdownBridgePass());
         $container->addCompilerPass(new WikiApiSafetyPass());
-        // 1.32.0: the wiki entities only on database.entity_manager (DoctrineBundle 3.4 auto_discover_entities).
+        // 1.33.0: the wiki entities only on database.entity_manager (DoctrineBundle 3.4 auto_discover_entities).
         $container->addCompilerPass(new WikiMappingManagerPass());
-        // 1.32: framework-free twins of the host ports (REQ-ARCH-001).
+        // 1.33: framework-free twins of the host ports (REQ-ARCH-001).
         $container->addCompilerPass(new WikiPortsPass());
+        // 1.33.0: the private entity manager's rollback middleware on the source manager's connection only (before
+        // DoctrineBundle's MiddlewaresPass).
+        $container->addCompilerPass(new PrivateEntityManagerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 10);
     }
 
     /**

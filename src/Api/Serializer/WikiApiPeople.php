@@ -45,7 +45,7 @@ final readonly class WikiApiPeople
                 $answer[] = null;
                 continue;
             }
-            // 1.32 (database.user_reference: id): the host's api id of the user behind a stored id reference.
+            // 1.33 (database.user_reference: id): the host's api id of the user behind a stored id reference.
             $answer[] = [
                 'id'   => $this->guard->isUser($principal, $person) ? $this->users->apiId($this->directory?->resolve($person) ?? $person) : null,
                 'name' => $presented[$index++]['name'],

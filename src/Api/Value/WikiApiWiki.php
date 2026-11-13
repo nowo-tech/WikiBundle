@@ -17,7 +17,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
  */
 final readonly class WikiApiWiki
 {
-    /** 1.32: the id of the wiki's space (from `$space` when given); null while the space does not exist. */
+    /** 1.33: the id of the wiki's space (from `$space` when given); null while the space does not exist. */
     public ?string $spaceId;
 
     /**
@@ -25,7 +25,7 @@ final readonly class WikiApiWiki
      * @param WikiSpace|null $space the space, null when it does not exist yet
      * @param bool $canOpen false: listed by name only (a restricted wiki without a grant, FR-011); its pages are 404
      * @param int|null $pageCount pages the person can read, when the host counts them (never shown with `$canOpen` false)
-     * @param string|null $spaceId 1.32: the space by id, for a framework-free directory
+     * @param string|null $spaceId 1.33: the space by id, for a framework-free directory
      *                             ({@see WikiApiWikiDirectoryInterface}) that holds no entity;
      *                             the bundle loads it. With `$space` it must be that space's id.
      *

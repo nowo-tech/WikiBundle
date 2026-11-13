@@ -24,7 +24,7 @@ use function str_starts_with;
 use function strtolower;
 
 /**
- * Converts between the Symfony HTTP objects and the framework-free values of the twin ports (1.32.0).
+ * Converts between the Symfony HTTP objects and the framework-free values of the twin ports (1.33.0).
  *
  * @internal
  */

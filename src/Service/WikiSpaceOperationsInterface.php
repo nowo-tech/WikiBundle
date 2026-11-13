@@ -9,7 +9,7 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 
 /**
- * The space operations a host calls, returning snapshots (1.32.0, REQ-ARCH-001 rule 1): the framework-free twin of
+ * The space operations a host calls, returning snapshots (1.33.0, REQ-ARCH-001 rule 1): the framework-free twin of
  * {@see WikiSpaceServiceInterface} (public alias). Owner ids and slugs are matched byte for byte.
  */
 interface WikiSpaceOperationsInterface

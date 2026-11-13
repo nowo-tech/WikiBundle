@@ -10,7 +10,7 @@ use function in_array;
 use function is_string;
 
 /**
- * The user a host port is asked about (1.32.0, REQ-ARCH-001 rules 1 and 3): the framework-free twin of the Symfony
+ * The user a host port is asked about (1.33.0, REQ-ARCH-001 rules 1 and 3): the framework-free twin of the Symfony
  * `UserInterface` the deprecated ports take.
  *
  * It carries the user's class (Doctrine proxy prefixes removed), id (null when the user has none the wiki can match

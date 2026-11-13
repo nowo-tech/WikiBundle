@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Panel;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Remembered side panel state, framework-free (1.32.0): the twin of the deprecated
+ * Remembered side panel state, framework-free (1.33.0): the twin of the deprecated
  * {@see WikiPanelStateStoreInterface} (`nowo_wiki.comments.state_store` takes either). Panels are
  * {@see WikiPanelStateStoreInterface::COMMENTS} and {@see WikiPanelStateStoreInterface::TREE_RAIL}.
  */

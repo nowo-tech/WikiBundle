@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiSavepoint;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiRevisionLabel;
@@ -70,13 +71,16 @@ final readonly class WikiHistoryThinner
             if ($dryRun) {
                 continue;
             }
-            foreach (array_chunk($ids, self::DELETE_CHUNK) as $chunk) {
-                $em->createQueryBuilder()
-                    ->delete(WikiPageRevision::class, 'r')
-                    ->where('r.id IN (:ids)')
-                    ->setParameter('ids', $chunk)
-                    ->getQuery()->execute();
-            }
+            // 1.33.0: in a savepoint inside the application's transaction (private entity manager only).
+            WikiSavepoint::write($em, static function () use ($em, $ids): void {
+                foreach (array_chunk($ids, self::DELETE_CHUNK) as $chunk) {
+                    $em->createQueryBuilder()
+                        ->delete(WikiPageRevision::class, 'r')
+                        ->where('r.id IN (:ids)')
+                        ->setParameter('ids', $chunk)
+                        ->getQuery()->execute();
+                }
+            });
         }
 
         return ['pages' => $pages, 'revisions' => $removed];

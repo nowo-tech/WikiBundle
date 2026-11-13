@@ -11,7 +11,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use function is_string;
 
 /**
- * Asks a framework-free {@see WikiTeamMembershipSourceInterface} (1.32.0); non-string ids are dropped (the owner-id
+ * Asks a framework-free {@see WikiTeamMembershipSourceInterface} (1.33.0); non-string ids are dropped (the owner-id
  * rules of `WikiSpaceAccessResolver` still apply to the rest).
  *
  * @internal

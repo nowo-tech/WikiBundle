@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
- * 1.32.0 (REQ-ARCH-001 rule 2): writes the Doctrine XML mapping of every wiki entity from its ORM attributes into
+ * 1.33.0 (REQ-ARCH-001 rule 2): writes the Doctrine XML mapping of every wiki entity from its ORM attributes into
  * src/Resources/config/doctrine-xml/ (`nowo_wiki.database.mapping_type: xml`). Deliberately not
  * Resources/config/doctrine, so DoctrineBundle's auto_mapping keeps the attributes by default.
  * XmlMappingParityTest fails when the committed files differ from this output.

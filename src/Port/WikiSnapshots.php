@@ -13,7 +13,7 @@ use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 
 /**
- * Copies the bundle's entities into the snapshots host ports and events carry (1.32.0, REQ-ARCH-001 rules 1 and 3).
+ * Copies the bundle's entities into the snapshots host ports and events carry (1.33.0, REQ-ARCH-001 rules 1 and 3).
  * Only ids and plain values are read: a lazy parent or current revision is never loaded for its id.
  */
 final class WikiSnapshots

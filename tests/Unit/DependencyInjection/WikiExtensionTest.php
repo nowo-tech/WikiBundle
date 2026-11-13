@@ -442,7 +442,7 @@ final class WikiExtensionTest extends TestCase
         $service = $container->getDefinition(WikiCollabService::class);
         self::assertSame(DoctrineWikiCollabStateStore::class, (string) $service->getArgument('$store'));
         self::assertSame(MercureWikiCollabPublisher::class, (string) $service->getArgument('$publisher'));
-        // 1.32: asked through its interface id (WikiPortsPass may put a twin's gate there).
+        // 1.33: asked through its interface id (WikiPortsPass may put a twin's gate there).
         self::assertSame(WikiCollabSubscriberAuthorizerInterface::class, (string) $service->getArgument('$authorizer'));
         self::assertSame(MercureWikiCollabSubscriberAuthorizer::class, (string) $container->getAlias(WikiCollabSubscriberAuthorizerInterface::class));
         self::assertTrue($container->getDefinition(WikiCollabCookieListener::class)->hasTag('kernel.event_listener'));

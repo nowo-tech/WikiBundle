@@ -20,7 +20,7 @@ use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use function sprintf;
 
 /**
- * {@see WikiPageOperationsInterface} over {@see WikiPageServiceInterface} (1.32.0).
+ * {@see WikiPageOperationsInterface} over {@see WikiPageServiceInterface} (1.33.0).
  */
 final readonly class WikiPageOperations implements WikiPageOperationsInterface
 {

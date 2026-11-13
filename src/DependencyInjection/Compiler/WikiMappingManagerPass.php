@@ -18,7 +18,7 @@ use function sprintf;
 use function str_starts_with;
 
 /**
- * Keeps the wiki entities off the entity managers other than `nowo_wiki.database.entity_manager` (1.32.0, the
+ * Keeps the wiki entities off the entity managers other than `nowo_wiki.database.entity_manager` (1.33.0, the
  * LegalKit 1.13.1 pattern for DoctrineBundle 3.4).
  *
  * On every other manager whose metadata driver chain has no driver of its own for the wiki namespace, a
@@ -26,7 +26,7 @@ use function str_starts_with;
  * `auto_discover_entities`) cannot claim the wiki entities there: `doctrine:schema:update --em=<other>` no longer
  * creates the wiki tables a second time and `getManagerForClass()` answers the wiki's manager. A chain that maps the
  * wiki namespace explicitly is left as it is with the attribute mapping (as up to 1.31). With `database.mapping_type:
- * xml` (new in 1.32) the other managers lose any wiki driver too (e.g. `auto_mapping` mapping the bundle's attributes
+ * xml` (new in 1.33) the other managers lose any wiki driver too (e.g. `auto_mapping` mapping the bundle's attributes
  * on the default manager while the XML files are mapped on another one).
  *
  * Nothing happens when the configured manager is not a known Doctrine entity manager (DoctrineBundle reports it).

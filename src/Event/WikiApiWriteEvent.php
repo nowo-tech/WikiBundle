@@ -32,7 +32,7 @@ final class WikiApiWriteEvent extends Event
     }
 
     /**
-     * 1.32: the person behind the token, as a framework-free reference.
+     * 1.33: the person behind the token, as a framework-free reference.
      */
     public function actorRef(): WikiUserRef
     {

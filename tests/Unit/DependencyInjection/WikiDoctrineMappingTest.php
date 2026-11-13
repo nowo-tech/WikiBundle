@@ -16,7 +16,7 @@ use function is_dir;
 use function realpath;
 
 /**
- * 1.32.0: `database.mapping_type` picks the Doctrine mapping prepended for the wiki entities.
+ * 1.33.0: `database.mapping_type` picks the Doctrine mapping prepended for the wiki entities.
  */
 final class WikiDoctrineMappingTest extends TestCase
 {

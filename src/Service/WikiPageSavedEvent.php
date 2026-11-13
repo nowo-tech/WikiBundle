@@ -47,7 +47,7 @@ final readonly class WikiPageSavedEvent
     }
 
     /**
-     * 1.32: the id of the page's space.
+     * 1.33: the id of the page's space.
      */
     public function spaceId(): string
     {
@@ -55,7 +55,7 @@ final readonly class WikiPageSavedEvent
     }
 
     /**
-     * 1.32: the page's id.
+     * 1.33: the page's id.
      */
     public function pageId(): string
     {
@@ -63,7 +63,7 @@ final readonly class WikiPageSavedEvent
     }
 
     /**
-     * 1.32: the page as a framework-free snapshot (REQ-ARCH-001).
+     * 1.33: the page as a framework-free snapshot (REQ-ARCH-001).
      */
     public function pageSnapshot(): WikiPageSnapshot
     {
@@ -71,7 +71,7 @@ final readonly class WikiPageSavedEvent
     }
 
     /**
-     * 1.32: the id of the saved revision.
+     * 1.33: the id of the saved revision.
      */
     public function revisionId(): string
     {
@@ -79,7 +79,7 @@ final readonly class WikiPageSavedEvent
     }
 
     /**
-     * 1.32: the saved revision as a snapshot.
+     * 1.33: the saved revision as a snapshot.
      */
     public function revisionSnapshot(): WikiRevisionSnapshot
     {
@@ -87,7 +87,7 @@ final readonly class WikiPageSavedEvent
     }
 
     /**
-     * 1.32: the id of the revision it replaced; null for a new page.
+     * 1.33: the id of the revision it replaced; null for a new page.
      */
     public function previousRevisionId(): ?string
     {
@@ -95,7 +95,7 @@ final readonly class WikiPageSavedEvent
     }
 
     /**
-     * 1.32: the revision it replaced as a snapshot; null for a new page.
+     * 1.33: the revision it replaced as a snapshot; null for a new page.
      */
     public function previousRevisionSnapshot(): ?WikiRevisionSnapshot
     {
@@ -103,7 +103,7 @@ final readonly class WikiPageSavedEvent
     }
 
     /**
-     * 1.32: the actor as a framework-free reference; null without an actor.
+     * 1.33: the actor as a framework-free reference; null without an actor.
      */
     public function actorRef(): ?WikiUserRef
     {

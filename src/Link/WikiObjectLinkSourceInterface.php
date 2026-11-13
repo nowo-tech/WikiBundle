@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Link;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Describes linked host objects, framework-free (1.32.0): the twin of the deprecated
+ * Describes linked host objects, framework-free (1.33.0): the twin of the deprecated
  * {@see WikiObjectLinkResolverInterface}; autoconfigured with the same tag (`nowo_wiki.object_link_resolver`).
  * Objects keyed by an id that was not asked for are dropped.
  */

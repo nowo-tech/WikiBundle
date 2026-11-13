@@ -26,7 +26,7 @@ use const ENT_QUOTES;
 use const ENT_XML1;
 
 /**
- * 1.32.0 (REQ-ARCH-001 rule 2): the Doctrine XML mapping of every wiki entity, built from its ORM attributes. Used by
+ * 1.33.0 (REQ-ARCH-001 rule 2): the Doctrine XML mapping of every wiki entity, built from its ORM attributes. Used by
  * `scripts/generate-xml-mapping.php` (writes `src/Resources/config/doctrine-xml`) and by `XmlMappingParityTest`
  * (fails when the committed files are not the generator's output). Names the attributes leave implicit stay implicit,
  * so the XML gives the same metadata as the attributes under any naming strategy.
@@ -76,7 +76,7 @@ final class WikiXmlMappingGenerator
             $a .= ' table="' . self::x($table->name) . '"';
         }
         $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-            . "<!-- Generated from the ORM attributes by scripts/generate-xml-mapping.php (1.32.0, REQ-ARCH-001 rule 2). Do not edit. -->\n"
+            . "<!-- Generated from the ORM attributes by scripts/generate-xml-mapping.php (1.33.0, REQ-ARCH-001 rule 2). Do not edit. -->\n"
             . "<doctrine-mapping xmlns=\"http://doctrine-project.org/schemas/orm/doctrine-mapping\"\n"
             . "                  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
             . "                  xsi:schemaLocation=\"http://doctrine-project.org/schemas/orm/doctrine-mapping https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd\">\n"

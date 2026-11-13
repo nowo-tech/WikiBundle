@@ -26,6 +26,7 @@ This bundle is **FrankenPHP worker mode friendly**, including kernel reset false
 - **Import / export** — Outline and Notion Markdown trees (UI + `wiki:import` / `wiki:export` commands)
 - **Symfony AI (optional)** — ask questions about wiki content with RAG context (`symfony/ai-bundle`)
 - `WikiAccessCheckerInterface` + `WikiTeamMembershipResolverInterface` for app ACL
+- **Standard Symfony and DDD / hexagonal hosts (1.33)** — attribute mapping, a Doctrine user and the 1.x ports by default; opt-in framework-free port twins, operations by id, XML mapping, users stored by id and a private entity manager for DDD hosts ([Architecture](docs/ARCHITECTURE.md), [Usage › DDD host](docs/USAGE.md#using-it-from-a-ddd--hexagonal-application))
 - Pages on the **[UiKitBundle](https://github.com/nowo-tech/UiKitBundle) page contract** (list / show / form scaffolds, value-free view models, `<dialog>` confirm for Archive / Restore): the host themes them once with `nowo_ui_kit` — see [Templates](docs/TEMPLATES.md)
 - CSRF on every POST action (the container refuses to compile without form CSRF protection)
 - Integrates **[TiptapEditorBundle](https://github.com/nowo-tech/TiptapEditorBundle)** (`variant: notion` by default)
@@ -67,6 +68,7 @@ The screenshots at the top of this README come from this demo; refresh them with
 - [Installation](docs/INSTALLATION.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Usage](docs/USAGE.md)
+- [Architecture: standard Symfony and DDD hosts](docs/ARCHITECTURE.md)
 - [Templates (UiKit page contract)](docs/TEMPLATES.md)
 - [REST API](docs/API.md) ([OpenAPI](docs/openapi.yaml))
 - [Contributing](docs/CONTRIBUTING.md)

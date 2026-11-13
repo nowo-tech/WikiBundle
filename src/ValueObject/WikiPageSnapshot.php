@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\ValueObject;
 use DateTimeImmutable;
 
 /**
- * A wiki page as host ports and events see it (1.32.0, REQ-ARCH-001 rules 1 and 3): ids and plain values copied from
+ * A wiki page as host ports and events see it (1.33.0, REQ-ARCH-001 rules 1 and 3): ids and plain values copied from
  * the bundle's `WikiPage` row when the port is called (no entity, no revision body). Build one with
  * `Port\WikiSnapshots::page()`.
  */

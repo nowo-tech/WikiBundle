@@ -101,7 +101,7 @@ final readonly class WikiHistoryTimeline
     {
         return match (true) {
             $author instanceof UserInterface     => $author->getUserIdentifier(),
-            $author instanceof WikiStoredUserRef => "\0id:" . $author->id, // 1.32: database.user_reference: id
+            $author instanceof WikiStoredUserRef => "\0id:" . $author->id, // 1.33: database.user_reference: id
             default                              => (string) spl_object_id($author),
         };
     }

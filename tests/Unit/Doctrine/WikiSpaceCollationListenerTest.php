@@ -97,7 +97,7 @@ final class WikiSpaceCollationListenerTest extends TestCase
         self::assertSame('utf8mb4', $table->getColumn('owner_scope_id')->getPlatformOptions()['charset'] ?? null);
     }
 
-    /** 1.32 (`database.user_reference: id`, REQ-SEC-006 item 3): every stored user id column is collated too. */
+    /** 1.33 (`database.user_reference: id`, REQ-SEC-006 item 3): every stored user id column is collated too. */
     #[DataProvider('platforms')]
     public function testIdModeCollatesTheUserColumns(AbstractPlatform $platform, ?string $expected): void
     {

@@ -13,7 +13,7 @@ use Nowo\WikiBundle\DependencyInjection\Compiler\WikiMappingManagerPass;
 use function sprintf;
 
 /**
- * Metadata driver that maps nothing (1.32.0, the LegalKit 1.13.1 pattern): registered for the wiki entity namespace
+ * Metadata driver that maps nothing (1.33.0, the LegalKit 1.13.1 pattern): registered for the wiki entity namespace
  * on the entity managers other than `nowo_wiki.database.entity_manager` by {@see WikiMappingManagerPass}.
  *
  * A {@see MappingDriverChain} asks its namespace drivers before its default driver, so the wiki entities stay transient

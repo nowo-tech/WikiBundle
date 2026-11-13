@@ -15,7 +15,7 @@ use function strrpos;
 use function substr;
 
 /**
- * Builds the {@see WikiUserRef} a host port twin is asked about (1.32.0) from the user object the bundle holds.
+ * Builds the {@see WikiUserRef} a host port twin is asked about (1.33.0) from the user object the bundle holds.
  *
  * @internal
  */

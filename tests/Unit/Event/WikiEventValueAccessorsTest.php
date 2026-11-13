@@ -34,7 +34,7 @@ use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 
 /**
- * 1.32 (REQ-ARCH-001 rules 1 and 4): the events answer with ids, snapshots and user references next to their payload.
+ * 1.33 (REQ-ARCH-001 rules 1 and 4): the events answer with ids, snapshots and user references next to their payload.
  */
 final class WikiEventValueAccessorsTest extends TestCase
 {

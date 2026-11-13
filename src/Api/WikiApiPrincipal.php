@@ -16,7 +16,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 final readonly class WikiApiPrincipal
 {
     /**
-     * @param UserInterface $user the person behind the token; deprecated since 1.32 as a public member (a Symfony
+     * @param UserInterface $user the person behind the token; deprecated since 1.33 as a public member (a Symfony
      *                            type): read {@see self::userRef()}, and build principals with {@see self::of()}
      * @param string $channel `api`, or `mcp` for an in-process caller (spec 219), passed on to the audit event
      */
@@ -31,7 +31,7 @@ final readonly class WikiApiPrincipal
     }
 
     /**
-     * 1.32: a principal for a framework-free authenticator
+     * 1.33: a principal for a framework-free authenticator
      * ({@see WikiApiRequestAuthenticatorInterface}): the person as a {@see WikiUserRef}.
      * The bundle works with the Symfony user the reference was built from, else with a user standing for it (stored by
      * its id).
@@ -51,7 +51,7 @@ final readonly class WikiApiPrincipal
     }
 
     /**
-     * 1.32: the person as a framework-free reference (use it instead of {@see self::$user}).
+     * 1.33: the person as a framework-free reference (use it instead of {@see self::$user}).
      *
      * @return WikiUserRef the person
      */

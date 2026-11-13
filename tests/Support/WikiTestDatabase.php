@@ -73,7 +73,7 @@ final class WikiTestDatabase
     /** Another entity manager (and connection) on the same database, schema untouched: for concurrency tests. */
     public static function connect(?LoggerInterface $sqlLogger = null, string $userReference = WikiMetadataListener::USER_REFERENCE_ENTITY): EntityManager
     {
-        // 1.32 (database.user_reference: id): the column type of the stored user ids, as the bundle's prepend registers it.
+        // 1.33 (database.user_reference: id): the column type of the stored user ids, as the bundle's prepend registers it.
         if (!Type::hasType(WikiUserRefType::NAME)) {
             Type::addType(WikiUserRefType::NAME, WikiUserRefType::class);
         }

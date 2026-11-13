@@ -11,7 +11,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabTopicsAuthorizerInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Asks a framework-free {@see WikiCollabSubscriptionPolicyInterface} (1.32.0) and queues the cookies it grants for
+ * Asks a framework-free {@see WikiCollabSubscriptionPolicyInterface} (1.33.0) and queues the cookies it grants for
  * the response of that request ({@see WikiCollabCookieListener}).
  *
  * @internal
