@@ -6,7 +6,10 @@ namespace Nowo\WikiBundle\Entity;
 
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenance;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Search\WikiPlainText;
+use Nowo\WikiBundle\Util\WikiPlainLabel;
 use Nowo\WikiBundle\ValueObject\Uuid;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -23,6 +26,11 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * 1.26: a revision outlives its author (as TimeTrack time entries do). `author_id` is nullable with `ON DELETE SET
  * NULL` (it was `NOT NULL ... ON DELETE CASCADE`, so deleting a user deleted every revision they wrote); the history
  * then shows "Former person" and keeps nothing else about them.
+ *
+ * Spec 234: `channel` (web | app | api | mcp) and `actor_label` (a token name or host label, at most 120
+ * characters, plain text) record where the write came from, as the host's provenance provider said at write time
+ * (both NULL without one). The actor label is personal data: it is never shown once the author is deleted, and
+ * {@see WikiWriteProvenanceErasure} exports and erases it.
  */
 #[ORM\Entity]
 #[ORM\HasLifecycleCallbacks]
@@ -49,6 +57,14 @@ class WikiPageRevision
     /** 1.16: plain text of the body (null: written before 1.16 and not backfilled yet). */
     #[ORM\Column(name: 'content_text', type: 'text', nullable: true)]
     private ?string $contentText = null;
+
+    /** Spec 234: the channel of the write ({@see WikiWriteProvenance::CHANNELS}), null when not recorded. */
+    #[ORM\Column(name: 'channel', type: 'string', length: 8, nullable: true)]
+    private ?string $channel = null;
+
+    /** Spec 234: the plain-text actor label of the write (at most 120 characters), null when not recorded or erased. */
+    #[ORM\Column(name: 'actor_label', type: 'string', length: 120, nullable: true)]
+    private ?string $actorLabel = null;
 
     /**
      * Creates a revision with a generated UUID and the creation timestamp set to now.
@@ -202,5 +218,34 @@ class WikiPageRevision
     public function getCreatedAt(): DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    /**
+     * Records where the write came from (spec 234). The label is normalised and cut to 120 characters again here, so a
+     * value object built around the checks cannot store more.
+     */
+    public function recordProvenance(WikiWriteProvenance $provenance): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->channel = $provenance->channel;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->actorLabel = WikiPlainLabel::normalize($provenance->actorLabel, WikiWriteProvenance::MAX_LABEL);
+    }
+
+    /**
+     * The channel of the write (spec 234): web, app, api or mcp; null when not recorded.
+     */
+    public function getChannel(): ?string
+    {
+        // Audit PQ-I2: re-checked on read (a value written outside the bundle is not trusted).
+        return WikiWriteProvenance::channelOrNull($this->channel);
+    }
+
+    /**
+     * The plain-text actor label of the write (spec 234), null when not recorded or erased. Escape it when printing it.
+     */
+    public function getActorLabel(): ?string
+    {
+        return $this->actorLabel;
     }
 }

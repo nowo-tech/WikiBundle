@@ -22,7 +22,7 @@ use function fwrite;
 use function rewind;
 
 /**
- * 1.34 (`WIKI_TEST_PORTS=twin`): {@see ApiTestFiles} through the framework-free file store.
+ * 1.36 (`WIKI_TEST_PORTS=twin`): {@see ApiTestFiles} through the framework-free file store.
  */
 final readonly class ApiTwinFiles implements WikiApiFileStoreInterface
 {

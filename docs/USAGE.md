@@ -10,6 +10,8 @@
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Space icon (1.32)](#space-icon-132)
+- [New page dialog and tree menu (1.35)](#new-page-dialog-and-tree-menu-135)
+- [Member badges and write provenance](#member-badges-and-write-provenance)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
   - [Page layout (1.29)](#page-layout-129)
@@ -152,7 +154,7 @@ own messages in one listener:
         }
     }
 
-**The DDD host path (1.34, opt-in)** — see [ARCHITECTURE](ARCHITECTURE.md) for the whole picture:
+**The DDD host path (1.36, opt-in)** — see [ARCHITECTURE](ARCHITECTURE.md) for the whole picture:
 
         nowo_wiki:
             user_class: App\Security\User          # any class with getId(); no Doctrine entity needed with user_reference: id
@@ -224,6 +226,188 @@ $builder->add('icon', WikiSpaceIconType::class);
 
 Space exports carry no space metadata beyond the title (the pages are exported), so the icon is not part of them.
 
+## New page dialog and tree menu (1.35)
+
+Off by default. Turn it on with:
+
+```yaml
+nowo_wiki:
+    tree:
+        enabled: true          # for the tree menu (the dialog works without it)
+    web_ui:
+        new_page_dialog: true
+```
+
+- **Page actions.** The page view gets "New page" in its header actions. It opens the new-page form (title and editor,
+  the same `WikiPageFormType` as the new-page page) in a modal `<dialog>`. Create posts it to the new-page route; a
+  refusal (an empty title, a taken slug, the plan limit, a place no longer valid) shows the form again on its own page
+  with the reason. The space home keeps its "New page" link.
+- **Tree menu.** Each row of the page tree has a menu with "New page above", "New page below" and "New page as child".
+  Open it with a right click on the row, the row's «…» button (shown on hover and focus, always on touch screens), or
+  the ContextMenu key / Shift+F10 when the row has the focus. Arrows, Home and End move between the choices; Enter
+  chooses; Escape or Tab closes the menu and puts the focus back on the row. A choice opens the dialog with a line that
+  says where the page goes ("Below “Runbooks”").
+- **Rights.** Only users who may create pages in the space get the dialog. The tree menu also needs the edit rights in
+  the space (role gate `canEdit()` and `WikiAction::Edit` on the space): one check per page, not per row, so the menu
+  may offer a place under a page the user may not edit; the server refuses it (403). On every create the server checks
+  the create right on the space (role gate and `WikiAction::Create`, so private spaces, id mode and tenants as before)
+  and, for a place, the role gate `canEdit()` and `WikiAction::Edit` on the new page's parent (none at the top level).
+  CSRF is the new-page form's own token (`wiki_new_<space id>`).
+- **Places.** The browser sends what was chosen, never an index: `child:<page id>`, `above:<page id>` or
+  `below:<page id>` (hidden field `place`). The server puts the page right above or below that page, under its parent,
+  or last among its children, whatever the browser shows of the tree (a truncated tree, hidden siblings). The page is
+  created and placed in one transaction that holds the space lock of the tree moves (`WikiPageMover::createAt()` /
+  `createNextTo()`), with the `tree.max_depth` check, so placed creates never share a position. A create without a
+  place is as before: a top-level page at position 0, without the lock (such pages sort by title). A top-level row
+  whose page has an archived parent offers "as child" only.
+- **Links.** `GET …/pages/new?place=child:<page id>` (or `above:` / `below:`) opens the new-page page with the place
+  filled in.
+- **Cost.** With the option on, each page view and space home of a user who may create pages builds the new-page form
+  (and fires `nowo_wiki.editor_options`), mints its CSRF token, loads the editor script and is sent `private, no-store`.
+- **API.** `POST /wikis/{wiki}/pages` takes a numeric `position` instead (see [API.md](API.md#creating-a-page)).
+
+## Member badges and write provenance
+
+Spec 234 (Beacon request; 1.34.0). Two host ports, both framework-free (plain PHP value
+objects, no Symfony, Doctrine or HTTP type: REQ-ARCH-001 rule 3) and both off by default: without them the history,
+the comments and the API render as before (the API answers carry the new fields as null).
+
+### Member badges
+
+`Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface` puts a host-decided badge after a member's name: revision
+authors in the history timeline and comment authors in the comments panel (and in the comments JSON, as
+`author.badges`, only when there are some). Beacon uses it for an *Agent* pill on service accounts.
+
+- The bundle asks `badgesForMany(list<WikiMemberRef>)` **once per rendered list** (a history page, a thread) with the
+  distinct members not seen yet, and memoises the answers for the request only (`WikiMemberBadges`: emptied at every
+  request / console / Messenger boundary and on `kernel.reset`; safe in FrankenPHP worker mode with the kernel kept
+  alive). Answer by index (the key of the list given); a missing index means no badge.
+- `WikiMemberRef` is the user's class (Doctrine proxy prefix removed) and id (`getId()` as a string), the same class +
+  id model as the wiki's id user references; compare with `isSameMemberAs()`. A user without an id the wiki can match
+  exactly (1 to 128 characters, no edge whitespace, no control characters) gets no reference and no badge. A deleted
+  author ("Former person") gets none either.
+- `WikiMemberBadge(label, variant, title)` is plain text: the label is cut to 40 characters, the title (tooltip) to
+  120, control characters removed; `variant` is `neutral`, `info` or `agent` (anything else is refused). The template
+  maps the variant to UiKit badge slots and escapes every value; **no HTML and no CSS class comes from the host**. At
+  most three badges are shown per member; anything that is not a `WikiMemberBadge` is dropped.
+- Badges are shown beside every author, also an opaque "Editor xxxx" (`history.show_names: false`): return categorical
+  badges only ("Agent", "Bot"), never one that names or singles out a person, or the badge links that person's edits
+  across pages.
+- Presentation: override the block `member_label_suffix` (or the file) `manage/_member_label_suffix.html.twig`.
+
+### Write provenance
+
+`Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface::current(): ?WikiWriteProvenance` is asked once per
+new revision (page create, save, restore, conversion to Markdown, imports), at write time. The revision stores:
+
+| Column (`wiki_page_revisions`) | Value |
+| ------------------------------ | ----- |
+| `channel` `VARCHAR(8) NULL` | `web`, `app`, `api` or `mcp` (`WikiWriteProvenance::CHANNELS`; anything else is refused by the value object) |
+| `actor_label` `VARCHAR(120) NULL` | the host's plain-text label (a token name; never a secret, a login or an e-mail): control characters removed, whitespace collapsed, **truncated** to 120 characters (in the value object and again in the entity) |
+
+The actor id is the revision `author` the bundle already stores. The history shows "via MCP · <label>" after the
+author (escaped; nothing when not recorded), the API answers `channel` / `token_name` (see [API](API.md#bodies)).
+
+> **Warning — the actor label can name the author.** A token name is chosen by the user and is the same on every page
+> ("Ana's laptop", `ana-ci`, an e-mail address). Beside an opaque "Editor xxxx" (`history.show_names: false`) it would
+> link the pseudonymous author across pages and often name them. So the label is shown in the history and answered as
+> `token_name` only (audit PQ-M1):
+>
+> - to the author themself (their own writes), always: the same user object, or a `user_class` / `accepted_user_classes`
+>   user with the author's id (a user of another identity domain whose id collides is not the author: audit JX-W1);
+> - to others only with `history.show_actor_labels` on (default: the value of `history.show_names`), beside an author
+>   shown under a real name, and when the label passes the same safe-name rule as display names (no `@`, nothing of
+>   the login or its local part, printable Latin text only).
+>
+> The channel is categorical and is always shown. Comments carry no provenance. The label is user text: a user can
+> call a token "Agent" or "Former person", so never treat it as a verified role (badges come from the badge provider).
+
+Decide the channel from the **request path** (your web UI, your app, your API firewall, your MCP endpoint), never from
+a header, field or parameter the client sends; resolve it per call (no per-request value in a service property).
+
+Standard Symfony host:
+
+```php
+use Nowo\WikiBundle\Provenance\WikiWriteProvenance;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
+
+final readonly class AppWriteProvenance implements WikiWriteProvenanceProviderInterface
+{
+    public function __construct(private RequestStack $requests, private ApiTokenContext $tokens) {}
+
+    public function current(): ?WikiWriteProvenance
+    {
+        $request = $this->requests->getMainRequest();
+        if ($request === null) {
+            return null; // console, Messenger: nothing recorded
+        }
+        $path    = $request->getPathInfo();
+        $channel = match (true) {
+            str_starts_with($path, '/mcp') => WikiWriteProvenance::CHANNEL_MCP,
+            str_starts_with($path, '/api/') => WikiWriteProvenance::CHANNEL_API,
+            default => WikiWriteProvenance::CHANNEL_WEB,
+        };
+
+        return new WikiWriteProvenance($channel, $this->tokens->currentTokenName());
+    }
+}
+```
+
+```yaml
+# config/services.yaml
+Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface: '@App\Wiki\AppWriteProvenance'
+Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface: '@App\Wiki\AppMemberBadges'
+```
+
+DDD / hexagonal host: implement both interfaces in your infrastructure layer as plain adapters over your own request
+context and user read model (they only see `WikiMemberRef` / `WikiWriteProvenance` value objects), and alias them the
+same way. Badges are keyed by the class + id your user references already use, so a host that stores wiki authors by
+id answers from its own table:
+
+```php
+final readonly class MemberBadges implements WikiMemberBadgeProviderInterface
+{
+    public function __construct(private ServiceAccountIds $serviceAccounts) {}
+
+    public function badgesFor(WikiMemberRef $member): array
+    {
+        return $this->badgesForMany([$member])[0] ?? [];
+    }
+
+    public function badgesForMany(array $members): array
+    {
+        $agents = $this->serviceAccounts->among(array_map(static fn (WikiMemberRef $m): string => $m->id, $members));
+        $badges = [];
+        foreach ($members as $index => $member) {
+            if (in_array($member->id, $agents, true)) {
+                $badges[$index] = [new WikiMemberBadge('Agent', WikiMemberBadge::VARIANT_AGENT, 'Service account')];
+            }
+        }
+
+        return $badges;
+    }
+}
+```
+
+### Personal data
+
+The actor label is personal data. The bundle's user-erasure path covers it (audit PQ-L1):
+
+- `wiki:comments:erase-user <user>` exports the labels of the user's revisions (`--export`: `revision_actor_labels`)
+  and erases them, together with the labels of revisions whose author was already deleted (`author_id` set to NULL by
+  the database). With comments disabled the command handles the labels only.
+- `WikiCommentService::exportAuthorData()` (the host's personal-data exporter) includes them as
+  `revision_actor_labels`, and `WikiCommentService::eraseAuthor()` (the host's eraser) erases them: a listener on
+  `nowo_wiki.comment.author_erased` calls `WikiWriteProvenanceErasure::eraseActor()` and `eraseOrphaned()`.
+- `WikiWriteProvenanceErasure` (public service) has `exportActor($user)`, `eraseActor($user)` and `eraseOrphaned()`
+  for hosts with their own flow.
+
+Labels of a deleted author are never shown nor answered, even before they are erased. The channel is not personal data
+and stays. Page exports (`wiki:export`) do not carry provenance. A write answer stored for an `Idempotency-Key` replay
+keeps the `token_name` it had until that record is purged (`nowo:wiki:api:purge-idempotency`, see
+[API](API.md#idempotency)).
+
 ## Twig overrides (REQ-TWIG-001)
 
 The bundle registers **`@NowoWikiBundle/`**. Application files under **`templates/bundles/NowoWikiBundle/`** always win over vendor: `TwigPathsPass` prepends that directory (when it exists) and appends the bundle views after it. Registration is unconditional; the routes follow `web_ui.enabled` (see [CONFIGURATION.md](CONFIGURATION.md)). Controllers render the logical names of `nowo_wiki.web_ui.templates.<page>` (default: the bundle page), so you can also point one page at another template from configuration.
@@ -272,6 +456,7 @@ Paths are relative to `src/Resources/views` (`@NowoWikiBundle/<subpath>`):
 | `manage/_page_tree_item.html.twig` | One page of the tree: link, depth class, `aria-current`, its children |
 | `manage/_ai_dialog.html.twig` | AI question `<dialog>` of the index (UiKit `_dialog`) |
 | `manage/_legacy_layout.html.twig` | Deprecated bridge around a pre-1.10 layout (removed in 2.0) |
+| `manage/_member_label_suffix.html.twig` | Host badges after a member's name (history authors, comment authors); block `member_label_suffix` |
 
 Page header, pagination, flashes, empty states, confirm dialogs and row actions are UiKit partials: re-skin them in UiKit (`templates/bundles/NowoUiKitBundle/…` or `nowo_ui_kit.theme.partials`), once for every bundle.
 
@@ -493,6 +678,47 @@ Fixes in 1.31 (no option): Crepe's leading `.ProseMirror-widget` no longer pushe
 width under 40rem; search excerpts leave out a leading heading equal to the title; the shared `content_html` cache
 stores hidden references as an empty, language-neutral marker (see [UPGRADING](UPGRADING.md#to-1310)); the sanitizer
 keeps the disabled task checkboxes of MilkdownEditorBundle >= 1.17.
+
+#### 1.33 additions
+
+Every option is off by default (the 1.32 edit form).
+
+- **Edit in the read layout** (`web_ui.edit_view.layout: read`): the edit page is the read page with the editor in
+  place of the content. The same tree aside (folded or hidden with `tree_rail` / `tree_collapsed_mode`, the same
+  remembered state and expand button), the same reading column, the same card toolbar (`toolbar_position: card`) and
+  the same path above the content; the title field, the editor and Save / Cancel sit where the body is, and the editor
+  takes the read typography (`--nowo-wiki-read-*` tokens, `.nowo-wiki-edit-body`). Creating a page keeps the form.
+- **Edit toolbar** (`web_ui.page_header.edit_toolbar`): `current_tab: hidden` drops the Edit tab while editing (the
+  tabs read Page / History); `back: view` adds a "View page" eye button (with `tabs: toolbar` it takes the place of
+  "Back to page").
+- **Filling the form in a host template.** The block `wiki_page_form_body` holds the whole form in the read layout
+  (default: the UiKit form). Override `nowo_ui_form_body` to change the fields only; override `wiki_page_form_body` to
+  draw the form yourself (`page.form` is untouched then), or add around it with `{{ parent() }}`:
+
+  ```twig
+  {% extends '@NowoWikiBundle/manage/page_edit.html.twig' %}
+
+  {% block wiki_page_form_body %}
+      <p class="app-edit-hint">{{ 'app.wiki.edit_hint'|trans }}</p>
+      {{ parent() }}
+  {% endblock %}
+  ```
+- **BreadcrumbKit on tenant routes** (fix): with `breadcrumb_current_label: true`, the edit / history / compare / move
+  pages of tenant routes (`tenant_paths`, e.g. `app_project_nowo_wiki_page_edit`) read "Project › Wiki › <title> ›
+  Edit" instead of a generic "Page".
+
+Beacon (replaces a host `.wiki-edit-layout`):
+
+```yaml
+nowo_wiki:
+    web_ui:
+        edit_view:
+            layout: read
+        page_header:
+            edit_toolbar:
+                current_tab: hidden
+                back: view
+```
 
 ## Translations (REQ-I18N-001)
 

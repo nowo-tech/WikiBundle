@@ -46,6 +46,10 @@ final class WikiTenantRoutingTest extends TestCase
 
         $kept = (new WikiRouteLoader(self::ROUTES, '', $this->paths(false)))->load('nowo_wiki', 'nowo_wiki');
         self::assertNotNull($kept->get('nowo_wiki_page_view'));
+        // 1.33: every copy carries its route key (the action, whatever the route name).
+        self::assertSame('page_view', $collection->get('app_project_nowo_wiki_page_view')?->getOption(WikiRouteLoader::ROUTE_KEY_OPTION));
+        self::assertSame('page_view', $kept->get('nowo_wiki_page_view')?->getOption(WikiRouteLoader::ROUTE_KEY_OPTION));
+        self::assertSame('search', $kept->get('nowo_wiki_search')?->getOption(WikiRouteLoader::ROUTE_KEY_OPTION));
         self::assertFalse((new WikiTenantPaths([], self::ROUTES, true))->isTenantOnly());
     }
 

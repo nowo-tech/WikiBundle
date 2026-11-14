@@ -15,6 +15,15 @@
   row); comments.drawer_below / persist as on the read view (js/nowo-ui-layout-state.js in the head when needed).
   1.30: block wiki_page_header_toolbar (web_ui.slots.page_header_toolbar) for host buttons in the toolbar / tab row;
   page_header.tabs: toolbar puts Back to page / Edit (aria-current) / History in the toolbar as icon buttons.
+  1.33 (web_ui.edit_view.layout: read; nowo_wiki_web_ui.layout.edit_layout): the read view's layout around the form
+  (_read_scaffold.html.twig, as on page_view.html.twig): the sidebar tree (block wiki_sidebar, web_ui.slots.sidebar;
+  tree_rail with its fold state, tree_collapsed_mode: hidden with its toolbar button), the reading column
+  (reading_width / reading_align), the card frame and its toolbar (page_header.toolbar_position: card) and the page
+  head with the in-wiki path (page_path). The form takes the place of the page body: block wiki_page_form_body (default:
+  the UiKit form scaffold with its nowo_ui_form_body block; a host block drawing page.form itself replaces it) inside
+  .nowo-wiki-edit-body (the read view's typography for the editor).
+  Extra variables (WikiManageController, read layout only): tree, tree_truncated, max_tree_pages, tree_search_href,
+  tree_ui, tree_rail, space_icon, page_path. Without them (a new page, the form layout) the 1.32 markup.
 #}
 {% extends '@NowoUiKit/page/form.html.twig' %}
 
@@ -25,7 +34,8 @@
         <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
     {% endif %}
     {#- 1.29: a remembered panel state and lg / xl panels applied before the first paint (blocking, external) -#}
-    {% if (nowo_wiki_web_ui.assets.scripts ?? true) and comments|default(null) and (comments.drawer_below|default('md') != 'md' or comments.persist|default(null)) %}
+    {#- 1.33: and the remembered tree rail of the read layout -#}
+    {% if (nowo_wiki_web_ui.assets.scripts ?? true) and ((comments|default(null) and (comments.drawer_below|default('md') != 'md' or comments.persist|default(null))) or tree_rail.persist|default(null)) %}
         {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
         <script src="{{ asset('js/nowo-ui-layout-state.js', 'nowo_ui_kit') }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
@@ -40,8 +50,13 @@
         {% if editor_type|default('tiptap') == 'tiptap' %}
             <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
         {% endif %}
+        {#- 1.33 read layout: the tree (UiKit tree, rail) and wiki.js (current page in view, tree toggles, card toolbar) -#}
+        {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
+        {% if tree_rail|default(null) %}<script src="{{ asset('js/nowo-ui-rail.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
         {% if comments|default(null) %}
             <script src="{{ asset('js/nowo-ui-side-panel.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        {% endif %}
+        {% if comments|default(null) or tree is defined %}
             <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans({}, 'NowoWikiBundle') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
         {% endif %}
     {% endif %}
@@ -53,27 +68,68 @@
 
 {% block nowo_ui_page_header %}
     {% set _layout = nowo_wiki_web_ui.layout ?? {} %}
+    {#- 1.33: the read layout (web_ui.edit_view.layout: read) of an existing page (the controller passes its tree) -#}
+    {% set _read = (_layout.edit_layout ?? 'form') == 'read' and tree is defined and page.header.tabs %}
     {#- 1.30 page_header.tabs: toolbar = Back to page / Edit (current) / History as toolbar buttons, one-row header -#}
     {% set _tabs_toolbar = (_layout.tabs ?? 'row') == 'toolbar' %}
-    {% set _host_toolbar %}{% if page.header.tabs %}{{ block('wiki_page_header_toolbar') }}{% endif %}{% endset %}
+    {#- 1.33 read layout with page_header.toolbar_position: card: the toolbar in the card, as on the page view -#}
+    {% set _in_card = _read and (_layout.toolbar_position ?? 'header') == 'card' %}
+    {% set _host_toolbar %}{% if page.header.tabs and not _in_card %}{{ block('wiki_page_header_toolbar') }}{% endif %}{% endset %}
+    {#- 1.33 read layout with tree_collapsed_mode: hidden: the tree's expand button in the toolbar -#}
+    {% set _tree_toggle %}{% if _read and not _in_card and tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: page.bundle}, false) }}{% endif %}{% endset %}
     {#- 1.29 web_ui.page_header.layout: compact = tabs and actions in the header, one row (no tab row) -#}
-    {% if ((_layout.page_header ?? 'stacked') == 'compact' or _tabs_toolbar) and page.header.tabs %}
-        {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: comments|default(null), extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], bundle: page.bundle, nowo_ui_page_type: 'form', host_toolbar: _host_toolbar, tabs_toolbar: _tabs_toolbar}, false) }}
+    {% if ((_layout.page_header ?? 'stacked') == 'compact' or _tabs_toolbar or _in_card) and page.header.tabs %}
+        {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: _in_card ? null : comments|default(null), extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], bundle: page.bundle, nowo_ui_page_type: 'form', host_toolbar: _host_toolbar, tree_toggle: _tree_toggle, tabs_toolbar: _tabs_toolbar, toolbar_in_card: _in_card}, false) }}
     {% else %}
         {{ include('@NowoUiKitBundle/page/_page_header.html.twig', {header: page.header.withTabs(null), bundle: page.bundle, nowo_ui_page_type: 'form', extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], header_actions: true}, false) }}
-        {% if page.header.tabs %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle, host_toolbar: _host_toolbar}, false) }}{% endif %}
+        {% if page.header.tabs %}{{ include('@NowoWikiBundle/manage/_page_tabs.html.twig', {tabs: page.header.tabs, comments: comments|default(null), bundle: page.bundle, host_toolbar: _host_toolbar, tree_toggle: _tree_toggle}, false) }}{% endif %}
     {% endif %}
 {% endblock %}
 
 {% block nowo_ui_content %}
     {% if collab_conflict|default(null) %}{{ include('@NowoWikiBundle/manage/_collab_conflict.html.twig', {collab_conflict: collab_conflict, bundle: page.bundle}, false) }}{% endif %}
-    {% if comments|default(null) %}
+    {% set _layout = nowo_wiki_web_ui.layout ?? {} %}
+    {% if (_layout.edit_layout ?? 'form') == 'read' and tree is defined and page.header.tabs %}
+        {#- 1.33 (web_ui.edit_view.layout: read): the read view's layout, the form in place of the page body -#}
+        {% set _b = page.bundle %}
+        {% set _sidebar %}
+            {% block wiki_sidebar %}
+                {%- if nowo_wiki_web_ui.slots.sidebar ?? null -%}
+                    {{ include(nowo_wiki_web_ui.slots.sidebar) }}
+                {%- else -%}
+                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), tree_rail: tree_rail|default(null), space_icon: space_icon|default(null), bundle: _b}, false) }}
+                {%- endif -%}
+            {% endblock %}
+        {% endset %}
+        {% set _in_card = (_layout.toolbar_position ?? 'header') == 'card' %}
+        {% set _toolbar = '' %}
+        {% if _in_card %}
+            {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: _b}, false) }}{% endif %}{% endset %}
+            {% set _toolbar %}{{ include('@NowoWikiBundle/manage/_page_toolbar.html.twig', {header: page.header, tabs: (_layout.tabs ?? 'row') == 'toolbar' ? page.header.tabs : null, extra_actions: page.secondaryActionsInHeader ? page.secondaryActions : [], tree_toggle: _tree_toggle, host_toolbar: block('wiki_page_header_toolbar'), comments: comments|default(null), bundle: _b, nowo_ui_page_type: 'form'}, false) }}{% endset %}
+        {% endif %}
+        {#- The form in place of the page body. Its default is the UiKit form scaffold (parent(): header-less form panel,
+            form_start / nowo_ui_form_body / submit + cancel / form_end), rendered only where the block keeps that default
+            (the marker), so a host block that draws page.form itself gets the form untouched. -#}
+        {% set _marker = '<!--nowo-wiki-page-form-->' %}
+        {% set _card %}
+            <div class="nowo-wiki-edit-body" data-testid="wiki-edit-body">
+                {% block wiki_page_form_body %}<!--nowo-wiki-page-form-->{% endblock %}
+            </div>
+        {% endset %}
+        {% if _marker in _card %}
+            {% set _parts = _card|split(_marker, 2) %}
+            {% set _card %}{{ _parts[0]|raw }}{{ parent() }}{{ _parts[1]|raw }}{% endset %}
+        {% endif %}
+        {% set _wiki_content %}{{ include('@NowoWikiBundle/manage/_read_scaffold.html.twig', {layout: _layout, tree_rail: tree_rail|default(null), tabs: true, sidebar: _sidebar, in_card: _in_card, toolbar: _toolbar, page_path: page_path|default(null), page_children: null, card: _card, bundle: _b}, false) }}{% endset %}
+    {% else %}
         {% set _wiki_content %}{{ parent() }}{% endset %}
+    {% endif %}
+    {% if comments|default(null) %}
         {% embed nowo_ui_partial('side_panel_container', page.bundle) with {bundle: page.bundle, drawer_below: comments.drawer_below|default('md'), attr: {'data-testid': 'wiki-comments-layout'}} %}
             {% block nowo_ui_side_panel_main %}{{ _wiki_content }}{% endblock %}
             {% block nowo_ui_side_panel_panel %}{{ include('@NowoWikiBundle/manage/_comments_panel.html.twig', {comments: comments, bundle: bundle}, false) }}{% endblock %}
         {% endembed %}
     {% else %}
-        {{ parent() }}
+        {{ _wiki_content }}
     {% endif %}
 {% endblock %}

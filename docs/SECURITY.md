@@ -154,7 +154,7 @@ Mitigations since 1.31.1:
 - `WikiOwnerScopeId`: an id with leading or trailing whitespace, a control or format character, invalid UTF-8 or more
   than 64 characters owns nothing (dropped by the resolver, refused by `WikiSpaceService::create()`), never normalised;
 - `WikiSpaceCollationListener`: binary NO PAD collation on `owner_scope_id` (MySQL 8 `utf8mb4_0900_bin`, MariaDB
-  `utf8mb4_nopad_bin`, MySQL 5.7 `utf8mb4_bin`). Existing tables: [UPGRADING › Unreleased](UPGRADING.md#unreleased).
+  `utf8mb4_nopad_bin`, MySQL 5.7 `utf8mb4_bin`). Existing tables: [UPGRADING › Unreleased](UPGRADING.md#to-1330).
 
 ## Content safety
 

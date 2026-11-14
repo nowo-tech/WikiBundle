@@ -65,6 +65,7 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\History\WikiHistoryThinner;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
@@ -82,10 +83,17 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
+use Nowo\WikiBundle\Member\NullWikiMemberBadgeProvider;
+use Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface;
+use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
+use Nowo\WikiBundle\Provenance\NullWikiWriteProvenanceProvider;
+use Nowo\WikiBundle\Provenance\WikiProvenanceAuthorErasedListener;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
@@ -97,6 +105,7 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
@@ -289,7 +298,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.database.user_reference', $database['user_reference']);
         $container->setParameter('nowo_wiki.database.private_entity_manager', (bool) $database['private_entity_manager']);
         $container->setParameter('nowo_wiki.user_directory', $config['user_directory']);
-        // 1.34 (database.user_reference: id): the host's user directory, when configured.
+        // 1.36 (database.user_reference: id): the host's user directory, when configured.
         if (is_string($config['user_directory']) && $config['user_directory'] !== '') {
             $container->setAlias(WikiUserDirectoryInterface::class, $config['user_directory']);
         }
@@ -375,7 +384,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         $container->setParameter('nowo_wiki.database.entity_manager', $emName);
-        // 1.34.0 (REQ-ARCH-001 rule 6): the opt-in private entity manager.
+        // 1.36.0 (REQ-ARCH-001 rule 6): the opt-in private entity manager.
         $private = $database['private_entity_manager'] === true;
         if ($private) {
             $container->setDefinition(WikiEntityManager::class, (new Definition(WikiEntityManager::class))
@@ -459,6 +468,57 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerAiServices($container, $config['ai']);
         $this->registerApi($container, $loader, $config);
         $this->registerRequestBoundary($container);
+        $this->registerMemberBadgesAndProvenance($container, $emProviderRef, $config);
+    }
+
+    /**
+     * Spec 234: the member badge hook (a null provider by alias; the host aliases
+     * {@see WikiMemberBadgeProviderInterface}), its per-request memo (emptied at every boundary and on `kernel.reset`),
+     * read by the history timeline and the comments; and the write provenance hook (a null provider by alias; the host
+     * aliases {@see WikiWriteProvenanceProviderInterface}), its erasure service and the API's provenance finder.
+     */
+    /**
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerMemberBadgesAndProvenance(ContainerBuilder $container, Reference $entityManager, array $config): void
+    {
+        $container->setDefinition(NullWikiMemberBadgeProvider::class, new Definition(NullWikiMemberBadgeProvider::class));
+        $container->setAlias(WikiMemberBadgeProviderInterface::class, NullWikiMemberBadgeProvider::class);
+        $container->setDefinition(WikiMemberBadges::class, (new Definition(WikiMemberBadges::class))
+            ->setArgument('$provider', new Reference(WikiMemberBadgeProviderInterface::class))
+            ->addTag('kernel.reset', ['method' => 'reset']));
+        foreach ([WikiHistoryTimeline::class, WikiCommentService::class] as $reader) {
+            if ($container->hasDefinition($reader)) {
+                $container->getDefinition($reader)->setArgument('$badges', new Reference(WikiMemberBadges::class));
+            }
+        }
+
+        $container->setDefinition(NullWikiWriteProvenanceProvider::class, new Definition(NullWikiWriteProvenanceProvider::class));
+        $container->setAlias(WikiWriteProvenanceProviderInterface::class, NullWikiWriteProvenanceProvider::class);
+        $container->setDefinition(WikiWriteProvenanceErasure::class, (new Definition(WikiWriteProvenanceErasure::class))
+            ->setArgument('$entityManager', $entityManager)
+            ->setArgument('$users', new Reference(WikiUserReferenceResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setPublic(true));
+        // Audit PQ-D1-I2: the service export of a comment author carries their actor labels.
+        if ($container->hasDefinition(WikiCommentService::class)) {
+            $container->getDefinition(WikiCommentService::class)->setArgument('$provenance', new Reference(WikiWriteProvenanceErasure::class));
+        }
+        // Audit PQ-L1: the comment author erasure erases the user's actor labels (and the orphaned ones) too.
+        $container->setDefinition(WikiProvenanceAuthorErasedListener::class, (new Definition(WikiProvenanceAuthorErasedListener::class))
+            ->setArgument('$erasure', new Reference(WikiWriteProvenanceErasure::class))
+            ->addTag('kernel.event_listener', ['event' => WikiEvents::COMMENT_AUTHOR_ERASED]));
+        $container->setAlias(WikiPageProvenanceFinderInterface::class, DoctrineOrmWikiPageRevisionRepository::class);
+
+        // Audit PQ-M1: actor labels only beside real names (history.show_actor_labels, default history.show_names).
+        /** @var array{show_names: bool, show_actor_labels: bool|null} $history */
+        $history = $config['history'];
+        $container->setDefinition(WikiActorLabels::class, (new Definition(WikiActorLabels::class))
+            ->setArgument('$authors', new Reference(WikiAuthorLabel::class))
+            ->setArgument('$show', $history['show_actor_labels'] ?? $history['show_names'])
+            ->setArgument('$classes', new Reference(WikiUserClassPolicy::class)));
+        if ($container->hasDefinition(WikiHistoryTimeline::class)) {
+            $container->getDefinition(WikiHistoryTimeline::class)->setArgument('$actorLabels', new Reference(WikiActorLabels::class));
+        }
     }
 
     /**
@@ -471,8 +531,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     {
         $memos = array_map(
             static fn (string $id): Reference => new Reference($id, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE),
-            [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class,
-                // 1.34.0: the private entity manager last, after the memos that may still hold its rows.
+            [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class,
+                // 1.36.0: the private entity manager last, after the memos that may still hold its rows.
                 WikiEntityManager::class],
         );
         $container->setDefinition(WikiRequestBoundaryResetter::class, (new Definition(WikiRequestBoundaryResetter::class))
@@ -965,7 +1025,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 ->setArgument('$hub', $hub));
         }
 
-        // 1.34: the authorizer is asked through its interface id, so WikiPortsPass can put the twin's gate there.
+        // 1.36: the authorizer is asked through its interface id, so WikiPortsPass can put the twin's gate there.
         $container->setAlias(WikiCollabSubscriberAuthorizerInterface::class, $authorizer);
         $container->setDefinition(WikiCollabCookieListener::class, (new Definition(WikiCollabCookieListener::class))
             ->addTag('kernel.event_listener', ['event' => 'kernel.response', 'method' => 'onResponse']));
@@ -1006,7 +1066,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(AccessibleWikiSpaceLocator::class, (new Definition(AccessibleWikiSpaceLocator::class))->setAutowired(true));
         $container->setAlias(WikiSpaceLocatorInterface::class, AccessibleWikiSpaceLocator::class);
         $container->registerForAutoconfiguration(WikiObjectLinkResolverInterface::class)->addTag('nowo_wiki.object_link_resolver');
-        // 1.34: the framework-free twin takes the same tag (WikiPageLinkService asks it through a gate).
+        // 1.36: the framework-free twin takes the same tag (WikiPageLinkService asks it through a gate).
         $container->registerForAutoconfiguration(WikiObjectLinkSourceInterface::class)->addTag('nowo_wiki.object_link_resolver');
 
         $container->setDefinition(WikiTenantPaths::class, (new Definition(WikiTenantPaths::class))
@@ -1030,6 +1090,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     private function registerPages(ContainerBuilder $container, array $config): void
     {
         $templates = self::templates($config);
+        $layout    = self::layout($config['web_ui']);
         $container->setDefinition(WikiPages::class, (new Definition(WikiPages::class))
             ->setArgument('$layoutTemplate', $templates['layout'])
             ->setArgument('$templates', array_diff_key($templates, ['layout' => true]))
@@ -1045,10 +1106,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             // 1.31: page_header.tabs: toolbar (the edit form's header without back link and intro, Reset collaboration
             // in the "more" menu) and page_meta: card (the revision line in the content card, not the scaffold meta).
             ->setArgument('$tabsToolbar', ($config['web_ui']['page_header']['tabs'] ?? 'row') === 'toolbar')
-            ->setArgument('$metaInCard', ($config['web_ui']['page_meta'] ?? 'scaffold') === 'card'));
+            ->setArgument('$metaInCard', ($config['web_ui']['page_meta'] ?? 'scaffold') === 'card')
+            // 1.33: page_header.edit_toolbar (the Edit tab left out of the edit form; a "View page" button).
+            ->setArgument('$editToolbar', ['current_tab' => $layout['edit_current_tab'], 'back' => $layout['edit_back']]));
         // 1.31 (web_ui.breadcrumb_current_label, BreadcrumbKit >= 2.17 installed): the page crumb of the edit, history,
         // compare and move pages is named after the page (a trail listener; the title rides on the request).
-        if (self::layout($config['web_ui'])['breadcrumb_current_label'] && class_exists(BreadcrumbTrailBuiltEvent::class)) {
+        if ($layout['breadcrumb_current_label'] && class_exists(BreadcrumbTrailBuiltEvent::class)) {
             $container->setDefinition(WikiBreadcrumbParentLabel::class, (new Definition(WikiBreadcrumbParentLabel::class))
                 ->setArgument('$urlGenerator', new Reference('router'))
                 ->setArgument('$routes', $config['routes'])
@@ -1077,9 +1140,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      * @throws InvalidConfigurationException when a slot is not a template name
      *
      * 1.29: `layout` (tree_rail, narrow_tree_position, reading_width, page_header, title, comments_dock), read by the
-     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap. 1.31: title `card`, page_meta.
+     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap. 1.31: title `card`, page_meta. 1.33: edit_layout, edit_current_tab, edit_back. 1.35: new_page_dialog.
      *
-     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string}}
+     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string, new_page_dialog: bool}}
      */
     public static function ui(array $webUi): array
     {
@@ -1105,7 +1168,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      *
      * @param array<string, mixed> $webUi processed `web_ui` node
      *
-     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string}
+     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string, new_page_dialog: bool}
      */
     public static function layout(array $webUi): array
     {
@@ -1137,6 +1200,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'seamless_swap'            => ($webUi['read_view']['seamless_swap'] ?? false) === true,
             // 1.31
             'page_meta' => ($webUi['page_meta'] ?? 'scaffold') === 'card' ? 'card' : 'scaffold',
+            // 1.33
+            'edit_layout'      => ($webUi['edit_view']['layout'] ?? 'form') === 'read' ? 'read' : 'form',
+            'edit_current_tab' => ($header['edit_toolbar']['current_tab'] ?? 'shown') === 'hidden' ? 'hidden' : 'shown',
+            'edit_back'        => ($header['edit_toolbar']['back'] ?? 'none') === 'view' ? 'view' : 'none',
+            // 1.35
+            'new_page_dialog' => ($webUi['new_page_dialog'] ?? false) === true,
         ];
     }
 
@@ -1341,10 +1410,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ]);
         }
 
-        // 1.34.0: database.mapping_type (attribute by default, as up to 1.31; xml for DDD hosts).
+        // 1.36.0: database.mapping_type (attribute by default, as up to 1.31; xml for DDD hosts).
         WikiDoctrineMapping::prepend($container);
 
-        // 1.34 (database.user_reference: id): the column type of the stored user ids.
+        // 1.36 (database.user_reference: id): the column type of the stored user ids.
         if ($container->hasExtension('doctrine') && self::userReferencesById($container)) {
             $container->prependExtensionConfig('doctrine', ['dbal' => ['types' => [WikiUserRefType::NAME => WikiUserRefType::class]]]);
         }
@@ -1354,7 +1423,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
-     * Whether the host configuration sets `database.user_reference: id` (1.34; the last value wins, as in the tree).
+     * Whether the host configuration sets `database.user_reference: id` (1.36; the last value wins, as in the tree).
      */
     private static function userReferencesById(ContainerBuilder $container): bool
     {

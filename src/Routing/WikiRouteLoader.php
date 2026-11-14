@@ -96,7 +96,7 @@ final class WikiRouteLoader extends Loader
                         continue;
                     }
 
-                    $this->addRoutes($collection, $this->routes[$key], $controller . '::' . $method->getName(), $declared->methods, $declared->requirements, $declared->defaults);
+                    $this->addRoutes($collection, $this->routes[$key], $controller . '::' . $method->getName(), $declared->methods, $declared->requirements, $declared->defaults, $key);
                 }
             }
         }
@@ -146,10 +146,13 @@ final class WikiRouteLoader extends Loader
      * @param array<string> $methods
      * @param array<string, mixed> $requirements
      * @param array<string, mixed> $defaults placeholder defaults of the attribute (1.16: the optional `{path}` of `page_comments`)
+     * @param string $key 1.33: the `routes.<key>` of the action, kept as the {@see self::ROUTE_KEY_OPTION} option of
+     *                    every copy (bundle and tenant routes), so that the action is known whatever the route name
      */
-    private function addRoutes(RouteCollection $collection, array $route, string $controller, array $methods, array $requirements, array $defaults = []): void
+    private function addRoutes(RouteCollection $collection, array $route, string $controller, array $methods, array $requirements, array $defaults, string $key): void
     {
         $defaults    = ['_controller' => $controller] + $defaults;
+        $options     = [self::ROUTE_KEY_OPTION => $key];
         $spaceScoped = WikiTenantPaths::isSpaceScoped($route['path']);
 
         foreach ($this->tenantPaths?->tenants() ?? [] as $tenant) {
@@ -163,7 +166,7 @@ final class WikiRouteLoader extends Loader
                     WikiTenantPaths::tenantPath($tenant['path'], $route['path']),
                     $defaults,
                     ['spaceSlug' => $tenant['slug_requirement']] + $requirements,
-                    [],
+                    $options,
                     '',
                     [],
                     $methods,
@@ -175,21 +178,22 @@ final class WikiRouteLoader extends Loader
             return;
         }
 
-        $collection->add($route['name'], $this->createRoute($route['path'], $defaults, $methods, $requirements));
+        $collection->add($route['name'], $this->createRoute($route['path'], $defaults, $methods, $requirements, $options));
     }
 
     /**
      * @param array<string, mixed> $defaults
      * @param array<string> $methods
      * @param array<string, mixed> $requirements
+     * @param array<string, string> $options
      */
-    private function createRoute(string $path, array $defaults, array $methods, array $requirements): Route
+    private function createRoute(string $path, array $defaults, array $methods, array $requirements, array $options): Route
     {
         $prefix = rtrim($this->routePrefix, '/');
         if ($prefix !== '') {
             $path = $prefix . (str_starts_with($path, '/') ? $path : '/' . $path);
         }
 
-        return new Route($path, $defaults, $requirements, [], '', [], $methods);
+        return new Route($path, $defaults, $requirements, $options, '', [], $methods);
     }
 }

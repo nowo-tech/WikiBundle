@@ -388,7 +388,9 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($defaults['web_ui']['tree_rail']);
         self::assertSame('before', $defaults['web_ui']['narrow_tree_position']);
         self::assertSame('full', $defaults['web_ui']['reading_width']);
-        self::assertSame(['layout' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'path' => 'none'], $defaults['web_ui']['page_header']);
+        self::assertSame(['layout' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'edit_toolbar' => ['current_tab' => 'shown', 'back' => 'none'], 'path' => 'none'], $defaults['web_ui']['page_header']);
+        // 1.33 defaults keep the 1.32 edit form.
+        self::assertSame(['layout' => 'form'], $defaults['web_ui']['edit_view']);
         self::assertSame('never', $defaults['web_ui']['children']);
         self::assertFalse($defaults['web_ui']['breadcrumb_current_label']);
         // 1.30 layout defaults keep the 1.29 page.
@@ -397,7 +399,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame(['seamless_swap' => false], $defaults['web_ui']['read_view']);
         self::assertNull($defaults['web_ui']['slots']['page_header_toolbar']);
         $on = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'web_ui' => ['tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'page_header' => ['title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => 'card'], 'slots' => ['page_header_toolbar' => 'wiki/_toolbar.html.twig']]]]);
-        self::assertSame(['title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'layout' => 'stacked', 'path' => 'none'], $on['web_ui']['page_header']);
+        self::assertSame(['title' => 'body', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'layout' => 'stacked', 'edit_toolbar' => ['current_tab' => 'shown', 'back' => 'none'], 'path' => 'none'], $on['web_ui']['page_header']);
         self::assertSame('hidden', $on['web_ui']['tree_collapsed_mode']);
         self::assertSame('start', $on['web_ui']['reading_align']);
         self::assertSame('wiki/_toolbar.html.twig', $on['web_ui']['slots']['page_header_toolbar']);

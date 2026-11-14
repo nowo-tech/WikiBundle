@@ -11,7 +11,7 @@ use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 
 /**
- * {@see WikiSpaceOperationsInterface} over {@see WikiSpaceServiceInterface} (1.34.0).
+ * {@see WikiSpaceOperationsInterface} over {@see WikiSpaceServiceInterface} (1.36.0).
  */
 final readonly class WikiSpaceOperations implements WikiSpaceOperationsInterface
 {

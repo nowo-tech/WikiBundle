@@ -24,12 +24,15 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
+use Nowo\WikiBundle\Member\WikiMemberBadge;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 use function array_fill_keys;
 use function array_key_exists;
+use function array_map;
+use function array_unshift;
 use function count;
 use function is_array;
 
@@ -82,6 +85,9 @@ final readonly class WikiPageFactory
      *                          the "more" menu (UiKit `split` layout)
      * @param bool $metaInCard 1.31 `web_ui.page_meta: card`: the page view leaves the revision out of the scaffold meta
      *                         (the template prints it as the content card's footer line)
+     * @param array{current_tab?: string, back?: string} $editToolbar 1.33 `web_ui.page_header.edit_toolbar`:
+     *                                                                current_tab `hidden` leaves the Edit tab out of the
+     *                                                                edit form; back `view` adds a "View page" icon button
      */
     public function __construct(
         private UrlGeneratorInterface $urlGenerator,
@@ -93,6 +99,7 @@ final readonly class WikiPageFactory
         private bool $compactHeader = false,
         private bool $tabsToolbar = false,
         private bool $metaInCard = false,
+        private array $editToolbar = [],
     ) {
     }
 
@@ -226,7 +233,8 @@ final readonly class WikiPageFactory
      * (Page / Edit / History, {@see self::pageTabs()}), revision meta; the template renders the tree, the sanitized
      * content and "Used in". 1.25 (WK-6): Edit and History are only tabs (until 1.24 they were header actions too).
      *
-     * @param array{edit: bool, history: bool, move?: bool} $can what the user may do on the page (1.14: move)
+     * @param array{edit: bool, history: bool, move?: bool, new_page_dialog?: bool} $can what the user may do on the page (1.14: move; 1.35:
+     *                                                                                   new_page_dialog = "New page" in the actions, opening the dialog)
      * @param FormView|null $archiveForm CSRF form of the archive action (null = no archive action)
      * @param FormView|null $deleteForm CSRF form of the Delete action (1.14 trash; null = no Delete action)
      */
@@ -236,6 +244,11 @@ final readonly class WikiPageFactory
         $tabs   = $this->pageTabs($space, $page, $can, 'page');
         // 1.25 (WK-6): Edit and History are tabs of the tab row (1.16, same rights), never header actions as well.
         $actions = [];
+        // 1.35 (web_ui.new_page_dialog): "New page" opens the new-page dialog (UiKit dialog script; a button, no URL: a
+        // URL would be fetched into the dialog body).
+        if ($can['new_page_dialog'] ?? false) {
+            $actions[] = new Action('create', WikiPages::label('wiki.space.new_page'), attributes: ['data-testid' => 'wiki-new-page'], dialogId: WikiNewPageMenu::DIALOG_ID);
+        }
         // 1.15: Save version names the current revision (history.timeline, editors).
         if (($can['version'] ?? false) && $this->has('page_version_save')) {
             $actions[] = new Action('create', WikiPages::label('wiki.history.save_version'), $this->url('page_version_save', $params), attributes: ['data-testid' => 'wiki-save-version']);
@@ -332,14 +345,31 @@ final readonly class WikiPageFactory
             );
         }
 
+        $tabs = null;
+        if ($page instanceof WikiPage) {
+            // 1.16 (B-Q1): the edit view of an existing page gets the tab row (Edit is the current tab); 1.33
+            // (edit_toolbar.current_tab: hidden) without the Edit tab.
+            $tabs = $this->pageTabs($space, $page, ['edit' => ($this->editToolbar['current_tab'] ?? 'shown') !== 'hidden', 'history' => $can['history'] ?? false], 'edit');
+            // 1.33 (edit_toolbar.back: view): a "View page" icon button (UiKit `view` icon); with the tabs in the toolbar it
+            // replaces "Back to page" ({@see WikiTabActions}), else it opens the header actions.
+            if (($this->editToolbar['back'] ?? 'none') === 'view') {
+                if ($toolbar) {
+                    $tabs = new AreaNav(array_map(static fn (AreaNavItem $item): AreaNavItem => ($item->attributes['data-testid'] ?? null) === 'wiki-tab-page'
+                        ? new AreaNavItem($item->label, $item->href, $item->active, $item->attributes + [WikiTabActions::BACK_VIEW_ATTRIBUTE => 'view'], $item->icon)
+                        : $item, $tabs->items), $tabs->label, $tabs->attributes);
+                } else {
+                    array_unshift($actions, new Action('view', WikiPages::label('wiki.action.view_page'), $back, variant: 'neutral', attributes: ['data-testid' => 'wiki-edit-view-page'], display: 'icon'));
+                }
+            }
+        }
+
         return new FormPage(
             header: new PageHeader(
                 $page instanceof WikiPage ? WikiPages::label('wiki.page.edit_title', ['%title%' => $page->getTitle()]) : WikiPages::label('wiki.page.new'),
                 $toolbar ? null : $space->getName(),
                 $actions,
                 breadcrumbs: $this->crumbs($space, $page, WikiPages::label($page instanceof WikiPage ? 'wiki.page.edit' : 'wiki.page.new')),
-                // 1.16 (B-Q1): the edit view of an existing page gets the tab row (Edit is the current tab).
-                tabs: $page instanceof WikiPage ? $this->pageTabs($space, $page, ['edit' => true, 'history' => $can['history'] ?? false], 'edit') : null,
+                tabs: $tabs,
                 back: $toolbar ? null : new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
                 actionsLayout: $toolbar ? 'split' : 'toolbar',
             ),
@@ -405,8 +435,8 @@ final readonly class WikiPageFactory
      * @param list<WikiPageRevision> $revisions revisions of the current page, newest first
      * @param WikiPageRevision|null $older first revision of the next page (compare target of the last row)
      * @param array<int|string, FormView> $restoreForms revision number => CSRF restore form
-     * @param array<int, array{author: string, avatar?: string|null, named?: bool, label: string|null, saves: int, deleted?: bool}>|null $timeline 1.15
-     *                                                                                                                                             timeline rows per revision number (null: the 1.14 list); 1.16: `avatar` / `named`; 1.26: `deleted`
+     * @param array<int, array{author: string, avatar?: string|null, named?: bool, label: string|null, saves: int, deleted?: bool, badges?: list<WikiMemberBadge>, channel?: string|null, actor_label?: string|null}>|null $timeline 1.15
+     *                                                                                                                                                                                                                               timeline rows per revision number (null: the 1.14 list); 1.16: `avatar` / `named`; 1.26: `deleted`
      * @param array<int|string, FormView> $copyForms 1.15 Copy to new page forms per revision number
      */
     public function history(WikiSpace $space, WikiPage $page, array $revisions, ?WikiPageRevision $older, array $restoreForms, ?Pagination $pagination, ?array $timeline = null, array $copyForms = []): ListPage
@@ -433,6 +463,11 @@ final readonly class WikiPageFactory
                     'author_avatar' => $entry['avatar'] ?? '',
                     // 1.26: the author's account was deleted (the template shows "Former person").
                     'author_deleted' => $entry['deleted'] ?? false,
+                    // Spec 234: the host's badges (WikiMemberBadge value objects, printed escaped) and where the
+                    // write came from (channel and actor label, '' when not recorded).
+                    'author_badges'      => $entry['badges'] ?? [],
+                    'author_channel'     => $entry['channel'] ?? '',
+                    'author_actor_label' => $entry['actor_label'] ?? '',
                     // Rows hold scalars: the count of saves (2 or more) on the newest row of a session.
                     'session' => $entry['saves'] > 1 ? $entry['saves'] : '',
                 ];

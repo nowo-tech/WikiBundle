@@ -8,6 +8,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenance;
 use SortDirection;
 
 use function max;
@@ -15,7 +16,7 @@ use function max;
 /**
  * Doctrine ORM implementation of the wiki page revision repository.
  */
-final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRevisionRepositoryInterface
+final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRevisionRepositoryInterface, WikiPageProvenanceFinderInterface
 {
     /**
      * Creates the repository.
@@ -109,6 +110,57 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
             ->getSingleScalarResult();
 
         return ((int) $max) + 1;
+    }
+
+    /**
+     * Spec 234: two queries whatever the number of pages — the oldest stored revision's author per page, and the
+     * current revision's channel, actor label and author.
+     *
+     * @param list<string> $pageIds page ids
+     *
+     * @return array<string, WikiPageProvenance> by page id
+     */
+    public function pageProvenance(array $pageIds): array
+    {
+        if ($pageIds === []) {
+            return [];
+        }
+        $entityManager = $this->entityManager();
+        /** @var list<array{pageId: string, authorId: int|string|null}> $creators */
+        $creators = $entityManager->createQueryBuilder()
+            ->select('IDENTITY(r.page) AS pageId', 'IDENTITY(r.author) AS authorId')
+            ->from(WikiPageRevision::class, 'r')
+            ->where('IDENTITY(r.page) IN (:ids)')
+            ->andWhere('r.revisionNumber = (SELECT MIN(f.revisionNumber) FROM ' . WikiPageRevision::class . ' f WHERE f.page = r.page)')
+            ->setParameter('ids', $pageIds)
+            ->getQuery()
+            ->getArrayResult();
+        /** @var list<array{pageId: string, channel: string|null, actorLabel: string|null, authorId: int|string|null}> $currents */
+        $currents = $entityManager->createQueryBuilder()
+            ->select('p.id AS pageId', 'r.channel AS channel', 'r.actorLabel AS actorLabel', 'IDENTITY(r.author) AS authorId')
+            ->from(WikiPage::class, 'p')
+            ->innerJoin('p.currentRevision', 'r')
+            ->where('p.id IN (:ids)')
+            ->setParameter('ids', $pageIds)
+            ->getQuery()
+            ->getArrayResult();
+
+        $creatorIds = [];
+        foreach ($creators as $row) {
+            $creatorIds[(string) $row['pageId']] = $row['authorId'] === null ? null : (string) $row['authorId'];
+        }
+        $provenance = [];
+        foreach ($currents as $row) {
+            $pageId              = (string) $row['pageId'];
+            $provenance[$pageId] = new WikiPageProvenance(
+                $creatorIds[$pageId] ?? null,
+                WikiWriteProvenance::channelOrNull($row['channel']),
+                $row['actorLabel'],
+                $row['authorId'] === null ? null : (string) $row['authorId'],
+            );
+        }
+
+        return $provenance;
     }
 
     private function entityManager(): EntityManagerInterface

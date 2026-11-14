@@ -1,0 +1,10 @@
+{#
+  1.35 (web_ui.new_page_dialog): the «…» button of a page tree row (UiKit tree `actions_template`, WikiNewPageMenu).
+  Hidden until wiki.js finds a choice the user may take on that row ("New page above / below / as child"); out of the
+  tab order (tabindex -1), as UiKit asks, so the tree keeps one tab stop: the keyboard opens the same menu with the
+  ContextMenu key or Shift+F10 on the row.
+  No aria-expanded: the UiKit tree styles a row holding [aria-expanded=true] as an unfolded parent; data-wiki-open marks
+  the open menu instead. Variables: node (UiKit tree node: id, label, item_attr).
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+<button type="button" class="nowo-wiki-tree__more" tabindex="-1" hidden aria-haspopup="menu" aria-controls="nowo-wiki-new-page-menu" aria-label="{{ 'wiki.new_page.more'|trans({'%title%': node.label|nowo_ui_trans}) }}" title="{{ 'wiki.new_page.more'|trans({'%title%': node.label|nowo_ui_trans}) }}" data-wiki-new-page-more data-testid="wiki-new-page-more"><span aria-hidden="true">…</span></button>

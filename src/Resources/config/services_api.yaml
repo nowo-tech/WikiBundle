@@ -48,11 +48,17 @@ services:
 
     Nowo\WikiBundle\Api\Operation\WikiApiPageReadOperations:
         public: true
+        arguments:
+            # Spec 234: created_by, channel and token_name.
+            $provenance: '@?Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface'
+            # Spec 234 (audit PQ-M1): token names only beside real names or for their author.
+            $actorLabels: '@?Nowo\WikiBundle\History\WikiActorLabels'
 
     Nowo\WikiBundle\Api\Operation\WikiApiRevisionOperations:
         public: true
         arguments:
             $labels: '@?Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface'
+            $actorLabels: '@?Nowo\WikiBundle\History\WikiActorLabels'
 
     Nowo\WikiBundle\Api\Operation\WikiApiSearchOperations:
         public: true

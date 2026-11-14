@@ -15,7 +15,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Asks a framework-free {@see WikiApiFileStoreInterface} (1.34.0) and builds the download response.
+ * Asks a framework-free {@see WikiApiFileStoreInterface} (1.36.0) and builds the download response.
  *
  * @internal
  */

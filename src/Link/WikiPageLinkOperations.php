@@ -13,7 +13,7 @@ use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use function sprintf;
 
 /**
- * {@see WikiPageLinkOperationsInterface} over {@see WikiPageLinkServiceInterface} (1.34.0).
+ * {@see WikiPageLinkOperationsInterface} over {@see WikiPageLinkServiceInterface} (1.36.0).
  */
 final readonly class WikiPageLinkOperations implements WikiPageLinkOperationsInterface
 {

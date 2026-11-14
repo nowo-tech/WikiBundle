@@ -32,6 +32,8 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
+use Nowo\WikiBundle\Member\WikiMemberBadge;
+use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
 use Nowo\WikiBundle\Repository\WikiCommentMentionRepositoryInterface;
@@ -44,6 +46,7 @@ use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\LegacyCommentRepository;
 use Nowo\WikiBundle\Tests\Support\RecordingAvatarResolver;
+use Nowo\WikiBundle\Tests\Support\RecordingBadgeProvider;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use PHPUnit\Framework\TestCase;
@@ -61,17 +64,23 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function array_column;
 use function array_count_values;
+use function array_filter;
+use function array_keys;
 use function array_map;
 use function array_slice;
+use function array_values;
 use function count;
 use function in_array;
 use function intdiv;
 use function is_string;
+use function json_encode;
 use function ksort;
 use function sort;
 use function str_contains;
 use function str_repeat;
 use function strlen;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * 1.16: the comment endpoints' logic — default-deny rights, own comments, moderation, anchors (validated, 409 when
@@ -424,6 +433,45 @@ final class WikiCommentServiceTest extends TestCase
         $named = $this->service();
         $named->reply($this->bob, $this->space, $this->page, $thread['id'], 'Named');
         self::assertSame([['id-ana', 'id-bob']], $this->avatars->calls, 'One resolver call per response.');
+    }
+
+    /** Spec 234: host badges ride on the author as plain data, one provider call per thread; none without. */
+    public function testAuthorsCarryTheHostsBadges(): void
+    {
+        $provider = new RecordingBadgeProvider(['id-bob' => [new WikiMemberBadge('<b>Agent</b>', 'agent', 'Service account')]]);
+        $service  = $this->service(showNames: false, badges: new WikiMemberBadges($provider));
+        $thread   = $service->create($this->ana, $this->space, $this->page, null, 'Opaque');
+        $thread   = $service->reply($this->bob, $this->space, $this->page, $thread['id'], 'From the bot');
+
+        self::assertArrayNotHasKey('badges', $thread['comments'][0]['author'], 'no key without badges (unchanged JSON)');
+        self::assertSame([['label' => '<b>Agent</b>', 'variant' => 'agent', 'title' => 'Service account']], $thread['comments'][1]['author']['badges']);
+        self::assertSame([['id-ana'], ['id-bob']], $provider->calls, 'one call per response, only members not seen yet');
+
+        $plain = $this->service()->create($this->bob, $this->space, $this->page, null, 'No hook');
+        self::assertSame(['name', 'avatarUrl'], array_keys($plain['comments'][0]['author']));
+        // Audit PQ-M1: comments carry no write provenance (no actor label / token name).
+        self::assertStringNotContainsString('token_name', json_encode($thread, JSON_THROW_ON_ERROR));
+        self::assertStringNotContainsString('actor_label', json_encode($thread, JSON_THROW_ON_ERROR));
+    }
+
+    /** Audit PQ-L2: the server-rendered list asks the badge provider once for every author of every thread. */
+    public function testThePanelListAsksForBadgesOnce(): void
+    {
+        $provider = new RecordingBadgeProvider(['id-bob' => [new WikiMemberBadge('Agent', 'agent')]]);
+        $writer   = $this->service();
+        $writer->create($this->ana, $this->space, $this->page, null, 'First');
+        $second = $writer->create($this->bob, $this->space, $this->page, null, 'Second');
+        $writer->reply($this->ana, $this->space, $this->page, $second['id'], 'Reply');
+        $this->em->clear();
+
+        $threads = $this->service(badges: new WikiMemberBadges($provider))->pageThreads($this->ana, $this->space, $this->page);
+        self::assertCount(2, $threads);
+        self::assertCount(1, $provider->calls, 'one provider call for the whole list');
+        self::assertEqualsCanonicalizing(['id-ana', 'id-bob'], $provider->calls[0]);
+        $badged = array_values(array_filter($threads, static fn (array $thread): bool => isset($thread['comments'][0]['author']['badges'])));
+        self::assertCount(1, $badged, 'only Bob\'s thread starts with a badged author');
+        self::assertSame('Agent', $badged[0]['comments'][0]['author']['badges'][0]['label']);
+        self::assertSame([], $this->service(badges: new WikiMemberBadges($provider))->pageThreads($this->bob, $this->space, $this->page, false, 0));
     }
 
     public function testListsAreCappedAndTruncated(): void
@@ -1081,7 +1129,7 @@ final class WikiCommentServiceTest extends TestCase
     /**
      * @param array{threads_per_page: int, user_threads_per_page: int, comments_per_thread: int, reactions_per_comment: int, user_reactions_per_comment: int} $limits
      */
-    private function service(bool $showNames = true, ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $pageLimiter = null, array $limits = WikiCommentService::DEFAULT_LIMITS): WikiCommentService
+    private function service(bool $showNames = true, ?RateLimiterFactory $limiter = null, ?RateLimiterFactory $pageLimiter = null, array $limits = WikiCommentService::DEFAULT_LIMITS, ?WikiMemberBadges $badges = null): WikiCommentService
     {
         $dispatcher = new EventDispatcher();
         foreach ([WikiEvents::COMMENT_CREATED, WikiEvents::COMMENT_REPLIED, WikiEvents::COMMENT_EDITED, WikiEvents::COMMENT_DELETED, WikiEvents::COMMENT_RESOLVED, WikiEvents::COMMENT_REOPENED, WikiEvents::COMMENT_THREAD_DELETED] as $name) {
@@ -1133,6 +1181,7 @@ final class WikiCommentServiceTest extends TestCase
             translator: $translator,
             pageRateLimiter: $pageLimiter,
             limits: $limits,
+            badges: $badges,
         );
     }
 

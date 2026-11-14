@@ -1,0 +1,10 @@
+{#
+  Spec 234: the host's badges next to a member's name (history authors, comment authors), from
+  WikiMemberBadgeProviderInterface. Variables: badges (list of WikiMemberBadge: label, variant neutral | info | agent,
+  title or null), bundle (UiKit class bundle). Every value is printed escaped; nothing is printed without badges.
+  Override the block member_label_suffix (or this file) to present them differently.
+#}
+{%- block member_label_suffix -%}
+    {%- for badge in badges|default([]) %} <span class="{{ nowo_ui_class(badge.variant == 'neutral' ? 'badge' : 'badge_primary', bundle|default(null)) }} nowo-wiki-member-badge nowo-wiki-member-badge--{{ badge.variant }}"{% if badge.title %} title="{{ badge.title }}"{% endif %} data-testid="wiki-member-badge">{{ badge.label }}</span>
+    {%- endfor -%}
+{%- endblock -%}

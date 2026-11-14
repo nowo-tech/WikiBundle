@@ -155,6 +155,7 @@ wiki:
     cancel: Annuler
     back: "Retour"
     back_to_page: "Retour à la page"
+    view_page: "Voir la page"
   history:
     title: Historique des versions
     created: Créé
@@ -170,6 +171,12 @@ wiki:
     label_help: "Nomme la révision actuelle, p. ex. « Avant la migration ». Les versions nommées ne sont jamais élaguées."
     author: "Auteur"
     former_person: "Ancienne personne"
+    provenance: "via %channel%"
+    provenance_channel:
+      web: "Web"
+      app: "Appli"
+      api: "API"
+      mcp: "MCP"
     session_column: "Enregistrements de la session"
     save_version: "Enregistrer la version"
     save_version_title: "Enregistrer une version de %title%"
@@ -255,6 +262,19 @@ wiki:
     count: '{1} 1 sous-page|]1,Inf[ %count% sous-pages'
     count_more: '%count%+ sous-pages'
     title: 'Pages de cette section'
+  # 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree menu.
+  new_page:
+    more: "Ajouter une page à côté de « %title% »"
+    menu: "Nouvelle page"
+    above: "Nouvelle page au-dessus"
+    below: "Nouvelle page en dessous"
+    child: "Nouvelle sous-page"
+    context_above: "Au-dessus de « %title% »"
+    context_below: "En dessous de « %title% »"
+    context_child: "Dans « %title% »"
+    create: "Créer la page"
+    error:
+      placement: "Cet emplacement de l’arborescence n’est plus valide. Rouvrez le menu de l’arborescence."
 wiki_page_form:
   title:
     placeholder: "Titre de la page"

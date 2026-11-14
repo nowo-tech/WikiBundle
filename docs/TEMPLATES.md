@@ -11,6 +11,7 @@ Since **1.10** every wiki page extends a [UiKitBundle](https://github.com/nowo-t
 - [Overriding one page](#overriding-one-page)
 - [Unique pages](#unique-pages)
 - [Contract test](#contract-test)
+- [New page dialog and tree menu (1.35)](#new-page-dialog-and-tree-menu-135)
 
 ## Pages
 
@@ -44,6 +45,8 @@ Every page also reads the Twig global `nowo_wiki_web_ui` (1.21: a service, so an
 | `used_in` | `{type, label, href, badge}` | `WikiPageFactory::usedIn()` |
 | `comments` (1.16) | `{id, open, count, shortcut, toggle_href, close_href, comments_url, csrf_token, state_url, state_token, can, page_threads, form}` (null: no toggle, no panel) | `WikiCommentsPanel::panel()` |
 | `comments_view` (1.16) | `{markdown, options}` (the read-only Milkdown mount of commenters) | `WikiManageController::viewPage()` |
+| `new_page_dialog` (1.35) | `{form: FormView (WikiPageFormType, placement: hidden `place`), editor_type}` on `page_view` and `space` (null / absent: no dialog, no menu) | `WikiManageController::viewPage()` / `space()` |
+| `tree_ui` (1.35 additions) | with the tree menu: every node with `item_attr['data-wiki-new-child'] = '1'` and, but on top-level rows whose page has an (archived) parent, `item_attr['data-wiki-new-sibling'] = '1'`; `actions_template` = `@NowoWikiBundle/manage/_tree_new_page_button.html.twig` | `WikiNewPageMenu::annotate()` |
 
 Only pages the user may **view** (`WikiAction::View` on the page, 1.9 access model) reach the tree, the archived list, the search rows, the AI sources and the AI context; a hidden page also hides its sub-pages in the tree.
 
@@ -53,7 +56,7 @@ Header actions per page:
 | --- | --- |
 | `index` | Ask the wiki (`custom`, opens the AI `<dialog>`), Back to dashboard (`prev`, with `dashboard_route`) |
 | `space` | New page (`create`), Export Outline / Notion (`export`), Back to dashboard |
-| `page_view` | Edit (`edit`), History (`view`), Archive (`delete` look, POST + CSRF behind a UiKit `Confirm`); 1.16: tab row *Page* (current) / *Edit* / *History* (`PageHeader::tabs`, `AreaNav`) |
+| `page_view` | Edit (`edit`), History (`view`), Archive (`delete` look, POST + CSRF behind a UiKit `Confirm`); 1.16: tab row *Page* (current) / *Edit* / *History* (`PageHeader::tabs`, `AreaNav`); 1.35 (`web_ui.new_page_dialog`): New page (`create`, `dialogId` `nowo-wiki-new-page-dialog`, no URL) |
 | `page_edit` | Back link to the page (or the space); Save / Cancel in the form; 1.16: the tab row (*Edit* current) on an existing page |
 | `page_history` | Back link; row actions Compare (`view`) and Restore (`restore`, POST + CSRF behind a `Confirm`) |
 | `page_diff` | Back link to the history |
@@ -66,9 +69,9 @@ Header actions per page:
 | every page | `nowo_ui_styles` (`{{ parent() }}` + `wiki.css` from the `nowo_wiki` asset package), `nowo_ui_scripts` (both empty with `web_ui.assets` off, 1.21); flashes come from the layout's `nowo_ui_flashes` (the controller translates them when it adds them) | — |
 | `index` | `nowo_ui_list_row` (name links to the space, slug in `code`), `nowo_ui_modals` (AI dialog) | `manage/_ai_dialog.html.twig` (UiKit `_dialog`: header, body, footer) |
 | `space` | `nowo_ui_scripts` (`{{ parent() }}` + `wiki.js`, with the request `csp_nonce`), `nowo_ui_show_sections` (sidebar + search, import, archived pages; 1.21 blocks `wiki_sidebar`, `wiki_space_intro`), `nowo_ui_modals` (1.21, `web_ui.import_export: dialog`) | 1.21: `manage/_import_export_dialog.html.twig`; `manage/_sidebar.html.twig`, `manage/_page_tree.html.twig`, `manage/_page_tree_item.html.twig`; UiKit `action` partial for Restore page |
-| `page_view` | `nowo_ui_scripts` (`{{ parent() }}` + `wiki.js`; 1.16 + UiKit `js/nowo-ui-side-panel.js` with comments), `nowo_ui_page_header` (1.16: the UiKit header without its tabs, then the tab row; 1.21 block `wiki_page_header_extra` between them), `nowo_ui_content` (1.16: inside the UiKit side panel container with comments), `nowo_ui_show_sections` (sidebar + sanitized content + "Used in"; 1.21 block `wiki_sidebar`) | same sidebar partials; 1.16: `manage/_page_tabs.html.twig` (UiKit `tabs` at the secondary level + `side_panel_toggle`), `manage/_comments_panel.html.twig` (UiKit `side_panel`, body through `content_template`), `manage/_comments_panel_body.html.twig`, `manage/_comments_view.html.twig` (`nowo_milkdown_view()`); 1.29: `manage/_comments_toggle.html.twig` (the toggle), `manage/_page_header_compact.html.twig` (`web_ui.page_header.layout: compact`: UiKit `page_header` with `tabs_inline`, no tab row), blocks `wiki_page_body` / `wiki_page_after_body`, UiKit `rail_toggle` in `_sidebar.html.twig` (`web_ui.tree_rail`), UiKit `js/nowo-ui-scroll-region.js` (always), `js/nowo-ui-rail.js` and `js/nowo-ui-layout-state.js` (in `nowo_ui_styles`, when needed) |
-| `page_edit` | `nowo_ui_scripts` (`{{ parent() }}` + the TiptapEditorBundle script, with the request attribute `csp_nonce` when set; 1.16 + the side panel script and `wiki.js` with comments); `nowo_ui_page_header` and `nowo_ui_content` as `page_view`; `nowo_ui_form_body` keeps the UiKit child loop | 1.16: `manage/_page_tabs.html.twig`, `manage/_comments_panel.html.twig`; 1.29: `manage/_page_header_compact.html.twig` (`web_ui.page_header.layout: compact`) |
-| `page_history` | `nowo_ui_list_row` (current revision badge; 1.16: UiKit `_avatar`, `xs`, decorative, before a real author name only) | — |
+| `page_view` | `nowo_ui_scripts` (`{{ parent() }}` + `wiki.js`; 1.16 + UiKit `js/nowo-ui-side-panel.js` with comments), `nowo_ui_page_header` (1.16: the UiKit header without its tabs, then the tab row; 1.21 block `wiki_page_header_extra` between them), `nowo_ui_content` (1.16: inside the UiKit side panel container with comments), `nowo_ui_show_sections` (sidebar + sanitized content + "Used in"; 1.21 block `wiki_sidebar`) | same sidebar partials; 1.16: `manage/_page_tabs.html.twig` (UiKit `tabs` at the secondary level + `side_panel_toggle`), `manage/_comments_panel.html.twig` (UiKit `side_panel`, body through `content_template`), `manage/_comments_panel_body.html.twig`, `manage/_comments_view.html.twig` (`nowo_milkdown_view()`); 1.29: `manage/_comments_toggle.html.twig` (the toggle), `manage/_page_header_compact.html.twig` (`web_ui.page_header.layout: compact`: UiKit `page_header` with `tabs_inline`, no tab row), blocks `wiki_page_body` / `wiki_page_after_body`, UiKit `rail_toggle` in `_sidebar.html.twig` (`web_ui.tree_rail`), UiKit `js/nowo-ui-scroll-region.js` (always), `js/nowo-ui-rail.js` and `js/nowo-ui-layout-state.js` (in `nowo_ui_styles`, when needed); 1.33: the layout (aside, main column, card frame, page head) is `manage/_read_scaffold.html.twig`, shared with the edit form's read layout |
+| `page_edit` | `nowo_ui_scripts` (`{{ parent() }}` + the TiptapEditorBundle script, with the request attribute `csp_nonce` when set; 1.16 + the side panel script and `wiki.js` with comments); `nowo_ui_page_header` and `nowo_ui_content` as `page_view`; `nowo_ui_form_body` keeps the UiKit child loop; 1.33 (`web_ui.edit_view.layout: read`): `nowo_ui_content` draws the page view layout (`manage/_read_scaffold.html.twig`) with block `wiki_sidebar` and block `wiki_page_form_body` (the whole form; default the UiKit form, `{{ parent() }}`) in `.nowo-wiki-edit-body` | 1.16: `manage/_page_tabs.html.twig`, `manage/_comments_panel.html.twig`; 1.29: `manage/_page_header_compact.html.twig` (`web_ui.page_header.layout: compact`) |
+| `page_history` | `nowo_ui_list_row` (current revision badge; 1.16: UiKit `_avatar`, `xs`, decorative, before a real author name only; 1.34: host member badges and the write provenance after the author name) | `manage/_member_label_suffix.html.twig` (block `member_label_suffix`; also after comment authors in `manage/_comments_panel_body.html.twig`) |
 | `page_diff` | `nowo_ui_show_sections` (diff lines in a `code_block`) | — |
 | `search` | `nowo_ui_list_row` (title links to the page, space badge, excerpt) | — |
 | `ai_ask` | `nowo_ui_form_body` (error, `{{ parent() }}`, help), `nowo_ui_form_aside` (answer and sources) | — |
@@ -107,3 +110,15 @@ None: every wiki page extends a UiKit scaffold.
 ## Contract test
 
 `tests/Integration/Contract/PageContractTest.php` extends `Nowo\UiKitBundle\Test\PageContractTestCase` and renders every page (21 fixtures from `tests/Support/PageFixtures.php`, built with `WikiPageFactory` and the real form types) against the UiKit stub host layout and theme, for `none`, `bootstrap5` and `tailwind`, with the strict missing-translation rule. It also checks the page tree, the 1.16 tab row, comments toggle and panel (open, closed, edit view) and history avatars, the sanitized content, the AI `<dialog>`, the confirm contract of Restore / Archive and the CSP nonce of the editor script.
+
+## New page dialog and tree menu (1.35)
+
+With `web_ui.new_page_dialog: true`:
+
+| Template | Where | What |
+| --- | --- | --- |
+| `manage/_new_page_dialog.html.twig` | block `nowo_ui_modals` of `page_view` and `space` | The dialog (UiKit `dialog`, id `nowo-wiki-new-page-dialog`, wide, no backdrop close) with the new-page form (`form_start` / `form_row` loop / `form_end`, id `nowo-wiki-new-page-form`), the context line (`data-wiki-new-page-context`, `data-above` / `data-below` / `data-child` sentences with `%title%`), Cancel and Create; with `with_menu` the tree menu (`role="menu"`, id `nowo-wiki-new-page-menu`, three `role="menuitem"` buttons `data-wiki-new-page-choice="above|below|child"`). Variables: `new_page_dialog`, `with_menu`, `bundle`, `nowo_ui_page_type` |
+| `manage/_tree_new_page_button.html.twig` | UiKit `tree` `actions_template` (passed by `_sidebar.html.twig` from `tree_ui.actions_template`) | The «…» button of a row (`data-wiki-new-page-more`, `tabindex="-1"`, `aria-haspopup="menu"`, hidden until wiki.js finds a choice). Variable: `node` |
+
+`nowo_ui_scripts` of `page_view` and `space` add the TiptapEditorBundle script when the dialog is on and the editor is
+Tiptap. Hosts that replace the blocks keep the markers (`data-wiki-new-page-*`) for `wiki.js`.

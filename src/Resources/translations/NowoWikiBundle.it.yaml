@@ -155,6 +155,7 @@ wiki:
     cancel: Annulla
     back: "Indietro"
     back_to_page: "Torna alla pagina"
+    view_page: "Visualizza pagina"
   history:
     title: Cronologia versioni
     created: Creato
@@ -170,6 +171,12 @@ wiki:
     label_help: "Dà un nome alla revisione attuale, ad es. «Prima della migrazione». Le versioni con nome non vengono mai sfoltite."
     author: "Autore"
     former_person: "Ex collaboratore"
+    provenance: "via %channel%"
+    provenance_channel:
+      web: "Web"
+      app: "App"
+      api: "API"
+      mcp: "MCP"
     session_column: "Salvataggi della sessione"
     save_version: "Salva versione"
     save_version_title: "Salva versione di %title%"
@@ -255,6 +262,19 @@ wiki:
     count: '{1} 1 sottopagina|]1,Inf[ %count% sottopagine'
     count_more: '%count%+ sottopagine'
     title: 'Pagine di questa sezione'
+  # 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree menu.
+  new_page:
+    more: "Aggiungi una pagina accanto a «%title%»"
+    menu: "Nuova pagina"
+    above: "Nuova pagina sopra"
+    below: "Nuova pagina sotto"
+    child: "Nuova sottopagina"
+    context_above: "Sopra «%title%»"
+    context_below: "Sotto «%title%»"
+    context_child: "Dentro «%title%»"
+    create: "Crea pagina"
+    error:
+      placement: "Quella posizione nell’albero delle pagine non è più valida. Riapri il menu dell’albero delle pagine."
 wiki_page_form:
   title:
     placeholder: "Titolo della pagina"

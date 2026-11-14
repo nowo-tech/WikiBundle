@@ -19,11 +19,14 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\Repository\WikiPageMetadata;
 use Nowo\WikiBundle\Repository\WikiPageMetadataFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageMetadataQuery;
+use Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\User\WikiUserId;
 
 use function array_filter;
 use function array_map;
@@ -45,6 +48,8 @@ final readonly class WikiApiPageReadOperations
         private WikiApiPeople $people,
         private WikiApiContent $content,
         private WikiApiSerializer $serializer,
+        private ?WikiPageProvenanceFinderInterface $provenance = null,
+        private ?WikiActorLabels $actorLabels = null,
     ) {
     }
 
@@ -79,12 +84,22 @@ final readonly class WikiApiPageReadOperations
                 $visible[] = $row;
             }
         }
-        $shown   = array_slice($visible, $page * WikiApiQuery::PAGE_SIZE, WikiApiQuery::PAGE_SIZE);
-        $authors = $this->users->byIds(array_values(array_filter(array_map(static fn (WikiPageMetadata $row): ?string => $row->authorId, $shown))));
+        $shown = array_slice($visible, $page * WikiApiQuery::PAGE_SIZE, WikiApiQuery::PAGE_SIZE);
+        // Spec 234: creators and last-write provenance of the shown pages, in a fixed number of queries.
+        $provenance = $this->provenance?->pageProvenance(array_map(static fn (WikiPageMetadata $row): string => $row->page->getId(), $shown)) ?? [];
+        $ids        = array_map(static fn (WikiPageMetadata $row): ?string => $row->authorId, $shown);
+        foreach ($provenance as $row) {
+            $ids[] = $row->creatorId;
+        }
+        $authors = $this->users->byIds(array_values(array_filter($ids)));
         $pages   = [];
         foreach ($shown as $row) {
-            $author  = $row->authorId === null ? null : ($authors[$row->authorId] ?? null);
-            $pages[] = $this->serializer->pageHead($wiki, $row->page, $row->revisionNumber, $row->revisedAt, $this->people->present($principal, $author, $row->page));
+            $author = $row->authorId === null ? null : ($authors[$row->authorId] ?? null);
+            // Audit PQ-D1-I1: a save between the two reads gives another write's label: judged only for the same author.
+            $origin  = $provenance[$row->page->getId()] ?? null;
+            $creator = $origin?->creatorId === null ? null : ($authors[$origin->creatorId] ?? null);
+            $people  = $this->people->presentAll($principal, [$author, $creator], $row->page);
+            $pages[] = $this->serializer->pageHead($wiki, $row->page, $row->revisionNumber, $row->revisedAt, $people[0], $people[1], $origin?->channel, $origin?->currentAuthorId === $row->authorId ? $this->actorLabels?->visibleOnPage($origin?->actorLabel, $author, $row->page, $principal->user) : null);
         }
 
         return ['pages' => $pages, 'last_page' => count($visible) <= ($page + 1) * WikiApiQuery::PAGE_SIZE];
@@ -114,7 +129,15 @@ final readonly class WikiApiPageReadOperations
     public function body(WikiApiPrincipal $principal, WikiApiWiki $wiki, WikiPage $page): array
     {
         $revision = $page->getCurrentRevision();
-        $head     = $this->serializer->pageHead($wiki, $page, $revision?->getRevisionNumber(), $revision?->getCreatedAt(), $this->people->present($principal, $revision?->getAuthor(), $page));
+        // Spec 234: the creator (the oldest revision's author) and the provenance of the last write.
+        $origin  = $revision instanceof WikiPageRevision ? ($this->provenance?->pageProvenance([$page->getId()])[$page->getId()] ?? null) : null;
+        $creator = match (true) {
+            $origin?->creatorId === null                                   => null,
+            $origin->creatorId === WikiUserId::of($revision?->getAuthor()) => $revision?->getAuthor(),
+            default                                                        => $this->users->byIds([$origin->creatorId])[$origin->creatorId] ?? null,
+        };
+        $people = $this->people->presentAll($principal, [$revision?->getAuthor(), $creator], $page);
+        $head   = $this->serializer->pageHead($wiki, $page, $revision?->getRevisionNumber(), $revision?->getCreatedAt(), $people[0], $people[1], $revision?->getChannel(), $this->actorLabels?->visibleOnPage($revision?->getActorLabel(), $revision?->getAuthor(), $page, $principal->user));
         if (!$revision instanceof WikiPageRevision) {
             return $head + ['format' => WikiPageRevision::FORMAT_MARKDOWN, 'content_view' => $this->content->view($principal, $page), 'content_markdown' => ''];
         }

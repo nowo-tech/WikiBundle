@@ -13,211 +13,219 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Deprecated](#deprecated)
   - [Changed](#changed)
   - [Tests](#tests)
-- [[1.32.0] - 2026-11-13](#1320---2026-11-13)
+- [[1.35.0] - 2026-11-14](#1350---2026-11-14)
   - [Added](#added-1)
+  - [Changed](#changed-1)
+- [[1.34.0] - 2026-11-14](#1340---2026-11-14)
+  - [Added](#added-2)
+- [[1.33.0] - 2026-11-14](#1330---2026-11-14)
+  - [Added](#added-3)
+  - [Fixed](#fixed)
+- [[1.32.0] - 2026-11-13](#1320---2026-11-13)
+  - [Added](#added-4)
 - [[1.31.1] - 2026-11-13](#1311---2026-11-13)
   - [Security](#security-1)
   - [Tests](#tests-1)
 - [[1.31.0] - 2026-11-12](#1310---2026-11-12)
   - [1.31.0 (unreleased)](#1310-unreleased)
 - [[1.30.0] - 2026-11-11](#1300---2026-11-11)
-  - [Added](#added-3)
-  - [Fixed](#fixed-1)
+  - [Added](#added-6)
+  - [Fixed](#fixed-2)
 - [[1.29.1] - 2026-11-11](#1291---2026-11-11)
   - [Security](#security-2)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
-  - [Added](#added-4)
-  - [Changed](#changed-1)
-- [[1.28.0] - 2026-11-10](#1280---2026-11-10)
-  - [Added](#added-5)
+  - [Added](#added-7)
   - [Changed](#changed-2)
-- [[1.27.0] - 2026-11-09](#1270---2026-11-09)
-  - [Added](#added-6)
-- [[1.26.0] - 2026-11-09](#1260---2026-11-09)
-  - [Fixed](#fixed-2)
+- [[1.28.0] - 2026-11-10](#1280---2026-11-10)
+  - [Added](#added-8)
   - [Changed](#changed-3)
+- [[1.27.0] - 2026-11-09](#1270---2026-11-09)
+  - [Added](#added-9)
+- [[1.26.0] - 2026-11-09](#1260---2026-11-09)
+  - [Fixed](#fixed-3)
+  - [Changed](#changed-4)
   - [Documentation](#documentation)
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
-  - [Fixed](#fixed-3)
+  - [Fixed](#fixed-4)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
-  - [Added](#added-7)
-  - [Changed](#changed-4)
+  - [Added](#added-10)
+  - [Changed](#changed-5)
 - [[1.24.1] - 2026-11-08](#1241---2026-11-08)
   - [Security](#security-3)
-  - [Added](#added-8)
+  - [Added](#added-11)
   - [Known limitation](#known-limitation)
-  - [Changed](#changed-5)
-- [[1.24.0] - 2026-11-08](#1240---2026-11-08)
-  - [Added](#added-9)
   - [Changed](#changed-6)
+- [[1.24.0] - 2026-11-08](#1240---2026-11-08)
+  - [Added](#added-12)
+  - [Changed](#changed-7)
   - [Security](#security-4)
   - [Tests](#tests-2)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
-  - [Fixed](#fixed-4)
-  - [Changed](#changed-7)
-  - [Added](#added-10)
-- [[1.22.0] - 2026-11-07](#1220---2026-11-07)
   - [Fixed](#fixed-5)
-  - [Added](#added-11)
+  - [Changed](#changed-8)
+  - [Added](#added-13)
+- [[1.22.0] - 2026-11-07](#1220---2026-11-07)
+  - [Fixed](#fixed-6)
+  - [Added](#added-14)
 - [[1.21.1] - 2026-11-07](#1211---2026-11-07)
   - [Security](#security-5)
-  - [Fixed](#fixed-6)
+  - [Fixed](#fixed-7)
   - [Documentation](#documentation-1)
 - [[1.21.0] - 2026-11-06](#1210---2026-11-06)
-  - [Added](#added-12)
-  - [Fixed](#fixed-7)
-- [[1.20.0] - 2026-11-06](#1200---2026-11-06)
-  - [Added](#added-13)
-- [[1.19.1] - 2026-11-06](#1191---2026-11-06)
+  - [Added](#added-15)
   - [Fixed](#fixed-8)
+- [[1.20.0] - 2026-11-06](#1200---2026-11-06)
+  - [Added](#added-16)
+- [[1.19.1] - 2026-11-06](#1191---2026-11-06)
+  - [Fixed](#fixed-9)
 - [[1.19.0] - 2026-11-06](#1190---2026-11-06)
-  - [Changed](#changed-8)
+  - [Changed](#changed-9)
   - [Dependencies](#dependencies)
 - [[1.18.0] - 2026-11-05](#1180---2026-11-05)
-  - [Changed](#changed-9)
-  - [Added](#added-14)
+  - [Changed](#changed-10)
+  - [Added](#added-17)
   - [Dependencies](#dependencies-1)
 - [[1.17.0] - 2026-11-05](#1170---2026-11-05)
-  - [Added](#added-15)
-- [[1.16.2] - 2026-11-04](#1162---2026-11-04)
-  - [Fixed](#fixed-9)
-- [[1.16.1] - 2026-11-04](#1161---2026-11-04)
-  - [Added](#added-16)
-  - [Changed](#changed-10)
-  - [Fixed](#fixed-10)
-- [[1.16.0] - 2026-11-04](#1160---2026-11-04)
-  - [Added](#added-17)
-  - [Changed](#changed-11)
-- [[1.15.1] - 2026-11-04](#1151---2026-11-04)
-  - [Fixed](#fixed-11)
-- [[1.15.0] - 2026-11-04](#1150---2026-11-04)
   - [Added](#added-18)
-- [[1.14.1] - 2026-11-03](#1141---2026-11-03)
-  - [Fixed](#fixed-12)
-- [[1.14.0] - 2026-11-03](#1140---2026-11-03)
+- [[1.16.2] - 2026-11-04](#1162---2026-11-04)
+  - [Fixed](#fixed-10)
+- [[1.16.1] - 2026-11-04](#1161---2026-11-04)
   - [Added](#added-19)
+  - [Changed](#changed-11)
+  - [Fixed](#fixed-11)
+- [[1.16.0] - 2026-11-04](#1160---2026-11-04)
+  - [Added](#added-20)
   - [Changed](#changed-12)
+- [[1.15.1] - 2026-11-04](#1151---2026-11-04)
+  - [Fixed](#fixed-12)
+- [[1.15.0] - 2026-11-04](#1150---2026-11-04)
+  - [Added](#added-21)
+- [[1.14.1] - 2026-11-03](#1141---2026-11-03)
+  - [Fixed](#fixed-13)
+- [[1.14.0] - 2026-11-03](#1140---2026-11-03)
+  - [Added](#added-22)
+  - [Changed](#changed-13)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
   - [Security](#security-6)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
-  - [Fixed](#fixed-13)
-  - [Changed](#changed-13)
-  - [Added](#added-20)
+  - [Fixed](#fixed-14)
+  - [Changed](#changed-14)
+  - [Added](#added-23)
   - [Documentation](#documentation-2)
 - [[1.13.0] - 2026-11-03](#1130---2026-11-03)
-  - [Added](#added-21)
-  - [Changed](#changed-14)
-- [[1.12.0] - 2026-10-31](#1120---2026-10-31)
-  - [Added](#added-22)
-  - [Changed](#changed-15)
-  - [Fixed](#fixed-14)
-- [[1.11.1] - 2026-10-30](#1111---2026-10-30)
-  - [Fixed](#fixed-15)
-- [[1.11.0] - 2026-10-30](#1110---2026-10-30)
-  - [Added](#added-23)
-  - [Changed](#changed-16)
-- [[1.10.0] - 2026-10-30](#1100---2026-10-30)
   - [Added](#added-24)
+  - [Changed](#changed-15)
+- [[1.12.0] - 2026-10-31](#1120---2026-10-31)
+  - [Added](#added-25)
+  - [Changed](#changed-16)
+  - [Fixed](#fixed-15)
+- [[1.11.1] - 2026-10-30](#1111---2026-10-30)
+  - [Fixed](#fixed-16)
+- [[1.11.0] - 2026-10-30](#1110---2026-10-30)
+  - [Added](#added-26)
   - [Changed](#changed-17)
+- [[1.10.0] - 2026-10-30](#1100---2026-10-30)
+  - [Added](#added-27)
+  - [Changed](#changed-18)
   - [Security](#security-7)
   - [Deprecated](#deprecated-1)
   - [Removed](#removed)
 - [[1.9.0] - 2026-10-30](#190---2026-10-30)
-  - [Added](#added-25)
-  - [Changed](#changed-18)
-- [[1.8.1] - 2026-10-29](#181---2026-10-29)
+  - [Added](#added-28)
   - [Changed](#changed-19)
-- [[1.8.0] - 2026-10-29](#180---2026-10-29)
-  - [Added](#added-26)
+- [[1.8.1] - 2026-10-29](#181---2026-10-29)
   - [Changed](#changed-20)
-  - [Fixed](#fixed-16)
+- [[1.8.0] - 2026-10-29](#180---2026-10-29)
+  - [Added](#added-29)
+  - [Changed](#changed-21)
+  - [Fixed](#fixed-17)
   - [Removed](#removed-1)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
-  - [Fixed](#fixed-17)
+  - [Fixed](#fixed-18)
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
   - [Security](#security-8)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
-  - [Changed](#changed-21)
-  - [Added](#added-27)
   - [Changed](#changed-22)
-- [[1.6.4] - 2026-10-24](#164---2026-10-24)
+  - [Added](#added-30)
   - [Changed](#changed-23)
-- [[1.6.3] - 2026-10-18](#163---2026-10-18)
+- [[1.6.4] - 2026-10-24](#164---2026-10-24)
   - [Changed](#changed-24)
-- [[1.6.2] - 2026-10-13](#162---2026-10-13)
+- [[1.6.3] - 2026-10-18](#163---2026-10-18)
   - [Changed](#changed-25)
-- [[1.6.1] - 2026-10-13](#161---2026-10-13)
-  - [Fixed](#fixed-18)
-- [[1.6.0] - 2026-10-13](#160---2026-10-13)
-  - [Fixed](#fixed-19)
-  - [Deprecated](#deprecated-2)
+- [[1.6.2] - 2026-10-13](#162---2026-10-13)
   - [Changed](#changed-26)
+- [[1.6.1] - 2026-10-13](#161---2026-10-13)
+  - [Fixed](#fixed-19)
+- [[1.6.0] - 2026-10-13](#160---2026-10-13)
+  - [Fixed](#fixed-20)
+  - [Deprecated](#deprecated-2)
+  - [Changed](#changed-27)
 - [[1.5.0] - 2026-10-13](#150---2026-10-13)
   - [Security](#security-9)
-  - [Added](#added-28)
+  - [Added](#added-31)
 - [[1.4.1] - 2026-10-13](#141---2026-10-13)
-  - [Changed](#changed-27)
+  - [Changed](#changed-28)
   - [Dependencies](#dependencies-2)
 - [[1.4.0] - 2026-10-09](#140---2026-10-09)
-  - [Changed](#changed-28)
-  - [Fixed](#fixed-20)
+  - [Changed](#changed-29)
+  - [Fixed](#fixed-21)
   - [Dependencies](#dependencies-3)
 - [[1.3.5] - 2026-09-27](#135---2026-09-27)
-  - [Fixed](#fixed-21)
-  - [Added](#added-29)
-  - [Changed](#changed-29)
-- [[1.3.4] - 2026-08-24](#134---2026-08-24)
+  - [Fixed](#fixed-22)
+  - [Added](#added-32)
   - [Changed](#changed-30)
+- [[1.3.4] - 2026-08-24](#134---2026-08-24)
+  - [Changed](#changed-31)
   - [Notes](#notes)
 - [[1.3.3] - 2026-08-19](#133---2026-08-19)
-  - [Changed](#changed-31)
-- [[1.3.2] - 2026-08-18](#132---2026-08-18)
   - [Changed](#changed-32)
-- [[1.3.1] - 2026-08-07](#131---2026-08-07)
-  - [Fixed](#fixed-22)
-- [[1.3.0] - 2026-08-04](#130---2026-08-04)
+- [[1.3.2] - 2026-08-18](#132---2026-08-18)
   - [Changed](#changed-33)
-  - [Added](#added-30)
+- [[1.3.1] - 2026-08-07](#131---2026-08-07)
+  - [Fixed](#fixed-23)
+- [[1.3.0] - 2026-08-04](#130---2026-08-04)
   - [Changed](#changed-34)
-- [[1.2.0] - 2026-08-03](#120---2026-08-03)
-  - [Added](#added-31)
+  - [Added](#added-33)
   - [Changed](#changed-35)
+- [[1.2.0] - 2026-08-03](#120---2026-08-03)
+  - [Added](#added-34)
+  - [Changed](#changed-36)
   - [Compatibility](#compatibility)
   - [Upgrade](#upgrade)
 - [[1.1.1] - 2026-07-31](#111---2026-07-31)
-  - [Fixed](#fixed-23)
+  - [Fixed](#fixed-24)
   - [Tests](#tests-3)
   - [Upgrade](#upgrade-1)
 - [[1.1.0] - 2026-07-30](#110---2026-07-30)
-  - [Added](#added-32)
-  - [Changed](#changed-36)
+  - [Added](#added-35)
+  - [Changed](#changed-37)
   - [Documentation](#documentation-3)
 - [[1.0.5] - 2026-07-29](#105---2026-07-29)
-  - [Added](#added-33)
-  - [Changed](#changed-37)
-- [[1.0.4] - 2026-07-22](#104---2026-07-22)
-  - [Added](#added-34)
-  - [Changed](#changed-38)
-- [[1.0.3] - 2026-07-16](#103---2026-07-16)
-  - [Fixed](#fixed-24)
-  - [Added](#added-35)
-  - [Changed](#changed-39)
-- [[1.0.2] - 2026-07-16](#102---2026-07-16)
-  - [Changed](#changed-40)
-- [[1.0.1] - 2026-07-16](#101---2026-07-16)
-  - [Fixed](#fixed-25)
   - [Added](#added-36)
-  - [Changed](#changed-41)
-- [[1.0.0] - 2026-07-13](#100---2026-07-13)
+  - [Changed](#changed-38)
+- [[1.0.4] - 2026-07-22](#104---2026-07-22)
   - [Added](#added-37)
+  - [Changed](#changed-39)
+- [[1.0.3] - 2026-07-16](#103---2026-07-16)
+  - [Fixed](#fixed-25)
+  - [Added](#added-38)
+  - [Changed](#changed-40)
+- [[1.0.2] - 2026-07-16](#102---2026-07-16)
+  - [Changed](#changed-41)
+- [[1.0.1] - 2026-07-16](#101---2026-07-16)
+  - [Fixed](#fixed-26)
+  - [Added](#added-39)
+  - [Changed](#changed-42)
+- [[1.0.0] - 2026-07-13](#100---2026-07-13)
+  - [Added](#added-40)
   - [Security](#security-10)
 
 ## [Unreleased]
 
-Target: **1.34.0** (minor; REQ-ARCH-001 — standard Symfony by default, DDD / hexagonal host path opt-in; REQ-RUNTIME-002
+Target 1.36.0 (minor; REQ-ARCH-001 — standard Symfony by default, DDD / hexagonal host path opt-in; REQ-RUNTIME-002
 and REQ-SEC-006 kept). Every change is additive: with an unchanged configuration and unchanged host services the wiki
-behaves exactly as 1.33 (the whole API suite also runs through the new ports and through the private entity manager,
-see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRADING.md#to-1340).
+behaves exactly as 1.35 (the whole API suite also runs through the new ports and through the private entity manager,
+see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRADING.md#to-1360).
 
 ### Added
 
@@ -308,6 +316,106 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   kernel through `http_kernel->handle()` / `terminate()` with a memory bound). Private manager parts and worker tests
   (`tests/Api/PrivateEntityManager`), port gate equivalence tests, `WikiPortsPass`, XML parity, id-mode look-alike tests
   on SQLite, MySQL 8.4 and MariaDB 11.4.
+
+## [1.35.0] - 2026-11-14
+
+Target 1.35.0.
+
+### Added
+
+- **New page as a dialog, and a page tree menu** (`web_ui.new_page_dialog`, literal boolean, default `false`; requested
+  by Beacon). On: the page view's header actions get "New page", which opens the bundle's new-page form
+  (`WikiPageFormType`, title + editor) in a native `<dialog>` (UiKit `dialog` partial: modal, focus kept inside, Escape
+  and Cancel close it, focus back on the opener). With `tree.enabled`, users who may also edit in the space (role gate
+  `canEdit()` and `WikiAction::Edit` on the space: one check per page, not one per row) get a menu on every row of the
+  page tree (page view and space home), opened by a right click, the row's «…» button (`tabindex="-1"`, the tree keeps
+  one tab stop) or the ContextMenu key / Shift+F10, with "New page above", "New page below" and "New page as child";
+  each opens the dialog with the place filled in. ARIA menu pattern (roving focus with the arrows / Home / End, Escape
+  and Tab close it and return the focus to the row). A top-level row whose page has an archived parent offers "as
+  child" only. The server checks every create against the page itself. New templates
+  `manage/_new_page_dialog.html.twig` and `manage/_tree_new_page_button.html.twig`, `wiki-new-page.ts` in `wiki.js`,
+  CSS in both `wiki.css` copies, keys `wiki.new_page.*` in the 7 locales.
+- **Create at a place (web)**: with the option on, the new-page form has a hidden `place` field (also `?place=`) that
+  carries an intent, `child:<page id>`, `above:<page id>` or `below:<page id>`; the server computes the position (the
+  browser never sends an index, so a truncated tree or hidden siblings cannot shift it). A place needs the role gate
+  `canEdit()` (as a tree move) and `WikiAction::Edit` on the new page's parent (none at the top level), and
+  `tree.enabled`. Refusals: the page or its parent gone, archived or hidden: 422 "parent missing"; too deep for
+  `tree.max_depth`: 422; no `canEdit()` or no Edit on the parent: 403; an invalid value or no tree: 422.
+- **Create at a place (API)**: `POST /wikis/{wiki}/pages` takes an optional `position`, 1-based among the parent's
+  children the token's user may read, as the "Move" form. It needs `tree.enabled` (else 400 `INPUT_002`). Refusals:
+  parent gone meanwhile 404, too deep 422 `WIKI_MOVE_002`, no Edit on the parent 403 `ACCESS_002`.
+- `WikiPageMover::createAt()` / `createNextTo()` create and place the page in one transaction holding the space lock of
+  the moves, with their sparse ordering (siblings renumbered only when no gap is left) and the `tree.max_depth` check:
+  concurrent placed creates and moves never share or garble a position. New `WikiPageCreateResult`, value object
+  `WikiPagePlacement`, `WikiNewPageMenu` (tree node marks).
+
+### Changed
+
+- **API create with `parent`** (with `tree.enabled`): goes through `WikiPageMover::createAt()` even without `position`,
+  so `tree.max_depth` and the space lock apply (audit PT-M1; before, such a create checked no depth). The page is placed
+  last among the parent's children instead of at position 0. A create without `parent` nor `position` is unchanged
+  (position 0).
+- **API create / move answers**: when the page was placed, `position` is the 1-based place among the siblings the
+  token's user may read, not the stored sort key, which counts hidden siblings (audit PT-L1). Reads keep the sort key.
+
+## [1.34.0] - 2026-11-14
+
+Target 1.34.0.
+
+### Added
+
+- Member badge hook (spec 234, Beacon): `WikiMemberBadgeProviderInterface` (framework-free; `WikiMemberRef` class + id,
+  `WikiMemberBadge` plain-text label, `neutral | info | agent` variant, optional title) puts host badges after
+  revision authors in the history and comment authors in the comments panel (and `author.badges` in the comments JSON
+  when there are some). One provider call per list (a history page, the comments panel's thread list), per-request
+  memo bounded at 500 members, also for one large list (audit PQ-L2, PQ-L3), reset at every boundary (worker mode).
+  Template `manage/_member_label_suffix.html.twig`, block `member_label_suffix`. Default `NullWikiMemberBadgeProvider`:
+  no change.
+- Write provenance (spec 234): `WikiWriteProvenanceProviderInterface::current(): ?WikiWriteProvenance` (channel
+  `web | app | api | mcp`, actor label truncated to 120 characters) is asked for every new revision; nullable
+  `wiki_page_revisions.channel` and `actor_label` columns (see UPGRADING). Shown escaped in the history; the API adds
+  `created_by`, `channel`, `token_name` to pages and `channel`, `token_name` to revisions (OpenAPI updated). A stored
+  channel outside the allow-list reads null (audit PQ-I2). Default `NullWikiWriteProvenanceProvider`: columns stay NULL.
+- `history.show_actor_labels` (default: `history.show_names`; audit PQ-M1): the actor label / `token_name` is shown to
+  its author, and to others only beside an author shown under a real name and when it passes the safe-name rule of
+  display names; never beside an opaque "Editor xxxx" (`WikiActorLabels`). The author is recognised by the same object
+  or by id only for `user_class` / `accepted_user_classes` (audit PQ-D1-L1); a page list never pairs a label with
+  another write's author (PQ-D1-I1).
+- Privacy (audit PQ-L1, PQ-D1-I2): `WikiCommentService::exportAuthorData()` and `wiki:comments:erase-user --export`
+  export the user's actor labels (`revision_actor_labels`); `wiki:comments:erase-user` erases the user's actor
+  labels and those of already-deleted authors (also with comments disabled); `WikiCommentService::eraseAuthor()` does
+  too, through a listener on `nowo_wiki.comment.author_erased`. `WikiWriteProvenanceErasure` (`exportActor()`,
+  `eraseActor()`, `eraseOrphaned()`) for hosts with their own flow; the label of a deleted author is never shown nor
+  answered.
+- `WikiPageProvenanceFinderInterface` (implemented by the Doctrine revision repository): creators and last-write
+  provenance of a page list in two queries.
+
+## [1.33.0] - 2026-11-14
+
+### Added
+
+- **Edit form in the read layout** (`web_ui.edit_view.layout: read`, default `form`): the edit form of a page looks like
+  the page view with the editor in place of the body: the tree aside (rail and its fold state, the hidden-mode expand
+  button), the reading column, the card frame and its toolbar (`page_header.toolbar_position: card`) and the page head
+  with the in-wiki path. `WikiManageController::editPage()` (and the form shown again after a save conflict or a lost
+  race) passes the page view's layout variables (`tree`, `tree_truncated`, `max_tree_pages`, `tree_search_href`,
+  `tree_ui`, `tree_rail`, `space_icon`, `page_path`). New template block `wiki_page_form_body` (default: the UiKit
+  form) inside `.nowo-wiki-edit-body`, which gives the editor the read typography (`--nowo-wiki-read-*`, both
+  wiki.css copies). The layout is the new partial `manage/_read_scaffold.html.twig`, shared with the page view (its
+  markup and blocks are unchanged).
+- **Edit toolbar options** (`web_ui.page_header.edit_toolbar`): `current_tab: hidden` leaves the Edit tab out of the
+  edit form; `back: view` adds a "View page" eye button (UiKit `view` icon; with `tabs: toolbar` it replaces "Back to
+  page"). New key `wiki.action.view_page` in the 7 locales. Defaults unchanged.
+- Every route of the loader carries its `nowo_wiki_route` option (`WikiRouteLoader::ROUTE_KEY_OPTION`), tenant copies
+  included.
+
+### Fixed
+
+- **Breadcrumbs of tenant routes** (`web_ui.breadcrumb_current_label`): the edit, history, compare and move pages of a
+  tenant route (`tenant_paths.name_prefix`, e.g. `app_project_nowo_wiki_page_edit`) showed a generic "Page" crumb, as
+  `WikiBreadcrumbParentLabel` compared the bundle route names. The controller now puts the action's route key on the
+  request (`WikiBreadcrumbParentLabel::ROUTE_KEY_ATTRIBUTE`, `remember($request, $title, $routeKey)`) and the listener
+  generates the page view with the matched route's prefix (the bundle name as the fallback).
 
 ## [1.32.0] - 2026-11-13
 
@@ -1931,7 +2039,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.32.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.35.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

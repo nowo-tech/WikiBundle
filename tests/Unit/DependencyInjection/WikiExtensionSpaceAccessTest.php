@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
+use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
@@ -58,7 +59,7 @@ final class WikiExtensionSpaceAccessTest extends TestCase
         $memos = $definition->getArgument('$memos');
         self::assertInstanceOf(IteratorArgument::class, $memos);
         $ids = array_map(static fn (mixed $reference): string => $reference instanceof Reference ? (string) $reference : '', $memos->getValues());
-        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiEntityManager::class], $ids);
+        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class, WikiEntityManager::class], $ids);
         foreach ($memos->getValues() as $reference) {
             self::assertInstanceOf(Reference::class, $reference);
             self::assertSame(ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE, $reference->getInvalidBehavior(), 'only built memos are reset; missing ones are skipped');

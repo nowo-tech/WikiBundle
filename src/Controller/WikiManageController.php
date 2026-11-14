@@ -59,9 +59,11 @@ use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
+use Nowo\WikiBundle\Ui\WikiNewPageMenu;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Nowo\WikiBundle\Util\WikiTitleDedupe;
+use Nowo\WikiBundle\ValueObject\WikiPagePlacement;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
@@ -287,11 +289,20 @@ final class WikiManageController extends AbstractController
         $treeNodes = $pages->tree($space, $tree);
         $treeUi    = $this->treeUi($user, $space, $treeNodes);
         $vars      = $treeUi === null ? [] : ['tree_ui' => $treeUi];
+        // 1.35 (web_ui.new_page_dialog): New page opens the dialog; the tree gets its menu.
+        $dialog = $can['create'] ? $this->newPageDialog($user, $space) : null;
+        if ($dialog !== null) {
+            $vars['new_page_dialog'] = $dialog;
+            if ($treeUi !== null) {
+                $vars['tree_ui'] = $this->withNewPageMenu($user, $space, $treeUi, $tree);
+            }
+        }
         // 1.29 (web_ui.tree_rail): the tree card folds to a rail.
         if ($this->treeRail instanceof WikiTreeRail) {
             $vars['tree_rail'] = $this->treeRail->rail($this->currentRequest(), $user, $space);
         }
 
+        // 1.35: the new-page dialog carries the user's form token: never kept by any cache.
         return $this->renderPage('space', $vars + [
             'page'             => $pages->space($space, $can),
             'space_icon'       => $space->getIcon(),
@@ -313,7 +324,7 @@ final class WikiManageController extends AbstractController
             'can_import'      => $can['import'],
             'can_export'      => $can['export'],
             'permissions'     => $permissions,
-        ]);
+        ], null, isset($vars['new_page_dialog']) ? ['Cache-Control' => 'private, no-store'] : []);
     }
 
     /**
@@ -328,12 +339,11 @@ final class WikiManageController extends AbstractController
     public function viewPage(string $spaceSlug, string $pageSlug): Response
     {
         $this->denyUnlessFeature('list');
-        $user                   = $this->requireUser();
-        $space                  = $this->requireAccessibleSpace($user, $spaceSlug);
-        $page                   = $this->requirePage($user, $space, $pageSlug);
-        [$tree, $treeTruncated] = $this->buildTree($user, $space);
-        $permissions            = $this->spaceGuard->grants($user, $space, $page);
-        $can                    = [
+        $user        = $this->requireUser();
+        $space       = $this->requireAccessibleSpace($user, $spaceSlug);
+        $page        = $this->requirePage($user, $space, $pageSlug);
+        $permissions = $this->spaceGuard->grants($user, $space, $page);
+        $can         = [
             'edit'    => $this->accessChecker->canEdit($user) && $permissions['edit'],
             'history' => $this->accessChecker->canViewHistory($user) && $permissions['history'],
             'archive' => $this->accessChecker->canArchive($user) && $permissions['archive'] && isset($this->routes['page_archive']),
@@ -356,29 +366,29 @@ final class WikiManageController extends AbstractController
                 WikiTrashController::deleteTokenId($item),
             ])[0]
             : null;
-        $pages     = $this->pages();
-        $treeNodes = $pages->tree($space, $tree, $page->getSlug());
+        $pages = $this->pages();
         // 1.15: the raw Markdown for the "Copy as Markdown" button, to editors only (it holds page ids and directive
         // attributes the per-viewer render hides; Milkdown audit DN-I2).
         $revision = $page->getCurrentRevision();
         $source   = ($this->editor['milkdown']['copy_markdown'] ?? false) === true && $can['edit'] && $revision instanceof WikiPageRevision
             ? $revision->getContentMarkdown()
             : null;
-        $treeUi = $this->treeUi($user, $space, $treeNodes);
-        $vars   = [];
-        if ($treeUi !== null) {
+        // The sidebar tree, its rail and the in-wiki path (shared with the edit form's read layout, 1.33).
+        // 1.35 (web_ui.new_page_dialog): "New page" in the page actions opens the dialog; the tree gets its menu.
+        $dialog = $this->newPageDialog($user, $space);
+        $vars   = $this->readLayoutVars($user, $space, $page, $dialog !== null);
+        if ($dialog !== null) {
+            $vars['new_page_dialog'] = $dialog;
+            $can['new_page_dialog']  = true;
+        }
+        if (isset($vars['tree_ui'])) {
             // 1.14: the Move action (the form is the single-pointer alternative to dragging).
             $can['move'] = $can['edit'] && isset($this->routes['page_move']) && $this->canMoveIn($user, $space)
                 && $this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $page->getParent());
-            $vars = ['tree_ui' => $treeUi];
         }
 
         if ($source !== null && $source !== '') {
             $vars['copy_markdown'] = $source;
-        }
-        // 1.29 (web_ui.tree_rail): the tree card folds to a rail.
-        if ($this->treeRail instanceof WikiTreeRail) {
-            $vars['tree_rail'] = $this->treeRail->rail($this->currentRequest(), $user, $space);
         }
         // 1.29 (web_ui.page_header.title: dedupe): a first body <h1> repeating the title is not shown twice.
         $dedupe  = ($this->layout['title'] ?? 'both') === 'dedupe';
@@ -404,10 +414,6 @@ final class WikiManageController extends AbstractController
         // 1.31 (web_ui.page_meta: card): the revision line in the content card (date in the reader's locale).
         if (($this->layout['page_meta'] ?? 'scaffold') === 'card' && $revision instanceof WikiPageRevision) {
             $vars['page_meta'] = ['revision' => $revision->getRevisionNumber(), 'updated_at' => $revision->getCreatedAt()];
-        }
-        // 1.30 (web_ui.page_header.path: card): the in-wiki path above the body, hidden ancestors without a name.
-        if (($this->layout['path'] ?? 'none') === 'card') {
-            $vars['page_path'] = $this->pagePath($user, $space, $page);
         }
         // 1.30 (web_ui.children): the readable direct sub-pages, one query.
         $childrenMode = $this->layout['children'] ?? 'never';
@@ -444,15 +450,10 @@ final class WikiManageController extends AbstractController
         }
 
         return $this->renderPage('page_view', $vars + [
-            'page'             => $pages->pageView($space, $page, $can, $archiveForm, $deleteForm),
-            'space_icon'       => $space->getIcon(),
-            'content_html'     => $content,
-            'rich_content'     => $this->bodyRenderer?->hasRichContent() ?? false,
-            'tree'             => $treeNodes,
-            'tree_truncated'   => $treeTruncated,
-            'max_tree_pages'   => $this->pagination['max_tree_pages'],
-            'tree_search_href' => $this->treeSearchHref($space),
-            'used_in'          => $pages->usedIn($this->linkService?->usedIn($page, $user) ?? []),
+            'page'         => $pages->pageView($space, $page, $can, $archiveForm, $deleteForm),
+            'content_html' => $content,
+            'rich_content' => $this->bodyRenderer?->hasRichContent() ?? false,
+            'used_in'      => $pages->usedIn($this->linkService?->usedIn($page, $user) ?? []),
             // 1.20 (page_files.enabled): the files the current revision refers to (file cards and images).
             'page_files'      => $this->pageFiles?->files($revision?->getContentMarkdown()) ?? [],
             'routes'          => $this->routes,
@@ -461,9 +462,9 @@ final class WikiManageController extends AbstractController
             'can_history'     => $can['history'],
             'can_archive'     => $can['archive'],
             'permissions'     => $permissions,
-        ], null, isset($vars['copy_markdown']) || isset($vars['comments'])
-            // The page carries the Markdown source (audit DR-I1) or the per-viewer comments panel and its tokens:
-            // never kept by any cache.
+        ], null, isset($vars['copy_markdown']) || isset($vars['comments']) || isset($vars['new_page_dialog'])
+            // The page carries the Markdown source (audit DR-I1) or the per-viewer comments panel and its tokens, or
+            // (1.35) the new-page dialog's form token: never kept by any cache.
             ? ['Cache-Control' => 'private, no-store']
             : []);
     }
@@ -491,7 +492,7 @@ final class WikiManageController extends AbstractController
         // DI-I6: the parent is read once; every check and the scope's stale guard use the same one.
         $from = $page->getParent();
         $this->requireMovable($user, $space, $page, $from, $from);
-        $this->nameParentCrumb($request, $page);
+        $this->nameParentCrumb($request, $page, 'page_move');
 
         $parents = $this->moveParents($user, $space, $page);
         $form    = $this->container->get('form.factory')->createNamed('', WikiPageMoveType::class, ['parent' => $page->getParent()?->getId(), 'position' => null], [
@@ -549,7 +550,7 @@ final class WikiManageController extends AbstractController
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::Edit, $space, $page);
-        $this->nameParentCrumb($request, $page);
+        $this->nameParentCrumb($request, $page, 'page_edit');
 
         $data = new WikiPageFormData(
             $page->getTitle(),
@@ -606,7 +607,7 @@ final class WikiManageController extends AbstractController
 
         $canHistory = $this->accessChecker->canViewHistory($user) && $this->spaceGuard->isGranted($user, WikiAction::History, $space, $page);
 
-        return $this->renderPage('page_edit', [
+        return $this->renderPage('page_edit', $this->editLayoutVars($user, $space, $page) + [
             'comments'        => $comments,
             'page'            => $this->pages()->pageForm($space, $page, $form->createView(), $this->collabResetForm($space, $page), ['history' => $canHistory]),
             'routes'          => $this->routes,
@@ -702,7 +703,7 @@ final class WikiManageController extends AbstractController
         ] + $this->pageFormOptions());
         $canHistory = $this->accessChecker->canViewHistory($user) && $this->spaceGuard->isGranted($user, WikiAction::History, $space, $page);
 
-        return $this->renderPage('page_edit', [
+        return $this->renderPage('page_edit', $this->editLayoutVars($user, $space, $page) + [
             'comments'        => $comments,
             'page'            => $this->pages()->pageForm($space, $page, $form->createView(), null, ['history' => $canHistory], $conflict !== null ? ['id' => $conflict['form_id']] : []),
             'routes'          => $this->routes,
@@ -751,12 +752,20 @@ final class WikiManageController extends AbstractController
         $this->spaceGuard->requireGranted($user, WikiAction::Create, $space);
         $data = new WikiPageFormData();
 
+        // 1.35 (web_ui.new_page_dialog): the hidden `place` field of the dialog and the tree menu.
+        $dialog = $this->newPageDialogEnabled();
+
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_new_<space id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
             'csrf_token_id'  => 'wiki_new_' . $space->getId(),
             'editor_options' => $this->editorOptions($user, $space, null),
+            'placement'      => $dialog,
         ] + $this->pageFormOptions());
         $form->handleRequest($request);
+        if ($dialog && !$form->isSubmitted()) {
+            // 1.35: ?place=child:<id> | above:<id> | below:<id> pre-fills the place.
+            $form->get('place')->setData($request->query->getString('place'));
+        }
 
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var WikiPageFormData $payload */
@@ -770,11 +779,46 @@ final class WikiManageController extends AbstractController
             }
 
             try {
-                $page = $this->pageService->create($space, $payload->title, $payload->content, $user, null, null, $this->editorFormat());
+                $placement = $dialog ? WikiPagePlacement::fromValue($form->get('place')->getData()) : null;
+            } catch (InvalidArgumentException) {
+                $placement = false;
+            }
+            // Without tree.enabled there is no ordering (nor depth limit) to place a page in.
+            if ($placement === false || ($placement instanceof WikiPagePlacement && !$this->mover instanceof WikiPageMover)) {
+                $this->flash('error', new TranslatableMessage('wiki.new_page.error.placement', [], WikiPages::DOMAIN));
+
+                return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+            // Audit PT-L2: placing a page reorders its siblings, so it needs the role gate of the tree moves too.
+            if ($placement instanceof WikiPagePlacement && !$this->allowUnauthenticated && !$this->accessChecker->canEdit($user)) {
+                throw new AccessDeniedHttpException('Access denied.');
+            }
+            $pages = $placement instanceof WikiPagePlacement ? $this->placementPages($user, $space, $placement) : null;
+            if ($pages === false) {
+                $this->flash('error', new TranslatableMessage('wiki.tree.error.parent_missing', [], WikiPages::DOMAIN));
+
+                return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            try {
+                $parent = $pages[1] ?? null;
+                $create = fn (): WikiPage => $this->pageService->create($space, $payload->title, $payload->content, $user, $parent, null, $this->editorFormat());
+                // 1.35: a place: computed by the server (audit PT-L3) and written under the space lock with the depth
+                // limit (audit PT-M1), as a move (WikiPageMover); "as child" is the last place among all children.
+                $mover = $this->mover;
+                $page  = match (true) {
+                    !$placement instanceof WikiPagePlacement || $pages === null || !$mover instanceof WikiPageMover => $create(),
+                    $placement->isChild()                                                                           => $mover->createAt($space, $parent, PHP_INT_MAX, $create)->page,
+                    default                                                                                         => $mover->createNextTo($space, $pages[0], $placement->isAfter(), $create)->page,
+                };
             } catch (InvalidArgumentException $exception) {
                 $this->flash('error', $this->pageErrorMessage($exception));
 
                 return $this->renderNewPage($space, $form);
+            } catch (WikiPageMoveException $exception) {
+                $this->flash('error', new TranslatableMessage('wiki.tree.error.' . $exception->reason, [], WikiPages::DOMAIN));
+
+                return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
             return $this->redirectToRoute($this->routes['page_view']['name'], [
@@ -801,6 +845,88 @@ final class WikiManageController extends AbstractController
     }
 
     /**
+     * 1.35: the page a place is relative to and the new page's parent (that page for a child, its parent otherwise;
+     * null: the root). Same rule as the API create and the tree's moves: a page of the space the user may read (with
+     * every ancestor), the parent active and editable. False when the page is missing, archived or hidden, or its
+     * parent is archived (the dialog was opened before someone changed them; a hidden page answers alike).
+     *
+     * @throws AccessDeniedHttpException without {@see WikiAction::Edit} on the parent
+     *
+     * @return array{0: WikiPage, 1: WikiPage|null}|false
+     */
+    private function placementPages(UserInterface $user, WikiSpace $space, WikiPagePlacement $placement): array|false
+    {
+        $page = $this->pageRepository->findById($placement->pageId);
+        if (!$page instanceof WikiPage || $page->getSpace()->getId() !== $space->getId() || $page->isArchived() || !$this->spaceGuard->isPageReadable($user, $space, $page)) {
+            return false;
+        }
+        $parent = $placement->isChild() ? $page : $page->getParent();
+        if ($parent?->isArchived() === true) {
+            return false;
+        }
+        if ($parent instanceof WikiPage && !$this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $parent)) {
+            throw new AccessDeniedHttpException('Access denied.');
+        }
+
+        return [$page, $parent];
+    }
+
+    /** 1.35: `web_ui.new_page_dialog` (and the page_new route). */
+    private function newPageDialogEnabled(): bool
+    {
+        return ($this->layout['new_page_dialog'] ?? false) === true && isset($this->routes['page_new']);
+    }
+
+    /**
+     * 1.35 (`web_ui.new_page_dialog`): the new-page dialog of the page view and the space home, for users who may
+     * create pages in the space: the new-page form (posted to page_new, CSRF token wiki_new_<space id>) and the editor
+     * type (the Tiptap script). Null otherwise.
+     *
+     * @return array{form: FormView, editor_type: string}|null
+     */
+    private function newPageDialog(UserInterface $user, WikiSpace $space): ?array
+    {
+        if (!$this->newPageDialogEnabled() || (!$this->allowUnauthenticated && !$this->accessChecker->canCreate($user)) || !$this->spaceGuard->isGranted($user, WikiAction::Create, $space)) {
+            return null;
+        }
+        $form = $this->createForm(WikiPageFormType::class, new WikiPageFormData(), [
+            'action'         => $this->generateUrl($this->routes['page_new']['name'], ['spaceSlug' => $space->getSlug()]),
+            'csrf_token_id'  => 'wiki_new_' . $space->getId(),
+            'editor_options' => $this->editorOptions($user, $space, null),
+            'placement'      => true,
+        ] + $this->pageFormOptions());
+
+        return ['form' => $form->createView(), 'editor_type' => $this->editorType()];
+    }
+
+    /**
+     * 1.35: the tree menu of the new-page dialog ("New page above / below / as child"), for users who may also edit in
+     * the space (role gate `canEdit()` and {@see WikiAction::Edit} on the space, as the tree's moves): one check per
+     * page, not one per row (audit PT-L4); the server checks the page itself on every create. A top-level row whose page
+     * has a parent (an archived one) gets no "above / below". With `actions_template`, the «…» button
+     * of each row.
+     *
+     * @param array{nodes: list<array<string, mixed>>, attr: array<string, bool|string>, movable: bool} $treeUi
+     * @param list<array{page: WikiPage, children: list<mixed>}> $tree
+     *
+     * @return array{nodes: list<array<string, mixed>>, attr: array<string, bool|string>, movable: bool, actions_template?: string}
+     */
+    private function withNewPageMenu(UserInterface $user, WikiSpace $space, array $treeUi, array $tree): array
+    {
+        if (!$this->mover instanceof WikiPageMover || (!$this->allowUnauthenticated && !$this->accessChecker->canEdit($user)) || !$this->spaceGuard->isGranted($user, WikiAction::Edit, $space)) {
+            return $treeUi;
+        }
+        $orphans = [];
+        foreach ($tree as $node) {
+            if ($node['page']->getParent() instanceof WikiPage) {
+                $orphans[$node['page']->getId()] = true;
+            }
+        }
+
+        return ['nodes' => WikiNewPageMenu::annotate($treeUi['nodes'], $orphans), 'actions_template' => WikiNewPageMenu::ACTIONS_TEMPLATE] + $treeUi;
+    }
+
+    /**
      * Lists the revisions of a page, newest first, paginated by {@code pagination.revisions_per_page} ({@code ?page=N}).
      *
      * @param string $spaceSlug space slug from the route
@@ -817,7 +943,7 @@ final class WikiManageController extends AbstractController
         $space = $this->requireAccessibleSpace($user, $spaceSlug);
         $page  = $this->requirePage($user, $space, $pageSlug);
         $this->spaceGuard->requireGranted($user, WikiAction::History, $space, $page);
-        $this->nameParentCrumb($request ?? $this->currentRequest(), $page);
+        $this->nameParentCrumb($request ?? $this->currentRequest(), $page, 'page_history');
         $perPage = max(1, $this->pagination['revisions_per_page']);
         $current = max(1, $request?->query->getInt('page', 1) ?? 1);
         // One extra row: tells whether an older page exists and gives the last row its "compare" target.
@@ -842,7 +968,7 @@ final class WikiManageController extends AbstractController
                 $this->restoreForms($user, $space, $page, $revisions),
                 // 1.12: no pagination region (empty card / "1 of 1") when every revision fits on one page.
                 $total > $perPage ? Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $route, [], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]) : null,
-                $this->timeline?->rows($page, $revisions),
+                $this->timeline?->rows($page, $revisions, $user),
                 $this->copyForms($user, $space, $page, $revisions),
             ),
             'routes'          => $this->routes,
@@ -880,7 +1006,7 @@ final class WikiManageController extends AbstractController
         }
 
         $diff = $this->revisionDiffService->diff($from, $to);
-        $this->nameParentCrumb($request, $page);
+        $this->nameParentCrumb($request, $page, 'page_diff');
 
         return $this->renderPage('page_diff', [
             'page'            => $this->pages()->diff($space, $page, $from->getRevisionNumber(), $to->getRevisionNumber()),
@@ -1819,6 +1945,52 @@ final class WikiManageController extends AbstractController
     }
 
     /**
+     * The layout variables of the read view around the page (1.33: also the edit form with `web_ui.edit_view.layout:
+     * read`): the sidebar tree (capped, readable pages only), its UiKit tree (`tree.enabled`) and rail
+     * (`web_ui.tree_rail`), the space icon and the in-wiki path (`page_header.path: card`).
+     *
+     * @return array<string, mixed>
+     */
+    private function readLayoutVars(UserInterface $user, WikiSpace $space, WikiPage $page, bool $newPageMenu = false): array
+    {
+        [$tree, $truncated] = $this->buildTree($user, $space);
+        $nodes              = $this->pages()->tree($space, $tree, $page->getSlug());
+        $vars               = [
+            'tree'             => $nodes,
+            'tree_truncated'   => $truncated,
+            'max_tree_pages'   => $this->pagination['max_tree_pages'],
+            'tree_search_href' => $this->treeSearchHref($space),
+            'space_icon'       => $space->getIcon(),
+        ];
+        $treeUi = $this->treeUi($user, $space, $nodes);
+        if ($treeUi !== null) {
+            // 1.35: the "New page above / below / as child" menu of the tree (web_ui.new_page_dialog, page view).
+            $vars['tree_ui'] = $newPageMenu ? $this->withNewPageMenu($user, $space, $treeUi, $tree) : $treeUi;
+        }
+        // 1.29 (web_ui.tree_rail): the tree card folds to a rail.
+        if ($this->treeRail instanceof WikiTreeRail) {
+            $vars['tree_rail'] = $this->treeRail->rail($this->currentRequest(), $user, $space);
+        }
+        // 1.30 (web_ui.page_header.path: card): the in-wiki path above the body, hidden ancestors without a name.
+        if (($this->layout['path'] ?? 'none') === 'card') {
+            $vars['page_path'] = $this->pagePath($user, $space, $page);
+        }
+
+        return $vars;
+    }
+
+    /**
+     * 1.33 (`web_ui.edit_view.layout: read`): the read view's layout variables for the edit form of a page; none with
+     * the form layout (the default).
+     *
+     * @return array<string, mixed>
+     */
+    private function editLayoutVars(UserInterface $user, WikiSpace $space, WikiPage $page): array
+    {
+        return ($this->layout['edit_layout'] ?? 'form') === 'read' ? $this->readLayoutVars($user, $space, $page) : [];
+    }
+
+    /**
      * The UiKit tree of the sidebar (1.14), or null without `tree.enabled` (the 1.13 nested list).
      *
      * @param list<array{id: string, title: string, href: string, current: bool, children: list<mixed>}> $nodes
@@ -1874,11 +2046,15 @@ final class WikiManageController extends AbstractController
      * 1.31 (web_ui.breadcrumb_current_label, BreadcrumbKit >= 2.17): the BreadcrumbKit crumb of the page view on the
      * edit, history, compare and move pages is named after the page ({@see WikiBreadcrumbParentLabel}). Called after
      * the viewer passed the page's checks; the title rides on the request being handled, nothing is kept here.
+     * 1.33: with the action's route key (its {@see WikiRouteLoader::ROUTE_KEY_OPTION}), so that a tenant copy of the
+     * route (`<name_prefix>nowo_wiki_page_edit`) is recognised as well.
+     *
+     * @param 'page_diff'|'page_edit'|'page_history'|'page_move' $routeKey
      */
-    private function nameParentCrumb(?Request $request, WikiPage $page): void
+    private function nameParentCrumb(?Request $request, WikiPage $page, string $routeKey): void
     {
         if ($request instanceof Request && ($this->layout['breadcrumb_current_label'] ?? false) === true && $this->breadcrumbCurrentLabel instanceof BreadcrumbCurrentLabelInterface) {
-            WikiBreadcrumbParentLabel::remember($request, $page->getTitle());
+            WikiBreadcrumbParentLabel::remember($request, $page->getTitle(), $routeKey);
         }
     }
 

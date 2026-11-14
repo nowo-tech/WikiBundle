@@ -416,7 +416,7 @@ paths:
     post:
       operationId: page_create
       summary: Create a page
-      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      description: 'Level: Edit. The person''s access and the token''s where still apply. With `parent`, Edit on that page as well. 1.35: optional `position` places the page among its siblings.'
       responses:
         '201':
           description: Created
@@ -1563,6 +1563,30 @@ components:
           oneOf:
           - $ref: '#/components/schemas/Person'
           - type: 'null'
+        created_by:
+          oneOf:
+          - $ref: '#/components/schemas/Person'
+          - type: 'null'
+          description: The author of the page's oldest stored revision (spec 234), presented like updated_by.
+        channel:
+          type:
+          - string
+          - 'null'
+          enum:
+          - web
+          - app
+          - api
+          - mcp
+          - null
+          description: Where the last write came from (spec 234), as the host recorded it; null when not recorded.
+        token_name:
+          type:
+          - string
+          - 'null'
+          maxLength: 120
+          description: The host's plain-text actor label of the last write (spec 234), e.g. a token name; never a secret.
+            Only for the token's own writes, or beside a real name with history.show_actor_labels on and a safe label;
+            null otherwise, when not recorded or once its author is deleted. Plain text, escape it when rendering HTML.
       required:
       - id
       - wiki
@@ -1575,6 +1599,9 @@ components:
       - created_at
       - updated_at
       - updated_by
+      - created_by
+      - channel
+      - token_name
     PageList:
       type: object
       properties:
@@ -1627,6 +1654,11 @@ components:
           type: string
         slug:
           type: string
+        position:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          description: '1.35: the 1-based place among the parent''s children the token''s user may read (1 = first; past the last = last), as the Move form; the siblings are renumbered when needed, under the space lock. Needs tree.enabled (else 400 INPUT_002). With tree.enabled a parent without position puts the page last; with parent or position tree.max_depth applies (422 WIKI_MOVE_002). Neither: created as before (position 0). 404 when the parent went away meanwhile. The answer''s position is then the 1-based visible place.'
       required:
       - title
     PageUpdate:
@@ -1679,12 +1711,32 @@ components:
           - 'null'
         format:
           type: string
+        channel:
+          type:
+          - string
+          - 'null'
+          enum:
+          - web
+          - app
+          - api
+          - mcp
+          - null
+          description: Where the write came from (spec 234); null when not recorded.
+        token_name:
+          type:
+          - string
+          - 'null'
+          maxLength: 120
+          description: The host's plain-text actor label of the write (spec 234); only for the token's own writes, or beside
+            a real name with history.show_actor_labels on and a safe label; null otherwise or once the author is deleted.
       required:
       - number
       - author
       - created_at
       - label
       - format
+      - channel
+      - token_name
     RevisionList:
       type: object
       properties:

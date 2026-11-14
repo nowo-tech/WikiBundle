@@ -61,7 +61,7 @@
                         <article class="nowo-wiki-comment" aria-label="{{ 'wiki.comments.by'|trans({'%name%': comment.author.name}) }}">
                             <header class="nowo-wiki-comment__header">
                                 {% if comment.author.avatarUrl %}{{ include('@NowoUiKitBundle/partials/_avatar.html.twig', {name: comment.author.name, src: comment.author.avatarUrl, size: 'sm', decorative: true}, false) }}{% endif %}
-                                <span class="nowo-wiki-comment__author">{{ comment.author.name }}</span>
+                                <span class="nowo-wiki-comment__author">{{ comment.author.name }}</span>{% if comment.author.badges|default([]) is not empty %}{{ include('@NowoWikiBundle/manage/_member_label_suffix.html.twig', {badges: comment.author.badges, bundle: _b}, false) }}{% endif %}
                                 <time class="nowo-wiki-comment__time" datetime="{{ comment.createdAt }}">{{ comment.createdAt|date('Y-m-d H:i') }}</time>
                             </header>
                             {% if comment.deleted|default(false) %}

@@ -9,7 +9,7 @@ use Nowo\WikiBundle\Security\WikiAccessPolicyInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * Asks a framework-free {@see WikiAccessPolicyInterface} (1.34.0) where the bundle asks the deprecated interface.
+ * Asks a framework-free {@see WikiAccessPolicyInterface} (1.36.0) where the bundle asks the deprecated interface.
  *
  * @internal
  */

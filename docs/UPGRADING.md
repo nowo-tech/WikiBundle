@@ -3,11 +3,14 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
-- [To 1.34.0](#to-1340)
+- [To 1.36.0](#to-1360)
   - [Host ports: move to the framework-free twins (optional until 2.0)](#host-ports-move-to-the-framework-free-twins-optional-until-20)
   - [XML mapping (`database.mapping_type: xml`)](#xml-mapping-databasemapping_type-xml)
   - [User references by id (`database.user_reference: id`)](#user-references-by-id-databaseuser_reference-id)
   - [Private entity manager (`database.private_entity_manager: true`; the only mode in 2.0)](#private-entity-manager-databaseprivate_entity_manager-true-the-only-mode-in-20)
+- [To 1.35.0](#to-1350)
+- [To 1.34.0](#to-1340)
+- [To 1.33.0](#to-1330)
 - [To 1.32.0](#to-1320)
 - [To 1.31.1](#to-1311)
 - [To 1.31.0](#to-1310)
@@ -90,10 +93,10 @@
 
 ## Unreleased
 
-## To 1.34.0
+## To 1.36.0
 
 REQ-ARCH-001: the DDD / hexagonal host path, opt-in. **Nothing to do**: with an unchanged configuration and unchanged
-host services the wiki behaves exactly as 1.33 (same schema, same mapping, same entity manager, every deprecated port
+host services the wiki behaves exactly as 1.35 (same schema, same mapping, same entity manager, every deprecated port
 asked exactly as before). Overview of both host kinds: [ARCHITECTURE](ARCHITECTURE.md).
 
 ### Host ports: move to the framework-free twins (optional until 2.0)
@@ -176,6 +179,122 @@ This is a **schema and data migration**: plan a maintenance window and take a ba
 - Users and rows read back through the wiki are the private manager's instances: compare by id, never with `===`.
 - With DBAL 4 a rollback of rows the private manager wrote replaces it at its next use (middleware on the source
   connection only); with DBAL 3 it is replaced at the next boundary.
+## To 1.35.0
+
+From **1.34.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+Target 1.35.0. No schema change; every default keeps the 1.34 pages.
+
+- **New page dialog and tree menu** (opt-in): set `nowo_wiki.web_ui.new_page_dialog: true` (with `tree.enabled: true`
+  for the tree menu). Hosts that override `page_view.html.twig` or `space.html.twig` and replace `nowo_ui_modals` call
+  `{{ parent() }}` there or include `@NowoWikiBundle/manage/_new_page_dialog.html.twig` themselves (variables
+  `new_page_dialog`, `with_menu`); hosts that override `_sidebar.html.twig` pass `actions_template:
+  tree_ui.actions_template|default(null)` to the UiKit `tree` partial. With `web_ui.assets.scripts: false`, bundle
+  `wiki-new-page.ts` (imported by `wiki.ts`) and, for the Tiptap editor, the TiptapEditorBundle script on the page view
+  and the space home. Hosts that render the new-page form field by field render the hidden `place` (`form_rest()` /
+  `form_end()` do).
+- **Cost with the option on** (audit PT-L4): each page view and space home of a user who may create pages builds the
+  new-page form (one `nowo_wiki.editor_options` event with `page` null, so host listeners run on read pages), mints its
+  CSRF token, loads the editor script, and answers `Cache-Control: private, no-store` (those users' page views are no
+  longer cached by the browser). The tree menu costs one Edit check on the space per page, not one per row.
+- **API, behaviour changes**:
+  - A create with `parent` (with `tree.enabled`) now checks `tree.max_depth` (422 `WIKI_MOVE_002`) and places the page
+    last among the parent's children, instead of at position 0 (audit PT-M1).
+  - `position` is now read: a client that sent a `position` before 1.35 got an `unknown` warning and the page created at
+    0. Now it places the page; it must be an integer from 1 to 100000 (else 400 `INPUT_002`, e.g. `"2"`), and without
+    `tree.enabled` it is 400 `INPUT_002`.
+  - When a create or a move placed the page, the answer's `position` is the 1-based visible place, not the sort key.
+  - `POST …/move` keeps its 0-based `index`.
+- **PHP**: `WikiPageMover::createAt()` / `createNextTo()` (returning `WikiPageCreateResult`) are new;
+  `WikiPageFormType` has a new `placement` option (default `false`).
+
+## To 1.34.0
+
+From **1.33.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+Target 1.34.0 (spec 234: member badges and write provenance).
+
+`wiki_page_revisions` gets two nullable columns. The bundle ships no migrations: generate one
+(`doctrine:migrations:diff`) or run the statements for your database (adjust the table name if you changed
+`table_prefix`):
+
+```sql
+-- MySQL / MariaDB
+ALTER TABLE wiki_page_revisions ADD channel VARCHAR(8) DEFAULT NULL, ADD actor_label VARCHAR(120) DEFAULT NULL;
+-- PostgreSQL
+ALTER TABLE wiki_page_revisions ADD channel VARCHAR(8) DEFAULT NULL;
+ALTER TABLE wiki_page_revisions ADD actor_label VARCHAR(120) DEFAULT NULL;
+-- SQLite
+ALTER TABLE wiki_page_revisions ADD COLUMN channel VARCHAR(8) DEFAULT NULL;
+ALTER TABLE wiki_page_revisions ADD COLUMN actor_label VARCHAR(120) DEFAULT NULL;
+```
+
+Existing revisions keep NULL (nothing recorded). Nothing else changes until you alias
+`WikiWriteProvenanceProviderInterface` and / or `WikiMemberBadgeProviderInterface` to your services (see
+[USAGE](USAGE.md#member-badges-and-write-provenance)): the history and the comments render the same markup, and the API
+answers carry the new fields (`created_by`, `channel`, `token_name` on pages; `channel`, `token_name` on revisions) as
+null, or `created_by` equal to the oldest revision's author. Clients that reject unknown fields must accept them.
+`actor_label` is personal data. Export: `wiki:comments:erase-user --export` and `WikiCommentService::exportAuthorData()`
+include the user's labels (`revision_actor_labels`). Erasure: `wiki:comments:erase-user` and
+`WikiCommentService::eraseAuthor()` erase them and those of revisions whose author was already deleted. If your exporter
+or eraser goes through neither, call `WikiWriteProvenanceErasure` (`exportActor()`, `eraseActor()`, `eraseOrphaned()`).
+
+Actor labels (`token_name` in the API) are shown to the author and, with the new `history.show_actor_labels` (default:
+`history.show_names`), beside real names only when they pass the safe-name rule; never beside an opaque "Editor xxxx".
+Set `history.show_actor_labels: false` to show them to their author only.
+
+If you override `manage/page_history.html.twig` or `manage/_comments_panel_body.html.twig`, include
+`@NowoWikiBundle/manage/_member_label_suffix.html.twig` after the author name to show badges (see the bundle templates).
+
+## To 1.33.0
+
+From **1.32.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+No schema change; every default keeps the 1.32 pages.
+
+- **Edit form in the read layout** (opt-in):
+
+  ```yaml
+  nowo_wiki:
+      web_ui:
+          edit_view:
+              layout: read
+          page_header:
+              edit_toolbar:
+                  current_tab: hidden   # optional: no Edit tab while editing
+                  back: view            # optional: a "View page" eye button
+  ```
+
+  The edit form then uses the page view's layout (tree, reading column, card toolbar, path) with the form in place of
+  the body. A host template that extends `page_edit.html.twig` keeps working: `nowo_ui_form_body` (the form fields),
+  `wiki_page_header_toolbar` and the header blocks are unchanged; the new block `wiki_page_form_body` holds the whole
+  form (default: the UiKit form, `{{ parent() }}` in an override). A host that built its own read-like edit layout
+  around the form (a `nowo_ui_content` override with its own `.nowo-wiki-layout`, e.g. a `.wiki-edit-layout` class)
+  can drop it: set `edit_view.layout: read` and keep only what is specific to the host. If you style the editor with
+  your own Markdown typography, set the `--nowo-wiki-read-*` tokens instead (they now also apply in
+  `.nowo-wiki-edit-body`).
+- **Page view template**: `nowo_ui_show_sections` now renders through `manage/_read_scaffold.html.twig`; the markup and
+  the blocks (`wiki_sidebar`, `wiki_page_body`, `wiki_page_after_body`, `wiki_page_header_toolbar`) are the same. A
+  host that overrides `nowo_ui_show_sections` itself is not affected.
+- **Breadcrumbs** (`web_ui.breadcrumb_current_label` with tenant routes): the page crumb of the edit, history, compare
+  and move pages now carries the page title on tenant routes too. A host that called
+  `WikiBreadcrumbParentLabel::remember($request, $title)` itself can pass the route key as the third argument
+  (`page_edit`, `page_history`, `page_diff` or `page_move`); without it only the bundle route names are recognised,
+  as before.
+- Routes loaded by `nowo_wiki` now carry the option `nowo_wiki_route` (`WikiRouteLoader::ROUTE_KEY_OPTION`) with
+  their `routes.<key>`; the route cache is rebuilt by `cache:clear` as usual.
 
 ## To 1.32.0
 

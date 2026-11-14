@@ -78,12 +78,70 @@ final class WikiBreadcrumbParentLabelTest extends TestCase
         self::assertSame($view, $event->getView());
     }
 
+    /**
+     * 1.33 fix: tenant copies of the routes (`tenant_paths.name_prefix`) are recognised by the route key the controller
+     * puts on the request; the page view URL comes from the same prefix ("Beacon › Wiki › <title> › Edit").
+     */
+    public function testATenantRouteIsRecognisedByItsRouteKey(): void
+    {
+        foreach (['page_edit' => 'app_project_wiki_edit', 'page_history' => 'app_project_wiki_history', 'page_diff' => 'app_project_wiki_diff', 'page_move' => 'app_project_wiki_move'] as $key => $route) {
+            $event = $this->event($route, 'Deploy', '/projects/eng/wiki/pages/deploy', $key);
+            $this->listener()($event);
+            self::assertSame(['Home', 'Wiki', 'Deploy', 'Edit'], array_map(static fn (BreadcrumbNode $n): string => $n->label, $event->getView()->nodes), $route);
+        }
+
+        // The bundle route with its key, as before.
+        $event = $this->event('wiki_edit', 'Deploy', '/spaces/eng/pages/deploy', 'page_edit');
+        $this->listener()($event);
+        self::assertSame('Deploy', $event->getView()->nodes[2]->label);
+
+        // The prefixed page view does not exist: the bundle name (the tenant URL generator maps it).
+        $generator = $this->createStub(UrlGeneratorInterface::class);
+        $generator->method('generate')->willReturnCallback(static fn (string $name): string => $name === 'wiki_view' ? '/projects/eng/wiki/pages/deploy' : throw new RuntimeException('no route'));
+        $event = $this->event('app_project_wiki_edit', 'Deploy', '/projects/eng/wiki/pages/deploy', 'page_edit');
+        (new WikiBreadcrumbParentLabel($generator, self::ROUTES))($event);
+        self::assertSame('Deploy', $event->getView()->nodes[2]->label);
+    }
+
+    public function testATenantRouteWithoutAMatchingKeyChangesNothing(): void
+    {
+        foreach ([
+            // 1.31 callers (no key): only the configured names.
+            $this->event('app_project_wiki_edit', 'Deploy', '/projects/eng/wiki/pages/deploy'),
+            // A key that is not a child page, an unconfigured key, a route of another action.
+            $this->event('app_project_wiki_view', 'Deploy', '/projects/eng/wiki/pages/deploy', 'page_view'),
+            $this->event('app_project_wiki_edit', 'Deploy', '/projects/eng/wiki/pages/deploy', 'page_trash'),
+            $this->event('app_project_wiki_history', 'Deploy', '/projects/eng/wiki/pages/deploy', 'page_edit'),
+            // No route on the request.
+            $this->event('', 'Deploy', '/projects/eng/wiki/pages/deploy', 'page_edit'),
+        ] as $event) {
+            $before = $event->getView();
+            $this->listener()($event);
+            self::assertSame($before, $event->getView());
+        }
+
+        // A key configured nowhere.
+        $event  = $this->event('app_project_wiki_move', 'Deploy', '/projects/eng/wiki/pages/deploy', 'page_move');
+        $before = $event->getView();
+        (new WikiBreadcrumbParentLabel($this->generator(), ['page_view' => self::ROUTES['page_view']]))($event);
+        self::assertSame($before, $event->getView());
+
+        // A generator answering without a path.
+        $generator = $this->createStub(UrlGeneratorInterface::class);
+        $generator->method('generate')->willReturn('http://');
+        (new WikiBreadcrumbParentLabel($generator, self::ROUTES))($event);
+        self::assertSame($before, $event->getView());
+    }
+
     public function testRememberPutsTheTitleOnTheRequest(): void
     {
         $request = Request::create('/');
         WikiBreadcrumbParentLabel::remember($request, 'Deploy');
 
         self::assertSame('Deploy', $request->attributes->get(WikiBreadcrumbParentLabel::ATTRIBUTE));
+        self::assertFalse($request->attributes->has(WikiBreadcrumbParentLabel::ROUTE_KEY_ATTRIBUTE));
+        WikiBreadcrumbParentLabel::remember($request, 'Deploy', 'page_edit');
+        self::assertSame('page_edit', $request->attributes->get(WikiBreadcrumbParentLabel::ROUTE_KEY_ATTRIBUTE));
     }
 
     private function listener(): WikiBreadcrumbParentLabel
@@ -94,20 +152,24 @@ final class WikiBreadcrumbParentLabelTest extends TestCase
     private function generator(): UrlGeneratorInterface
     {
         $generator = $this->createStub(UrlGeneratorInterface::class);
-        $generator->method('generate')->willReturnCallback(static fn (string $name, array $params): string => $name === 'wiki_view'
-            ? '/spaces/' . $params['spaceSlug'] . '/pages/' . $params['pageSlug'] . '?' . http_build_query($params)
-            : '/' . $name);
+        $generator->method('generate')->willReturnCallback(static fn (string $name, array $params): string => match ($name) {
+            'wiki_view'             => '/spaces/' . $params['spaceSlug'] . '/pages/' . $params['pageSlug'] . '?' . http_build_query($params),
+            'app_project_wiki_view' => '/projects/' . $params['spaceSlug'] . '/wiki/pages/' . $params['pageSlug'],
+            default                 => '/' . $name,
+        });
 
         return $generator;
     }
 
-    private function event(string $route, ?string $title, string $pageUrl = '/spaces/eng/pages/deploy?x=1'): BreadcrumbTrailBuiltEvent
+    private function event(string $route, ?string $title, string $pageUrl = '/spaces/eng/pages/deploy?x=1', ?string $routeKey = null): BreadcrumbTrailBuiltEvent
     {
         $request = Request::create('/');
-        $request->attributes->set('_route', $route);
+        if ($route !== '') {
+            $request->attributes->set('_route', $route);
+        }
         $request->attributes->set('_route_params', ['spaceSlug' => 'eng', 'pageSlug' => 'deploy', 'object' => new stdClass()]);
         if ($title !== null) {
-            WikiBreadcrumbParentLabel::remember($request, $title);
+            WikiBreadcrumbParentLabel::remember($request, $title, $routeKey);
         }
         $view = new BreadcrumbTrailView(
             [
