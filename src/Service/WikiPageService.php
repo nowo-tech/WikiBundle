@@ -19,6 +19,8 @@ use Nowo\WikiBundle\Event\WikiPageRestoredEvent;
 use Nowo\WikiBundle\Event\WikiPageUnarchivedEvent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenance;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
 use Nowo\WikiBundle\Repository\WikiPageLockInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -62,6 +64,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      *                                         it commits (audit IF-L2)
      * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored revision author for a security user that
      *                                                       is no `user_class` entity
+     * @param WikiWriteProvenanceProviderInterface|null $provenance Spec 234: the channel and actor label of each
+     *                                                              new revision (null: nothing recorded)
      */
     public function __construct(
         private WikiPageRepositoryInterface $pageRepository,
@@ -74,6 +78,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         ?WikiMarkdownRendererInterface $markdownRenderer = null,
         private ?WikiEventDeferral $deferral = null,
         private ?WikiUserReferenceResolverInterface $users = null,
+        private ?WikiWriteProvenanceProviderInterface $provenance = null,
     ) {
         $this->logger           = $logger ?? new NullLogger();
         $this->markdownRenderer = $markdownRenderer ?? new WikiMarkdownRenderer();
@@ -452,11 +457,17 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         $author = $this->users?->reference($author) ?? $author;
         if ($format === WikiPageRevision::FORMAT_MARKDOWN) {
             $markdown = $this->normalizeMarkdown($content);
-
-            return new WikiPageRevision($page, $number, $this->clean($page->getSpace(), $this->markdownRenderer->render($markdown)), $author, $markdown);
+            $revision = new WikiPageRevision($page, $number, $this->clean($page->getSpace(), $this->markdownRenderer->render($markdown)), $author, $markdown);
+        } else {
+            $revision = new WikiPageRevision($page, $number, $this->cleanAuthored($page->getSpace(), $content), $author);
+        }
+        // Spec 234: where the write came from, as the host says at write time (never from client input).
+        $provenance = $this->provenance?->current();
+        if ($provenance instanceof WikiWriteProvenance) {
+            $revision->recordProvenance($provenance);
         }
 
-        return new WikiPageRevision($page, $number, $this->cleanAuthored($page->getSpace(), $content), $author);
+        return $revision;
     }
 
     /**

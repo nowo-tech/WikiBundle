@@ -1563,6 +1563,30 @@ components:
           oneOf:
           - $ref: '#/components/schemas/Person'
           - type: 'null'
+        created_by:
+          oneOf:
+          - $ref: '#/components/schemas/Person'
+          - type: 'null'
+          description: The author of the page's oldest stored revision (spec 234), presented like updated_by.
+        channel:
+          type:
+          - string
+          - 'null'
+          enum:
+          - web
+          - app
+          - api
+          - mcp
+          - null
+          description: Where the last write came from (spec 234), as the host recorded it; null when not recorded.
+        token_name:
+          type:
+          - string
+          - 'null'
+          maxLength: 120
+          description: The host's plain-text actor label of the last write (spec 234), e.g. a token name; never a secret.
+            Only for the token's own writes, or beside a real name with history.show_actor_labels on and a safe label;
+            null otherwise, when not recorded or once its author is deleted. Plain text, escape it when rendering HTML.
       required:
       - id
       - wiki
@@ -1575,6 +1599,9 @@ components:
       - created_at
       - updated_at
       - updated_by
+      - created_by
+      - channel
+      - token_name
     PageList:
       type: object
       properties:
@@ -1679,12 +1706,32 @@ components:
           - 'null'
         format:
           type: string
+        channel:
+          type:
+          - string
+          - 'null'
+          enum:
+          - web
+          - app
+          - api
+          - mcp
+          - null
+          description: Where the write came from (spec 234); null when not recorded.
+        token_name:
+          type:
+          - string
+          - 'null'
+          maxLength: 120
+          description: The host's plain-text actor label of the write (spec 234); only for the token's own writes, or beside
+            a real name with history.show_actor_labels on and a safe label; null otherwise or once the author is deleted.
       required:
       - number
       - author
       - created_at
       - label
       - format
+      - channel
+      - token_name
     RevisionList:
       type: object
       properties:

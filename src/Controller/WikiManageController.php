@@ -826,7 +826,7 @@ final class WikiManageController extends AbstractController
                 $this->restoreForms($user, $space, $page, $revisions),
                 // 1.12: no pagination region (empty card / "1 of 1") when every revision fits on one page.
                 $total > $perPage ? Pagination::fromTotal($total, $current, $perPage, [$perPage], $perPage, $route, [], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]) : null,
-                $this->timeline?->rows($page, $revisions),
+                $this->timeline?->rows($page, $revisions, $user),
                 $this->copyForms($user, $space, $page, $revisions),
             ),
             'routes'          => $this->routes,

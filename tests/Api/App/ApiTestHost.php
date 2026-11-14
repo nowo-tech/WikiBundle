@@ -29,6 +29,7 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -44,7 +45,7 @@ use function strtolower;
  */
 final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirectoryInterface, WikiApiWikiManagementInterface, WikiApiRateLimiterInterface, WikiApiPlanGateInterface, WikiApiUsersInterface, WikiSpaceAccessCheckerInterface
 {
-    /** @var array<string, array{user: string, level: WikiApiLevel|null, where: WikiApiWhere, name?: string}|string> secret => token, or 'disabled' */
+    /** @var array<string, array{user: string, level: WikiApiLevel|null, where: WikiApiWhere, name?: string, foreign?: true}|string> secret => token, or 'disabled'; `foreign`: a back-office user of another identity domain with that id (audit JX-W1, PQ-D1-L1) */
     public static array $tokens = [];
 
     /** @var array<string, array{name?: string, restricted?: bool, archived?: bool, can_open?: bool, owner?: string, unopened?: bool}> slug => flags */
@@ -61,6 +62,9 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
 
     /** A write raced by someone else: run when the person's Edit or Restore right is asked, until it returns true. */
     public static ?Closure $race = null;
+
+    /** Spec 234 (audit PQ-D1-I1): a write by someone else while a page is checked for reading (once). */
+    public static ?Closure $raceOnView = null;
 
     public static bool $rateLimited = false;
 
@@ -88,6 +92,7 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
         self::$failedIps      = [];
         self::$provisioned    = [];
         self::$race           = null;
+        self::$raceOnView     = null;
         ApiTestFiles::$stored = [];
     }
 
@@ -103,9 +108,9 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
         if (!$token['level'] instanceof WikiApiLevel) {
             return WikiApiAuthFailure::NoWikiLevel;
         }
-        $user = $this->doctrine->getManager()->find(TestUserEntity::class, $token['user']);
+        $user = isset($token['foreign']) ? new WikiForeignAdminUser($token['user'], 'foreign-' . $token['user']) : $this->doctrine->getManager()->find(TestUserEntity::class, $token['user']);
 
-        return $user instanceof TestUserEntity
+        return $user instanceof TestUserEntity || $user instanceof WikiForeignAdminUser
             ? new WikiApiPrincipal($user, $token['level'], $token['where'], 'tok-' . $token['user'], $token['name'] ?? 'test token')
             : WikiApiAuthFailure::Invalid;
     }
@@ -246,6 +251,11 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
             if ($race($page) === false) {
                 self::$race = $race;
             }
+        }
+        if (self::$raceOnView !== null && $page !== null && $action === WikiAction::View) {
+            $race             = self::$raceOnView;
+            self::$raceOnView = null;
+            $race($page);
         }
         if ($page instanceof WikiPage && in_array($page->getSlug(), self::$hiddenPages, true)) {
             return false;

@@ -42,7 +42,7 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 |------|--------|-------|
 | Mutable state in shared services | ✅ | Almost every service is `final readonly`; the only mutable properties are `WikiRouteLoader::$loaded` (route build time) and the FormKit trait builder, restored in `finally` |
 | Static properties / `static` locals | ✅ | None; only pure static factories in `ValueObject\Uuid` and `static` closures |
-| `ResetInterface` / `kernel.reset` coverage | ✅ | Request memos (`LegacyWikiSpaceAccessChecker`, `WikiAvatars`, `WikiFilePreviewFrames`, `WikiRenderContext`, `WikiEventDeferral`) implement `ResetInterface` (each `reset()` unit-tested) **and** are emptied at every request / console / Messenger boundary by `WikiRequestBoundaryResetter` (W-06, 1.29.1); no reliance on Doctrine / Security resets (W-01, W-02 resolved) |
+| `ResetInterface` / `kernel.reset` coverage | ✅ | Request memos (`LegacyWikiSpaceAccessChecker`, `WikiAvatars`, `WikiFilePreviewFrames`, `WikiRenderContext`, `WikiEventDeferral`, `WikiMemberBadges`) implement `ResetInterface` (each `reset()` unit-tested) **and** are emptied at every request / console / Messenger boundary by `WikiRequestBoundaryResetter` (W-06, 1.29.1); no reliance on Doctrine / Security resets (W-01, W-02 resolved) |
 | Request / user / locale captured in services | ✅ | User comes from `getUser()` / `Security::getUser()` at call time, only when `WikiTokenGuard` confirms the main request went through a secured firewall; nothing stored |
 | Superglobals, `$_ENV`, `putenv`, `ini_set`, `setlocale`, timezone | ✅ | None used; config is compiled into container parameters |
 | Doctrine / EntityManager | ✅ | Repositories and `WikiSearchService` resolve the manager per call through `WikiEntityManagerProvider` (closed manager reset); reads use `refresh()` / `HINT_REFRESH` (W-01 resolved) |
@@ -80,6 +80,7 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 | `Security\WikiSpaceGuard`, `Service\AccessibleWikiSpaceLocator` (1.9) | yes | none (`final readonly`) | ✅ | ✅ |
 | `Security\LegacyWikiSpaceAccessChecker` (memo since 1.13.0) | yes | `WeakMap` user → space ids of the current main request (bounded, 64 users) | ✅ | ✅ since 1.29.1 (W-06): scoped to one main request, not kept outside a request, emptied by `WikiRequestBoundaryResetter`; ❌ 1.13.0–1.29.0 |
 | `Avatar\WikiAvatars` (1.16) | yes | avatar URL per user key (bounded, 500) | ✅ | ✅ since 1.29.1 (W-06, `WikiRequestBoundaryResetter`) |
+| `Member\WikiMemberBadges` (spec 234) | yes | host badges per member class + id (bounded, 500) | ✅ | ✅ (`WikiRequestBoundaryResetter`; worker test: two requests, two users, one kernel) |
 | `Markdown\Milkdown\WikiFilePreviewFrames` (1.28, file previews on) | yes | frame per one-time token, render suspension counter (bounded, 1,000) | ✅ | ✅ since 1.29.1 (W-06, `WikiRequestBoundaryResetter`) |
 | `Markdown\WikiRenderContext`, `Service\WikiEventDeferral` (1.24) | yes | render frames / held events, emptied by their own scope | ✅ | ✅ (also `WikiRequestBoundaryResetter` since 1.29.1) |
 | `Service\WikiRequestBoundaryResetter` (1.29.1) | yes | none (`final readonly`, the memos above) | ✅ | ✅ |
