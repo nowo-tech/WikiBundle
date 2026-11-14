@@ -63,9 +63,9 @@ returns only bundle value objects, enums and scalars:
 Value objects of the twins: `ValueObject\WikiUserRef` (class, id, identifier and roles, copied when the port is called;
 `user()` gives back the original object; compare users with `isSameUserAs()`, class and id byte for byte),
 `WikiSpaceSnapshot`, `WikiPageSnapshot`, `WikiRevisionSnapshot` (ids and plain values, never an entity or a body),
-`WikiRequestContext` (method, path, route, client IP, headers and query; never `Authorization`,
-`Proxy-Authorization`, `Cookie`, `X-Api-Key` or `PHP-Auth-*`: the REST API credential reaches the authenticator only as
-`$credential`), `Api\Value\WikiApiUpload`, `Api\Value\WikiApiDownload`, `Collaboration\WikiCollabCookie`,
+`WikiRequestContext` (method, path, route, client IP and an allow-list of plain headers,
+`WikiRequestContexts::ALLOWED_HEADERS`, the referrer reduced to scheme, host and path; no query string, no credential,
+session, CSRF or infrastructure token header: the REST API credential reaches the authenticator only as `$credential`), `Api\Value\WikiApiUpload`, `Api\Value\WikiApiDownload`, `Collaboration\WikiCollabCookie`,
 `Ai\WikiAiReply`.
 
 **Selection rule.** The same configuration key or alias takes either interface. A service implementing the deprecated

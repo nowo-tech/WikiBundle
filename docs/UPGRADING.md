@@ -106,6 +106,15 @@ asked exactly as before). Overview of both host kinds: [ARCHITECTURE](ARCHITECTU
   exact id's actor labels.
 - Placing a new page by id (1.35 "create at a position"): `WikiPageOperationsInterface::createPageAt()` /
   `createPageNextTo()` (needs `tree.enabled`).
+- Several entity managers on DoctrineBundle 3.4 (attribute and XML mapping alike): the wiki entities are now transient
+  on every manager other than `database.entity_manager` that does not map them explicitly;
+  `doctrine:schema:update --em=<other>` no longer lists the wiki tables.
+- REST API (audit OX-L1): "one's own page" (archive / unarchive at Edit) and the token user's own host API id now need
+  the same identity domain: a token user of `user_class` or of a listed `accepted_user_classes` entry with the same id,
+  not merely the same id. If your API authenticator returns users of a class that is neither, list it in
+  `accepted_user_classes` (and keep your firewall's user of the same class as the token's user).
+- Twin ports that read `WikiRequestContext`: it carries only the allowed headers
+  (`WikiRequestContexts::ALLOWED_HEADERS`) and no query string (audit OX-L3).
 - `database.private_entity_manager` stays `false` by default in 1.x: switching it on is a behaviour change for an
   existing host (see below and [ARCHITECTURE › Persistence](ARCHITECTURE.md#persistence)).
 
@@ -133,9 +142,6 @@ asked exactly as before). Overview of both host kinds: [ARCHITECTURE](ARCHITECTU
 - Set `nowo_wiki.database.mapping_type: xml` (a literal value, not a parameter or env var: the Doctrine mapping is
   prepended before the configuration is processed). The schema does not change, so no migration is needed. The wiki
   mapping is added to `database.entity_manager`.
-- Several entity managers on DoctrineBundle 3.4: the wiki entities are now transient on every manager other than
-  `database.entity_manager` that does not map them explicitly; `doctrine:schema:update --em=<other>` no longer lists
-  the wiki tables.
 - With a non-default `database.entity_manager` and the attribute mapping, keep mapping the bundle on that manager
   yourself as before (`WikiBundle: {type: attribute, is_bundle: true}`), or switch to `xml`, which maps it there.
 - After changing an entity (bundle maintainers): `php scripts/generate-xml-mapping.php`; CI fails on drift.
@@ -176,7 +182,7 @@ This is a **schema and data migration**: plan a maintenance window and take a ba
    match exact, but lookups could not use the index exactly.
 5. After the switch the bundle never queries your user table: a user you delete keeps their id on the wiki rows (shown
    as "Editor xxxx" when the directory no longer finds it), and `wiki:comments:erase-user <id>` still erases their
-   comments. Values read back from rows are `WikiStoredUserRef`: compare users by `getId()`, never with `===`.
+   comments (it acts on the stored id itself, whatever your directory returns; pass their handles with `--handle`). Values read back from rows are `WikiStoredUserRef`: compare users by `getId()`, never with `===`.
 
 ### Private entity manager (`database.private_entity_manager: true`; the only mode in 2.0)
 

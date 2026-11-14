@@ -293,12 +293,29 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
 
 ### Security
 
+- **REST API: the same person needs the same identity domain (audit OX-L1; affects 1.24.0 to 1.35.x).** The API's
+  "one's own page" rule (archive / unarchive of a page at Edit level, `WikiApiGuard::requireOwnPage()` / `isUser()`)
+  and the host API id it answers for the token's own user (`created_by.id` / `updated_by.id`, `WikiApiPeople`)
+  compared the user id only: a token user of another identity domain whose id equalled a `user_class` user's id
+  (Admin#5 and user_class#5) counted as that person, and with the space's Archive right could archive or unarchive
+  their pages and read their host API id. They now follow the JX-W1 rule of the web path (`WikiUserClassPolicy`): the
+  same object, or a token user of `user_class` or a listed `accepted_user_classes` entry with the same usable id; a
+  framework-free `WikiRefUser` naming another class is someone else too. The firewall consistency check
+  (`WikiApiRequestListener`) uses the same rule (two users of one other class still match by class and exact id).
+  Both take an optional `WikiUserClassPolicy` (autowired); built by hand without it they keep the 1.24 rule.
 - REQ-SEC-006 on the new id columns (id mode only): binary NO PAD collation on MySQL / MariaDB
   (`WikiSpaceCollationListener`, now also for every `wiki_user_ref` column; `utf8mb4_bin` on MySQL 5.7 and when the
   `server_version` lacks the full version, with a logged warning); an unusable id (edge whitespace, control or format
   character, invalid UTF-8, more than 128 characters) is refused before any write and a legacy one reads back as null;
   every lookup keyed by a user id re-checks with `===` before any limit; erasures select the exact rows first and write
   by primary key.
+- `WikiRequestContext` (the request the framework-free twins are asked about, audit OX-L3) carries an allow-list of
+  plain headers only (`WikiRequestContexts::ALLOWED_HEADERS`: content negotiation, client, proxy chain, request ids;
+  the referrer reduced to scheme, host and path) and no query string: no infrastructure token
+  (`Cf-Access-Jwt-Assertion`, `X-Amzn-Oidc-*`, `X-Goog-Iap-Jwt-Assertion`, `X-Forwarded-Access-Token`, ...), session or
+  CSRF header and no `?access_token=` reach a host port. The REST API credential still comes only as `$credential`.
+- `WikiApiWikiDirectoryGate::ofSpace()` keeps a twin directory's answer only when it names exactly the asked space
+  (audit OX-I1).
 
 ### Deprecated
 
@@ -317,6 +334,15 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   `WikiAuthorResolver`, `WikiApiPeople`, `WikiApiUsersReader` (`User\WikiUsers`), `WikiEntityManagerProvider`
   (`$private`), `Member\WikiMemberRef::of()` (`$storedUserClass`), `Member\WikiMemberBadges` (`$userClass`, set to
   `user_class`), `Service\WikiPageOperations` (`$mover`).
+- `wiki:comments:erase-user <id>` in the id mode acts on the stored id itself (`WikiAuthorResolver` returns a
+  `WikiStoredUserRef`, whatever object `user_directory` returns for it: a read model no longer stops the erasure), and
+  the command now checks that every service can reference the user before it exports or writes anything: a user the
+  wiki cannot reference fails with "Nothing was changed", never after the mentions were rewritten (audit OX-L2). In the
+  id mode pass the person's handles with `--handle`.
+- `WikiMappingManagerPass` (DoctrineBundle 3.4 with several entity managers) also runs with the attribute mapping:
+  the wiki entities become transient on every other manager that does not map them explicitly (audit OX-I6).
+- `WikiPortsPass` fails the container build when a configured port service implements neither the deprecated
+  interface nor its twin (in 1.35 it was a `TypeError` at runtime).
 - `WikiWriteProvenanceErasure`: in the id mode the user's revisions are selected first, re-checked with `===` and
   cleared by primary key; with the private entity manager inside the application's transaction its statements run in
   a savepoint, as the other bulk writes.
