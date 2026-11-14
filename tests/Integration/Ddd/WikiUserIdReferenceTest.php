@@ -191,7 +191,8 @@ final class WikiUserIdReferenceTest extends TestCase
         };
         $resolver = new WikiAuthorResolver($this->createStub(EntityManagerInterface::class), WikiSecurityUserDto::class, new WikiUsers('id', $directory));
 
-        self::assertInstanceOf(WikiSecurityUserDto::class, $resolver->resolveByIdentifier('7'));
+        // Audit OX-L2: the stored id itself, also when the directory knows the user (whatever object it returns).
+        self::assertEquals(new WikiStoredUserRef('7'), $resolver->resolveByIdentifier('7'));
         self::assertEquals(new WikiStoredUserRef('8'), $resolver->resolveByIdentifier('8'));
         $this->expectException(InvalidArgumentException::class);
         $resolver->resolveByIdentifier('7 ');
