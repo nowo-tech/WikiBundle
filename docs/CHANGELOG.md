@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.33.0] - 2026-11-14](#1330---2026-11-14)
   - [Added](#added)
   - [Fixed](#fixed)
 - [[1.32.0] - 2026-11-13](#1320---2026-11-13)
@@ -210,6 +211,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-9)
 
 ## [Unreleased]
+
+## [1.33.0] - 2026-11-14
 
 ### Added
 
@@ -1858,7 +1861,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.32.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.33.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
