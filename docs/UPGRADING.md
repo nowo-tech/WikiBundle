@@ -4,7 +4,6 @@
 
 - [Unreleased](#unreleased)
 - [To 1.33.0](#to-1330)
-- [To 1.33.0](#to-1330-1)
 - [To 1.32.0](#to-1320)
 - [To 1.31.1](#to-1311)
 - [To 1.31.0](#to-1310)
@@ -109,18 +108,16 @@ Existing revisions keep NULL (nothing recorded). Nothing else changes until you 
 [USAGE](USAGE.md#member-badges-and-write-provenance)): the history and the comments render the same markup, and the API
 answers carry the new fields (`created_by`, `channel`, `token_name` on pages; `channel`, `token_name` on revisions) as
 null, or `created_by` equal to the oldest revision's author. Clients that reject unknown fields must accept them.
-`actor_label` is personal data: add `WikiWriteProvenanceErasure` to your personal-data eraser.
+`actor_label` is personal data. `wiki:comments:erase-user` and `WikiCommentService::eraseAuthor()` now export / erase
+the user's labels and those of revisions whose author was already deleted; if your eraser does not go through either,
+call `WikiWriteProvenanceErasure` (`eraseActor()`, `eraseOrphaned()`).
+
+Actor labels (`token_name` in the API) are shown to the author and, with the new `history.show_actor_labels` (default:
+`history.show_names`), beside real names only when they pass the safe-name rule; never beside an opaque "Editor xxxx".
+Set `history.show_actor_labels: false` to show them to their author only.
 
 If you override `manage/page_history.html.twig` or `manage/_comments_panel_body.html.twig`, include
 `@NowoWikiBundle/manage/_member_label_suffix.html.twig` after the author name to show badges (see the bundle templates).
-
-## To 1.33.0
-
-From **1.32.0**:
-
-```bash
-composer update nowo-tech/wiki-bundle
-```
 
 ## To 1.33.0
 

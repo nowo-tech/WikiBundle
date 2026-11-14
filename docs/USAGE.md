@@ -250,6 +250,19 @@ new revision (page create, save, restore, conversion to Markdown, imports), at w
 The actor id is the revision `author` the bundle already stores. The history shows "via MCP · <label>" after the
 author (escaped; nothing when not recorded), the API answers `channel` / `token_name` (see [API](API.md#bodies)).
 
+> **Warning — the actor label can name the author.** A token name is chosen by the user and is the same on every page
+> ("Ana's laptop", `ana-ci`, an e-mail address). Beside an opaque "Editor xxxx" (`history.show_names: false`) it would
+> link the pseudonymous author across pages and often name them. So the label is shown in the history and answered as
+> `token_name` only (audit PQ-M1):
+>
+> - to the author themself (their own writes), always;
+> - to others only with `history.show_actor_labels` on (default: the value of `history.show_names`), beside an author
+>   shown under a real name, and when the label passes the same safe-name rule as display names (no `@`, nothing of
+>   the login or its local part, printable Latin text only).
+>
+> The channel is categorical and is always shown. Comments carry no provenance. The label is user text: a user can
+> call a token "Agent" or "Former person", so never treat it as a verified role (badges come from the badge provider).
+
 Decide the channel from the **request path** (your web UI, your app, your API firewall, your MCP endpoint), never from
 a header, field or parameter the client sends; resolve it per call (no per-request value in a service property).
 
@@ -320,12 +333,20 @@ final readonly class MemberBadges implements WikiMemberBadgeProviderInterface
 
 ### Personal data
 
-The actor label is personal data. `WikiWriteProvenanceErasure` (public service) has `exportActor($user)` (the labels of
-the user's revisions), `eraseActor($user)` (clears them) and `eraseOrphaned()` (clears the labels of revisions whose
-author was already deleted: `author_id` set to NULL). Call it from your personal-data exporter / eraser next to
-`WikiCommentService::exportAuthor()` / `eraseAuthor()`, before the user row is deleted. Labels of a deleted author are
-never shown nor answered, even before `eraseOrphaned()` runs. The channel is not personal data and stays. Page exports
-(`wiki:export`) do not carry provenance.
+The actor label is personal data. The bundle's user-erasure path covers it (audit PQ-L1):
+
+- `wiki:comments:erase-user <user>` exports the labels of the user's revisions (`--export`: `revision_actor_labels`)
+  and erases them, together with the labels of revisions whose author was already deleted (`author_id` set to NULL by
+  the database). With comments disabled the command handles the labels only.
+- `WikiCommentService::eraseAuthor()` (the host's personal-data eraser) erases them too: a listener on
+  `nowo_wiki.comment.author_erased` calls `WikiWriteProvenanceErasure::eraseActor()` and `eraseOrphaned()`.
+- `WikiWriteProvenanceErasure` (public service) has `exportActor($user)`, `eraseActor($user)` and `eraseOrphaned()`
+  for hosts with their own flow.
+
+Labels of a deleted author are never shown nor answered, even before they are erased. The channel is not personal data
+and stays. Page exports (`wiki:export`) do not carry provenance. A write answer stored for an `Idempotency-Key` replay
+keeps the `token_name` it had until that record is purged (`nowo:wiki:api:purge-idempotency`, see
+[API](API.md#idempotency)).
 
 ## Twig overrides (REQ-TWIG-001)
 

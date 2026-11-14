@@ -162,9 +162,13 @@ Write provenance (spec 234, additive fields; see [USAGE](USAGE.md#member-badges-
   `updated_by`), `channel` and `token_name` of the last write.
 - Revisions add `channel` and `token_name` of that write (`author` is who made it).
 - `channel` is `web`, `app`, `api` or `mcp`, as the host's `WikiWriteProvenanceProviderInterface` recorded it (decided
-  by the host from the request path, never from client input). `token_name` is the host's actor label: plain text, at
-  most 120 characters, never a secret. Both are null when nothing was recorded (no provider, or a write made before the
-  columns existed), and `token_name` is null once its author's account is deleted.
+  by the host from the request path, never from client input; a stored value outside that list reads null). `token_name`
+  is the host's actor label: plain text, at most 120 characters, never a secret. Both are null when nothing was
+  recorded (no provider, or a write made before the columns existed), and `token_name` is null once its author's
+  account is deleted.
+- `token_name` is answered only for the token's own writes, or beside an author named by a real name with
+  `history.show_actor_labels` on (default `history.show_names`) and a label that passes the safe-name rule. Beside an
+  opaque "Editor xxxx" it is null: it would link and name the person (audit PQ-M1).
 - Values are plain JSON strings (no HTML; `json_encode` escapes `<` and `>`): escape them when you render HTML.
 - A page list reads creators and provenance in two extra queries, whatever the number of rows.
 

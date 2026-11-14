@@ -1585,7 +1585,8 @@ components:
           - 'null'
           maxLength: 120
           description: The host's plain-text actor label of the last write (spec 234), e.g. a token name; never a secret.
-            Null when not recorded or once its author is deleted. Plain text, escape it when rendering HTML.
+            Only for the token's own writes, or beside a real name with history.show_actor_labels on and a safe label;
+            null otherwise, when not recorded or once its author is deleted. Plain text, escape it when rendering HTML.
       required:
       - id
       - wiki
@@ -1721,8 +1722,8 @@ components:
           - string
           - 'null'
           maxLength: 120
-          description: The host's plain-text actor label of the write (spec 234); null when not recorded or once the author
-            is deleted.
+          description: The host's plain-text actor label of the write (spec 234); only for the token's own writes, or beside
+            a real name with history.show_actor_labels on and a safe label; null otherwise or once the author is deleted.
       required:
       - number
       - author
