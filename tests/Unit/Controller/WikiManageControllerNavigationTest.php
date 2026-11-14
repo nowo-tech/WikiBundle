@@ -379,6 +379,11 @@ final class WikiManageControllerNavigationTest extends TestCase
         $request = Request::create('/h');
         $this->controller(['breadcrumb_current_label' => true], breadcrumb: $label)->pageHistory('eng', 'deep', $request);
         self::assertSame('Deep', $request->attributes->get(WikiBreadcrumbParentLabel::ATTRIBUTE));
+        // 1.33: with the action's route key, so that a tenant copy of the route is recognised.
+        self::assertSame('page_history', $request->attributes->get(WikiBreadcrumbParentLabel::ROUTE_KEY_ATTRIBUTE));
+        $request = Request::create('/e');
+        $this->controller(['breadcrumb_current_label' => true], breadcrumb: $label)->editPage($request, 'eng', 'deep');
+        self::assertSame('page_edit', $request->attributes->get(WikiBreadcrumbParentLabel::ROUTE_KEY_ATTRIBUTE));
 
         // Off, or without BreadcrumbKit: nothing on the request.
         foreach ([$this->controller([], breadcrumb: $label), $this->controller(['breadcrumb_current_label' => true])] as $controller) {

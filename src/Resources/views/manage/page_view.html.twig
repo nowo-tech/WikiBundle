@@ -120,8 +120,9 @@
 {% block nowo_ui_show_sections %}
     {% set _b = page.bundle %}
     {% set _layout = nowo_wiki_web_ui.layout ?? {} %}
-    <div class="nowo-wiki-layout{{ (_layout.narrow_tree_position ?? 'before') == 'after' ? ' nowo-wiki-layout--tree-after' }}{{ tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' and page.header.tabs ? ' nowo-wiki-layout--tree-hidden' }}">
-        <div class="nowo-wiki-layout__aside">
+    {#- 1.33: the layout (aside, main column, card frame, page head) is _read_scaffold.html.twig, shared with the edit
+        form's read layout; the blocks below stay blocks of this template (rendered here, printed by the scaffold). -#}
+    {% set _sidebar %}
             {% block wiki_sidebar %}
                 {%- if nowo_wiki_web_ui.slots.sidebar ?? null -%}
                     {{ include(nowo_wiki_web_ui.slots.sidebar) }}
@@ -129,30 +130,18 @@
                     {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), tree_rail: tree_rail|default(null), space_icon: space_icon|default(null), bundle: _b}, false) }}
                 {%- endif -%}
             {% endblock %}
-        </div>
-        <div class="nowo-wiki-layout__main{{ (_layout.reading_width ?? 'full') == 'readable' ? ' nowo-wiki-reading nowo-ui-readable' ~ ((_layout.reading_align ?? 'center') == 'start' ? ' nowo-wiki-reading--start') }}">
-            {# 1.15: editors only; a separate template so pages without Milkdown 1.5 never compile the function #}
-            {% if copy_markdown|default(null) %}{{ include('@NowoWikiBundle/manage/_copy_markdown.html.twig', {source: copy_markdown, bundle: _b}, false) }}{% endif %}
-            {#- 1.30 web_ui.page_header.toolbar_position: card — the toolbar at the top right of the content (server body and
-                read-only editor alike), sticky while the page scrolls -#}
-            {% set _in_card = (_layout.toolbar_position ?? 'header') == 'card' and page.header.tabs %}
-            {% if _in_card %}
-                {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: _b}, false) }}{% endif %}{% endset %}
-                {% set _toolbar %}{{ include('@NowoWikiBundle/manage/_page_toolbar.html.twig', {header: page.header, tabs: (_layout.tabs ?? 'row') == 'toolbar' ? page.header.tabs : null, tree_toggle: _tree_toggle, host_toolbar: block('wiki_page_header_toolbar'), comments: comments|default(null), bundle: _b, nowo_ui_page_type: 'show'}, false) }}{% endset %}
-                <div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>
-                {% if _toolbar|trim is not empty %}
-                    <div class="nowo-wiki-card-toolbar" data-nowo-wiki-card-toolbar>
-                        <div class="nowo-wiki-card-toolbar__bar" role="group" aria-label="{{ 'wiki.page.toolbar'|trans }}" data-testid="wiki-card-toolbar">{{ _toolbar|trim|raw }}</div>
-                    </div>
-                {% endif %}
-            {% endif %}
-            {#- 1.30: the in-wiki path (page_header.path: card) and the sub-pages chip (web_ui.children) above the body -#}
-            {% if page_path|default(null) or page_children.items|default([]) is not empty %}
-                <div class="nowo-wiki-page-head" data-testid="wiki-page-head">
-                    {% if page_path|default(null) %}{{ include('@NowoWikiBundle/manage/_page_path.html.twig', {page_path: page_path}, false) }}{% endif %}
-                    {{ include('@NowoWikiBundle/manage/_page_children_chip.html.twig', {page_children: page_children|default(null), bundle: _b}, false) }}
-                </div>
-            {% endif %}
+    {% endset %}
+    {# 1.15: editors only; a separate template so pages without Milkdown 1.5 never compile the function #}
+    {% set _before %}{% if copy_markdown|default(null) %}{{ include('@NowoWikiBundle/manage/_copy_markdown.html.twig', {source: copy_markdown, bundle: _b}, false) }}{% endif %}{% endset %}
+    {#- 1.30 web_ui.page_header.toolbar_position: card — the toolbar at the top right of the content (server body and
+        read-only editor alike), sticky while the page scrolls -#}
+    {% set _in_card = (_layout.toolbar_position ?? 'header') == 'card' and page.header.tabs %}
+    {% set _toolbar = '' %}
+    {% if _in_card %}
+        {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: _b}, false) }}{% endif %}{% endset %}
+        {% set _toolbar %}{{ include('@NowoWikiBundle/manage/_page_toolbar.html.twig', {header: page.header, tabs: (_layout.tabs ?? 'row') == 'toolbar' ? page.header.tabs : null, tree_toggle: _tree_toggle, host_toolbar: block('wiki_page_header_toolbar'), comments: comments|default(null), bundle: _b, nowo_ui_page_type: 'show'}, false) }}{% endset %}
+    {% endif %}
+    {% set _card %}
             {#- 1.31 (page_header.title: card): the title in the card when the body does not start with it. It is the page's
                 <h1> when the header is not printed (toolbar and tabs in the card, no status: audit MG-1-I1), else the
                 header keeps its visually hidden <h1> and this line is only visual. -#}
@@ -184,7 +173,8 @@
                 {% set _updated = ('wiki.page.meta_updated'|trans({'%date%': '%date%'}))|split('%date%', 2) %}
                 <p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-page-meta" data-testid="wiki-page-meta">{{ 'wiki.page.meta_revision'|trans({'%number%': page_meta.revision}) }} · {{ _updated[0] }}<time datetime="{{ page_meta.updated_at|date('c') }}">{{ page_meta.updated_at|nowo_wiki_datetime(app.request ? app.request.locale : null) }}</time>{{ _updated[1] ?? '' }}</p>
             {% endif %}
-            {% if _in_card %}</div>{% endif %}
+    {% endset %}
+    {% set _after %}
             {#- 1.29: after the body, before "Used in" (empty; e.g. a host's backlinks) -#}
             {% block wiki_page_after_body %}{% endblock %}
             {#- 1.30 (web_ui.children): "Pages in this section" -#}
@@ -219,6 +209,6 @@
                     </ul>
                 </section>
             {% endif %}
-        </div>
-    </div>
+    {% endset %}
+    {{ include('@NowoWikiBundle/manage/_read_scaffold.html.twig', {layout: _layout, tree_rail: tree_rail|default(null), tabs: page.header.tabs ? true : false, sidebar: _sidebar, before_frame: _before, in_card: _in_card, toolbar: _toolbar, page_path: page_path|default(null), page_children: page_children|default(null), card: _card, after_frame: _after, bundle: _b}, false) }}
 {% endblock %}

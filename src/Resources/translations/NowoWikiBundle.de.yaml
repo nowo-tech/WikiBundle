@@ -155,6 +155,7 @@ wiki:
     cancel: Abbrechen
     back: "Zurück"
     back_to_page: "Zurück zur Seite"
+    view_page: "Seite ansehen"
   history:
     title: Versionsverlauf
     created: Erstellt
