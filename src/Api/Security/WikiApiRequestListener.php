@@ -32,9 +32,12 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
+use function count;
+use function implode;
 use function in_array;
 use function is_scalar;
 use function method_exists;
+use function sprintf;
 use function str_starts_with;
 
 /**
@@ -44,6 +47,12 @@ use function str_starts_with;
  */
 final readonly class WikiApiRequestListener implements EventSubscriberInterface
 {
+    /** {@see self::match()}: the same person. */
+    private const SAME = 'same';
+
+    /** {@see self::match()}: another person, or an id that cannot be matched exactly. */
+    private const DIFFERENT = 'different';
+
     /** Route default marking the API's routes. */
     public const ROUTE_FLAG = '_nowo_wiki_api';
 
@@ -196,40 +205,71 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
     private function requireSecurityUser(WikiApiPrincipal $principal): void
     {
         $securityUser = $this->tokenStorage->getToken()?->getUser();
-        $same         = $securityUser instanceof UserInterface && $this->isSamePerson($securityUser, $principal->user);
-        if ($same && $this->tokenGuard->isTokenTrusted()) {
+        $match        = $securityUser instanceof UserInterface ? $this->match($securityUser, $principal->user) : null;
+        if ($match !== null && $match !== self::DIFFERENT && $this->tokenGuard->isTokenTrusted()) {
+            if ($match !== self::SAME) {
+                // Audit OX-D1-L1 (1.36): a security adapter of another class with the same exact id is let through in
+                // 1.x. It only stands behind the token: ownership and the API id are judged on the token's user alone.
+                $this->logger->warning(sprintf('Wiki API: the firewall user (%s) and the token\'s user (%s) are matched by their id only: add %s to nowo_wiki.accepted_user_classes; this will be refused in 2.0.', $this->classOf($securityUser), $this->classOf($principal->user), $match), ['bundle' => 'nowo_wiki']);
+            }
+
             return;
         }
-        $this->logger->error('Wiki API: the security user is not the token\'s user. The API must sit behind a stateless, secured firewall that authenticates the token.', ['bundle' => 'nowo_wiki']);
+        if ($match === self::DIFFERENT && $securityUser instanceof UserInterface) {
+            $this->logger->error(sprintf('Wiki API: configuration error: the firewall user (%s) is not the token\'s user (%s): another id, or an id that cannot be matched exactly. The firewall must authenticate the same person as nowo_wiki.api.hooks.authenticator.', $this->classOf($securityUser), $this->classOf($principal->user)), ['bundle' => 'nowo_wiki']);
+        } else {
+            $this->logger->error('Wiki API: the security user is not the token\'s user. The API must sit behind a stateless, secured firewall that authenticates the token.', ['bundle' => 'nowo_wiki']);
+        }
 
         throw $this->serverError();
     }
 
     /**
-     * The same object, or (audit OX-L1, JX-W1) two users of `user_class` or a listed accepted class with the same usable
-     * id, or two users of one other class with the same exact id: a user of another identity domain that shares the id
-     * is someone else. Without the class policy (a listener built by hand), the 1.24 rule: the same id.
+     * Whether the firewall's user is the token's user: {@see self::SAME} for the same object, two users of `user_class`
+     * or a listed accepted class with the same usable id (audit OX-L1, JX-W1), or two users of one other class with the
+     * same exact id; {@see self::DIFFERENT} otherwise. Audit OX-D1-L1: two users of different classes with the same
+     * exact id where a side is not an accepted class (a security adapter) give the classes to add to
+     * `accepted_user_classes` (let through with a warning in 1.x). Without the class policy (a listener built by hand),
+     * the 1.24 rule: the same id.
      */
-    private function isSamePerson(object $securityUser, object $tokenUser): bool
+    private function match(object $securityUser, object $tokenUser): string
     {
         if ($securityUser === $tokenUser) {
-            return true;
+            return self::SAME;
         }
-        if ($this->classes instanceof WikiUserClassPolicy) {
-            $a = $this->classes->idOf($securityUser);
-            $b = $this->classes->idOf($tokenUser);
-            if ($a !== null || $b !== null) {
-                return $a !== null && $b !== null && (string) $a === (string) $b;
+        if (!$this->classes instanceof WikiUserClassPolicy) {
+            $id = $this->idOf($securityUser);
+
+            return $id !== null && $id === $this->idOf($tokenUser) ? self::SAME : self::DIFFERENT;
+        }
+        $a = $this->classes->idOf($securityUser);
+        $b = $this->classes->idOf($tokenUser);
+        if ($a !== null && $b !== null) {
+            return (string) $a === (string) $b ? self::SAME : self::DIFFERENT;
+        }
+        $first  = WikiUserRefs::fromUser($securityUser);
+        $second = WikiUserRefs::fromUser($tokenUser);
+        if ($first->id === null || $first->id !== $second->id) {
+            return self::DIFFERENT;
+        }
+        $outside = [];
+        foreach ([[$securityUser, $first->userClass], [$tokenUser, $second->userClass]] as [$user, $class]) {
+            if (!$this->classes->isAccepted($user) && !in_array($class, $outside, true)) {
+                $outside[] = $class;
             }
-            // Neither is a wiki user class: the same identity domain only (same class, same exact id).
-            $first  = WikiUserRefs::fromUser($securityUser);
-            $second = WikiUserRefs::fromUser($tokenUser);
-
-            return $first->id !== null && $first->id === $second->id && $first->userClass === $second->userClass;
         }
-        $id = $this->idOf($securityUser);
+        if ($outside === []) {
+            return self::DIFFERENT; // both accepted, one without a usable id
+        }
 
-        return $id !== null && $id === $this->idOf($tokenUser);
+        // Two users of one other class: the same identity domain.
+        return count($outside) === 1 && $first->userClass === $second->userClass ? self::SAME : implode(', ', $outside);
+    }
+
+    /** A user's class for the log (a framework-free reference: the class it names). */
+    private function classOf(object $user): string
+    {
+        return WikiUserRefs::fromUser($user)->userClass;
     }
 
     private function idOf(object $user): ?string

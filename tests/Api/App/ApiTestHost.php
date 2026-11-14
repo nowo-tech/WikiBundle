@@ -30,6 +30,7 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
+use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -45,7 +46,7 @@ use function strtolower;
  */
 final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirectoryInterface, WikiApiWikiManagementInterface, WikiApiRateLimiterInterface, WikiApiPlanGateInterface, WikiApiUsersInterface, WikiSpaceAccessCheckerInterface
 {
-    /** @var array<string, array{user: string, level: WikiApiLevel|null, where: WikiApiWhere, name?: string, foreign?: true}|string> secret => token, or 'disabled'; `foreign`: a back-office user of another identity domain with that id (audit JX-W1, PQ-D1-L1) */
+    /** @var array<string, array{user: string, level: WikiApiLevel|null, where: WikiApiWhere, name?: string, foreign?: true, adapter?: true}|string> secret => token, or 'disabled'; `foreign`: a back-office user of another identity domain with that id (audit JX-W1, PQ-D1-L1) */
     public static array $tokens = [];
 
     /** @var array<string, array{name?: string, restricted?: bool, archived?: bool, can_open?: bool, owner?: string, unopened?: bool}> slug => flags */
@@ -121,6 +122,10 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
         $token = self::$tokens[$secret] ?? null;
         if (!is_array($token)) {
             return null;
+        }
+        // Audit OX-D1-L1: a firewall that loads a security adapter class (not in accepted_user_classes) for the token.
+        if (isset($token['adapter'])) {
+            return new WikiSecurityUserDto($token['user'], 'adapter-' . $token['user']);
         }
         // Audit OX-L1: the firewall stands behind the same identity domain as the wiki authenticator.
         $user = isset($token['foreign']) ? new WikiForeignAdminUser($token['user'], 'foreign-' . $token['user']) : $this->doctrine->getManager()->find(TestUserEntity::class, $token['user']);
