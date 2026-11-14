@@ -815,8 +815,9 @@ final class WikiExtensionTest extends TestCase
         $container = new ContainerBuilder();
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([['user_class' => 'App\\Entity\\User']], $container);
-        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'tree_collapsed_mode' => 'rail', 'reading_align' => 'center', 'path' => 'none', 'children' => 'never', 'breadcrumb_current_label' => false, 'seamless_swap' => false, 'page_meta' => 'scaffold'];
+        $defaults = ['tree_rail' => false, 'narrow_tree_position' => 'before', 'reading_width' => 'full', 'page_header' => 'stacked', 'title' => 'both', 'tabs' => 'row', 'toolbar_position' => 'header', 'tree_collapsed_mode' => 'rail', 'reading_align' => 'center', 'path' => 'none', 'children' => 'never', 'breadcrumb_current_label' => false, 'seamless_swap' => false, 'page_meta' => 'scaffold', 'edit_layout' => 'form', 'edit_current_tab' => 'shown', 'edit_back' => 'none'];
         self::assertSame($defaults, $container->getParameter('nowo_wiki.web_ui.layout'));
+        self::assertSame(['current_tab' => 'shown', 'back' => 'none'], $container->getDefinition(WikiPageFactory::class)->getArgument('$editToolbar'));
         /** @var array<string, mixed> $webUi */
         $webUi = $container->getParameter('nowo_wiki.web_ui');
         self::assertSame($defaults, $webUi['layout']);
@@ -829,10 +830,11 @@ final class WikiExtensionTest extends TestCase
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
         (new WikiExtension())->load([[
             'user_class' => 'App\\Entity\\User',
-            'web_ui'     => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => ['layout' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'path' => 'card'], 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'children' => 'auto', 'breadcrumb_current_label' => true, 'read_view' => ['seamless_swap' => true]],
+            'web_ui'     => ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => ['layout' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'path' => 'card', 'edit_toolbar' => ['current_tab' => 'hidden', 'back' => 'view']], 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'children' => 'auto', 'breadcrumb_current_label' => true, 'read_view' => ['seamless_swap' => true], 'edit_view' => ['layout' => 'read']],
         ]], $container);
-        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'path' => 'card', 'children' => 'auto', 'breadcrumb_current_label' => true, 'seamless_swap' => true, 'page_meta' => 'scaffold'];
+        $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'path' => 'card', 'children' => 'auto', 'breadcrumb_current_label' => true, 'seamless_swap' => true, 'page_meta' => 'scaffold', 'edit_layout' => 'read', 'edit_current_tab' => 'hidden', 'edit_back' => 'view'];
         self::assertSame($layout, $container->getParameter('nowo_wiki.web_ui.layout'));
+        self::assertSame(['current_tab' => 'hidden', 'back' => 'view'], $container->getDefinition(WikiPageFactory::class)->getArgument('$editToolbar'));
         /** @var array<string, array{path: string, name: string}> $routes */
         $routes = $container->getParameter('nowo_wiki.routes');
         self::assertSame('nowo_wiki_space_panel_state', $routes['space_panel_state']['name']);

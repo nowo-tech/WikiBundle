@@ -155,6 +155,7 @@ wiki:
     cancel: Annuleren
     back: "Terug"
     back_to_page: "Terug naar de pagina"
+    view_page: "Pagina bekijken"
   history:
     title: Versiegeschiedenis
     created: Aangemaakt

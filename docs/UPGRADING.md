@@ -3,6 +3,8 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.33.0](#to-1330)
+- [To 1.33.0](#to-1330-1)
 - [To 1.32.0](#to-1320)
 - [To 1.31.1](#to-1311)
 - [To 1.31.0](#to-1310)
@@ -85,7 +87,7 @@
 
 ## Unreleased
 
-Target: next minor after 1.34 (spec 234: member badges and write provenance).
+Target 1.34.0 (spec 234: member badges and write provenance).
 
 `wiki_page_revisions` gets two nullable columns. The bundle ships no migrations: generate one
 (`doctrine:migrations:diff`) or run the statements for your database (adjust the table name if you changed
@@ -111,6 +113,56 @@ null, or `created_by` equal to the oldest revision's author. Clients that reject
 
 If you override `manage/page_history.html.twig` or `manage/_comments_panel_body.html.twig`, include
 `@NowoWikiBundle/manage/_member_label_suffix.html.twig` after the author name to show badges (see the bundle templates).
+
+## To 1.33.0
+
+From **1.32.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+## To 1.33.0
+
+From **1.32.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+No schema change; every default keeps the 1.32 pages.
+
+- **Edit form in the read layout** (opt-in):
+
+  ```yaml
+  nowo_wiki:
+      web_ui:
+          edit_view:
+              layout: read
+          page_header:
+              edit_toolbar:
+                  current_tab: hidden   # optional: no Edit tab while editing
+                  back: view            # optional: a "View page" eye button
+  ```
+
+  The edit form then uses the page view's layout (tree, reading column, card toolbar, path) with the form in place of
+  the body. A host template that extends `page_edit.html.twig` keeps working: `nowo_ui_form_body` (the form fields),
+  `wiki_page_header_toolbar` and the header blocks are unchanged; the new block `wiki_page_form_body` holds the whole
+  form (default: the UiKit form, `{{ parent() }}` in an override). A host that built its own read-like edit layout
+  around the form (a `nowo_ui_content` override with its own `.nowo-wiki-layout`, e.g. a `.wiki-edit-layout` class)
+  can drop it: set `edit_view.layout: read` and keep only what is specific to the host. If you style the editor with
+  your own Markdown typography, set the `--nowo-wiki-read-*` tokens instead (they now also apply in
+  `.nowo-wiki-edit-body`).
+- **Page view template**: `nowo_ui_show_sections` now renders through `manage/_read_scaffold.html.twig`; the markup and
+  the blocks (`wiki_sidebar`, `wiki_page_body`, `wiki_page_after_body`, `wiki_page_header_toolbar`) are the same. A
+  host that overrides `nowo_ui_show_sections` itself is not affected.
+- **Breadcrumbs** (`web_ui.breadcrumb_current_label` with tenant routes): the page crumb of the edit, history, compare
+  and move pages now carries the page title on tenant routes too. A host that called
+  `WikiBreadcrumbParentLabel::remember($request, $title)` itself can pass the route key as the third argument
+  (`page_edit`, `page_history`, `page_diff` or `page_move`); without it only the bundle route names are recognised,
+  as before.
+- Routes loaded by `nowo_wiki` now carry the option `nowo_wiki_route` (`WikiRouteLoader::ROUTE_KEY_OPTION`) with
+  their `routes.<key>`; the route cache is rebuilt by `cache:clear` as usual.
 
 ## To 1.32.0
 

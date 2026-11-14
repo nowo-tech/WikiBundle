@@ -101,6 +101,7 @@ use function array_diff;
 use function array_keys;
 use function array_slice;
 use function array_values;
+use function iterator_to_array;
 
 final class WikiManageControllerTest extends TestCase
 {
@@ -588,6 +589,74 @@ final class WikiManageControllerTest extends TestCase
 
         $this->expectException(AccessDeniedHttpException::class);
         $controller->archivePage($request, 'eng', 'welcome');
+    }
+
+    /**
+     * 1.33 (web_ui.edit_view.layout: read): the edit form gets the read view's layout variables (tree, its cap, the
+     * search link, the rail with its fold state, the space icon), the same as the page view; the form layout (default)
+     * none of them.
+     */
+    public function testTheEditFormTakesTheReadLayoutVariables(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page  = new WikiPage($space, 'welcome', 'Welcome');
+        $page->setCurrentRevision(new WikiPageRevision($page, 1, '<p>Hi</p>', $user, 'Hi'));
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $pageRepo->method('findActiveBySpace')->willReturn([$page]);
+        $router = $this->createStub(UrlGeneratorInterface::class);
+        $router->method('generate')->willReturnCallback(static fn (string $name): string => '/' . $name);
+        $csrf = $this->createStub(CsrfTokenManagerInterface::class);
+        $csrf->method('getToken')->willReturnCallback(static fn (string $id): CsrfToken => new CsrfToken($id, 'tok'));
+        $stack = new RequestStack();
+        $rail  = new WikiTreeRail(new SessionWikiPanelStateStore($stack), $router, $csrf, ['space_panel_state' => ['path' => '/s', 'name' => 'nowo_wiki_space_panel_state']]);
+        $keys  = ['tree', 'tree_truncated', 'max_tree_pages', 'tree_search_href', 'tree_rail', 'space_icon'];
+
+        // Default (form): none of the layout variables.
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, treeRail: $rail);
+        $twig       = $this->capturingTwig();
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->editPage(Request::create('/edit'), 'eng', 'welcome');
+        foreach ($keys as $key) {
+            self::assertArrayNotHasKey($key, $twig->context, $key);
+        }
+
+        // Read: the page view's variables, the same values.
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, treeRail: $rail, layout: ['edit_layout' => 'read']);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        /** @var RequestStack $requests */
+        $requests = $container->get('request_stack');
+        $stack->push($requests->getCurrentRequest() ?? Request::create('/'));
+        $controller->editPage(Request::create('/edit'), 'eng', 'welcome');
+        $edit = $twig->context;
+        $controller->viewPage('eng', 'welcome');
+        foreach ($keys as $key) {
+            self::assertArrayHasKey($key, $edit, $key);
+            self::assertEquals($twig->context[$key], $edit[$key], $key);
+        }
+        self::assertSame('Welcome', $edit['tree'][0]['title']);
+        self::assertTrue($edit['tree'][0]['current']);
+        self::assertSame(WikiTreeRail::ID, $edit['tree_rail']['id']);
+        self::assertInstanceOf(FormView::class, $edit['page']->form);
+    }
+
+    /** 1.33: the form shown again after a lost save keeps the read layout. */
+    public function testTheFormAgainKeepsTheReadLayout(): void
+    {
+        $revisions = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisions->method('getNextRevisionNumber')->willReturn(2);
+        $revisions->method('save')->willThrowException(iterator_to_array(self::saveCollisions())['deadlock'][0]);
+        [$controller, , , $twig, $post] = $this->collabEditPage(revisions: $revisions, layout: ['edit_layout' => 'read', 'path' => 'card']);
+
+        self::assertSame(Response::HTTP_CONFLICT, $controller->editPage($post([]), 'eng', 'welcome')->getStatusCode());
+        self::assertSame([], $twig->context['tree']);
+        self::assertFalse($twig->context['tree_truncated']);
+        self::assertSame(500, $twig->context['max_tree_pages']);
+        self::assertSame(['Engineering'], array_column($twig->context['page_path'], 'label'));
+        self::assertSame('Hi there', $twig->context['page']->form->children['content']->vars['value']);
     }
 
     /**
@@ -1153,10 +1222,11 @@ final class WikiManageControllerTest extends TestCase
 
     /**
      * @param array<string, mixed> $options
+     * @param array<string, mixed> $layout 1.33: the controller's `web_ui` layout options
      *
      * @return array{WikiManageController, WikiPage, InMemoryCollabStateStore, object, callable(array<string, string>): Request, MockObject&WikiCollabPublisherInterface, WikiCollabService, Container}
      */
-    private function collabEditPage(array $options = [], bool $collaboration = true, ?WikiPageRevisionRepositoryInterface $revisions = null, ?EventDispatcher $dispatcher = null, ?InMemoryCollabStateStore $store = null): array
+    private function collabEditPage(array $options = [], bool $collaboration = true, ?WikiPageRevisionRepositoryInterface $revisions = null, ?EventDispatcher $dispatcher = null, ?InMemoryCollabStateStore $store = null, array $layout = []): array
     {
         $user  = new TestUser('user-1');
         $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
@@ -1179,7 +1249,7 @@ final class WikiManageControllerTest extends TestCase
             $revisions->method('getNextRevisionNumber')->willReturn(2);
         }
 
-        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisions, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null, pageService: $dispatcher instanceof EventDispatcher ? new WikiPageService($pageRepo, $revisions, new WikiSlugger(), new WikiHtmlSanitizer(), $dispatcher) : null);
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisions, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null, pageService: $dispatcher instanceof EventDispatcher ? new WikiPageService($pageRepo, $revisions, new WikiSlugger(), new WikiHtmlSanitizer(), $dispatcher) : null, layout: $layout);
         $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $post       = static fn (array $fields): Request => Request::create('/edit', 'POST', [
             'wiki_page_form' => ['title' => 'Welcome', 'content' => 'Hi there', '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_edit_' . $page->getId())],

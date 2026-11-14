@@ -1,0 +1,43 @@
+{#
+  1.33: the read view's layout, shared by the page view (page_view.html.twig) and the edit form with
+  web_ui.edit_view.layout: read (page_edit.html.twig): the sidebar / tree aside (.nowo-wiki-layout, narrow_tree_position,
+  tree_collapsed_mode: hidden), the main column (reading_width / reading_align), the content card frame with its
+  toolbar (page_header.toolbar_position: card, .nowo-wiki-card-frame) and the page head (page_header.path: card, the
+  sub-pages chip). The parts that differ come pre-rendered from the page template, so its blocks (wiki_sidebar,
+  wiki_page_body, wiki_page_form_body, …) stay blocks of that template and a host template extending it can still fill
+  them.
+  Variables: layout (nowo_wiki_web_ui.layout), tree_rail (WikiTreeRail::rail() or null), tabs (bool: the page has
+  tabs), sidebar (markup of the aside), before_frame (markup before the frame, optional), in_card (bool: the toolbar
+  is in the card frame), toolbar (markup of the card toolbar, optional), page_path (list or null), page_children
+  (array or null), card (markup inside the frame, after the page head), after_frame (markup after the frame,
+  optional), bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _b = bundle|default(null) %}
+{% set _layout = layout|default({}) %}
+<div class="nowo-wiki-layout{{ (_layout.narrow_tree_position ?? 'before') == 'after' ? ' nowo-wiki-layout--tree-after' }}{{ tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' and tabs|default(false) ? ' nowo-wiki-layout--tree-hidden' }}">
+    <div class="nowo-wiki-layout__aside">
+        {{- sidebar|default('') -}}
+    </div>
+    <div class="nowo-wiki-layout__main{{ (_layout.reading_width ?? 'full') == 'readable' ? ' nowo-wiki-reading nowo-ui-readable' ~ ((_layout.reading_align ?? 'center') == 'start' ? ' nowo-wiki-reading--start') }}">
+        {{ before_frame|default('') }}
+        {% if in_card|default(false) %}
+            <div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>
+            {% if toolbar|default('')|trim is not empty %}
+                <div class="nowo-wiki-card-toolbar" data-nowo-wiki-card-toolbar>
+                    <div class="nowo-wiki-card-toolbar__bar" role="group" aria-label="{{ 'wiki.page.toolbar'|trans }}" data-testid="wiki-card-toolbar">{{ toolbar|trim|raw }}</div>
+                </div>
+            {% endif %}
+        {% endif %}
+        {#- 1.30: the in-wiki path (page_header.path: card) and the sub-pages chip (web_ui.children) above the body -#}
+        {% if page_path|default(null) or page_children.items|default([]) is not empty %}
+            <div class="nowo-wiki-page-head" data-testid="wiki-page-head">
+                {% if page_path|default(null) %}{{ include('@NowoWikiBundle/manage/_page_path.html.twig', {page_path: page_path}, false) }}{% endif %}
+                {{ include('@NowoWikiBundle/manage/_page_children_chip.html.twig', {page_children: page_children|default(null), bundle: _b}, false) }}
+            </div>
+        {% endif %}
+        {{ card|default('') }}
+        {% if in_card|default(false) %}</div>{% endif %}
+        {{ after_frame|default('') }}
+    </div>
+</div>

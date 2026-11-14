@@ -31,6 +31,8 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 use function array_fill_keys;
 use function array_key_exists;
+use function array_map;
+use function array_unshift;
 use function count;
 use function is_array;
 
@@ -83,6 +85,9 @@ final readonly class WikiPageFactory
      *                          the "more" menu (UiKit `split` layout)
      * @param bool $metaInCard 1.31 `web_ui.page_meta: card`: the page view leaves the revision out of the scaffold meta
      *                         (the template prints it as the content card's footer line)
+     * @param array{current_tab?: string, back?: string} $editToolbar 1.33 `web_ui.page_header.edit_toolbar`:
+     *                                                                current_tab `hidden` leaves the Edit tab out of the
+     *                                                                edit form; back `view` adds a "View page" icon button
      */
     public function __construct(
         private UrlGeneratorInterface $urlGenerator,
@@ -94,6 +99,7 @@ final readonly class WikiPageFactory
         private bool $compactHeader = false,
         private bool $tabsToolbar = false,
         private bool $metaInCard = false,
+        private array $editToolbar = [],
     ) {
     }
 
@@ -333,14 +339,31 @@ final readonly class WikiPageFactory
             );
         }
 
+        $tabs = null;
+        if ($page instanceof WikiPage) {
+            // 1.16 (B-Q1): the edit view of an existing page gets the tab row (Edit is the current tab); 1.33
+            // (edit_toolbar.current_tab: hidden) without the Edit tab.
+            $tabs = $this->pageTabs($space, $page, ['edit' => ($this->editToolbar['current_tab'] ?? 'shown') !== 'hidden', 'history' => $can['history'] ?? false], 'edit');
+            // 1.33 (edit_toolbar.back: view): a "View page" icon button (UiKit `view` icon); with the tabs in the toolbar it
+            // replaces "Back to page" ({@see WikiTabActions}), else it opens the header actions.
+            if (($this->editToolbar['back'] ?? 'none') === 'view') {
+                if ($toolbar) {
+                    $tabs = new AreaNav(array_map(static fn (AreaNavItem $item): AreaNavItem => ($item->attributes['data-testid'] ?? null) === 'wiki-tab-page'
+                        ? new AreaNavItem($item->label, $item->href, $item->active, $item->attributes + [WikiTabActions::BACK_VIEW_ATTRIBUTE => 'view'], $item->icon)
+                        : $item, $tabs->items), $tabs->label, $tabs->attributes);
+                } else {
+                    array_unshift($actions, new Action('view', WikiPages::label('wiki.action.view_page'), $back, variant: 'neutral', attributes: ['data-testid' => 'wiki-edit-view-page'], display: 'icon'));
+                }
+            }
+        }
+
         return new FormPage(
             header: new PageHeader(
                 $page instanceof WikiPage ? WikiPages::label('wiki.page.edit_title', ['%title%' => $page->getTitle()]) : WikiPages::label('wiki.page.new'),
                 $toolbar ? null : $space->getName(),
                 $actions,
                 breadcrumbs: $this->crumbs($space, $page, WikiPages::label($page instanceof WikiPage ? 'wiki.page.edit' : 'wiki.page.new')),
-                // 1.16 (B-Q1): the edit view of an existing page gets the tab row (Edit is the current tab).
-                tabs: $page instanceof WikiPage ? $this->pageTabs($space, $page, ['edit' => true, 'history' => $can['history'] ?? false], 'edit') : null,
+                tabs: $tabs,
                 back: $toolbar ? null : new BackLink($back, WikiPages::label('wiki.action.back'), 'wiki-back'),
                 actionsLayout: $toolbar ? 'split' : 'toolbar',
             ),
