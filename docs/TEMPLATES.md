@@ -11,6 +11,7 @@ Since **1.10** every wiki page extends a [UiKitBundle](https://github.com/nowo-t
 - [Overriding one page](#overriding-one-page)
 - [Unique pages](#unique-pages)
 - [Contract test](#contract-test)
+- [New page dialog and tree menu (1.35)](#new-page-dialog-and-tree-menu-135)
 
 ## Pages
 
@@ -44,6 +45,8 @@ Every page also reads the Twig global `nowo_wiki_web_ui` (1.21: a service, so an
 | `used_in` | `{type, label, href, badge}` | `WikiPageFactory::usedIn()` |
 | `comments` (1.16) | `{id, open, count, shortcut, toggle_href, close_href, comments_url, csrf_token, state_url, state_token, can, page_threads, form}` (null: no toggle, no panel) | `WikiCommentsPanel::panel()` |
 | `comments_view` (1.16) | `{markdown, options}` (the read-only Milkdown mount of commenters) | `WikiManageController::viewPage()` |
+| `new_page_dialog` (1.35) | `{form: FormView (WikiPageFormType, placement), editor_type}` on `page_view` and `space` (null / absent: no dialog, no menu) | `WikiManageController::viewPage()` / `space()` |
+| `tree_ui` (1.35 additions) | nodes with `item_attr['data-wiki-new-child'] = '1'` on pages the user may create pages under; `actions_template` = `@NowoWikiBundle/manage/_tree_new_page_button.html.twig` | `WikiNewPageMenu::annotate()` |
 
 Only pages the user may **view** (`WikiAction::View` on the page, 1.9 access model) reach the tree, the archived list, the search rows, the AI sources and the AI context; a hidden page also hides its sub-pages in the tree.
 
@@ -53,7 +56,7 @@ Header actions per page:
 | --- | --- |
 | `index` | Ask the wiki (`custom`, opens the AI `<dialog>`), Back to dashboard (`prev`, with `dashboard_route`) |
 | `space` | New page (`create`), Export Outline / Notion (`export`), Back to dashboard |
-| `page_view` | Edit (`edit`), History (`view`), Archive (`delete` look, POST + CSRF behind a UiKit `Confirm`); 1.16: tab row *Page* (current) / *Edit* / *History* (`PageHeader::tabs`, `AreaNav`) |
+| `page_view` | Edit (`edit`), History (`view`), Archive (`delete` look, POST + CSRF behind a UiKit `Confirm`); 1.16: tab row *Page* (current) / *Edit* / *History* (`PageHeader::tabs`, `AreaNav`); 1.35 (`web_ui.new_page_dialog`): New page (`create`, `dialogId` `nowo-wiki-new-page-dialog`, no URL) |
 | `page_edit` | Back link to the page (or the space); Save / Cancel in the form; 1.16: the tab row (*Edit* current) on an existing page |
 | `page_history` | Back link; row actions Compare (`view`) and Restore (`restore`, POST + CSRF behind a `Confirm`) |
 | `page_diff` | Back link to the history |
@@ -107,3 +110,15 @@ None: every wiki page extends a UiKit scaffold.
 ## Contract test
 
 `tests/Integration/Contract/PageContractTest.php` extends `Nowo\UiKitBundle\Test\PageContractTestCase` and renders every page (21 fixtures from `tests/Support/PageFixtures.php`, built with `WikiPageFactory` and the real form types) against the UiKit stub host layout and theme, for `none`, `bootstrap5` and `tailwind`, with the strict missing-translation rule. It also checks the page tree, the 1.16 tab row, comments toggle and panel (open, closed, edit view) and history avatars, the sanitized content, the AI `<dialog>`, the confirm contract of Restore / Archive and the CSP nonce of the editor script.
+
+## New page dialog and tree menu (1.35)
+
+With `web_ui.new_page_dialog: true`:
+
+| Template | Where | What |
+| --- | --- | --- |
+| `manage/_new_page_dialog.html.twig` | block `nowo_ui_modals` of `page_view` and `space` | The dialog (UiKit `dialog`, id `nowo-wiki-new-page-dialog`, wide, no backdrop close) with the new-page form (`form_start` / `form_row` loop / `form_end`, id `nowo-wiki-new-page-form`), the context line (`data-wiki-new-page-context`, `data-above` / `data-below` / `data-child` sentences with `%title%`), Cancel and Create; with `with_menu` the tree menu (`role="menu"`, id `nowo-wiki-new-page-menu`, three `role="menuitem"` buttons `data-wiki-new-page-choice="above|below|child"`). Variables: `new_page_dialog`, `with_menu`, `bundle`, `nowo_ui_page_type` |
+| `manage/_tree_new_page_button.html.twig` | UiKit `tree` `actions_template` (passed by `_sidebar.html.twig` from `tree_ui.actions_template`) | The «…» button of a row (`data-wiki-new-page-more`, `tabindex="-1"`, `aria-haspopup="menu"`, hidden until wiki.js finds a choice). Variable: `node` |
+
+`nowo_ui_scripts` of `page_view` and `space` add the TiptapEditorBundle script when the dialog is on and the editor is
+Tiptap. Hosts that replace the blocks keep the markers (`data-wiki-new-page-*`) for `wiki.js`.

@@ -416,7 +416,7 @@ paths:
     post:
       operationId: page_create
       summary: Create a page
-      description: 'Level: Edit. The person''s access and the token''s where still apply.'
+      description: 'Level: Edit. The person''s access and the token''s where still apply. With `parent`, Edit on that page as well. 1.35: optional `position` places the page among its siblings.'
       responses:
         '201':
           description: Created
@@ -1627,6 +1627,11 @@ components:
           type: string
         slug:
           type: string
+        position:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          description: '1.35: the 1-based place among the parent''s children the token''s user may read (1 = first; past the last = last), as the Move form; the siblings are renumbered when needed, under the space lock. Omitted: the page is created as before. Needs tree.enabled (else 400 INPUT_002). 404 when the parent went away meanwhile, 422 WIKI_MOVE_002 when the page would be too deep.'
       required:
       - title
     PageUpdate:
