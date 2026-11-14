@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Event\WikiApiWriteEvent;
 use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
@@ -34,6 +35,7 @@ use Nowo\WikiBundle\Service\WikiPageMoveScope;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Service\WikiRevisionConflictException;
+use Nowo\WikiBundle\ValueObject\WikiPagePlacement;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -73,7 +75,10 @@ final readonly class WikiApiPageWriteOperations
     }
 
     /**
-     * `POST /wikis/{wiki}/pages`: `title`, `content_markdown`, optional `parent` and `slug`.
+     * `POST /wikis/{wiki}/pages`: `title`, `content_markdown`, optional `parent`, `slug` and (1.35) `position`: the
+     * 1-based place among the parent's children the token's user may read, as the "Move" form (1 = first, past the last
+     * = last; siblings renumbered when needed), created under the space lock of {@see WikiPageMover::createAt()}.
+     * Without `position` the page is created as before 1.35. `position` needs `tree.enabled` (else `INPUT_002`).
      *
      * @throws WikiApiRefusal
      *
@@ -91,6 +96,11 @@ final readonly class WikiApiPageWriteOperations
         $markdown = $this->markdown($input, false) ?? '';
         $parentId = $input->string('parent', false, 36);
         $pageSlug = $input->string('slug', false, 120);
+        $position = $input->int('position', 1, WikiPagePlacement::MAX_POSITION);
+        $mover    = $this->mover;
+        if ($position !== null && !$mover instanceof WikiPageMover) {
+            throw WikiApiRefusal::invalid('position');
+        }
         $this->audit->requireAudit();
 
         // The first write of a wiki nobody opened creates it, with the rights of a first visit (FR-009).
@@ -104,15 +114,22 @@ final readonly class WikiApiPageWriteOperations
         }
         $this->audit->requireQuota(WikiQuotaCheckEvent::PAGE_CREATE, $principal->user, $space);
 
+        $create = fn (): WikiPage => $this->service->create($space, $title, $markdown, $principal->user, $parent, $pageSlug, WikiPageRevision::FORMAT_MARKDOWN);
         try {
-            $page = $this->deferral->run(fn (): WikiPage => $this->service->create($space, $title, $markdown, $principal->user, $parent, $pageSlug, WikiPageRevision::FORMAT_MARKDOWN));
+            $page = $this->deferral->run(fn (): WikiPage => $position !== null && $mover instanceof WikiPageMover
+                // 1.35: the place counts the siblings the token's user may read, as a move.
+                ? $mover->createAt($space, $parent, $position - 1, $create, new WikiPageMoveScope($this->readableIds($principal, $space), null))
+                : $create());
         } catch (InvalidArgumentException $exception) {
             throw $exception->getMessage() === 'Invalid page slug.' ? WikiApiRefusal::invalid('slug') : new WikiApiRefusal(409, 'WIKI_003', 'This slug is taken');
         } catch (UniqueConstraintViolationException) {
             // Another create took the slug between the check and the insert (audit IF-I10): nothing was written.
             throw new WikiApiRefusal(409, 'WIKI_003', 'This slug is taken');
+        } catch (WikiPageMoveException $exception) {
+            // 1.35: the parent went away (or out of the space) meanwhile, or the new page would be too deep.
+            throw $exception->reason === 'too_deep' ? new WikiApiRefusal(422, 'WIKI_MOVE_002', 'The page would be too deep') : WikiApiRefusal::notFound();
         }
-        $this->audit->written($principal, 'page.create', $wiki->slug, $space->getId(), $page->getId(), [], ['title', 'content_markdown']);
+        $this->audit->written($principal, 'page.create', $wiki->slug, $space->getId(), $page->getId(), [], $position !== null ? ['title', 'content_markdown', 'position'] : ['title', 'content_markdown']);
 
         return [$this->reads->body($principal, $wiki, $page), $wiki, $page];
     }
@@ -189,13 +206,7 @@ final readonly class WikiApiPageWriteOperations
         }
         $this->audit->requireAudit();
 
-        $readable  = [];
-        $decisions = [];
-        foreach ($this->pages->findActiveBySpace($space) as $candidate) {
-            if (WikiPageVisibility::isReadable($this->checker, $principal->user, $space, $candidate, $decisions)) {
-                $readable[$candidate->getId()] = true;
-            }
-        }
+        $readable = $this->readableIds($principal, $space);
         try {
             $mover  = $this->mover;
             $result = $this->deferral->run(static fn (): WikiPageMoveResult => $mover->move($page, $parent, $index, $principal->user, new WikiPageMoveScope($readable, $from?->getId())));
@@ -235,6 +246,25 @@ final readonly class WikiApiPageWriteOperations
         $this->audit->written($principal, $archive ? 'page.archive' : 'page.unarchive', $wiki->slug, $page->getSpace()->getId(), $page->getId(), [], ['archived']);
 
         return [$this->reads->body($principal, $wiki, $page), $wiki, $page];
+    }
+
+    /**
+     * Ids of the active pages of the space the token's user may read (with every ancestor), for a
+     * {@see WikiPageMoveScope}.
+     *
+     * @return array<string, true>
+     */
+    private function readableIds(WikiApiPrincipal $principal, WikiSpace $space): array
+    {
+        $readable  = [];
+        $decisions = [];
+        foreach ($this->pages->findActiveBySpace($space) as $candidate) {
+            if (WikiPageVisibility::isReadable($this->checker, $principal->user, $space, $candidate, $decisions)) {
+                $readable[$candidate->getId()] = true;
+            }
+        }
+
+        return $readable;
     }
 
     /**

@@ -1033,9 +1033,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      * @throws InvalidConfigurationException when a slot is not a template name
      *
      * 1.29: `layout` (tree_rail, narrow_tree_position, reading_width, page_header, title, comments_dock), read by the
-     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap. 1.31: title `card`, page_meta. 1.33: edit_layout, edit_current_tab, edit_back.
+     * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap. 1.31: title `card`, page_meta. 1.33: edit_layout, edit_current_tab, edit_back. 1.35: new_page_dialog.
      *
-     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string}}
+     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string, new_page_dialog: bool}}
      */
     public static function ui(array $webUi): array
     {
@@ -1061,7 +1061,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      *
      * @param array<string, mixed> $webUi processed `web_ui` node
      *
-     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string}
+     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string, new_page_dialog: bool}
      */
     public static function layout(array $webUi): array
     {
@@ -1097,6 +1097,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'edit_layout'      => ($webUi['edit_view']['layout'] ?? 'form') === 'read' ? 'read' : 'form',
             'edit_current_tab' => ($header['edit_toolbar']['current_tab'] ?? 'shown') === 'hidden' ? 'hidden' : 'shown',
             'edit_back'        => ($header['edit_toolbar']['back'] ?? 'none') === 'view' ? 'view' : 'none',
+            // 1.35
+            'new_page_dialog' => ($webUi['new_page_dialog'] ?? false) === true,
         ];
     }
 

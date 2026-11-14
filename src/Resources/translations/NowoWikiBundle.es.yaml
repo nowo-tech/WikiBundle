@@ -256,6 +256,19 @@ wiki:
     count: '{1} 1 subpágina|]1,Inf[ %count% subpáginas'
     count_more: '%count%+ subpáginas'
     title: 'Páginas de esta sección'
+  # 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree menu.
+  new_page:
+    more: "Añadir una página junto a «%title%»"
+    menu: "Nueva página"
+    above: "Nueva página encima"
+    below: "Nueva página debajo"
+    child: "Nueva página como hija"
+    context_above: "Encima de «%title%»"
+    context_below: "Debajo de «%title%»"
+    context_child: "Dentro de «%title%»"
+    create: "Crear página"
+    error:
+      placement: "Ese lugar del árbol de páginas ya no es válido. Vuelve a abrir el menú del árbol de páginas."
 wiki_page_form:
   title:
     placeholder: "Título de la página"

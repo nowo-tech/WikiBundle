@@ -256,6 +256,19 @@ wiki:
     count: '{1} 1 subpagina|]1,Inf[ %count% subpagina''s'
     count_more: '%count%+ subpagina''s'
     title: 'Pagina''s in deze sectie'
+  # 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree menu.
+  new_page:
+    more: "Pagina toevoegen naast ‘%title%’"
+    menu: "Nieuwe pagina"
+    above: "Nieuwe pagina erboven"
+    below: "Nieuwe pagina eronder"
+    child: "Nieuwe subpagina"
+    context_above: "Boven ‘%title%’"
+    context_below: "Onder ‘%title%’"
+    context_child: "In ‘%title%’"
+    create: "Pagina maken"
+    error:
+      placement: "Die plek in de paginaboom is niet meer geldig. Open het menu van de paginaboom opnieuw."
 wiki_page_form:
   title:
     placeholder: "Paginatitel"

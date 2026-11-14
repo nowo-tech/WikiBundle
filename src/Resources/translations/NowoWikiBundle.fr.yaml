@@ -256,6 +256,19 @@ wiki:
     count: '{1} 1 sous-page|]1,Inf[ %count% sous-pages'
     count_more: '%count%+ sous-pages'
     title: 'Pages de cette section'
+  # 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree menu.
+  new_page:
+    more: "Ajouter une page à côté de « %title% »"
+    menu: "Nouvelle page"
+    above: "Nouvelle page au-dessus"
+    below: "Nouvelle page en dessous"
+    child: "Nouvelle sous-page"
+    context_above: "Au-dessus de « %title% »"
+    context_below: "En dessous de « %title% »"
+    context_child: "Dans « %title% »"
+    create: "Créer la page"
+    error:
+      placement: "Cet emplacement de l’arborescence n’est plus valide. Rouvrez le menu de l’arborescence."
 wiki_page_form:
   title:
     placeholder: "Titre de la page"
