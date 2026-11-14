@@ -1,0 +1,49 @@
+{#
+  1.35 (web_ui.new_page_dialog): the new-page dialog of the page view and the space home, and the menu of the page tree.
+  - The dialog: the UiKit `dialog` theme partial (native <dialog> opened modal: focus stays inside, Escape and the close
+    button close it, focus goes back to the opener), medium size, with the bundle's new-page form (WikiPageFormType:
+    title + editor, CSRF token wiki_new_<space id>, hidden `parent` / `position`) posted to the new-page route; the
+    footer has Cancel then Create, bound to the form by form="…". Opened by "New page" in the page actions
+    (data-nowo-ui-dialog-open) or by a choice of the tree menu (wiki.js fills parent / position and the line that
+    says where the page goes, `wiki.new_page.context_*`, %title% = the row's title).
+  - The menu (with_menu: the page tree is on the page): one ARIA menu for every row, "New page above", "New page
+    below", "New page as child"; wiki.js opens it from a right click on a row, the row's «…» button, or the ContextMenu
+    key / Shift+F10 on a row, hides the choices the user may not take there, moves the focus with the arrows, Home and
+    End, and closes it on Escape / Tab / a click outside (focus back on the row).
+  Variables: new_page_dialog ({form: FormView, editor_type}), with_menu (bool), bundle, nowo_ui_page_type.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _form = new_page_dialog.form %}
+{% set _form_id = 'nowo-wiki-new-page-form' %}
+{% set _footer %}
+    <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
+    <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="{{ _form_id }}" data-testid="wiki-new-page-submit">{{ 'wiki.new_page.create'|trans }}</button>
+{% endset %}
+{% set _body %}
+    <p class="{{ nowo_ui_class('muted', bundle) }} nowo-wiki-new-page__context" hidden data-wiki-new-page-context data-above="{{ 'wiki.new_page.context_above'|trans }}" data-below="{{ 'wiki.new_page.context_below'|trans }}" data-child="{{ 'wiki.new_page.context_child'|trans }}" data-testid="wiki-new-page-context"></p>
+    {{ form_start(_form, {attr: {id: _form_id, class: nowo_ui_class('form', bundle) ~ ' nowo-wiki-new-page__form', 'data-testid': 'wiki-new-page-form'}}) }}
+        {% for child in _form %}
+            {% if not child.rendered %}
+                {{ form_row(child) }}
+            {% endif %}
+        {% endfor %}
+    {{ form_end(_form) }}
+{% endset %}
+{{ include(nowo_ui_partial('dialog', bundle), {
+    id: 'nowo-wiki-new-page-dialog',
+    title: 'wiki.space.new_page'|trans,
+    size: 'wide',
+    body: _body,
+    footer: _footer,
+    backdrop_close: false,
+    bundle: bundle,
+    nowo_ui_page_type: nowo_ui_page_type|default(null),
+    attr: {'data-testid': 'wiki-new-page-dialog', 'data-wiki-new-page-dialog': true},
+}, false) }}
+{% if with_menu|default(false) %}
+    <div class="nowo-wiki-new-page-menu" id="nowo-wiki-new-page-menu" role="menu" aria-label="{{ 'wiki.new_page.menu'|trans }}" hidden data-wiki-new-page-menu data-testid="wiki-new-page-menu">
+        {% for choice in ['above', 'below', 'child'] %}
+            <button type="button" class="nowo-wiki-new-page-menu__item" role="menuitem" tabindex="-1" data-wiki-new-page-choice="{{ choice }}" data-testid="wiki-new-page-{{ choice }}">{{ ('wiki.new_page.' ~ choice)|trans }}</button>
+        {% endfor %}
+    </div>
+{% endif %}

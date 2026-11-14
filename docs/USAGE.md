@@ -10,6 +10,7 @@
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Space icon (1.32)](#space-icon-132)
+- [New page dialog and tree menu (1.35)](#new-page-dialog-and-tree-menu-135)
 - [Member badges and write provenance](#member-badges-and-write-provenance)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
@@ -207,6 +208,39 @@ $builder->add('icon', WikiSpaceIconType::class);
 ```
 
 Space exports carry no space metadata beyond the title (the pages are exported), so the icon is not part of them.
+
+## New page dialog and tree menu (1.35)
+
+Off by default. Turn it on with:
+
+```yaml
+nowo_wiki:
+    tree:
+        enabled: true          # for the tree menu (the dialog works without it)
+    web_ui:
+        new_page_dialog: true
+```
+
+- **Page actions.** The page view gets "New page" in its header actions. It opens the new-page form (title and editor,
+  the same `WikiPageFormType` as the new-page page) in a modal `<dialog>`. Create posts it to the new-page route; a
+  refusal (an empty title, a taken slug, the plan limit, a place no longer valid) shows the form again on its own page
+  with the reason. The space home keeps its "New page" link.
+- **Tree menu.** Each row of the page tree has a menu with "New page above", "New page below" and "New page as child".
+  Open it with a right click on the row, the row's «…» button (shown on hover and focus, always on touch screens), or
+  the ContextMenu key / Shift+F10 when the row has the focus. Arrows, Home and End move between the choices; Enter
+  chooses; Escape or Tab closes the menu and puts the focus back on the row. A choice opens the dialog with a line that
+  says where the page goes ("Below “Runbooks”").
+- **Rights.** Only users who may create pages in the space get the dialog and the menu. "As child" is offered on pages
+  the user may edit; "above" and "below" when the user may edit the parent (or the row is at the top level). The server
+  checks the same rights again on every create: the create right on the space (role gate and `WikiAction::Create`, so
+  private spaces, id mode and tenants as before) and `WikiAction::Edit` on the parent. CSRF is the new-page form's own
+  token (`wiki_new_<space id>`).
+- **Places.** "Above" is the row's 1-based position among its visible siblings, "below" the next one, "as child" the
+  last place among the row's children. The page is created and placed in one transaction that holds the space lock of
+  the tree moves (`WikiPageMover::createAt()`), so concurrent creates never share a position. Siblings the user cannot
+  see keep their place.
+- **Links.** `GET …/pages/new?parent=<page id>&position=<n>` opens the new-page page with the place filled in.
+- **API.** `POST /wikis/{wiki}/pages` takes the same `position` (see [API.md](API.md#creating-a-page)).
 
 ## Member badges and write provenance
 

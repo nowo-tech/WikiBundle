@@ -68,7 +68,7 @@ final class WebUiHooksKernelTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         (new Filesystem())->remove(dirname((new RoutingTestKernel(true))->getCacheDir()));
-        foreach (['-defaults', '-hooks', '-scoped'] as $variant) {
+        foreach (['-defaults', '-hooks', '-scoped', '-newpage', '-defaults-tree'] as $variant) {
             (new Filesystem())->remove(dirname((new RoutingTestKernel(true, [], $variant))->getCacheDir()));
         }
     }
@@ -248,6 +248,61 @@ final class WebUiHooksKernelTest extends TestCase
     }
 
     /** GV-I5: with search.scope: space the index search form has no "all spaces" choice, which would answer 404. */
+    /** 1.35 (web_ui.new_page_dialog): the dialog, the page action, the tree menu and its «…» buttons; a placed create. */
+    public function testTheNewPageDialogAndTheTreeMenu(): void
+    {
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $html = $this->html('/tools/wiki/spaces/eng/pages/home');
+
+        self::assertStringContainsString('<dialog id="nowo-wiki-new-page-dialog"', $html);
+        self::assertStringContainsString('data-nowo-ui-dialog-open="nowo-wiki-new-page-dialog"', $html);
+        self::assertStringContainsString('action="/tools/wiki/spaces/eng/pages/new"', $html);
+        self::assertStringContainsString('name="wiki_page_form[parent]"', $html);
+        self::assertStringContainsString('name="wiki_page_form[position]"', $html);
+        self::assertStringContainsString('name="wiki_page_form[_token]"', $html);
+        self::assertStringContainsString('role="menu"', $html);
+        self::assertSame(3, substr_count($html, 'role="menuitem"'));
+        self::assertStringContainsString('New page above', $html);
+        self::assertStringContainsString('New page as child', $html);
+        self::assertStringContainsString('data-wiki-new-page-more', $html);
+        self::assertStringContainsString('aria-label="Add a page next to “Home”"', $html);
+        self::assertStringContainsString('data-wiki-new-child="1"', $html);
+        self::assertStringContainsString('data-above="Above “%title%”"', $html);
+
+        // One request per kernel, as the other tests (the token does not survive a request here).
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $space = $this->html('/tools/wiki/spaces/eng');
+        self::assertStringContainsString('<dialog id="nowo-wiki-new-page-dialog"', $space);
+        self::assertStringContainsString('data-wiki-new-page-menu', $space);
+
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $response = $this->request(Request::create('/tools/wiki/spaces/eng/pages/new', 'POST', ['wiki_page_form' => [
+            '_token'   => 'ok-wiki_new_' . $this->space->getId(),
+            'title'    => 'Before home',
+            'content'  => 'Body',
+            'parent'   => '',
+            'position' => '1',
+        ]]));
+        self::assertSame(Response::HTTP_FOUND, $response->getStatusCode(), (string) $response->getContent());
+        $entityManager = $this->services()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $placed = $entityManager->getRepository(WikiPage::class)->findOneBy(['slug' => 'before-home']);
+        $home   = $entityManager->getRepository(WikiPage::class)->findOneBy(['slug' => 'home']);
+        self::assertInstanceOf(WikiPage::class, $placed);
+        self::assertInstanceOf(WikiPage::class, $home);
+        self::assertLessThan($home->getPosition(), $placed->getPosition());
+
+        // Without the option the same pages print none of it.
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true]], '-defaults-tree');
+        $html = $this->html('/tools/wiki/spaces/eng/pages/home');
+        self::assertStringNotContainsString('nowo-wiki-new-page', $html);
+        self::assertStringNotContainsString('data-wiki-new-page-more', $html);
+        self::assertStringNotContainsString('wiki_page_form[position]', $html);
+    }
+
     public function testTheIndexSearchFormHasNoDeadChoiceWithTheSpaceScope(): void
     {
         $this->boot(['import_export' => ['enabled' => true]], '-defaults');

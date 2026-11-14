@@ -87,6 +87,20 @@
 
 ## Unreleased
 
+Target 1.35.0. No schema change; every default keeps the 1.34 pages.
+
+- **New page dialog and tree menu** (opt-in): set `nowo_wiki.web_ui.new_page_dialog: true` (with `tree.enabled: true`
+  for the tree menu). Hosts that override `page_view.html.twig` or `space.html.twig` and replace `nowo_ui_modals` call
+  `{{ parent() }}` there or include `@NowoWikiBundle/manage/_new_page_dialog.html.twig` themselves (variables
+  `new_page_dialog`, `with_menu`); hosts that override `_sidebar.html.twig` pass `actions_template:
+  tree_ui.actions_template|default(null)` to the UiKit `tree` partial. With `web_ui.assets.scripts: false`, bundle
+  `wiki-new-page.ts` (imported by `wiki.ts`) and, for the Tiptap editor, the TiptapEditorBundle script on the page view
+  and the space home. Hosts that render the new-page form field by field render the hidden `parent` and `position`
+  (`form_rest()` / `form_end()` do).
+- **API**: `POST /wikis/{wiki}/pages` accepts an optional `position` (integer, 1-based, 1–100000). Clients that send
+  nothing new see no change. `position` needs `tree.enabled`. `POST …/move` keeps its 0-based `index`.
+- **PHP**: `WikiPageMover::createAt()` is new; `WikiPageFormType` has a new `placement` option (default `false`).
+
 ## To 1.34.0
 
 From **1.33.0**:

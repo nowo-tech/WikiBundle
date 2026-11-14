@@ -39,6 +39,10 @@
         {% set _nonce = app.request ? app.request.attributes.get('csp_nonce') : null %}
         {% if tree_ui|default(null) %}<script src="{{ asset('js/nowo-ui-tree.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
         {% if tree_rail|default(null) %}<script src="{{ asset('js/nowo-ui-rail.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
+        {#- 1.35 (web_ui.new_page_dialog): the new-page dialog's editor (the Milkdown widget adds its own module) -#}
+        {% if new_page_dialog|default(null) and new_page_dialog.editor_type == 'tiptap' %}
+            <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        {% endif %}
         <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
 {% endblock %}
@@ -47,6 +51,10 @@
     {{ parent() }}
     {% if (nowo_wiki_web_ui.import_export ?? 'page') == 'dialog' and (import_form|default(null) or export_links|default([]) is not empty) %}
         {{ include('@NowoWikiBundle/manage/_import_export_dialog.html.twig', {import_form: import_form|default(null), export_links: export_links|default([]), bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
+    {% endif %}
+    {#- 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree's menu -#}
+    {% if new_page_dialog|default(null) %}
+        {{ include('@NowoWikiBundle/manage/_new_page_dialog.html.twig', {new_page_dialog: new_page_dialog, with_menu: tree_ui.actions_template is defined, bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
     {% endif %}
 {% endblock %}
 

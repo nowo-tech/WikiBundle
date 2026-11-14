@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>New page menu</title>
+<!-- 1.35 web_ui.new_page_dialog: the markup of _sidebar (UiKit tree + _tree_new_page_button), the page action and
+     _new_page_dialog.html.twig (UiKit dialog + menu), as the bundle renders them, with the real UiKit CSS / scripts and the
+     built wiki.css / wiki.js. Run by menu.js (make check-new-page-menu). -->
+<link rel="stylesheet" href="nowo-ui.css"><link rel="stylesheet" href="wiki.css">
+<style>body{margin:1rem;font-family:system-ui,sans-serif}.side{width:18rem}</style></head><body class="nowo-ui">
+<button type="button" class="nowo-ui-btn" data-testid="wiki-new-page" data-nowo-ui-dialog-open="nowo-wiki-new-page-dialog" aria-haspopup="dialog" aria-controls="nowo-wiki-new-page-dialog">New page</button>
+<nav class="side" data-wiki-sidebar>
+<ul class="nowo-ui-tree" id="nowo-wiki-tree" role="tree" aria-label="Pages" data-nowo-ui-tree data-wiki-tree data-testid="wiki-tree">
+ <li class="nowo-ui-tree__item" role="none" data-nowo-ui-tree-node="p-ops" data-wiki-new-child="1">
+  <div class="nowo-ui-tree__row"><span class="nowo-ui-tree__toggle" aria-hidden="true" data-nowo-ui-tree-toggle></span><a class="nowo-ui-tree__link" href="#ops" role="treeitem" data-nowo-ui-tree-item tabindex="0" aria-level="1" aria-setsize="3" aria-posinset="1" aria-expanded="true" aria-owns="nowo-wiki-tree-p-ops-group"><span class="nowo-ui-tree__label">Operations</span></a><button type="button" class="nowo-wiki-tree__more" tabindex="-1" hidden aria-haspopup="menu" aria-controls="nowo-wiki-new-page-menu" aria-label="Add a page next to “Operations”" data-wiki-new-page-more data-testid="wiki-new-page-more"><span aria-hidden="true">…</span></button></div>
+  <ul class="nowo-ui-tree__group" role="group" id="nowo-wiki-tree-p-ops-group">
+   <li class="nowo-ui-tree__item" role="none" data-nowo-ui-tree-node="p-run" data-wiki-new-child="1">
+    <div class="nowo-ui-tree__row"><span class="nowo-ui-tree__spacer" aria-hidden="true"></span><a class="nowo-ui-tree__link" href="#run" role="treeitem" data-nowo-ui-tree-item tabindex="-1" aria-level="2" aria-setsize="2" aria-posinset="1"><span class="nowo-ui-tree__label">Runbooks</span></a><button type="button" class="nowo-wiki-tree__more" tabindex="-1" hidden aria-haspopup="menu" aria-controls="nowo-wiki-new-page-menu" aria-label="Add a page next to “Runbooks”" data-wiki-new-page-more data-testid="wiki-new-page-more"><span aria-hidden="true">…</span></button></div>
+   </li>
+   <li class="nowo-ui-tree__item" role="none" data-nowo-ui-tree-node="p-faq">
+    <div class="nowo-ui-tree__row"><span class="nowo-ui-tree__spacer" aria-hidden="true"></span><a class="nowo-ui-tree__link" href="#faq" role="treeitem" data-nowo-ui-tree-item tabindex="-1" aria-level="2" aria-setsize="2" aria-posinset="2"><span class="nowo-ui-tree__label">FAQ</span></a><button type="button" class="nowo-wiki-tree__more" tabindex="-1" hidden aria-haspopup="menu" aria-controls="nowo-wiki-new-page-menu" aria-label="Add a page next to “FAQ”" data-wiki-new-page-more data-testid="wiki-new-page-more"><span aria-hidden="true">…</span></button></div>
+   </li>
+  </ul>
+ </li>
+ <li class="nowo-ui-tree__item" role="none" data-nowo-ui-tree-node="p-guide" data-wiki-new-child="1">
+  <div class="nowo-ui-tree__row"><span class="nowo-ui-tree__spacer" aria-hidden="true"></span><a class="nowo-ui-tree__link" href="#guide" role="treeitem" data-nowo-ui-tree-item tabindex="-1" aria-level="1" aria-setsize="3" aria-posinset="2"><span class="nowo-ui-tree__label">Guide</span></a><button type="button" class="nowo-wiki-tree__more" tabindex="-1" hidden aria-haspopup="menu" aria-controls="nowo-wiki-new-page-menu" aria-label="Add a page next to “Guide”" data-wiki-new-page-more data-testid="wiki-new-page-more"><span aria-hidden="true">…</span></button></div>
+ </li>
+ <li class="nowo-ui-tree__item" role="none" data-nowo-ui-tree-node="p-locked">
+  <div class="nowo-ui-tree__row"><span class="nowo-ui-tree__spacer" aria-hidden="true"></span><a class="nowo-ui-tree__link" href="#locked" role="treeitem" data-nowo-ui-tree-item tabindex="-1" aria-level="1" aria-setsize="3" aria-posinset="3"><span class="nowo-ui-tree__label">Locked</span></a><button type="button" class="nowo-wiki-tree__more" tabindex="-1" hidden aria-haspopup="menu" aria-controls="nowo-wiki-new-page-menu" aria-label="Add a page next to “Locked”" data-wiki-new-page-more data-testid="wiki-new-page-more"><span aria-hidden="true">…</span></button></div>
+ </li>
+</ul>
+</nav>
+<p><a href="#after" id="after">After the tree</a></p>
+<dialog id="nowo-wiki-new-page-dialog" class="nowo-ui-dialog nowo-ui-dialog--wide" data-nowo-ui-dialog aria-labelledby="nowo-wiki-new-page-dialog-title" data-testid="wiki-new-page-dialog" data-wiki-new-page-dialog>
+ <header class="nowo-ui-dialog__header"><h2 class="nowo-ui-dialog__title" id="nowo-wiki-new-page-dialog-title">New page</h2><button type="button" class="nowo-ui-dialog__close" data-nowo-ui-dialog-close aria-label="Close" title="Close"><span aria-hidden="true">&times;</span></button></header>
+ <div class="nowo-ui-dialog__body">
+  <p class="nowo-ui-muted nowo-wiki-new-page__context" hidden data-wiki-new-page-context data-above="Above “%title%”" data-below="Below “%title%”" data-child="Inside “%title%”" data-testid="wiki-new-page-context"></p>
+  <form name="wiki_page_form" method="post" action="#created" id="nowo-wiki-new-page-form" class="nowo-ui-form nowo-wiki-new-page__form" data-testid="wiki-new-page-form">
+   <div><label for="wiki_page_form_title">Title</label><input type="text" id="wiki_page_form_title" name="wiki_page_form[title]" required></div>
+   <input type="hidden" id="wiki_page_form_parent" name="wiki_page_form[parent]" data-wiki-new-page-parent="1">
+   <input type="hidden" id="wiki_page_form_position" name="wiki_page_form[position]" data-wiki-new-page-position="1">
+   <div><label for="wiki_page_form_content">Content</label><textarea id="wiki_page_form_content" name="wiki_page_form[content]" rows="6"></textarea></div>
+   <input type="hidden" id="wiki_page_form__token" name="wiki_page_form[_token]" value="t">
+  </form>
+ </div>
+ <footer class="nowo-ui-dialog__footer"><button type="button" class="nowo-ui-btn" data-nowo-ui-dialog-close>Cancel</button><button type="submit" class="nowo-ui-btn nowo-ui-btn--primary" form="nowo-wiki-new-page-form" data-testid="wiki-new-page-submit">Create page</button></footer>
+</dialog>
+<div class="nowo-wiki-new-page-menu" id="nowo-wiki-new-page-menu" role="menu" aria-label="New page" hidden data-wiki-new-page-menu data-testid="wiki-new-page-menu">
+ <button type="button" class="nowo-wiki-new-page-menu__item" role="menuitem" tabindex="-1" data-wiki-new-page-choice="above" data-testid="wiki-new-page-above">New page above</button>
+ <button type="button" class="nowo-wiki-new-page-menu__item" role="menuitem" tabindex="-1" data-wiki-new-page-choice="below" data-testid="wiki-new-page-below">New page below</button>
+ <button type="button" class="nowo-wiki-new-page-menu__item" role="menuitem" tabindex="-1" data-wiki-new-page-choice="child" data-testid="wiki-new-page-child">New page as child</button>
+</div>
+<script src="nowo-ui-dialog.js" defer></script>
+<script src="nowo-ui-tree.js" defer></script>
+<script src="wiki.js" defer></script>
+</body></html>

@@ -233,7 +233,8 @@ final readonly class WikiPageFactory
      * (Page / Edit / History, {@see self::pageTabs()}), revision meta; the template renders the tree, the sanitized
      * content and "Used in". 1.25 (WK-6): Edit and History are only tabs (until 1.24 they were header actions too).
      *
-     * @param array{edit: bool, history: bool, move?: bool} $can what the user may do on the page (1.14: move)
+     * @param array{edit: bool, history: bool, move?: bool, new_page_dialog?: bool} $can what the user may do on the page (1.14: move; 1.35:
+     *                                                                                   new_page_dialog = "New page" in the actions, opening the dialog)
      * @param FormView|null $archiveForm CSRF form of the archive action (null = no archive action)
      * @param FormView|null $deleteForm CSRF form of the Delete action (1.14 trash; null = no Delete action)
      */
@@ -243,6 +244,11 @@ final readonly class WikiPageFactory
         $tabs   = $this->pageTabs($space, $page, $can, 'page');
         // 1.25 (WK-6): Edit and History are tabs of the tab row (1.16, same rights), never header actions as well.
         $actions = [];
+        // 1.35 (web_ui.new_page_dialog): "New page" opens the new-page dialog (UiKit dialog script; a button, no URL: a
+        // URL would be fetched into the dialog body).
+        if ($can['new_page_dialog'] ?? false) {
+            $actions[] = new Action('create', WikiPages::label('wiki.space.new_page'), attributes: ['data-testid' => 'wiki-new-page'], dialogId: WikiNewPageMenu::DIALOG_ID);
+        }
         // 1.15: Save version names the current revision (history.timeline, editors).
         if (($can['version'] ?? false) && $this->has('page_version_save')) {
             $actions[] = new Action('create', WikiPages::label('wiki.history.save_version'), $this->url('page_version_save', $params), attributes: ['data-testid' => 'wiki-save-version']);

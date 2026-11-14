@@ -3,6 +3,7 @@ import { bindThreadList } from './wiki-comments-list';
 import { bindCommentsModeration } from './wiki-comments-moderation';
 import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 import { bindTreeHiddenFocus, observeCardToolbar } from './wiki-layout';
+import { bindNewPageMenu } from './wiki-new-page';
 
 /** True when the element scrolls its own content vertically (overflow auto / scroll and taller content). */
 const scrollsItself = (el: HTMLElement): boolean => {
@@ -365,6 +366,7 @@ const scriptNonce = currentNonce(document.currentScript);
 document.documentElement.classList.add('wiki-ready');
 initWikiTrees();
 bindWikiTree();
+bindNewPageMenu();
 bindWikiComments();
 bindCommentsModeration();
 bindThreadList();
