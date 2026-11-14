@@ -48,6 +48,9 @@ services:
 
     Nowo\WikiBundle\Api\Operation\WikiApiPageReadOperations:
         public: true
+        arguments:
+            # Spec 234: created_by, channel and token_name.
+            $provenance: '@?Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface'
 
     Nowo\WikiBundle\Api\Operation\WikiApiRevisionOperations:
         public: true

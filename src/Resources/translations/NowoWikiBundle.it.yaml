@@ -170,6 +170,12 @@ wiki:
     label_help: "Dà un nome alla revisione attuale, ad es. «Prima della migrazione». Le versioni con nome non vengono mai sfoltite."
     author: "Autore"
     former_person: "Ex collaboratore"
+    provenance: "via %channel%"
+    provenance_channel:
+      web: "Web"
+      app: "App"
+      api: "API"
+      mcp: "MCP"
     session_column: "Salvataggi della sessione"
     save_version: "Salva versione"
     save_version_title: "Salva versione di %title%"

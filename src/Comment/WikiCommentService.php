@@ -28,6 +28,8 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
+use Nowo\WikiBundle\Member\WikiMemberBadge;
+use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\Repository\WikiCommentAuthorRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
 use Nowo\WikiBundle\Repository\WikiCommentMentionRepositoryInterface;
@@ -191,6 +193,7 @@ final readonly class WikiCommentService
         private ?LoggerInterface $logger = null,
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiUserClassPolicy $userClasses = null,
+        private ?WikiMemberBadges $badges = null,
     ) {
     }
 
@@ -901,9 +904,12 @@ final readonly class WikiCommentService
         // A deleted comment shows no author, so its author is not presented (nor resolved) for it.
         $people    = array_values(array_filter([...array_map(static fn (WikiComment $c): ?object => $c->isDeleted() ? null : $c->getAuthor(), $comments), $thread->getResolvedBy()], static fn (?object $o): bool => $o !== null));
         $presented = $this->authors->presentAll($people, $page);
-        $byObject  = [];
+        // Spec 234: one badge provider call per thread; badges ride on the author only when there are some.
+        $this->badges?->prime($people);
+        $byObject = [];
         foreach ($people as $index => $person) {
-            $byObject[spl_object_id($person)] = $presented[$index];
+            $badges                           = $this->badges?->of($person) ?? [];
+            $byObject[spl_object_id($person)] = $presented[$index] + ($badges === [] ? [] : ['badges' => $badges]);
         }
 
         $items = [];
@@ -939,13 +945,19 @@ final readonly class WikiCommentService
     }
 
     /**
-     * @param array{name: string, named: bool, avatarUrl: string|null} $presented
+     * @param array{name: string, named: bool, avatarUrl: string|null, badges?: non-empty-list<WikiMemberBadge>} $presented
      *
-     * @return array{name: string, avatarUrl: string|null}
+     * @return array{name: string, avatarUrl: string|null, badges?: list<array{label: string, variant: string, title: string|null}>}
      */
     private function person(array $presented): array
     {
-        return ['name' => $presented['name'], 'avatarUrl' => $presented['avatarUrl']];
+        $person = ['name' => $presented['name'], 'avatarUrl' => $presented['avatarUrl']];
+        // Spec 234: the host's badges, as plain data (the JSON is escaped by json_encode, the panel by Twig).
+        if (isset($presented['badges'])) {
+            $person['badges'] = array_map(static fn (WikiMemberBadge $badge): array => ['label' => $badge->label, 'variant' => $badge->variant, 'title' => $badge->title], $presented['badges']);
+        }
+
+        return $person;
     }
 
     /**

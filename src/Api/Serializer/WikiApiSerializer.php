@@ -49,11 +49,16 @@ final readonly class WikiApiSerializer
     /**
      * A page's metadata: what lists show, and the head of a page body.
      *
+     * Spec 234: `created_by` (the author of the page's oldest revision, presented like `updated_by`), and the
+     * provenance of the last write — `channel` (web | app | api | mcp) and `token_name` (the host's actor label, plain
+     * text; null once its author is deleted). All null when not recorded.
+     *
      * @param array{id: string|null, name: string}|null $updatedBy
+     * @param array{id: string|null, name: string}|null $createdBy
      *
      * @return array<string, mixed>
      */
-    public function pageHead(WikiApiWiki $wiki, WikiPage $page, ?int $revision, ?DateTimeImmutable $revisedAt, ?array $updatedBy): array
+    public function pageHead(WikiApiWiki $wiki, WikiPage $page, ?int $revision, ?DateTimeImmutable $revisedAt, ?array $updatedBy, ?array $createdBy = null, ?string $channel = null, ?string $tokenName = null): array
     {
         return [
             'id'         => $page->getId(),
@@ -67,11 +72,15 @@ final readonly class WikiApiSerializer
             'created_at' => self::ms($page->getCreatedAt()),
             'updated_at' => self::ms($revisedAt ?? $page->getUpdatedAt()),
             'updated_by' => $updatedBy,
+            'created_by' => $createdBy,
+            'channel'    => $channel,
+            'token_name' => $tokenName,
         ];
     }
 
     /**
-     * A revision's head (the body, when asked, is added by the caller).
+     * A revision's head (the body, when asked, is added by the caller). Spec 234: `channel` and `token_name` of
+     * the write (`author` is who made it); `token_name` is null once the author is deleted.
      *
      * @param array{id: string|null, name: string}|null $author
      *
@@ -85,6 +94,8 @@ final readonly class WikiApiSerializer
             'created_at' => self::ms($revision->getCreatedAt()),
             'label'      => $label,
             'format'     => $revision->getFormat(),
+            'channel'    => $revision->getChannel(),
+            'token_name' => $revision->getAuthor() === null ? null : $revision->getActorLabel(),
         ];
     }
 }

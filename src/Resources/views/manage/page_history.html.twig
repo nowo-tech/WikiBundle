@@ -8,6 +8,8 @@
   1.16: rows also hold author_named (the author is shown under a real name) and author_avatar (picture URL or ''): a
   named author gets the UiKit avatar (xs, decorative) before the name; a hidden one never gets an avatar.
   1.30: history_tabs (web_ui.page_header.tabs: toolbar) adds Back to page / Edit / History as header icon buttons.
+  Spec 234: rows also hold author_badges (WikiMemberBadge list, rendered by manage/_member_label_suffix.html.twig,
+  block member_label_suffix), author_channel and author_actor_label ('' when not recorded): shown after the name.
   Blocks filled: nowo_ui_styles, nowo_ui_page_header (1.30), nowo_ui_list_row (the current revision gets a badge).
 #}
 {% extends '@NowoUiKit/page/list.html.twig' %}
@@ -51,6 +53,13 @@
             {#- 1.26: the author's account was deleted: nothing is kept about them (as TimeTrack's former person) -#}
             {%- if row.author_deleted|default(false) %}<span class="nowo-wiki-author nowo-wiki-author--former" data-testid="wiki-history-former-person">{{ 'wiki.history.former_person'|trans }}</span>
             {%- elseif row.author_named|default(false) %}<span class="nowo-wiki-author">{{ include('@NowoUiKitBundle/partials/_avatar.html.twig', {name: row.author, src: row.author_avatar|default('') ?: null, size: 'xs', decorative: true, attr: {'data-testid': 'wiki-history-avatar'}}, false) }}<span class="nowo-wiki-author__name">{{ row.author }}</span></span>{% else %}{{ row.author }}{% endif -%}
+            {#- Spec 234: the host's badges (escaped value objects) and where the write came from (channel, actor label) -#}
+            {%- if row.author_badges|default([]) is not empty and not row.author_deleted|default(false) %}{{ include('@NowoWikiBundle/manage/_member_label_suffix.html.twig', {badges: row.author_badges, bundle: page.bundle}, false) }}{% endif -%}
+            {%- if row.author_channel|default('') != '' or row.author_actor_label|default('') != '' %} <span class="{{ nowo_ui_class('muted', page.bundle) }} nowo-wiki-provenance" data-testid="wiki-history-provenance">
+                {%- if row.author_channel|default('') != '' %}{{ 'wiki.history.provenance'|trans({'%channel%': ('wiki.history.provenance_channel.' ~ row.author_channel)|trans}) }}{% endif -%}
+                {%- if row.author_channel|default('') != '' and row.author_actor_label|default('') != '' %} · {% endif -%}
+                {%- if row.author_actor_label|default('') != '' %}<span class="nowo-wiki-provenance__actor">{{ row.author_actor_label }}</span>{% endif -%}
+            </span>{% endif -%}
         </td>
     {% endif %}
     <td class="{{ _cell }}" data-label="{{ 'wiki.history.created'|trans }}">{{ row.created }}</td>

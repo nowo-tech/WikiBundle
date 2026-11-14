@@ -170,6 +170,12 @@ wiki:
     label_help: "Nomme la révision actuelle, p. ex. « Avant la migration ». Les versions nommées ne sont jamais élaguées."
     author: "Auteur"
     former_person: "Ancienne personne"
+    provenance: "via %channel%"
+    provenance_channel:
+      web: "Web"
+      app: "Appli"
+      api: "API"
+      mcp: "MCP"
     session_column: "Enregistrements de la session"
     save_version: "Enregistrer la version"
     save_version_title: "Enregistrer une version de %title%"

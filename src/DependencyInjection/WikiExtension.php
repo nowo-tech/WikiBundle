@@ -75,10 +75,16 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
+use Nowo\WikiBundle\Member\NullWikiMemberBadgeProvider;
+use Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface;
+use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
+use Nowo\WikiBundle\Provenance\NullWikiWriteProvenanceProvider;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
@@ -90,6 +96,7 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
@@ -422,6 +429,39 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerAiServices($container, $config['ai']);
         $this->registerApi($container, $loader, $config);
         $this->registerRequestBoundary($container);
+        $this->registerMemberBadgesAndProvenance($container, $emProviderRef);
+    }
+
+    /**
+     * Spec 234: the member badge hook (a null provider by alias; the host aliases
+     * {@see WikiMemberBadgeProviderInterface}), its per-request memo (emptied at every boundary and on `kernel.reset`),
+     * read by the history timeline and the comments; and the write provenance hook (a null provider by alias; the host
+     * aliases {@see WikiWriteProvenanceProviderInterface}), its erasure service and the API's provenance finder.
+     */
+    private function registerMemberBadgesAndProvenance(ContainerBuilder $container, Reference $entityManager): void
+    {
+        $container->setDefinition(NullWikiMemberBadgeProvider::class, new Definition(NullWikiMemberBadgeProvider::class));
+        $container->setAlias(WikiMemberBadgeProviderInterface::class, NullWikiMemberBadgeProvider::class);
+        $container->setDefinition(WikiMemberBadges::class, (new Definition(WikiMemberBadges::class))
+            ->setArgument('$provider', new Reference(WikiMemberBadgeProviderInterface::class))
+            ->addTag('kernel.reset', ['method' => 'reset']));
+        foreach ([WikiHistoryTimeline::class, WikiCommentService::class] as $reader) {
+            if ($container->hasDefinition($reader)) {
+                $container->getDefinition($reader)->setArgument('$badges', new Reference(WikiMemberBadges::class));
+            }
+        }
+        $boundary = $container->getDefinition(WikiRequestBoundaryResetter::class)->getArgument('$memos');
+        if ($boundary instanceof IteratorArgument) {
+            $boundary->setValues([...$boundary->getValues(), new Reference(WikiMemberBadges::class, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE)]);
+        }
+
+        $container->setDefinition(NullWikiWriteProvenanceProvider::class, new Definition(NullWikiWriteProvenanceProvider::class));
+        $container->setAlias(WikiWriteProvenanceProviderInterface::class, NullWikiWriteProvenanceProvider::class);
+        $container->setDefinition(WikiWriteProvenanceErasure::class, (new Definition(WikiWriteProvenanceErasure::class))
+            ->setArgument('$entityManager', $entityManager)
+            ->setArgument('$users', new Reference(WikiUserReferenceResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setPublic(true));
+        $container->setAlias(WikiPageProvenanceFinderInterface::class, DoctrineOrmWikiPageRevisionRepository::class);
     }
 
     /**

@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\History;
 
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Member\WikiMemberBadge;
+use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -15,6 +17,9 @@ use function spl_object_id;
  * The history timeline of a page (1.15, `history.timeline`): for each revision its author label, its named-version
  * label and its **session** — consecutive saves by the same author less than `history.session_minutes` apart. A named
  * version is a session of its own. The first (newest) revision of a session carries the number of saves in it.
+ *
+ * Spec 234: each row also carries the author's host badges (one provider call per page of rows) and the
+ * write's provenance (channel, actor label; the label never for a deleted author).
  */
 final readonly class WikiHistoryTimeline
 {
@@ -22,16 +27,18 @@ final readonly class WikiHistoryTimeline
         private WikiRevisionLabelRepositoryInterface $labels,
         private WikiAuthorLabel $authors,
         private int $sessionMinutes = 30,
+        private ?WikiMemberBadges $badges = null,
     ) {
     }
 
     /**
      * @param list<WikiPageRevision> $revisions newest first (one page of the history)
      *
-     * @return array<int, array{author: string, named: bool, avatar: string|null, label: string|null, saves: int, deleted: bool}>
-     *                                                                                                                            per revision number; `saves` is the size of the session on its newest row, 0 on the others;
-     *                                                                                                                            `avatar` (1.16) the author's picture URL, only beside a real name; `deleted` (1.26) true when
-     *                                                                                                                            the author's account was deleted (`author` is then '': the page shows "Former person")
+     * @return array<int, array{author: string, named: bool, avatar: string|null, label: string|null, saves: int, deleted: bool, badges: list<WikiMemberBadge>, channel: string|null, actor_label: string|null}>
+     *                                                                                                                                                                                                           per revision number; `saves` is the size of the session on its newest row, 0 on the others;
+     *                                                                                                                                                                                                           `avatar` (1.16) the author's picture URL, only beside a real name; `deleted` (1.26) true when
+     *                                                                                                                                                                                                           the author's account was deleted (`author` is then '': the page shows "Former person");
+     *                                                                                                                                                                                                           spec 234: `badges`, `channel`, `actor_label` (spec 234)
      */
     public function rows(WikiPage $page, array $revisions): array
     {
@@ -58,8 +65,10 @@ final readonly class WikiHistoryTimeline
             }
         }
         $authors = $this->authors->presentAll($live, $page);
-        $rows    = [];
-        $index   = 0;
+        // Spec 234: one badge provider call per page of rows.
+        $this->badges?->prime($live);
+        $rows  = [];
+        $index = 0;
         foreach ($revisions as $revision) {
             $number = $revision->getRevisionNumber();
             $author = $revision->getAuthor() !== null
@@ -72,6 +81,10 @@ final readonly class WikiHistoryTimeline
                 'label'   => $labels[$revision->getId()] ?? null,
                 'saves'   => $saves[$number] ?? 0,
                 'deleted' => $author['deleted'],
+                // Spec 234: host badges and the write's provenance (nothing kept about a deleted author).
+                'badges'      => $this->badges?->of($revision->getAuthor()) ?? [],
+                'channel'     => $revision->getChannel(),
+                'actor_label' => $author['deleted'] ? null : $revision->getActorLabel(),
             ];
         }
 

@@ -24,6 +24,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
+use Nowo\WikiBundle\Member\WikiMemberBadge;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
@@ -405,8 +406,8 @@ final readonly class WikiPageFactory
      * @param list<WikiPageRevision> $revisions revisions of the current page, newest first
      * @param WikiPageRevision|null $older first revision of the next page (compare target of the last row)
      * @param array<int|string, FormView> $restoreForms revision number => CSRF restore form
-     * @param array<int, array{author: string, avatar?: string|null, named?: bool, label: string|null, saves: int, deleted?: bool}>|null $timeline 1.15
-     *                                                                                                                                             timeline rows per revision number (null: the 1.14 list); 1.16: `avatar` / `named`; 1.26: `deleted`
+     * @param array<int, array{author: string, avatar?: string|null, named?: bool, label: string|null, saves: int, deleted?: bool, badges?: list<WikiMemberBadge>, channel?: string|null, actor_label?: string|null}>|null $timeline 1.15
+     *                                                                                                                                                                                                                               timeline rows per revision number (null: the 1.14 list); 1.16: `avatar` / `named`; 1.26: `deleted`
      * @param array<int|string, FormView> $copyForms 1.15 Copy to new page forms per revision number
      */
     public function history(WikiSpace $space, WikiPage $page, array $revisions, ?WikiPageRevision $older, array $restoreForms, ?Pagination $pagination, ?array $timeline = null, array $copyForms = []): ListPage
@@ -433,6 +434,11 @@ final readonly class WikiPageFactory
                     'author_avatar' => $entry['avatar'] ?? '',
                     // 1.26: the author's account was deleted (the template shows "Former person").
                     'author_deleted' => $entry['deleted'] ?? false,
+                    // Spec 234: the host's badges (WikiMemberBadge value objects, printed escaped) and where the
+                    // write came from (channel and actor label, '' when not recorded).
+                    'author_badges'      => $entry['badges'] ?? [],
+                    'author_channel'     => $entry['channel'] ?? '',
+                    'author_actor_label' => $entry['actor_label'] ?? '',
                     // Rows hold scalars: the count of saves (2 or more) on the newest row of a session.
                     'session' => $entry['saves'] > 1 ? $entry['saves'] : '',
                 ];
