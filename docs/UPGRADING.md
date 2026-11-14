@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.35.0](#to-1350)
 - [To 1.34.0](#to-1340)
 - [To 1.33.0](#to-1330)
 - [To 1.32.0](#to-1320)
@@ -86,6 +87,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.35.0
+
+From **1.34.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 Target 1.35.0. No schema change; every default keeps the 1.34 pages.
 
