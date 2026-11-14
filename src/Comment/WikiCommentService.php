@@ -28,6 +28,9 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
+use Nowo\WikiBundle\Member\WikiMemberBadge;
+use Nowo\WikiBundle\Member\WikiMemberBadges;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Repository\WikiCommentAuthorRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
 use Nowo\WikiBundle\Repository\WikiCommentMentionRepositoryInterface;
@@ -191,6 +194,8 @@ final readonly class WikiCommentService
         private ?LoggerInterface $logger = null,
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiUserClassPolicy $userClasses = null,
+        private ?WikiMemberBadges $badges = null,
+        private ?WikiWriteProvenanceErasure $provenance = null,
     ) {
     }
 
@@ -313,6 +318,9 @@ final readonly class WikiCommentService
         $rights = $this->rights($user, $space, $page);
         $this->require($rights['view']);
         $threads = array_slice(array_values(array_filter($this->comments->threads($page, self::MAX_THREADS), static fn (WikiCommentThread $t): bool => !$t->isResolved() && ($withInline || $t->isPageLevel()))), 0, $max);
+
+        // Spec 234 (audit PQ-L2): one badge provider call for every author of the list, not one per thread.
+        $this->primeBadges($threads);
 
         // 1.16.1 (audit EI-I18): the latest comments of each thread only; `more` counts the others (shown in the editor).
         return array_map(fn (WikiCommentThread $thread): array => $this->threadJson($user, $page, $thread, $rights, self::LIST_COMMENTS_CAP), $threads);
@@ -575,9 +583,10 @@ final readonly class WikiCommentService
     /**
      * Full privacy export (1.16.1, audit EI-I17): the user's comments ({@see self::exportAuthor()}), their reactions,
      * and the threads they started or resolved (ids, page, dates; never the quote of others' text). Mentions of the user
-     * in other people's comments are those people's data and are not included (nor erased).
+     * in other people's comments are those people's data and are not included (nor erased). Spec 234 (audit PQ-D1-I2):
+     * with the provenance erasure service, `revision_actor_labels` too ({@see WikiWriteProvenanceErasure::exportActor()}).
      *
-     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>}
+     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>, revision_actor_labels?: list<array{revision_id: string, page_id: string, revision: int, channel: string|null, actor_label: string, created_at: string}>}
      */
     public function exportAuthorData(object $user): array
     {
@@ -603,7 +612,7 @@ final readonly class WikiCommentService
                 'page_id'     => $t->getPage()->getId(),
                 'resolved_at' => $t->getResolvedAt()?->format(self::DATE),
             ], $authors?->threadsBy($user, 'resolvedBy') ?? []),
-        ];
+        ] + ($this->provenance instanceof WikiWriteProvenanceErasure ? ['revision_actor_labels' => $this->provenance->exportActor($user)] : []);
     }
 
     /**
@@ -901,9 +910,12 @@ final readonly class WikiCommentService
         // A deleted comment shows no author, so its author is not presented (nor resolved) for it.
         $people    = array_values(array_filter([...array_map(static fn (WikiComment $c): ?object => $c->isDeleted() ? null : $c->getAuthor(), $comments), $thread->getResolvedBy()], static fn (?object $o): bool => $o !== null));
         $presented = $this->authors->presentAll($people, $page);
-        $byObject  = [];
+        // Spec 234: one badge provider call per thread; badges ride on the author only when there are some.
+        $this->badges?->prime($people);
+        $byObject = [];
         foreach ($people as $index => $person) {
-            $byObject[spl_object_id($person)] = $presented[$index];
+            $badges                           = $this->badges?->of($person) ?? [];
+            $byObject[spl_object_id($person)] = $presented[$index] + ($badges === [] ? [] : ['badges' => $badges]);
         }
 
         $items = [];
@@ -939,13 +951,42 @@ final readonly class WikiCommentService
     }
 
     /**
-     * @param array{name: string, named: bool, avatarUrl: string|null} $presented
+     * Primes the badge memo with the authors of the live comments of several open threads in one provider call.
      *
-     * @return array{name: string, avatarUrl: string|null}
+     * @param list<WikiCommentThread> $threads
+     */
+    private function primeBadges(array $threads): void
+    {
+        if (!$this->badges instanceof WikiMemberBadges || $threads === []) {
+            return;
+        }
+        $people = [];
+        foreach ($this->comments->comments($threads) as $comments) {
+            foreach ($comments as $comment) {
+                $author = $comment->isDeleted() ? null : $comment->getAuthor();
+                if ($author !== null) {
+                    $people[] = $author;
+                }
+            }
+        }
+        // The list holds open threads only: no resolver is shown.
+        $this->badges->prime($people);
+    }
+
+    /**
+     * @param array{name: string, named: bool, avatarUrl: string|null, badges?: non-empty-list<WikiMemberBadge>} $presented
+     *
+     * @return array{name: string, avatarUrl: string|null, badges?: list<array{label: string, variant: string, title: string|null}>}
      */
     private function person(array $presented): array
     {
-        return ['name' => $presented['name'], 'avatarUrl' => $presented['avatarUrl']];
+        $person = ['name' => $presented['name'], 'avatarUrl' => $presented['avatarUrl']];
+        // Spec 234: the host's badges, as plain data (the JSON is escaped by json_encode, the panel by Twig).
+        if (isset($presented['badges'])) {
+            $person['badges'] = array_map(static fn (WikiMemberBadge $badge): array => ['label' => $badge->label, 'variant' => $badge->variant, 'title' => $badge->title], $presented['badges']);
+        }
+
+        return $person;
     }
 
     /**

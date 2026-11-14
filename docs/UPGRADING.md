@@ -3,8 +3,8 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.34.0](#to-1340)
 - [To 1.33.0](#to-1330)
-- [To 1.33.0](#to-1330-1)
 - [To 1.32.0](#to-1320)
 - [To 1.31.1](#to-1311)
 - [To 1.31.0](#to-1310)
@@ -87,7 +87,7 @@
 
 ## Unreleased
 
-Target: next minor after 1.34. No schema change; every default keeps the 1.34 pages.
+Target 1.35.0. No schema change; every default keeps the 1.34 pages.
 
 - **New page dialog and tree menu** (opt-in): set `nowo_wiki.web_ui.new_page_dialog: true` (with `tree.enabled: true`
   for the tree menu). Hosts that override `page_view.html.twig` or `space.html.twig` and replace `nowo_ui_modals` call
@@ -101,13 +101,47 @@ Target: next minor after 1.34. No schema change; every default keeps the 1.34 pa
   nothing new see no change. `position` needs `tree.enabled`. `POST …/move` keeps its 0-based `index`.
 - **PHP**: `WikiPageMover::createAt()` is new; `WikiPageFormType` has a new `placement` option (default `false`).
 
-## To 1.33.0
+## To 1.34.0
 
-From **1.32.0**:
+From **1.33.0**:
 
 ```bash
 composer update nowo-tech/wiki-bundle
 ```
+
+Target 1.34.0 (spec 234: member badges and write provenance).
+
+`wiki_page_revisions` gets two nullable columns. The bundle ships no migrations: generate one
+(`doctrine:migrations:diff`) or run the statements for your database (adjust the table name if you changed
+`table_prefix`):
+
+```sql
+-- MySQL / MariaDB
+ALTER TABLE wiki_page_revisions ADD channel VARCHAR(8) DEFAULT NULL, ADD actor_label VARCHAR(120) DEFAULT NULL;
+-- PostgreSQL
+ALTER TABLE wiki_page_revisions ADD channel VARCHAR(8) DEFAULT NULL;
+ALTER TABLE wiki_page_revisions ADD actor_label VARCHAR(120) DEFAULT NULL;
+-- SQLite
+ALTER TABLE wiki_page_revisions ADD COLUMN channel VARCHAR(8) DEFAULT NULL;
+ALTER TABLE wiki_page_revisions ADD COLUMN actor_label VARCHAR(120) DEFAULT NULL;
+```
+
+Existing revisions keep NULL (nothing recorded). Nothing else changes until you alias
+`WikiWriteProvenanceProviderInterface` and / or `WikiMemberBadgeProviderInterface` to your services (see
+[USAGE](USAGE.md#member-badges-and-write-provenance)): the history and the comments render the same markup, and the API
+answers carry the new fields (`created_by`, `channel`, `token_name` on pages; `channel`, `token_name` on revisions) as
+null, or `created_by` equal to the oldest revision's author. Clients that reject unknown fields must accept them.
+`actor_label` is personal data. Export: `wiki:comments:erase-user --export` and `WikiCommentService::exportAuthorData()`
+include the user's labels (`revision_actor_labels`). Erasure: `wiki:comments:erase-user` and
+`WikiCommentService::eraseAuthor()` erase them and those of revisions whose author was already deleted. If your exporter
+or eraser goes through neither, call `WikiWriteProvenanceErasure` (`exportActor()`, `eraseActor()`, `eraseOrphaned()`).
+
+Actor labels (`token_name` in the API) are shown to the author and, with the new `history.show_actor_labels` (default:
+`history.show_names`), beside real names only when they pass the safe-name rule; never beside an opaque "Editor xxxx".
+Set `history.show_actor_labels: false` to show them to their author only.
+
+If you override `manage/page_history.html.twig` or `manage/_comments_panel_body.html.twig`, include
+`@NowoWikiBundle/manage/_member_label_suffix.html.twig` after the author name to show badges (see the bundle templates).
 
 ## To 1.33.0
 

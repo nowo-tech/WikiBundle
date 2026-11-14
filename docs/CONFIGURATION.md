@@ -321,6 +321,7 @@ nowo_wiki:
         timeline: true         # literal boolean; off = the 1.14 revision list, no named-version routes or table
         session_minutes: 30    # saves by the same author less than this apart form one session
         show_names: false      # true = display names that say nothing about the login, else "Editor xxxx"
+        show_actor_labels: ~   # spec 234: token names beside real names only (null = follow show_names)
         retention_days: 30     # wiki:history:thin thins older revisions to one per session and day (D-W6)
 ```
 
@@ -329,6 +330,7 @@ nowo_wiki:
 | `history.timeline` | `false` | Version name, author and session columns; *Save version*; *Copy to new page* |
 | `history.session_minutes` | 30 | Gap (1–1440 minutes) that ends a session of saves by one author |
 | `history.show_names` | `false` | Show safe display names (`getDisplayName()` / `getName()`, the co-editing rule) instead of opaque labels |
+| `history.show_actor_labels` | `null` (= `show_names`) | Spec 234 (audit PQ-M1): show a write's actor label (token name) in the history and the API `token_name`, only beside an author shown under a real name and only when it passes the same safe-name rule; never beside an opaque "Editor xxxx". The author always sees their own labels |
 | `history.retention_days` | 30 | Age at which `wiki:history:thin` thins revisions |
 | `routes.page_version_save` | `…/pages/{pageSlug}/versions/new` | *Save version* (GET form, POST + CSRF) |
 | `routes.page_version_copy` | `…/pages/{pageSlug}/revisions/{revisionNumber}/copy` | *Copy to new page* (POST + CSRF) |

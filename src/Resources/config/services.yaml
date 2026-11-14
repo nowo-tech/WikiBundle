@@ -45,6 +45,9 @@ services:
             - '../../Comment/'
             - '../../Panel/'
             - '../../Avatar/'
+            # Spec 234: the member badge hook and the write provenance, registered by WikiExtension.
+            - '../../Member/'
+            - '../../Provenance/'
             # 1.20: registered by WikiExtension only with page_files.enabled (the page view gets null otherwise).
             - '../../PageFile/'
             - '../../Search/'
