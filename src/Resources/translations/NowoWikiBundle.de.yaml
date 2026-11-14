@@ -262,6 +262,19 @@ wiki:
     count: '{1} 1 Unterseite|]1,Inf[ %count% Unterseiten'
     count_more: '%count%+ Unterseiten'
     title: 'Seiten in diesem Abschnitt'
+  # 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree menu.
+  new_page:
+    more: "Seite neben „%title%“ hinzufügen"
+    menu: "Neue Seite"
+    above: "Neue Seite darüber"
+    below: "Neue Seite darunter"
+    child: "Neue Unterseite"
+    context_above: "Über „%title%“"
+    context_below: "Unter „%title%“"
+    context_child: "In „%title%“"
+    create: "Seite erstellen"
+    error:
+      placement: "Diese Stelle im Seitenbaum ist nicht mehr gültig. Öffnen Sie das Menü des Seitenbaums erneut."
 wiki_page_form:
   title:
     placeholder: "Seitentitel"

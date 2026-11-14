@@ -17,4 +17,11 @@ final class ApiTreeOffTest extends ApiTestCase
 
         $this->assertRefusal($this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/move', self::ANA, ['parent' => null]), 404, 'ACCESS_001');
     }
+
+    public function testACreateWithAPositionNeedsTheTree(): void
+    {
+        $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'B', 'position' => 1]), 400, 'INPUT_002');
+        // Without position: as before.
+        self::assertSame(201, $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'B'])->getStatusCode());
+    }
 }

@@ -35,7 +35,7 @@
         {% if tree is empty %}
             <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.space.no_pages'|trans }}</p>
         {% elseif tree_ui|default(null) %}
-            {{ include(nowo_ui_partial('tree', bundle), {nodes: tree_ui.nodes, label: 'wiki.space.pages'|trans, attr: tree_ui.attr|merge({'data-wiki-tree-error': 'wiki.tree.error.failed'|trans}), movable: tree_ui.movable, bundle: bundle}, false) }}
+            {{ include(nowo_ui_partial('tree', bundle), {nodes: tree_ui.nodes, label: 'wiki.space.pages'|trans, attr: tree_ui.attr|merge({'data-wiki-tree-error': 'wiki.tree.error.failed'|trans}), movable: tree_ui.movable, actions_template: tree_ui.actions_template|default(null), bundle: bundle}, false) }}
         {% else %}
             {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {nodes: tree, depth: 0}, false) }}
         {% endif %}

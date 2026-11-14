@@ -13,6 +13,7 @@ listener or parameter, and adds no table. The full contract is [`openapi.yaml`](
 - [Access](#access)
 - [Bodies](#bodies)
 - [Endpoints](#endpoints)
+- [Creating a page](#creating-a-page)
 - [Saving a page](#saving-a-page)
 - [Idempotency](#idempotency)
 - [Errors](#errors)
@@ -207,6 +208,27 @@ reach applies: a restricted wiki must be named in *where*.
 
 **Downloads** always leave as an `attachment`, with `X-Content-Type-Options: nosniff` and
 `Content-Security-Policy: default-src 'none'; sandbox`.
+
+## Creating a page
+
+`POST /wikis/{wiki}/pages` takes `title` (required), `content_markdown`, `slug`, `parent` (a page id; Edit on that page
+is required as well) and, since 1.35, `position`:
+
+- `position` is the 1-based place among the parent's children (the top level without `parent`), with the same meaning
+  as the "Move" form of the UI: `1` is the first place, a number past the last child is the last place. Only the
+  siblings the token's user may read are counted; hidden siblings keep their place. An integer between 1 and 100000.
+- With `tree.enabled`, a create with `parent` or `position` is created and placed in one transaction that holds the
+  space lock, the lock of the tree moves, so placed creates and moves of one space never share or garble a position.
+  The siblings are renumbered only when their neighbours leave no gap (sparse positions, as moves). `tree.max_depth`
+  applies: a page deeper than it answers 422 `WIKI_MOVE_002`. A `parent` without `position` puts the page last.
+- Without `parent` nor `position` the page is created as before (position 0, sorted with the other pages at 0 by
+  title; such creates take no lock and may share position 0).
+- Without `tree.enabled` there is no ordering nor depth limit: `position` answers 400 `INPUT_002` (`Invalid field:
+  position`) and a `parent` alone creates the page under it at position 0.
+- The parent archived or deleted meanwhile answers 404. Nothing is written in either case.
+- In the answer of a create or a move that placed the page, `position` is its 1-based place among the siblings the
+  token's user may read, not the stored sort key (which counts hidden siblings); reads answer the sort key.
+- `POST …/move` keeps its 0-based `index`.
 
 ## Saving a page
 

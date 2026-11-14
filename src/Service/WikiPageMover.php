@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Service;
 
 use DateTimeImmutable;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiPageMovedEvent;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
@@ -15,6 +16,7 @@ use Throwable;
 
 use function array_filter;
 use function array_search;
+use function array_slice;
 use function array_splice;
 use function array_values;
 use function count;
@@ -33,6 +35,9 @@ use function min;
  *   a gap and renumbers the target siblings only when they do not (pages created before 1.14 all share position 0).
  * - One transaction holding the space lock ({@see WikiPageTreeWriterInterface}); `nowo_wiki.page.moved` after the
  *   commit.
+ * - 1.35: {@see self::createAt()} and {@see self::createNextTo()} create a page straight at a place (the "New page
+ *   above / below / as child" of the tree menu, `parent` / `position` of the API create) under the same lock and with
+ *   the same ordering and depth rules.
  */
 final readonly class WikiPageMover
 {
@@ -98,6 +103,177 @@ final readonly class WikiPageMover
     }
 
     /**
+     * 1.35: creates a page and places it at the index among the parent's children (null: the root), in one transaction
+     * holding the space lock, so two concurrent inserts of a space run one after the other and never share or garble a
+     * position (as two moves). The ordering is the one of {@see self::move()}: sparse positions, the target siblings
+     * renumbered only when the neighbours leave no gap. The depth limit applies. No `nowo_wiki.page.moved` event: the
+     * page is new; the page service raises its saved and created events (held until the commit when a
+     * {@see WikiEventDeferral} is wired).
+     *
+     * @param WikiSpace $space space of the new page
+     * @param WikiPage|null $parent parent of the new page (null: the root); must be active and of the space
+     * @param int $index 0-based index among the parent's children, clamped (`PHP_INT_MAX`: last); with a scope among
+     *                   those the actor may read
+     * @param callable(): WikiPage $create writes the page (the page service), called after the lock and the checks
+     * @param WikiPageMoveScope|null $scope what the actor sees (null: every page); its parent id is not used
+     *
+     * @throws WikiPageMoveException `parent_missing` when the parent is gone, archived or of another space, `too_deep`
+     *                               when the new page would be deeper than `tree.max_depth`; nothing is written
+     */
+    public function createAt(WikiSpace $space, ?WikiPage $parent, int $index, callable $create, ?WikiPageMoveScope $scope = null): WikiPageCreateResult
+    {
+        return $this->locked($space, function (array $byId, callable $parentOf) use ($space, $parent, $index, $create, $scope): WikiPageCreateResult {
+            $target = null;
+            if ($parent instanceof WikiPage) {
+                $target = $byId[$parent->getId()] ?? null;
+                if (!$target instanceof WikiPage || $target->getSpace()->getId() !== $space->getId()) {
+                    throw new WikiPageMoveException('parent_missing');
+                }
+            }
+            $siblings = $this->childrenOf($target, $byId, $parentOf);
+
+            return $this->insert($target, $siblings, $this->slot($siblings, $index, $scope)[2], $create, $byId, $parentOf, $scope);
+        });
+    }
+
+    /**
+     * 1.35: creates a page right above or below a sibling, under that sibling's parent (the "New page above / below" of
+     * the tree menu): the place is computed here, after the lock, from the sibling itself, so hidden siblings and a
+     * truncated tree never shift it (audit PT-L3). Same transaction, ordering, depth limit and events as
+     * {@see self::createAt()}.
+     *
+     * @param WikiPage $sibling the page to put the new one next to; its parent (as the caller read and checked it) becomes
+     *                          the new page's parent
+     * @param bool $after true: right below the sibling; false: right above it
+     * @param callable(): WikiPage $create writes the page under the sibling's parent
+     * @param WikiPageMoveScope|null $scope what the actor sees (for the answer's index only)
+     *
+     * @throws WikiPageMoveException `page_missing` when the sibling is gone, archived or of another space, `stale` when its
+     *                               parent changed since the caller checked it, `too_deep`; nothing is written
+     */
+    public function createNextTo(WikiSpace $space, WikiPage $sibling, bool $after, callable $create, ?WikiPageMoveScope $scope = null): WikiPageCreateResult
+    {
+        $checkedParent = $sibling->getParent()?->getId();
+
+        return $this->locked($space, function (array $byId, callable $parentOf) use ($space, $sibling, $after, $create, $scope, $checkedParent): WikiPageCreateResult {
+            $current = $byId[$sibling->getId()] ?? null;
+            if (!$current instanceof WikiPage || $current->getSpace()->getId() !== $space->getId()) {
+                throw new WikiPageMoveException('page_missing');
+            }
+            $parentId = $parentOf($current);
+            if ($parentId !== $checkedParent) {
+                throw new WikiPageMoveException('stale');
+            }
+            $target   = $parentId !== null ? $byId[$parentId] : null;
+            $siblings = $this->childrenOf($target, $byId, $parentOf);
+            $real     = (int) array_search($current, $siblings, true) + ($after ? 1 : 0);
+
+            return $this->insert($target, $siblings, $real, $create, $byId, $parentOf, $scope);
+        });
+    }
+
+    /**
+     * Runs a create inside the space transaction (pages read after the lock), in the deferral scope when wired.
+     *
+     * @param callable(array<string, WikiPage>, callable(WikiPage): ?string): WikiPageCreateResult $work
+     */
+    private function locked(WikiSpace $space, callable $work): WikiPageCreateResult
+    {
+        $run = function () use ($space, $work): WikiPageCreateResult {
+            $this->writer->beginSpaceTransaction($space);
+            try {
+                $byId = [];
+                foreach ($this->repository->findActiveBySpace($space) as $active) {
+                    $byId[$active->getId()] = $active;
+                }
+                $parentOf = static fn (WikiPage $p): ?string => isset($byId[$p->getParent()?->getId() ?? '']) && $p->getParent()?->getId() !== $p->getId() ? $p->getParent()?->getId() : null;
+                $result   = $work($byId, $parentOf);
+                $this->writer->commitSpaceTransaction();
+            } catch (Throwable $exception) {
+                $this->writer->rollbackSpaceTransaction();
+
+                throw $exception;
+            }
+
+            return $result;
+        };
+
+        // The page service's events wait for the commit (and are dropped on a rollback) when both share the deferral.
+        return $this->deferral instanceof WikiEventDeferral ? $this->deferral->run($run) : $run();
+    }
+
+    /**
+     * The active children of a page (null: the root pages, orphans included), in order.
+     *
+     * @param array<string, WikiPage> $byId
+     * @param callable(WikiPage): ?string $parentOf
+     *
+     * @return list<WikiPage>
+     */
+    private function childrenOf(?WikiPage $parent, array $byId, callable $parentOf): array
+    {
+        $children = [];
+        foreach ($byId as $candidate) {
+            if ($parentOf($candidate) === $parent?->getId()) {
+                $children[] = $candidate;
+            }
+        }
+
+        return $children;
+    }
+
+    /**
+     * Checks the depth, writes the page and places it at the real index among the siblings.
+     *
+     * @param list<WikiPage> $siblings
+     * @param callable(): WikiPage $create
+     * @param array<string, WikiPage> $byId
+     * @param callable(WikiPage): ?string $parentOf
+     */
+    private function insert(?WikiPage $target, array $siblings, int $real, callable $create, array $byId, callable $parentOf, ?WikiPageMoveScope $scope): WikiPageCreateResult
+    {
+        $level = 1;
+        $seen  = [];
+        for ($node = $target; $node instanceof WikiPage && !isset($seen[$node->getId()]); $node = ($id = $parentOf($node)) !== null ? $byId[$id] : null) {
+            $seen[$node->getId()] = true;
+            ++$level;
+        }
+        if ($level > $this->maxDepth) {
+            throw new WikiPageMoveException('too_deep');
+        }
+
+        $page = $create();
+        $this->place($page, $target, $siblings, $real);
+        // PT-L1: the place among what the actor sees, never the sort key that counts hidden siblings.
+        $visible = static fn (WikiPage $p): bool => !$scope instanceof WikiPageMoveScope || isset($scope->visibleIds[$p->getId()]);
+
+        return new WikiPageCreateResult($page, count(array_filter(array_slice($siblings, 0, $real), $visible)), count(array_filter($siblings, $visible)) + 1);
+    }
+
+    /**
+     * The index among the siblings the actor sees (clamped), their count, and the index among all the siblings (a
+     * hidden sibling keeps its place: the page goes right before the visible one at the index, or right after the last
+     * visible one).
+     *
+     * @param list<WikiPage> $siblings the siblings in order, the page left out
+     *
+     * @return array{0: int, 1: int, 2: int}
+     */
+    private function slot(array $siblings, int $index, ?WikiPageMoveScope $scope): array
+    {
+        // DI-I1: with a scope the index and the answer count the siblings the actor sees; hidden ones keep their place.
+        $seen  = $scope instanceof WikiPageMoveScope ? array_values(array_filter($siblings, static fn (WikiPage $p): bool => isset($scope->visibleIds[$p->getId()]))) : $siblings;
+        $index = max(0, min($index, count($seen)));
+        $real  = match (true) {
+            $index < count($seen) => (int) array_search($seen[$index], $siblings, true),
+            $seen !== []          => (int) array_search($seen[count($seen) - 1], $siblings, true) + 1,
+            default               => count($siblings),
+        };
+
+        return [$index, count($seen), $real];
+    }
+
+    /**
      * Checks and writes the move inside the space transaction (pages read after the lock).
      *
      * @return array{0: WikiPageMoveResult, 1: WikiPage|null, 2: bool} result, previous parent, whether anything changed
@@ -137,18 +313,11 @@ final readonly class WikiPageMover
                 $siblings[] = $candidate;
             }
         }
-        // DI-I1: with a scope the index and the answer count the siblings the actor sees; hidden ones keep their place.
-        $seen  = $scope instanceof WikiPageMoveScope ? array_values(array_filter($siblings, static fn (WikiPage $p): bool => isset($scope->visibleIds[$p->getId()]))) : $siblings;
-        $index = max(0, min($index, count($seen)));
-        $real  = match (true) {
-            $index < count($seen) => (int) array_search($seen[$index], $siblings, true),
-            $seen !== []          => (int) array_search($seen[count($seen) - 1], $siblings, true) + 1,
-            default               => count($siblings),
-        };
-        $result = new WikiPageMoveResult($index, count($seen) + 1, true);
+        [$index, $count, $real] = $this->slot($siblings, $index, $scope);
+        $result                 = new WikiPageMoveResult($index, $count + 1, true);
 
         if ($targetId === $fromParent?->getId() && $this->indexAmongSiblings($current, $byId, $parentOf) === $real) {
-            return [new WikiPageMoveResult($index, count($seen) + 1, false), $fromParent, false];
+            return [new WikiPageMoveResult($index, $count + 1, false), $fromParent, false];
         }
 
         $this->place($current, $target, $siblings, $real);

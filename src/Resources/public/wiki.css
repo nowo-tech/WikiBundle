@@ -1058,3 +1058,81 @@
 .nowo-wiki-moderation__confirm {
   max-width: min(28rem, calc(100vw - 2rem));
 }
+
+/* 1.35 (web_ui.new_page_dialog): the «…» button of a page tree row (shown on hover / focus of the row, always on touch
+   screens) and the "New page above / below / as child" menu it opens (fixed, next to the row or the pointer). */
+.nowo-wiki-tree__more {
+  flex: none;
+  align-self: center;
+  margin-inline-start: auto;
+  padding: 0 0.4rem;
+  border: 0;
+  border-radius: var(--nowo-ui-radius, 0.375rem);
+  background: transparent;
+  color: var(--nowo-ui-muted, #64748b);
+  font: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.nowo-ui-tree__row:hover > .nowo-wiki-tree__more,
+.nowo-ui-tree__row:focus-within > .nowo-wiki-tree__more,
+.nowo-wiki-tree__more[data-wiki-open] {
+  opacity: 1;
+}
+
+.nowo-wiki-tree__more:hover {
+  background: var(--nowo-ui-surface-muted, rgba(100, 116, 139, 0.12));
+  color: var(--nowo-ui-text, CanvasText);
+}
+
+@media (hover: none) {
+  .nowo-wiki-tree__more {
+    opacity: 1;
+  }
+}
+
+.nowo-wiki-new-page-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 12rem;
+  padding: 0.25rem;
+  border: 1px solid var(--nowo-ui-border, #e2e8f0);
+  border-radius: var(--nowo-ui-radius, 0.5rem);
+  background: var(--nowo-ui-surface, Canvas);
+  color: var(--nowo-ui-text, CanvasText);
+  box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.18);
+}
+
+.nowo-wiki-new-page-menu[hidden] {
+  display: none;
+}
+
+.nowo-wiki-new-page-menu__item {
+  padding: 0.4rem 0.75rem;
+  border: 0;
+  border-radius: calc(var(--nowo-ui-radius, 0.5rem) - 0.125rem);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.nowo-wiki-new-page-menu__item[hidden] {
+  display: none;
+}
+
+.nowo-wiki-new-page-menu__item:hover,
+.nowo-wiki-new-page-menu__item:focus-visible {
+  background: var(--nowo-ui-surface-muted, rgba(100, 116, 139, 0.12));
+  outline: 2px solid var(--nowo-ui-focus, Highlight);
+  outline-offset: -2px;
+}
+
+.nowo-wiki-new-page__context {
+  margin-block: 0 0.75rem;
+}
