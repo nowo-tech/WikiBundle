@@ -18,6 +18,8 @@
             </options>
         </field>
         <field name="contentText" type="text" column="content_text" nullable="true"/>
+        <field name="channel" type="string" column="channel" length="8" nullable="true"/>
+        <field name="actorLabel" type="string" column="actor_label" length="120" nullable="true"/>
         <field name="revisionNumber" type="integer" column="revision_number"/>
         <field name="contentHtml" type="text" column="content_html"/>
         <field name="contentMarkdown" type="text" column="content_markdown" nullable="true"/>

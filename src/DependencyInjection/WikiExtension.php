@@ -486,6 +486,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setAlias(WikiMemberBadgeProviderInterface::class, NullWikiMemberBadgeProvider::class);
         $container->setDefinition(WikiMemberBadges::class, (new Definition(WikiMemberBadges::class))
             ->setArgument('$provider', new Reference(WikiMemberBadgeProviderInterface::class))
+            // 1.36.0: stored id references (database.user_reference: id) are members of user_class.
+            ->setArgument('$userClass', $config['user_class'])
             ->addTag('kernel.reset', ['method' => 'reset']));
         foreach ([WikiHistoryTimeline::class, WikiCommentService::class] as $reader) {
             if ($container->hasDefinition($reader)) {
@@ -568,11 +570,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $loader->load('services_api.yaml');
         $container->setAlias(WikiApiAuthenticatorInterface::class, (string) $api['hooks']['authenticator']);
         $container->setAlias(WikiApiDirectoryInterface::class, (string) $api['hooks']['directory']);
-        $container->setAlias(WikiApiRateLimiterInterface::class, self::serviceOr($api['hooks']['rate_limiter'], DenyingWikiApiRateLimiter::class));
-        $container->setAlias(WikiApiPlanGateInterface::class, self::serviceOr($api['hooks']['plan_gate'], DenyingWikiApiPlanGate::class));
-        $container->setAlias(WikiApiUsersInterface::class, self::serviceOr($api['hooks']['users'], NullWikiApiUsers::class));
-        $container->setAlias(WikiApiWikiManagementInterface::class, self::serviceOr($api['hooks']['wiki_management'], DenyingWikiApiWikiManagement::class));
-        $container->setAlias(WikiApiFilesInterface::class, self::serviceOr($api['hooks']['files'], DenyingWikiApiFiles::class));
+        $container->setAlias(WikiApiRateLimiterInterface::class, $this->serviceOr($api['hooks']['rate_limiter'], DenyingWikiApiRateLimiter::class));
+        $container->setAlias(WikiApiPlanGateInterface::class, $this->serviceOr($api['hooks']['plan_gate'], DenyingWikiApiPlanGate::class));
+        $container->setAlias(WikiApiUsersInterface::class, $this->serviceOr($api['hooks']['users'], NullWikiApiUsers::class));
+        $container->setAlias(WikiApiWikiManagementInterface::class, $this->serviceOr($api['hooks']['wiki_management'], DenyingWikiApiWikiManagement::class));
+        $container->setAlias(WikiApiFilesInterface::class, $this->serviceOr($api['hooks']['files'], DenyingWikiApiFiles::class));
         $container->getDefinition(WikiRouteLoader::class)->setArgument('$apiPrefix', $api['prefix']);
 
         $table = rtrim((string) $config['table_prefix'], '_') . '_api_idempotency';
@@ -589,7 +591,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
     }
 
-    private static function serviceOr(?string $id, string $default): string
+    private function serviceOr(?string $id, string $default): string
     {
         return is_string($id) && $id !== '' ? $id : $default;
     }
@@ -1414,7 +1416,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         WikiDoctrineMapping::prepend($container);
 
         // 1.36 (database.user_reference: id): the column type of the stored user ids.
-        if ($container->hasExtension('doctrine') && self::userReferencesById($container)) {
+        if ($container->hasExtension('doctrine') && $this->userReferencesById($container)) {
             $container->prependExtensionConfig('doctrine', ['dbal' => ['types' => [WikiUserRefType::NAME => WikiUserRefType::class]]]);
         }
 
@@ -1425,7 +1427,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     /**
      * Whether the host configuration sets `database.user_reference: id` (1.36; the last value wins, as in the tree).
      */
-    private static function userReferencesById(ContainerBuilder $container): bool
+    private function userReferencesById(ContainerBuilder $container): bool
     {
         $mode = 'entity';
         foreach ($container->getExtensionConfig(Configuration::ALIAS) as $config) {

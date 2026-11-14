@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingBadgeProvider;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use stdClass;
@@ -48,6 +49,26 @@ final class WikiMemberBadgesTest extends TestCase
         self::assertSame([], $memo->of(null));
         self::assertSame([], $memo->of(new stdClass()));
         self::assertCount(1, $provider->calls, 'users without an id are never asked about');
+    }
+
+    /**
+     * 1.36.0 (`database.user_reference: id`): rows hold stored id references; the provider is asked about `user_class`
+     * and the id, and a stored id and a host user of that class with that id are one member.
+     */
+    public function testStoredIdsAreAskedAboutAsMembersOfTheUserClass(): void
+    {
+        $agent    = new WikiMemberBadge('Agent', 'agent');
+        $provider = new RecordingBadgeProvider(['bot' => [$agent]]);
+        $memo     = new WikiMemberBadges($provider, TestUserEntity::class);
+
+        $memo->prime([new WikiStoredUserRef('bot'), new WikiStoredUserRef('Bot'), new TestUserEntity('bot')]);
+        self::assertSame([['bot', 'Bot']], $provider->calls, 'the stored id and the user of user_class with that id are one member');
+        self::assertSame([$agent], $memo->of(new WikiStoredUserRef('bot')));
+        self::assertSame([$agent], $memo->of(new TestUserEntity('bot')));
+        self::assertSame([], $memo->of(new WikiStoredUserRef('Bot')), 'a look-alike id is another member');
+        self::assertCount(1, $provider->calls);
+        self::assertSame([], (new WikiMemberBadges($provider))->of(new WikiStoredUserRef('bot')), 'no user_class: a stored id is never asked about');
+        self::assertCount(1, $provider->calls);
     }
 
     public function testTheNumberOfCallsDoesNotGrowWithTheList(): void

@@ -9,6 +9,8 @@ use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle;
 use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
+use Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
@@ -104,6 +106,11 @@ final class DddHostKernel extends Kernel
         $services->set('app.users', DddUsers::class)->public();
         $services->set('app.policies', DddPolicies::class)->public();
         $services->alias(WikiSpaceAccessCheckerInterface::class, 'app.policies');
+        // Spec 234 hooks, framework-free: the write provenance and the member badges (keyed by class and id).
+        $services->set('app.provenance', DddProvenance::class);
+        $services->alias(WikiWriteProvenanceProviderInterface::class, 'app.provenance');
+        $services->set('app.badges', DddBadges::class);
+        $services->alias(WikiMemberBadgeProviderInterface::class, 'app.badges');
         $container->extension('nowo_wiki', [
             'user_class'               => DddUser::class,
             'user_directory'           => 'app.users',

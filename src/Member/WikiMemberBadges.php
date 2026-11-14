@@ -35,8 +35,15 @@ final class WikiMemberBadges implements ResetInterface
     /** @var array<string, list<WikiMemberBadge>> */
     private array $badges = [];
 
-    public function __construct(private readonly WikiMemberBadgeProviderInterface $provider)
-    {
+    /**
+     * @param WikiMemberBadgeProviderInterface $provider the host's badge hook
+     * @param string $userClass 1.36.0: `nowo_wiki.user_class`, the class of the stored id references a wiki row holds
+     *                          with `database.user_reference: id` (see {@see WikiMemberRef::of()}); '' asks about none
+     */
+    public function __construct(
+        private readonly WikiMemberBadgeProviderInterface $provider,
+        private readonly string $userClass = '',
+    ) {
     }
 
     /**
@@ -48,11 +55,11 @@ final class WikiMemberBadges implements ResetInterface
     {
         $missing = [];
         foreach ($users as $user) {
-            $ref = WikiMemberRef::of($user);
+            $ref = WikiMemberRef::of($user, $this->userClass);
             if (!$ref instanceof WikiMemberRef) {
                 continue;
             }
-            $key = self::key($ref);
+            $key = $this->key($ref);
             if (!isset($missing[$key]) && !array_key_exists($key, $this->badges)) {
                 $missing[$key] = $ref;
             }
@@ -67,7 +74,7 @@ final class WikiMemberBadges implements ResetInterface
         $refs     = array_slice(array_values($missing), 0, self::MAX_MEMO);
         $resolved = $this->provider->badgesForMany($refs);
         foreach ($refs as $index => $ref) {
-            $this->badges[self::key($ref)] = self::kept($resolved[$index] ?? []);
+            $this->badges[$this->key($ref)] = $this->kept($resolved[$index] ?? []);
         }
     }
 
@@ -78,11 +85,11 @@ final class WikiMemberBadges implements ResetInterface
      */
     public function of(?object $user): array
     {
-        $ref = $user === null ? null : WikiMemberRef::of($user);
+        $ref = $user === null ? null : WikiMemberRef::of($user, $this->userClass);
         if (!$ref instanceof WikiMemberRef) {
             return [];
         }
-        $key = self::key($ref);
+        $key = $this->key($ref);
         if (!array_key_exists($key, $this->badges)) {
             $this->prime([$user]);
         }
@@ -95,7 +102,7 @@ final class WikiMemberBadges implements ResetInterface
         $this->badges = [];
     }
 
-    private static function key(WikiMemberRef $ref): string
+    private function key(WikiMemberRef $ref): string
     {
         return $ref->userClass . "\0" . $ref->id;
     }
@@ -103,7 +110,7 @@ final class WikiMemberBadges implements ResetInterface
     /**
      * @return list<WikiMemberBadge>
      */
-    private static function kept(mixed $badges): array
+    private function kept(mixed $badges): array
     {
         $kept = [];
         foreach (is_array($badges) ? $badges : [] as $badge) {

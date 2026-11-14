@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Api\DddHost;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Tools\SchemaTool;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
@@ -14,6 +15,9 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Link\WikiPageLinkOperationsInterface;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
+use Nowo\WikiBundle\Repository\WikiPageProvenance;
+use Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface;
 use Nowo\WikiBundle\Service\WikiPageOperationsInterface;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Service\WikiSpaceOperationsInterface;
@@ -34,6 +38,7 @@ use function assert;
 use function gc_collect_cycles;
 use function memory_get_usage;
 use function sprintf;
+use function substr_count;
 
 /**
  * 1.36.0 (REQ-ARCH-001, "both host kinds are tested"): the DDD host path end to end. The standard host path is the rest of
@@ -64,21 +69,22 @@ final class DddHostKernelTest extends WebTestCase
 
     protected function setUp(): void
     {
-        $this->client = static::createClient();
+        $this->client = self::createClient();
         $this->client->disableReboot();
-        $em = static::getContainer()->get('doctrine.orm.entity_manager');
+        $em = self::getContainer()->get('doctrine.orm.entity_manager');
         assert($em instanceof EntityManagerInterface);
         $tool = new SchemaTool($em);
         $tool->dropDatabase();
         $tool->createSchema($em->getMetadataFactory()->getAllMetadata());
         DddPolicies::$asked = [];
+        DddBadges::$asked   = [];
     }
 
     public function testTheHostMapsNothingOfItsOwnAndTheWikiComesFromXmlWithUserIds(): void
     {
-        $em = static::getContainer()->get('doctrine.orm.entity_manager');
+        $em = self::getContainer()->get('doctrine.orm.entity_manager');
         assert($em instanceof EntityManagerInterface);
-        $classes = array_map(static fn ($metadata): string => $metadata->getName(), $em->getMetadataFactory()->getAllMetadata());
+        $classes = array_map(static fn (ClassMetadata $metadata): string => $metadata->getName(), $em->getMetadataFactory()->getAllMetadata());
         foreach ($classes as $class) {
             self::assertStringStartsWith('Nowo\\WikiBundle\\Entity\\', $class, 'only wiki entities are mapped');
         }
@@ -96,7 +102,7 @@ final class DddHostKernelTest extends WebTestCase
 
     public function testTheHostWritesAndReadsThroughTheIdOperationsOnly(): void
     {
-        $container = static::getContainer();
+        $container = self::getContainer();
         $spaces    = $container->get(WikiSpaceOperationsInterface::class);
         $pages     = $container->get(WikiPageOperationsInterface::class);
         $links     = $container->get(WikiPageLinkOperationsInterface::class);
@@ -143,7 +149,7 @@ final class DddHostKernelTest extends WebTestCase
 
     public function testPeopleUseTheWebUiInAKeptAliveKernelWithoutTheApplicationsManager(): void
     {
-        $container = static::getContainer();
+        $container = self::getContainer();
         $spaces    = $container->get(WikiSpaceOperationsInterface::class);
         $pages     = $container->get(WikiPageOperationsInterface::class);
         assert($spaces instanceof WikiSpaceOperationsInterface && $pages instanceof WikiPageOperationsInterface);
@@ -185,6 +191,75 @@ final class DddHostKernelTest extends WebTestCase
     }
 
     /**
+     * 1.35 "create at a position" on the DDD host (1.36.0): by ids, under the space lock, through the private manager.
+     */
+    public function testPagesAreCreatedAtAPlaceThroughTheIdOperations(): void
+    {
+        $container = self::getContainer();
+        $spaces    = $container->get(WikiSpaceOperationsInterface::class);
+        $pages     = $container->get(WikiPageOperationsInterface::class);
+        assert($spaces instanceof WikiSpaceOperationsInterface && $pages instanceof WikiPageOperationsInterface);
+        $ana   = WikiUserRef::ofId(DddUser::class, 'u-ana');
+        $space = $spaces->createSpace('Docs', WikiSpaceOwnerScope::Team, 'team-a', 'docs');
+        $b     = $pages->createPage($space->id, 'B', 'b', $ana);
+        $a     = $pages->createPageAt($space->id, null, 0, 'A', 'a', $ana);
+        $c     = $pages->createPageNextTo($b->id, true, 'C', 'c', $ana);
+        $child = $pages->createPageAt($space->id, $b->id, 0, 'Child', 'x', $ana);
+
+        $connection = $container->get('doctrine.dbal.default_connection');
+        assert($connection instanceof Connection);
+        self::assertSame(['A', 'B', 'C'], $connection->fetchFirstColumn('SELECT title FROM wiki_pages WHERE parent_id IS NULL ORDER BY position'));
+        self::assertSame($b->id, $child->parentId);
+        self::assertSame([$a->id, $c->id], [$pages->findPage($a->id)?->id, $pages->findPage($c->id)?->id]);
+        self::assertSame(['u-ana', 'u-ana', 'u-ana', 'u-ana'], $connection->fetchFirstColumn('SELECT author_id FROM wiki_page_revisions'));
+    }
+
+    /**
+     * Spec 234 on the DDD host (1.36.0): the provenance columns come from the XML mapping, the batch provenance reads
+     * the stored ids (no IDENTITY() on an id column), the badge hook is asked about `user_class` + id (never the
+     * stored reference's class), and the erasure of a person's actor labels matches their id byte for byte.
+     */
+    public function testProvenanceBadgesAndErasureWorkWithXmlMappingAndUserIds(): void
+    {
+        $container = self::getContainer();
+        $spaces    = $container->get(WikiSpaceOperationsInterface::class);
+        $pages     = $container->get(WikiPageOperationsInterface::class);
+        assert($spaces instanceof WikiSpaceOperationsInterface && $pages instanceof WikiPageOperationsInterface);
+        $space = $spaces->createSpace('Docs', WikiSpaceOwnerScope::Team, 'team-a', 'docs');
+        $page  = $pages->createPage($space->id, 'Home', '# Home', WikiUserRef::ofId(DddUser::class, 'u-ana'), null, null, WikiPageRevision::FORMAT_MARKDOWN);
+        $pages->saveRevision($page->id, 'Home', '# Bob', WikiUserRef::ofId(DddUser::class, 'u-bob'), WikiPageRevision::FORMAT_MARKDOWN, 1);
+        $pages->saveRevision($page->id, 'Home', '# Look-alike', WikiUserRef::ofId(DddUser::class, 'U-ana'), WikiPageRevision::FORMAT_MARKDOWN, 2);
+
+        // (a) The XML mapping carries the 1.34 columns: the host's provider recorded every write.
+        $connection = $container->get('doctrine.dbal.default_connection');
+        assert($connection instanceof Connection);
+        $stored = static fn (): array => $connection->fetchAllNumeric('SELECT author_id, channel, actor_label FROM wiki_page_revisions ORDER BY revision_number');
+        self::assertSame([['u-ana', 'api', 'Deploy token'], ['u-bob', 'api', 'Deploy token'], ['U-ana', 'api', 'Deploy token']], $stored());
+
+        // (b) Creator and last write by stored id.
+        $finder = $container->get(WikiPageProvenanceFinderInterface::class);
+        assert($finder instanceof WikiPageProvenanceFinderInterface);
+        self::assertEquals([$page->id => new WikiPageProvenance('u-ana', 'api', 'Deploy token', 'U-ana')], $finder->pageProvenance([$page->id, 'missing']));
+
+        // (c) The history in a kept-alive kernel: badges asked by user_class + exact id; only Bob's row is an agent.
+        DddBadges::$asked = [];
+        $response         = $this->raw('/tools/wiki/spaces/docs/pages/' . $page->slug . '/history', $this->signIn('u-ana'));
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame(1, substr_count((string) $response->getContent(), 'data-testid="wiki-member-badge"'), 'the look-alike U-ana is not Bob, nor Ana');
+        self::assertSame([[DddUser::class . '#U-ana', DddUser::class . '#u-bob', DddUser::class . '#u-ana']], DddBadges::$asked);
+
+        // (c) Erasure: Ana's label only (the look-alike U-ana keeps theirs), then Bob as the CLI finds a deleted user.
+        $erasure = $container->get(WikiWriteProvenanceErasure::class);
+        assert($erasure instanceof WikiWriteProvenanceErasure);
+        $ana = new DddUser('u-ana', 'team-a');
+        self::assertSame([1], array_map(static fn (array $row): int => $row['revision'], $erasure->exportActor($ana)));
+        self::assertSame(1, $erasure->eraseActor($ana));
+        self::assertSame(0, $erasure->eraseActor($ana), 'nothing left');
+        self::assertSame(1, $erasure->eraseActor(new WikiStoredUserRef('u-bob')));
+        self::assertSame([['u-ana', 'api', null], ['u-bob', 'api', null], ['U-ana', 'api', 'Deploy token']], $stored());
+    }
+
+    /**
      * @return array<string, string>
      */
     private function signIn(string $id): array
@@ -205,7 +280,7 @@ final class DddHostKernelTest extends WebTestCase
      */
     private function raw(string $uri, array $cookies): Response
     {
-        $kernel = static::getContainer()->get('http_kernel');
+        $kernel = self::getContainer()->get('http_kernel');
         assert($kernel instanceof HttpKernelInterface && $kernel instanceof TerminableInterface);
         $request  = Request::create($uri, Request::METHOD_GET, [], $cookies);
         $response = $kernel->handle($request);
