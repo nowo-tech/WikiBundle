@@ -40,6 +40,15 @@ final readonly class WikiWriteProvenance
     public ?string $actorLabel;
 
     /**
+     * A stored channel read back (audit PQ-I2): itself when it is in the allow-list, else null (a row written outside
+     * the bundle never reaches an answer or a translation key).
+     */
+    public static function channelOrNull(?string $channel): ?string
+    {
+        return in_array($channel, self::CHANNELS, true) ? $channel : null;
+    }
+
+    /**
      * @throws InvalidArgumentException when the channel is not one of {@see self::CHANNELS}
      */
     public function __construct(string $channel, ?string $actorLabel = null)

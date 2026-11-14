@@ -63,6 +63,27 @@ final class ApiProvenanceTest extends ApiTestCase
         self::assertSame(['mcp', self::SCRIPT], [$one['channel'], $one['token_name']]);
     }
 
+    /**
+     * Audit PQ-M1: with history.show_names off (the default) other people's writes answer an opaque "Editor xxxx" and
+     * no token name, which would link and name them; the author still gets their own.
+     */
+    public function testAnotherPersonsTokenNameIsNotAnsweredBesideAnOpaqueName(): void
+    {
+        $this->token('bob', 'u-bob', WikiApiLevel::Read);
+        $page = $this->twoRevisions();
+
+        $head = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId()));
+        self::assertSame(['mcp', null], [$head['channel'], $head['token_name']], 'Ana reads Bob\'s write');
+        self::assertStringStartsWith('Editor ', (string) $head['updated_by']['name']);
+        $row = $this->json($this->call('GET', '/wikis/eng/pages'))['pages'][0];
+        self::assertSame(['mcp', null], [$row['channel'], $row['token_name']]);
+        $revisions = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId() . '/revisions'))['revisions'];
+        self::assertSame([null, null], array_column($revisions, 'token_name'));
+        self::assertSame([null, null], [$this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId() . '/revisions/2'))['token_name'], null]);
+
+        self::assertSame(self::SCRIPT, $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'bob'))['token_name'], 'Bob gets his own');
+    }
+
     /** Nothing is kept about a former person: the token name of their writes is no longer answered. */
     public function testTheTokenNameOfADeletedAuthorIsNotAnswered(): void
     {

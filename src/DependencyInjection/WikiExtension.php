@@ -59,6 +59,7 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\History\WikiHistoryThinner;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
@@ -83,6 +84,7 @@ use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
 use Nowo\WikiBundle\Provenance\NullWikiWriteProvenanceProvider;
+use Nowo\WikiBundle\Provenance\WikiProvenanceAuthorErasedListener;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
@@ -429,7 +431,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerAiServices($container, $config['ai']);
         $this->registerApi($container, $loader, $config);
         $this->registerRequestBoundary($container);
-        $this->registerMemberBadgesAndProvenance($container, $emProviderRef);
+        $this->registerMemberBadgesAndProvenance($container, $emProviderRef, $config);
     }
 
     /**
@@ -438,7 +440,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      * read by the history timeline and the comments; and the write provenance hook (a null provider by alias; the host
      * aliases {@see WikiWriteProvenanceProviderInterface}), its erasure service and the API's provenance finder.
      */
-    private function registerMemberBadgesAndProvenance(ContainerBuilder $container, Reference $entityManager): void
+    /**
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerMemberBadgesAndProvenance(ContainerBuilder $container, Reference $entityManager, array $config): void
     {
         $container->setDefinition(NullWikiMemberBadgeProvider::class, new Definition(NullWikiMemberBadgeProvider::class));
         $container->setAlias(WikiMemberBadgeProviderInterface::class, NullWikiMemberBadgeProvider::class);
@@ -461,7 +466,21 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$entityManager', $entityManager)
             ->setArgument('$users', new Reference(WikiUserReferenceResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setPublic(true));
+        // Audit PQ-L1: the comment author erasure erases the user's actor labels (and the orphaned ones) too.
+        $container->setDefinition(WikiProvenanceAuthorErasedListener::class, (new Definition(WikiProvenanceAuthorErasedListener::class))
+            ->setArgument('$erasure', new Reference(WikiWriteProvenanceErasure::class))
+            ->addTag('kernel.event_listener', ['event' => WikiEvents::COMMENT_AUTHOR_ERASED]));
         $container->setAlias(WikiPageProvenanceFinderInterface::class, DoctrineOrmWikiPageRevisionRepository::class);
+
+        // Audit PQ-M1: actor labels only beside real names (history.show_actor_labels, default history.show_names).
+        /** @var array{show_names: bool, show_actor_labels: bool|null} $history */
+        $history = $config['history'];
+        $container->setDefinition(WikiActorLabels::class, (new Definition(WikiActorLabels::class))
+            ->setArgument('$authors', new Reference(WikiAuthorLabel::class))
+            ->setArgument('$show', $history['show_actor_labels'] ?? $history['show_names']));
+        if ($container->hasDefinition(WikiHistoryTimeline::class)) {
+            $container->getDefinition(WikiHistoryTimeline::class)->setArgument('$actorLabels', new Reference(WikiActorLabels::class));
+        }
     }
 
     /**

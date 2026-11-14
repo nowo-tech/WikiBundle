@@ -64,18 +64,23 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function array_column;
 use function array_count_values;
+use function array_filter;
 use function array_keys;
 use function array_map;
 use function array_slice;
+use function array_values;
 use function count;
 use function in_array;
 use function intdiv;
 use function is_string;
+use function json_encode;
 use function ksort;
 use function sort;
 use function str_contains;
 use function str_repeat;
 use function strlen;
+
+use const JSON_THROW_ON_ERROR;
 
 /**
  * 1.16: the comment endpoints' logic — default-deny rights, own comments, moderation, anchors (validated, 409 when
@@ -444,6 +449,29 @@ final class WikiCommentServiceTest extends TestCase
 
         $plain = $this->service()->create($this->bob, $this->space, $this->page, null, 'No hook');
         self::assertSame(['name', 'avatarUrl'], array_keys($plain['comments'][0]['author']));
+        // Audit PQ-M1: comments carry no write provenance (no actor label / token name).
+        self::assertStringNotContainsString('token_name', json_encode($thread, JSON_THROW_ON_ERROR));
+        self::assertStringNotContainsString('actor_label', json_encode($thread, JSON_THROW_ON_ERROR));
+    }
+
+    /** Audit PQ-L2: the server-rendered list asks the badge provider once for every author of every thread. */
+    public function testThePanelListAsksForBadgesOnce(): void
+    {
+        $provider = new RecordingBadgeProvider(['id-bob' => [new WikiMemberBadge('Agent', 'agent')]]);
+        $writer   = $this->service();
+        $writer->create($this->ana, $this->space, $this->page, null, 'First');
+        $second = $writer->create($this->bob, $this->space, $this->page, null, 'Second');
+        $writer->reply($this->ana, $this->space, $this->page, $second['id'], 'Reply');
+        $this->em->clear();
+
+        $threads = $this->service(badges: new WikiMemberBadges($provider))->pageThreads($this->ana, $this->space, $this->page);
+        self::assertCount(2, $threads);
+        self::assertCount(1, $provider->calls, 'one provider call for the whole list');
+        self::assertEqualsCanonicalizing(['id-ana', 'id-bob'], $provider->calls[0]);
+        $badged = array_values(array_filter($threads, static fn (array $thread): bool => isset($thread['comments'][0]['author']['badges'])));
+        self::assertCount(1, $badged, 'only Bob\'s thread starts with a badged author');
+        self::assertSame('Agent', $badged[0]['comments'][0]['author']['badges'][0]['label']);
+        self::assertSame([], $this->service(badges: new WikiMemberBadges($provider))->pageThreads($this->bob, $this->space, $this->page, false, 0));
     }
 
     public function testListsAreCappedAndTruncated(): void

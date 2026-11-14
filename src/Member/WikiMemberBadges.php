@@ -63,7 +63,8 @@ final class WikiMemberBadges implements ResetInterface
         if (count($this->badges) + count($missing) > self::MAX_MEMO) {
             $this->badges = [];
         }
-        $refs     = array_values($missing);
+        // Audit PQ-L3: one prime never holds more than the bound (the rest is resolved on demand by of()).
+        $refs     = array_slice(array_values($missing), 0, self::MAX_MEMO);
         $resolved = $this->provider->badgesForMany($refs);
         foreach ($refs as $index => $ref) {
             $this->badges[self::key($ref)] = self::kept($resolved[$index] ?? []);

@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingBadgeProvider;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 use stdClass;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,6 +19,7 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 
 use function array_map;
+use function count;
 use function memory_get_usage;
 use function range;
 
@@ -85,6 +87,20 @@ final class WikiMemberBadgesTest extends TestCase
         $memo->prime([new TestUserEntity('u1')]);
 
         self::assertCount(3, $provider->calls, 'the full memo was emptied, so u1 is asked again');
+    }
+
+    /** Audit PQ-L3: one large prime() never holds more than the bound; the rest is resolved on demand. */
+    public function testOneLargePrimeStaysWithinTheBound(): void
+    {
+        $provider = new RecordingBadgeProvider(['u1499' => [new WikiMemberBadge('Agent', 'agent')]]);
+        $memo     = new WikiMemberBadges($provider);
+        $users    = array_map(static fn (int $i): TestUserEntity => new TestUserEntity('u' . $i), range(0, 1499));
+        $memo->prime($users);
+
+        self::assertCount(1, $provider->calls);
+        self::assertCount(WikiMemberBadges::MAX_MEMO, $provider->calls[0]);
+        self::assertLessThanOrEqual(WikiMemberBadges::MAX_MEMO, count((new ReflectionProperty(WikiMemberBadges::class, 'badges'))->getValue($memo)));
+        self::assertSame('Agent', $memo->of($users[1499])[0]->label ?? null, 'a member beyond the bound is resolved when shown');
     }
 
     public function testKernelResetEmptiesTheMemo(): void

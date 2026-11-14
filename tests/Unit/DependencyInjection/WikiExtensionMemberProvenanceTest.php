@@ -6,17 +6,21 @@ namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection;
 
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
+use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Member\NullWikiMemberBadgeProvider;
 use Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface;
 use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\Provenance\NullWikiWriteProvenanceProvider;
+use Nowo\WikiBundle\Provenance\WikiProvenanceAuthorErasedListener;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
 
@@ -40,6 +44,27 @@ final class WikiExtensionMemberProvenanceTest extends TestCase
             self::assertInstanceOf(Reference::class, $badges);
             self::assertSame(WikiMemberBadges::class, (string) $badges);
         }
+    }
+
+    /** Audit PQ-M1: actor labels follow history.show_names unless history.show_actor_labels says otherwise. */
+    public function testActorLabelsFollowShowNamesByDefault(): void
+    {
+        self::assertFalse($this->load([])->getDefinition(WikiActorLabels::class)->getArgument('$show'));
+        self::assertTrue($this->load(['history' => ['show_names' => true]])->getDefinition(WikiActorLabels::class)->getArgument('$show'));
+        self::assertFalse($this->load(['history' => ['show_names' => true, 'show_actor_labels' => false]])->getDefinition(WikiActorLabels::class)->getArgument('$show'));
+        $timeline = $this->load(['history' => ['timeline' => true]])->getDefinition(WikiHistoryTimeline::class)->getArgument('$actorLabels');
+        self::assertSame(WikiActorLabels::class, (string) $timeline);
+
+        $listener = $this->load([])->getDefinition(WikiProvenanceAuthorErasedListener::class);
+        self::assertSame([['event' => WikiEvents::COMMENT_AUTHOR_ERASED]], $listener->getTag('kernel.event_listener'));
+    }
+
+    public function testShowActorLabelsIsABooleanOrNull(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('history.show_actor_labels must be true, false or null.');
+
+        $this->load(['history' => ['show_actor_labels' => 'yes']]);
     }
 
     public function testReadersThatAreOffAreSkipped(): void

@@ -9,6 +9,7 @@ use JsonException;
 use LogicException;
 use Nowo\WikiBundle\Comment\WikiCommentMentionErasure;
 use Nowo\WikiBundle\Comment\WikiCommentService;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Service\WikiAuthorResolver;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -43,7 +44,9 @@ use const JSON_UNESCAPED_UNICODE;
  * and the threads they started or resolved as JSON (1.16.1);
  * otherwise they are unlinked from their comments, threads and resolutions, their reactions are deleted and their
  * comment bodies blanked ("Comment deleted"; `--keep-bodies` keeps the text, unattributed), after a confirmation unless
- * `--force` / `--no-interaction` (1.16.1). Since 1.17 (audit FG-L2) the user's `@handle` mentions in other people's
+ * `--force` / `--no-interaction` (1.16.1). Spec 234 (audit PQ-L1): the actor labels of the user's revisions are exported
+ * (`revision_actor_labels`) and erased too, with those of revisions whose author was already deleted; with comments
+ * disabled the command handles the actor labels only. Since 1.17 (audit FG-L2) the user's `@handle` mentions in other people's
  * comments and thread quotes are erased too ({@see WikiCommentService::eraseMentions()}): the handles of the repeatable
  * `--handle` option plus the user's own `getHandle()` when the user class has one; without any handle a warning says
  * that mentions were kept. Hosts may call {@see WikiCommentService::exportAuthor()} /
@@ -58,6 +61,7 @@ final class WikiCommentsEraseUserCommand extends Command
     public function __construct(
         private readonly WikiAuthorResolver $authorResolver,
         private readonly ?WikiCommentService $comments = null,
+        private readonly ?WikiWriteProvenanceErasure $provenance = null,
     ) {
         parent::__construct();
     }
@@ -79,7 +83,7 @@ final class WikiCommentsEraseUserCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        if (!$this->comments instanceof WikiCommentService) {
+        if (!$this->comments instanceof WikiCommentService && !$this->provenance instanceof WikiWriteProvenanceErasure) {
             $io->note('Comments are disabled (nowo_wiki.comments.enabled: false): nothing to export or erase.');
 
             return Command::SUCCESS;
@@ -93,9 +97,17 @@ final class WikiCommentsEraseUserCommand extends Command
         }
 
         if ($input->getOption('export') === true) {
-            $output->writeln(json_encode($this->comments->exportAuthorData($user), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            // Spec 234 (audit PQ-L1): the actor labels of the user's revisions are part of the export.
+            $data = ($this->comments?->exportAuthorData($user) ?? []) + ($this->provenance instanceof WikiWriteProvenanceErasure ? ['revision_actor_labels' => $this->provenance->exportActor($user)] : []);
+            $output->writeln(json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
             return Command::SUCCESS;
+        }
+        if (!$this->comments instanceof WikiCommentService) {
+            /** @var WikiWriteProvenanceErasure $erasure checked above: one of the two is set */
+            $erasure = $this->provenance;
+
+            return $this->eraseActorLabels($io, $input, $user, $erasure);
         }
 
         $keep    = $input->getOption('keep-bodies') === true;
@@ -127,7 +139,12 @@ final class WikiCommentsEraseUserCommand extends Command
                 return Command::FAILURE;
             }
         }
+        // Spec 234 (audit PQ-L1): the actor labels first (counted here; the erasure event finds nothing left).
+        $labels = $this->provenance?->eraseActor($user) ?? 0;
         $io->success(sprintf('%d comment(s) %s; reactions deleted, threads and resolutions unlinked.', $this->comments->eraseAuthor($user, !$keep), $keep ? 'unlinked' : 'erased'));
+        if ($this->provenance instanceof WikiWriteProvenanceErasure) {
+            $io->success(sprintf('%d revision actor label(s) erased (%d of deleted authors).', $labels, $this->provenance->eraseOrphaned()));
+        }
         if ($handles === []) {
             $io->warning('Mentions of the user in other people\'s comments were kept: pass --handle=<handle> (or give the user class a getHandle()) to erase them.');
         } elseif ($mentions instanceof WikiCommentMentionErasure) {
@@ -139,6 +156,22 @@ final class WikiCommentsEraseUserCommand extends Command
                 return Command::FAILURE;
             }
         }
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Spec 234: with comments disabled, only the actor labels of the user's revisions (and the orphaned ones).
+     */
+    private function eraseActorLabels(SymfonyStyle $io, InputInterface $input, object $user, WikiWriteProvenanceErasure $erasure): int
+    {
+        if ($input->getOption('force') !== true && $input->isInteractive()
+            && !$io->confirm(sprintf('Erase the %d revision actor label(s) of "%s"? This cannot be undone.', count($erasure->exportActor($user)), $user instanceof UserInterface ? $user->getUserIdentifier() : (string) $input->getArgument('user')), false)) {
+            $io->note('Nothing was changed.');
+
+            return Command::SUCCESS;
+        }
+        $io->success(sprintf('%d revision actor label(s) erased (%d of deleted authors).', $erasure->eraseActor($user), $erasure->eraseOrphaned()));
 
         return Command::SUCCESS;
     }

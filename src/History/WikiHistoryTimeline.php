@@ -28,19 +28,21 @@ final readonly class WikiHistoryTimeline
         private WikiAuthorLabel $authors,
         private int $sessionMinutes = 30,
         private ?WikiMemberBadges $badges = null,
+        private ?WikiActorLabels $actorLabels = null,
     ) {
     }
 
     /**
      * @param list<WikiPageRevision> $revisions newest first (one page of the history)
+     * @param object|null $viewer spec 234: who reads the history (sees the actor labels of their own writes)
      *
      * @return array<int, array{author: string, named: bool, avatar: string|null, label: string|null, saves: int, deleted: bool, badges: list<WikiMemberBadge>, channel: string|null, actor_label: string|null}>
      *                                                                                                                                                                                                           per revision number; `saves` is the size of the session on its newest row, 0 on the others;
      *                                                                                                                                                                                                           `avatar` (1.16) the author's picture URL, only beside a real name; `deleted` (1.26) true when
      *                                                                                                                                                                                                           the author's account was deleted (`author` is then '': the page shows "Former person");
-     *                                                                                                                                                                                                           spec 234: `badges`, `channel`, `actor_label` (spec 234)
+     *                                                                                                                                                                                                           spec 234: `badges`, `channel`, `actor_label` (only as {@see WikiActorLabels} allows: audit PQ-M1)
      */
-    public function rows(WikiPage $page, array $revisions): array
+    public function rows(WikiPage $page, array $revisions, ?object $viewer = null): array
     {
         $labels = $this->labels->labelsFor($revisions);
         $saves  = [];
@@ -84,7 +86,7 @@ final readonly class WikiHistoryTimeline
                 // Spec 234: host badges and the write's provenance (nothing kept about a deleted author).
                 'badges'      => $this->badges?->of($revision->getAuthor()) ?? [],
                 'channel'     => $revision->getChannel(),
-                'actor_label' => $author['deleted'] ? null : $revision->getActorLabel(),
+                'actor_label' => $this->actorLabels?->visible($revision->getActorLabel(), $revision->getAuthor(), $author['named'], $viewer),
             ];
         }
 

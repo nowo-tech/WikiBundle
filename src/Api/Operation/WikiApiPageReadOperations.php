@@ -19,6 +19,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\Repository\WikiPageMetadata;
 use Nowo\WikiBundle\Repository\WikiPageMetadataFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageMetadataQuery;
@@ -48,6 +49,7 @@ final readonly class WikiApiPageReadOperations
         private WikiApiContent $content,
         private WikiApiSerializer $serializer,
         private ?WikiPageProvenanceFinderInterface $provenance = null,
+        private ?WikiActorLabels $actorLabels = null,
     ) {
     }
 
@@ -96,7 +98,7 @@ final readonly class WikiApiPageReadOperations
             $origin  = $provenance[$row->page->getId()] ?? null;
             $creator = $origin?->creatorId === null ? null : ($authors[$origin->creatorId] ?? null);
             $people  = $this->people->presentAll($principal, [$author, $creator], $row->page);
-            $pages[] = $this->serializer->pageHead($wiki, $row->page, $row->revisionNumber, $row->revisedAt, $people[0], $people[1], $origin?->channel, $origin?->currentAuthorId === null ? null : $origin->actorLabel);
+            $pages[] = $this->serializer->pageHead($wiki, $row->page, $row->revisionNumber, $row->revisedAt, $people[0], $people[1], $origin?->channel, $this->actorLabels?->visibleOnPage($origin?->actorLabel, $author, $row->page, $principal->user));
         }
 
         return ['pages' => $pages, 'last_page' => count($visible) <= ($page + 1) * WikiApiQuery::PAGE_SIZE];
@@ -134,7 +136,7 @@ final readonly class WikiApiPageReadOperations
             default                                                        => $this->users->byIds([$origin->creatorId])[$origin->creatorId] ?? null,
         };
         $people = $this->people->presentAll($principal, [$revision?->getAuthor(), $creator], $page);
-        $head   = $this->serializer->pageHead($wiki, $page, $revision?->getRevisionNumber(), $revision?->getCreatedAt(), $people[0], $people[1], $revision?->getChannel(), $revision?->getAuthor() === null ? null : $revision->getActorLabel());
+        $head   = $this->serializer->pageHead($wiki, $page, $revision?->getRevisionNumber(), $revision?->getCreatedAt(), $people[0], $people[1], $revision?->getChannel(), $this->actorLabels?->visibleOnPage($revision?->getActorLabel(), $revision?->getAuthor(), $page, $principal->user));
         if (!$revision instanceof WikiPageRevision) {
             return $head + ['format' => WikiPageRevision::FORMAT_MARKDOWN, 'content_view' => $this->content->view($principal, $page), 'content_markdown' => ''];
         }

@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
@@ -37,6 +38,7 @@ final readonly class WikiApiRevisionOperations
         private WikiApiContent $content,
         private WikiApiSerializer $serializer,
         private ?WikiRevisionLabelRepositoryInterface $labels = null,
+        private ?WikiActorLabels $actorLabels = null,
     ) {
     }
 
@@ -56,7 +58,7 @@ final readonly class WikiApiRevisionOperations
         $people = $this->people->presentAll($principal, array_map(static fn (WikiPageRevision $r): ?object => $r->getAuthor(), $shown), $target);
         $answer = [];
         foreach ($shown as $index => $revision) {
-            $answer[] = $this->serializer->revisionHead($revision, $people[$index], $labels[$revision->getId()] ?? null);
+            $answer[] = $this->serializer->revisionHead($revision, $people[$index], $labels[$revision->getId()] ?? null, $this->tokenName($principal, $revision, $target));
         }
 
         return ['revisions' => $answer, 'last_page' => count($rows) <= WikiApiQuery::PAGE_SIZE];
@@ -75,7 +77,7 @@ final readonly class WikiApiRevisionOperations
         $revision = $this->guard->revision($target, $number);
         $label    = $this->labels?->findForRevision($revision)?->getLabel();
 
-        return $this->serializer->revisionHead($revision, $this->people->present($principal, $revision->getAuthor(), $target), $label)
+        return $this->serializer->revisionHead($revision, $this->people->present($principal, $revision->getAuthor(), $target), $label, $this->tokenName($principal, $revision, $target))
             + $this->content->revision($principal, $target, $revision, $this->content->view($principal, $target));
     }
 
@@ -102,6 +104,12 @@ final readonly class WikiApiRevisionOperations
         $from = $this->guard->revision($target, $against);
 
         return ['from' => $from->getRevisionNumber(), 'to' => $to->getRevisionNumber(), 'lines' => $this->diffs->diff($from, $to)];
+    }
+
+    /** Spec 234 (audit PQ-M1): the token name only beside a real name, or for the author themself. */
+    private function tokenName(WikiApiPrincipal $principal, WikiPageRevision $revision, WikiPage $page): ?string
+    {
+        return $this->actorLabels?->visibleOnPage($revision->getActorLabel(), $revision->getAuthor(), $page, $principal->user);
     }
 
     /** @throws WikiApiRefusal */

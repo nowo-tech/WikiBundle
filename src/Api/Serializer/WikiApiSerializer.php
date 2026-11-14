@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\History\WikiActorLabels;
 
 /**
  * 1.24 (spec 218): the API's bodies. Dates are Unix milliseconds, ids UUID strings, wikis named by slug.
@@ -51,7 +52,7 @@ final readonly class WikiApiSerializer
      *
      * Spec 234: `created_by` (the author of the page's oldest revision, presented like `updated_by`), and the
      * provenance of the last write — `channel` (web | app | api | mcp) and `token_name` (the host's actor label, plain
-     * text; null once its author is deleted). All null when not recorded.
+     * text, as {@see WikiActorLabels} allows: audit PQ-M1). All null when not recorded.
      *
      * @param array{id: string|null, name: string}|null $updatedBy
      * @param array{id: string|null, name: string}|null $createdBy
@@ -80,13 +81,13 @@ final readonly class WikiApiSerializer
 
     /**
      * A revision's head (the body, when asked, is added by the caller). Spec 234: `channel` and `token_name` of
-     * the write (`author` is who made it); `token_name` is null once the author is deleted.
+     * the write (`author` is who made it); `token_name` as {@see WikiActorLabels} allows (the caller decides; audit PQ-M1).
      *
      * @param array{id: string|null, name: string}|null $author
      *
      * @return array<string, mixed>
      */
-    public function revisionHead(WikiPageRevision $revision, ?array $author, ?string $label): array
+    public function revisionHead(WikiPageRevision $revision, ?array $author, ?string $label, ?string $tokenName = null): array
     {
         return [
             'number'     => $revision->getRevisionNumber(),
@@ -95,7 +96,7 @@ final readonly class WikiApiSerializer
             'label'      => $label,
             'format'     => $revision->getFormat(),
             'channel'    => $revision->getChannel(),
-            'token_name' => $revision->getAuthor() === null ? null : $revision->getActorLabel(),
+            'token_name' => $tokenName,
         ];
     }
 }

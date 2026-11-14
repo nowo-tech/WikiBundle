@@ -237,7 +237,8 @@ class WikiPageRevision
      */
     public function getChannel(): ?string
     {
-        return $this->channel;
+        // Audit PQ-I2: re-checked on read (a value written outside the bundle is not trusted).
+        return WikiWriteProvenance::channelOrNull($this->channel);
     }
 
     /**

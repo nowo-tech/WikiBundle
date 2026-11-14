@@ -8,6 +8,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenance;
 use SortDirection;
 
 use function max;
@@ -153,7 +154,7 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
             $pageId              = (string) $row['pageId'];
             $provenance[$pageId] = new WikiPageProvenance(
                 $creatorIds[$pageId] ?? null,
-                $row['channel'],
+                WikiWriteProvenance::channelOrNull($row['channel']),
                 $row['actorLabel'],
                 $row['authorId'] === null ? null : (string) $row['authorId'],
             );

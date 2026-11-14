@@ -317,6 +317,9 @@ final readonly class WikiCommentService
         $this->require($rights['view']);
         $threads = array_slice(array_values(array_filter($this->comments->threads($page, self::MAX_THREADS), static fn (WikiCommentThread $t): bool => !$t->isResolved() && ($withInline || $t->isPageLevel()))), 0, $max);
 
+        // Spec 234 (audit PQ-L2): one badge provider call for every author of the list, not one per thread.
+        $this->primeBadges($threads);
+
         // 1.16.1 (audit EI-I18): the latest comments of each thread only; `more` counts the others (shown in the editor).
         return array_map(fn (WikiCommentThread $thread): array => $this->threadJson($user, $page, $thread, $rights, self::LIST_COMMENTS_CAP), $threads);
     }
@@ -942,6 +945,29 @@ final readonly class WikiCommentService
             'resolvedBy' => $resolvedBy !== null ? $this->person($byObject[spl_object_id($resolvedBy)]) : ($thread->isResolved() ? ['name' => $this->trans('wiki.comments.unknown_author'), 'avatarUrl' => null] : null),
             'resolvedAt' => $thread->getResolvedAt()?->format(self::DATE),
         ] + ($latest !== null ? ['more' => $more] : []);
+    }
+
+    /**
+     * Primes the badge memo with the authors of the live comments of several open threads in one provider call.
+     *
+     * @param list<WikiCommentThread> $threads
+     */
+    private function primeBadges(array $threads): void
+    {
+        if (!$this->badges instanceof WikiMemberBadges || $threads === []) {
+            return;
+        }
+        $people = [];
+        foreach ($this->comments->comments($threads) as $comments) {
+            foreach ($comments as $comment) {
+                $author = $comment->isDeleted() ? null : $comment->getAuthor();
+                if ($author !== null) {
+                    $people[] = $author;
+                }
+            }
+        }
+        // The list holds open threads only: no resolver is shown.
+        $this->badges->prime($people);
     }
 
     /**
