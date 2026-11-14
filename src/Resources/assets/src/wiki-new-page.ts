@@ -3,33 +3,24 @@
  * dialog it opens.
  *
  * The server renders one ARIA menu (`[data-wiki-new-page-menu]`), the dialog (`[data-wiki-new-page-dialog]`, a native
- * `<dialog>` with the new-page form and its hidden `parent` / `position` fields) and, on each tree row, a hidden «…»
- * button. It marks the rows the user may create pages under (`data-wiki-new-child`); the top level takes new pages from
- * anyone who sees the menu. The server checks every create again.
+ * `<dialog>` with the new-page form and its hidden `place` field) and, on each tree row, a hidden «…» button. It marks
+ * what each row offers (`data-wiki-new-child`: "as child"; `data-wiki-new-sibling`: "above" / "below"). The browser
+ * sends the intent (`child:<id>`, `above:<id>`, `below:<id>`), never an index: the server computes the place and checks
+ * every create again (audit PT-L3).
  *
  * The menu opens from a right click on a row, the row's «…» button, or the ContextMenu key / Shift+F10 on a row. It
  * follows the WAI-ARIA menu pattern: focus on the first choice, arrows / Home / End move it (roving, wrapping), Enter /
  * Space choose, Escape and Tab close it and give the focus back to the row; a click elsewhere closes it. A choice fills
- * the dialog's place (1-based position among the row's siblings, or last among its children) and opens it modal.
+ * the dialog's place and opens it modal.
  */
 
 /** A choice of the menu. */
 export type NewPageChoice = 'above' | 'below' | 'child';
 
-/** Where the new page goes: the parent page id ('' = the top level) and the 1-based position among its children. */
-export interface NewPagePlace {
-    parent: string;
-    position: number;
-}
-
 const NODE = 'li[data-nowo-ui-tree-node]';
 const CHOICES: readonly NewPageChoice[] = ['above', 'below', 'child'];
 const CHILD = 'data-wiki-new-child';
-
-const nodesIn = (list: Element | null | undefined): HTMLLIElement[] =>
-    list ? ([...list.children].filter((el) => el.matches(NODE)) as HTMLLIElement[]) : [];
-
-const parentItem = (item: HTMLLIElement): HTMLLIElement | null => item.parentElement?.closest<HTMLLIElement>(NODE) ?? null;
+const SIBLING = 'data-wiki-new-sibling';
 
 const linkOf = (item: HTMLLIElement): HTMLElement | null => item.querySelector<HTMLElement>(':scope > .nowo-ui-tree__row > [data-nowo-ui-tree-item]');
 
@@ -38,50 +29,36 @@ const titleOf = (item: HTMLLIElement): string =>
     `${(item.querySelector(':scope > .nowo-ui-tree__row .nowo-ui-tree__label') ?? item.querySelector(':scope > .nowo-ui-tree__row')!).textContent}`.trim();
 
 /**
- * The choices the user may take on a row: "as child" when the row is marked, "above" / "below" when its parent is
- * marked or it sits at the top level.
+ * The choices the server marked on a row: "above" / "below" (`data-wiki-new-sibling`) and "as child"
+ * (`data-wiki-new-child`).
  *
  * @param item - A tree row (`li[data-nowo-ui-tree-node]`).
  */
 export function allowedChoices(item: HTMLLIElement): NewPageChoice[] {
-    const parent = parentItem(item);
-    const sibling = parent === null || parent.hasAttribute(CHILD);
-
-    return CHOICES.filter((choice) => (choice === 'child' ? item.hasAttribute(CHILD) : sibling));
+    return CHOICES.filter((choice) => item.hasAttribute(choice === 'child' ? CHILD : SIBLING));
 }
 
 /**
- * The place of a new page next to (or under) a row, as the server counts it: the visible siblings, 1-based.
+ * The intent the form sends for a choice on a row (`child:<id>`, `above:<id>`, `below:<id>`).
  *
  * @param item - The row the menu was opened on.
  * @param choice - Above or below the row, or last among its children.
  */
-export function placeFor(item: HTMLLIElement, choice: NewPageChoice): NewPagePlace {
-    if (choice === 'child') {
-        return { parent: item.dataset.nowoUiTreeNode ?? '', position: nodesIn(item.querySelector(':scope > ul[role="group"]')).length + 1 };
-    }
-
-    return {
-        parent: parentItem(item)?.dataset.nowoUiTreeNode ?? '',
-        position: nodesIn(item.parentElement).indexOf(item) + (choice === 'above' ? 1 : 2),
-    };
+export function placeFor(item: HTMLLIElement, choice: NewPageChoice): string {
+    return `${choice}:${item.dataset.nowoUiTreeNode ?? ''}`;
 }
 
 /**
- * Writes the place into the dialog's hidden fields and the line that says where the page goes (hidden when empty).
+ * Writes the place into the dialog's hidden field and the line that says where the page goes (hidden when empty).
  *
  * @param dialog - The new-page dialog.
- * @param place - The place, or null to clear it (a new page as before: no parent, no position).
+ * @param place - The intent, or '' to clear it (a new page as before: no place).
  * @param context - The sentence of the line ('' hides it).
  */
-export function fillNewPageDialog(dialog: HTMLElement, place: NewPagePlace | null, context: string): void {
-    const parent = dialog.querySelector<HTMLInputElement>('[data-wiki-new-page-parent]');
-    const position = dialog.querySelector<HTMLInputElement>('[data-wiki-new-page-position]');
-    if (parent) {
-        parent.value = place?.parent ?? '';
-    }
-    if (position) {
-        position.value = place ? String(place.position) : '';
+export function fillNewPageDialog(dialog: HTMLElement, place: string, context: string): void {
+    const field = dialog.querySelector<HTMLInputElement>('[data-wiki-new-page-place]');
+    if (field) {
+        field.value = place;
     }
     const line = dialog.querySelector<HTMLElement>('[data-wiki-new-page-context]');
     if (line) {
@@ -162,7 +139,8 @@ export function bindNewPageMenu(doc: Document = document): void {
 
     const choose = (item: HTMLLIElement, choice: NewPageChoice): void => {
         const line = dialog.querySelector<HTMLElement>('[data-wiki-new-page-context]');
-        const context = (line?.dataset[choice] ?? '').replace('%title%', titleOf(item));
+        // A function: a `$` in a title is text, not a replacement pattern (audit PT-I2).
+        const context = (line?.dataset[choice] ?? '').replace('%title%', () => titleOf(item));
         fillNewPageDialog(dialog, placeFor(item, choice), context);
         close(true);
         returnTo = linkOf(item);
@@ -251,14 +229,10 @@ export function bindNewPageMenu(doc: Document = document): void {
 
     // Closed (Escape, Cancel, the close button): back to a page "as before" and the focus on the row that opened it.
     dialog.addEventListener('close', () => {
-        fillNewPageDialog(dialog, null, '');
+        fillNewPageDialog(dialog, '', '');
         returnTo?.focus();
         returnTo = null;
     });
 
     refreshMoreButtons(doc);
-    // A tree move changes who is whose parent, so which rows have a choice.
-    doc.querySelectorAll('[data-wiki-tree]').forEach((tree) => {
-        new MutationObserver(() => refreshMoreButtons(tree)).observe(tree, { childList: true, subtree: true });
-    });
 }

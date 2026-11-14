@@ -27,6 +27,8 @@ final class ApiPageCreatePositionTest extends ApiTestCase
         $x = $this->create(['title' => 'X', 'position' => 2]);
         self::assertSame(201, $x['status']);
         self::assertNull($x['body']['parent']);
+        // PT-L1: the answer's position is the place among what the token's user sees, 1-based.
+        self::assertSame(2, $x['body']['position']);
         self::assertSame(['A', 'X', 'B', 'C'], $this->order(null));
         self::assertSame(['title', 'content_markdown', 'position'], ApiAuditRecorder::$events[0]->changedFields);
 
@@ -40,7 +42,12 @@ final class ApiPageCreatePositionTest extends ApiTestCase
         self::assertSame($a->getId(), $kid['body']['parent']);
         self::assertSame(['Kid 1', 'Kid 2'], $this->order($a->getId()));
 
-        // Without position: as before (position 0, first by the sort, no "position" in the audit).
+        // PT-M1: a parent without position goes last, through the tree's lock and depth check.
+        $kid3 = $this->create(['title' => 'Kid 3', 'parent' => $a->getId()]);
+        self::assertSame(3, $kid3['body']['position']);
+        self::assertSame(['Kid 1', 'Kid 2', 'Kid 3'], $this->order($a->getId()));
+
+        // Without parent nor position: as before (position 0, first by the sort, no "position" in the audit).
         ApiAuditRecorder::$events = [];
         $plain                    = $this->create(['title' => 'Plain']);
         self::assertSame(201, $plain['status']);
@@ -56,10 +63,28 @@ final class ApiPageCreatePositionTest extends ApiTestCase
         ApiTestHost::$hiddenPages = ['b'];
 
         // Position 2 among what the token's user sees (A, C) = right before C, after the hidden B.
-        $this->create(['title' => 'X', 'position' => 2]);
+        $x = $this->create(['title' => 'X', 'position' => 2]);
+        // PT-L1: the answer says 2 (of A, X, C), not the stored sort key that counts B.
+        self::assertSame(2, $x['body']['position']);
 
         ApiTestHost::$hiddenPages = [];
         self::assertSame(['A', 'B', 'X', 'C'], $this->order(null));
+    }
+
+    public function testTheAnswerHidesHowManyHiddenSiblingsSortFirst(): void
+    {
+        // Pages from before 1.14 (all at 0), by title: H1, H2 hidden; V visible.
+        $this->page($this->eng, 'H1', 'x');
+        $this->page($this->eng, 'H2', 'x');
+        $v                        = $this->page($this->eng, 'V', 'x');
+        ApiTestHost::$hiddenPages = ['h1', 'h2'];
+
+        $n = $this->create(['title' => 'N', 'position' => 1]);
+        self::assertSame(1, $n['body']['position']);
+
+        // The move answer too.
+        $moved = $this->json($this->call('POST', '/wikis/eng/pages/' . $v->getId() . '/move', self::ANA, ['parent' => null, 'index' => 0]));
+        self::assertSame(1, $moved['position']);
     }
 
     public function testInvalidPositions(): void

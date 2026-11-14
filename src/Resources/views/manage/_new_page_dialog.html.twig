@@ -2,9 +2,9 @@
   1.35 (web_ui.new_page_dialog): the new-page dialog of the page view and the space home, and the menu of the page tree.
   - The dialog: the UiKit `dialog` theme partial (native <dialog> opened modal: focus stays inside, Escape and the close
     button close it, focus goes back to the opener), medium size, with the bundle's new-page form (WikiPageFormType:
-    title + editor, CSRF token wiki_new_<space id>, hidden `parent` / `position`) posted to the new-page route; the
+    title + editor, CSRF token wiki_new_<space id>, hidden `place`) posted to the new-page route; the
     footer has Cancel then Create, bound to the form by form="…". Opened by "New page" in the page actions
-    (data-nowo-ui-dialog-open) or by a choice of the tree menu (wiki.js fills parent / position and the line that
+    (data-nowo-ui-dialog-open) or by a choice of the tree menu (wiki.js fills `place` with child:/above:/below:<id> and the line that
     says where the page goes, `wiki.new_page.context_*`, %title% = the row's title).
   - The menu (with_menu: the page tree is on the page): one ARIA menu for every row, "New page above", "New page
     below", "New page as child"; wiki.js opens it from a right click on a row, the row's «…» button, or the ContextMenu

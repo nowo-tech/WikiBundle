@@ -24,12 +24,11 @@ const check = (name, ok, detail) => {
   });
   const menuOpen = () => page.evaluate(() => !document.querySelector('[data-wiki-new-page-menu]').hidden);
   const choices = () => page.evaluate(() => [...document.querySelectorAll('[data-wiki-new-page-choice]')].filter((b) => !b.hidden && b.offsetParent !== null).map((b) => b.dataset.wikiNewPageChoice));
-  const place = () => page.evaluate(() => [document.getElementById('wiki_page_form_parent').value, document.getElementById('wiki_page_form_position').value, document.querySelector('[data-wiki-new-page-context]').textContent]);
+  const place = () => page.evaluate(() => [document.getElementById('wiki_page_form_place').value, document.querySelector('[data-wiki-new-page-context]').textContent]);
   const dialogState = () => page.evaluate(() => { const d = document.getElementById('nowo-wiki-new-page-dialog'); return { open: d.open, modal: d.matches(':modal') }; });
   const link = (title) => page.locator('[data-nowo-ui-tree-item]', { hasText: title });
 
-  // The «…» buttons: shown on the rows that have a choice — all five here (the top level and the children of the
-  // editable Operations always have above / below).
+  // The «…» buttons: shown on the rows that have a choice (all five here).
   check('«…» buttons revealed', (await page.locator('[data-wiki-new-page-more]:not([hidden])').count()) === 5, await page.locator('[data-wiki-new-page-more]:not([hidden])').count());
 
   // Keyboard: Shift+F10 on a focused row.
@@ -59,7 +58,7 @@ const check = (name, ok, detail) => {
   await page.keyboard.press('Enter');
   check('a choice closes the menu', !(await menuOpen()));
   check('the dialog opens modal', JSON.stringify(await dialogState()) === '{"open":true,"modal":true}', await dialogState());
-  check('below Runbooks = position 2 under Operations', JSON.stringify(await place()) === '["p-ops","2","Below “Runbooks”"]', await place());
+  check('below Runbooks: the intent, not an index', JSON.stringify(await place()) === '["below:p-run","Below “Runbooks”"]', await place());
   check('focus on the title', (await focused()) === 'wiki_page_form_title', await focused());
   const outside = [];
   for (let i = 0; i < 8; i++) {
@@ -70,26 +69,26 @@ const check = (name, ok, detail) => {
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.getElementById('nowo-wiki-new-page-dialog').open);
   // The close event is a task after the dialog closed.
-  await page.waitForFunction(() => document.getElementById('wiki_page_form_position').value === '', null, { timeout: 2000 }).catch(() => undefined);
-  check('Escape closes the dialog and clears the place', JSON.stringify(await place()) === '["","",""]', await place());
+  await page.waitForFunction(() => document.getElementById('wiki_page_form_place').value === '', null, { timeout: 2000 }).catch(() => undefined);
+  check('Escape closes the dialog and clears the place', JSON.stringify(await place()) === '["",""]', await place());
   check('focus back on the row after the dialog', (await focused()) === 'Runbooks', await focused());
 
-  // Right click: Locked (top level, not editable) → above / below only; Guide → as child, position 1.
+  // Right click: Locked (its parent is archived) → as child only; Guide → as child.
   const box = await link('Locked').boundingBox();
   await page.mouse.click(box.x + 10, box.y + 5, { button: 'right' });
   check('right click opens the menu', await menuOpen());
-  check('no "as child" on a page the user may not edit', JSON.stringify(await choices()) === '["above","below"]', await choices());
+  check('no above / below on a row whose parent is archived', JSON.stringify(await choices()) === '["child"]', await choices());
   const menuBox = await page.locator('[data-wiki-new-page-menu]').boundingBox();
   check('the menu opens at the pointer', Math.abs(menuBox.x - (box.x + 10)) < 2 && Math.abs(menuBox.y - (box.y + 5)) < 2, { menuBox, box });
   await page.mouse.click(1200, 850);
   check('a click outside closes the menu', !(await menuOpen()));
   await page.locator('[data-nowo-ui-tree-node="p-guide"] > .nowo-ui-tree__row').click({ button: 'right' });
   await page.getByTestId('wiki-new-page-child').click();
-  check('as child of Guide = position 1', JSON.stringify(await place()) === '["p-guide","1","Inside “Guide”"]', await place());
+  check('as child of Guide', JSON.stringify(await place()) === '["child:p-guide","Inside “Guide”"]', await place());
   await page.locator('#nowo-wiki-new-page-dialog [data-nowo-ui-dialog-close]').first().click();
   await page.waitForFunction(() => !document.getElementById('nowo-wiki-new-page-dialog').open);
 
-  await page.waitForFunction(() => document.getElementById('wiki_page_form_position').value === '');
+  await page.waitForFunction(() => document.getElementById('wiki_page_form_place').value === '');
   // The «…» button: visible on hover, opens the menu below it, toggles.
   const faqRow = page.locator('[data-nowo-ui-tree-node="p-faq"] > .nowo-ui-tree__row');
   await faqRow.hover();
@@ -97,17 +96,17 @@ const check = (name, ok, detail) => {
   check('«…» visible on hover', (await more.evaluate((el) => getComputedStyle(el).opacity)) === '1', await more.evaluate((el) => getComputedStyle(el).opacity));
   await more.click();
   check('«…» opens the menu', await menuOpen());
-  check('FAQ (not editable, under Operations): above / below', JSON.stringify(await choices()) === '["above","below"]', await choices());
+  check('FAQ: all three choices', JSON.stringify(await choices()) === '["above","below","child"]', await choices());
   check('the row keeps its fold arrow state', (await page.locator('[data-nowo-ui-tree-node="p-faq"] > .nowo-ui-tree__row [aria-expanded]').count()) === 0);
   await page.getByTestId('wiki-new-page-above').click();
-  check('above FAQ = position 2 under Operations', JSON.stringify(await place()) === '["p-ops","2","Above “FAQ”"]', await place());
+  check('above FAQ', JSON.stringify(await place()) === '["above:p-faq","Above “FAQ”"]', await place());
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => !document.getElementById('nowo-wiki-new-page-dialog').open);
 
   // The page action opens the same dialog with no place.
   await page.getByTestId('wiki-new-page').click();
   await page.waitForFunction(() => document.getElementById('nowo-wiki-new-page-dialog').open);
-  check('the page action opens the dialog without a place', JSON.stringify(await place()) === '["","",""]', await place());
+  check('the page action opens the dialog without a place', JSON.stringify(await place()) === '["",""]', await place());
   check('the page action dialog is modal', (await dialogState()).modal);
   await page.screenshot({ path: '/work/new-page-dialog.png' });
   await page.keyboard.press('Escape');

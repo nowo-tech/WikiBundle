@@ -1,16 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { allowedChoices, bindNewPageMenu, fillNewPageDialog, placeFor, refreshMoreButtons } from './wiki-new-page';
 
-type Spec = [id: string, child: boolean, children?: Spec[]];
+/** A row: id, what the server marked ('c' = as child, 's' = above / below), children. */
+type Spec = [id: string, marks: string, children?: Spec[]];
 
 /** Markup of the UiKit `tree` partial with the wiki's «…» actions template and the server's `data-wiki-new-child`. */
 function items(nodes: Spec[], level = 1): string {
     return nodes
-        .map(([id, child, children], i) => {
+        .map(([id, marks, children], i) => {
             const group = (children ?? []).length > 0
                 ? `<ul role="group" id="g-${id}" hidden>${items(children!, level + 1)}</ul>`
                 : '';
-            return `<li class="nowo-ui-tree__item" role="none" data-nowo-ui-tree-node="${id}"${child ? ' data-wiki-new-child="1"' : ''}>`
+            return `<li class="nowo-ui-tree__item" role="none" data-nowo-ui-tree-node="${id}"${marks.includes('c') ? ' data-wiki-new-child="1"' : ''}${marks.includes('s') ? ' data-wiki-new-sibling="1"' : ''}>`
                 + '<div class="nowo-ui-tree__row"><span class="nowo-ui-tree__spacer"></span>'
                 + `<a href="/${id}" role="treeitem" data-nowo-ui-tree-item tabindex="${level === 1 && i === 0 ? 0 : -1}"><span class="nowo-ui-tree__label">${id.toUpperCase()}</span></a>`
                 + `<button type="button" tabindex="-1" hidden aria-haspopup="menu" data-wiki-new-page-more>…</button></div>${group}</li>`;
@@ -23,7 +24,7 @@ const MENU = '<div role="menu" hidden data-wiki-new-page-menu>'
     + '</div>';
 
 const DIALOG = '<dialog data-wiki-new-page-dialog><p hidden data-wiki-new-page-context data-above="Above “%title%”" data-below="Below “%title%”" data-child="Inside “%title%”"></p>'
-    + '<input type="hidden" data-wiki-new-page-parent><input type="hidden" data-wiki-new-page-position><input type="text" name="title"></dialog>';
+    + '<input type="hidden" data-wiki-new-page-place><input type="text" name="title"></dialog>';
 
 /** A fresh body per test: the listeners of the previous tests' menus do nothing once those left the document. */
 function setup(nodes: Spec[], extra = MENU + DIALOG): Document {
@@ -32,7 +33,7 @@ function setup(nodes: Spec[], extra = MENU + DIALOG): Document {
     return document;
 }
 
-const SAMPLE: Spec[] = [['a', true, [['a1', false], ['a2', true]]], ['b', false, [['b1', true]]], ['c', true]];
+const SAMPLE: Spec[] = [['a', 'cs', [['a1', 's'], ['a2', 'cs']]], ['b', 's', [['b1', 'c']]], ['c', 'cs']];
 
 const li = (doc: Document, id: string): HTMLLIElement => doc.querySelector(`[data-nowo-ui-tree-node="${id}"]`) as HTMLLIElement;
 const link = (doc: Document, id: string): HTMLElement => li(doc, id).querySelector('[data-nowo-ui-tree-item]') as HTMLElement;
@@ -48,35 +49,26 @@ const key = (target: Element, k: string, init: KeyboardEventInit = {}): Keyboard
 
     return event;
 };
-const fields = (doc: Document): [string, string] => [
-    (doc.querySelector('[data-wiki-new-page-parent]') as HTMLInputElement).value,
-    (doc.querySelector('[data-wiki-new-page-position]') as HTMLInputElement).value,
-];
+const field = (doc: Document): string => (doc.querySelector('[data-wiki-new-page-place]') as HTMLInputElement).value;
 
 afterEach(() => {
     vi.restoreAllMocks();
 });
 
 describe('allowedChoices / placeFor', () => {
-    it('offers "as child" on marked rows and above / below under a marked parent or at the top level', () => {
+    it('offers what the server marked on the row', () => {
         const doc = setup(SAMPLE);
         expect(allowedChoices(li(doc, 'a'))).toEqual(['above', 'below', 'child']);
         expect(allowedChoices(li(doc, 'a1'))).toEqual(['above', 'below']);
-        expect(allowedChoices(li(doc, 'b'))).toEqual(['above', 'below']);
-        // Under b (not editable): no sibling; b1 itself is editable.
         expect(allowedChoices(li(doc, 'b1'))).toEqual(['child']);
     });
 
-    it('counts 1-based positions among the visible siblings, and the last place among the children', () => {
+    it('sends the intent, never an index', () => {
         const doc = setup(SAMPLE);
-        expect(placeFor(li(doc, 'a'), 'above')).toEqual({ parent: '', position: 1 });
-        expect(placeFor(li(doc, 'b'), 'below')).toEqual({ parent: '', position: 3 });
-        expect(placeFor(li(doc, 'a2'), 'above')).toEqual({ parent: 'a', position: 2 });
-        expect(placeFor(li(doc, 'a'), 'child')).toEqual({ parent: 'a', position: 3 });
-        expect(placeFor(li(doc, 'c'), 'child')).toEqual({ parent: 'c', position: 1 });
-        const bare = doc.createElement('li');
-        expect(placeFor(bare as HTMLLIElement, 'child')).toEqual({ parent: '', position: 1 });
-        expect(placeFor(bare as HTMLLIElement, 'above')).toEqual({ parent: '', position: 0 });
+        expect(placeFor(li(doc, 'a2'), 'above')).toBe('above:a2');
+        expect(placeFor(li(doc, 'b'), 'below')).toBe('below:b');
+        expect(placeFor(li(doc, 'a'), 'child')).toBe('child:a');
+        expect(placeFor(doc.createElement('li') as HTMLLIElement, 'child')).toBe('child:');
     });
 });
 
@@ -84,18 +76,18 @@ describe('fillNewPageDialog / refreshMoreButtons', () => {
     it('writes and clears the place and the context line; tolerates a dialog without them', () => {
         const doc = setup(SAMPLE);
         const dialog = dialogOf(doc);
-        fillNewPageDialog(dialog, { parent: 'a', position: 2 }, 'Inside “A”');
-        expect(fields(doc)).toEqual(['a', '2']);
+        fillNewPageDialog(dialog, 'child:a', 'Inside “A”');
+        expect(field(doc)).toBe('child:a');
         const line = dialog.querySelector<HTMLElement>('[data-wiki-new-page-context]')!;
         expect([line.textContent, line.hidden]).toEqual(['Inside “A”', false]);
-        fillNewPageDialog(dialog, null, '');
-        expect(fields(doc)).toEqual(['', '']);
+        fillNewPageDialog(dialog, '', '');
+        expect(field(doc)).toBe('');
         expect(line.hidden).toBe(true);
-        expect(() => fillNewPageDialog(doc.createElement('div'), { parent: '', position: 1 }, 'x')).not.toThrow();
+        expect(() => fillNewPageDialog(doc.createElement('div'), 'child:a', 'x')).not.toThrow();
     });
 
     it('shows the «…» button of the rows that have a choice only', () => {
-        const doc = setup([['x', false, [['x1', false]]], ['y', true]]);
+        const doc = setup([['x', 's', [['x1', '']]], ['y', 'c']]);
         doc.body.insertAdjacentHTML('beforeend', '<button data-wiki-new-page-more id="stray" hidden></button>');
         refreshMoreButtons(doc);
         expect(more(doc, 'x').hidden).toBe(false);
@@ -150,7 +142,7 @@ describe('bindNewPageMenu', () => {
         expect(outside.defaultPrevented).toBe(false);
 
         // A row without any choice keeps the browser's menu.
-        const doc2 = setup([['z', false, [['z1', false]]]]);
+        const doc2 = setup([['z', '', [['z1', '']]]]);
         bindNewPageMenu(doc2);
         const plain = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
         link(doc2, 'z1').dispatchEvent(plain);
@@ -244,12 +236,12 @@ describe('bindNewPageMenu', () => {
 
         expect(showModal).toHaveBeenCalledOnce();
         expect(menuOf(doc).hidden).toBe(true);
-        expect(fields(doc)).toEqual(['', '3']);
+        expect(field(doc)).toBe('below:b');
         expect(dialog.querySelector('[data-wiki-new-page-context]')!.textContent).toBe('Below “B”');
         expect(doc.activeElement).toBe(dialog.querySelector('input[name="title"]'));
 
         dialog.dispatchEvent(new Event('close'));
-        expect(fields(doc)).toEqual(['', '']);
+        expect(field(doc)).toBe('');
         expect(doc.activeElement).toBe(link(doc, 'b'));
         // Opened another way (the page actions): closing it leaves the focus alone.
         dialog.dispatchEvent(new Event('close'));
@@ -260,7 +252,7 @@ describe('bindNewPageMenu', () => {
     });
 
     it('falls back to the open attribute without showModal and to an empty context without the line', () => {
-        const doc = setup(SAMPLE, MENU + '<dialog data-wiki-new-page-dialog><input type="hidden" data-wiki-new-page-parent></dialog>');
+        const doc = setup(SAMPLE, MENU + '<dialog data-wiki-new-page-dialog><input type="hidden" data-wiki-new-page-place></dialog>');
         bindNewPageMenu(doc);
         const dialog = dialogOf(doc);
         Object.defineProperty(dialog, 'showModal', { value: undefined, configurable: true });
@@ -269,11 +261,11 @@ describe('bindNewPageMenu', () => {
         choice(doc, 'child').click();
 
         expect(dialog.hasAttribute('open')).toBe(true);
-        expect((doc.querySelector('[data-wiki-new-page-parent]') as HTMLInputElement).value).toBe('c');
+        expect(field(doc)).toBe('child:c');
     });
 
-    it('a row without a label uses its link text, and tree changes refresh the «…» buttons', async () => {
-        const doc = setup([['p', true], ['q', false]]);
+    it('a row without a label uses its text, and a `$` in a title stays text', () => {
+        const doc = setup([['p', 'cs'], ['q', 's']]);
         bindNewPageMenu(doc);
         const dialog = dialogOf(doc);
         Object.defineProperty(dialog, 'showModal', { value: () => undefined, configurable: true });
@@ -283,14 +275,11 @@ describe('bindNewPageMenu', () => {
         // The row's text: the link and its «…» button.
         expect(dialog.querySelector('[data-wiki-new-page-context]')!.textContent).toBe('Above “Plain …”');
 
-        // q moves under p (not editable): it loses its choices; its button hides once the tree changed.
-        const q = li(doc, 'q');
-        expect(more(doc, 'q').hidden).toBe(false);
-        li(doc, 'p').insertAdjacentHTML('beforeend', '<ul role="group"></ul>');
-        li(doc, 'p').removeAttribute('data-wiki-new-child');
-        li(doc, 'p').querySelector('ul')!.append(q);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        expect(more(doc, 'q').hidden).toBe(true);
+        // PT-I2: replacement patterns in a title are not expanded.
+        link(doc, 'q').querySelector('.nowo-ui-tree__label')!.textContent = 'a$`b $& $1';
+        more(doc, 'q').click();
+        choice(doc, 'below').click();
+        expect(dialog.querySelector('[data-wiki-new-page-context]')!.textContent).toBe('Below “a$`b $& $1”');
     });
 
     it('keeps the menu inside the window', () => {

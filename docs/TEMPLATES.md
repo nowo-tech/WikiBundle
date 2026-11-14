@@ -45,8 +45,8 @@ Every page also reads the Twig global `nowo_wiki_web_ui` (1.21: a service, so an
 | `used_in` | `{type, label, href, badge}` | `WikiPageFactory::usedIn()` |
 | `comments` (1.16) | `{id, open, count, shortcut, toggle_href, close_href, comments_url, csrf_token, state_url, state_token, can, page_threads, form}` (null: no toggle, no panel) | `WikiCommentsPanel::panel()` |
 | `comments_view` (1.16) | `{markdown, options}` (the read-only Milkdown mount of commenters) | `WikiManageController::viewPage()` |
-| `new_page_dialog` (1.35) | `{form: FormView (WikiPageFormType, placement), editor_type}` on `page_view` and `space` (null / absent: no dialog, no menu) | `WikiManageController::viewPage()` / `space()` |
-| `tree_ui` (1.35 additions) | nodes with `item_attr['data-wiki-new-child'] = '1'` on pages the user may create pages under; `actions_template` = `@NowoWikiBundle/manage/_tree_new_page_button.html.twig` | `WikiNewPageMenu::annotate()` |
+| `new_page_dialog` (1.35) | `{form: FormView (WikiPageFormType, placement: hidden `place`), editor_type}` on `page_view` and `space` (null / absent: no dialog, no menu) | `WikiManageController::viewPage()` / `space()` |
+| `tree_ui` (1.35 additions) | with the tree menu: every node with `item_attr['data-wiki-new-child'] = '1'` and, but on top-level rows whose page has an (archived) parent, `item_attr['data-wiki-new-sibling'] = '1'`; `actions_template` = `@NowoWikiBundle/manage/_tree_new_page_button.html.twig` | `WikiNewPageMenu::annotate()` |
 
 Only pages the user may **view** (`WikiAction::View` on the page, 1.9 access model) reach the tree, the archived list, the search rows, the AI sources and the AI context; a hidden page also hides its sub-pages in the tree.
 

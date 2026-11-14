@@ -21,8 +21,9 @@ use function is_string;
 
 /**
  * Wiki page editor form (title + Tiptap HTML body, or a Markdown body with `editor_type: markdown` since 1.11).
- * 1.35: with `placement: true` (the new-page form of `web_ui.new_page_dialog`) two unmapped hidden fields, `parent` and
- * `position`, carry the place of the new page (the tree menu's "New page above / below / as child" fill them).
+ * 1.35: with `placement: true` (the new-page form of `web_ui.new_page_dialog`) an unmapped hidden field, `place`,
+ * carries where the new page goes as an intent (`child:<id>`, `above:<id>`, `below:<id>`; the tree menu fills it).
+ * The server computes the position.
  *
  * @extends AbstractType<WikiPageFormData>
  */
@@ -46,9 +47,8 @@ final class WikiPageFormType extends AbstractType
                 'empty_data' => '',
             ]);
             if ($options['placement'] === true) {
-                // 1.35: read by the controller (WikiPagePlacement::fromValues()); not mapped onto the payload.
-                $this->addTypedField('parent', HiddenType::class, ['mapped' => false, 'required' => false, 'attr' => ['data-wiki-new-page-parent' => '1']]);
-                $this->addTypedField('position', HiddenType::class, ['mapped' => false, 'required' => false, 'attr' => ['data-wiki-new-page-position' => '1']]);
+                // 1.35: read by the controller (WikiPagePlacement::fromValue()); not mapped onto the payload.
+                $this->addTypedField('place', HiddenType::class, ['mapped' => false, 'required' => false, 'attr' => ['data-wiki-new-page-place' => '1']]);
             }
             if (Configuration::storesMarkdown($options['editor_type'])) {
                 $this->addMarkdownContent($options);
@@ -115,7 +115,7 @@ final class WikiPageFormType extends AbstractType
             // 1.11: tiptap (HTML) or markdown (textarea, or markdown_form_type); 1.13: milkdown (markdown_form_type).
             'editor_type'        => Configuration::EDITOR_TIPTAP,
             'markdown_form_type' => null,
-            // 1.35: the hidden `parent` / `position` fields of the new-page form (web_ui.new_page_dialog).
+            // 1.35: the hidden `place` field of the new-page form (web_ui.new_page_dialog).
             'placement' => false,
         ]);
         $resolver->setAllowedTypes('placement', 'bool');

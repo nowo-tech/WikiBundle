@@ -230,17 +230,24 @@ nowo_wiki:
   the ContextMenu key / Shift+F10 when the row has the focus. Arrows, Home and End move between the choices; Enter
   chooses; Escape or Tab closes the menu and puts the focus back on the row. A choice opens the dialog with a line that
   says where the page goes ("Below “Runbooks”").
-- **Rights.** Only users who may create pages in the space get the dialog and the menu. "As child" is offered on pages
-  the user may edit; "above" and "below" when the user may edit the parent (or the row is at the top level). The server
-  checks the same rights again on every create: the create right on the space (role gate and `WikiAction::Create`, so
-  private spaces, id mode and tenants as before) and `WikiAction::Edit` on the parent. CSRF is the new-page form's own
-  token (`wiki_new_<space id>`).
-- **Places.** "Above" is the row's 1-based position among its visible siblings, "below" the next one, "as child" the
-  last place among the row's children. The page is created and placed in one transaction that holds the space lock of
-  the tree moves (`WikiPageMover::createAt()`), so concurrent creates never share a position. Siblings the user cannot
-  see keep their place.
-- **Links.** `GET …/pages/new?parent=<page id>&position=<n>` opens the new-page page with the place filled in.
-- **API.** `POST /wikis/{wiki}/pages` takes the same `position` (see [API.md](API.md#creating-a-page)).
+- **Rights.** Only users who may create pages in the space get the dialog. The tree menu also needs the edit rights in
+  the space (role gate `canEdit()` and `WikiAction::Edit` on the space): one check per page, not per row, so the menu
+  may offer a place under a page the user may not edit; the server refuses it (403). On every create the server checks
+  the create right on the space (role gate and `WikiAction::Create`, so private spaces, id mode and tenants as before)
+  and, for a place, the role gate `canEdit()` and `WikiAction::Edit` on the new page's parent (none at the top level).
+  CSRF is the new-page form's own token (`wiki_new_<space id>`).
+- **Places.** The browser sends what was chosen, never an index: `child:<page id>`, `above:<page id>` or
+  `below:<page id>` (hidden field `place`). The server puts the page right above or below that page, under its parent,
+  or last among its children, whatever the browser shows of the tree (a truncated tree, hidden siblings). The page is
+  created and placed in one transaction that holds the space lock of the tree moves (`WikiPageMover::createAt()` /
+  `createNextTo()`), with the `tree.max_depth` check, so placed creates never share a position. A create without a
+  place is as before: a top-level page at position 0, without the lock (such pages sort by title). A top-level row
+  whose page has an archived parent offers "as child" only.
+- **Links.** `GET …/pages/new?place=child:<page id>` (or `above:` / `below:`) opens the new-page page with the place
+  filled in.
+- **Cost.** With the option on, each page view and space home of a user who may create pages builds the new-page form
+  (and fires `nowo_wiki.editor_options`), mints its CSRF token, loads the editor script and is sent `private, no-store`.
+- **API.** `POST /wikis/{wiki}/pages` takes a numeric `position` instead (see [API.md](API.md#creating-a-page)).
 
 ## Member badges and write provenance
 

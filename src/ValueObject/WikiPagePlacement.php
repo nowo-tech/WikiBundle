@@ -5,73 +5,79 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\ValueObject;
 
 use InvalidArgumentException;
-use Nowo\WikiBundle\Service\WikiPageMover;
 
-use function ctype_digit;
+use function explode;
+use function in_array;
 use function is_string;
 use function preg_match;
+use function str_contains;
 use function strlen;
 use function trim;
 
 /**
- * 1.35: where a new page goes (the new-page form of `web_ui.new_page_dialog`): the parent page id (null: the root)
- * and the 1-based position among the parent's children the actor sees (null: no place asked, the page is created as
- * before 1.35). Positions follow the "Move" form: 1 is the first place, a number past the last child is the last place.
- * Framework-free and immutable.
+ * 1.35: where the new-page form asks for a new page (`web_ui.new_page_dialog`), as an intent the server turns into a
+ * place (audit PT-L3: the browser never sends an index): `child:<page id>` (last among that page's children),
+ * `above:<page id>` or `below:<page id>` (right next to that page, under its parent). Framework-free and immutable.
  */
 final readonly class WikiPagePlacement
 {
-    /** Largest position accepted (the mover clamps to the last place anyway). */
-    public const MAX_POSITION = 100000;
+    public const CHILD = 'child';
+
+    public const ABOVE = 'above';
+
+    public const BELOW = 'below';
 
     /**
-     * @param string|null $parentId id of the parent page, or null for the root
-     * @param int|null $position 1-based position, or null to append as before 1.35
+     * @param string $kind {@see self::CHILD}, {@see self::ABOVE} or {@see self::BELOW}
+     * @param string $pageId id of the page the place is relative to
      *
-     * @throws InvalidArgumentException when the parent id is empty or too long, or the position is out of range
+     * @throws InvalidArgumentException when the kind is unknown or the id is not a page id
      */
     public function __construct(
-        public ?string $parentId = null,
-        public ?int $position = null,
+        public string $kind,
+        public string $pageId,
     ) {
-        if ($parentId !== null && ($parentId === '' || strlen($parentId) > 36 || preg_match('/^[A-Za-z0-9-]+$/D', $parentId) !== 1)) {
-            throw new InvalidArgumentException('Invalid parent page id.');
+        if (!in_array($kind, [self::CHILD, self::ABOVE, self::BELOW], true)) {
+            throw new InvalidArgumentException('Invalid page place.');
         }
-        if ($position !== null && ($position < 1 || $position > self::MAX_POSITION)) {
-            throw new InvalidArgumentException('Invalid page position.');
+        if ($pageId === '' || strlen($pageId) > 36 || preg_match('/^[A-Za-z0-9-]+$/D', $pageId) !== 1) {
+            throw new InvalidArgumentException('Invalid page id.');
         }
     }
 
     /**
-     * Reads the raw values of a form or a query (strings, empty = not given).
+     * Reads the raw value of the form field or the query (`kind:id`); null when nothing was asked.
      *
-     * @throws InvalidArgumentException when a value is not a page id / a positive integer
+     * @throws InvalidArgumentException when the value is not such an intent
      */
-    public static function fromValues(mixed $parentId, mixed $position): self
+    public static function fromValue(mixed $value): ?self
     {
-        $parent = is_string($parentId) && trim($parentId) !== '' ? trim($parentId) : null;
-        if ($parentId !== null && !is_string($parentId)) {
-            throw new InvalidArgumentException('Invalid parent page id.');
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return null;
         }
-        if ($position === null || $position === '') {
-            return new self($parent);
+        if (!is_string($value) || !str_contains($value, ':')) {
+            throw new InvalidArgumentException('Invalid page place.');
         }
-        if (!is_string($position) || strlen($position) > 6 || !ctype_digit($position)) {
-            throw new InvalidArgumentException('Invalid page position.');
-        }
+        [$kind, $pageId] = explode(':', trim($value), 2);
 
-        return new self($parent, (int) $position);
+        return new self($kind, $pageId);
     }
 
-    /** Whether a place among the siblings was asked (else the page is created as before 1.35). */
-    public function isPositioned(): bool
+    /** As a child of the page (its last place); else next to it. */
+    public function isChild(): bool
     {
-        return $this->position !== null;
+        return $this->kind === self::CHILD;
     }
 
-    /** The 0-based index of the mover ({@see WikiPageMover::createAt()}). */
-    public function index(): int
+    /** Below the page (else above it); meaningless for a child. */
+    public function isAfter(): bool
     {
-        return ($this->position ?? 1) - 1;
+        return $this->kind === self::BELOW;
+    }
+
+    /** The form / query value. */
+    public function value(): string
+    {
+        return $this->kind . ':' . $this->pageId;
     }
 }

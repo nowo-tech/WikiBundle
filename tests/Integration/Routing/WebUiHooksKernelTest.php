@@ -257,8 +257,8 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringContainsString('<dialog id="nowo-wiki-new-page-dialog"', $html);
         self::assertStringContainsString('data-nowo-ui-dialog-open="nowo-wiki-new-page-dialog"', $html);
         self::assertStringContainsString('action="/tools/wiki/spaces/eng/pages/new"', $html);
-        self::assertStringContainsString('name="wiki_page_form[parent]"', $html);
-        self::assertStringContainsString('name="wiki_page_form[position]"', $html);
+        self::assertStringContainsString('name="wiki_page_form[place]"', $html);
+        self::assertStringNotContainsString('wiki_page_form[position]', $html);
         self::assertStringContainsString('name="wiki_page_form[_token]"', $html);
         self::assertStringContainsString('role="menu"', $html);
         self::assertSame(3, substr_count($html, 'role="menuitem"'));
@@ -267,6 +267,7 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringContainsString('data-wiki-new-page-more', $html);
         self::assertStringContainsString('aria-label="Add a page next to “Home”"', $html);
         self::assertStringContainsString('data-wiki-new-child="1"', $html);
+        self::assertStringContainsString('data-wiki-new-sibling="1"', $html);
         self::assertStringContainsString('data-above="Above “%title%”"', $html);
 
         // One request per kernel, as the other tests (the token does not survive a request here).
@@ -278,16 +279,18 @@ final class WebUiHooksKernelTest extends TestCase
 
         $this->kernel?->shutdown();
         $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
-        $response = $this->request(Request::create('/tools/wiki/spaces/eng/pages/new', 'POST', ['wiki_page_form' => [
-            '_token'   => 'ok-wiki_new_' . $this->space->getId(),
-            'title'    => 'Before home',
-            'content'  => 'Body',
-            'parent'   => '',
-            'position' => '1',
-        ]]));
-        self::assertSame(Response::HTTP_FOUND, $response->getStatusCode(), (string) $response->getContent());
         $entityManager = $this->services()->get(EntityManagerInterface::class);
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
+        $home = $entityManager->getRepository(WikiPage::class)->findOneBy(['slug' => 'home']);
+        self::assertInstanceOf(WikiPage::class, $home);
+        $response = $this->request(Request::create('/tools/wiki/spaces/eng/pages/new', 'POST', ['wiki_page_form' => [
+            '_token'  => 'ok-wiki_new_' . $this->space->getId(),
+            'title'   => 'Before home',
+            'content' => 'Body',
+            'place'   => 'above:' . $home->getId(),
+        ]]));
+        self::assertSame(Response::HTTP_FOUND, $response->getStatusCode(), (string) $response->getContent());
+        $entityManager->clear();
         $placed = $entityManager->getRepository(WikiPage::class)->findOneBy(['slug' => 'before-home']);
         $home   = $entityManager->getRepository(WikiPage::class)->findOneBy(['slug' => 'home']);
         self::assertInstanceOf(WikiPage::class, $placed);

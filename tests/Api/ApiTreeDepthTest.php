@@ -30,4 +30,15 @@ final class ApiTreeDepthTest extends ApiTestCase
         $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'D', 'parent' => $b->getId(), 'position' => 1]), 422, 'WIKI_MOVE_002');
         self::assertNull($this->em()->getRepository(WikiPage::class)->findOneBy(['slug' => 'd']));
     }
+
+    public function testACreateWithAParentAndNoPositionIsCheckedToo(): void
+    {
+        // PT-M1: a parent alone goes through the tree's lock and depth check as well.
+        $a = $this->page($this->eng, 'A', 'x');
+        $b = $this->page($this->eng, 'B', 'x', $a);
+
+        $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'D', 'parent' => $b->getId()]), 422, 'WIKI_MOVE_002');
+        self::assertNull($this->em()->getRepository(WikiPage::class)->findOneBy(['slug' => 'd']));
+        self::assertSame(201, $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'C', 'parent' => $a->getId()])->getStatusCode());
+    }
 }

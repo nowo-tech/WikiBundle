@@ -95,11 +95,22 @@ Target 1.35.0. No schema change; every default keeps the 1.34 pages.
   `new_page_dialog`, `with_menu`); hosts that override `_sidebar.html.twig` pass `actions_template:
   tree_ui.actions_template|default(null)` to the UiKit `tree` partial. With `web_ui.assets.scripts: false`, bundle
   `wiki-new-page.ts` (imported by `wiki.ts`) and, for the Tiptap editor, the TiptapEditorBundle script on the page view
-  and the space home. Hosts that render the new-page form field by field render the hidden `parent` and `position`
-  (`form_rest()` / `form_end()` do).
-- **API**: `POST /wikis/{wiki}/pages` accepts an optional `position` (integer, 1-based, 1–100000). Clients that send
-  nothing new see no change. `position` needs `tree.enabled`. `POST …/move` keeps its 0-based `index`.
-- **PHP**: `WikiPageMover::createAt()` is new; `WikiPageFormType` has a new `placement` option (default `false`).
+  and the space home. Hosts that render the new-page form field by field render the hidden `place` (`form_rest()` /
+  `form_end()` do).
+- **Cost with the option on** (audit PT-L4): each page view and space home of a user who may create pages builds the
+  new-page form (one `nowo_wiki.editor_options` event with `page` null, so host listeners run on read pages), mints its
+  CSRF token, loads the editor script, and answers `Cache-Control: private, no-store` (those users' page views are no
+  longer cached by the browser). The tree menu costs one Edit check on the space per page, not one per row.
+- **API, behaviour changes**:
+  - A create with `parent` (with `tree.enabled`) now checks `tree.max_depth` (422 `WIKI_MOVE_002`) and places the page
+    last among the parent's children, instead of at position 0 (audit PT-M1).
+  - `position` is now read: a client that sent a `position` before 1.35 got an `unknown` warning and the page created at
+    0. Now it places the page; it must be an integer from 1 to 100000 (else 400 `INPUT_002`, e.g. `"2"`), and without
+    `tree.enabled` it is 400 `INPUT_002`.
+  - When a create or a move placed the page, the answer's `position` is the 1-based visible place, not the sort key.
+  - `POST …/move` keeps its 0-based `index`.
+- **PHP**: `WikiPageMover::createAt()` / `createNextTo()` (returning `WikiPageCreateResult`) are new;
+  `WikiPageFormType` has a new `placement` option (default `false`).
 
 ## To 1.34.0
 

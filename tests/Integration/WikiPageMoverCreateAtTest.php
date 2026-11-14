@@ -72,7 +72,7 @@ final class WikiPageMoverCreateAtTest extends TestCase
         $this->page('c', null, 3072);
         $parent = $under === 'b' ? $b : null;
 
-        $page = $this->mover()->createAt($this->space, $parent, $index, fn (): WikiPage => $this->page('new', $parent));
+        $page = $this->mover()->createAt($this->space, $parent, $index, fn (): WikiPage => $this->page('new', $parent))->page;
 
         self::assertSame($parent, $page->getParent());
         self::assertSame($expected, $this->order($parent));
@@ -89,8 +89,10 @@ final class WikiPageMoverCreateAtTest extends TestCase
         $seen   = [$ops->getId() => true, $run->getId() => true];
 
         // Position 2 of the visible children (after "run") = right after it, before the hidden page.
-        $this->mover()->createAt($this->space, $ops, 1, fn (): WikiPage => $this->page('new', $ops), new WikiPageMoveScope($seen, null));
+        $result = $this->mover()->createAt($this->space, $ops, 1, fn (): WikiPage => $this->page('new', $ops), new WikiPageMoveScope($seen, null));
         self::assertSame(['run', 'new', 'hidden'], $this->order($ops));
+        // PT-L1: the answer counts what the actor sees only (index 1 of 2), never the hidden sibling.
+        self::assertSame([1, 2], [$result->index, $result->count]);
         self::assertSame(2048, $hidden->getPosition());
 
         // Only hidden children: the end.
@@ -100,11 +102,89 @@ final class WikiPageMoverCreateAtTest extends TestCase
         self::assertSame(['h2', 'new2'], $this->order($only));
     }
 
+    public function testNextToASiblingPlacesRelativeToItWhateverTheHiddenSiblings(): void
+    {
+        $ops    = $this->page('ops');
+        $a      = $this->page('a', $ops, 1024);
+        $hidden = $this->page('h', $ops, 2048);
+        $b      = $this->page('b', $ops, 3072);
+        $seen   = [$ops->getId() => true, $a->getId() => true, $b->getId() => true];
+
+        $above = $this->mover()->createNextTo($this->space, $b, false, fn (): WikiPage => $this->page('above-b', $ops), new WikiPageMoveScope($seen, null));
+        self::assertSame(['a', 'h', 'above-b', 'b'], $this->order($ops));
+        self::assertSame($ops, $above->page->getParent());
+        // Visible: a, above-b, b → index 1 of 3.
+        self::assertSame([1, 3], [$above->index, $above->count]);
+
+        $below = $this->mover()->createNextTo($this->space, $a, true, fn (): WikiPage => $this->page('below-a', $ops));
+        self::assertSame(['a', 'below-a', 'h', 'above-b', 'b'], $this->order($ops));
+        self::assertSame([1, 5], [$below->index, $below->count]);
+        self::assertSame(2048, $hidden->getPosition());
+
+        // At the top level.
+        $root = $this->mover()->createNextTo($this->space, $ops, false, fn (): WikiPage => $this->page('first'));
+        self::assertSame(['first', 'ops'], $this->order(null));
+        self::assertNull($root->page->getParent());
+        self::assertSame([], $this->events);
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function staleSiblings(): iterable
+    {
+        yield 'sibling archived' => ['archived', 'page_missing'];
+        yield 'sibling moved under another parent' => ['moved', 'stale'];
+        yield 'sibling of another space' => ['foreign', 'page_missing'];
+    }
+
+    #[DataProvider('staleSiblings')]
+    public function testNextToASiblingThatChangedMeanwhileWritesNothing(string $case, string $reason): void
+    {
+        $ops     = $this->page('ops');
+        $sibling = $this->page('s', $ops, 1024);
+        $other   = $this->page('other');
+        $created = false;
+        if ($case === 'foreign') {
+            $sibling = $this->foreignPage();
+        } else {
+            // What the caller checked (parent: ops) changes before the lock.
+            $this->em->getConnection()->executeStatement(
+                $case === 'archived' ? 'UPDATE wiki_pages SET archived_at = ? WHERE id = ?' : 'UPDATE wiki_pages SET parent_id = ? WHERE id = ?',
+                [$case === 'archived' ? '2026-11-14 10:00:00' : $other->getId(), $sibling->getId()],
+            );
+        }
+
+        try {
+            $this->mover()->createNextTo($this->space, $sibling, true, function () use (&$created): WikiPage {
+                $created = true;
+
+                return $this->page('new');
+            });
+            self::fail('The create was not refused.');
+        } catch (WikiPageMoveException $e) {
+            self::assertSame($reason, $e->reason);
+        }
+        self::assertFalse($created);
+        self::assertFalse($this->em->getConnection()->isTransactionActive());
+    }
+
+    public function testNextToASiblingTooDeepIsRefused(): void
+    {
+        $top  = $this->page('top');
+        $mid  = $this->page('mid', $top);
+        $leaf = $this->page('leaf', $mid);
+
+        $this->expectException(WikiPageMoveException::class);
+        $this->expectExceptionMessage('too_deep');
+        $this->mover(2)->createNextTo($this->space, $leaf, true, fn (): WikiPage => $this->page('new', $mid));
+    }
+
     public function testSiblingsCreatedBefore114AreRenumberedOnce(): void
     {
         [$a, $b] = [$this->page('a'), $this->page('b')];
 
-        $page = $this->mover()->createAt($this->space, null, 1, fn (): WikiPage => $this->page('new'));
+        $page = $this->mover()->createAt($this->space, null, 1, fn (): WikiPage => $this->page('new'))->page;
 
         self::assertSame(['a', 'new', 'b'], $this->order(null));
         self::assertSame([1024, 2048, 3072], array_map(static fn (WikiPage $p): int => $p->getPosition(), [$a, $page, $b]));
@@ -117,8 +197,8 @@ final class WikiPageMoverCreateAtTest extends TestCase
 
         // Two inserts asked for the same place (after a): the first finds no gap and renumbers the siblings; the second
         // reads the first one's row after the lock and takes the midpoint, so the positions stay distinct and ordered.
-        $first  = $this->mover()->createAt($this->space, null, 1, fn (): WikiPage => $this->page('x'));
-        $second = $this->mover()->createAt($this->space, null, 1, fn (): WikiPage => $this->page('y'));
+        $first  = $this->mover()->createAt($this->space, null, 1, fn (): WikiPage => $this->page('x'))->page;
+        $second = $this->mover()->createAt($this->space, null, 1, fn (): WikiPage => $this->page('y'))->page;
 
         self::assertSame(['a', 'y', 'x', 'b'], $this->order(null));
         $positions = array_map(static fn (WikiPage $p): int => $p->getPosition(), $this->repository->findActiveBySpace($this->space));
@@ -218,7 +298,7 @@ final class WikiPageMoverCreateAtTest extends TestCase
         $top = $this->page('top');
         $mid = $this->page('mid', $top);
 
-        $page = $this->mover(3)->createAt($this->space, $mid, 0, fn (): WikiPage => $this->page('leaf', $mid));
+        $page = $this->mover(3)->createAt($this->space, $mid, 0, fn (): WikiPage => $this->page('leaf', $mid))->page;
 
         self::assertSame($mid, $page->getParent());
     }

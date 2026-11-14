@@ -85,13 +85,14 @@
     {% endif %}
 {% endblock %}
 
-{% block nowo_ui_modals %}
-    {{ parent() }}
-    {#- 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree's menu -#}
-    {% if new_page_dialog|default(null) %}
+{#- 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree's menu; without them the block prints exactly
+    the layout's (whitespace control, audit PT-I1). -#}
+{% block nowo_ui_modals -%}
+    {{- parent() -}}
+    {%- if new_page_dialog|default(null) -%}
         {{ include('@NowoWikiBundle/manage/_new_page_dialog.html.twig', {new_page_dialog: new_page_dialog, with_menu: tree_ui.actions_template is defined, bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
-    {% endif %}
-{% endblock %}
+    {%- endif -%}
+{%- endblock %}
 
 {#- 1.30: host buttons of the page header toolbar (web_ui.slots.page_header_toolbar, else empty). A template that extends
     this one fills it; it is printed where the toolbar is (header, tab row or content card), with the page variables. -#}

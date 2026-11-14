@@ -57,6 +57,7 @@ use Symfony\Component\Translation\TranslatableMessage;
 use function array_filter;
 use function array_map;
 use function array_values;
+use function str_repeat;
 
 /**
  * 1.35 (`web_ui.new_page_dialog`): "New page" as a dialog from the page actions, the tree menu's rights, and the
@@ -123,14 +124,13 @@ final class WikiManageControllerNewPageTest extends TestCase
         self::assertFalse($controller->space('eng')->headers->hasCacheControlDirective('no-store'));
         self::assertArrayNotHasKey('new_page_dialog', $this->twig->context);
 
-        $controller->newPage(Request::create('/new?parent=' . $this->ops->getId() . '&position=1'), 'eng');
+        $controller->newPage(Request::create('/new?place=child:' . $this->ops->getId()), 'eng');
         $form = $this->twig->context['page']->form;
         self::assertInstanceOf(FormView::class, $form);
-        self::assertFalse(isset($form['parent']));
-        self::assertFalse(isset($form['position']));
+        self::assertFalse(isset($form['place']));
 
-        // Placement fields sent anyway are extra fields: the form is invalid, nothing is created.
-        $response = $controller->newPage($this->submit(['title' => 'Sneaky', 'parent' => $this->ops->getId(), 'position' => '1']), 'eng');
+        // A place sent anyway is an extra field: the form is invalid, nothing is created.
+        $response = $controller->newPage($this->submit(['title' => 'Sneaky', 'place' => 'child:' . $this->ops->getId()]), 'eng');
         self::assertSame(422, $response->getStatusCode());
         self::assertNull($this->find('sneaky'));
 
@@ -140,9 +140,18 @@ final class WikiManageControllerNewPageTest extends TestCase
         self::assertSame(0, $this->find('plain')?->getPosition());
     }
 
-    public function testThePageViewOffersTheDialogAndTheTreeMarksTheRowsTheUserMayCreateUnder(): void
+    public function testThePageViewOffersTheDialogAndTheTreeMarksItsRowsWithOneCheck(): void
     {
-        $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $action !== WikiAction::Edit || $page !== $this->locked);
+        // PT-L4: Edit on the space decides the menu once; a page the user may not edit is still marked (the server
+        // answers 403 for it).
+        $checks     = 0;
+        $controller = $this->controller(decide: function (WikiAction $action, WikiSpace $space, ?WikiPage $page) use (&$checks): bool {
+            if ($action === WikiAction::Edit && $page instanceof WikiPage) {
+                ++$checks;
+            }
+
+            return $action !== WikiAction::Edit || $page !== $this->locked;
+        });
 
         $response = $controller->viewPage('eng', 'run');
         // The dialog carries the user's form token: never cached.
@@ -152,21 +161,57 @@ final class WikiManageControllerNewPageTest extends TestCase
         self::assertSame('tiptap', $dialog['editor_type']);
         self::assertInstanceOf(FormView::class, $dialog['form']);
         self::assertSame('/generated/nowo_wiki_page_new', $dialog['form']->vars['action']);
-        self::assertTrue(isset($dialog['form']['parent'], $dialog['form']['position'], $dialog['form']['_token']));
+        self::assertTrue(isset($dialog['form']['place'], $dialog['form']['_token']));
+        self::assertFalse(isset($dialog['form']['parent']));
         $action = $this->action('wiki-new-page');
         self::assertSame(WikiNewPageMenu::DIALOG_ID, $action->dialogId);
         self::assertNull($action->href);
 
         $tree = $this->twig->context['tree_ui'];
         self::assertSame(WikiNewPageMenu::ACTIONS_TEMPLATE, $tree['actions_template']);
-        $marked = $this->marked($tree['nodes']);
-        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide'], $marked);
+        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($tree['nodes'], 'data-wiki-new-child'));
+        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($tree['nodes'], 'data-wiki-new-sibling'));
+        $before = $checks;
 
         // The space home: the same menu on its tree; its "New page" stays the link to the new-page form.
         self::assertTrue($controller->space('eng')->headers->hasCacheControlDirective('no-store'));
         self::assertArrayHasKey('new_page_dialog', $this->twig->context);
-        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide'], $this->marked($this->twig->context['tree_ui']['nodes']));
+        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($this->twig->context['tree_ui']['nodes'], 'data-wiki-new-child'));
         self::assertSame('/generated/nowo_wiki_page_new', $this->action('wiki-new-page')->href);
+        // No page-level Edit check for the marks (the page view's own Move check aside).
+        self::assertLessThanOrEqual(2, $before);
+        self::assertSame($before, $checks);
+    }
+
+    public function testARowWhoseParentIsArchivedGetsNoAboveNorBelow(): void
+    {
+        // Runbooks' parent (Operations) is archived: Runbooks shows as a top-level row, but it is not one (a hidden
+        // parent hides its whole branch instead).
+        $this->ops->archive();
+        $this->em->flush();
+        $this->controller()->space('eng');
+
+        $nodes = $this->twig->context['tree_ui']['nodes'];
+        self::assertSame(['Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($nodes, 'data-wiki-new-child'));
+        self::assertSame(['Deep', 'Guide', 'Locked'], $this->marked($nodes, 'data-wiki-new-sibling'));
+
+        // The server agrees: no place next to it; under it is fine.
+        $controller = $this->controller();
+        $response   = $controller->newPage($this->submit(['title' => 'Next', 'place' => 'below:' . $this->run->getId()]), 'eng');
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('wiki.tree.error.parent_missing', $this->flashes('error')[0]->getMessage());
+        self::assertInstanceOf(RedirectResponse::class, $controller->newPage($this->submit(['title' => 'Under', 'place' => 'child:' . $this->run->getId()]), 'eng'));
+    }
+
+    public function testWithoutTheEditRightsTheDialogStaysAndTheMenuGoes(): void
+    {
+        // PT-L2 / PT-L4: no Edit on the space, or no role gate canEdit(): no menu.
+        foreach ([$this->controller(decide: static fn (WikiAction $action): bool => $action !== WikiAction::Edit), $this->controller(canEdit: false)] as $controller) {
+            $controller->viewPage('eng', 'run');
+            self::assertArrayHasKey('new_page_dialog', $this->twig->context);
+            self::assertArrayNotHasKey('actions_template', $this->twig->context['tree_ui']);
+            self::assertSame([], $this->marked($this->twig->context['tree_ui']['nodes'], 'data-wiki-new-child'));
+        }
     }
 
     public function testWithoutTheCreateRightThereIsNoDialogNorMenu(): void
@@ -177,7 +222,7 @@ final class WikiManageControllerNewPageTest extends TestCase
         self::assertArrayNotHasKey('new_page_dialog', $this->twig->context);
         self::assertNotContains('wiki-new-page', $this->actionIds());
         self::assertArrayNotHasKey('actions_template', $this->twig->context['tree_ui']);
-        self::assertSame([], $this->marked($this->twig->context['tree_ui']['nodes']));
+        self::assertSame([], $this->marked($this->twig->context['tree_ui']['nodes'], 'data-wiki-new-child'));
 
         // The role gate (canCreate) too.
         $this->controller(canCreate: false)->viewPage('eng', 'run');
@@ -194,48 +239,64 @@ final class WikiManageControllerNewPageTest extends TestCase
 
     public function testTheNewPageFormIsPrefilledFromTheQuery(): void
     {
-        $this->controller()->newPage(Request::create('/new?parent=' . $this->ops->getId() . '&position=2'), 'eng');
+        $this->controller()->newPage(Request::create('/new?place=below:' . $this->run->getId()), 'eng');
 
         $form = $this->twig->context['page']->form;
-        self::assertSame($this->ops->getId(), $form['parent']->vars['value']);
-        self::assertSame('2', $form['position']->vars['value']);
+        self::assertSame('below:' . $this->run->getId(), $form['place']->vars['value']);
     }
 
-    public function testAboveBelowFirstLastAndChild(): void
+    public function testTheServerComputesThePlaceFromTheIntent(): void
     {
         $controller = $this->controller();
 
-        // Above "Guide" (position 2 at the top level: Operations, Guide, Locked).
-        $response = $controller->newPage($this->submit(['title' => 'Above guide', 'parent' => '', 'position' => '2']), 'eng');
+        // PT-L3: the browser sends what was asked; the server finds the place.
+        $response = $controller->newPage($this->submit(['title' => 'Above guide', 'place' => 'above:' . $this->guide->getId()]), 'eng');
         self::assertInstanceOf(RedirectResponse::class, $response);
         self::assertSame(['Operations', 'Above guide', 'Guide', 'Locked'], $this->order(null));
-        // Below "Locked" = last.
-        $controller->newPage($this->submit(['title' => 'Last', 'position' => '5']), 'eng');
-        // First.
-        $controller->newPage($this->submit(['title' => 'First', 'position' => '1']), 'eng');
+        $controller->newPage($this->submit(['title' => 'Last', 'place' => 'below:' . $this->locked->getId()]), 'eng');
+        $controller->newPage($this->submit(['title' => 'First', 'place' => 'above:' . $this->ops->getId()]), 'eng');
         self::assertSame(['First', 'Operations', 'Above guide', 'Guide', 'Locked', 'Last'], $this->order(null));
-        // As child of Operations: last among its children.
-        $controller->newPage($this->submit(['title' => 'Child', 'parent' => $this->ops->getId(), 'position' => '2']), 'eng');
-        self::assertSame(['Runbooks', 'Child'], $this->order($this->ops));
-        // A parent without a position: created under it as before 1.35 (position 0, first by the sort).
-        $controller->newPage($this->submit(['title' => 'Unplaced', 'parent' => $this->ops->getId()]), 'eng');
-        self::assertSame($this->ops, $this->find('unplaced')?->getParent());
-        self::assertSame(0, $this->find('unplaced')?->getPosition());
+        // As child: the last place among the children, whatever the browser shows of them.
+        $controller->newPage($this->submit(['title' => 'Child', 'place' => 'child:' . $this->ops->getId()]), 'eng');
+        $controller->newPage($this->submit(['title' => 'Child 2', 'place' => 'child:' . $this->ops->getId()]), 'eng');
+        self::assertSame(['Runbooks', 'Child', 'Child 2'], $this->order($this->ops));
+        // Next to a nested page: under its parent.
+        $controller->newPage($this->submit(['title' => 'Above run', 'place' => 'above:' . $this->run->getId()]), 'eng');
+        self::assertSame(['Above run', 'Runbooks', 'Child', 'Child 2'], $this->order($this->ops));
     }
 
     public function testAParentTheUserMayNotEditIsForbidden(): void
     {
-        $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $action !== WikiAction::Edit || $page !== $this->locked);
+        $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $action !== WikiAction::Edit || $page !== $this->ops);
 
-        try {
-            $controller->newPage($this->submit(['title' => 'Under locked', 'parent' => $this->locked->getId(), 'position' => '1']), 'eng');
-            self::fail('The parent was not refused.');
-        } catch (AccessDeniedHttpException) {
-            self::assertNull($this->find('under-locked'));
+        foreach (['child:' . $this->ops->getId(), 'below:' . $this->run->getId()] as $place) {
+            try {
+                $controller->newPage($this->submit(['title' => 'Under ops', 'place' => $place]), 'eng');
+                self::fail('The parent was not refused.');
+            } catch (AccessDeniedHttpException) {
+                self::assertNull($this->find('under-ops'));
+            }
         }
+        // At the top level the create right is enough.
+        self::assertInstanceOf(RedirectResponse::class, $controller->newPage($this->submit(['title' => 'Top', 'place' => 'below:' . $this->ops->getId()]), 'eng'));
     }
 
-    public function testAHiddenArchivedOrForeignParentIsGone(): void
+    public function testAPlaceNeedsTheRoleGateCanEdit(): void
+    {
+        // PT-L2: as a tree move.
+        $controller = $this->controller(canEdit: false);
+
+        try {
+            $controller->newPage($this->submit(['title' => 'Placed', 'place' => 'below:' . $this->guide->getId()]), 'eng');
+            self::fail('The place was not refused.');
+        } catch (AccessDeniedHttpException) {
+            self::assertNull($this->find('placed'));
+        }
+        // Without a place: the create right is enough, as before.
+        self::assertInstanceOf(RedirectResponse::class, $controller->newPage($this->submit(['title' => 'Unplaced']), 'eng'));
+    }
+
+    public function testAHiddenArchivedOrForeignPageIsGone(): void
     {
         $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $action !== WikiAction::View || $page !== $this->locked);
         $other      = new WikiSpace('ops', 'Ops', WikiSpaceOwnerScope::Team, 't');
@@ -245,19 +306,33 @@ final class WikiManageControllerNewPageTest extends TestCase
         $this->guide->archive();
         $this->em->flush();
 
-        foreach ([$this->locked->getId(), $this->guide->getId(), $foreign->getId(), '00000000-0000-4000-8000-000000000000'] as $parent) {
-            $response = $controller->newPage($this->submit(['title' => 'Orphan', 'parent' => $parent, 'position' => '1']), 'eng');
-            self::assertSame(422, $response->getStatusCode());
-            self::assertSame('wiki.tree.error.parent_missing', $this->flashes('error')[0]->getMessage());
+        foreach ([$this->locked->getId(), $this->guide->getId(), $foreign->getId(), '00000000-0000-4000-8000-000000000000'] as $id) {
+            foreach (['child', 'above', 'below'] as $kind) {
+                $response = $controller->newPage($this->submit(['title' => 'Orphan', 'place' => $kind . ':' . $id]), 'eng');
+                self::assertSame(422, $response->getStatusCode());
+                self::assertSame('wiki.tree.error.parent_missing', $this->flashes('error')[0]->getMessage());
+            }
         }
         self::assertNull($this->find('orphan'));
+    }
+
+    public function testNextToAPageWhoseParentIsHiddenIsRefused(): void
+    {
+        // Operations hidden: Runbooks is readable but its parent is not, so there is no place next to it.
+        $controller = $this->controller(decide: fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $page !== $this->ops);
+
+        $response = $controller->newPage($this->submit(['title' => 'Next', 'place' => 'below:' . $this->run->getId()]), 'eng');
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('wiki.tree.error.parent_missing', $this->flashes('error')[0]->getMessage());
+        self::assertNull($this->find('next'));
     }
 
     public function testAPrivateSpaceOrNoCreateRightRefusesBeforeAnything(): void
     {
         $controller = $this->controller(decide: static fn (WikiAction $action): bool => $action !== WikiAction::Create);
         try {
-            $controller->newPage($this->submit(['title' => 'Nope', 'position' => '1']), 'eng');
+            $controller->newPage($this->submit(['title' => 'Nope', 'place' => 'child:' . $this->ops->getId()]), 'eng');
             self::fail('The create was not refused.');
         } catch (AccessDeniedHttpException) {
         }
@@ -270,37 +345,40 @@ final class WikiManageControllerNewPageTest extends TestCase
     public function testAnInvalidPlaceOrAMissingTreeIsAFormError(): void
     {
         $controller = $this->controller();
-        foreach (['abc', '0', '-2', '100001'] as $position) {
-            $response = $controller->newPage($this->submit(['title' => 'Bad', 'position' => $position]), 'eng');
-            self::assertSame(422, $response->getStatusCode());
+        foreach (['abc', 'child:', 'side:' . $this->ops->getId(), "child:x'1", '2', 'child:' . str_repeat('a', 37)] as $place) {
+            $response = $controller->newPage($this->submit(['title' => 'Bad', 'place' => $place]), 'eng');
+            self::assertSame(422, $response->getStatusCode(), $place);
             self::assertSame('wiki.new_page.error.placement', $this->flashes('error')[0]->getMessage());
         }
-        $response = $controller->newPage($this->submit(['title' => 'Bad', 'parent' => "x'1"]), 'eng');
-        self::assertSame(422, $response->getStatusCode());
 
-        // Without tree.enabled there is no ordering to place it in.
+        // Without tree.enabled there is no ordering (nor depth limit) to place it in.
         $controller = $this->controller(tree: false);
-        $response   = $controller->newPage($this->submit(['title' => 'Bad', 'position' => '1']), 'eng');
+        $response   = $controller->newPage($this->submit(['title' => 'Bad', 'place' => 'child:' . $this->guide->getId()]), 'eng');
         self::assertSame(422, $response->getStatusCode());
         self::assertSame('wiki.new_page.error.placement', $this->flashes('error')[0]->getMessage());
         self::assertNull($this->find('bad'));
-        // A parent alone still works.
-        self::assertInstanceOf(RedirectResponse::class, $controller->newPage($this->submit(['title' => 'Kid', 'parent' => $this->guide->getId()]), 'eng'));
-        self::assertSame($this->guide, $this->find('kid')?->getParent());
     }
 
     public function testTooDeepIsAFormErrorAndWritesNothing(): void
     {
-        $response = $this->controller(maxDepth: 3)->newPage($this->submit(['title' => 'Deeper', 'parent' => $this->deep->getId(), 'position' => '1']), 'eng');
-
-        self::assertSame(422, $response->getStatusCode());
-        self::assertSame('wiki.tree.error.too_deep', $this->flashes('error')[0]->getMessage());
-        self::assertNull($this->find('deeper'));
+        // PT-M1: a child always goes through the mover, so the depth limit always applies.
+        $controller = $this->controller(maxDepth: 3);
+        foreach (['child:' . $this->deep->getId(), 'below:' . $this->deep->getId()] as $i => $place) {
+            $response = $controller->newPage($this->submit(['title' => 'Deeper', 'place' => $place]), 'eng');
+            if ($i === 0) {
+                self::assertSame(422, $response->getStatusCode());
+                self::assertSame('wiki.tree.error.too_deep', $this->flashes('error')[0]->getMessage());
+                self::assertNull($this->find('deeper'));
+            } else {
+                // Next to Deep (level 3) is level 3: allowed.
+                self::assertInstanceOf(RedirectResponse::class, $response);
+            }
+        }
     }
 
     public function testADuplicateSlugInsideThePlacedCreateRollsBack(): void
     {
-        $response = $this->controller()->newPage($this->submit(['title' => 'Guide', 'position' => '1']), 'eng');
+        $response = $this->controller()->newPage($this->submit(['title' => 'Guide', 'place' => 'above:' . $this->ops->getId()]), 'eng');
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame('wiki.page.error.slug_exists', $this->flashes('error')[0]->getMessage());
@@ -312,7 +390,7 @@ final class WikiManageControllerNewPageTest extends TestCase
     {
         $controller = $this->controller();
 
-        $response = $controller->newPage($this->submit(['title' => 'Forged', 'position' => '1'], 'wiki_new_other'), 'eng');
+        $response = $controller->newPage($this->submit(['title' => 'Forged', 'place' => 'child:' . $this->ops->getId()], 'wiki_new_other'), 'eng');
 
         self::assertSame(422, $response->getStatusCode());
         self::assertNull($this->find('forged'));
@@ -321,18 +399,18 @@ final class WikiManageControllerNewPageTest extends TestCase
     /**
      * @param list<array<string, mixed>> $nodes
      *
-     * @return list<string> labels of the nodes marked `data-wiki-new-child`, depth first
+     * @return list<string> labels of the nodes with the attribute, depth first
      */
-    private function marked(array $nodes): array
+    private function marked(array $nodes, string $attribute): array
     {
         $out = [];
         foreach ($nodes as $node) {
-            if (($node['item_attr']['data-wiki-new-child'] ?? null) === '1') {
+            if (($node['item_attr'][$attribute] ?? null) === '1') {
                 $out[] = $node['label'];
             }
             /** @var list<array<string, mixed>> $children */
             $children = $node['children'] ?? [];
-            $out      = [...$out, ...$this->marked($children)];
+            $out      = [...$out, ...$this->marked($children, $attribute)];
         }
 
         return $out;
@@ -418,15 +496,16 @@ final class WikiManageControllerNewPageTest extends TestCase
      * @param (Closure(WikiAction, WikiSpace, ?WikiPage): bool)|null $decide
      * @param list<WikiSpace>|null $spaces
      */
-    private function controller(bool $dialog = true, bool $tree = true, ?Closure $decide = null, int $maxDepth = 10, bool $canCreate = true, ?array $spaces = null): WikiManageController
+    private function controller(bool $dialog = true, bool $tree = true, ?Closure $decide = null, int $maxDepth = 10, bool $canCreate = true, ?array $spaces = null, bool $canEdit = true): WikiManageController
     {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
         $revisions  = new DoctrineOrmWikiPageRevisionRepository($this->em);
         $roles      = $this->createStub(WikiAccessCheckerInterface::class);
-        foreach (['canAccess', 'canList', 'canEdit', 'canViewHistory', 'canArchive', 'canAskAi', 'canImport', 'canExport'] as $method) {
+        foreach (['canAccess', 'canList', 'canViewHistory', 'canArchive', 'canAskAi', 'canImport', 'canExport'] as $method) {
             $roles->method($method)->willReturn(true);
         }
         $roles->method('canCreate')->willReturn($canCreate);
+        $roles->method('canEdit')->willReturn($canEdit);
         $resolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
         $resolver->method('listSpacesForUser')->willReturn($spaces ?? [$this->space]);
         $decide ??= static fn (): bool => true;

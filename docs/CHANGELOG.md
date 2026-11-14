@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [[Unreleased]](#unreleased)
   - [Added](#added)
+  - [Changed](#changed)
 - [[1.34.0] - 2026-11-14](#1340---2026-11-14)
   - [Added](#added-1)
 - [[1.33.0] - 2026-11-14](#1330---2026-11-14)
@@ -28,34 +29,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-1)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
   - [Added](#added-6)
-  - [Changed](#changed)
+  - [Changed](#changed-1)
 - [[1.28.0] - 2026-11-10](#1280---2026-11-10)
   - [Added](#added-7)
-  - [Changed](#changed-1)
+  - [Changed](#changed-2)
 - [[1.27.0] - 2026-11-09](#1270---2026-11-09)
   - [Added](#added-8)
 - [[1.26.0] - 2026-11-09](#1260---2026-11-09)
   - [Fixed](#fixed-3)
-  - [Changed](#changed-2)
+  - [Changed](#changed-3)
   - [Documentation](#documentation)
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
   - [Fixed](#fixed-4)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
   - [Added](#added-9)
-  - [Changed](#changed-3)
+  - [Changed](#changed-4)
 - [[1.24.1] - 2026-11-08](#1241---2026-11-08)
   - [Security](#security-2)
   - [Added](#added-10)
   - [Known limitation](#known-limitation)
-  - [Changed](#changed-4)
+  - [Changed](#changed-5)
 - [[1.24.0] - 2026-11-08](#1240---2026-11-08)
   - [Added](#added-11)
-  - [Changed](#changed-5)
+  - [Changed](#changed-6)
   - [Security](#security-3)
   - [Tests](#tests-1)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
   - [Fixed](#fixed-5)
-  - [Changed](#changed-6)
+  - [Changed](#changed-7)
   - [Added](#added-12)
 - [[1.22.0] - 2026-11-07](#1220---2026-11-07)
   - [Fixed](#fixed-6)
@@ -72,10 +73,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.19.1] - 2026-11-06](#1191---2026-11-06)
   - [Fixed](#fixed-9)
 - [[1.19.0] - 2026-11-06](#1190---2026-11-06)
-  - [Changed](#changed-7)
+  - [Changed](#changed-8)
   - [Dependencies](#dependencies)
 - [[1.18.0] - 2026-11-05](#1180---2026-11-05)
-  - [Changed](#changed-8)
+  - [Changed](#changed-9)
   - [Added](#added-16)
   - [Dependencies](#dependencies-1)
 - [[1.17.0] - 2026-11-05](#1170---2026-11-05)
@@ -84,11 +85,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Fixed](#fixed-10)
 - [[1.16.1] - 2026-11-04](#1161---2026-11-04)
   - [Added](#added-18)
-  - [Changed](#changed-9)
+  - [Changed](#changed-10)
   - [Fixed](#fixed-11)
 - [[1.16.0] - 2026-11-04](#1160---2026-11-04)
   - [Added](#added-19)
-  - [Changed](#changed-10)
+  - [Changed](#changed-11)
 - [[1.15.1] - 2026-11-04](#1151---2026-11-04)
   - [Fixed](#fixed-12)
 - [[1.15.0] - 2026-11-04](#1150---2026-11-04)
@@ -97,40 +98,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Fixed](#fixed-13)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
   - [Added](#added-21)
-  - [Changed](#changed-11)
+  - [Changed](#changed-12)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
   - [Security](#security-5)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
   - [Fixed](#fixed-14)
-  - [Changed](#changed-12)
+  - [Changed](#changed-13)
   - [Added](#added-22)
   - [Documentation](#documentation-2)
 - [[1.13.0] - 2026-11-03](#1130---2026-11-03)
   - [Added](#added-23)
-  - [Changed](#changed-13)
+  - [Changed](#changed-14)
 - [[1.12.0] - 2026-10-31](#1120---2026-10-31)
   - [Added](#added-24)
-  - [Changed](#changed-14)
+  - [Changed](#changed-15)
   - [Fixed](#fixed-15)
 - [[1.11.1] - 2026-10-30](#1111---2026-10-30)
   - [Fixed](#fixed-16)
 - [[1.11.0] - 2026-10-30](#1110---2026-10-30)
   - [Added](#added-25)
-  - [Changed](#changed-15)
+  - [Changed](#changed-16)
 - [[1.10.0] - 2026-10-30](#1100---2026-10-30)
   - [Added](#added-26)
-  - [Changed](#changed-16)
+  - [Changed](#changed-17)
   - [Security](#security-6)
   - [Deprecated](#deprecated)
   - [Removed](#removed)
 - [[1.9.0] - 2026-10-30](#190---2026-10-30)
   - [Added](#added-27)
-  - [Changed](#changed-17)
-- [[1.8.1] - 2026-10-29](#181---2026-10-29)
   - [Changed](#changed-18)
+- [[1.8.1] - 2026-10-29](#181---2026-10-29)
+  - [Changed](#changed-19)
 - [[1.8.0] - 2026-10-29](#180---2026-10-29)
   - [Added](#added-28)
-  - [Changed](#changed-19)
+  - [Changed](#changed-20)
   - [Fixed](#fixed-17)
   - [Removed](#removed-1)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
@@ -138,51 +139,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
   - [Security](#security-7)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
-  - [Changed](#changed-20)
-  - [Added](#added-29)
   - [Changed](#changed-21)
-- [[1.6.4] - 2026-10-24](#164---2026-10-24)
+  - [Added](#added-29)
   - [Changed](#changed-22)
-- [[1.6.3] - 2026-10-18](#163---2026-10-18)
+- [[1.6.4] - 2026-10-24](#164---2026-10-24)
   - [Changed](#changed-23)
-- [[1.6.2] - 2026-10-13](#162---2026-10-13)
+- [[1.6.3] - 2026-10-18](#163---2026-10-18)
   - [Changed](#changed-24)
+- [[1.6.2] - 2026-10-13](#162---2026-10-13)
+  - [Changed](#changed-25)
 - [[1.6.1] - 2026-10-13](#161---2026-10-13)
   - [Fixed](#fixed-19)
 - [[1.6.0] - 2026-10-13](#160---2026-10-13)
   - [Fixed](#fixed-20)
   - [Deprecated](#deprecated-1)
-  - [Changed](#changed-25)
+  - [Changed](#changed-26)
 - [[1.5.0] - 2026-10-13](#150---2026-10-13)
   - [Security](#security-8)
   - [Added](#added-30)
 - [[1.4.1] - 2026-10-13](#141---2026-10-13)
-  - [Changed](#changed-26)
+  - [Changed](#changed-27)
   - [Dependencies](#dependencies-2)
 - [[1.4.0] - 2026-10-09](#140---2026-10-09)
-  - [Changed](#changed-27)
+  - [Changed](#changed-28)
   - [Fixed](#fixed-21)
   - [Dependencies](#dependencies-3)
 - [[1.3.5] - 2026-09-27](#135---2026-09-27)
   - [Fixed](#fixed-22)
   - [Added](#added-31)
-  - [Changed](#changed-28)
-- [[1.3.4] - 2026-08-24](#134---2026-08-24)
   - [Changed](#changed-29)
+- [[1.3.4] - 2026-08-24](#134---2026-08-24)
+  - [Changed](#changed-30)
   - [Notes](#notes)
 - [[1.3.3] - 2026-08-19](#133---2026-08-19)
-  - [Changed](#changed-30)
-- [[1.3.2] - 2026-08-18](#132---2026-08-18)
   - [Changed](#changed-31)
+- [[1.3.2] - 2026-08-18](#132---2026-08-18)
+  - [Changed](#changed-32)
 - [[1.3.1] - 2026-08-07](#131---2026-08-07)
   - [Fixed](#fixed-23)
 - [[1.3.0] - 2026-08-04](#130---2026-08-04)
-  - [Changed](#changed-32)
-  - [Added](#added-32)
   - [Changed](#changed-33)
+  - [Added](#added-32)
+  - [Changed](#changed-34)
 - [[1.2.0] - 2026-08-03](#120---2026-08-03)
   - [Added](#added-33)
-  - [Changed](#changed-34)
+  - [Changed](#changed-35)
   - [Compatibility](#compatibility)
   - [Upgrade](#upgrade)
 - [[1.1.1] - 2026-07-31](#111---2026-07-31)
@@ -191,24 +192,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Upgrade](#upgrade-1)
 - [[1.1.0] - 2026-07-30](#110---2026-07-30)
   - [Added](#added-34)
-  - [Changed](#changed-35)
+  - [Changed](#changed-36)
   - [Documentation](#documentation-3)
 - [[1.0.5] - 2026-07-29](#105---2026-07-29)
   - [Added](#added-35)
-  - [Changed](#changed-36)
+  - [Changed](#changed-37)
 - [[1.0.4] - 2026-07-22](#104---2026-07-22)
   - [Added](#added-36)
-  - [Changed](#changed-37)
+  - [Changed](#changed-38)
 - [[1.0.3] - 2026-07-16](#103---2026-07-16)
   - [Fixed](#fixed-25)
   - [Added](#added-37)
-  - [Changed](#changed-38)
-- [[1.0.2] - 2026-07-16](#102---2026-07-16)
   - [Changed](#changed-39)
+- [[1.0.2] - 2026-07-16](#102---2026-07-16)
+  - [Changed](#changed-40)
 - [[1.0.1] - 2026-07-16](#101---2026-07-16)
   - [Fixed](#fixed-26)
   - [Added](#added-38)
-  - [Changed](#changed-40)
+  - [Changed](#changed-41)
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
   - [Added](#added-39)
   - [Security](#security-9)
@@ -222,24 +223,37 @@ Target 1.35.0.
 - **New page as a dialog, and a page tree menu** (`web_ui.new_page_dialog`, literal boolean, default `false`; requested
   by Beacon). On: the page view's header actions get "New page", which opens the bundle's new-page form
   (`WikiPageFormType`, title + editor) in a native `<dialog>` (UiKit `dialog` partial: modal, focus kept inside, Escape
-  and Cancel close it, focus back on the opener). With `tree.enabled`, every row of the page tree (page view and space
-  home) gets a menu, opened by a right click, the row's «…» button (`tabindex="-1"`, the tree keeps one tab stop) or the
-  ContextMenu key / Shift+F10, with "New page above", "New page below" and "New page as child"; each opens the dialog
-  with the place filled in. ARIA menu pattern (roving focus with the arrows / Home / End, Escape and Tab close it and
-  return the focus to the row). The menu shows only the choices the user may take: the create right on the space, and
-  `WikiAction::Edit` on the parent page (the rule of the API create and of the tree's moves). New templates
+  and Cancel close it, focus back on the opener). With `tree.enabled`, users who may also edit in the space (role gate
+  `canEdit()` and `WikiAction::Edit` on the space: one check per page, not one per row) get a menu on every row of the
+  page tree (page view and space home), opened by a right click, the row's «…» button (`tabindex="-1"`, the tree keeps
+  one tab stop) or the ContextMenu key / Shift+F10, with "New page above", "New page below" and "New page as child";
+  each opens the dialog with the place filled in. ARIA menu pattern (roving focus with the arrows / Home / End, Escape
+  and Tab close it and return the focus to the row). A top-level row whose page has an archived parent offers "as
+  child" only. The server checks every create against the page itself. New templates
   `manage/_new_page_dialog.html.twig` and `manage/_tree_new_page_button.html.twig`, `wiki-new-page.ts` in `wiki.js`,
   CSS in both `wiki.css` copies, keys `wiki.new_page.*` in the 7 locales.
-- **Create at a place**: the web new-page form (`WikiManageController::newPage()`, with the option on: hidden `parent` /
-  `position` fields, also read from `?parent=&position=`) and the API create (`POST /wikis/{wiki}/pages`, optional
-  `position`, always available) take a 1-based position among the parent's children, as the "Move" form. The page is
-  created and placed by `WikiPageMover::createAt()` in one transaction holding the space lock of the moves, with their
-  sparse ordering (siblings renumbered only when no gap is left), so concurrent creates and moves never share or
-  garble a position. Only the siblings the user may read are counted. Without `position` the create is unchanged.
-  Refusals: a parent gone, archived or hidden (web: 422 "parent missing"; API: 404), too deep for `tree.max_depth`
-  (web: 422; API: 422 `WIKI_MOVE_002`), `position` without `tree.enabled` (web: 422; API: 400 `INPUT_002`), Edit
-  missing on the parent (web: 403; API: 403 `ACCESS_002`). New value object `WikiPagePlacement`, new
-  `WikiNewPageMenu` (tree node marks).
+- **Create at a place (web)**: with the option on, the new-page form has a hidden `place` field (also `?place=`) that
+  carries an intent, `child:<page id>`, `above:<page id>` or `below:<page id>`; the server computes the position (the
+  browser never sends an index, so a truncated tree or hidden siblings cannot shift it). A place needs the role gate
+  `canEdit()` (as a tree move) and `WikiAction::Edit` on the new page's parent (none at the top level), and
+  `tree.enabled`. Refusals: the page or its parent gone, archived or hidden: 422 "parent missing"; too deep for
+  `tree.max_depth`: 422; no `canEdit()` or no Edit on the parent: 403; an invalid value or no tree: 422.
+- **Create at a place (API)**: `POST /wikis/{wiki}/pages` takes an optional `position`, 1-based among the parent's
+  children the token's user may read, as the "Move" form. It needs `tree.enabled` (else 400 `INPUT_002`). Refusals:
+  parent gone meanwhile 404, too deep 422 `WIKI_MOVE_002`, no Edit on the parent 403 `ACCESS_002`.
+- `WikiPageMover::createAt()` / `createNextTo()` create and place the page in one transaction holding the space lock of
+  the moves, with their sparse ordering (siblings renumbered only when no gap is left) and the `tree.max_depth` check:
+  concurrent placed creates and moves never share or garble a position. New `WikiPageCreateResult`, value object
+  `WikiPagePlacement`, `WikiNewPageMenu` (tree node marks).
+
+### Changed
+
+- **API create with `parent`** (with `tree.enabled`): goes through `WikiPageMover::createAt()` even without `position`,
+  so `tree.max_depth` and the space lock apply (audit PT-M1; before, such a create checked no depth). The page is placed
+  last among the parent's children instead of at position 0. A create without `parent` nor `position` is unchanged
+  (position 0).
+- **API create / move answers**: when the page was placed, `position` is the 1-based place among the siblings the
+  token's user may read, not the stored sort key, which counts hidden siblings (audit PT-L1). Reads keep the sort key.
 
 ## [1.34.0] - 2026-11-14
 

@@ -12,62 +12,60 @@ use PHPUnit\Framework\TestCase;
 use function str_repeat;
 
 /**
- * 1.35: the place of a new page read from the hidden fields of the new-page form.
+ * 1.35: the place the new-page form asks for, as an intent (PT-L3): `child:<id>`, `above:<id>` or `below:<id>`.
  */
 final class WikiPagePlacementTest extends TestCase
 {
-    public function testNothingAskedIsThePlaceBefore135(): void
+    public function testNothingAskedIsNoPlace(): void
     {
-        $placement = WikiPagePlacement::fromValues(null, null);
-
-        self::assertNull($placement->parentId);
-        self::assertNull($placement->position);
-        self::assertFalse($placement->isPositioned());
-        self::assertSame(0, $placement->index());
-        self::assertFalse(WikiPagePlacement::fromValues('', '')->isPositioned());
-        self::assertNull(WikiPagePlacement::fromValues('  ', '')->parentId);
+        self::assertNull(WikiPagePlacement::fromValue(null));
+        self::assertNull(WikiPagePlacement::fromValue(''));
+        self::assertNull(WikiPagePlacement::fromValue('  '));
     }
 
-    public function testReadsTheParentAndTheOneBasedPosition(): void
+    public function testReadsTheIntent(): void
     {
-        $placement = WikiPagePlacement::fromValues(' 0b6f5a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b ', '3');
+        $id    = '0b6f5a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b';
+        $child = WikiPagePlacement::fromValue(' child:' . $id . ' ');
+        self::assertNotNull($child);
+        self::assertSame([WikiPagePlacement::CHILD, $id], [$child->kind, $child->pageId]);
+        self::assertTrue($child->isChild());
+        self::assertSame('child:' . $id, $child->value());
 
-        self::assertSame('0b6f5a8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b', $placement->parentId);
-        self::assertSame(3, $placement->position);
-        self::assertTrue($placement->isPositioned());
-        self::assertSame(2, $placement->index());
-        self::assertSame(0, (new WikiPagePlacement(null, 1))->index());
-        self::assertSame(WikiPagePlacement::MAX_POSITION, WikiPagePlacement::fromValues(null, '100000')->position);
+        $above = WikiPagePlacement::fromValue('above:' . $id);
+        self::assertNotNull($above);
+        self::assertFalse($above->isChild());
+        self::assertFalse($above->isAfter());
+        $below = WikiPagePlacement::fromValue('below:' . $id);
+        self::assertNotNull($below);
+        self::assertTrue($below->isAfter());
     }
 
     /**
-     * @return iterable<string, array{0: mixed, 1: mixed}>
+     * @return iterable<string, array{0: mixed}>
      */
     public static function invalid(): iterable
     {
-        yield 'position zero' => [null, '0'];
-        yield 'negative position' => [null, '-1'];
-        yield 'not a number' => [null, 'abc'];
-        yield 'decimal' => [null, '1.5'];
-        yield 'too large' => [null, '100001'];
-        yield 'too long' => [null, '0000001'];
-        yield 'array position' => [null, ['1']];
-        yield 'int position (not a form value)' => [null, 2];
-        yield 'array parent' => [['x'], null];
-        yield 'parent with a quote' => ["x'1", null];
-        yield 'parent too long' => [str_repeat('a', 37), null];
+        yield 'no kind' => ['abc'];
+        yield 'no id' => ['child:'];
+        yield 'unknown kind' => ['side:abc'];
+        yield 'a number (the 1.35 drafts)' => ['2'];
+        yield 'quote in the id' => ["child:x'1"];
+        yield 'id too long' => ['child:' . str_repeat('a', 37)];
+        yield 'array' => [['child:a']];
+        yield 'int' => [2];
     }
 
     #[DataProvider('invalid')]
-    public function testRefusesValuesThatAreNoPlace(mixed $parent, mixed $position): void
+    public function testRefusesValuesThatAreNoPlace(mixed $value): void
     {
         $this->expectException(InvalidArgumentException::class);
-        WikiPagePlacement::fromValues($parent, $position);
+        WikiPagePlacement::fromValue($value);
     }
 
     public function testTheConstructorChecksToo(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        new WikiPagePlacement('');
+        new WikiPagePlacement('inside', 'abc');
     }
 }

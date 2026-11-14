@@ -752,7 +752,7 @@ final class WikiManageController extends AbstractController
         $this->spaceGuard->requireGranted($user, WikiAction::Create, $space);
         $data = new WikiPageFormData();
 
-        // 1.35 (web_ui.new_page_dialog): the hidden parent / position fields of the dialog and the tree menu.
+        // 1.35 (web_ui.new_page_dialog): the hidden `place` field of the dialog and the tree menu.
         $dialog = $this->newPageDialogEnabled();
 
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_new_<space id>) replaces the hand-rolled top-level _token.
@@ -763,9 +763,8 @@ final class WikiManageController extends AbstractController
         ] + $this->pageFormOptions());
         $form->handleRequest($request);
         if ($dialog && !$form->isSubmitted()) {
-            // 1.35: ?parent=&position= (the dialog's form re-shown on its own page keeps them) pre-fill the place.
-            $form->get('parent')->setData($request->query->getString('parent'));
-            $form->get('position')->setData($request->query->getString('position'));
+            // 1.35: ?place=child:<id> | above:<id> | below:<id> pre-fills the place.
+            $form->get('place')->setData($request->query->getString('place'));
         }
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -780,25 +779,38 @@ final class WikiManageController extends AbstractController
             }
 
             try {
-                $placement = $dialog ? WikiPagePlacement::fromValues($form->get('parent')->getData(), $form->get('position')->getData()) : new WikiPagePlacement();
+                $placement = $dialog ? WikiPagePlacement::fromValue($form->get('place')->getData()) : null;
             } catch (InvalidArgumentException) {
+                $placement = false;
+            }
+            // Without tree.enabled there is no ordering (nor depth limit) to place a page in.
+            if ($placement === false || ($placement instanceof WikiPagePlacement && !$this->mover instanceof WikiPageMover)) {
                 $this->flash('error', new TranslatableMessage('wiki.new_page.error.placement', [], WikiPages::DOMAIN));
 
                 return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
-            $parent = $this->placementParent($user, $space, $placement);
-            if ($parent === false || ($placement->isPositioned() && !$this->mover instanceof WikiPageMover)) {
-                $this->flash('error', new TranslatableMessage($parent === false ? 'wiki.tree.error.parent_missing' : 'wiki.new_page.error.placement', [], WikiPages::DOMAIN));
+            // Audit PT-L2: placing a page reorders its siblings, so it needs the role gate of the tree moves too.
+            if ($placement instanceof WikiPagePlacement && !$this->allowUnauthenticated && !$this->accessChecker->canEdit($user)) {
+                throw new AccessDeniedHttpException('Access denied.');
+            }
+            $pages = $placement instanceof WikiPagePlacement ? $this->placementPages($user, $space, $placement) : null;
+            if ($pages === false) {
+                $this->flash('error', new TranslatableMessage('wiki.tree.error.parent_missing', [], WikiPages::DOMAIN));
 
                 return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
             try {
+                $parent = $pages[1] ?? null;
                 $create = fn (): WikiPage => $this->pageService->create($space, $payload->title, $payload->content, $user, $parent, null, $this->editorFormat());
-                // 1.35: a place among the siblings: created and placed under the space lock, as a move (WikiPageMover).
-                $page = $placement->isPositioned() && $this->mover instanceof WikiPageMover
-                    ? $this->mover->createAt($space, $parent, $placement->index(), $create, new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), null))
-                    : $create();
+                // 1.35: a place: computed by the server (audit PT-L3) and written under the space lock with the depth
+                // limit (audit PT-M1), as a move (WikiPageMover); "as child" is the last place among all children.
+                $mover = $this->mover;
+                $page  = match (true) {
+                    !$placement instanceof WikiPagePlacement || $pages === null || !$mover instanceof WikiPageMover => $create(),
+                    $placement->isChild()                                                                           => $mover->createAt($space, $parent, PHP_INT_MAX, $create)->page,
+                    default                                                                                         => $mover->createNextTo($space, $pages[0], $placement->isAfter(), $create)->page,
+                };
             } catch (InvalidArgumentException $exception) {
                 $this->flash('error', $this->pageErrorMessage($exception));
 
@@ -833,26 +845,30 @@ final class WikiManageController extends AbstractController
     }
 
     /**
-     * 1.35: the parent of a new page (null: the root). Same rule as the API create and the tree's moves: a page of the
-     * space the user may read (with every ancestor) and edit. False when it is missing, archived or hidden (the
-     * dialog was opened before someone archived it; a hidden page answers alike).
+     * 1.35: the page a place is relative to and the new page's parent (that page for a child, its parent otherwise;
+     * null: the root). Same rule as the API create and the tree's moves: a page of the space the user may read (with
+     * every ancestor), the parent active and editable. False when the page is missing, archived or hidden, or its
+     * parent is archived (the dialog was opened before someone changed them; a hidden page answers alike).
      *
      * @throws AccessDeniedHttpException without {@see WikiAction::Edit} on the parent
+     *
+     * @return array{0: WikiPage, 1: WikiPage|null}|false
      */
-    private function placementParent(UserInterface $user, WikiSpace $space, WikiPagePlacement $placement): WikiPage|false|null
+    private function placementPages(UserInterface $user, WikiSpace $space, WikiPagePlacement $placement): array|false
     {
-        if ($placement->parentId === null) {
-            return null;
-        }
-        $parent = $this->pageRepository->findById($placement->parentId);
-        if (!$parent instanceof WikiPage || $parent->getSpace()->getId() !== $space->getId() || $parent->isArchived() || !$this->spaceGuard->isPageReadable($user, $space, $parent)) {
+        $page = $this->pageRepository->findById($placement->pageId);
+        if (!$page instanceof WikiPage || $page->getSpace()->getId() !== $space->getId() || $page->isArchived() || !$this->spaceGuard->isPageReadable($user, $space, $page)) {
             return false;
         }
-        if (!$this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $parent)) {
+        $parent = $placement->isChild() ? $page : $page->getParent();
+        if ($parent?->isArchived() === true) {
+            return false;
+        }
+        if ($parent instanceof WikiPage && !$this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $parent)) {
             throw new AccessDeniedHttpException('Access denied.');
         }
 
-        return $parent;
+        return [$page, $parent];
     }
 
     /** 1.35: `web_ui.new_page_dialog` (and the page_new route). */
@@ -884,9 +900,11 @@ final class WikiManageController extends AbstractController
     }
 
     /**
-     * 1.35: the tree menu of the new-page dialog ("New page above / below / as child"): each page the user may edit
-     * gets `data-wiki-new-child` (pages may be created under it, so also next to its children); the root takes new pages
-     * from anyone with the create right. With `actions_template`, the «…» button of each row.
+     * 1.35: the tree menu of the new-page dialog ("New page above / below / as child"), for users who may also edit in
+     * the space (role gate `canEdit()` and {@see WikiAction::Edit} on the space, as the tree's moves): one check per
+     * page, not one per row (audit PT-L4); the server checks the page itself on every create. A top-level row whose page
+     * has a parent (an archived one) gets no "above / below". With `actions_template`, the «…» button
+     * of each row.
      *
      * @param array{nodes: list<array<string, mixed>>, attr: array<string, bool|string>, movable: bool} $treeUi
      * @param list<array{page: WikiPage, children: list<mixed>}> $tree
@@ -895,19 +913,17 @@ final class WikiManageController extends AbstractController
      */
     private function withNewPageMenu(UserInterface $user, WikiSpace $space, array $treeUi, array $tree): array
     {
-        $editable = [];
-        $walk     = function (array $nodes) use (&$walk, &$editable, $user, $space): void {
-            foreach ($nodes as $node) {
-                /** @var array{page: WikiPage, children: list<array{page: WikiPage, children: list<mixed>}>} $node */
-                if ($this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $node['page'])) {
-                    $editable[$node['page']->getId()] = true;
-                }
-                $walk($node['children']);
+        if (!$this->mover instanceof WikiPageMover || (!$this->allowUnauthenticated && !$this->accessChecker->canEdit($user)) || !$this->spaceGuard->isGranted($user, WikiAction::Edit, $space)) {
+            return $treeUi;
+        }
+        $orphans = [];
+        foreach ($tree as $node) {
+            if ($node['page']->getParent() instanceof WikiPage) {
+                $orphans[$node['page']->getId()] = true;
             }
-        };
-        $walk($tree);
+        }
 
-        return ['nodes' => WikiNewPageMenu::annotate($treeUi['nodes'], $editable), 'actions_template' => WikiNewPageMenu::ACTIONS_TEMPLATE] + $treeUi;
+        return ['nodes' => WikiNewPageMenu::annotate($treeUi['nodes'], $orphans), 'actions_template' => WikiNewPageMenu::ACTIONS_TEMPLATE] + $treeUi;
     }
 
     /**
