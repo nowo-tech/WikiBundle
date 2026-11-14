@@ -466,6 +466,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$entityManager', $entityManager)
             ->setArgument('$users', new Reference(WikiUserReferenceResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setPublic(true));
+        // Audit PQ-D1-I2: the service export of a comment author carries their actor labels.
+        if ($container->hasDefinition(WikiCommentService::class)) {
+            $container->getDefinition(WikiCommentService::class)->setArgument('$provenance', new Reference(WikiWriteProvenanceErasure::class));
+        }
         // Audit PQ-L1: the comment author erasure erases the user's actor labels (and the orphaned ones) too.
         $container->setDefinition(WikiProvenanceAuthorErasedListener::class, (new Definition(WikiProvenanceAuthorErasedListener::class))
             ->setArgument('$erasure', new Reference(WikiWriteProvenanceErasure::class))
@@ -477,7 +481,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $history = $config['history'];
         $container->setDefinition(WikiActorLabels::class, (new Definition(WikiActorLabels::class))
             ->setArgument('$authors', new Reference(WikiAuthorLabel::class))
-            ->setArgument('$show', $history['show_actor_labels'] ?? $history['show_names']));
+            ->setArgument('$show', $history['show_actor_labels'] ?? $history['show_names'])
+            ->setArgument('$classes', new Reference(WikiUserClassPolicy::class)));
         if ($container->hasDefinition(WikiHistoryTimeline::class)) {
             $container->getDefinition(WikiHistoryTimeline::class)->setArgument('$actorLabels', new Reference(WikiActorLabels::class));
         }

@@ -94,11 +94,12 @@ final readonly class WikiApiPageReadOperations
         $authors = $this->users->byIds(array_values(array_filter($ids)));
         $pages   = [];
         foreach ($shown as $row) {
-            $author  = $row->authorId === null ? null : ($authors[$row->authorId] ?? null);
+            $author = $row->authorId === null ? null : ($authors[$row->authorId] ?? null);
+            // Audit PQ-D1-I1: a save between the two reads gives another write's label: judged only for the same author.
             $origin  = $provenance[$row->page->getId()] ?? null;
             $creator = $origin?->creatorId === null ? null : ($authors[$origin->creatorId] ?? null);
             $people  = $this->people->presentAll($principal, [$author, $creator], $row->page);
-            $pages[] = $this->serializer->pageHead($wiki, $row->page, $row->revisionNumber, $row->revisedAt, $people[0], $people[1], $origin?->channel, $this->actorLabels?->visibleOnPage($origin?->actorLabel, $author, $row->page, $principal->user));
+            $pages[] = $this->serializer->pageHead($wiki, $row->page, $row->revisionNumber, $row->revisedAt, $people[0], $people[1], $origin?->channel, $origin?->currentAuthorId === $row->authorId ? $this->actorLabels?->visibleOnPage($origin?->actorLabel, $author, $row->page, $principal->user) : null);
         }
 
         return ['pages' => $pages, 'last_page' => count($visible) <= ($page + 1) * WikiApiQuery::PAGE_SIZE];

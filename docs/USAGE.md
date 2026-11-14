@@ -255,7 +255,8 @@ author (escaped; nothing when not recorded), the API answers `channel` / `token_
 > link the pseudonymous author across pages and often name them. So the label is shown in the history and answered as
 > `token_name` only (audit PQ-M1):
 >
-> - to the author themself (their own writes), always;
+> - to the author themself (their own writes), always: the same user object, or a `user_class` / `accepted_user_classes`
+>   user with the author's id (a user of another identity domain whose id collides is not the author: audit JX-W1);
 > - to others only with `history.show_actor_labels` on (default: the value of `history.show_names`), beside an author
 >   shown under a real name, and when the label passes the same safe-name rule as display names (no `@`, nothing of
 >   the login or its local part, printable Latin text only).
@@ -338,7 +339,8 @@ The actor label is personal data. The bundle's user-erasure path covers it (audi
 - `wiki:comments:erase-user <user>` exports the labels of the user's revisions (`--export`: `revision_actor_labels`)
   and erases them, together with the labels of revisions whose author was already deleted (`author_id` set to NULL by
   the database). With comments disabled the command handles the labels only.
-- `WikiCommentService::eraseAuthor()` (the host's personal-data eraser) erases them too: a listener on
+- `WikiCommentService::exportAuthorData()` (the host's personal-data exporter) includes them as
+  `revision_actor_labels`, and `WikiCommentService::eraseAuthor()` (the host's eraser) erases them: a listener on
   `nowo_wiki.comment.author_erased` calls `WikiWriteProvenanceErasure::eraseActor()` and `eraseOrphaned()`.
 - `WikiWriteProvenanceErasure` (public service) has `exportActor($user)`, `eraseActor($user)` and `eraseOrphaned()`
   for hosts with their own flow.

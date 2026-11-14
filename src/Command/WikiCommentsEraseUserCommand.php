@@ -98,7 +98,11 @@ final class WikiCommentsEraseUserCommand extends Command
 
         if ($input->getOption('export') === true) {
             // Spec 234 (audit PQ-L1): the actor labels of the user's revisions are part of the export.
-            $data = ($this->comments?->exportAuthorData($user) ?? []) + ($this->provenance instanceof WikiWriteProvenanceErasure ? ['revision_actor_labels' => $this->provenance->exportActor($user)] : []);
+            // (WikiCommentService::exportAuthorData() includes them when it has the erasure service: audit PQ-D1-I2.)
+            $data = $this->comments?->exportAuthorData($user) ?? [];
+            if ($this->provenance instanceof WikiWriteProvenanceErasure && !isset($data['revision_actor_labels'])) {
+                $data['revision_actor_labels'] = $this->provenance->exportActor($user);
+            }
             $output->writeln(json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
             return Command::SUCCESS;

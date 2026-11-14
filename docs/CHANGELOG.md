@@ -231,8 +231,11 @@ Target 1.34.0.
   channel outside the allow-list reads null (audit PQ-I2). Default `NullWikiWriteProvenanceProvider`: columns stay NULL.
 - `history.show_actor_labels` (default: `history.show_names`; audit PQ-M1): the actor label / `token_name` is shown to
   its author, and to others only beside an author shown under a real name and when it passes the safe-name rule of
-  display names; never beside an opaque "Editor xxxx" (`WikiActorLabels`).
-- Privacy (audit PQ-L1): `wiki:comments:erase-user` exports (`revision_actor_labels`) and erases the user's actor
+  display names; never beside an opaque "Editor xxxx" (`WikiActorLabels`). The author is recognised by the same object
+  or by id only for `user_class` / `accepted_user_classes` (audit PQ-D1-L1); a page list never pairs a label with
+  another write's author (PQ-D1-I1).
+- Privacy (audit PQ-L1, PQ-D1-I2): `WikiCommentService::exportAuthorData()` and `wiki:comments:erase-user --export`
+  export the user's actor labels (`revision_actor_labels`); `wiki:comments:erase-user` erases the user's actor
   labels and those of already-deleted authors (also with comments disabled); `WikiCommentService::eraseAuthor()` does
   too, through a listener on `nowo_wiki.comment.author_erased`. `WikiWriteProvenanceErasure` (`exportActor()`,
   `eraseActor()`, `eraseOrphaned()`) for hosts with their own flow; the label of a deleted author is never shown nor

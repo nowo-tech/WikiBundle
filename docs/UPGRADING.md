@@ -108,9 +108,10 @@ Existing revisions keep NULL (nothing recorded). Nothing else changes until you 
 [USAGE](USAGE.md#member-badges-and-write-provenance)): the history and the comments render the same markup, and the API
 answers carry the new fields (`created_by`, `channel`, `token_name` on pages; `channel`, `token_name` on revisions) as
 null, or `created_by` equal to the oldest revision's author. Clients that reject unknown fields must accept them.
-`actor_label` is personal data. `wiki:comments:erase-user` and `WikiCommentService::eraseAuthor()` now export / erase
-the user's labels and those of revisions whose author was already deleted; if your eraser does not go through either,
-call `WikiWriteProvenanceErasure` (`eraseActor()`, `eraseOrphaned()`).
+`actor_label` is personal data. Export: `wiki:comments:erase-user --export` and `WikiCommentService::exportAuthorData()`
+include the user's labels (`revision_actor_labels`). Erasure: `wiki:comments:erase-user` and
+`WikiCommentService::eraseAuthor()` erase them and those of revisions whose author was already deleted. If your exporter
+or eraser goes through neither, call `WikiWriteProvenanceErasure` (`exportActor()`, `eraseActor()`, `eraseOrphaned()`).
 
 Actor labels (`token_name` in the API) are shown to the author and, with the new `history.show_actor_labels` (default:
 `history.show_names`), beside real names only when they pass the safe-name rule; never beside an opaque "Editor xxxx".

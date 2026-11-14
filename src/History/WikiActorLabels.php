@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\History;
 
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
+use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\User\WikiUserId;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -14,7 +16,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * per-person string that is the same on every page, so beside an opaque "Editor xxxx" it would link and often name the
  * pseudonymous author. It is shown only:
  *
- * - to the author themself (their own token name), or
+ * - to the author themself (their own token name; the same object, or an accepted user class with the author's id), or
  * - with `history.show_actor_labels` on (default: `history.show_names`) **and** beside an author shown under a real
  *   name ({@see WikiAuthorLabel}) **and** when the label passes the same safe-name rule as real names
  *   ({@see WikiCollabService::isSafeName()}: no `@`, no login or local part, printable Latin text only).
@@ -23,9 +25,14 @@ use Symfony\Component\Security\Core\User\UserInterface;
  */
 final readonly class WikiActorLabels
 {
+    /**
+     * @param WikiUserClassPolicy|null $classes which viewer classes map to a stored user by id (audit PQ-D1-L1, JX-W1);
+     *                                          null: only the very same object is the author
+     */
     public function __construct(
         private WikiAuthorLabel $authors,
         private bool $show = false,
+        private ?WikiUserClassPolicy $classes = null,
     ) {
     }
 
@@ -40,7 +47,7 @@ final readonly class WikiActorLabels
         if ($label === null || $author === null) {
             return null;
         }
-        if (self::isSamePerson($author, $viewer)) {
+        if ($this->isSamePerson($author, $viewer)) {
             return $label;
         }
         if (!$this->show || !$named) {
@@ -58,13 +65,17 @@ final readonly class WikiActorLabels
         if ($label === null || $author === null) {
             return null;
         }
-        $named = $this->show && !self::isSamePerson($author, $viewer) && $this->authors->present($author, $page)['named'];
+        $named = $this->show && !$this->isSamePerson($author, $viewer) && $this->authors->present($author, $page)['named'];
 
         return $this->visible($label, $author, $named, $viewer);
     }
 
-    /** The same person: the same object, or the same `getId()` (exact). */
-    private static function isSamePerson(object $author, ?object $viewer): bool
+    /**
+     * The same person: the same object, or a viewer of `user_class` or an accepted class whose usable id equals the
+     * author's (exact), as {@see WikiCommentService} matches comment owners (audit JX-W1, PQ-D1-L1): Admin#5 of another
+     * identity domain is never Customer#5.
+     */
+    private function isSamePerson(object $author, ?object $viewer): bool
     {
         if ($viewer === null) {
             return false;
@@ -72,8 +83,8 @@ final readonly class WikiActorLabels
         if ($author === $viewer) {
             return true;
         }
-        $id = WikiUserId::of($author);
+        $id = $this->classes?->idOf($viewer);
 
-        return $id !== null && $id === WikiUserId::of($viewer);
+        return $id !== null && (string) $id === WikiUserId::of($author);
     }
 }

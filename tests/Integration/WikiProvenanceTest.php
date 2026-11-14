@@ -23,8 +23,10 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
 use Nowo\WikiBundle\Repository\WikiPageProvenance;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
 use Nowo\WikiBundle\Tests\Support\RecordingBadgeProvider;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
@@ -156,6 +158,18 @@ final class WikiProvenanceTest extends TestCase
         self::assertSame('Release token', $shown['actor_label']);
         $mail = $this->revision($page, 2, $this->ana, new WikiWriteProvenance('mcp', $label));
         self::assertNull($timeline->rows($page, [$mail], $this->bot)[2]['actor_label']);
+    }
+
+    /** Audit PQ-D1-L1: the history of a foreign-domain admin whose id collides with the author's shows no label. */
+    public function testAForeignUserWithTheAuthorsIdSeesNoLabelInTheHistory(): void
+    {
+        $page     = $this->page('run');
+        $revision = $this->revision($page, 1, $this->ana, new WikiWriteProvenance('mcp', 'Ana laptop'));
+        $authors  = new WikiAuthorLabel('secret');
+        $timeline = new WikiHistoryTimeline(new DoctrineOrmWikiRevisionLabelRepository($this->em), $authors, 30, null, new WikiActorLabels($authors, false, new WikiUserClassPolicy(TestUserEntity::class)));
+
+        self::assertNull($timeline->rows($page, [$revision], new WikiForeignAdminUser('ana', 'admin-sso'))[1]['actor_label']);
+        self::assertSame('Ana laptop', $timeline->rows($page, [$revision], new TestUserEntity('ana'))[1]['actor_label']);
     }
 
     public function testAChannelOutsideTheAllowListIsNotTrustedOnRead(): void

@@ -116,9 +116,21 @@ final class WikiCommentsEraseUserProvenanceTest extends TestCase
         self::assertSame([null, 'Bob token', null], $this->labels());
     }
 
-    private function comments(?EventDispatcher $dispatcher = null): WikiCommentService
+    /** Audit PQ-D1-I2: the service export a host's own exporter calls carries the actor labels too. */
+    public function testTheServiceExportCarriesTheActorLabels(): void
     {
-        return new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), new WikiSpaceGuard(new FixedSpaceLocator($this->space), CallbackSpaceAccessChecker::allowing()), new WikiAuthorLabel('s'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), dispatcher: $dispatcher);
+        $ana = $this->em->find(TestUserEntity::class, 'ana');
+        self::assertInstanceOf(TestUserEntity::class, $ana);
+
+        $export = $this->comments(null, new WikiWriteProvenanceErasure($this->em))->exportAuthorData($ana);
+        self::assertSame(['Mine'], array_column($export['comments'], 'body'));
+        self::assertSame(['Ana CI token'], array_column($export['revision_actor_labels'], 'actor_label'));
+        self::assertArrayNotHasKey('revision_actor_labels', $this->comments()->exportAuthorData($ana), 'no erasure service: comments only');
+    }
+
+    private function comments(?EventDispatcher $dispatcher = null, ?WikiWriteProvenanceErasure $provenance = null): WikiCommentService
+    {
+        return new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), new WikiSpaceGuard(new FixedSpaceLocator($this->space), CallbackSpaceAccessChecker::allowing()), new WikiAuthorLabel('s'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), dispatcher: $dispatcher, provenance: $provenance);
     }
 
     /**

@@ -30,6 +30,7 @@ use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Member\WikiMemberBadge;
 use Nowo\WikiBundle\Member\WikiMemberBadges;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Repository\WikiCommentAuthorRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
 use Nowo\WikiBundle\Repository\WikiCommentMentionRepositoryInterface;
@@ -194,6 +195,7 @@ final readonly class WikiCommentService
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiUserClassPolicy $userClasses = null,
         private ?WikiMemberBadges $badges = null,
+        private ?WikiWriteProvenanceErasure $provenance = null,
     ) {
     }
 
@@ -581,9 +583,10 @@ final readonly class WikiCommentService
     /**
      * Full privacy export (1.16.1, audit EI-I17): the user's comments ({@see self::exportAuthor()}), their reactions,
      * and the threads they started or resolved (ids, page, dates; never the quote of others' text). Mentions of the user
-     * in other people's comments are those people's data and are not included (nor erased).
+     * in other people's comments are those people's data and are not included (nor erased). Spec 234 (audit PQ-D1-I2):
+     * with the provenance erasure service, `revision_actor_labels` too ({@see WikiWriteProvenanceErasure::exportActor()}).
      *
-     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>}
+     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>, revision_actor_labels?: list<array{revision_id: string, page_id: string, revision: int, channel: string|null, actor_label: string, created_at: string}>}
      */
     public function exportAuthorData(object $user): array
     {
@@ -609,7 +612,7 @@ final readonly class WikiCommentService
                 'page_id'     => $t->getPage()->getId(),
                 'resolved_at' => $t->getResolvedAt()?->format(self::DATE),
             ], $authors?->threadsBy($user, 'resolvedBy') ?? []),
-        ];
+        ] + ($this->provenance instanceof WikiWriteProvenanceErasure ? ['revision_actor_labels' => $this->provenance->exportActor($user)] : []);
     }
 
     /**

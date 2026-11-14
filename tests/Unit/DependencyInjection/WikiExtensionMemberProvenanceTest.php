@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -39,6 +40,8 @@ final class WikiExtensionMemberProvenanceTest extends TestCase
         self::assertSame(DoctrineOrmWikiPageRevisionRepository::class, (string) $container->getAlias(WikiPageProvenanceFinderInterface::class));
         self::assertTrue($container->getDefinition(WikiWriteProvenanceErasure::class)->isPublic());
         self::assertSame([['method' => 'reset']], $container->getDefinition(WikiMemberBadges::class)->getTag('kernel.reset'));
+        self::assertSame(WikiWriteProvenanceErasure::class, (string) $container->getDefinition(WikiCommentService::class)->getArgument('$provenance'));
+        self::assertSame(WikiUserClassPolicy::class, (string) $container->getDefinition(WikiActorLabels::class)->getArgument('$classes'));
         foreach ([WikiHistoryTimeline::class, WikiCommentService::class] as $reader) {
             $badges = $container->getDefinition($reader)->getArgument('$badges');
             self::assertInstanceOf(Reference::class, $badges);

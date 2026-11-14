@@ -10,7 +10,9 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
 use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
@@ -32,7 +34,7 @@ final class WikiActorLabelsTest extends TestCase
 
     public function testNeverBesideAnOpaqueAuthorButAlwaysForThemself(): void
     {
-        $labels = new WikiActorLabels(new WikiAuthorLabel('s'), true);
+        $labels = new WikiActorLabels(new WikiAuthorLabel('s'), true, new WikiUserClassPolicy(TestUserEntity::class, [WikiSecurityUserDto::class]));
         $ana    = new TestUserEntity('ana');
 
         self::assertNull($labels->visible('Release token', $ana, false), 'beside "Editor xxxx": hidden');
@@ -40,6 +42,28 @@ final class WikiActorLabelsTest extends TestCase
         self::assertSame('ana@corp.example', $labels->visible('ana@corp.example', $ana, false, $ana), 'their own label, whatever it says');
         self::assertSame('Release token', $labels->visible('Release token', $ana, false, new WikiSecurityUserDto('ana')), 'the same person by id');
         self::assertNull($labels->visible('Release token', $ana, false, new stdClass()));
+    }
+
+    /**
+     * Audit PQ-D1-L1 (JX-W1): a user of another identity domain with the same id is not the author (history and API
+     * paths); without the class policy only the very same object is.
+     */
+    public function testAForeignUserWithTheSameIdIsNotTheAuthor(): void
+    {
+        $customer = new TestUserEntity('5');
+        $admin    = new WikiForeignAdminUser(5, 'admin-sso');
+        $policy   = new WikiUserClassPolicy(TestUserEntity::class);
+        $labels   = new WikiActorLabels(new WikiAuthorLabel('s'), false, $policy);
+
+        self::assertNull($labels->visible('Customer laptop', $customer, false, $admin), 'history');
+        self::assertNull($labels->visibleOnPage('Customer laptop', $customer, $this->page(), $admin), 'API');
+        self::assertNull($labels->visible('Customer laptop', $customer, false, new WikiForeignAdminUser('5')));
+        self::assertSame('Customer laptop', $labels->visible('Customer laptop', $customer, false, new TestUserEntity('5')), 'the same user_class row by id');
+        self::assertNull($labels->visible('Customer laptop', $customer, false, new TestUserEntity('05')), 'exact id');
+
+        $noPolicy = new WikiActorLabels(new WikiAuthorLabel('s'), false);
+        self::assertNull($noPolicy->visible('Customer laptop', $customer, false, new TestUserEntity('5')));
+        self::assertSame('Customer laptop', $noPolicy->visible('Customer laptop', $customer, false, $customer));
     }
 
     public function testBesideARealNameOnlyWhenOnAndSafe(): void

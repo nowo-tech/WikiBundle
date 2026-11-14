@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Api;
 
 use Nowo\WikiBundle\Api\WikiApiLevel;
+use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 
@@ -82,6 +85,43 @@ final class ApiProvenanceTest extends ApiTestCase
         self::assertSame([null, null], [$this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId() . '/revisions/2'))['token_name'], null]);
 
         self::assertSame(self::SCRIPT, $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'bob'))['token_name'], 'Bob gets his own');
+    }
+
+    /**
+     * Audit PQ-D1-L1 (JX-W1): a back-office admin of another identity domain whose id collides with Bob's is not Bob:
+     * never Bob's token name.
+     */
+    public function testAForeignUserWithTheSameIdDoesNotGetTheTokenName(): void
+    {
+        $page                                 = $this->twoRevisions();
+        ApiTestHost::$tokens['foreign']       = ['user' => 'u-bob', 'level' => WikiApiLevel::Read, 'where' => WikiApiWhere::everything(), 'foreign' => true];
+        ApiTestHost::$grants['foreign-u-bob'] = ['eng' => [WikiAction::View, WikiAction::History]];
+
+        $head = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'foreign'));
+        self::assertSame(['mcp', null], [$head['channel'], $head['token_name']]);
+        self::assertNull($this->json($this->call('GET', '/wikis/eng/pages', 'foreign'))['pages'][0]['token_name']);
+        self::assertSame([null, null], array_column($this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId() . '/revisions', 'foreign'))['revisions'], 'token_name'));
+        self::assertNull($this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId() . '/revisions/2', 'foreign'))['token_name']);
+    }
+
+    /**
+     * Audit PQ-D1-I1: a save between the list's metadata read and its provenance read must not pair the new write's
+     * token name with the previous author (Ana reads; Bob saves meanwhile).
+     */
+    public function testAWriteBetweenTheTwoListReadsDoesNotLeakItsTokenName(): void
+    {
+        $page = $this->page($this->eng, 'Guide', 'first');
+        $this->em()->clear();
+        ApiTestHost::$raceOnView = function () use ($page): void {
+            $em = $this->em();
+            $this->pages()->saveRevision($em->find(WikiPage::class, $page->getId()) ?? $page, 'Guide', 'by bob', $em->find(TestUserEntity::class, 'u-bob') ?? $this->bob, WikiPageRevision::FORMAT_MARKDOWN);
+            $em->getConnection()->executeStatement("UPDATE wiki_page_revisions SET channel = 'mcp', actor_label = 'Bob token' WHERE revision_number = 2");
+        };
+
+        $row = $this->json($this->call('GET', '/wikis/eng/pages'))['pages'][0];
+        self::assertNull(ApiTestHost::$raceOnView, 'the race ran');
+        self::assertSame(1, $row['revision'], 'the list read the page before Bob\'s save');
+        self::assertNull($row['token_name']);
     }
 
     /** Nothing is kept about a former person: the token name of their writes is no longer answered. */
