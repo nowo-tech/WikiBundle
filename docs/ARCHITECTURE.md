@@ -94,12 +94,19 @@ users and return snapshots, with the same events and checks:
 
 | 1.27 entity port | 1.36 id operations |
 |---|---|
-| `Service\WikiPageServiceInterface` | `Service\WikiPageOperationsInterface`: `findPage`, `createPage`, `saveRevision`, `restoreRevision`, `archivePage`, `unarchivePage` |
+| `Service\WikiPageServiceInterface` (and the 1.35 `WikiPageMover::createAt()` / `createNextTo()`) | `Service\WikiPageOperationsInterface`: `findPage`, `createPage`, `createPageAt`, `createPageNextTo`, `saveRevision`, `restoreRevision`, `archivePage`, `unarchivePage` |
 | `Service\WikiSpaceServiceInterface` | `Service\WikiSpaceOperationsInterface`: `findSpace`, `createSpace`, `findSpaceBySlug` |
 | `Link\WikiPageLinkServiceInterface` | `Link\WikiPageLinkOperationsInterface`: `linkPage`, `unlinkPage`, `usedIn` |
 
 Ids are matched byte for byte; an unknown id, a revision of another page or a parent in another space fails closed
-(`InvalidArgumentException`).
+(`InvalidArgumentException`). `createPageAt` / `createPageNextTo` place the new page under the space lock with the ordering and
+`tree.max_depth` of the page tree (they need `tree.enabled`).
+
+The 1.34 hooks are framework-free already and work in both host kinds: `Member\WikiMemberBadgeProviderInterface` is
+asked about `WikiMemberRef` values (class and id; a stored id reference is a member of `user_class`, a framework-free
+security user the member its `WikiUserRef` names), `Provenance\WikiWriteProvenanceProviderInterface` returns a
+`WikiWriteProvenance` value. Their columns are in the XML mapping, and the provenance reads and the erasure of actor
+labels match users by exact id in the id mode.
 
 ## Events
 
@@ -118,6 +125,12 @@ bookkeeping, inside the transaction); hosts listen to `PAGE_SAVED`.
 
 **Standard host (default).** The wiki reads and writes through `database.entity_manager` (`default`), exactly as up to
 1.35: a wiki save flushes that manager, including what your application left pending in it.
+
+**Why the private manager is not the default in 1.x (REQ-ARCH-001 rule 6).** Turning it on changes what existing
+hosts rely on: a wiki write no longer flushes what the application left pending in its manager, wiki rows the host
+loaded through its own manager are not the wiki's instances (a host must load them through the wiki), and users read
+back from wiki rows are no longer `===` the host's objects. That would break hosts in a minor release, so 1.36 keeps
+the standard path as the default and makes the private manager opt-in; 2.0 makes it the only mode.
 
 **Private entity manager (opt-in, `database.private_entity_manager: true`; the only mode in 2.0).** Every wiki service
 reads and writes through `Doctrine\WikiEntityManager`, a private manager created on the connection, mapping, caches,

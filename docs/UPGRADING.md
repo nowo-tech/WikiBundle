@@ -99,6 +99,16 @@ REQ-ARCH-001: the DDD / hexagonal host path, opt-in. **Nothing to do**: with an 
 host services the wiki behaves exactly as 1.35 (same schema, same mapping, same entity manager, every deprecated port
 asked exactly as before). Overview of both host kinds: [ARCHITECTURE](ARCHITECTURE.md).
 
+- Member badges and write provenance (1.34) on the DDD path: nothing to change in your providers. With
+  `database.mapping_type: xml` the `channel` / `actor_label` columns are mapped (same schema as the attributes: the
+  1.34 migration applies); with `database.user_reference: id` your badge provider is asked about
+  `WikiMemberRef(<user_class>, <id>)` for the authors stored by id, and `wiki:comments:erase-user <id>` erases that
+  exact id's actor labels.
+- Placing a new page by id (1.35 "create at a position"): `WikiPageOperationsInterface::createPageAt()` /
+  `createPageNextTo()` (needs `tree.enabled`).
+- `database.private_entity_manager` stays `false` by default in 1.x: switching it on is a behaviour change for an
+  existing host (see below and [ARCHITECTURE › Persistence](ARCHITECTURE.md#persistence)).
+
 ### Host ports: move to the framework-free twins (optional until 2.0)
 
 - Implement the twin of each port you serve (table in [ARCHITECTURE › Host ports](ARCHITECTURE.md#host-ports)) and

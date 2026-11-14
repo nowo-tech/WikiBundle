@@ -230,7 +230,7 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
 ### Added
 
 - **Framework-free host ports (REQ-ARCH-001 rules 1 and 3).** Every host port typed with a Symfony `UserInterface`,
-  `Request`, `Response`, `UploadedFile` or a wiki entity has a 1.34 twin that takes and returns only bundle value
+  `Request`, `Response`, `UploadedFile` or a wiki entity has a 1.36 twin that takes and returns only bundle value
   objects, enums and scalars (table in [ARCHITECTURE › Host ports](ARCHITECTURE.md#host-ports)):
   `WikiAccessPolicyInterface`, `WikiSpaceAccessPolicyInterface`, `WikiTeamMembershipSourceInterface`,
   `WikiSpaceReachInterface`, `WikiSpaceIdLocatorInterface`, `WikiObjectLinkSourceInterface`,
@@ -242,7 +242,7 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   credential header or a cookie; the REST API credential only as `$credential`), `Api\Value\WikiApiUpload`,
   `Api\Value\WikiApiDownload`, `Collaboration\WikiCollabCookie`, `Ai\WikiAiReply`.
 - **Selection rule.** The same configuration key or alias takes either interface. A service implementing the deprecated
-  interface is asked exactly as in 1.33, also when it implements the twin too; one implementing only the twin is asked
+  interface is asked exactly as in 1.35, also when it implements the twin too; one implementing only the twin is asked
   through an internal gate (`Port\*Gate`). `DependencyInjection\Compiler\WikiPortsPass` fails the build when a configured
   port implements neither (naming the key), or when two different host services serve one port; a factory or synthetic
   service is checked when it is built and fails closed.
@@ -252,7 +252,16 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   and the user's reach. The 1.31.1 owner-id protections (GHSA-xpr3-grw5-6h9c) are unchanged.
 - **Operations by id (rule 1).** Public aliases `Service\WikiPageOperationsInterface`, `Service\WikiSpaceOperationsInterface`
   and `Link\WikiPageLinkOperationsInterface`: the 1.27 entity ports by id, with `WikiUserRef` users, returning snapshots
-  (same events and checks; unknown, foreign or look-alike ids fail closed).
+  (same events and checks; unknown, foreign or look-alike ids fail closed). The 1.35 "create at a position" by id:
+  `WikiPageOperationsInterface::createPageAt()` (space id, parent id or null, 0-based index) and `createPageNextTo()`
+  (sibling id, above / below), through `WikiPageMover::createAt()` / `createNextTo()`: same space lock, ordering,
+  `tree.max_depth` and events; they need `tree.enabled` (`LogicException` otherwise).
+- **Spec 234 (1.34 member badges and write provenance) on the DDD host path.** The XML mapping carries
+  `wiki_page_revisions.channel` and `.actor_label`; `pageProvenance()` (the API's creator and last write) reads the
+  author through `WikiUserFields::identity()`, so it works with `database.user_reference: id`; the badge hook is asked
+  about `user_class` + id for a stored id reference and about the reference's class + id for a framework-free security
+  user (`WikiMemberRef::of()` through `WikiUserRefs::fromUser()`); the export and erasure of a person's actor labels
+  (`WikiWriteProvenanceErasure`, `wiki:comments:erase-user`) match their exact id in the id mode.
 - **Event accessors (rules 1 and 4).** `spaceId()`, `pageId()`, `pageSnapshot()`, `revisionId()`, `revisionSnapshot()`,
   `threadId()`, `commentId()`, `attachmentId()`, `spaceSnapshot()`, `actorRef()`, `userRef()`, ... on every event that
   carries a wiki entity or a user, built on call. Payloads and constructors unchanged.
@@ -293,7 +302,7 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
 
 ### Deprecated
 
-- The 16 host port interfaces replaced by a twin (removed in 2.0; still asked exactly as in 1.33).
+- The 16 host port interfaces replaced by a twin (removed in 2.0; still asked exactly as in 1.35).
 - Symfony-typed public members: `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user`, `WikiEditorOptionsEvent::$user`
   (read `userRef()`).
 
@@ -303,10 +312,16 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   the bundle's own entities (not host ports).
 - `collaboration.subscriber_authorizer` is asked through the `WikiCollabSubscriberAuthorizerInterface` alias;
   `Collaboration\WikiCollabCookieListener` (`kernel.response`) sets the cookies a twin grants.
-- Optional constructor arguments only (defaults keep 1.32): `WikiMetadataListener` (`$userReference`),
+- Optional constructor arguments only (defaults keep 1.35): `WikiMetadataListener` (`$userReference`),
   `WikiSpaceCollationListener` (`$logger`), `DoctrineWikiUserReferenceResolver` (`$userReference`), `WikiAuthorLabel`,
   `WikiAuthorResolver`, `WikiApiPeople`, `WikiApiUsersReader` (`User\WikiUsers`), `WikiEntityManagerProvider`
-  (`$private`).
+  (`$private`), `Member\WikiMemberRef::of()` (`$storedUserClass`), `Member\WikiMemberBadges` (`$userClass`, set to
+  `user_class`), `Service\WikiPageOperations` (`$mover`).
+- `WikiWriteProvenanceErasure`: in the id mode the user's revisions are selected first, re-checked with `===` and
+  cleared by primary key; with the private entity manager inside the application's transaction its statements run in
+  a savepoint, as the other bulk writes.
+- The member badge memo is emptied at every request, Messenger and console boundary before the private entity manager
+  is dropped (the manager stays last).
 
 ### Tests
 
@@ -316,6 +331,10 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   kernel through `http_kernel->handle()` / `terminate()` with a memory bound). Private manager parts and worker tests
   (`tests/Api/PrivateEntityManager`), port gate equivalence tests, `WikiPortsPass`, XML parity, id-mode look-alike tests
   on SQLite, MySQL 8.4 and MariaDB 11.4.
+- 1.34 / 1.35 features in both host kinds: `WikiProvenanceByUserReferenceTest` and `WikiPageOperationsPlacementTest`
+  (entity and id mode), the DDD host kernel (provenance from the XML mapping, badges on the history page by
+  `user_class` + id, exact erasure, create at a position through the private manager); the 1.34 / 1.35 API tests also
+  run in the `twin-ports` and `private-entity-manager` replays.
 
 ## [1.35.0] - 2026-11-14
 

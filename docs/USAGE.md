@@ -168,7 +168,10 @@ own messages in one listener:
   `WikiTeamMembershipSourceInterface`, `WikiObjectLinkSourceInterface`, ...): they take `ValueObject\WikiUserRef` and
   snapshots, never a Symfony user, a request or a wiki entity. Same configuration keys.
 - Call the wiki through `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface` and
-  `WikiPageLinkOperationsInterface` (ids in, snapshots out).
+  `WikiPageLinkOperationsInterface` (ids in, snapshots out); `createPageAt()` / `createPageNextTo()` place a new page in
+  the tree (1.35 "create at a position", needs `tree.enabled`).
+- The 1.34 badge and provenance hooks (`WikiMemberBadgeProviderInterface`, `WikiWriteProvenanceProviderInterface`)
+  already take and return value objects: a badge provider is asked about `WikiMemberRef(<user_class>, <id>)`.
 - Listen to the events through their id accessors: `$event->pageId()`, `$event->revisionSnapshot()->revisionNumber`,
   `$event->actorId()` / `$event->actorRef()`.
 
