@@ -12,8 +12,10 @@ use Nowo\WikiBundle\Api\WikiApiAuthFailure;
 use Nowo\WikiBundle\Api\WikiApiCredential;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Stringable;
@@ -27,6 +29,7 @@ use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
 use function in_array;
@@ -58,6 +61,7 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
         private WikiTokenGuard $tokenGuard,
         private string $prefix,
         private LoggerInterface $logger = new NullLogger(),
+        private ?WikiUserClassPolicy $classes = null,
     ) {
     }
 
@@ -192,13 +196,40 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
     private function requireSecurityUser(WikiApiPrincipal $principal): void
     {
         $securityUser = $this->tokenStorage->getToken()?->getUser();
-        $same         = $securityUser === $principal->user || ($securityUser !== null && $this->idOf($securityUser) !== null && $this->idOf($securityUser) === $this->idOf($principal->user));
+        $same         = $securityUser instanceof UserInterface && $this->isSamePerson($securityUser, $principal->user);
         if ($same && $this->tokenGuard->isTokenTrusted()) {
             return;
         }
         $this->logger->error('Wiki API: the security user is not the token\'s user. The API must sit behind a stateless, secured firewall that authenticates the token.', ['bundle' => 'nowo_wiki']);
 
         throw $this->serverError();
+    }
+
+    /**
+     * The same object, or (audit OX-L1, JX-W1) two users of `user_class` or a listed accepted class with the same usable
+     * id, or two users of one other class with the same exact id: a user of another identity domain that shares the id
+     * is someone else. Without the class policy (a listener built by hand), the 1.24 rule: the same id.
+     */
+    private function isSamePerson(object $securityUser, object $tokenUser): bool
+    {
+        if ($securityUser === $tokenUser) {
+            return true;
+        }
+        if ($this->classes instanceof WikiUserClassPolicy) {
+            $a = $this->classes->idOf($securityUser);
+            $b = $this->classes->idOf($tokenUser);
+            if ($a !== null || $b !== null) {
+                return $a !== null && $b !== null && (string) $a === (string) $b;
+            }
+            // Neither is a wiki user class: the same identity domain only (same class, same exact id).
+            $first  = WikiUserRefs::fromUser($securityUser);
+            $second = WikiUserRefs::fromUser($tokenUser);
+
+            return $first->id !== null && $first->id === $second->id && $first->userClass === $second->userClass;
+        }
+        $id = $this->idOf($securityUser);
+
+        return $id !== null && $id === $this->idOf($tokenUser);
     }
 
     private function idOf(object $user): ?string

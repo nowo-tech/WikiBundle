@@ -15,7 +15,12 @@ use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
+use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
+use Nowo\WikiBundle\User\WikiRefUser;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
@@ -89,7 +94,35 @@ final class WikiApiRequestListenerTest extends TestCase
         self::assertSame(500, $this->enter($odd, $tokens)->getResponse()?->getStatusCode());
     }
 
-    private function enter(WikiApiPrincipal $principal, TokenStorage $tokens): RequestEvent
+    /**
+     * Audit OX-L1: the firewall's user and the token's user are the same person only as the same object, or as two
+     * users of `user_class` / an accepted class with the same usable id: never a user of another identity domain (or a
+     * framework-free reference naming another class) that shares the id.
+     */
+    public function testTheSecurityUserOfAnotherIdentityDomainIsNotTheTokensUser(): void
+    {
+        $classes = new WikiUserClassPolicy(TestUserEntity::class, [WikiSecurityUserDto::class]);
+        $tokens  = new TokenStorage();
+        $tokens->setToken(new UsernamePasswordToken(new TestUserEntity('5'), 'api', []));
+        $same = [new TestUserEntity('5'), new WikiSecurityUserDto('5'), new WikiRefUser(WikiUserRef::ofId(TestUserEntity::class, '5'))];
+        foreach ($same as $user) {
+            self::assertNull($this->enter(new WikiApiPrincipal($user, WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n'), $tokens, $classes)->getResponse(), $user::class);
+        }
+        $others = [new WikiForeignAdminUser('5'), new WikiRefUser(WikiUserRef::ofId('App\\Admin', '5')), new TestUserEntity('6')];
+        foreach ($others as $user) {
+            self::assertSame(500, $this->enter(new WikiApiPrincipal($user, WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n'), $tokens, $classes)->getResponse()?->getStatusCode(), $user::class);
+        }
+        // Two users of one other identity domain with the same id are the same person (the API's own users).
+        $tokens->setToken(new UsernamePasswordToken(new WikiForeignAdminUser('5'), 'api', []));
+        self::assertNull($this->enter(new WikiApiPrincipal(new WikiForeignAdminUser('5'), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n'), $tokens, $classes)->getResponse());
+        self::assertSame(500, $this->enter(new WikiApiPrincipal(new WikiForeignAdminUser('6'), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n'), $tokens, $classes)->getResponse()?->getStatusCode());
+        self::assertSame(500, $this->enter(new WikiApiPrincipal(new WikiRefUser(WikiUserRef::ofId('App\\Admin', '5')), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n'), $tokens, $classes)->getResponse()?->getStatusCode());
+        // A firewall user of another identity domain is not the token's user_class user either.
+        $tokens->setToken(new UsernamePasswordToken(new WikiForeignAdminUser('5'), 'api', []));
+        self::assertSame(500, $this->enter(new WikiApiPrincipal(new TestUserEntity('5'), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n'), $tokens, $classes)->getResponse()?->getStatusCode());
+    }
+
+    private function enter(WikiApiPrincipal $principal, TokenStorage $tokens, ?WikiUserClassPolicy $classes = null): RequestEvent
     {
         $authenticator = $this->createStub(WikiApiAuthenticatorInterface::class);
         $authenticator->method('authenticate')->willReturn($principal);
@@ -103,7 +136,7 @@ final class WikiApiRequestListenerTest extends TestCase
         $event = new RequestEvent($this->createStub(HttpKernelInterface::class), $request, HttpKernelInterface::MAIN_REQUEST);
 
         // No main request on the stack: the token guard trusts the token (outside HTTP).
-        (new WikiApiRequestListener($authenticator, $limiter, $roles, $tokens, new WikiTokenGuard(new RequestStack()), '/api/wiki/v1'))->onRequest($event);
+        (new WikiApiRequestListener($authenticator, $limiter, $roles, $tokens, new WikiTokenGuard(new RequestStack()), '/api/wiki/v1', classes: $classes))->onRequest($event);
 
         return $event;
     }

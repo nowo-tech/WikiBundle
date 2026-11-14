@@ -23,6 +23,12 @@ use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
+use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
+use Nowo\WikiBundle\User\WikiRefUser;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
@@ -80,18 +86,18 @@ final class WikiApiGuardTest extends TestCase
     {
         $guard = $this->guard();
         self::assertSame($this->wikis['eng'], $guard->wiki($this->principal(), 'eng'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->wiki($this->principal(), 'Not A Slug'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->wiki($this->principal(), 'missing'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->wiki($this->principal(WikiApiLevel::Full, WikiApiWhere::limitedTo(['o2'], [])), 'eng'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiApiWiki => $guard->wiki($this->principal(), 'Not A Slug'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiApiWiki => $guard->wiki($this->principal(), 'missing'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiApiWiki => $guard->wiki($this->principal(WikiApiLevel::Full, WikiApiWhere::limitedTo(['o2'], [])), 'eng'));
 
         // The directory answering another slug than asked is not trusted.
         $this->wikis['alias'] = $this->wikis['eng'];
-        $this->refused(404, 'ACCESS_001', fn () => $guard->wiki($this->principal(), 'alias'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiApiWiki => $guard->wiki($this->principal(), 'alias'));
 
         $this->granted = [];
-        $this->refused(404, 'ACCESS_001', fn () => $guard->wiki($this->principal(), 'eng'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiApiWiki => $guard->wiki($this->principal(), 'eng'));
         $this->granted = [WikiAction::View];
-        $this->refused(403, 'PLAN_001', fn () => $this->guard(plan: false)->wiki($this->principal(), 'eng'));
+        $this->refused(403, 'PLAN_001', fn (): WikiApiWiki => $this->guard(plan: false)->wiki($this->principal(), 'eng'));
     }
 
     public function testAWikiListedByNameOnlyOrNotOpenedYet(): void
@@ -103,9 +109,9 @@ final class WikiApiGuardTest extends TestCase
 
         self::assertTrue($guard->sees($this->principal(), $named));
         self::assertTrue($guard->sees($this->principal(), $unopened));
-        $this->refused(404, 'ACCESS_001', static fn () => $guard->openSpace($named));
+        $this->refused(404, 'ACCESS_001', static fn (): ?\Nowo\WikiBundle\Entity\WikiSpace => $guard->openSpace($named));
         self::assertNull($guard->openSpace($unopened));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(), $unopened, $this->page->getId()));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $guard->page($this->principal(), $unopened, $this->page->getId()));
     }
 
     public function testPagesBelongToTheWikiAndAreReadableWithTheirAncestors(): void
@@ -113,25 +119,25 @@ final class WikiApiGuardTest extends TestCase
         $guard = $this->guard();
         $wiki  = $this->wikis['eng'];
         self::assertSame($this->child, $guard->page($this->principal(), $wiki, $this->child->getId()));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(), $wiki, 'not-a-uuid'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(), $wiki, '00000000-0000-4000-8000-000000000000'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(), $wiki, $this->elsewhere->getId()));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $guard->page($this->principal(), $wiki, 'not-a-uuid'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $guard->page($this->principal(), $wiki, '00000000-0000-4000-8000-000000000000'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $guard->page($this->principal(), $wiki, $this->elsewhere->getId()));
         $this->hidden = ['guide'];
-        $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(), $wiki, $this->child->getId()));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $guard->page($this->principal(), $wiki, $this->child->getId()));
     }
 
     public function testArchivedPagesOnlyWhereAskedForAndAllowed(): void
     {
         $guard = $this->guard();
         $wiki  = $this->wikis['eng'];
-        $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(), $wiki, $this->archived->getId()));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $guard->page($this->principal(), $wiki, $this->archived->getId()));
         self::assertSame($this->archived, $guard->page($this->principal(WikiApiLevel::Edit), $wiki, $this->archived->getId(), true));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(WikiApiLevel::Read), $wiki, $this->archived->getId(), true));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $guard->page($this->principal(WikiApiLevel::Read), $wiki, $this->archived->getId(), true));
         // The role gate counts too, even when the host checker grants Archive (audit IF-L4).
         $this->roles = ['list'];
-        $this->refused(404, 'ACCESS_001', fn () => $this->guard()->page($this->principal(WikiApiLevel::Full), $wiki, $this->archived->getId(), true));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $this->guard()->page($this->principal(WikiApiLevel::Full), $wiki, $this->archived->getId(), true));
         $this->granted = [WikiAction::View];
-        $this->refused(404, 'ACCESS_001', fn () => $guard->page($this->principal(WikiApiLevel::Full), $wiki, $this->archived->getId(), true));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPage => $guard->page($this->principal(WikiApiLevel::Full), $wiki, $this->archived->getId(), true));
     }
 
     public function testRevisionsByNumberOfThatPageOnly(): void
@@ -141,10 +147,10 @@ final class WikiApiGuardTest extends TestCase
         $guard = $this->guard(revisions: [1 => $mine, 2 => $other]);
 
         self::assertSame($mine, $guard->revision($this->page, '1'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->revision($this->page, '0'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->revision($this->page, '1x'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->revision($this->page, '2'));
-        $this->refused(404, 'ACCESS_001', fn () => $guard->revision($this->page, '3'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPageRevision => $guard->revision($this->page, '0'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPageRevision => $guard->revision($this->page, '1x'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPageRevision => $guard->revision($this->page, '2'));
+        $this->refused(404, 'ACCESS_001', fn (): WikiPageRevision => $guard->revision($this->page, '3'));
     }
 
     public function testLevelThenPersonThenRoleGate(): void
@@ -196,6 +202,46 @@ final class WikiApiGuardTest extends TestCase
         self::assertFalse($guard->isUser($this->principal(), new stdClass()));
     }
 
+    /**
+     * Audit OX-L1 (JX-W1 on the API, since 1.24.0): the same person is the same object, or a principal of `user_class`
+     * or a listed accepted class whose usable id equals the stored user's id. A back-office user of another identity
+     * domain with the same id, or a framework-free reference naming another class, is someone else: no own page
+     * (archive / unarchive at Edit), no host API id.
+     */
+    public function testTheSamePersonNeedsAnAcceptedClassNotOnlyTheId(): void
+    {
+        $classes = new WikiUserClassPolicy(TestUserEntity::class, [WikiSecurityUserDto::class]);
+        $first   = new WikiPageRevision($this->page, 1, '<p>x</p>', new TestUserEntity('5'));
+        $guard   = $this->guard(revisions: [1 => $first], classes: $classes);
+        $same    = [
+            'another instance of user_class'      => new TestUserEntity('5'),
+            'an accepted wrapper class'           => new WikiSecurityUserDto('5'),
+            'a twin reference naming user_class'  => new WikiRefUser(WikiUserRef::ofId(TestUserEntity::class, '5')),
+            'a twin reference naming an accepted' => new WikiRefUser(WikiUserRef::ofId(WikiSecurityUserDto::class, '5')),
+        ];
+        foreach ($same as $case => $user) {
+            $principal = $this->principalOf($user);
+            self::assertTrue($guard->isUser($principal, $first->getAuthor()), $case);
+            self::assertTrue($guard->isUser($principal, new WikiStoredUserRef('5')), $case . ' (id mode)');
+            $guard->requireOwnPage($principal, $this->page);
+        }
+        $others = [
+            'another identity domain'           => new WikiForeignAdminUser('5', 'admin'),
+            'a twin reference naming App\Admin' => new WikiRefUser(WikiUserRef::ofId('App\\Admin', '5')),
+            'user_class with another id'        => new TestUserEntity('6'),
+            'a look-alike id'                   => new TestUserEntity(' 5'),
+        ];
+        foreach ($others as $case => $user) {
+            $principal = $this->principalOf($user);
+            self::assertFalse($guard->isUser($principal, $first->getAuthor()), $case);
+            self::assertFalse($guard->isUser($principal, new WikiStoredUserRef('5')), $case . ' (id mode)');
+            $this->refused(403, 'TOKEN_001', fn () => $guard->requireOwnPage($principal, $this->page));
+        }
+        // The very same object stays the same person, whatever its class.
+        $admin = new WikiForeignAdminUser('5', 'admin');
+        self::assertTrue($guard->isUser($this->principalOf($admin), $admin));
+    }
+
     public function testSourceOnlyForEditorsWithAnEditToken(): void
     {
         $guard = $this->guard();
@@ -237,7 +283,7 @@ final class WikiApiGuardTest extends TestCase
      * @param array<int, WikiPageRevision> $revisions
      * @param list<array{path: string, name_prefix: string, slug_requirement: string}>|null $tenants
      */
-    private function guard(bool $plan = true, array $revisions = [], ?array $tenants = null): WikiApiGuard
+    private function guard(bool $plan = true, array $revisions = [], ?array $tenants = null, ?WikiUserClassPolicy $classes = null): WikiApiGuard
     {
         $wikis     = &$this->wikis;
         $directory = $this->createStub(WikiApiDirectoryInterface::class);
@@ -269,12 +315,17 @@ final class WikiApiGuardTest extends TestCase
         $revisionRepository = $this->createStub(WikiPageRevisionRepositoryInterface::class);
         $revisionRepository->method('findByPageAndNumber')->willReturnCallback(static fn (WikiPage $page, int $number): ?WikiPageRevision => $revisions[$number] ?? null);
 
-        return new WikiApiGuard($directory, $gate, $checker, $roles, $pages, $revisionRepository, $tenants === null ? null : new WikiTenantPaths($tenants, []));
+        return new WikiApiGuard($directory, $gate, $checker, $roles, $pages, $revisionRepository, $tenants === null ? null : new WikiTenantPaths($tenants, []), $classes);
     }
 
     private function principal(WikiApiLevel $level = WikiApiLevel::Full, ?WikiApiWhere $where = null, ?TestUserEntity $user = null): WikiApiPrincipal
     {
         return new WikiApiPrincipal($user ?? $this->ana, $level, $where ?? WikiApiWhere::everything(), 't', 'n');
+    }
+
+    private function principalOf(object $user): WikiApiPrincipal
+    {
+        return new WikiApiPrincipal($user, WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n');
     }
 
     private function refused(int $status, string $ecode, callable $call): void

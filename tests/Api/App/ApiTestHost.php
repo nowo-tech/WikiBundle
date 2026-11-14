@@ -122,9 +122,10 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
         if (!is_array($token)) {
             return null;
         }
-        $user = $this->doctrine->getManager()->find(TestUserEntity::class, $token['user']);
+        // Audit OX-L1: the firewall stands behind the same identity domain as the wiki authenticator.
+        $user = isset($token['foreign']) ? new WikiForeignAdminUser($token['user'], 'foreign-' . $token['user']) : $this->doctrine->getManager()->find(TestUserEntity::class, $token['user']);
 
-        return $user instanceof TestUserEntity ? $user : null;
+        return $user instanceof TestUserEntity || $user instanceof WikiForeignAdminUser ? $user : null;
     }
 
     public function list(WikiApiPrincipal $principal, WikiApiWikiFilter $filter): array
@@ -245,14 +246,14 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
 
     public function isGranted(UserInterface $user, WikiAction $action, WikiSpace $space, ?WikiPage $page = null): bool
     {
-        if (self::$race !== null && $page !== null && ($action === WikiAction::Edit || $action === WikiAction::Restore)) {
+        if (self::$race instanceof Closure && $page instanceof WikiPage && ($action === WikiAction::Edit || $action === WikiAction::Restore)) {
             $race       = self::$race;
             self::$race = null;
             if ($race($page) === false) {
                 self::$race = $race;
             }
         }
-        if (self::$raceOnView !== null && $page !== null && $action === WikiAction::View) {
+        if (self::$raceOnView instanceof Closure && $page instanceof WikiPage && $action === WikiAction::View) {
             $race             = self::$raceOnView;
             self::$raceOnView = null;
             $race($page);
