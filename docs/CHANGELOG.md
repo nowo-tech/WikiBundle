@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added](#added-unreleased)
 - [[1.32.0] - 2026-11-13](#1320---2026-11-13)
   - [Added](#added)
 - [[1.31.1] - 2026-11-13](#1311---2026-11-13)
@@ -208,6 +209,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-9)
 
 ## [Unreleased]
+
+Target: next minor after 1.34.
+
+<a id="added-unreleased"></a>
+### Added
+
+- Member badge hook (spec 234, Beacon): `WikiMemberBadgeProviderInterface` (framework-free; `WikiMemberRef` class + id,
+  `WikiMemberBadge` plain-text label, `neutral | info | agent` variant, optional title) puts host badges after
+  revision authors in the history and comment authors in the comments panel (and `author.badges` in the comments JSON
+  when there are some). One provider call per list, per-request memo reset at every boundary (worker mode). Template
+  `manage/_member_label_suffix.html.twig`, block `member_label_suffix`. Default `NullWikiMemberBadgeProvider`: no
+  change.
+- Write provenance (spec 234): `WikiWriteProvenanceProviderInterface::current(): ?WikiWriteProvenance` (channel
+  `web | app | api | mcp`, actor label truncated to 120 characters) is asked for every new revision; nullable
+  `wiki_page_revisions.channel` and `actor_label` columns (see UPGRADING). Shown escaped in the history; the API adds
+  `created_by`, `channel`, `token_name` to pages and `channel`, `token_name` to revisions (OpenAPI updated). Default
+  `NullWikiWriteProvenanceProvider`: columns stay NULL.
+- `WikiWriteProvenanceErasure` (`exportActor()`, `eraseActor()`, `eraseOrphaned()`) for privacy requests; the label
+  of a deleted author is never shown nor answered.
+- `WikiPageProvenanceFinderInterface` (implemented by the Doctrine revision repository): creators and last-write
+  provenance of a page list in two queries.
 
 ## [1.32.0] - 2026-11-13
 

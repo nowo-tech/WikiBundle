@@ -85,6 +85,33 @@
 
 ## Unreleased
 
+Target: next minor after 1.34 (spec 234: member badges and write provenance).
+
+`wiki_page_revisions` gets two nullable columns. The bundle ships no migrations: generate one
+(`doctrine:migrations:diff`) or run the statements for your database (adjust the table name if you changed
+`table_prefix`):
+
+```sql
+-- MySQL / MariaDB
+ALTER TABLE wiki_page_revisions ADD channel VARCHAR(8) DEFAULT NULL, ADD actor_label VARCHAR(120) DEFAULT NULL;
+-- PostgreSQL
+ALTER TABLE wiki_page_revisions ADD channel VARCHAR(8) DEFAULT NULL;
+ALTER TABLE wiki_page_revisions ADD actor_label VARCHAR(120) DEFAULT NULL;
+-- SQLite
+ALTER TABLE wiki_page_revisions ADD COLUMN channel VARCHAR(8) DEFAULT NULL;
+ALTER TABLE wiki_page_revisions ADD COLUMN actor_label VARCHAR(120) DEFAULT NULL;
+```
+
+Existing revisions keep NULL (nothing recorded). Nothing else changes until you alias
+`WikiWriteProvenanceProviderInterface` and / or `WikiMemberBadgeProviderInterface` to your services (see
+[USAGE](USAGE.md#member-badges-and-write-provenance)): the history and the comments render the same markup, and the API
+answers carry the new fields (`created_by`, `channel`, `token_name` on pages; `channel`, `token_name` on revisions) as
+null, or `created_by` equal to the oldest revision's author. Clients that reject unknown fields must accept them.
+`actor_label` is personal data: add `WikiWriteProvenanceErasure` to your personal-data eraser.
+
+If you override `manage/page_history.html.twig` or `manage/_comments_panel_body.html.twig`, include
+`@NowoWikiBundle/manage/_member_label_suffix.html.twig` after the author name to show badges (see the bundle templates).
+
 ## To 1.32.0
 
 From **1.31.1**:

@@ -10,6 +10,7 @@
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Space icon (1.32)](#space-icon-132)
+- [Member badges and write provenance](#member-badges-and-write-provenance)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
   - [Page layout (1.29)](#page-layout-129)
@@ -207,6 +208,125 @@ $builder->add('icon', WikiSpaceIconType::class);
 
 Space exports carry no space metadata beyond the title (the pages are exported), so the icon is not part of them.
 
+## Member badges and write provenance
+
+Spec 234 (Beacon request; target: the next minor after 1.34). Two host ports, both framework-free (plain PHP value
+objects, no Symfony, Doctrine or HTTP type: REQ-ARCH-001 rule 3) and both off by default: without them the history,
+the comments and the API render as before (the API answers carry the new fields as null).
+
+### Member badges
+
+`Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface` puts a host-decided badge after a member's name: revision
+authors in the history timeline and comment authors in the comments panel (and in the comments JSON, as
+`author.badges`, only when there are some). Beacon uses it for an *Agent* pill on service accounts.
+
+- The bundle asks `badgesForMany(list<WikiMemberRef>)` **once per rendered list** (a history page, a thread) with the
+  distinct members not seen yet, and memoises the answers for the request only (`WikiMemberBadges`: emptied at every
+  request / console / Messenger boundary and on `kernel.reset`; safe in FrankenPHP worker mode with the kernel kept
+  alive). Answer by index (the key of the list given); a missing index means no badge.
+- `WikiMemberRef` is the user's class (Doctrine proxy prefix removed) and id (`getId()` as a string), the same class +
+  id model as the wiki's id user references; compare with `isSameMemberAs()`. A user without an id the wiki can match
+  exactly (1 to 128 characters, no edge whitespace, no control characters) gets no reference and no badge. A deleted
+  author ("Former person") gets none either.
+- `WikiMemberBadge(label, variant, title)` is plain text: the label is cut to 40 characters, the title (tooltip) to
+  120, control characters removed; `variant` is `neutral`, `info` or `agent` (anything else is refused). The template
+  maps the variant to UiKit badge slots and escapes every value; **no HTML and no CSS class comes from the host**. At
+  most three badges are shown per member; anything that is not a `WikiMemberBadge` is dropped.
+- Badges are shown beside every author, also an opaque "Editor xxxx" (`history.show_names: false`): return categorical
+  badges only ("Agent", "Bot"), never one that names or singles out a person, or the badge links that person's edits
+  across pages.
+- Presentation: override the block `member_label_suffix` (or the file) `manage/_member_label_suffix.html.twig`.
+
+### Write provenance
+
+`Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface::current(): ?WikiWriteProvenance` is asked once per
+new revision (page create, save, restore, conversion to Markdown, imports), at write time. The revision stores:
+
+| Column (`wiki_page_revisions`) | Value |
+| ------------------------------ | ----- |
+| `channel` `VARCHAR(8) NULL` | `web`, `app`, `api` or `mcp` (`WikiWriteProvenance::CHANNELS`; anything else is refused by the value object) |
+| `actor_label` `VARCHAR(120) NULL` | the host's plain-text label (a token name; never a secret, a login or an e-mail): control characters removed, whitespace collapsed, **truncated** to 120 characters (in the value object and again in the entity) |
+
+The actor id is the revision `author` the bundle already stores. The history shows "via MCP · <label>" after the
+author (escaped; nothing when not recorded), the API answers `channel` / `token_name` (see [API](API.md#bodies)).
+
+Decide the channel from the **request path** (your web UI, your app, your API firewall, your MCP endpoint), never from
+a header, field or parameter the client sends; resolve it per call (no per-request value in a service property).
+
+Standard Symfony host:
+
+```php
+use Nowo\WikiBundle\Provenance\WikiWriteProvenance;
+use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
+
+final readonly class AppWriteProvenance implements WikiWriteProvenanceProviderInterface
+{
+    public function __construct(private RequestStack $requests, private ApiTokenContext $tokens) {}
+
+    public function current(): ?WikiWriteProvenance
+    {
+        $request = $this->requests->getMainRequest();
+        if ($request === null) {
+            return null; // console, Messenger: nothing recorded
+        }
+        $path    = $request->getPathInfo();
+        $channel = match (true) {
+            str_starts_with($path, '/mcp') => WikiWriteProvenance::CHANNEL_MCP,
+            str_starts_with($path, '/api/') => WikiWriteProvenance::CHANNEL_API,
+            default => WikiWriteProvenance::CHANNEL_WEB,
+        };
+
+        return new WikiWriteProvenance($channel, $this->tokens->currentTokenName());
+    }
+}
+```
+
+```yaml
+# config/services.yaml
+Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface: '@App\Wiki\AppWriteProvenance'
+Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface: '@App\Wiki\AppMemberBadges'
+```
+
+DDD / hexagonal host: implement both interfaces in your infrastructure layer as plain adapters over your own request
+context and user read model (they only see `WikiMemberRef` / `WikiWriteProvenance` value objects), and alias them the
+same way. Badges are keyed by the class + id your user references already use, so a host that stores wiki authors by
+id answers from its own table:
+
+```php
+final readonly class MemberBadges implements WikiMemberBadgeProviderInterface
+{
+    public function __construct(private ServiceAccountIds $serviceAccounts) {}
+
+    public function badgesFor(WikiMemberRef $member): array
+    {
+        return $this->badgesForMany([$member])[0] ?? [];
+    }
+
+    public function badgesForMany(array $members): array
+    {
+        $agents = $this->serviceAccounts->among(array_map(static fn (WikiMemberRef $m): string => $m->id, $members));
+        $badges = [];
+        foreach ($members as $index => $member) {
+            if (in_array($member->id, $agents, true)) {
+                $badges[$index] = [new WikiMemberBadge('Agent', WikiMemberBadge::VARIANT_AGENT, 'Service account')];
+            }
+        }
+
+        return $badges;
+    }
+}
+```
+
+### Personal data
+
+The actor label is personal data. `WikiWriteProvenanceErasure` (public service) has `exportActor($user)` (the labels of
+the user's revisions), `eraseActor($user)` (clears them) and `eraseOrphaned()` (clears the labels of revisions whose
+author was already deleted: `author_id` set to NULL). Call it from your personal-data exporter / eraser next to
+`WikiCommentService::exportAuthor()` / `eraseAuthor()`, before the user row is deleted. Labels of a deleted author are
+never shown nor answered, even before `eraseOrphaned()` runs. The channel is not personal data and stays. Page exports
+(`wiki:export`) do not carry provenance.
+
 ## Twig overrides (REQ-TWIG-001)
 
 The bundle registers **`@NowoWikiBundle/`**. Application files under **`templates/bundles/NowoWikiBundle/`** always win over vendor: `TwigPathsPass` prepends that directory (when it exists) and appends the bundle views after it. Registration is unconditional; the routes follow `web_ui.enabled` (see [CONFIGURATION.md](CONFIGURATION.md)). Controllers render the logical names of `nowo_wiki.web_ui.templates.<page>` (default: the bundle page), so you can also point one page at another template from configuration.
@@ -255,6 +375,7 @@ Paths are relative to `src/Resources/views` (`@NowoWikiBundle/<subpath>`):
 | `manage/_page_tree_item.html.twig` | One page of the tree: link, depth class, `aria-current`, its children |
 | `manage/_ai_dialog.html.twig` | AI question `<dialog>` of the index (UiKit `_dialog`) |
 | `manage/_legacy_layout.html.twig` | Deprecated bridge around a pre-1.10 layout (removed in 2.0) |
+| `manage/_member_label_suffix.html.twig` | Host badges after a member's name (history authors, comment authors); block `member_label_suffix` |
 
 Page header, pagination, flashes, empty states, confirm dialogs and row actions are UiKit partials: re-skin them in UiKit (`templates/bundles/NowoUiKitBundle/…` or `nowo_ui_kit.theme.partials`), once for every bundle.
 
