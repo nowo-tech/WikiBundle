@@ -95,9 +95,22 @@
 
 ## To 1.36.0
 
-REQ-ARCH-001: the DDD / hexagonal host path, opt-in. **Nothing to do**: with an unchanged configuration and unchanged
-host services the wiki behaves exactly as 1.35 (same schema, same mapping, same entity manager, every deprecated port
-asked exactly as before). Overview of both host kinds: [ARCHITECTURE](ARCHITECTURE.md).
+REQ-ARCH-001: the DDD / hexagonal host path, opt-in. With an unchanged configuration and unchanged host services the
+wiki behaves as 1.35 (same schema, same mapping, same entity manager, every deprecated port asked exactly as before),
+except for the REST API's same-person rule below. Overview of both host kinds: [ARCHITECTURE](ARCHITECTURE.md).
+
+**Action recommended (REST API, `accepted_user_classes`).** The API now compares users by class and id (audit OX-L1):
+
+- If your firewall's user (for example a security adapter) and the user your `api.hooks.authenticator` returns are of
+  different classes, list the one that is not `user_class` in `nowo_wiki.accepted_user_classes`.
+- In 1.x such a pair with the same exact id still passes, with a warning in the log: `Wiki API: the firewall user (…)
+  and the token's user (…) are matched by their id only: add … to nowo_wiki.accepted_user_classes; this will be refused
+  in 2.0.`
+- It never makes the token's user the owner of anything: "one's own page" and the token user's own API id are judged
+  on the token's user alone, and need `user_class` or an accepted class.
+- A firewall user with another id, or an id that cannot be matched exactly, is a configuration error
+  (`Wiki API: configuration error: the firewall user (…) is not the token's user (…)`) and the request answers 500, as
+  before.
 
 - Member badges and write provenance (1.34) on the DDD path: nothing to change in your providers. With
   `database.mapping_type: xml` the `channel` / `actor_label` columns are mapped (same schema as the attributes: the
@@ -112,7 +125,7 @@ asked exactly as before). Overview of both host kinds: [ARCHITECTURE](ARCHITECTU
 - REST API (audit OX-L1): "one's own page" (archive / unarchive at Edit) and the token user's own host API id now need
   the same identity domain: a token user of `user_class` or of a listed `accepted_user_classes` entry with the same id,
   not merely the same id. If your API authenticator returns users of a class that is neither, list it in
-  `accepted_user_classes` (and keep your firewall's user of the same class as the token's user).
+  `accepted_user_classes` (see "Action recommended" above for the firewall's user).
 - Twin ports that read `WikiRequestContext`: it carries only the allowed headers
   (`WikiRequestContexts::ALLOWED_HEADERS`) and no query string (audit OX-L3).
 - `database.private_entity_manager` stays `false` by default in 1.x: switching it on is a behaviour change for an

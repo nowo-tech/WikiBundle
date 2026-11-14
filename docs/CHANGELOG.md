@@ -300,9 +300,15 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   (Admin#5 and user_class#5) counted as that person, and with the space's Archive right could archive or unarchive
   their pages and read their host API id. They now follow the JX-W1 rule of the web path (`WikiUserClassPolicy`): the
   same object, or a token user of `user_class` or a listed `accepted_user_classes` entry with the same usable id; a
-  framework-free `WikiRefUser` naming another class is someone else too. The firewall consistency check
-  (`WikiApiRequestListener`) uses the same rule (two users of one other class still match by class and exact id).
-  Both take an optional `WikiUserClassPolicy` (autowired); built by hand without it they keep the 1.24 rule.
+  framework-free `WikiRefUser` naming another class is someone else too. Both take an optional `WikiUserClassPolicy`
+  (autowired); built by hand without it they keep the 1.24 rule.
+- **REST API firewall check (`WikiApiRequestListener`, audit OX-D1-L1).** The firewall's user and the token's user
+  match as before when they are the same object, two users of `user_class` / an accepted class with the same usable
+  id, or two users of one other class with the same exact id. Two users of different classes with the same exact id,
+  where a side is not `user_class` nor an accepted class (a security adapter), are still let through in 1.x, with a
+  warning naming the classes to add to `accepted_user_classes` ("this will be refused in 2.0"); this match is never
+  used for ownership or the API id (judged on the token's user alone, above). Another id, or an id that cannot be
+  matched exactly, logs a configuration error naming both classes and answers 500 (as in 1.35).
 - REQ-SEC-006 on the new id columns (id mode only): binary NO PAD collation on MySQL / MariaDB
   (`WikiSpaceCollationListener`, now also for every `wiki_user_ref` column; `utf8mb4_bin` on MySQL 5.7 and when the
   `server_version` lacks the full version, with a logged warning); an unusable id (edge whitespace, control or format
