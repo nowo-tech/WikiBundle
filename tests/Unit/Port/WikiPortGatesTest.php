@@ -75,6 +75,7 @@ use Symfony\Component\HttpFoundation\Request;
 
 use function array_slice;
 use function file_put_contents;
+use function property_exists;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
@@ -427,7 +428,7 @@ final class WikiPortGatesTest extends TestCase
         self::assertSame('GET', $context->method);
         self::assertSame('/api/wiki/v1/wikis', $context->path);
         self::assertSame('nowo_wiki_api_wikis', $context->route);
-        self::assertSame(['x' => '1'], $context->query);
+        self::assertFalse(property_exists($context, 'query'), 'audit OX-L3: no query string');
         self::assertSame('application/json', $context->header('Accept'));
         self::assertNull($context->header('x-api-key'));
         self::assertNull($context->header('authorization'));
@@ -558,6 +559,54 @@ final class WikiPortGatesTest extends TestCase
         $directory->spaceId = 'missing';
         $this->expectException(LogicException::class);
         $gate->find($principal, 'docs');
+    }
+
+    /** Audit OX-I1: the wiki a twin directory gives for a space is kept only when it names exactly that space. */
+    public function testApiDirectoryOfSpaceKeepsOnlyTheAskedSpace(): void
+    {
+        $other     = new WikiSpace('other', 'Other', WikiSpaceOwnerScope::Team, 'team-2');
+        $directory = new class($other->getId()) implements WikiApiWikiDirectoryInterface {
+            public ?string $answer = null;
+
+            public function __construct(public string $otherId)
+            {
+            }
+
+            public function list(WikiApiPrincipal $principal, WikiApiWikiFilter $filter): array
+            {
+                return [];
+            }
+
+            public function find(WikiApiPrincipal $principal, string $slug): ?WikiApiWiki
+            {
+                return null;
+            }
+
+            public function ofSpace(WikiApiPrincipal $principal, WikiSpaceSnapshot $space): WikiApiWiki
+            {
+                return new WikiApiWiki('docs', null, 'Docs', spaceId: $this->answer);
+            }
+
+            public function provision(WikiApiPrincipal $principal, WikiApiWiki $wiki): string
+            {
+                return $this->otherId;
+            }
+        };
+        $spaces = $this->createMock(WikiSpaceRepositoryInterface::class);
+        $spaces->method('findById')->willReturnCallback(fn (string $id): ?WikiSpace => match ($id) {
+            $this->space->getId() => $this->space,
+            $other->getId()       => $other,
+            default               => null,
+        });
+        $gate      = new WikiApiWikiDirectoryGate($directory, $spaces);
+        $principal = $this->principal();
+
+        $directory->answer = $this->space->getId();
+        self::assertSame($this->space, $gate->ofSpace($principal, $this->space)?->space);
+        $directory->answer = $other->getId();
+        self::assertNull($gate->ofSpace($principal, $this->space), 'another space');
+        $directory->answer = null;
+        self::assertNull($gate->ofSpace($principal, $this->space), 'no space');
     }
 
     public function testAiAnswererSourcesAreCheckedAgainstTheStore(): void

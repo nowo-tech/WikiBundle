@@ -50,8 +50,13 @@ final readonly class WikiApiWikiDirectoryGate implements WikiApiDirectoryInterfa
     public function ofSpace(WikiApiPrincipal $principal, WikiSpace $space): ?WikiApiWiki
     {
         $wiki = $this->directory->ofSpace($principal, WikiSnapshots::space($space));
+        if (!$wiki instanceof WikiApiWiki) {
+            return null;
+        }
+        // Audit OX-I1: kept only when it names exactly the asked space (a twin's answer is re-checked).
+        $wiki = $this->hydrate($wiki);
 
-        return $wiki instanceof WikiApiWiki ? $this->hydrate($wiki) : null;
+        return $wiki->space?->getId() === $space->getId() ? $wiki : null;
     }
 
     public function provision(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiSpace

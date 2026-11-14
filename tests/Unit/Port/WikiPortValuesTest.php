@@ -31,7 +31,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 
+use function array_diff_key;
+use function array_keys;
 use function fopen;
+use function get_object_vars;
+use function ksort;
 use function ob_get_clean;
 use function ob_start;
 
@@ -72,27 +76,72 @@ final class WikiPortValuesTest extends TestCase
         self::assertSame('1', $policy->idOf(new WikiRefUser(WikiUserRef::ofId(TestUserEntity::class, '1'))));
     }
 
-    public function testRequestContextsDropCredentials(): void
+    /**
+     * Audit OX-L3: a request context carries an allow-list of plain headers only (no credential, infrastructure token,
+     * session or CSRF header, whatever its spelling), never the query string, and a referrer without its query or
+     * fragment; the REST API credential only as `$credential`.
+     */
+    public function testRequestContextsCarryAnAllowListOfHeadersAndNoQuery(): void
     {
-        $request = Request::create('/p?q=v&a[]=x', 'PUT', server: [
-            'HTTP_AUTHORIZATION'       => 'Bearer s',
-            'HTTP_PROXY_AUTHORIZATION' => 'Basic x',
-            'HTTP_COOKIE'              => 'c=1',
-            'HTTP_X_API_KEY'           => 'k',
-            'PHP_AUTH_USER'            => 'u',
-            'PHP_AUTH_PW'              => 'p',
-            'HTTP_X_TRACE'             => 't',
+        $request = Request::create('/p?access_token=t1&token=t2&code=c&state=s&q=v&a[]=x', 'PUT', server: [
+            'HTTP_AUTHORIZATION'            => 'Bearer s',
+            'REDIRECT_HTTP_AUTHORIZATION'   => 'Bearer r',
+            'HTTP_PROXY_AUTHORIZATION'      => 'Basic x',
+            'HTTP_COOKIE'                   => 'c=1',
+            'HTTP_X_API_KEY'                => 'k',
+            'PHP_AUTH_USER'                 => 'u',
+            'PHP_AUTH_PW'                   => 'p',
+            'PHP_AUTH_DIGEST'               => 'd',
+            'HTTP_CF_ACCESS_JWT_ASSERTION'  => 'jwt',
+            'HTTP_X_AMZN_OIDC_ACCESSTOKEN'  => 'oidc',
+            'HTTP_X_AMZN_OIDC_DATA'         => 'oidc-data',
+            'HTTP_X_GOOG_IAP_JWT_ASSERTION' => 'iap',
+            'HTTP_X_FORWARDED_ACCESS_TOKEN' => 'fwd',
+            'HTTP_X_AUTH_TOKEN'             => 'auth',
+            'HTTP_X_CSRF_TOKEN'             => 'csrf',
+            'HTTP_X_TRACE'                  => 't',
+            'HTTP_ACCEPT'                   => 'application/json',
+            'HTTP_ACCEPT_LANGUAGE'          => 'es',
+            'HTTP_USER_AGENT'               => 'ua',
+            'HTTP_ORIGIN'                   => 'https://app.test',
+            'HTTP_REFERER'                  => 'https://app.test/back?code=secret#frag',
+            'HTTP_X_REQUEST_ID'             => 'req-1',
+            'HTTP_X_FORWARDED_FOR'          => '10.0.0.1',
+            'HTTP_X_FORWARDED_PROTO'        => 'https',
         ]);
         $context = WikiRequestContexts::fromRequest($request);
 
         self::assertNull($context->credential);
-        self::assertSame('t', $context->header('X-Trace'));
-        foreach (['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'php-auth-user', 'php-auth-pw'] as $header) {
+        $headers = $context->headers;
+        ksort($headers);
+        self::assertSame([
+            'accept'            => 'application/json',
+            'accept-language'   => 'es',
+            'content-type'      => 'application/x-www-form-urlencoded',
+            'origin'            => 'https://app.test',
+            'referer'           => 'https://app.test/back',
+            'user-agent'        => 'ua',
+            'x-forwarded-for'   => '10.0.0.1',
+            'x-forwarded-proto' => 'https',
+            'x-request-id'      => 'req-1',
+        ], array_diff_key($headers, ['host' => true]));
+        self::assertSame('localhost', $context->header('Host'));
+        self::assertNull($context->header('X-Trace'), 'not on the allow-list');
+        foreach (['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'php-auth-user', 'php-auth-pw', 'php-auth-digest', 'cf-access-jwt-assertion', 'x-amzn-oidc-accesstoken', 'x-amzn-oidc-data', 'x-goog-iap-jwt-assertion', 'x-forwarded-access-token', 'x-auth-token', 'x-csrf-token'] as $header) {
             self::assertNull($context->header($header), $header);
         }
-        self::assertSame(['q' => 'v'], $context->query);
+        self::assertSame('PUT', $context->method);
+        self::assertSame('/p', $context->path);
         self::assertNull($context->route);
         self::assertSame('s', WikiRequestContexts::fromRequest($request, true)->credential);
+        self::assertSame(['method', 'path', 'route', 'clientIp', 'credential', 'headers'], array_keys(get_object_vars($context)), 'no query string');
+    }
+
+    public function testARefererThatIsNotAUrlIsDropped(): void
+    {
+        $context = WikiRequestContexts::fromRequest(Request::create('/p', server: ['HTTP_REFERER' => '/relative?x=1']));
+        self::assertNull($context->header('referer'));
+        self::assertSame('https://a.test', WikiRequestContexts::fromRequest(Request::create('/p', server: ['HTTP_REFERER' => 'https://user:pw@a.test']))->header('referer'), 'userinfo dropped');
     }
 
     public function testDownloadsAreAttachmentsFromAPathOrAStream(): void
