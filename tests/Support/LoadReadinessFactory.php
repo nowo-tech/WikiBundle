@@ -30,6 +30,7 @@ use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use ReflectionClass;
+use ReflectionParameter;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
@@ -135,7 +136,7 @@ final class LoadReadinessFactory
     public static function make(string $class, array $named): object
     {
         $reflection = new ReflectionClass($class);
-        $names      = array_map(static fn ($parameter): string => $parameter->getName(), $reflection->getConstructor()?->getParameters() ?? []);
+        $names      = array_map(static fn (ReflectionParameter $parameter): string => $parameter->getName(), $reflection->getConstructor()?->getParameters() ?? []);
 
         return $reflection->newInstanceArgs(array_intersect_key($named, array_flip($names)));
     }

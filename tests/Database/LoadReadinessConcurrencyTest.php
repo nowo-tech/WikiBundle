@@ -72,7 +72,7 @@ final class LoadReadinessConcurrencyTest extends TestCase
 
         self::assertSame(['ok' => 30], array_count_values($answers));
         $numbers = $this->em->getConnection()->fetchFirstColumn('SELECT revision_number FROM wiki_page_revisions WHERE page_id = ? ORDER BY revision_number', [$this->page->getId()]);
-        self::assertSame(range(1, 31), array_map('intval', $numbers));
+        self::assertSame(range(1, 31), array_map(intval(...), $numbers));
         self::assertSame(31, (int) $this->em->getConnection()->fetchOne('SELECT r.revision_number FROM wiki_pages p JOIN wiki_page_revisions r ON r.id = p.current_revision_id WHERE p.id = ?', [$this->page->getId()]));
     }
 
@@ -92,7 +92,7 @@ final class LoadReadinessConcurrencyTest extends TestCase
         $answers = $this->race('reply', 10, [$this->space->getId(), $this->page->getId(), $thread->getId(), 'u-race']);
 
         self::assertSame(['ok' => 20], array_count_values($answers));
-        $positions = array_map('intval', $this->em->getConnection()->fetchFirstColumn('SELECT position FROM wiki_comments WHERE thread_id = ? ORDER BY position', [$thread->getId()]));
+        $positions = array_map(intval(...), $this->em->getConnection()->fetchFirstColumn('SELECT position FROM wiki_comments WHERE thread_id = ? ORDER BY position', [$thread->getId()]));
         self::assertSame(range(0, 20), $positions);
     }
 

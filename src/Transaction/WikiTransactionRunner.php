@@ -250,7 +250,7 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
     }
 
     /** Whether a class is one of the wiki's entities. */
-    private static function isWikiEntity(string $class): bool
+    private function isWikiEntity(string $class): bool
     {
         return str_starts_with($class, self::ENTITY_NAMESPACE) || str_contains($class, '\\__CG__\\' . self::ENTITY_NAMESPACE);
     }
@@ -265,7 +265,7 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
         $unitOfWork = $manager->getUnitOfWork();
         $rows       = [];
         foreach ($unitOfWork->getIdentityMap() as $class => $entities) {
-            if (self::isWikiEntity($class)) {
+            if ($this->isWikiEntity($class)) {
                 foreach ($entities as $entity) {
                     $rows[spl_object_id($entity)] = $unitOfWork->getOriginalEntityData($entity);
                 }
@@ -286,7 +286,7 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
         $unitOfWork = $manager->getUnitOfWork();
         $rows       = $unitOfWork->getScheduledEntityInsertions();
         foreach ($unitOfWork->getIdentityMap() as $class => $entities) {
-            if (self::isWikiEntity($class)) {
+            if ($this->isWikiEntity($class)) {
                 foreach ($entities as $entity) {
                     $rows[] = $entity;
                 }
@@ -295,7 +295,7 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
         $stale = [];
         $kept  = [];
         foreach ($rows as $entity) {
-            if (!self::isWikiEntity($entity::class) || !$manager->contains($entity)) {
+            if (!$this->isWikiEntity($entity::class) || !$manager->contains($entity)) {
                 continue;
             }
             $id = spl_object_id($entity);

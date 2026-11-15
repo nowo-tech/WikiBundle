@@ -225,7 +225,7 @@ final class LoadReadinessPathsTest extends TestCase
         };
         $failure = new DriverException($driver, null);
         try {
-            $store->whileLocked('p1', static function () use ($failure): void {
+            $store->whileLocked('p1', static function () use ($failure): never {
                 throw $failure;
             });
             self::fail('Expected the failure.');

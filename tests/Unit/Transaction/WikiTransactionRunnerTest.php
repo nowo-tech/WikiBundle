@@ -70,7 +70,7 @@ final class WikiTransactionRunnerTest extends TestCase
         $this->em->persist($pending);
 
         try {
-            (new WikiTransactionRunner($this->em))->run(function () use ($page): void {
+            (new WikiTransactionRunner($this->em))->run(function () use ($page): never {
                 $page->setTitle('Changed');
                 $this->em->persist(new WikiSpace('new', 'New', WikiSpaceOwnerScope::Team, 'team-1'));
 
@@ -156,7 +156,7 @@ final class WikiTransactionRunnerTest extends TestCase
 
         $attempts = 0;
         try {
-            (new WikiTransactionRunner($this->em, backoffBaseMilliseconds: 0))->runRetrying(static function () use (&$attempts): void {
+            (new WikiTransactionRunner($this->em, backoffBaseMilliseconds: 0))->runRetrying(static function () use (&$attempts): never {
                 ++$attempts;
 
                 throw new DeadlockException(self::driverException(), null);
@@ -173,7 +173,7 @@ final class WikiTransactionRunnerTest extends TestCase
         $attempts = 0;
         $this->em->getConnection()->beginTransaction();
         try {
-            (new WikiTransactionRunner($this->em))->runRetrying(static function () use (&$attempts): void {
+            (new WikiTransactionRunner($this->em))->runRetrying(static function () use (&$attempts): never {
                 ++$attempts;
 
                 throw new DeadlockException(self::driverException(), null);

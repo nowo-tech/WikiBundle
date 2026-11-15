@@ -67,7 +67,7 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
             return;
         }
         $failure = $event->getThrowable();
-        $retry   = self::retryAfter($failure);
+        $retry   = $this->retryAfter($failure);
         if ($retry !== null) {
             $event->setResponse(WikiApiRequestListener::answer(new WikiApiRefusal(Response::HTTP_SERVICE_UNAVAILABLE, 'SERVER_002', 'Service temporarily unavailable', [], ['Retry-After' => (string) $retry])));
 
@@ -82,15 +82,15 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
     public function onException(ExceptionEvent $event): void
     {
         $request = $event->getRequest();
-        if ($request->attributes->getBoolean(WikiApiRequestListener::ROUTE_FLAG) || !self::isWikiRequest($request)) {
+        if ($request->attributes->getBoolean(WikiApiRequestListener::ROUTE_FLAG) || !$this->isWikiRequest($request)) {
             return;
         }
 
         $failure = $event->getThrowable();
-        $retry   = self::retryAfter($failure);
+        $retry   = $this->retryAfter($failure);
         if ($retry !== null) {
-            if (self::wantsJson($request)) {
-                $event->setResponse(self::json('unavailable', Response::HTTP_SERVICE_UNAVAILABLE, ['Retry-After' => (string) $retry]));
+            if ($this->wantsJson($request)) {
+                $event->setResponse($this->json('unavailable', Response::HTTP_SERVICE_UNAVAILABLE, ['Retry-After' => (string) $retry]));
 
                 return;
             }
@@ -100,8 +100,8 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
         }
 
         if ($failure instanceof UniqueConstraintViolationException) {
-            if (self::wantsJson($request)) {
-                $event->setResponse(self::json('conflict', Response::HTTP_CONFLICT));
+            if ($this->wantsJson($request)) {
+                $event->setResponse($this->json('conflict', Response::HTTP_CONFLICT));
 
                 return;
             }
@@ -112,7 +112,7 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
     /**
      * The Retry-After seconds of a transient failure; null when the failure is not transient.
      */
-    private static function retryAfter(Throwable $failure): ?int
+    private function retryAfter(Throwable $failure): ?int
     {
         if ($failure instanceof TransientStorageFailure) {
             return max(1, $failure->retryAfterSeconds() ?? self::DEFAULT_RETRY_AFTER);
@@ -121,14 +121,14 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
         return $failure instanceof RetryableException ? self::DEFAULT_RETRY_AFTER : null;
     }
 
-    private static function isWikiRequest(Request $request): bool
+    private function isWikiRequest(Request $request): bool
     {
         $controller = $request->attributes->get('_controller');
 
         return is_string($controller) && str_starts_with($controller, self::CONTROLLER_PREFIX);
     }
 
-    private static function wantsJson(Request $request): bool
+    private function wantsJson(Request $request): bool
     {
         return $request->getPreferredFormat() === 'json' || $request->getContentTypeFormat() === 'json';
     }
@@ -136,7 +136,7 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
     /**
      * @param array<string, string> $headers
      */
-    private static function json(string $error, int $status, array $headers = []): JsonResponse
+    private function json(string $error, int $status, array $headers = []): JsonResponse
     {
         return new JsonResponse(['error' => $error], $status, $headers + ['Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff']);
     }

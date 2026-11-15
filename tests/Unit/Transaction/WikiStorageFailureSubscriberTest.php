@@ -74,7 +74,7 @@ final class WikiStorageFailureSubscriberTest extends TestCase
      */
     public static function transientFailures(): iterable
     {
-        yield 'runner' => [new TransientStorageFailure(null), '1'];
+        yield 'runner' => [new TransientStorageFailure(), '1'];
         yield 'dbal' => [new LockWaitTimeoutException(self::driver(), null), '1'];
     }
 
