@@ -124,7 +124,7 @@ final class WikiPageFactoryTest extends TestCase
         self::assertSame(['id' => $root->getId(), 'label' => 'Welcome', 'page_icon' => null, 'href' => '/nowo_wiki_page_view?spaceSlug=eng&pageSlug=welcome', 'current' => false, 'expanded' => true], array_diff_key($ui[0], ['children' => true]));
         // 1.38: the page icon reaches both trees.
         $root->setIcon('tabler:rocket');
-        $iconNodes = $factory->tree($space, (new WikiPageTreeBuilder())->build([$root]), null);
+        $iconNodes = $factory->tree($space, (new WikiPageTreeBuilder())->build([$root]));
         self::assertSame('tabler:rocket', $iconNodes[0]['icon']);
         self::assertSame('tabler:rocket', $factory->uiTree($iconNodes, [])[0]['page_icon']);
         self::assertFalse($ui[0]['children'][0]['expanded']);

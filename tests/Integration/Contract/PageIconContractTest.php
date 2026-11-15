@@ -130,7 +130,7 @@ final class PageIconContractTest extends PageContractTestCase
      */
     private function treeWithIcon(): array
     {
-        $factory = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), null);
+        $factory = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages());
         $space   = PageFixtures::space('engineering', 'Engineering');
         [$root]  = PageFixtures::pages($space);
         $root->setIcon('tabler:rocket');
