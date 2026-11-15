@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\Markdown\WikiRenderReach;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -22,6 +23,8 @@ use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
+use Nowo\WikiBundle\User\WikiUserId;
 use Stringable;
 
 use function is_scalar;
@@ -52,6 +55,7 @@ final readonly class WikiApiGuard
         private WikiPageRepositoryInterface $pages,
         private WikiPageRevisionRepositoryInterface $revisions,
         private ?WikiTenantPaths $tenantPaths = null,
+        private ?WikiUserClassPolicy $classes = null,
     ) {
     }
 
@@ -188,7 +192,13 @@ final readonly class WikiApiGuard
         }
     }
 
-    /** Whether the person behind the token is this user object (same object or same id). */
+    /**
+     * Whether the person behind the token is this user object: the same object, or (audit OX-L1, the JX-W1 rule of the
+     * web path and of {@see WikiActorLabels}) a token user of `user_class` or a listed accepted class whose usable id
+     * equals the user's id byte for byte. A user of another identity domain with the same id (Admin#5 is not
+     * user_class#5), or a framework-free reference naming another class, is someone else. Without the class policy
+     * (a guard built by hand), the 1.24 rule: the same id.
+     */
     public function isUser(WikiApiPrincipal $principal, ?object $user): bool
     {
         if ($user === null) {
@@ -196,6 +206,11 @@ final readonly class WikiApiGuard
         }
         if ($user === $principal->user) {
             return true;
+        }
+        if ($this->classes instanceof WikiUserClassPolicy) {
+            $id = $this->classes->idOf($principal->user);
+
+            return $id !== null && (string) $id === WikiUserId::of($user);
         }
         $mine = $this->idOf($principal->user);
 

@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Member;
 
 use InvalidArgumentException;
-use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\User\WikiRefUser;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 
+use function ltrim;
 use function mb_strlen;
 use function preg_match;
 use function strlen;
@@ -42,17 +45,31 @@ final readonly class WikiMemberRef
 
     /**
      * The reference of a user object (its `getId()` as a string), or null when it has no id the wiki can match exactly.
+     *
+     * 1.36.0 (REQ-ARCH-001, `database.user_reference: id`): read through {@see WikiUserRefs::fromUser()}, so a stored
+     * id reference ({@see WikiStoredUserRef}, what a wiki row holds in the id mode) is a member of `$storedUserClass`
+     * (`nowo_wiki.user_class`), and a framework-free security user ({@see WikiRefUser}) is the member its
+     * reference names. A stored id without a user class names no member (null: no badge).
+     *
+     * @param object $user a host user, a security user, a user read back from a wiki row or a stored id reference
+     * @param string $storedUserClass the class a stored id reference belongs to (`nowo_wiki.user_class`)
      */
-    public static function of(object $user): ?self
+    public static function of(object $user, string $storedUserClass = ''): ?self
     {
-        $id = WikiUserId::of($user);
-        if ($id === null || !self::isValidId($id)) {
+        $ref = WikiUserRefs::fromUser($user, $storedUserClass);
+        if ($ref->id === null || !self::isValidId($ref->id) || $ref->userClass === WikiStoredUserRef::class) {
             return null;
         }
-        $class = $user::class;
-        $pos   = strrpos($class, self::PROXY_MARKER);
 
-        return new self($pos === false ? $class : substr($class, $pos + strlen(self::PROXY_MARKER)), $id);
+        return new self(self::realClass(ltrim($ref->userClass, '\\')), $ref->id);
+    }
+
+    /** A class name without the Doctrine proxy prefix. */
+    private static function realClass(string $class): string
+    {
+        $pos = strrpos($class, self::PROXY_MARKER);
+
+        return $pos === false ? $class : substr($class, $pos + strlen(self::PROXY_MARKER));
     }
 
     /** Whether both references name the same member (class and id, byte for byte). */

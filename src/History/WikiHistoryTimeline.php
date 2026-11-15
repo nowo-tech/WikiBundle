@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Member\WikiMemberBadge;
 use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function spl_object_id;
@@ -113,6 +114,10 @@ final readonly class WikiHistoryTimeline
 
     private function identifier(object $author): string
     {
-        return $author instanceof UserInterface ? $author->getUserIdentifier() : (string) spl_object_id($author);
+        return match (true) {
+            $author instanceof UserInterface     => $author->getUserIdentifier(),
+            $author instanceof WikiStoredUserRef => "\0id:" . $author->id, // 1.36: database.user_reference: id
+            default                              => (string) spl_object_id($author),
+        };
     }
 }

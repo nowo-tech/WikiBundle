@@ -15,7 +15,12 @@ use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
+use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
+use Nowo\WikiBundle\User\WikiRefUser;
+use Nowo\WikiBundle\User\WikiUserClassPolicy;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
@@ -89,7 +94,74 @@ final class WikiApiRequestListenerTest extends TestCase
         self::assertSame(500, $this->enter($odd, $tokens)->getResponse()?->getStatusCode());
     }
 
-    private function enter(WikiApiPrincipal $principal, TokenStorage $tokens): RequestEvent
+    /**
+     * Audit OX-L1 / OX-D1-L1: the firewall's user and the token's user are the same person as the same object, as two
+     * users of `user_class` / an accepted class with the same usable id, or as two users of one other class with the
+     * same exact id. In 1.x a mixed pair with the same exact id where a side is not an accepted class (a security
+     * adapter) is let through with a deprecation notice naming the classes (refused in 2.0); it never decides
+     * ownership (the guard judges the token's user alone). Any other mismatch is a configuration error naming both
+     * classes, and a 500.
+     */
+    public function testTheSecurityUserAndTheTokensUserMustBeTheSamePerson(): void
+    {
+        $classes = new WikiUserClassPolicy(TestUserEntity::class, [WikiSecurityUserDto::class]);
+        $tokens  = new TokenStorage();
+        $tokens->setToken(new UsernamePasswordToken(new TestUserEntity('5'), 'api', []));
+        foreach ([new TestUserEntity('5'), new WikiSecurityUserDto('5'), new WikiRefUser(WikiUserRef::ofId(TestUserEntity::class, '5'))] as $user) {
+            $logger = new RecordingLogger();
+            self::assertNull($this->enter($this->principalOf($user), $tokens, $classes, $logger)->getResponse(), $user::class);
+            self::assertSame([], $logger->lines(), 'the same person: nothing logged');
+        }
+
+        // Mixed classes, same exact id: let through in 1.x with a deprecation warning naming the classes.
+        $mixed = [
+            [new WikiForeignAdminUser('5'), new TestUserEntity('5'), WikiForeignAdminUser::class],
+            [new WikiForeignAdminUser('5'), new WikiRefUser(WikiUserRef::ofId(TestUserEntity::class, '5')), WikiForeignAdminUser::class],
+            [new TestUserEntity('5'), new WikiForeignAdminUser('5'), WikiForeignAdminUser::class],
+            [new WikiForeignAdminUser('5'), new WikiRefUser(WikiUserRef::ofId('App\\Admin', '5')), WikiForeignAdminUser::class . ', App\\Admin'],
+        ];
+        foreach ($mixed as [$firewallUser, $tokenUser, $notAccepted]) {
+            $tokens->setToken(new UsernamePasswordToken($firewallUser, 'api', []));
+            $logger = new RecordingLogger();
+            self::assertNull($this->enter($this->principalOf($tokenUser), $tokens, $classes, $logger)->getResponse(), $tokenUser::class);
+            self::assertCount(1, $logger->records);
+            self::assertSame('notice', $logger->records[0]['level']);
+            self::assertStringContainsString('add ' . $notAccepted . ' to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $logger->records[0]['message']);
+            self::assertStringContainsString(WikiForeignAdminUser::class, $logger->records[0]['message']);
+        }
+
+        // Two users of one other class with the same id: the same person, silently.
+        $tokens->setToken(new UsernamePasswordToken(new WikiForeignAdminUser('5'), 'api', []));
+        $logger = new RecordingLogger();
+        self::assertNull($this->enter($this->principalOf(new WikiForeignAdminUser('5')), $tokens, $classes, $logger)->getResponse());
+        self::assertSame([], $logger->lines());
+
+        // Another id or a look-alike: a configuration error naming both classes, and a 500.
+        $wrong = [
+            [new TestUserEntity('5'), new TestUserEntity('6')],
+            [new TestUserEntity('0'), new TestUserEntity('0')], // accepted, but no usable id: never by id only
+            [new TestUserEntity('5'), new WikiForeignAdminUser('6')],
+            [new WikiForeignAdminUser('5'), new TestUserEntity(' 5')],
+            [new WikiForeignAdminUser('5'), new WikiForeignAdminUser('5 ')],
+            [new WikiForeignAdminUser('5'), new WikiRefUser(WikiUserRef::ofId('App\\Admin', '6'))],
+        ];
+        foreach ($wrong as [$firewallUser, $tokenUser]) {
+            $tokens->setToken(new UsernamePasswordToken($firewallUser, 'api', []));
+            $logger = new RecordingLogger();
+            self::assertSame(500, $this->enter($this->principalOf($tokenUser), $tokens, $classes, $logger)->getResponse()?->getStatusCode(), $tokenUser::class);
+            self::assertSame('error', $logger->records[0]['level'] ?? null);
+            self::assertStringContainsString('is not the token\'s user', $logger->records[0]['message']);
+            self::assertStringContainsString($firewallUser::class, $logger->records[0]['message']);
+            self::assertStringContainsString($tokenUser instanceof WikiRefUser ? 'App\\Admin' : $tokenUser::class, $logger->records[0]['message']);
+        }
+    }
+
+    private function principalOf(object $user): WikiApiPrincipal
+    {
+        return new WikiApiPrincipal($user, WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n');
+    }
+
+    private function enter(WikiApiPrincipal $principal, TokenStorage $tokens, ?WikiUserClassPolicy $classes = null, ?RecordingLogger $logger = null): RequestEvent
     {
         $authenticator = $this->createStub(WikiApiAuthenticatorInterface::class);
         $authenticator->method('authenticate')->willReturn($principal);
@@ -103,7 +175,7 @@ final class WikiApiRequestListenerTest extends TestCase
         $event = new RequestEvent($this->createStub(HttpKernelInterface::class), $request, HttpKernelInterface::MAIN_REQUEST);
 
         // No main request on the stack: the token guard trusts the token (outside HTTP).
-        (new WikiApiRequestListener($authenticator, $limiter, $roles, $tokens, new WikiTokenGuard(new RequestStack()), '/api/wiki/v1'))->onRequest($event);
+        (new WikiApiRequestListener($authenticator, $limiter, $roles, $tokens, new WikiTokenGuard(new RequestStack()), '/api/wiki/v1', $logger ?? new RecordingLogger(), $classes))->onRequest($event);
 
         return $event;
     }

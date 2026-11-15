@@ -14,6 +14,9 @@ use Nowo\WikiBundle\Entity\WikiPage;
  * A separate interface, so that a host's own {@see WikiCommentRepositoryInterface} written for 1.16.0 keeps working:
  * when the store does not implement it, the per-user thread cap is not applied and the export holds comments only.
  * The bundle's Doctrine store implements both.
+ *
+ * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
+ * hosts reach wiki data through the services, the id operations and the events.
  */
 interface WikiCommentAuthorRepositoryInterface
 {

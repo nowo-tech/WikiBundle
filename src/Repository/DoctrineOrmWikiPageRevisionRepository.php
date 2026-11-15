@@ -9,8 +9,12 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenance;
+use Nowo\WikiBundle\User\WikiUserFields;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use SortDirection;
 
+use function is_int;
+use function is_string;
 use function max;
 
 /**
@@ -114,7 +118,9 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
 
     /**
      * Spec 234: two queries whatever the number of pages — the oldest stored revision's author per page, and the
-     * current revision's channel, actor label and author.
+     * current revision's channel, actor label and author. 1.36.0: the author is read through
+     * {@see WikiUserFields::identity()}, so the stored id comes back in both modes (a relation to `user_class`, or the
+     * id column of `database.user_reference: id`).
      *
      * @param list<string> $pageIds page ids
      *
@@ -126,18 +132,19 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
             return [];
         }
         $entityManager = $this->entityManager();
-        /** @var list<array{pageId: string, authorId: int|string|null}> $creators */
+        $author        = WikiUserFields::identity($entityManager, WikiPageRevision::class, 'r', 'author');
+        /** @var list<array{pageId: string, authorId: mixed}> $creators */
         $creators = $entityManager->createQueryBuilder()
-            ->select('IDENTITY(r.page) AS pageId', 'IDENTITY(r.author) AS authorId')
+            ->select('IDENTITY(r.page) AS pageId', $author . ' AS authorId')
             ->from(WikiPageRevision::class, 'r')
             ->where('IDENTITY(r.page) IN (:ids)')
             ->andWhere('r.revisionNumber = (SELECT MIN(f.revisionNumber) FROM ' . WikiPageRevision::class . ' f WHERE f.page = r.page)')
             ->setParameter('ids', $pageIds)
             ->getQuery()
             ->getArrayResult();
-        /** @var list<array{pageId: string, channel: string|null, actorLabel: string|null, authorId: int|string|null}> $currents */
+        /** @var list<array{pageId: string, channel: string|null, actorLabel: string|null, authorId: mixed}> $currents */
         $currents = $entityManager->createQueryBuilder()
-            ->select('p.id AS pageId', 'r.channel AS channel', 'r.actorLabel AS actorLabel', 'IDENTITY(r.author) AS authorId')
+            ->select('p.id AS pageId', 'r.channel AS channel', 'r.actorLabel AS actorLabel', $author . ' AS authorId')
             ->from(WikiPage::class, 'p')
             ->innerJoin('p.currentRevision', 'r')
             ->where('p.id IN (:ids)')
@@ -147,7 +154,7 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
 
         $creatorIds = [];
         foreach ($creators as $row) {
-            $creatorIds[(string) $row['pageId']] = $row['authorId'] === null ? null : (string) $row['authorId'];
+            $creatorIds[(string) $row['pageId']] = $this->authorId($row['authorId']);
         }
         $provenance = [];
         foreach ($currents as $row) {
@@ -156,11 +163,24 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
                 $creatorIds[$pageId] ?? null,
                 WikiWriteProvenance::channelOrNull($row['channel']),
                 $row['actorLabel'],
-                $row['authorId'] === null ? null : (string) $row['authorId'],
+                $this->authorId($row['authorId']),
             );
         }
 
         return $provenance;
+    }
+
+    /**
+     * The stored author id of a scalar row: the id of a {@see WikiStoredUserRef} (id mode, converted by its column
+     * type), the related id as a string (entity mode), null for none.
+     */
+    private function authorId(mixed $value): ?string
+    {
+        return match (true) {
+            $value instanceof WikiStoredUserRef => $value->id,
+            is_int($value), is_string($value)   => (string) $value,
+            default                             => null,
+        };
     }
 
     private function entityManager(): EntityManagerInterface

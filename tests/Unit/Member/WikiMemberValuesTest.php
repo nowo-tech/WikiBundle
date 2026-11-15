@@ -10,6 +10,9 @@ use Nowo\WikiBundle\Member\WikiMemberBadge;
 use Nowo\WikiBundle\Member\WikiMemberRef;
 use Nowo\WikiBundle\Tests\Stub\ProxiedMember;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\User\WikiRefUser;
+use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 use Stringable;
@@ -104,6 +107,23 @@ final class WikiMemberValuesTest extends TestCase
         self::assertNull(WikiMemberRef::of(new TestUserEntity(str_repeat('a', 129))));
         self::assertNull(WikiMemberRef::of(new TestUserEntity("a\u{200B}b")));
         self::assertNotNull(WikiMemberRef::of(new TestUserEntity(str_repeat('é', 128))));
+    }
+
+    /**
+     * 1.36.0 (`database.user_reference: id`): a stored id reference is a member of `user_class`, a framework-free
+     * security user ({@see WikiRefUser}) is the member its reference names; both through `WikiUserRefs::fromUser()`.
+     */
+    public function testAStoredIdIsAMemberOfTheUserClassInTheIdMode(): void
+    {
+        $stored = WikiMemberRef::of(new WikiStoredUserRef('u-1'), TestUserEntity::class);
+        self::assertInstanceOf(WikiMemberRef::class, $stored);
+        self::assertTrue($stored->isSameMemberAs(new WikiMemberRef(TestUserEntity::class, 'u-1')));
+        self::assertNull(WikiMemberRef::of(new WikiStoredUserRef('u-1')), 'without user_class a stored id names no member class: no badge');
+
+        $ref = WikiMemberRef::of(new WikiRefUser(WikiUserRef::ofId(ProxiedMember::class, 'u-2')), TestUserEntity::class);
+        self::assertTrue($ref?->isSameMemberAs(new WikiMemberRef(ProxiedMember::class, 'u-2')));
+        self::assertNull(WikiMemberRef::of(new WikiRefUser(new WikiUserRef(ProxiedMember::class, null))), 'a reference without an id');
+        self::assertSame(TestUserEntity::class, WikiMemberRef::of(new TestUserEntity('ana'), ProxiedMember::class)?->userClass, 'a host user keeps its own class');
     }
 
     public function testAnInvalidIdIsRefused(): void

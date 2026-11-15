@@ -80,7 +80,7 @@ final readonly class WikiApiDelegatedOperations
         }
         $this->audit->requireAudit();
         $wiki = $this->management->create($principal, $new);
-        $this->audit->written($principal, 'wiki.create', $wiki->slug, $wiki->space?->getId(), null, [], ['name', 'description']);
+        $this->audit->written($principal, 'wiki.create', $wiki->slug, $wiki->spaceId, null, [], ['name', 'description']);
         if ($wiki->ownerKey !== $ownerKey) {
             $this->logger->error('Wiki API: the wiki management hook created a wiki under another owner than the one asked.', ['bundle' => 'nowo_wiki', 'hook' => $this->management::class]);
 
@@ -103,7 +103,7 @@ final readonly class WikiApiDelegatedOperations
         $patch = new WikiApiWikiPatch($this->name($input, false), $input->string('description', false, 2000));
         $this->audit->requireAudit();
         $wiki = $this->management->update($principal, $wiki, $patch);
-        $this->audit->written($principal, 'wiki.update', $wiki->slug, $wiki->space?->getId(), null, [], array_keys(array_filter(['name' => $patch->name, 'description' => $patch->description], static fn (?string $v): bool => $v !== null)));
+        $this->audit->written($principal, 'wiki.update', $wiki->slug, $wiki->spaceId, null, [], array_keys(array_filter(['name' => $patch->name, 'description' => $patch->description], static fn (?string $v): bool => $v !== null)));
 
         return [$this->serializer->wiki($wiki), $wiki];
     }
@@ -120,7 +120,7 @@ final readonly class WikiApiDelegatedOperations
         $wiki = $this->manageable($principal, $slug, $archive);
         $this->audit->requireAudit();
         $wiki = $archive ? $this->management->archive($principal, $wiki) : $this->management->unarchive($principal, $wiki);
-        $this->audit->written($principal, $archive ? 'wiki.archive' : 'wiki.unarchive', $wiki->slug, $wiki->space?->getId(), null, [], ['archived']);
+        $this->audit->written($principal, $archive ? 'wiki.archive' : 'wiki.unarchive', $wiki->slug, $wiki->spaceId, null, [], ['archived']);
 
         return [$this->serializer->wiki($wiki), $wiki];
     }

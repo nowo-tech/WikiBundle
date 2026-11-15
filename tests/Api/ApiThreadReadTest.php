@@ -63,7 +63,7 @@ final class ApiThreadReadTest extends ApiTestCase
         $em      = $this->em();
         $service = static::getContainer()->get(WikiCommentService::class);
         self::assertInstanceOf(WikiCommentService::class, $service);
-        $stored = $em->find(WikiPage::class, $page->getId()) ?? $page;
+        $stored = $this->wikiEm()->find(WikiPage::class, $page->getId()) ?? $page;
         $thread = $service->create($em->find(TestUserEntity::class, 'u-ana') ?? $this->ana, $em->find(WikiSpace::class, $stored->getSpace()->getId()) ?? $stored->getSpace(), $stored, null, $body);
 
         return (string) $thread['id'];

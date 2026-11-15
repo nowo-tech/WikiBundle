@@ -74,7 +74,7 @@ final class ApiPageReadTest extends ApiTestCase
     public function testArchivedPagesNeedAnEditTokenAndTheArchiveRight(): void
     {
         $old = $this->page($this->eng, 'Old', 'gone');
-        $this->pages()->archive($this->em()->find(WikiPage::class, $old->getId()) ?? $old);
+        $this->pages()->archive($this->wikiEm()->find(WikiPage::class, $old->getId()) ?? $old);
         $this->token('reader', 'u-ana', WikiApiLevel::Read);
         $this->token('bob-edit', 'u-bob', WikiApiLevel::Edit);
 

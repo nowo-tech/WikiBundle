@@ -10,6 +10,9 @@ use Nowo\WikiBundle\Entity\WikiPage;
  * Optional lookup of a page repository (1.30, `web_ui.children`): the direct sub-pages of a page in one query.
  * {@see DoctrineOrmWikiPageRepository} implements it; with a host repository without it the sub-pages are taken from
  * {@see WikiPageRepositoryInterface::findActiveBySpace()} (one query too).
+ *
+ * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
+ * hosts reach wiki data through the services, the id operations and the events.
  */
 interface WikiPageChildrenFinderInterface
 {

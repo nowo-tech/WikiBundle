@@ -18,6 +18,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_values;
@@ -92,6 +93,17 @@ final class WikiCommentsEraseUserCommand extends Command
             $user = $this->authorResolver->resolveByIdentifier((string) $input->getArgument('user'));
         } catch (InvalidArgumentException $exception) {
             $io->error($exception->getMessage());
+
+            return Command::FAILURE;
+        }
+
+        // Audit OX-L2: every service must be able to reference the user before anything is exported or written, so an
+        // erasure is never partial (the mentions rewritten, then the comments refused).
+        try {
+            $this->comments?->exportAuthor($user);
+            $this->provenance?->exportActor($user);
+        } catch (AccessDeniedException|InvalidArgumentException|LogicException $exception) {
+            $io->error($exception->getMessage() . ' Nothing was changed.');
 
             return Command::FAILURE;
         }

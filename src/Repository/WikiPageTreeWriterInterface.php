@@ -9,6 +9,9 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 /**
  * Atomic page tree changes (1.14): moves of one space run one at a time, so two concurrent moves cannot build a cycle
  * or interleave their sibling positions.
+ *
+ * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
+ * hosts reach wiki data through the services, the id operations and the events.
  */
 interface WikiPageTreeWriterInterface
 {
