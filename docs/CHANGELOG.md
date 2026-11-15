@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added](#added-unreleased)
+  - [Fixed](#fixed-unreleased)
+  - [Changed](#changed-unreleased)
+  - [Tests](#tests-unreleased)
 - [[1.36.0] - 2026-11-15](#1360---2026-11-15)
   - [Added](#added)
   - [Security](#security)
@@ -222,6 +226,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+Target 1.37.0 (minor; Beacon spec 239, high load). See [HIGH-LOAD.md](HIGH-LOAD.md) and [UPGRADING.md](UPGRADING.md#unreleased).
+
+<a id="added-unreleased"></a>
+### Added
+
+- `WikiTransactionRunner` (`nowo_wiki.transaction_runner`, nowo-tech/transaction-contract + transaction-doctrine
+  ^1.1): one transaction per wiki write, injected by its class (a runner the application binds to the interface is
+  never used). One attempt for HTTP; `runRetrying()` replays only the outermost unit, with full-jitter backoff. After a
+  failure no level stays open (the connection is closed only when the rollback fails, MySQL 1305) and, with the shared
+  manager, only the wiki rows the unit touched are detached; with the private manager, the application's manager is
+  never involved.
+- `WikiStorageFailureSubscriber`: on the wiki's routes only, `503` + `Retry-After` for a transient storage failure and
+  `409` for a unique-key conflict, in the REST API's format (`SERVER_002`, `WIKI_CONFLICT`) or as JSON / HTTP
+  exceptions, without SQL.
+- `docs/HIGH-LOAD.md`. It says plainly that inside the application's transaction the wiki's events follow the release of its savepoint,
+  not the application's commit (audit QN-L5, as in 1.36).
+
+<a id="fixed-unreleased"></a>
+### Fixed
+
+- Races of the write paths (each with a test that fails on 1.36.0):
+  - two saves of one page without a base revision collided on the revision number, or left the page on the older
+    revision; a page archived or trashed meanwhile was still edited (page row locked and read again);
+  - restores without a base revision and `wiki:convert-markdown` took the same path;
+  - two archives (or unarchives) of one page both announced it;
+  - a failure between a new page and its first revision left a page without a revision (one unit);
+  - the same link sent twice at once failed on the unique key and was announced twice;
+  - replies to one thread shared positions (PostgreSQL) or deadlocked (MySQL), and the per-thread cap could be passed;
+    two resolves both announced it; an anchor moved meanwhile was overwritten; the same reaction sent twice failed on
+    the unique key; the thread caps of a new thread could be passed (thread, page row locks);
+  - two uploads into the room left for one were both accepted (space quota under the space row lock);
+  - every co-editing update flushed what the application left pending in a shared manager (log rows through DBAL).
+- A closed shared manager is no longer reset in the middle of a request (that detached the application's entities):
+  it is replaced at the next boundary; a wiki write meanwhile answers 503.
+- `wiki:search:backfill-text` no longer flushes and clears the entity manager.
+- Lookups by an identifier no longer put a `LIMIT` before the exact `===` check (audit QL-M3): page and space slugs,
+  page links, reactions. Page links compare their host object exactly (binary NO PAD collation of `object_type` /
+  `object_id` on new MySQL / MariaDB schemas, `===` re-check everywhere; optional `ALTER` in UPGRADING).
+- `IDEMP_004` answers `Retry-After`.
+- Audit QN (follow-up of this release's runner):
+  - **QN-M1 — shared manager (the default): the application's pending changes could be lost without a sign.** A wiki
+    write flushes the shared manager, which writes what the application left pending; when the write then failed
+    after that flush (a later deadlock or lock wait, a failed COMMIT, a `postFlush` listener that throws), the
+    database rolled those changes back but Doctrine kept them as written, so the application's next flush wrote
+    nothing. The runner now watches its flushes and closes the manager in that case (the next flush fails loudly; the
+    manager is replaced at the next boundary). The same loss existed in **1.36 and earlier** on the paths that already
+    ran a flushing transaction: the trash purge, the save from a base revision (spec 218, REST API) and the co-editing
+    save under the log's lock, when they failed after their flush;
+  - QN-L1: a wiki deletion scheduled by a failed unit (unlink, comment, reaction, trash purge) is no longer carried out
+    by the application's next flush;
+  - QN-L2: a wiki write with a closed shared manager answers 503 (`TransientStorageFailure`), never
+    `EntityManagerClosed`;
+  - QN-L3: the attachment quota is judged with a locking read on MySQL / MariaDB, also inside the application's
+    REPEATABLE READ transaction; the limits of the other checks there are documented;
+  - QN-L4: a transient failure of the co-editing log inside the save's transaction is no longer retried outside it
+    (the log could record a save that was rolled back): the save answers a collision;
+  - QN-I2: a link to a page purged meanwhile is refused instead of failing on the foreign key;
+  - QN-I6: the 503 / 409 mapping looks down the exception chain.
+
+<a id="changed-unreleased"></a>
+### Changed
+
+- Requires `nowo-tech/transaction-contract` ^1.0, `nowo-tech/transaction-doctrine` ^1.1 and `doctrine/dbal`
+  ^3.8.2 || ^4 (DBAL 3: `use_savepoints: true`); dev: `nowo-tech/phpstan-frankenphp` ^1.4 with its load-readiness
+  rules on.
+- The co-editing store's transactions run on transaction-doctrine's connection runner; `nowo_wiki.page.written` of a
+  save follows the page's unit (lock order: co-editing log, space, page, thread, comment).
+
+<a id="tests-unreleased"></a>
+### Tests
+
+- `LoadReadinessTest` (deterministic, SQLite / MySQL / PostgreSQL), `LoadReadinessConcurrencyTest` (two processes on a
+  real server), `LoadReadinessPathsTest`, runner and subscriber unit tests. CI job `Load readiness`: MySQL 8.4 and
+  PostgreSQL 16 × DBAL 4 and DBAL 3.
 
 ## [1.36.0] - 2026-11-15
 

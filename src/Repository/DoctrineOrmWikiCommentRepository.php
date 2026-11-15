@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Repository;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Doctrine\WikiSavepoint;
 use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentReaction;
@@ -168,9 +169,14 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
             return null;
         }
-        $reaction = $em->getRepository(WikiCommentReaction::class)->findOneBy(['comment' => $comment->getId(), 'user' => $user, 'emoji' => $emoji]);
+        // 1.37 (audit QL-M3): the emoji re-checked byte for byte (a folding collation may match another one).
+        foreach ($em->getRepository(WikiCommentReaction::class)->findBy(['comment' => $comment->getId(), 'user' => $user, 'emoji' => $emoji]) as $candidate) {
+            if ($candidate->getEmoji() === $emoji) {
+                return $candidate;
+            }
+        }
 
-        return $reaction instanceof WikiCommentReaction ? $reaction : null;
+        return null;
     }
 
     public function countOpen(WikiPage $page): int
@@ -229,7 +235,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
             $comment->unlinkAuthor();
         }
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
-        $em->flush();
+        WikiFlusher::flush($em);
         if (WikiUserFields::byId($em, WikiCommentReaction::class, 'user')) {
             $id = WikiUserFields::exactId($user);
             WikiSavepoint::write($em, fn () => $this->eraseStoredId($em, $id));
@@ -299,7 +305,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
     public function rollBack(): void
     {
-        $this->entityManager()->rollback();
+        WikiFlusher::abandon($this->entityManager());
     }
 
     public function release(array $entities): void
@@ -491,7 +497,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
     public function flush(): void
     {
-        $this->entityManager()->flush();
+        WikiFlusher::flush($this->entityManager());
     }
 
     /**

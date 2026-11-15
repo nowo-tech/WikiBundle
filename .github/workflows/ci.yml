@@ -257,6 +257,72 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- --testsuite database,api
 
+  load-readiness:
+    # 1.37 (Beacon spec 239): the races of the write paths on real servers, DBAL 4 and DBAL 3 (passwordless services).
+    name: Load readiness (${{ matrix.database }}, DBAL ${{ matrix.dbal }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: ['MySQL 8.4', 'PostgreSQL 16']
+        dbal: ['4', '3']
+    env:
+      COMPOSER_IGNORE_PLATFORM_REQ: ext-pdo
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: wiki_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: wiki_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d wiki_test"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: json, pdo_mysql, pdo_pgsql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: DBAL 3
+        if: matrix.dbal == '3'
+        run: composer update doctrine/dbal:^3.8.2 --with-all-dependencies --no-progress --no-interaction
+
+      - name: Run the load-readiness and database suites
+        env:
+          WIKI_TEST_DATABASE_URL: ${{ matrix.database == 'MySQL 8.4' && 'mysql://root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4' || 'postgresql://postgres@127.0.0.1:5432/wiki_test?serverVersion=16&charset=utf8' }}
+        run: |
+          composer show doctrine/dbal | grep -E '^versions'
+          vendor/bin/phpunit --fail-on-skipped tests/Database/LoadReadinessTest.php
+          vendor/bin/phpunit --fail-on-skipped tests/Database/LoadReadinessConcurrencyTest.php
+          vendor/bin/phpunit --testsuite database
+
   code-style:
     name: Code Style
     runs-on: ubuntu-latest

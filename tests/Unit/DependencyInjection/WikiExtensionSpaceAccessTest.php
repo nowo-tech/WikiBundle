@@ -23,6 +23,7 @@ use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUsers;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
@@ -59,7 +60,7 @@ final class WikiExtensionSpaceAccessTest extends TestCase
         $memos = $definition->getArgument('$memos');
         self::assertInstanceOf(IteratorArgument::class, $memos);
         $ids = array_map(static fn (mixed $reference): string => $reference instanceof Reference ? (string) $reference : '', $memos->getValues());
-        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class, WikiEntityManager::class], $ids);
+        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class, WikiEntityManager::class, WikiTransactionRunner::class], $ids);
         foreach ($memos->getValues() as $reference) {
             self::assertInstanceOf(Reference::class, $reference);
             self::assertSame(ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE, $reference->getInvalidBehavior(), 'only built memos are reset; missing ones are skipped');

@@ -113,8 +113,13 @@ final class WikiTestDatabase
             return DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true], $config);
         }
 
-        $params = (new DsnParser(['mysql' => 'pdo_mysql', 'postgresql' => 'pdo_pgsql', 'postgres' => 'pdo_pgsql']))->parse($url);
+        $params     = (new DsnParser(['mysql' => 'pdo_mysql', 'postgresql' => 'pdo_pgsql', 'postgres' => 'pdo_pgsql']))->parse($url);
+        $connection = DriverManager::getConnection($params, $config);
+        // 1.37: DBAL 3 nests with savepoints only on request (DBAL 4 always does), as docs/HIGH-LOAD.md asks of hosts.
+        if (method_exists($connection, 'setNestTransactionsWithSavepoints')) {
+            $connection->setNestTransactionsWithSavepoints(true);
+        }
 
-        return DriverManager::getConnection($params, $config);
+        return $connection;
     }
 }

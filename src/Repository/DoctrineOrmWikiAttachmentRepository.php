@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Repository;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\LockMode;
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -32,7 +35,7 @@ final readonly class DoctrineOrmWikiAttachmentRepository implements WikiAttachme
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($attachment);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function remove(WikiAttachment $attachment): void
@@ -40,7 +43,7 @@ final readonly class DoctrineOrmWikiAttachmentRepository implements WikiAttachme
         $entityManager = $this->entityManager();
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
         $entityManager->remove($attachment);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function findById(string $id): ?WikiAttachment
@@ -85,6 +88,27 @@ final readonly class DoctrineOrmWikiAttachmentRepository implements WikiAttachme
             ->where('a.space = :space')
             ->setParameter('space', $space)
             ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * 1.37 (audit QN-L3): {@see self::sumSizeBySpace()} as a locking read on MySQL / MariaDB, inside a transaction:
+     * it sees the latest committed uploads even when the caller's transaction (REPEATABLE READ) took its snapshot
+     * earlier. PostgreSQL (no locking read with an aggregate) and SQLite read as usual: on PostgreSQL every statement of
+     * a READ COMMITTED transaction sees the latest commits.
+     */
+    public function sumSizeBySpaceForUpdate(WikiSpace $space): int
+    {
+        $entityManager = $this->entityManager();
+        $query         = $entityManager->createQueryBuilder()
+            ->select('COALESCE(SUM(a.size), 0)')
+            ->from(WikiAttachment::class, 'a')
+            ->where('a.space = :space')
+            ->setParameter('space', $space)
+            ->getQuery();
+
+        return (int) $query
+            ->setLockMode($entityManager->getConnection()->getDatabasePlatform() instanceof AbstractMySQLPlatform ? LockMode::PESSIMISTIC_READ : LockMode::NONE)
             ->getSingleScalarResult();
     }
 

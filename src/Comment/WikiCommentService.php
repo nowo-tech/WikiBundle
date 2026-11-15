@@ -40,6 +40,7 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\User\WikiUserId;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
@@ -196,6 +197,7 @@ final readonly class WikiCommentService
         private ?WikiUserClassPolicy $userClasses = null,
         private ?WikiMemberBadges $badges = null,
         private ?WikiWriteProvenanceErasure $provenance = null,
+        private ?WikiTransactionRunner $runner = null,
     ) {
     }
 
@@ -343,13 +345,22 @@ final readonly class WikiCommentService
         $this->cap($this->comments->countThreads($page), 'total_threads_per_page');
         $this->limit($user, $page);
 
-        $thread  = new WikiCommentThread($page, $stored, $json, $quote);
-        $comment = new WikiComment($thread, $stored, $text);
-        // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
-        $this->comments->add($thread);
-        // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
-        $this->comments->add($comment);
-        $this->comments->flush();
+        [$thread, $comment] = $this->locked($page, function () use ($page, $stored, $json, $quote, $text): array {
+            if ($this->runner instanceof WikiTransactionRunner) {
+                // 1.37: the caps again under the page lock: two threads started at once no longer both pass them.
+                $this->openCaps($page, $stored);
+                $this->cap($this->comments->countThreads($page), 'total_threads_per_page');
+            }
+            $thread  = new WikiCommentThread($page, $stored, $json, $quote);
+            $comment = new WikiComment($thread, $stored, $text);
+            // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
+            $this->comments->add($thread);
+            // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
+            $this->comments->add($comment);
+            $this->comments->flush();
+
+            return [$thread, $comment];
+        });
         $this->changed($page, $thread, $comment, $user, WikiEvents::COMMENT_CREATED, $text);
 
         return $this->threadJson($user, $page, $thread, $rights);
@@ -368,14 +379,19 @@ final readonly class WikiCommentService
         $text   = $this->body($body);
         $this->limit($user, $page);
 
-        $existing = $this->comments->comments([$thread])[$thread->getId()] ?? [];
-        $this->cap(count($existing), 'comments_per_thread');
-        $last    = $existing === [] ? null : $existing[array_key_last($existing)];
-        $comment = new WikiComment($thread, $this->stored($user), $text, $last instanceof WikiComment ? $last->getPosition() + 1 : 0);
-        $thread->touch();
-        // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
-        $this->comments->add($comment);
-        $this->comments->flush();
+        // 1.37: the position and the cap under the thread lock: two replies at once no longer share a position.
+        $comment = $this->locked($thread, function () use ($thread, $user, $text): WikiComment {
+            $existing = $this->comments->comments([$thread])[$thread->getId()] ?? [];
+            $this->cap(count($existing), 'comments_per_thread');
+            $last    = $existing === [] ? null : $existing[array_key_last($existing)];
+            $comment = new WikiComment($thread, $this->stored($user), $text, $last instanceof WikiComment ? $last->getPosition() + 1 : 0);
+            $thread->touch();
+            // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
+            $this->comments->add($comment);
+            $this->comments->flush();
+
+            return $comment;
+        });
         $this->changed($page, $thread, $comment, $user, WikiEvents::COMMENT_REPLIED, $text);
 
         return $this->threadJson($user, $page, $thread, $rights);
@@ -401,14 +417,23 @@ final readonly class WikiCommentService
             }
             $this->require($rights['resolve']);
             $this->limit($user, $page);
-            if ($patch['resolved'] !== $thread->isResolved()) {
+            $resolved = $patch['resolved'];
+            // 1.37: judged on the thread read again under its lock: two resolves at once write and announce it once.
+            $changed = $this->locked($thread, function () use ($page, $thread, $user, $resolved): bool {
+                if ($resolved === $thread->isResolved()) {
+                    return false;
+                }
                 // 1.16.1 (audit EI2-I1): reopening adds an open thread, so the open caps apply as on creation.
-                if (!$patch['resolved']) {
+                if (!$resolved) {
                     $this->openCaps($page, $thread->getCreatedBy());
                 }
-                $patch['resolved'] ? $thread->resolve($this->stored($user)) : $thread->reopen();
+                $resolved ? $thread->resolve($this->stored($user)) : $thread->reopen();
                 $this->comments->flush();
-                $this->changed($page, $thread, null, $user, $patch['resolved'] ? WikiEvents::COMMENT_RESOLVED : WikiEvents::COMMENT_REOPENED);
+
+                return true;
+            });
+            if ($changed) {
+                $this->changed($page, $thread, null, $user, $resolved ? WikiEvents::COMMENT_RESOLVED : WikiEvents::COMMENT_REOPENED);
             }
 
             return $this->threadJson($user, $page, $thread, $rights);
@@ -423,9 +448,21 @@ final readonly class WikiCommentService
             throw new WikiCommentException(Response::HTTP_CONFLICT, 'stale');
         }
         $this->limit($user, $page);
-        if ($json !== $thread->getAnchor()) {
+        $base = $patch['base'];
+        // 1.37: the base compared again under the thread lock (an anchor moved meanwhile is stale, not overwritten).
+        $moved = $this->locked($thread, function () use ($thread, $json, $quote, $base): bool {
+            if ($base !== $thread->getUpdatedAt()->format(self::DATE)) {
+                throw new WikiCommentException(Response::HTTP_CONFLICT, 'stale');
+            }
+            if ($json === $thread->getAnchor()) {
+                return false;
+            }
             $thread->moveAnchor($json, $quote);
             $this->comments->flush();
+
+            return true;
+        });
+        if ($moved) {
             // An anchor refresh is not content: no event, but other viewers refetch the thread.
             $this->publish($page, $thread);
         }
@@ -446,9 +483,12 @@ final readonly class WikiCommentService
         $text = $this->body($body);
         $this->limit($user, $page);
 
-        $comment->edit($text);
-        $comment->getThread()->touch();
-        $this->comments->flush();
+        $this->locked($comment->getThread(), function () use ($user, $comment, $rights, $text): void {
+            $this->freshComment($user, $comment, $rights);
+            $comment->edit($text);
+            $comment->getThread()->touch();
+            $this->comments->flush();
+        });
         $this->changed($page, $comment->getThread(), $comment, $user, WikiEvents::COMMENT_EDITED, $text);
 
         return $this->threadJson($user, $page, $comment->getThread(), $rights);
@@ -469,25 +509,35 @@ final readonly class WikiCommentService
         $this->limit($user, $page);
 
         $thread = $comment->getThread();
-        $all    = $this->comments->comments([$thread])[$thread->getId()] ?? [];
-        $others = array_filter($all, static fn (WikiComment $c): bool => $c !== $comment && !$c->isDeleted());
-        $later  = array_filter($all, static fn (WikiComment $c): bool => $c->getPosition() > $comment->getPosition());
-        if ($others === []) {
-            // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
-            $this->comments->remove($thread);
+        // 1.37: the thread's comments read again under its lock (a reply posted meanwhile keeps the thread).
+        $gone = $this->locked($thread, function () use ($user, $thread, $comment, $rights): bool {
+            $this->freshComment($user, $comment, $rights);
+            $all    = $this->comments->comments([$thread])[$thread->getId()] ?? [];
+            $others = array_filter($all, static fn (WikiComment $c): bool => $c !== $comment && !$c->isDeleted());
+            $later  = array_filter($all, static fn (WikiComment $c): bool => $c->getPosition() > $comment->getPosition());
+            if ($others === []) {
+                // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
+                $this->comments->remove($thread);
+                $this->comments->flush();
+
+                return true;
+            }
+            if ($later === []) {
+                // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
+                $this->comments->remove($comment);
+            } else {
+                $comment->markDeleted();
+            }
+            $thread->touch();
             $this->comments->flush();
+
+            return false;
+        });
+        if ($gone) {
             $this->changed($page, $thread, null, $user, WikiEvents::COMMENT_DELETED);
 
             return null;
         }
-        if ($later === []) {
-            // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
-            $this->comments->remove($comment);
-        } else {
-            $comment->markDeleted();
-        }
-        $thread->touch();
-        $this->comments->flush();
         $this->changed($page, $thread, $comment, $user, WikiEvents::COMMENT_DELETED);
 
         return $this->threadJson($user, $page, $thread, $rights);
@@ -505,9 +555,11 @@ final readonly class WikiCommentService
         $this->require($rights['moderate']);
         $this->limit($user, $page);
 
-        // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
-        $this->comments->remove($thread);
-        $this->comments->flush();
+        $this->locked($thread, function () use ($thread): void {
+            // @igor-ignore - Doctrine unit of work of the comment store; the entity manager is reset by Doctrine between requests.
+            $this->comments->remove($thread);
+            $this->comments->flush();
+        });
         $this->changed($page, $thread, null, $user, WikiEvents::COMMENT_THREAD_DELETED);
     }
 
@@ -526,7 +578,22 @@ final readonly class WikiCommentService
         }
         $this->limit($user, $page);
 
-        $stored   = $this->stored($user);
+        $stored = $this->stored($user);
+        // 1.37: the reaction looked up again under the thread lock: the same reaction sent twice at once is added once.
+        $this->locked($comment->getThread(), function () use ($user, $comment, $rights, $stored, $emoji, $on): void {
+            $this->freshComment($user, $comment, $rights, true);
+            $this->toggleReaction($user, $comment, $stored, $emoji, $on);
+        });
+        $this->publish($page, $comment->getThread());
+
+        return $this->threadJson($user, $page, $comment->getThread(), $rights);
+    }
+
+    /**
+     * Adds or removes the user's reaction (the caps apply to a new one), then saves.
+     */
+    private function toggleReaction(UserInterface $user, WikiComment $comment, object $stored, string $emoji, bool $on): void
+    {
         $existing = $this->comments->reaction($comment, $stored, $emoji);
         if ($on && !$existing instanceof WikiCommentReaction) {
             $emojis = [];
@@ -547,9 +614,50 @@ final readonly class WikiCommentService
         }
         $comment->getThread()->touch();
         $this->comments->flush();
-        $this->publish($page, $comment->getThread());
+    }
 
-        return $this->threadJson($user, $page, $comment->getThread(), $rights);
+    /**
+     * Runs a comment write; 1.37: as one unit of work of the transaction runner with the row of `$lock` (the page for a
+     * new thread, else the thread) locked and read again first. Lock order: page, thread, comment. A row gone meanwhile
+     * answers 404.
+     *
+     * @template T
+     *
+     * @param callable(): T $write
+     *
+     * @return T
+     */
+    private function locked(WikiPage|WikiCommentThread $lock, callable $write): mixed
+    {
+        if (!$this->runner instanceof WikiTransactionRunner) {
+            return $write();
+        }
+        $runner = $this->runner;
+
+        // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
+        return $runner->run(static function () use ($runner, $lock, $write): mixed {
+            if (!$runner->lockEntity($lock)) {
+                throw new WikiCommentException(Response::HTTP_NOT_FOUND, 'not_found');
+            }
+
+            return $write();
+        });
+    }
+
+    /**
+     * 1.37, under the thread lock: the comment read again (deleted meanwhile by someone else answers 403 as before).
+     *
+     * @param Rights $rights
+     */
+    private function freshComment(UserInterface $user, WikiComment $comment, array $rights, bool $react = false): void
+    {
+        if (!$this->runner instanceof WikiTransactionRunner) {
+            return;
+        }
+        if (!$this->runner->lockEntity($comment)) {
+            throw new WikiCommentException(Response::HTTP_NOT_FOUND, 'not_found');
+        }
+        $this->require(!$comment->isDeleted() && ($react || $this->mayChange($user, $comment, $rights)));
     }
 
     /**

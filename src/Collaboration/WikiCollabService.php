@@ -9,6 +9,7 @@ use Doctrine\DBAL\Exception\DriverException;
 use Doctrine\DBAL\Exception\RetryableException;
 use JsonException;
 use LogicException;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -249,7 +250,7 @@ final readonly class WikiCollabService
             'compact' => $state->updateCount >= $this->options['compact_after'],
             'seed'    => $state->isEmpty() && $state->seededBy === $me
                 && $state->seededAt instanceof DateTimeImmutable && $state->seededAt >= $this->staleBefore()
-                && !($request instanceof Request && $this->clientIsOnAnotherLog($request, $page->getId())),
+                && (!$request instanceof Request || !$this->clientIsOnAnotherLog($request, $page->getId())),
         ];
     }
 
@@ -407,7 +408,7 @@ final readonly class WikiCollabService
         try {
             $store = $this->store;
             $saved = $this->afterCommit(static fn (): bool => $store instanceof WikiCollabLockingStoreInterface ? $store->whileLocked($page->getId(), $work) : $work());
-        } catch (RetryableException|DriverException $exception) {
+        } catch (RetryableException|DriverException|TransientStorageFailure|WikiCollabUnitLostException $exception) {
             // Lost a race under the lock: the transaction rolled back, so nothing was written.
             $this->rethrowUnlessLockLost($exception);
 
@@ -469,7 +470,7 @@ final readonly class WikiCollabService
 
                 return true;
             }));
-        } catch (RetryableException|DriverException $exception) {
+        } catch (RetryableException|DriverException|TransientStorageFailure|WikiCollabUnitLostException $exception) {
             $this->rethrowUnlessLockLost($exception);
 
             throw new WikiRevisionCollisionException('The save lost a race with another one.', 0, $exception);
@@ -669,6 +670,10 @@ final readonly class WikiCollabService
 
             return true;
         } catch (Throwable $exception) {
+            // Audit QN-L4: the transaction the save belongs to is gone: never retried outside it.
+            if ($exception instanceof WikiCollabUnitLostException) {
+                throw $exception;
+            }
             $this->rethrowUnlessLockLost($exception);
         }
 
@@ -677,6 +682,9 @@ final readonly class WikiCollabService
 
             return true;
         } catch (Throwable $exception) {
+            if ($exception instanceof WikiCollabUnitLostException) {
+                throw $exception;
+            }
             $this->rethrowUnlessLockLost($exception);
             $this->logger?->warning('Wiki co-editing save could not update the log.', ['bundle' => 'nowo_wiki', 'page' => $page->getId(), 'exception_class' => $exception::class]);
 
@@ -689,7 +697,8 @@ final readonly class WikiCollabService
      */
     private function rethrowUnlessLockLost(Throwable $exception): void
     {
-        if (!$exception instanceof RetryableException && !($exception instanceof DriverException && $exception->getSQLState() === self::POSTGRES_LOCK_NOT_AVAILABLE)) {
+        // 1.37: TransientStorageFailure is the store's transaction runner's name for both.
+        if (!$exception instanceof RetryableException && !$exception instanceof TransientStorageFailure && !$exception instanceof WikiCollabUnitLostException && (!$exception instanceof DriverException || $exception->getSQLState() !== self::POSTGRES_LOCK_NOT_AVAILABLE)) {
             throw $exception;
         }
     }

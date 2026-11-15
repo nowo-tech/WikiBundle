@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Repository;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiRevisionLabel;
 
@@ -25,7 +26,7 @@ final readonly class DoctrineOrmWikiRevisionLabelRepository implements WikiRevis
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($label);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function findForRevision(WikiPageRevision $revision): ?WikiRevisionLabel

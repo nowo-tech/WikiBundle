@@ -10,7 +10,9 @@ use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -58,6 +60,7 @@ final readonly class WikiAttachmentService
         private EventDispatcherInterface $eventDispatcher,
         ?LoggerInterface $logger = null,
         private ?WikiUserReferenceResolverInterface $users = null,
+        private ?WikiTransactionRunner $runner = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -128,7 +131,23 @@ final readonly class WikiAttachmentService
         $attachment = new WikiAttachment($page, $space, $name, $key, $mime, $size, (string) hash_file('sha256', $path), $actor !== null ? ($this->users?->reference($actor) ?? $actor) : null);
 
         try {
-            $this->attachmentRepository->save($attachment);
+            if ($this->runner instanceof WikiTransactionRunner) {
+                // 1.37: the space quota again under the space lock: two uploads at once no longer both fit in the room
+                // that was left for one.
+                $runner = $this->runner;
+                // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
+                $runner->run(function () use ($space, $size, $limits, $attachment): void {
+                    $this->runner?->lockSpace($space);
+                    // Audit QN-L3: a locking read on MySQL, so a caller's older snapshot cannot hide an upload.
+                    $used = $this->attachmentRepository instanceof DoctrineOrmWikiAttachmentRepository ? $this->attachmentRepository->sumSizeBySpaceForUpdate($space) : $this->attachmentRepository->sumSizeBySpace($space);
+                    if ($used + $size > $limits->maxSpaceBytes) {
+                        throw new WikiAttachmentRejectedException(WikiAttachmentRejectedException::QUOTA_EXCEEDED);
+                    }
+                    $this->attachmentRepository->save($attachment);
+                });
+            } else {
+                $this->attachmentRepository->save($attachment);
+            }
         } catch (Throwable $exception) {
             $this->storage->delete($key);
 

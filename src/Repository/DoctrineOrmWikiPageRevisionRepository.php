@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Repository;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenance;
@@ -41,7 +42,7 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($revision);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     /**

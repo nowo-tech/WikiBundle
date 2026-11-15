@@ -9,6 +9,7 @@ use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
 use Doctrine\DBAL\Exception\DeadlockException;
 use Doctrine\DBAL\Exception\DriverException;
 use LogicException;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabLockingStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabNumberedStoreInterface;
@@ -17,6 +18,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabUnitLostException;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -629,7 +631,7 @@ final class WikiCollabServiceTest extends TestCase
         $collab = new WikiCollabService($this->store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
         $this->store->append($this->page->getId(), 'dQ==');
 
-        self::assertFalse($collab->saveOutsideSession(new Request(), $this->page, static fn () => self::fail('Must not save.')));
+        self::assertFalse($collab->saveOutsideSession(new Request(), $this->page, static fn (): never => self::fail('Must not save.')));
     }
 
     /** Audit HO-M1: live editors hear of the reset after the commit, so a slow hub holds no lock. */
@@ -702,7 +704,7 @@ final class WikiCollabServiceTest extends TestCase
         $collab = new WikiCollabService($this->store, $this->createStub(WikiCollabPublisherInterface::class), $this->createStub(WikiCollabSubscriberAuthorizerInterface::class), secret: 'test-secret');
 
         $this->expectException(WikiRevisionCollisionException::class);
-        $collab->saveOutsideSession(new Request(), $this->page, static function () use ($driver): void {
+        $collab->saveOutsideSession(new Request(), $this->page, static function () use ($driver): never {
             throw new DeadlockException($driver, null);
         });
     }
@@ -817,6 +819,32 @@ final class WikiCollabServiceTest extends TestCase
         $store->expects(self::never())->method('reset');
 
         $this->numberedService($store)->saved($this->page, $revision, $previous, 5);
+    }
+
+    /** Audit QN-L4: the save's own transaction is gone: never retried outside it, the failure goes up (a collision). */
+    public function testALostUnitIsNeverRetriedOutsideIt(): void
+    {
+        $previous = $this->page->getCurrentRevision();
+        self::assertInstanceOf(WikiPageRevision::class, $previous);
+        $lost  = new WikiCollabUnitLostException(new TransientStorageFailure(1));
+        $store = $this->createMock(WikiCollabNumberedStoreInterface::class);
+        $store->method('info')->willReturn(new WikiCollabState(baseRevisionId: $previous->getId(), updatedAt: new DateTimeImmutable()));
+        $store->expects(self::once())->method('markSavedUpTo')->willThrowException($lost);
+        $store->expects(self::never())->method('moveBase');
+
+        try {
+            $this->numberedService($store)->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous, 5);
+            self::fail('Expected the lost unit.');
+        } catch (WikiCollabUnitLostException $e) {
+            self::assertSame($lost, $e);
+        }
+
+        $retry = $this->createMock(WikiCollabNumberedStoreInterface::class);
+        $retry->method('info')->willReturn(new WikiCollabState(baseRevisionId: $previous->getId(), updatedAt: new DateTimeImmutable()));
+        $retry->method('markSavedUpTo')->willThrowException($this->lockLost());
+        $retry->method('moveBase')->willThrowException($lost);
+        $this->expectExceptionObject($lost);
+        $this->numberedService($retry)->saved($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y'), $previous, 5);
     }
 
     /** The save is committed by then: losing the row twice costs a later question, not an error. */
@@ -1005,8 +1033,8 @@ final class WikiCollabServiceTest extends TestCase
         $timeout     = new DriverException($this->driverError('55P03'), null);
 
         foreach ([
-            fn () => $service->saveOutsideSession(new Request(), $this->page, static fn () => throw $timeout, true),
-            fn () => $service->saveInEpoch($this->page, $epoch, static fn () => throw $timeout),
+            fn (): bool => $service->saveOutsideSession(new Request(), $this->page, static fn (): never => throw $timeout, true),
+            fn (): bool => $service->saveInEpoch($this->page, $epoch, static fn (): never => throw $timeout),
         ] as $save) {
             try {
                 $save();
@@ -1019,7 +1047,7 @@ final class WikiCollabServiceTest extends TestCase
         }
 
         $this->expectException(DriverException::class);
-        $service->saveInEpoch($this->page, $epoch, fn () => throw new DriverException($this->driverError('42000'), null));
+        $service->saveInEpoch($this->page, $epoch, fn (): never => throw new DriverException($this->driverError('42000'), null));
     }
 
     /** Audit HV-M1: the old document of a tab that was away never reaches the new log. */
@@ -1164,7 +1192,7 @@ final class WikiCollabServiceTest extends TestCase
             'replaced'     => fn (WikiCollabService $s) => $s->replaced($this->page, new WikiPageRevision($this->page, 2, '<p>y</p>', new TestUser(), 'y')),
             'manual reset' => fn (WikiCollabService $s) => $s->reset($this->page, $this->user),
             'corrupt'      => fn (WikiCollabService $s) => $s->corrupt($this->jsonRequest(['c' => 7, 's' => $this->store->info($this->page->getId())->seq]), $this->page, $this->user),
-            'outside save' => fn (WikiCollabService $s) => $s->saveOutsideSession(new Request(), $this->page, static fn () => null, true),
+            'outside save' => fn (WikiCollabService $s): bool => $s->saveOutsideSession(new Request(), $this->page, static fn (): null => null, true),
         ];
         foreach ($paths as $name => $path) {
             $this->store = new EpochInMemoryCollabStateStore();
@@ -1207,7 +1235,7 @@ final class WikiCollabServiceTest extends TestCase
         self::assertTrue($ran);
 
         $store->reset($this->page->getId(), 'rev');
-        self::assertFalse($service->saveInEpoch($this->page, $old, static fn () => self::fail('Must not save.')));
+        self::assertFalse($service->saveInEpoch($this->page, $old, static fn (): never => self::fail('Must not save.')));
         self::assertFalse($service->epochIsCurrent($this->page, $old));
     }
 
@@ -1231,7 +1259,7 @@ final class WikiCollabServiceTest extends TestCase
         $store->reset($this->page->getId(), 'rev');
 
         self::assertTrue($service->epochIsCurrent($this->page, 'old'));
-        self::assertTrue($service->saveInEpoch($this->page, 'old', static fn () => null));
+        self::assertTrue($service->saveInEpoch($this->page, 'old', static fn (): null => null));
     }
 
     public function testARaceLostInASessionSaveIsACollision(): void
@@ -1242,7 +1270,7 @@ final class WikiCollabServiceTest extends TestCase
         $epoch       = $service->state($this->page, $this->user)['epoch'];
 
         $this->expectException(WikiRevisionCollisionException::class);
-        $service->saveInEpoch($this->page, $epoch, function (): void {
+        $service->saveInEpoch($this->page, $epoch, function (): never {
             throw $this->lockLost();
         });
     }
@@ -1336,7 +1364,7 @@ final class WikiCollabServiceTest extends TestCase
         $request = new Request();
 
         try {
-            $collab->saveOutsideSession($request, $this->page, static function (): void {
+            $collab->saveOutsideSession($request, $this->page, static function (): never {
                 throw new RuntimeException('listener failed');
             });
             self::fail('Expected the exception.');

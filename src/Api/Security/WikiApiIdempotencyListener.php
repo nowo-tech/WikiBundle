@@ -104,7 +104,8 @@ final readonly class WikiApiIdempotencyListener implements EventSubscriberInterf
         } catch (Throwable $failure) {
             $this->logger->error('Wiki API: the idempotency store failed.', ['bundle' => 'nowo_wiki', 'exception_class' => $failure::class]);
 
-            throw new WikiApiRefusal(503, 'IDEMP_004', 'Idempotency is not available');
+            // 1.37 (Beacon spec 239): a 503 always tells when to retry.
+            throw new WikiApiRefusal(503, 'IDEMP_004', 'Idempotency is not available', [], ['Retry-After' => '1']);
         }
 
         match ($claim->outcome) {

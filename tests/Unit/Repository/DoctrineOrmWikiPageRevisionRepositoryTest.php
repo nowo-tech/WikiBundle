@@ -25,6 +25,7 @@ final class DoctrineOrmWikiPageRevisionRepositoryTest extends TestCase
 
         $em = $this->createMock(EntityManagerInterface::class);
         $em->expects(self::once())->method('persist')->with($revision);
+        $em->method('isOpen')->willReturn(true);
         $em->expects(self::once())->method('flush');
 
         (new DoctrineOrmWikiPageRevisionRepository($em))->save($revision);

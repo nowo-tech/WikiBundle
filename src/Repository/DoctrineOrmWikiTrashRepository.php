@@ -9,6 +9,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -42,7 +43,7 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
         foreach ($entries as $entry) {
             $entityManager->persist($entry);
         }
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function findRoots(WikiSpace $space): array
@@ -119,7 +120,7 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
         $entityManager->createQueryBuilder()->delete(WikiTrashEntry::class, 't')
             ->where('t.batchId = :batch')->setParameter('batch', $batchId)
             ->getQuery()->execute();
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function deletePages(array $pages): void
@@ -147,7 +148,7 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
             $entityManager->createQueryBuilder()->delete(WikiPage::class, 'p')->where('p.id IN (:ids)')->setParameter('ids', $ids)->getQuery()->execute();
             $entityManager->commit();
         } catch (Throwable $exception) {
-            $entityManager->rollback();
+            WikiFlusher::abandon($entityManager);
 
             throw $exception;
         }

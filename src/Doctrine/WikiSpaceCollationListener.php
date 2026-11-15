@@ -14,6 +14,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Tools\Event\GenerateSchemaTableEventArgs;
 use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
+use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Psr\Log\LoggerInterface;
 
@@ -34,6 +35,9 @@ final readonly class WikiSpaceCollationListener
 {
     /** Mapped fields that get the binary collation. */
     public const FIELDS = ['ownerScopeId'];
+
+    /** 1.37: the fields of a page link that hold a host object's type and id. */
+    public const LINK_FIELDS = ['objectType', 'objectId'];
 
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki's entity manager (its platform decides the collation)
@@ -95,7 +99,8 @@ final readonly class WikiSpaceCollationListener
     }
 
     /**
-     * The fields of a wiki class that hold an owner or user id: `owner_scope_id` of the spaces and, with
+     * The fields of a wiki class that hold an owner or user id: `owner_scope_id` of the spaces, 1.37 the linked host
+     * object of a page link (`object_type`, `object_id`) and, with
      * `database.user_reference: id` (1.36), every {@see WikiUserRefType} column (REQ-SEC-006 item 3).
      *
      * @param ClassMetadata<object> $metadata the class metadata
@@ -104,7 +109,12 @@ final readonly class WikiSpaceCollationListener
      */
     public static function fieldsOf(ClassMetadata $metadata): array
     {
-        $fields = $metadata->getName() === WikiSpace::class ? self::FIELDS : [];
+        $fields = match ($metadata->getName()) {
+            WikiSpace::class => self::FIELDS,
+            // 1.37: the host object a page is linked to (a task `ABC` is not the task `abc`).
+            WikiPageLink::class => self::LINK_FIELDS,
+            default             => [],
+        };
         foreach ($metadata->fieldMappings as $field => $mapping) {
             if ($mapping->type === WikiUserRefType::NAME) {
                 $fields[] = $field;

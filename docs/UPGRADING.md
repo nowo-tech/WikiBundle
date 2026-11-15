@@ -3,6 +3,8 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [High load (Beacon spec 239)](#high-load-beacon-spec-239)
+  - [Optional: exact collation of the page link columns](#optional-exact-collation-of-the-page-link-columns)
 - [To 1.36.0](#to-1360)
 - [To 1.36.0](#to-1360-1)
   - [Host ports: move to the framework-free twins (optional until 2.0)](#host-ports-move-to-the-framework-free-twins-optional-until-20)
@@ -93,6 +95,64 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+### High load (Beacon spec 239)
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+No configuration, schema or code change is required. New dependencies: `nowo-tech/transaction-contract` ^1.0 and
+`nowo-tech/transaction-doctrine` ^1.1 (`doctrine/dbal` ^3.8.2 || ^4). What changes at runtime (details in
+[HIGH-LOAD.md](HIGH-LOAD.md)):
+
+- Every wiki write is one transaction of the wiki's own runner (`nowo_wiki.transaction_runner`), with its rows locked
+  in one order and read again under the lock. A runner your application binds to
+  `Nowo\TransactionContract\TransactionRunnerInterface` is never used by the wiki.
+- **DBAL 3:** set `doctrine.dbal.use_savepoints: true`, so a wiki failure inside your transaction rolls back to its
+  savepoint instead of marking your whole transaction rollback-only.
+- The wiki's routes answer `503` + `Retry-After` for a deadlock or lock wait and `409` for a unique-key conflict instead
+  of `500` (REST API: `SERVER_002` / `WIKI_CONFLICT`). `IDEMP_004` now carries `Retry-After`.
+- **Shared manager (the default):** a manager that a failed flush closed is no longer reset in the middle of the
+  request (that detached every entity you had loaded). It stays closed until the next request, message or command
+  boundary, where the wiki's runner replaces it; meanwhile a wiki write answers `503`. After a failed wiki unit only
+  the wiki rows it touched are detached. The co-editing log and `wiki:search:backfill-text` no longer flush or clear
+  the manager.
+- A save without a base revision (the edit form, imports, `wiki:convert-markdown`) of a page archived or trashed
+  meanwhile is refused (`Archived pages cannot be edited.`), as a save of an archived page always was.
+- A page save that hits a deadlock or lock wait still throws `WikiRevisionCollisionException` (its previous exception is
+  now a `TransientStorageFailure`).
+- **Shared manager:** when a wiki unit that flushed changes of yours fails afterwards, the wiki closes the manager (the
+  database undid those changes; Doctrine would otherwise take them as written). Your next flush in that request fails
+  with `EntityManagerClosed`; the manager is replaced at the next request. Reload and retry, as after any failed flush.
+- Wiki events of a unit that runs inside your own transaction are dispatched when the wiki's savepoint is released, not
+  at your commit (as in 1.36); see HIGH-LOAD.md.
+- Services you build by hand keep the 1.36 behaviour unless you pass the runner (`runner:` argument of
+  `WikiPageService`, `WikiPageMover`, `WikiTrashService`, `WikiCommentService`, `WikiPageLinkService`,
+  `WikiAttachmentService`).
+
+### Optional: exact collation of the page link columns
+
+New schemas give `object_type` and `object_id` of the page links the binary NO PAD collation on MySQL / MariaDB (house
+rule LQ), and every lookup re-checks the ids with `===` either way, so this migration is **optional**: it only lets
+the database itself keep `ABC` and `abc` (or `42` and `42 `) apart, including in the `(page_id, object_type,
+object_id)` unique key. Until you run it, linking a look-alike of an object a page is already linked to is refused
+by that key (409); nothing wrong is read. The `ALTER` is safe: going from a folding collation to a binary one never
+creates duplicates. PostgreSQL and SQLite compare exactly already.
+
+```sql
+-- MySQL 8
+ALTER TABLE wiki_page_links
+  MODIFY object_type VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin NOT NULL,
+  MODIFY object_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin NOT NULL;
+-- MariaDB
+ALTER TABLE wiki_page_links
+  MODIFY object_type VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_nopad_bin NOT NULL,
+  MODIFY object_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_nopad_bin NOT NULL;
+```
+
+Use your table prefix (`nowo_wiki.database.table_prefix`) if you set one. `doctrine:migrations:diff` generates the same
+statement.
 
 ## To 1.36.0
 

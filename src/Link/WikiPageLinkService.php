@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Link;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiPageLinkEvent;
 use Nowo\WikiBundle\Port\WikiObjectLinkSourceGate;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -39,6 +41,7 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
         private iterable $resolvers,
         private EventDispatcherInterface $eventDispatcher,
         private ?WikiUserReferenceResolverInterface $users = null,
+        private ?WikiTransactionRunner $runner = null,
     ) {
     }
 
@@ -54,13 +57,22 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
      */
     public function link(WikiPage $page, string $objectType, string $objectId, ?object $actor = null): WikiPageLink
     {
-        $existing = $this->linkRepository->findOne($page, $objectType, $objectId);
-        if ($existing instanceof WikiPageLink) {
-            return $existing;
-        }
+        // 1.37: looked up again under the page lock, so the same link sent twice at once is stored and announced once
+        // (the second one used to fail on the unique key).
+        [$link, $created] = $this->underPageLock($page, function () use ($page, $objectType, $objectId, $actor): array {
+            $existing = $this->linkRepository->findOne($page, $objectType, $objectId);
+            if ($existing instanceof WikiPageLink) {
+                return [$existing, false];
+            }
 
-        $link = new WikiPageLink($page, $objectType, $objectId, $actor !== null ? ($this->users?->reference($actor) ?? $actor) : null);
-        $this->linkRepository->save($link);
+            $link = new WikiPageLink($page, $objectType, $objectId, $actor !== null ? ($this->users?->reference($actor) ?? $actor) : null);
+            $this->linkRepository->save($link);
+
+            return [$link, true];
+        });
+        if (!$created) {
+            return $link;
+        }
         $this->eventDispatcher->dispatch(new WikiPageLinkEvent($page, $objectType, $objectId, $actor), WikiEvents::PAGE_LINKED);
 
         return $link;
@@ -78,13 +90,20 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
      */
     public function unlink(WikiPage $page, string $objectType, string $objectId, ?object $actor = null): bool
     {
-        $link = $this->linkRepository->findOne($page, $objectType, $objectId);
-        if (!$link instanceof WikiPageLink) {
+        $removed = $this->underPageLock($page, function () use ($page, $objectType, $objectId): bool {
+            $link = $this->linkRepository->findOne($page, $objectType, $objectId);
+            if (!$link instanceof WikiPageLink) {
+                return false;
+            }
+
+            // @igor-ignore - Repository call (Doctrine remove + flush of a request-scoped entity); no service state.
+            $this->linkRepository->remove($link);
+
+            return true;
+        });
+        if (!$removed) {
             return false;
         }
-
-        // @igor-ignore - Repository call (Doctrine remove + flush of a request-scoped entity); no service state.
-        $this->linkRepository->remove($link);
         $this->eventDispatcher->dispatch(new WikiPageLinkEvent($page, $objectType, $objectId, $actor), WikiEvents::PAGE_UNLINKED);
 
         return true;
@@ -120,6 +139,34 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
         }
 
         return $grouped;
+    }
+
+    /**
+     * 1.37: a link write as one unit of work of the transaction runner, with the page row locked first (or as it is
+     * without a runner). The event follows the commit.
+     *
+     * @template T
+     *
+     * @param callable(): T $write
+     *
+     * @return T
+     */
+    private function underPageLock(WikiPage $page, callable $write): mixed
+    {
+        if (!$this->runner instanceof WikiTransactionRunner) {
+            return $write();
+        }
+        $runner = $this->runner;
+
+        // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
+        return $runner->run(static function () use ($runner, $page, $write): mixed {
+            // Audit QN-I2: a page purged meanwhile is not linked (nor unlinked).
+            if (!$runner->lockRow(WikiPage::class, $page->getId())) {
+                throw new InvalidArgumentException('The page no longer exists.');
+            }
+
+            return $write();
+        });
     }
 
     private function resolverFor(string $type): ?WikiObjectLinkResolverInterface

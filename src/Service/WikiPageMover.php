@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiPageMovedEvent;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
@@ -60,6 +61,7 @@ final readonly class WikiPageMover
         private ?EventDispatcherInterface $dispatcher = null,
         private int $maxDepth = 10,
         private ?WikiEventDeferral $deferral = null,
+        private ?WikiTransactionRunner $runner = null,
     ) {
     }
 
@@ -79,15 +81,19 @@ final readonly class WikiPageMover
      */
     public function move(WikiPage $page, ?WikiPage $parent, int $index, ?object $actor = null, ?WikiPageMoveScope $scope = null): WikiPageMoveResult
     {
-        $this->writer->beginSpaceTransaction($page->getSpace());
-        try {
-            [$result, $fromParent, $moved] = $this->plan($page, $parent, $index, $scope);
-            $this->writer->commitSpaceTransaction();
-        } catch (Throwable $exception) {
-            $this->writer->rollbackSpaceTransaction();
+        [$result, $fromParent, $moved] = $this->unit(function () use ($page, $parent, $index, $scope): array {
+            $this->writer->beginSpaceTransaction($page->getSpace());
+            try {
+                $planned = $this->plan($page, $parent, $index, $scope);
+                $this->writer->commitSpaceTransaction();
+            } catch (Throwable $exception) {
+                $this->writer->rollbackSpaceTransaction();
 
-            throw $exception;
-        }
+                throw $exception;
+            }
+
+            return $planned;
+        });
 
         if ($moved) {
             $event = new WikiPageMovedEvent($page, $fromParent, $page->getParent(), $result->index, $actor, new DateTimeImmutable());
@@ -199,7 +205,24 @@ final readonly class WikiPageMover
         };
 
         // The page service's events wait for the commit (and are dropped on a rollback) when both share the deferral.
-        return $this->deferral instanceof WikiEventDeferral ? $this->deferral->run($run) : $run();
+        $unit = fn (): WikiPageCreateResult => $this->unit($run);
+
+        return $this->deferral instanceof WikiEventDeferral ? $this->deferral->run($unit) : $unit();
+    }
+
+    /**
+     * Runs a tree change as one unit of work of the transaction runner (1.37: the space transaction is then a savepoint
+     * of it, a failure leaves no level open and forgets the wiki rows it touched), or as it is without one.
+     *
+     * @template T
+     *
+     * @param callable(): T $work
+     *
+     * @return T
+     */
+    private function unit(callable $work): mixed
+    {
+        return $this->runner instanceof WikiTransactionRunner ? $this->runner->run($work) : $work();
     }
 
     /**

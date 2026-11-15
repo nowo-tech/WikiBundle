@@ -49,6 +49,7 @@ use Nowo\WikiBundle\Tests\Support\RecordingAvatarResolver;
 use Nowo\WikiBundle\Tests\Support\RecordingBadgeProvider;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use ReflectionMethod;
@@ -1175,6 +1176,8 @@ final class WikiCommentServiceTest extends TestCase
             new WikiMarkdownRenderer(),
             new WikiHtmlSanitizer(),
             dispatcher: $dispatcher,
+            // 1.37: as the bundle wires it, every write a unit of the transaction runner under its row lock.
+            runner: new WikiTransactionRunner($this->em),
             collab: new WikiCollabService(new InMemoryCollabStateStore(), $publisher, $authorizer, ['topic_prefix' => 'eng-topic/page-'], secret: 'secret'),
             publisher: $publisher,
             rateLimiter: $limiter,

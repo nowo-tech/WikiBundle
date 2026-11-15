@@ -20,6 +20,7 @@ final class DoctrineOrmWikiPageRepositoryTest extends TestCase
         $page = new WikiPage(new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't'), 'p', 'P');
         $em   = $this->createMock(EntityManagerInterface::class);
         $em->expects(self::once())->method('persist')->with($page);
+        $em->method('isOpen')->willReturn(true);
         $em->expects(self::once())->method('flush');
 
         (new DoctrineOrmWikiPageRepository($em))->save($page);
@@ -88,8 +89,9 @@ final class DoctrineOrmWikiPageRepositoryTest extends TestCase
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
         $page  = new WikiPage($space, 'p', 'P');
         $query = $this->createMock(Query::class);
-        $query->expects(self::once())->method('setHint')->with(Query::HINT_REFRESH, true)->willReturnSelf();
-        $query->method('getOneOrNullResult')->willReturn($page);
+        $query->expects(self::exactly(2))->method('setHint')->with(Query::HINT_REFRESH, true)->willReturnSelf();
+        // 1.37 (audit QL-M3): a look-alike row the collation matched first never stands in for the exact one.
+        $query->method('getResult')->willReturn([new WikiPage($space, 'P', 'P'), $page]);
 
         $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
@@ -106,6 +108,7 @@ final class DoctrineOrmWikiPageRepositoryTest extends TestCase
         $found = (new DoctrineOrmWikiPageRepository($em))->findBySlug($space, 'p');
 
         self::assertSame($page, $found);
+        self::assertNull((new DoctrineOrmWikiPageRepository($em))->findBySlug($space, 'q'));
     }
 
     public function testFindById(): void

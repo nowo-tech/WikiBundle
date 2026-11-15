@@ -16,8 +16,11 @@ use function sprintf;
  * 1.36.0: with `database.private_entity_manager: true` it is the wiki's private manager ({@see WikiEntityManager}),
  * so a wiki write never flushes, clears or closes the application's manager (REQ-ARCH-001 rule 6).
  *
- * A manager closed by a failed flush in an earlier request is reset through the registry, so a
- * long-running worker recovers without depending on `services_resetter`.
+ * 1.37 (Beacon spec 239, audit QD-M1): a shared manager closed by a failed flush is no longer reset here, in the middle
+ * of a request (that detached every entity the application had loaded, behind its back). It is returned as it is: reads
+ * still work, a wiki write answers a transient failure ({@see WikiFlusher}), and the bundle's transaction runner
+ * replaces it at the next request, message or command boundary, so a long-running worker recovers without depending on
+ * `services_resetter`.
  */
 final readonly class WikiEntityManagerProvider
 {
@@ -37,11 +40,11 @@ final readonly class WikiEntityManagerProvider
     }
 
     /**
-     * Returns the wiki entity manager, resetting it first when it has been closed.
+     * Returns the wiki entity manager (1.37: a closed shared manager as it is, see the class description).
      *
      * @throws LogicException when the configured manager is not an ORM entity manager
      *
-     * @return EntityManagerInterface open wiki entity manager
+     * @return EntityManagerInterface the wiki entity manager
      */
     public function get(): EntityManagerInterface
     {
@@ -50,9 +53,6 @@ final readonly class WikiEntityManagerProvider
         }
 
         $manager = $this->registry->getManager($this->managerName);
-        if ($manager instanceof EntityManagerInterface && !$manager->isOpen()) {
-            $manager = $this->registry->resetManager($this->managerName);
-        }
 
         if (!$manager instanceof EntityManagerInterface) {
             throw new LogicException(sprintf('Doctrine manager "%s" is not an ORM entity manager.', $this->managerName));

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e23172a43ad1ef8cca8628dfcc8052b8",
+    "content-hash": "2ad24af11e918edfbdfdbe09521bb923",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -1926,6 +1926,154 @@
             },
             "time": "2026-11-12T17:12:43+00:00",
             "published-time": "2026-11-12T17:13:58+00:00"
+        },
+        {
+            "name": "nowo-tech/transaction-contract",
+            "version": "v1.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nowo-tech/transaction-contract.git",
+                "reference": "dfb6566338d726719f23699d7109d70c08c45050"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nowo-tech/transaction-contract/zipball/dfb6566338d726719f23699d7109d70c08c45050",
+                "reference": "dfb6566338d726719f23699d7109d70c08c45050",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.2 <8.6"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.0",
+                "phpstan/phpstan": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpunit/phpunit": "^10.0 || ^11.0",
+                "rector/rector": "^2.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "1.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Nowo\\TransactionContract\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Héctor Franco Aceituno",
+                    "email": "hectorfranco@nowo.tech",
+                    "homepage": "https://github.com/HecFranco",
+                    "role": "Developer"
+                },
+                {
+                    "name": "Nowo.tech",
+                    "homepage": "https://nowo.tech"
+                }
+            ],
+            "description": "Framework-free transaction port: TransactionRunnerInterface::run(callable) and the TransientStorageFailure exception with a Retry-After hint. No dependencies beyond PHP: no Symfony, no Doctrine.",
+            "homepage": "https://github.com/nowo-tech/transaction-contract",
+            "keywords": [
+                "contracts",
+                "ddd",
+                "deadlock",
+                "hexagonal",
+                "port",
+                "retry",
+                "transaction",
+                "unit-of-work"
+            ],
+            "support": {
+                "issues": "https://github.com/nowo-tech/transaction-contract/issues",
+                "source": "https://github.com/nowo-tech/transaction-contract"
+            },
+            "time": "2026-11-15T08:04:23+00:00",
+            "published-time": "2026-11-15T08:05:10+00:00"
+        },
+        {
+            "name": "nowo-tech/transaction-doctrine",
+            "version": "v1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nowo-tech/transaction-doctrine.git",
+                "reference": "c9e26d12a120427c2c643af20140989bafacdf1a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nowo-tech/transaction-doctrine/zipball/c9e26d12a120427c2c643af20140989bafacdf1a",
+                "reference": "c9e26d12a120427c2c643af20140989bafacdf1a",
+                "shasum": ""
+            },
+            "require": {
+                "doctrine/dbal": "^3.8.2 || ^4.0",
+                "nowo-tech/transaction-contract": "^1.0",
+                "php": ">=8.2 <8.6"
+            },
+            "require-dev": {
+                "doctrine/orm": "^3.0",
+                "doctrine/persistence": "^3.1 || ^4.0",
+                "friendsofphp/php-cs-fixer": "^3.0",
+                "phpstan/phpstan": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpunit/phpunit": "^10.0 || ^11.0",
+                "rector/rector": "^2.0"
+            },
+            "suggest": {
+                "doctrine/orm": "For DoctrineTransactionRunner::forEntityManager()",
+                "doctrine/persistence": "To reset a closed entity manager through a ManagerRegistry"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "1.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Nowo\\TransactionDoctrine\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Héctor Franco Aceituno",
+                    "email": "hectorfranco@nowo.tech",
+                    "homepage": "https://github.com/HecFranco",
+                    "role": "Developer"
+                },
+                {
+                    "name": "Nowo.tech",
+                    "homepage": "https://nowo.tech"
+                }
+            ],
+            "description": "Safe plain-Doctrine default for nowo-tech/transaction-contract: a one-attempt TransactionRunnerInterface that never leaves a poisoned connection (close instead of a failing rollback after a nested deadlock), plus the transient-failure classifier and connection repairer. No Symfony.",
+            "homepage": "https://github.com/nowo-tech/transaction-doctrine",
+            "keywords": [
+                "dbal",
+                "deadlock",
+                "doctrine",
+                "frankenphp",
+                "orm",
+                "savepoint",
+                "transaction",
+                "worker"
+            ],
+            "support": {
+                "issues": "https://github.com/nowo-tech/transaction-doctrine/issues",
+                "source": "https://github.com/nowo-tech/transaction-doctrine"
+            },
+            "time": "2026-11-15T08:15:49+00:00",
+            "published-time": "2026-11-15T08:18:10+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
@@ -7889,29 +8037,32 @@
         },
         {
             "name": "nowo-tech/phpstan-frankenphp",
-            "version": "v1.3.2",
+            "version": "v1.4.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/PhpStanFrankenPhp.git",
-                "reference": "943010bc203ce403c4c6e808eadc9c2c868c7c49"
+                "reference": "18f1248fee12f6ed427536ac6885f0d6aaf2091a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/PhpStanFrankenPhp/zipball/943010bc203ce403c4c6e808eadc9c2c868c7c49",
-                "reference": "943010bc203ce403c4c6e808eadc9c2c868c7c49",
+                "url": "https://api.github.com/repos/nowo-tech/PhpStanFrankenPhp/zipball/18f1248fee12f6ed427536ac6885f0d6aaf2091a",
+                "reference": "18f1248fee12f6ed427536ac6885f0d6aaf2091a",
                 "shasum": ""
             },
             "require": {
                 "php": ">=8.2 <8.6",
-                "phpstan/phpstan": "^2.0"
+                "phpstan/phpstan": "^2.1.26"
             },
             "require-dev": {
+                "doctrine/dbal": "^4.2",
+                "doctrine/orm": "^3.3",
                 "friendsofphp/php-cs-fixer": "^3.0",
                 "igor-php/igor-php": "^0.10.0",
                 "phpstan/phpstan-phpunit": "^2.0",
                 "phpstan/phpstan-strict-rules": "^2.0",
                 "phpunit/phpunit": "^10.0 || ^11.0",
                 "rector/rector": "^2.0",
+                "symfony/console": "^6.4 || ^7.0 || ^8.0",
                 "symfony/http-foundation": "^6.4 || ^7.0 || ^8.0",
                 "symfony/process": "^6.4 || ^7.0 || ^8.0",
                 "symfony/service-contracts": "^2.5 || ^3.0"
@@ -7972,8 +8123,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-22T05:58:06+00:00",
-            "published-time": "2026-10-22T05:59:49+00:00"
+            "time": "2026-11-15T02:26:27+00:00",
+            "published-time": "2026-11-15T02:27:38+00:00"
         },
         {
             "name": "oskarstark/enum-helper",
