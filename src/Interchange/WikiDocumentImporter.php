@@ -329,6 +329,7 @@ final readonly class WikiDocumentImporter
 
             return;
         }
+        // @igor-ignore - WikiPageIconService is stateless: setIcon() writes the page row, the service keeps nothing.
         $this->icons->setIcon($page, $icon);
     }
 

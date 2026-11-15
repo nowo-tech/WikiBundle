@@ -113,13 +113,7 @@ final readonly class WikiPageIconService
         $runner = $this->runner;
 
         // Same as archiving: the page row locked and read again, so a page archived meanwhile is refused.
-        return $runner->run(static function () use ($runner, $page, $apply): bool {
-            if (!$runner->lockEntity($page)) {
-                throw new InvalidArgumentException('The page no longer exists.');
-            }
-
-            return $apply();
-        });
+        return $runner->run(static fn (): bool => $runner->lockEntity($page) ? $apply() : throw new InvalidArgumentException('The page no longer exists.'));
     }
 
     /**
