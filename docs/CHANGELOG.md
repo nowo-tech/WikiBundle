@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added](#added-unreleased-138)
+  - [Fixed](#fixed-unreleased-138)
 - [[1.37.0] - 2026-11-15](#1370---2026-11-15)
   - [Added](#added)
   - [Fixed](#fixed)
@@ -227,6 +229,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+Target 1.38.0 (minor; Beacon requests for v1.158). See [UPGRADING.md](UPGRADING.md#unreleased).
+
+<a id="added-unreleased-138"></a>
+### Added
+
+- **Full-width card, text at the reading measure** (`web_ui.reading_width: text`): the page view's main column (and
+  the edit form with `edit_view.layout: read`) fills the width it gets, so on a wide screen the content card reaches
+  the same edge as the header actions instead of stopping at the reading measure with an empty band beside it. The
+  text inside the card (path, title, body, read-only editor, editor, revision line) keeps `--nowo-wiki-reading-width`
+  (default the UiKit `--nowo-ui-reading-width`, 75ch), centred, or against the card's start edge with
+  `reading_align: start`. `readable` and `full` are unchanged.
+
+<a id="fixed-unreleased-138"></a>
+### Fixed
+
+- **Revision line inside the card** (`web_ui.page_meta: card`): "v3 · Updated …" sat flush against the card's left
+  and bottom edges, outside the card body's padding (and, in Bootstrap, outside the `.card` that defines the footer
+  padding). The body and the line are now one UiKit card (`.nowo-wiki-page-card`, `data-testid="wiki-page-card"`)
+  whose footer slot (`card_footer`, `.nowo-wiki-page-card__footer`) holds the line; the body's own card (and the
+  read-only editor's) is drawn flat inside it. The history, revision, diff and edit views have no such line (they use
+  the UiKit scaffold's meta list) and are unchanged.
 
 ## [1.37.0] - 2026-11-15
 

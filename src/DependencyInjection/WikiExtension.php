@@ -1197,9 +1197,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         return [
             'tree_rail'            => ($webUi['tree_rail'] ?? false) === true,
             'narrow_tree_position' => ($webUi['narrow_tree_position'] ?? 'before') === 'after' ? 'after' : 'before',
-            'reading_width'        => ($webUi['reading_width'] ?? 'full') === 'readable' ? 'readable' : 'full',
-            'page_header'          => ($header['layout'] ?? 'stacked') === 'compact' ? 'compact' : 'stacked',
-            'title'                => match ($header['title'] ?? 'both') {
+            'reading_width'        => match ($webUi['reading_width'] ?? 'full') {
+                'readable' => 'readable',
+                'text'     => 'text',
+                default    => 'full',
+            },
+            'page_header' => ($header['layout'] ?? 'stacked') === 'compact' ? 'compact' : 'stacked',
+            'title'       => match ($header['title'] ?? 'both') {
                 'dedupe' => 'dedupe',
                 'body'   => 'body',
                 'card'   => 'card',

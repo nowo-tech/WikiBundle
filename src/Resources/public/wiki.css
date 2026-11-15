@@ -149,6 +149,19 @@
   margin-inline: 0;
 }
 
+/* 1.38 web_ui.reading_width: text — the main column (and the content card) fills the width it gets, so a wide screen
+   leaves no empty band beside the card; the text inside it keeps the reading measure (--nowo-wiki-reading-width),
+   centred or, with reading_align: start, against the card's start edge. */
+.nowo-wiki-reading-text :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-meta) {
+  box-sizing: border-box;
+  max-inline-size: var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch));
+  margin-inline: auto;
+}
+
+.nowo-wiki-reading-text--start :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-meta) {
+  margin-inline: 0;
+}
+
 /* 1.30 web_ui.page_header.toolbar_position: card — the page toolbar at the top right of the content (server body and
    read-only editor), sticky while the page scrolls (--nowo-wiki-card-toolbar-top, default 0.5rem; inset from the card
    edge --nowo-wiki-card-toolbar-inset, default 0.75rem). It takes no height of its own: the body's first block (the
@@ -489,9 +502,31 @@
   }
 }
 
-/* 1.31 web_ui.page_meta: card — "v3 · Updated …" as the card's muted footer line. */
+/* 1.31 web_ui.page_meta: card — "v3 · Updated …" as the card's muted footer line. 1.38 fix: the body and the line are
+   one UiKit card (.nowo-wiki-page-card) and the line sits in its footer slot (card_footer: the theme's padding), no
+   longer flush against the card's edges. The body's own card (and the read-only editor's) is drawn flat inside it. */
+.nowo-wiki-page-card {
+  min-width: 0;
+  /* The read-only editor's popovers (comment threads, menus) must not be clipped by the card. */
+  overflow: visible;
+}
+
+.nowo-wiki-page-card > .nowo-wiki-page-card__footer {
+  border-end-start-radius: inherit;
+  border-end-end-radius: inherit;
+}
+
+.nowo-wiki-page-card > :is(.nowo-wiki-page, .nowo-wiki-comments-view),
+.nowo-wiki-page-card > .nowo-wiki-read-swap > :is(.nowo-wiki-page, .nowo-wiki-comments-view) {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .nowo-wiki-page-meta {
-  margin: 0.75rem 0 0;
+  margin: 0;
   font-size: var(--nowo-wiki-page-meta-font-size, 0.8125rem);
 }
 

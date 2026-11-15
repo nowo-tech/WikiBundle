@@ -97,6 +97,16 @@
 
 ## Unreleased
 
+Target 1.38.0, from **1.37.0**: `composer require nowo-tech/wiki-bundle:^1.38`.
+
+- **Revision line (`web_ui.page_meta: card`)**: the body card and the line are now wrapped in one UiKit card
+  (`.nowo-wiki-page-card`) and the line is in its footer slot (`<div class="… nowo-wiki-page-card__footer"><p
+  class="… nowo-wiki-page-meta">`). A host stylesheet that drew the line or the body card itself (for example a card
+  frame with its own border around the body) may drop those rules, or flatten `.nowo-wiki-page-card` (`border: 0;
+  background: transparent`) when its frame already draws the card.
+- **Wide screens**: set `web_ui.reading_width: text` (with `reading_align: start` for the text against the card's left
+  edge) to let the card fill the main column while the text keeps the reading measure.
+
 ## To 1.37.0
 
 From **1.36.0**:

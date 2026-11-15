@@ -1,7 +1,8 @@
 {#
   1.33: the read view's layout, shared by the page view (page_view.html.twig) and the edit form with
   web_ui.edit_view.layout: read (page_edit.html.twig): the sidebar / tree aside (.nowo-wiki-layout, narrow_tree_position,
-  tree_collapsed_mode: hidden), the main column (reading_width / reading_align), the content card frame with its
+  tree_collapsed_mode: hidden), the main column (reading_width / reading_align; 1.38 text: .nowo-wiki-reading-text, the
+  card full width and its text at the measure), the content card frame with its
   toolbar (page_header.toolbar_position: card, .nowo-wiki-card-frame) and the page head (page_header.path: card, the
   sub-pages chip). The parts that differ come pre-rendered from the page template, so its blocks (wiki_sidebar,
   wiki_page_body, wiki_page_form_body, …) stay blocks of that template and a host template extending it can still fill
@@ -19,7 +20,9 @@
     <div class="nowo-wiki-layout__aside">
         {{- sidebar|default('') -}}
     </div>
-    <div class="nowo-wiki-layout__main{{ (_layout.reading_width ?? 'full') == 'readable' ? ' nowo-wiki-reading nowo-ui-readable' ~ ((_layout.reading_align ?? 'center') == 'start' ? ' nowo-wiki-reading--start') }}">
+    {%- set _width = _layout.reading_width ?? 'full' -%}
+    {%- set _start = (_layout.reading_align ?? 'center') == 'start' -%}
+    <div class="nowo-wiki-layout__main{{ _width == 'readable' ? ' nowo-wiki-reading nowo-ui-readable' ~ (_start ? ' nowo-wiki-reading--start') }}{{ _width == 'text' ? ' nowo-wiki-reading-text' ~ (_start ? ' nowo-wiki-reading-text--start') }}">
         {{ before_frame|default('') }}
         {% if in_card|default(false) %}
             <div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>

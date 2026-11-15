@@ -840,6 +840,13 @@ final class WikiExtensionTest extends TestCase
         $layout = ['tree_rail' => true, 'narrow_tree_position' => 'after', 'reading_width' => 'readable', 'page_header' => 'compact', 'title' => 'dedupe', 'tabs' => 'toolbar', 'toolbar_position' => 'card', 'tree_collapsed_mode' => 'hidden', 'reading_align' => 'start', 'path' => 'card', 'children' => 'auto', 'breadcrumb_current_label' => true, 'seamless_swap' => true, 'page_meta' => 'scaffold', 'edit_layout' => 'read', 'edit_current_tab' => 'hidden', 'edit_back' => 'view', 'new_page_dialog' => true];
         self::assertSame($layout, $container->getParameter('nowo_wiki.web_ui.layout'));
         self::assertSame(['current_tab' => 'hidden', 'back' => 'view'], $container->getDefinition(WikiPageFactory::class)->getArgument('$editToolbar'));
+        // 1.38: reading_width text.
+        $text = new ContainerBuilder();
+        $text->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'web_ui' => ['reading_width' => 'text']]], $text);
+        /** @var array<string, mixed> $textLayout */
+        $textLayout = $text->getParameter('nowo_wiki.web_ui.layout');
+        self::assertSame('text', $textLayout['reading_width']);
         /** @var array<string, array{path: string, name: string}> $routes */
         $routes = $container->getParameter('nowo_wiki.routes');
         self::assertSame('nowo_wiki_space_panel_state', $routes['space_panel_state']['name']);

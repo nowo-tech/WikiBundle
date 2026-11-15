@@ -132,7 +132,9 @@ final class PageContractTest extends PageContractTestCase
         // only <h1> of the page. The revision line closes the card; the scaffold meta list is empty.
         $card = $this->renderWithKitHeader(self::layout131(PageFixtures::pageView(true, self::factory131(), false)), '@NowoWikiBundle/manage/page_view.html.twig');
         self::assertSame(1, substr_count($card, '<h1'));
-        self::assertSame(1, preg_match('#data-nowo-wiki-card-frame>.*?data-testid="wiki-card-toolbar".*?data-testid="wiki-page-head".*?<h1 class="nowo-wiki-page-title" data-testid="wiki-page-title">Deploy</h1>.*?data-testid="wiki-read-swap".*?</article>\s*</div>\s*<p class="[^"]*nowo-wiki-page-meta" data-testid="wiki-page-meta">v3 · Updated <time datetime="2026-11-11T21:40:00\+00:00">[^<]+</time></p>\s*</div>#s', $card));
+        self::assertSame(1, preg_match('#data-nowo-wiki-card-frame>.*?data-testid="wiki-card-toolbar".*?data-testid="wiki-page-head".*?<h1 class="nowo-wiki-page-title" data-testid="wiki-page-title">Deploy</h1>.*?data-testid="wiki-page-card".*?data-testid="wiki-read-swap".*?</article>\s*</div>\s*<div class="[^"]*nowo-ui-card__footer[^"]*nowo-wiki-page-card__footer"><p class="[^"]*nowo-wiki-page-meta" data-testid="wiki-page-meta">v3 · Updated <time datetime="2026-11-11T21:40:00\+00:00">[^<]+</time></p></div>\s*</div>\s*</div>#s', $card));
+        // 1.38 fix: the line is inside the card (its footer slot), the body's card is inside the same card.
+        self::assertSame(1, preg_match('#<div class="[^"]*nowo-ui-card[^"]*nowo-wiki-page-card" data-testid="wiki-page-card"#', $card));
         self::assertStringNotContainsString('>Revision<', $card);
         // The comments drawer at every width, the thread list configuration on the mount.
         self::assertStringContainsString('nowo-ui-side-panel--overlay', $card);
@@ -146,13 +148,14 @@ final class PageContractTest extends PageContractTestCase
         self::assertSame(1, preg_match('#<h1 class="[^"]*visually-hidden">Deploy</h1>#', $header));
         self::assertStringContainsString('<p class="nowo-wiki-page-title" aria-hidden="true" data-testid="wiki-page-title">Deploy</p>', $header);
         // Without a card frame the revision line follows the body (and its swap box).
-        self::assertSame(1, preg_match('#</article>\s*</div>\s*<p class="[^"]*nowo-wiki-page-meta"#', $header));
+        self::assertSame(1, preg_match('#</article>\s*</div>\s*<div class="[^"]*nowo-wiki-page-card__footer"><p class="[^"]*nowo-wiki-page-meta"#', $header));
         self::assertStringNotContainsString('data-nowo-wiki-card-frame', $header);
 
         // Off: no card title, no revision line (the scaffold meta), the inline panel, the plain mount.
         $off = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', PageFixtures::pageView(true, null, false)))->html;
         self::assertStringNotContainsString('nowo-wiki-page-title', $off);
         self::assertStringNotContainsString('nowo-wiki-page-meta', $off);
+        self::assertStringNotContainsString('nowo-wiki-page-card', $off);
         self::assertStringContainsString('Revision', $off);
         self::assertStringContainsString('nowo-ui-side-panel--inline', $off);
         self::assertStringNotContainsString('data-nowo-wiki-thread-list', $off);
@@ -474,6 +477,12 @@ final class PageContractTest extends PageContractTestCase
         // reading_align start without reading_width readable: nothing.
         $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', ['nowo_wiki_web_ui' => ['layout' => ['reading_align' => 'start']]] + PageFixtures::pageView()))->html;
         self::assertStringNotContainsString('nowo-wiki-reading--start', $html);
+        // 1.38 reading_width: text: the main column (and the card) takes the whole width, the text keeps the measure.
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', ['nowo_wiki_web_ui' => ['layout' => ['reading_width' => 'text', 'reading_align' => 'start']]] + PageFixtures::pageView()))->html;
+        self::assertStringContainsString('class="nowo-wiki-layout__main nowo-wiki-reading-text nowo-wiki-reading-text--start"', $html);
+        self::assertStringNotContainsString('nowo-ui-readable', $html);
+        $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', ['nowo_wiki_web_ui' => ['layout' => ['reading_width' => 'text']]] + PageFixtures::pageView()))->html;
+        self::assertStringContainsString('class="nowo-wiki-layout__main nowo-wiki-reading-text"', $html);
 
         // Title in the body with the stacked header: the UiKit compact presentation too.
         $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/page_view.html.twig', ['title_in_body' => true] + PageFixtures::pageView()))->html;
