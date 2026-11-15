@@ -38,6 +38,7 @@ final class WikiFlushObserver
         $unitOfWork = $args->getObjectManager()->getUnitOfWork();
         // The wiki's entities have no to-many associations: a collection change is always the application's.
         if ($unitOfWork->getScheduledCollectionUpdates() !== [] || $unitOfWork->getScheduledCollectionDeletions() !== []) {
+            // @igor-ignore - One observer per unit of work, created and dropped by the runner: never a shared service.
             $this->hostWritten = true;
 
             return;
@@ -45,6 +46,7 @@ final class WikiFlushObserver
         $entities = [...$unitOfWork->getScheduledEntityInsertions(), ...$unitOfWork->getScheduledEntityUpdates(), ...$unitOfWork->getScheduledEntityDeletions()];
         foreach ($entities as $entity) {
             if (!self::isWikiEntity($entity::class)) {
+                // @igor-ignore - One observer per unit of work, created and dropped by the runner: never a shared service.
                 $this->hostWritten = true;
 
                 return;
