@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api;
 
+use Closure;
+use Nowo\WikiBundle\Api\Operation\WikiApiPageWriteOperations;
+use Nowo\WikiBundle\Api\WikiApiInput;
 use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 
@@ -82,5 +85,21 @@ final class ApiPageIconTest extends ApiTestCase
         $this->assertRefusal($this->call('PUT', '/wikis/eng/pages/' . $page->getId(), 'reader', ['content_markdown' => 'one', 'base_revision' => 1, 'icon' => 'tabler:tool']), 403, 'TOKEN_001');
         $this->assertRefusal($this->call('POST', '/wikis/eng/pages', 'reader', ['title' => 'x', 'icon' => 'tabler:tool']), 403, 'TOKEN_001');
         self::assertNull($this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId()))['icon']);
+    }
+
+    public function testWithoutTheIconServiceTheFieldIsNotSupported(): void
+    {
+        $operations = self::getContainer()->get(WikiApiPageWriteOperations::class);
+        self::assertInstanceOf(WikiApiPageWriteOperations::class, $operations);
+        // A host that removed the icon service: the same operations without it (built in the class scope).
+        $icon = Closure::bind(static function (WikiApiPageWriteOperations $o, WikiApiInput $input): ?string {
+            $without = new WikiApiPageWriteOperations($o->guard, $o->directory, $o->audit, $o->service, $o->pages, $o->checker, $o->renderer, $o->reads, $o->people, $o->deferral, $o->collab, $o->mover, $o->requestStack);
+
+            return $without->icon($input);
+        }, null, WikiApiPageWriteOperations::class);
+        $input = new WikiApiInput(['icon' => 'tabler:rocket']);
+
+        self::assertNull($icon($operations, $input));
+        self::assertSame([['field' => 'icon', 'reason' => 'not_supported']], $input->warnings());
     }
 }
