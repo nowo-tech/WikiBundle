@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[Unreleased]](#unreleased)
   - [Added](#added-unreleased-138)
   - [Fixed](#fixed-unreleased-138)
+  - [Tests](#tests-unreleased-138)
 - [[1.37.0] - 2026-11-15](#1370---2026-11-15)
   - [Added](#added)
   - [Fixed](#fixed)
@@ -260,6 +261,26 @@ Target 1.38.0 (minor; Beacon requests for v1.158). See [UPGRADING.md](UPGRADING.
   Every write is one unit of the bundle's runner with the page row locked and read again (an archived page is refused,
   the last write wins, no revision and no page event); the value is checked server-side before anything is written.
   `WikiPageSnapshot::$icon` (optional last constructor argument).
+- **Collapsible page tree** (the nested list of `_page_tree.html.twig`, `tree.enabled: false`, used by the space home,
+  the page view, the edit form's read layout and any host sidebar that includes the partial): each parent row starts
+  with a `<button>` (`aria-expanded`, `aria-controls` its sub-list, the UiKit tree chevron, named "Sub-pages of
+  <title>", `wiki.tree.toggle_children` in the 7 locales) that opens and closes its sub-pages, with the mouse or the
+  keyboard (Enter / Space on the native button). `tree.default_expanded: current_path|all|none` (default
+  `current_path`) says which rows start open; the ancestors of the current page always do. The reader's choices are
+  remembered per space in localStorage (`nowo-wiki-tree:<space slug>`, at most 500 rows; storage errors only lose the
+  memory) and win over the default. Without JavaScript the buttons stay hidden and every level is open. The script is
+  part of `wiki.js` (external, no inline handler: CSP with a nonce as before). New node keys `current_path` and
+  `space` in `WikiPageFactory::tree()`; the root carries `data-wiki-tree-plain`, `data-wiki-tree-default` and
+  `data-wiki-tree-space`. The UiKit tree (`tree.enabled: true`) keeps its own disclosures and server-side fold state.
+  The REST API's page list is flat (`parent`, `position`): nothing to fold there.
+
+<a id="tests-unreleased-138"></a>
+### Tests
+
+- `make check-read-layout` (Chromium in the Playwright image, `tests/Browser/layout-138`): the full-width card and the
+  revision line at 1280 / 1600 / 1920 px in light and dark, the tree's default, Enter / Space, the remembered choice
+  after a reload, a blocked localStorage, the tree without JavaScript, and axe-core (WCAG 2.1 A / AA) with no
+  violation.
 
 <a id="fixed-unreleased-138"></a>
 ### Fixed

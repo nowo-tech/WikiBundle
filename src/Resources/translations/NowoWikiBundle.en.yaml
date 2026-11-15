@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "“%title%” and its %count% page(s) will be deleted for good. This cannot be undone."
     purged: "“%title%” was deleted for good (%count% page(s))."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Sub-pages of %title%"
     move: "Move"
     move_title: "Move “%title%”"
     move_parent: "Parent page"

@@ -48,6 +48,7 @@ Root key: `nowo_wiki`.
 | `web_ui.tab_icons.<tab>` | `page`: `tabler:file-text`, `edit`: `tabler:pencil`, `history`: `tabler:history` | 1.18: icon of each page tab (Page / Edit / History) passed to the UiKit `tabs` partial, so the row follows the host's tab style (text, icon and text, icon only); null or `''` = no icon on that tab; a name must be `[prefix:]name` in lowercase letters, digits and single hyphens (checked at container build) |
 | `web_ui.css_framework` | null | **Deprecated since 1.10**: set `nowo_ui_kit.css_framework` once for every bundle (when set, it only seeds `nowo_ui_kit.css_framework` / `icon_set` if the host left them unset) |
 | `space_icon.allowed_prefixes` | `[tabler]` | 1.32: icon set prefixes accepted for `WikiSpace::icon` (`<prefix>:<name>`, each prefix `[a-z0-9-]+`); the setter and `WikiSpaceIconType` reject any other. 1.38: also for `WikiPage::icon` (form, API, import) |
+| `tree.default_expanded` | `current_path` | 1.38, the nested page tree (`tree.enabled: false`): which parent rows start open once `wiki.js` runs. `current_path`: the ancestors of the current page; `all`: every row; `none`: none but the current page's ancestors (they always start open). The reader's own choices, remembered per space in localStorage (`nowo-wiki-tree:<space>`), win. Without JavaScript every row is open |
 | `page_icon.form_field` | `false` | 1.38: `true` adds the optional "Icon" field (`WikiSpaceIconType`, `wiki.page.icon`) to the page form, new and edit. The page icon itself is always shown when set and always read / written by the API and import / export |
 | `pagination.spaces_per_page` | `24` | Space cards per wiki index page (`?page=N`, 1–500) |
 | `pagination.revisions_per_page` | `25` | Revisions per page history page (`?page=N`, 1–500) |
@@ -207,6 +208,9 @@ nowo_wiki:
         enabled: true          # literal boolean; off = the 1.13 nested list, no tree routes
         max_depth: 10          # deepest level after a move (root pages are level 1)
         state_store: null      # service id of a WikiTreeStateStoreInterface (null: the session)
+        default_expanded: current_path   # 1.38, the nested list (enabled: false): current_path | all | none
+    page_icon:
+        form_field: false      # 1.38: the page form's optional icon field
 ```
 
 | Key | Default | Meaning |

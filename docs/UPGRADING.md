@@ -123,6 +123,13 @@ Target 1.38.0, from **1.37.0**: `composer require nowo-tech/wiki-bundle:^1.38`.
   `@NowoWikiBundle/manage/_tree_page_icon.html.twig`. With `nowo_ui_kit.icon_set: ux_icon` set
   `ux_icons.ignore_not_found: true` too (as for space icons): without `symfony/ux-icons` installed in the PHP process
   that writes, a well-formed name that does not exist cannot be refused.
+- **Collapsible page tree**: the nested page tree (`tree.enabled: false`) now folds once `wiki.js` runs: by default
+  only the current page's ancestors are open. Set `nowo_wiki.tree.default_expanded: all` to keep every row open at
+  first (the 1.37 look, with the buttons), or `none`. A host that prints the tree with its own markup (an override of
+  `_page_tree_item.html.twig`) keeps its markup and no buttons until it adds the row's `<button
+  data-wiki-tree-fold="{{ node.id }}" aria-controls="nowo-wiki-tree-group-{{ node.id }}" aria-expanded="true" hidden>`
+  and the sub-list's `id` (see the bundle's template); one that includes `_page_tree.html.twig` gets it as is. A host
+  that bundles the assets itself (`web_ui.assets.scripts: false`) rebuilds them from `src/Resources/assets/src`.
 - **Wide screens**: set `web_ui.reading_width: text` (with `reading_align: start` for the text against the card's left
   edge) to let the card fill the main column while the text keeps the reading measure.
 

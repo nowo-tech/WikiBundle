@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "«%title%» y sus %count% página(s) se borrarán definitivamente. No se puede deshacer."
     purged: "«%title%» se ha borrado definitivamente (%count% página(s))."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Subpáginas de %title%"
     move: "Mover"
     move_title: "Mover «%title%»"
     move_parent: "Página superior"

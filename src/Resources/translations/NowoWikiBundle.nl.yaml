@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "“%title%” en de %count% pagina(’s) worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt."
     purged: "“%title%” is definitief verwijderd (%count% pagina(’s))."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Subpagina’s van %title%"
     move: "Verplaatsen"
     move_title: "“%title%” verplaatsen"
     move_parent: "Bovenliggende pagina"

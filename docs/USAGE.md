@@ -557,6 +557,12 @@ Four opt-in layout options for a three-column page (tree + page + comments), see
 - **Tree rail** (`web_ui.tree_rail: true`): a chevron button in the tree card header ("Collapse Pages") folds the
   card to a 2.75rem rail; the button then reads "Expand Pages" and shows "Pages" vertically. Keyboard: Enter / Space;
   the tree leaves the tab order while folded. Without JavaScript the button is a link to `?tree=rail` / `?tree=full`.
+- **Collapsible page tree** (1.38, the nested list): each page with sub-pages gets a chevron button before its title
+  that opens and closes them (mouse, or Tab then Enter / Space). `tree.default_expanded` picks what starts open
+  (`current_path`, default; `all`; `none`); the current page's ancestors always start open and each reader's choices
+  are remembered per space in the browser. Without JavaScript the whole tree is open. Tokens:
+  `--nowo-wiki-tree-fold-color`, `--nowo-wiki-tree-fold-size` (the room a row without sub-pages keeps, 1.5rem; 2rem
+  on touch screens).
 - **Full-width card** (1.38, `web_ui.reading_width: text`): the card fills the main column on any screen width and
   only its text keeps `--nowo-wiki-reading-width` (with `reading_align: start`, against the card's left edge), so a
   wide screen shows no empty band beside the page.

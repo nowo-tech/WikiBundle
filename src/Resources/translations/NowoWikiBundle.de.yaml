@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "„%title%“ und ihre %count% Seite(n) werden endgültig gelöscht. Das kann nicht rückgängig gemacht werden."
     purged: "„%title%“ wurde endgültig gelöscht (%count% Seite(n))."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Unterseiten von %title%"
     move: "Verschieben"
     move_title: "„%title%“ verschieben"
     move_parent: "Übergeordnete Seite"

@@ -331,6 +331,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'templates'       => array_diff_key($templates, ['layout' => true]),
             // 1.21: read by the page templates through the Twig global nowo_wiki_web_ui.
             'space_index' => (bool) $config['web_ui']['space_index'],
+            // 1.38: the nested page tree's default fold (tree.default_expanded), read by _page_tree.html.twig.
+            'tree_default_expanded' => $config['tree']['default_expanded'],
         ] + self::ui($config['web_ui']));
         // 1.21 (audit GV-L1): the Twig global. A service, not %nowo_wiki.web_ui%: TwigExtension resolves a parameter while it
         // loads, so with TwigBundle registered first the global would hold the prepend() defaults, not this config.

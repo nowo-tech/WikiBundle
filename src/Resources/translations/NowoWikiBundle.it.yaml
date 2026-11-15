@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "«%title%» e le sue %count% pagina/e verranno eliminate definitivamente. Non si può annullare."
     purged: "«%title%» è stata eliminata definitivamente (%count% pagina/e)."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Sottopagine di %title%"
     move: "Sposta"
     move_title: "Sposta «%title%»"
     move_parent: "Pagina superiore"

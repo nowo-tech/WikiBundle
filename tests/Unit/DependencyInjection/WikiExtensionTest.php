@@ -843,10 +843,17 @@ final class WikiExtensionTest extends TestCase
         // 1.38: reading_width text.
         $text = new ContainerBuilder();
         $text->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
-        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'web_ui' => ['reading_width' => 'text']]], $text);
+        (new WikiExtension())->load([['user_class' => 'App\\Entity\\User', 'web_ui' => ['reading_width' => 'text'], 'tree' => ['default_expanded' => 'all'], 'page_icon' => ['form_field' => true]]], $text);
         /** @var array<string, mixed> $textLayout */
         $textLayout = $text->getParameter('nowo_wiki.web_ui.layout');
         self::assertSame('text', $textLayout['reading_width']);
+        // 1.38: the nested tree's default fold (Twig global nowo_wiki_web_ui) and the page form's icon field.
+        /** @var array<string, mixed> $textWebUi */
+        $textWebUi = $text->getParameter('nowo_wiki.web_ui');
+        self::assertSame('all', $textWebUi['tree_default_expanded']);
+        self::assertTrue($text->getParameter('nowo_wiki.page_icon.form_field'));
+        self::assertSame('current_path', $webUi['tree_default_expanded'] ?? null);
+        self::assertFalse($container->getParameter('nowo_wiki.page_icon.form_field'));
         /** @var array<string, array{path: string, name: string}> $routes */
         $routes = $container->getParameter('nowo_wiki.routes');
         self::assertSame('nowo_wiki_space_panel_state', $routes['space_panel_state']['name']);

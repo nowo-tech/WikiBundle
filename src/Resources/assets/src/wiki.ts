@@ -4,6 +4,7 @@ import { bindCommentsModeration } from './wiki-comments-moderation';
 import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 import { bindTreeHiddenFocus, observeCardToolbar } from './wiki-layout';
 import { bindNewPageMenu } from './wiki-new-page';
+import { initPlainTrees } from './wiki-plain-tree';
 
 /** True when the element scrolls its own content vertically (overflow auto / scroll and taller content). */
 const scrollsItself = (el: HTMLElement): boolean => {
@@ -364,6 +365,8 @@ export function whenLoaded(callback: () => void, doc: Document = document, win: 
 const scriptNonce = currentNonce(document.currentScript);
 
 document.documentElement.classList.add('wiki-ready');
+// 1.38: fold the nested tree first, so the current page is brought into view where it ends up.
+initPlainTrees();
 initWikiTrees();
 bindWikiTree();
 bindNewPageMenu();

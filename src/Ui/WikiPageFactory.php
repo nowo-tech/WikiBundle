@@ -30,6 +30,7 @@ use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 use function array_fill_keys;
+use function array_filter;
 use function array_key_exists;
 use function array_map;
 use function array_unshift;
@@ -44,7 +45,7 @@ use function is_array;
  * arrays of strings, booleans and URLs. The controller and the page contract test share it, so the test renders exactly
  * the view models the application gets. Stateless: safe in worker mode.
  *
- * @phpstan-type TreeNode array{id: string, title: string, icon?: string|null, href: string, current: bool, children: list<mixed>}
+ * @phpstan-type TreeNode array{id: string, title: string, icon: string|null, href: string, current: bool, current_path: bool, space: string, children: list<mixed>}
  * @phpstan-type UiTreeNode array{id: string, label: string, page_icon: string|null, href: string, current: bool, expanded: bool, children: list<mixed>}
  * @phpstan-type SourceNode array{page: WikiPage, children: list<mixed>}
  * @phpstan-type Hit array{page: WikiPage, space: WikiSpace, excerpt: string}
@@ -612,7 +613,8 @@ final readonly class WikiPageFactory
     }
 
     /**
-     * Value-free page tree: id (1.14), title, icon (1.38, null for none), URL, current flag and children per node.
+     * Value-free page tree: id (1.14), title, icon (1.38, null for none), URL, current flag, (1.38) current_path (the
+     * current page is below it) and space (the space slug), and children per node.
      *
      * @param list<SourceNode> $nodes {@see WikiPageTreeBuilder::build()} nodes
      *
@@ -624,13 +626,18 @@ final readonly class WikiPageFactory
         foreach ($nodes as $node) {
             /** @var list<SourceNode> $children */
             $children = is_array($node['children']) ? $node['children'] : [];
+            $below    = $this->tree($space, $children, $currentSlug);
             $tree[]   = [
-                'id'       => $node['page']->getId(),
-                'title'    => $node['page']->getTitle(),
-                'icon'     => $node['page']->getIcon(),
-                'href'     => $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $node['page']->getSlug()]),
-                'current'  => $currentSlug !== null && $node['page']->getSlug() === $currentSlug,
-                'children' => $this->tree($space, $children, $currentSlug),
+                'id'      => $node['page']->getId(),
+                'title'   => $node['page']->getTitle(),
+                'icon'    => $node['page']->getIcon(),
+                'href'    => $this->url('page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $node['page']->getSlug()]),
+                'current' => $currentSlug !== null && $node['page']->getSlug() === $currentSlug,
+                // 1.38: the current page is below this one (its row starts open in the nested tree); the space keys the
+                // fold state the browser remembers.
+                'current_path' => array_filter($below, static fn (array $child): bool => $child['current'] || $child['current_path']) !== [],
+                'space'        => $space->getSlug(),
+                'children'     => $below,
             ];
         }
 

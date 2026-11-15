@@ -2027,7 +2027,7 @@ final class WikiManageController extends AbstractController
     /**
      * The UiKit tree of the sidebar (1.14), or null without `tree.enabled` (the 1.13 nested list).
      *
-     * @param list<array{id: string, title: string, href: string, current: bool, children: list<mixed>}> $nodes
+     * @param list<array{id: string, title: string, icon: string|null, href: string, current: bool, current_path: bool, space: string, children: list<mixed>}> $nodes
      *
      * @return array{nodes: list<array<string, mixed>>, attr: array<string, bool|string>, movable: bool}|null
      */
