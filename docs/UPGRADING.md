@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.37.0](#to-1370)
   - [High load (Beacon spec 239)](#high-load-beacon-spec-239)
   - [Optional: exact collation of the page link columns](#optional-exact-collation-of-the-page-link-columns)
 - [To 1.36.0](#to-1360)
@@ -95,6 +96,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.37.0
+
+From **1.36.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ### High load (Beacon spec 239)
 
