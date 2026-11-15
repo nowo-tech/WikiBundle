@@ -68,6 +68,7 @@ The screenshots at the top of this README come from this demo; refresh them with
 - [Installation](docs/INSTALLATION.md)
 - [Configuration](docs/CONFIGURATION.md)
 - [Usage](docs/USAGE.md)
+- [High load (transactions, locks, 503 / 409)](docs/HIGH-LOAD.md)
 - [Architecture: standard Symfony and DDD hosts](docs/ARCHITECTURE.md)
 - [Templates (UiKit page contract)](docs/TEMPLATES.md)
 - [REST API](docs/API.md) ([OpenAPI](docs/openapi.yaml))
