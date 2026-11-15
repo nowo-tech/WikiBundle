@@ -133,14 +133,14 @@ final readonly class WikiAttachmentService
             if ($this->runner instanceof WikiTransactionRunner) {
                 // 1.37: the space quota again under the space lock: two uploads at once no longer both fit in the room
                 // that was left for one.
-                $runner     = $this->runner;
-                $repository = $this->attachmentRepository;
-                $runner->run(static function () use ($runner, $repository, $space, $size, $limits, $attachment): void {
-                    $runner->lockSpace($space);
-                    if ($repository->sumSizeBySpace($space) + $size > $limits->maxSpaceBytes) {
+                $runner = $this->runner;
+                // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
+                $runner->run(function () use ($space, $size, $limits, $attachment): void {
+                    $this->runner?->lockSpace($space);
+                    if ($this->attachmentRepository->sumSizeBySpace($space) + $size > $limits->maxSpaceBytes) {
                         throw new WikiAttachmentRejectedException(WikiAttachmentRejectedException::QUOTA_EXCEEDED);
                     }
-                    $repository->save($attachment);
+                    $this->attachmentRepository->save($attachment);
                 });
             } else {
                 $this->attachmentRepository->save($attachment);

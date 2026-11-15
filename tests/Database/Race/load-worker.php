@@ -17,6 +17,7 @@ declare(strict_types=1);
  */
 
 use Nowo\WikiBundle\Attachment\WikiAttachmentRejectedException;
+use Nowo\WikiBundle\Comment\WikiCommentException;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -89,7 +90,7 @@ for ($i = 1; $i <= (int) $writes; ++$i) {
                 break;
         }
         echo "ok\n";
-    } catch (WikiAttachmentRejectedException|Nowo\WikiBundle\Comment\WikiCommentException|WikiRevisionCollisionException $refused) {
+    } catch (WikiAttachmentRejectedException|WikiCommentException|WikiRevisionCollisionException $refused) {
         echo 'refused ' . $refused::class . "\n";
     } catch (Throwable $failure) {
         echo 'error ' . $failure::class . "\n";

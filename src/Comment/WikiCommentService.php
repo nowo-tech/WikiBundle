@@ -634,6 +634,7 @@ final readonly class WikiCommentService
         }
         $runner = $this->runner;
 
+        // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
         return $runner->run(static function () use ($runner, $lock, $write): mixed {
             if (!$runner->lockEntity($lock)) {
                 throw new WikiCommentException(Response::HTTP_NOT_FOUND, 'not_found');

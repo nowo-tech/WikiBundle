@@ -157,6 +157,7 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
         }
         $runner = $this->runner;
 
+        // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
         return $runner->run(static function () use ($runner, $page, $write): mixed {
             $runner->lockRow(WikiPage::class, $page->getId());
 
