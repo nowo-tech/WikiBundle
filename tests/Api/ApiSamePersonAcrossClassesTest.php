@@ -43,7 +43,7 @@ final class ApiSamePersonAcrossClassesTest extends ApiTestCase
     /**
      * Audit OX-D1-L1: the firewall loads a security adapter class that is not in `accepted_user_classes`, the API
      * authenticator returns the `user_class` user with the same id. 1.x lets the request through with a deprecation
-     * warning (refused in 2.0), and ownership stays the guard's, on the token's user alone: an Admin#u-ana token behind
+     * notice (refused in 2.0), and ownership stays the guard's, on the token's user alone: an Admin#u-ana token behind
      * the same adapter still cannot archive Ana's page.
      */
     public function testASecurityAdapterIsLetThroughWithAWarningButNeverDecidesOwnership(): void
@@ -58,10 +58,10 @@ final class ApiSamePersonAcrossClassesTest extends ApiTestCase
 
         $this->assertRefusal($this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/archive', 'admin'), 403, 'TOKEN_001');
         self::assertNull($this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'admin'))['created_by']['id']);
-        self::assertContains('warning: Wiki API: the firewall user (' . WikiSecurityUserDto::class . ') and the token\'s user (' . WikiForeignAdminUser::class . ') are matched by their id only: add ' . WikiSecurityUserDto::class . ', ' . WikiForeignAdminUser::class . ' to nowo_wiki.accepted_user_classes; this will be refused in 2.0.', $logger->lines());
+        self::assertContains('notice: Wiki API: the firewall user (' . WikiSecurityUserDto::class . ') and the token\'s user (' . WikiForeignAdminUser::class . ') are matched by their id only: add ' . WikiSecurityUserDto::class . ', ' . WikiForeignAdminUser::class . ' to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $logger->lines());
 
         self::assertSame('api-u-ana', $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'adapted'))['created_by']['id']);
         self::assertTrue($this->json($this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/archive', 'adapted'))['archived']);
-        self::assertContains('warning: Wiki API: the firewall user (' . WikiSecurityUserDto::class . ') and the token\'s user (' . TestUserEntity::class . ') are matched by their id only: add ' . WikiSecurityUserDto::class . ' to nowo_wiki.accepted_user_classes; this will be refused in 2.0.', $logger->lines());
+        self::assertContains('notice: Wiki API: the firewall user (' . WikiSecurityUserDto::class . ') and the token\'s user (' . TestUserEntity::class . ') are matched by their id only: add ' . WikiSecurityUserDto::class . ' to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $logger->lines());
     }
 }

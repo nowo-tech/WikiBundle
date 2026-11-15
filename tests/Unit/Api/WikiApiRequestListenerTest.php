@@ -98,7 +98,7 @@ final class WikiApiRequestListenerTest extends TestCase
      * Audit OX-L1 / OX-D1-L1: the firewall's user and the token's user are the same person as the same object, as two
      * users of `user_class` / an accepted class with the same usable id, or as two users of one other class with the
      * same exact id. In 1.x a mixed pair with the same exact id where a side is not an accepted class (a security
-     * adapter) is let through with a deprecation warning naming the classes (refused in 2.0); it never decides
+     * adapter) is let through with a deprecation notice naming the classes (refused in 2.0); it never decides
      * ownership (the guard judges the token's user alone). Any other mismatch is a configuration error naming both
      * classes, and a 500.
      */
@@ -125,8 +125,8 @@ final class WikiApiRequestListenerTest extends TestCase
             $logger = new RecordingLogger();
             self::assertNull($this->enter($this->principalOf($tokenUser), $tokens, $classes, $logger)->getResponse(), $tokenUser::class);
             self::assertCount(1, $logger->records);
-            self::assertSame('warning', $logger->records[0]['level']);
-            self::assertStringContainsString('add ' . $notAccepted . ' to nowo_wiki.accepted_user_classes; this will be refused in 2.0', $logger->records[0]['message']);
+            self::assertSame('notice', $logger->records[0]['level']);
+            self::assertStringContainsString('add ' . $notAccepted . ' to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $logger->records[0]['message']);
             self::assertStringContainsString(WikiForeignAdminUser::class, $logger->records[0]['message']);
         }
 

@@ -101,11 +101,13 @@ except for the REST API's same-person rule below. Overview of both host kinds: [
 
 **Action recommended (REST API, `accepted_user_classes`).** The API now compares users by class and id (audit OX-L1):
 
-- If your firewall's user (for example a security adapter) and the user your `api.hooks.authenticator` returns are of
-  different classes, list the one that is not `user_class` in `nowo_wiki.accepted_user_classes`.
-- In 1.x such a pair with the same exact id still passes, with a warning in the log: `Wiki API: the firewall user (…)
-  and the token's user (…) are matched by their id only: add … to nowo_wiki.accepted_user_classes; this will be refused
-  in 2.0.`
+- If your firewall's user and the user your `api.hooks.authenticator` returns are of different classes: add the class
+  that is not `user_class` to `nowo_wiki.accepted_user_classes` only if it carries user_class ids (an adapter or
+  wrapper); otherwise the firewall and the authenticator must return the same user.
+- In 1.x such a pair with the same exact id still passes, with a notice in the log: `Wiki API: the firewall user (…)
+  and the token's user (…) are matched by their id only: add … to nowo_wiki.accepted_user_classes only if it carries
+  user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This
+  will be refused in 2.0.`
 - It never makes the token's user the owner of anything: "one's own page" and the token user's own API id are judged
   on the token's user alone, and need `user_class` or an accepted class.
 - A firewall user with another id, or an id that cannot be matched exactly, is a configuration error

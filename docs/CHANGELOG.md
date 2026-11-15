@@ -306,7 +306,9 @@ see Tests). Overview: [ARCHITECTURE](ARCHITECTURE.md); steps: [UPGRADING](UPGRAD
   match as before when they are the same object, two users of `user_class` / an accepted class with the same usable
   id, or two users of one other class with the same exact id. Two users of different classes with the same exact id,
   where a side is not `user_class` nor an accepted class (a security adapter), are still let through in 1.x, with a
-  warning naming the classes to add to `accepted_user_classes` ("this will be refused in 2.0"); this match is never
+  notice naming the classes to add to `accepted_user_classes` only if they carry user_class ids (an adapter or
+  wrapper; otherwise the firewall and the authenticator must return the same user; "this will be refused in 2.0");
+  this match is never
   used for ownership or the API id (judged on the token's user alone, above). Another id, or an id that cannot be
   matched exactly, logs a configuration error naming both classes and answers 500 (as in 1.35).
 - REQ-SEC-006 on the new id columns (id mode only): binary NO PAD collation on MySQL / MariaDB

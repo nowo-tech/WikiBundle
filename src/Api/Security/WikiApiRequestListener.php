@@ -210,7 +210,7 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
             if ($match !== self::SAME) {
                 // Audit OX-D1-L1 (1.36): a security adapter of another class with the same exact id is let through in
                 // 1.x. It only stands behind the token: ownership and the API id are judged on the token's user alone.
-                $this->logger->warning(sprintf('Wiki API: the firewall user (%s) and the token\'s user (%s) are matched by their id only: add %s to nowo_wiki.accepted_user_classes; this will be refused in 2.0.', $this->classOf($securityUser), $this->classOf($principal->user), $match), ['bundle' => 'nowo_wiki']);
+                $this->logger->notice(sprintf('Wiki API: the firewall user (%s) and the token\'s user (%s) are matched by their id only: add %s to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $this->classOf($securityUser), $this->classOf($principal->user), $match), ['bundle' => 'nowo_wiki']);
             }
 
             return;
@@ -229,7 +229,7 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
      * or a listed accepted class with the same usable id (audit OX-L1, JX-W1), or two users of one other class with the
      * same exact id; {@see self::DIFFERENT} otherwise. Audit OX-D1-L1: two users of different classes with the same
      * exact id where a side is not an accepted class (a security adapter) give the classes to add to
-     * `accepted_user_classes` (let through with a warning in 1.x). Without the class policy (a listener built by hand),
+     * `accepted_user_classes` (let through with a notice in 1.x). Without the class policy (a listener built by hand),
      * the 1.24 rule: the same id.
      */
     private function match(object $securityUser, object $tokenUser): string
