@@ -138,6 +138,9 @@ wiki:
     # 1.31 (web_ui.page_meta: card): the footer line "v3 · Updated …" of the content card.
     meta_revision: "v%number%"
     meta_updated: "Atualizada em %date%"
+    # 1.38 (page_icon.form_field): the optional icon of a page.
+    icon: "Ícone"
+    icon_help: "Nome de ícone UX opcional, por exemplo tabler:rocket, mostrado antes do título na árvore de páginas. Deixe vazio para nenhum."
     error:
       invalid_slug: "O título da página gera um endereço inválido; use letras ou números."
       slug_exists: "Já existe uma página com este título neste espaço."

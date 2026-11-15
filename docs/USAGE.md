@@ -218,6 +218,18 @@ A space has an optional `icon`: a UX icon name such as `tabler:book` or `tabler:
   `nowo_wiki.space_icon.allowed_prefixes` (default `[tabler]`). `setIcon()` throws `InvalidArgumentException`; pass the
   configured prefixes as the second argument when a host allows more than `tabler`.
 - `WikiSpaceType` (name + icon) shows the icon field only with the option `icon_field: true` (off by default).
+- 1.38 **page icons**: the same format and prefixes for `WikiPage::icon`. With `page_icon.form_field: true` the page
+  form gets the field; the REST API (`icon` in page payloads and in create / update), import / export (`wiki_icon` in
+  the front matter) and `WikiPageIconService` set it too. A seed:
+
+  ```php
+  $icons = $container->get(\Nowo\WikiBundle\Service\WikiPageIconService::class);
+  $icons->setIcon($page, 'tabler:rocket');      // or setPageIcon($pageId, 'tabler:rocket'); null or '' clears it
+  ```
+
+  It shows before the title in the page tree and in the content card. It is drawn with `nowo_ui_kit.icon_set:
+  ux_icon` (any allowed prefix), `tabler-icons` (`tabler:` names) or `bootstrap-icons` (`bi:` names, once `bi` is an
+  allowed prefix); otherwise nothing is printed.
 - A host form adds the field with `WikiSpaceIconType`; on a form whose data is a `WikiSpace` it writes through
   `setIcon()` with the configured prefixes, on a DTO or an array through the property path (the field name or `property_path`).
 

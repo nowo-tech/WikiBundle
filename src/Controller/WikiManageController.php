@@ -46,6 +46,7 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageMoveScope;
@@ -165,6 +166,8 @@ final class WikiManageController extends AbstractController
      * @param WikiTreeRail|null $treeRail the page tree rail (1.29, `web_ui.tree_rail`; null = off)
      * @param object|null $breadcrumbCurrentLabel 1.30: BreadcrumbKit's BreadcrumbCurrentLabelInterface (>= 2.17) when installed, else null (optional integration)
      * @param array{title?: string, tabs?: string, path?: string, children?: string, breadcrumb_current_label?: bool, page_meta?: string} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title; 1.30 `title: body` drops the header title instead; 1.31 `title: card` prints it in the card, `page_meta: card`)
+     * @param WikiPageIconService|null $pageIcons 1.38: writes the page icon (null: the icon field is never shown)
+     * @param bool $pageIconField 1.38 `page_icon.form_field`: the page form's optional icon field
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -208,6 +211,8 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiTreeRail $treeRail = null,
         private readonly array $layout = [],
         private readonly ?object $breadcrumbCurrentLabel = null,
+        private readonly ?WikiPageIconService $pageIcons = null,
+        private readonly bool $pageIconField = false,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -555,6 +560,8 @@ final class WikiManageController extends AbstractController
         $data = new WikiPageFormData(
             $page->getTitle(),
             $this->editorBody($page->getCurrentRevision()),
+            null,
+            $page->getIcon(),
         );
 
         // 1.16: the comments panel; the editor mounts the thread component into it (live with co-editing).
@@ -584,7 +591,11 @@ final class WikiManageController extends AbstractController
 
             // An empty title stays a message on the form: it is never saved.
             if ($payload->title !== '') {
-                $save = fn () => $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
+                // 1.38: the icon (page_icon.form_field) in its own unit under the page lock, after the revision.
+                $save = function () use ($page, $payload, $user): void {
+                    $this->pageService->saveRevision($page, $payload->title, $payload->content, $user, $this->editorFormat());
+                    $this->applyPageIcon($page, $payload);
+                };
                 // Audit HF-M1: outside the session this save would drop text others have only in the shared log.
                 try {
                     if (!$this->saveUnlessItMustAsk($request, $page, $inSession, $save)) {
@@ -821,6 +832,9 @@ final class WikiManageController extends AbstractController
                 return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
+            // 1.38: the icon of the new page (already checked by the form field, with the same rules).
+            $this->applyPageIcon($page, $payload);
+
             return $this->redirectToRoute($this->routes['page_view']['name'], [
                 'spaceSlug' => $space->getSlug(),
                 'pageSlug'  => $page->getSlug(),
@@ -828,6 +842,23 @@ final class WikiManageController extends AbstractController
         }
 
         return $this->renderNewPage($space, $form);
+    }
+
+    /**
+     * 1.38: writes the icon of the page form (page_icon.form_field) through {@see WikiPageIconService} (its own unit of
+     * work, the page row locked); nothing without the field.
+     */
+    private function applyPageIcon(WikiPage $page, WikiPageFormData $payload): void
+    {
+        if ($this->pageIconFieldEnabled()) {
+            $this->pageIcons?->setIcon($page, $payload->icon);
+        }
+    }
+
+    /** 1.38: whether the page form shows the icon field. */
+    private function pageIconFieldEnabled(): bool
+    {
+        return $this->pageIconField && $this->pageIcons instanceof WikiPageIconService;
     }
 
     /**
@@ -1735,6 +1766,7 @@ final class WikiManageController extends AbstractController
             'tiptap_config'      => $this->editor['tiptap_config'],
             'editor_type'        => $this->editorType(),
             'markdown_form_type' => $this->editor['markdown_form_type'] ?? null,
+            'icon_field'         => $this->pageIconFieldEnabled(),
         ];
     }
 
@@ -1947,7 +1979,7 @@ final class WikiManageController extends AbstractController
     /**
      * The layout variables of the read view around the page (1.33: also the edit form with `web_ui.edit_view.layout:
      * read`): the sidebar tree (capped, readable pages only), its UiKit tree (`tree.enabled`) and rail
-     * (`web_ui.tree_rail`), the space icon and the in-wiki path (`page_header.path: card`).
+     * (`web_ui.tree_rail`), the space icon, the page icon (1.38) and the in-wiki path (`page_header.path: card`).
      *
      * @return array<string, mixed>
      */
@@ -1961,6 +1993,8 @@ final class WikiManageController extends AbstractController
             'max_tree_pages'   => $this->pagination['max_tree_pages'],
             'tree_search_href' => $this->treeSearchHref($space),
             'space_icon'       => $space->getIcon(),
+            // 1.38: the page's icon, shown before its title in the content card.
+            'page_icon' => $page->getIcon(),
         ];
         $treeUi = $this->treeUi($user, $space, $nodes);
         if ($treeUi !== null) {

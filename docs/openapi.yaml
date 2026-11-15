@@ -1537,6 +1537,13 @@ components:
           type: string
         title:
           type: string
+        icon:
+          type:
+          - string
+          - 'null'
+          maxLength: 64
+          pattern: '^[a-z0-9-]+:[a-z0-9-]+$'
+          description: '1.38: the page icon, a UX icon name such as tabler:rocket (space_icon.allowed_prefixes); null for none.'
         parent:
           type:
           - string
@@ -1648,6 +1655,12 @@ components:
       properties:
         title:
           type: string
+        icon:
+          type:
+          - string
+          - 'null'
+          maxLength: 64
+          description: '1.38: optional page icon, `<prefix>:<name>` with a prefix of space_icon.allowed_prefixes (default tabler), e.g. tabler:rocket; checked server-side (400 INPUT_002 field icon otherwise, also for an icon Symfony UX Icons does not know when it is installed). null or empty: no icon. Same right as the other page fields.'
         content_markdown:
           type: string
         parent:
@@ -1666,6 +1679,12 @@ components:
       properties:
         title:
           type: string
+        icon:
+          type:
+          - string
+          - 'null'
+          maxLength: 64
+          description: '1.38: optional page icon, `<prefix>:<name>` with a prefix of space_icon.allowed_prefixes (default tabler), e.g. tabler:rocket; checked server-side (400 INPUT_002 field icon otherwise, also for an icon Symfony UX Icons does not know when it is installed). Absent: kept; null or empty: cleared. Written after the revision, under the page lock; an icon change alone (same body) is audited as a write. Same right as the other page fields.'
         content_markdown:
           type: string
         base_revision:

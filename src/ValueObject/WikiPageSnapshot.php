@@ -24,6 +24,7 @@ final readonly class WikiPageSnapshot
      * @param DateTimeImmutable|null $archivedAt archive time; null while active
      * @param DateTimeImmutable $createdAt creation time
      * @param DateTimeImmutable $updatedAt last change of the page row
+     * @param string|null $icon 1.38: UX icon name such as `tabler:rocket`; null for no icon
      */
     public function __construct(
         public string $id,
@@ -36,6 +37,7 @@ final readonly class WikiPageSnapshot
         public ?DateTimeImmutable $archivedAt,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        public ?string $icon = null,
     ) {
     }
 

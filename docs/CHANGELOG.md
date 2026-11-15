@@ -241,6 +241,25 @@ Target 1.38.0 (minor; Beacon requests for v1.158). See [UPGRADING.md](UPGRADING.
   text inside the card (path, title, body, read-only editor, editor, revision line) keeps `--nowo-wiki-reading-width`
   (default the UiKit `--nowo-ui-reading-width`, 75ch), centred, or against the card's start edge with
   `reading_align: start`. `readable` and `full` are unchanged.
+- **Page icons** (`WikiPage::icon`, nullable `icon` column on `wiki_pages`): an optional UX icon per page in the space
+  icon's format (`<prefix>:<name>`, a prefix of `space_icon.allowed_prefixes`, default `tabler`, at most 64
+  characters; with Symfony UX Icons installed the icon must also exist). Shown before the title in the page tree (the
+  nested list and, with `tree.enabled`, the UiKit tree through its `leading_template`) and before the card title, or as
+  the first line of the content card (`.nowo-wiki-page-icon-line`, `data-testid="wiki-page-icon"`); drawn only when the
+  UiKit icon set can draw the name (`ux_icon`; `tabler-icons` for `tabler:`, `bootstrap-icons` for `bi:`), never as a
+  broken class. Written by:
+  - the page form (new and edit) with `page_icon.form_field: true` (the space icon's field, `WikiSpaceIconType`,
+    labels `wiki.page.icon` / `wiki.page.icon_help` in the 7 locales); off by default, the icon is then kept on save;
+  - the REST API: `icon` in every page payload (list, get, create, update); `POST …/pages` and `PUT …/pages/{page}`
+    accept `icon` with the rights of the other page fields (absent on update: kept; `null` or `''`: cleared; anything
+    else not allowed: 400 `INPUT_002`, nothing written; an icon change is audited as the `icon` field);
+  - import / export: `wiki_icon` in the front matter of a page that has one (other exports are unchanged); an import
+    sets it on created and updated pages (absent: kept; empty: cleared; not allowed: left out with a report message);
+  - `Nowo\WikiBundle\Service\WikiPageIconService` (`setIcon(WikiPage, ?string)`, `setPageIcon(string $pageId,
+    ?string)`, public service) for host code and seeds.
+  Every write is one unit of the bundle's runner with the page row locked and read again (an archived page is refused,
+  the last write wins, no revision and no page event); the value is checked server-side before anything is written.
+  `WikiPageSnapshot::$icon` (optional last constructor argument).
 
 <a id="fixed-unreleased-138"></a>
 ### Fixed

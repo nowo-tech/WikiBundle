@@ -152,13 +152,13 @@
 /* 1.38 web_ui.reading_width: text — the main column (and the content card) fills the width it gets, so a wide screen
    leaves no empty band beside the card; the text inside it keeps the reading measure (--nowo-wiki-reading-width),
    centred or, with reading_align: start, against the card's start edge. */
-.nowo-wiki-reading-text :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-meta) {
+.nowo-wiki-reading-text :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-icon-line, .nowo-wiki-page-meta) {
   box-sizing: border-box;
   max-inline-size: var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch));
   margin-inline: auto;
 }
 
-.nowo-wiki-reading-text--start :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-meta) {
+.nowo-wiki-reading-text--start :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-icon-line, .nowo-wiki-page-meta) {
   margin-inline: 0;
 }
 
@@ -500,6 +500,27 @@
   .nowo-wiki-card-frame > .nowo-wiki-page-title {
     padding-inline-end: 0;
   }
+}
+
+/* 1.38 page icons (WikiPage::icon): before the title in the page tree and the card title, or as the card's first line
+   (--nowo-wiki-page-icon-line-size, default 1.75rem). Decorative: the title names the page. */
+.nowo-wiki-page-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-inline-end: var(--nowo-wiki-page-icon-gap, 0.375rem);
+  line-height: 1;
+  vertical-align: -0.125em;
+}
+
+.nowo-ui-tree__link > .nowo-wiki-page-icon {
+  margin-inline-end: 0;
+}
+
+.nowo-wiki-page-icon-line {
+  margin: 0 0 0.25rem;
+  font-size: var(--nowo-wiki-page-icon-line-size, 1.75rem);
+  line-height: 1;
 }
 
 /* 1.31 web_ui.page_meta: card — "v3 · Updated …" as the card's muted footer line. 1.38 fix: the body and the line are

@@ -1,9 +1,10 @@
 {#
-  One page of the tree (override point). Variables: node ({title, href, current, children}), depth (0-based).
+  One page of the tree (override point). Variables: node ({title, icon (1.38, null for none), href, current, children}),
+  depth (0-based).
   The current page is marked aria-current="page".
 #}
 <li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-{{ min(depth, 6) }}{{ node.children is not empty ? ' nowo-wiki-tree__item--parent' }}" data-wiki-depth="{{ depth }}">
-    <a href="{{ node.href }}" class="nowo-wiki-tree__link{{ node.current ? ' nowo-wiki-tree__link--current' }}"{% if node.current %} aria-current="page"{% endif %}>{{ node.title }}</a>
+    <a href="{{ node.href }}" class="nowo-wiki-tree__link{{ node.current ? ' nowo-wiki-tree__link--current' }}"{% if node.current %} aria-current="page"{% endif %}>{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: node.icon|default(null)}, false) }}{{ node.title }}</a>
     {% if node.children is not empty %}
         {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {nodes: node.children, depth: depth + 1}, false) }}
     {% endif %}

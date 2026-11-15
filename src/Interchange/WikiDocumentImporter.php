@@ -12,13 +12,16 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
+use function array_key_exists;
 use function count;
+use function is_string;
 use function sprintf;
 
 /**
@@ -41,6 +44,7 @@ final readonly class WikiDocumentImporter
      * @param LoggerInterface|null $logger logger (defaults to a NullLogger)
      * @param string $editorType `nowo_wiki.editor.type` (1.11): with `markdown` the Markdown bodies are stored as
      *                           Markdown revisions, otherwise they are converted to HTML
+     * @param WikiPageIconService|null $icons 1.38: writes the `wiki_icon` of the front matter (null: ignored)
      */
     public function __construct(
         private WikiArchiveHelper $archiveHelper,
@@ -52,6 +56,7 @@ final readonly class WikiDocumentImporter
         private WikiSlugger $slugger,
         ?LoggerInterface $logger = null,
         private string $editorType = Configuration::EDITOR_TIPTAP,
+        private ?WikiPageIconService $icons = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -286,6 +291,7 @@ final readonly class WikiDocumentImporter
 
             $page = $slugMap[$slug];
             $this->pageService->saveRevision($page, $title, $content, $author, $format);
+            $this->importIcon($page, $node, $report);
             ++$report->updated;
             $pathMap[$node->relativePath] = $page;
 
@@ -304,7 +310,26 @@ final readonly class WikiDocumentImporter
         $page                         = $this->pageService->create($space, $title, $content, $author, $parent, $slug, $format);
         $slugMap[$slug]               = $page;
         $pathMap[$node->relativePath] = $page;
+        $this->importIcon($page, $node, $report);
         ++$report->created;
+    }
+
+    /**
+     * 1.38: the `wiki_icon` of the front matter (absent: the icon is kept; empty: cleared), checked against the allowed
+     * prefixes by {@see WikiPageIconService}. An icon that is not allowed is left out with a message; the page is kept.
+     */
+    private function importIcon(WikiPage $page, WikiDocumentNode $node, WikiImportReport $report): void
+    {
+        if (!$this->icons instanceof WikiPageIconService || !array_key_exists('wiki_icon', $node->meta)) {
+            return;
+        }
+        $icon = $node->meta['wiki_icon'];
+        if (($icon !== null && !is_string($icon)) || !$this->icons->isAllowed($icon)) {
+            $report->addMessage(sprintf('Ignored the icon of page "%s": not an allowed icon name.', $page->getSlug()));
+
+            return;
+        }
+        $this->icons->setIcon($page, $icon);
     }
 
     /**

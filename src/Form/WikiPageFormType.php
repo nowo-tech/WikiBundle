@@ -23,7 +23,7 @@ use function is_string;
  * Wiki page editor form (title + Tiptap HTML body, or a Markdown body with `editor_type: markdown` since 1.11).
  * 1.35: with `placement: true` (the new-page form of `web_ui.new_page_dialog`) an unmapped hidden field, `place`,
  * carries where the new page goes as an intent (`child:<id>`, `above:<id>`, `below:<id>`; the tree menu fills it).
- * The server computes the position.
+ * The server computes the position. 1.38: with `icon_field: true` an optional `icon` field ({@see WikiSpaceIconType}).
  *
  * @extends AbstractType<WikiPageFormData>
  */
@@ -46,6 +46,13 @@ final class WikiPageFormType extends AbstractType
                 // An empty title reaches the slug check (a flash), not the string property as null (a 500).
                 'empty_data' => '',
             ]);
+            if ($options['icon_field'] === true) {
+                // 1.38 (page_icon.form_field): the space icon's field, checked against the same prefixes.
+                $this->addTypedField('icon', WikiSpaceIconType::class, [
+                    'label' => 'wiki.page.icon',
+                    'help'  => 'wiki.page.icon_help',
+                ]);
+            }
             if ($options['placement'] === true) {
                 // 1.35: read by the controller (WikiPagePlacement::fromValue()); not mapped onto the payload.
                 $this->addTypedField('place', HiddenType::class, ['mapped' => false, 'required' => false, 'attr' => ['data-wiki-new-page-place' => '1']]);
@@ -117,7 +124,10 @@ final class WikiPageFormType extends AbstractType
             'markdown_form_type' => null,
             // 1.35: the hidden `place` field of the new-page form (web_ui.new_page_dialog).
             'placement' => false,
+            // 1.38: the optional page icon field (page_icon.form_field).
+            'icon_field' => false,
         ]);
+        $resolver->setAllowedTypes('icon_field', 'bool');
         $resolver->setAllowedTypes('placement', 'bool');
 
         $resolver->setAllowedTypes('tiptap_config', 'string');

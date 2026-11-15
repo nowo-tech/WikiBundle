@@ -65,6 +65,7 @@ final class WikiSnapshots
             $page->getArchivedAt(),
             $page->getCreatedAt(),
             $page->getUpdatedAt(),
+            $page->getIcon(),
         );
     }
 

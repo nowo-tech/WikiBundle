@@ -104,6 +104,25 @@ Target 1.38.0, from **1.37.0**: `composer require nowo-tech/wiki-bundle:^1.38`.
   class="… nowo-wiki-page-meta">`). A host stylesheet that drew the line or the body card itself (for example a card
   frame with its own border around the body) may drop those rules, or flatten `.nowo-wiki-page-card` (`border: 0;
   background: transparent`) when its frame already draws the card.
+- **Page icons**: `WikiPage` gets a nullable `icon` column (`VARCHAR(64)`, no index, no special collation). The bundle
+  ships no migrations: generate one (`doctrine:migrations:diff`) or run the statement for your database (adjust the
+  table name if you changed `table_prefix`):
+
+  ```sql
+  -- MySQL / MariaDB / PostgreSQL
+  ALTER TABLE wiki_pages ADD icon VARCHAR(64) DEFAULT NULL;
+  -- SQLite
+  ALTER TABLE wiki_pages ADD COLUMN icon VARCHAR(64) DEFAULT NULL;
+  ```
+
+  Nothing else changes until a page gets an icon: existing pages keep `null`, the page form has no icon field unless
+  `page_icon.form_field: true`, exports of pages without an icon are byte for byte as before, and old exports import
+  as before. API clients see a new `icon` key (`null`) in page payloads. A host template that overrides
+  `_page_tree_item.html.twig` or the UiKit tree call of `_sidebar.html.twig` shows no icon until it includes
+  `@NowoWikiBundle/manage/_page_icon.html.twig` (`{icon: node.icon}`) or passes the `leading_template`
+  `@NowoWikiBundle/manage/_tree_page_icon.html.twig`. With `nowo_ui_kit.icon_set: ux_icon` set
+  `ux_icons.ignore_not_found: true` too (as for space icons): without `symfony/ux-icons` installed in the PHP process
+  that writes, a well-formed name that does not exist cannot be refused.
 - **Wide screens**: set `web_ui.reading_width: text` (with `reading_align: start` for the text against the card's left
   edge) to let the card fill the main column while the text keeps the reading measure.
 

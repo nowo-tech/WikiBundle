@@ -1,0 +1,13 @@
+{#
+  1.38: the icon of a page (WikiPage::icon, page_icon), decorative (aria-hidden: the title says it all). Variables:
+  icon (UX icon name such as tabler:rocket, or null: nothing is printed), class (optional extra class). The value is
+  checked against the allowed prefixes and the `<prefix>:<name>` format before it is stored; the UiKit `icon`
+  component escapes it. With the ux_icon set (Symfony UX Icons) any allowed prefix is drawn.
+#}
+{#- Drawn only when the UiKit icon set can draw the name (as WikiTabActions does): ux_icon any name, tabler-icons a
+    tabler: name, bootstrap-icons a bi: name; svg_inline / none and other prefixes print nothing (no broken class). -#}
+{%- set _set = nowo_ui_kit_icon_set|default('bootstrap-icons') -%}
+{%- set _prefix = icon|default('') ? (icon|split(':', 2)|first) : '' -%}
+{%- if icon|default(null) and (_set == 'ux_icon' or (_set == 'tabler-icons' and _prefix == 'tabler') or (_set == 'bootstrap-icons' and _prefix == 'bi')) -%}
+<span class="nowo-wiki-page-icon{{ class|default(false) ? ' ' ~ class }}" aria-hidden="true">{{ include('@NowoUiKitBundle/components/_icon.html.twig', {name: icon, label: ''}, false)|trim|raw }}</span>
+{%- endif -%}

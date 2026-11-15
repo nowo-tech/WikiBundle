@@ -47,7 +47,8 @@ Root key: `nowo_wiki`.
 | `web_ui.templates.<page>` | null | Per-page template override (`index`, `space`, `page_view`, `page_edit`, `page_history`, `page_diff`, `search`, `ai_ask`); null = the bundle page |
 | `web_ui.tab_icons.<tab>` | `page`: `tabler:file-text`, `edit`: `tabler:pencil`, `history`: `tabler:history` | 1.18: icon of each page tab (Page / Edit / History) passed to the UiKit `tabs` partial, so the row follows the host's tab style (text, icon and text, icon only); null or `''` = no icon on that tab; a name must be `[prefix:]name` in lowercase letters, digits and single hyphens (checked at container build) |
 | `web_ui.css_framework` | null | **Deprecated since 1.10**: set `nowo_ui_kit.css_framework` once for every bundle (when set, it only seeds `nowo_ui_kit.css_framework` / `icon_set` if the host left them unset) |
-| `space_icon.allowed_prefixes` | `[tabler]` | 1.32: icon set prefixes accepted for `WikiSpace::icon` (`<prefix>:<name>`, each prefix `[a-z0-9-]+`); the setter and `WikiSpaceIconType` reject any other |
+| `space_icon.allowed_prefixes` | `[tabler]` | 1.32: icon set prefixes accepted for `WikiSpace::icon` (`<prefix>:<name>`, each prefix `[a-z0-9-]+`); the setter and `WikiSpaceIconType` reject any other. 1.38: also for `WikiPage::icon` (form, API, import) |
+| `page_icon.form_field` | `false` | 1.38: `true` adds the optional "Icon" field (`WikiSpaceIconType`, `wiki.page.icon`) to the page form, new and edit. The page icon itself is always shown when set and always read / written by the API and import / export |
 | `pagination.spaces_per_page` | `24` | Space cards per wiki index page (`?page=N`, 1–500) |
 | `pagination.revisions_per_page` | `25` | Revisions per page history page (`?page=N`, 1–500) |
 | `pagination.max_tree_pages` | `500` | Pages loaded into the sidebar tree (10–10000); a notice links to search when more exist |
