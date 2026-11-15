@@ -9,6 +9,8 @@ use Doctrine\DBAL\Exception\DeadlockException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Event\OnFlushEventArgs;
+use Doctrine\ORM\UnitOfWork;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use LogicException;
@@ -22,9 +24,11 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
+use Nowo\WikiBundle\Transaction\WikiFlushObserver;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use stdClass;
 
 /**
  * 1.37 (Beacon spec 239): the wiki's transaction runner.
@@ -138,6 +142,35 @@ final class WikiTransactionRunnerTest extends TestCase
         });
 
         self::assertSame(1, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM wiki_spaces'));
+    }
+
+    public function testAConnectionUnitRunsOnEitherManager(): void
+    {
+        $private = new WikiEntityManager($this->registryOf($this->em));
+        $runner  = new WikiTransactionRunner(new WikiEntityManagerProvider($this->registryOf($this->em), 'default', $private));
+        self::assertSame('private', $runner->runOnConnection(static fn (): string => 'private'));
+        self::assertSame('shared', (new WikiTransactionRunner($this->em))->runOnConnection(static fn (): string => 'shared'));
+        self::assertSame(0, $this->em->getConnection()->getTransactionNestingLevel());
+    }
+
+    /** Audit QN-M1: a collection change of an application entity counts as an application write. */
+    public function testTheFlushObserverSeesApplicationCollections(): void
+    {
+        $unitOfWork = $this->createMock(UnitOfWork::class);
+        $unitOfWork->method('getScheduledEntityInsertions')->willReturn([new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1')]);
+        $unitOfWork->method('getScheduledEntityUpdates')->willReturn([]);
+        $unitOfWork->method('getScheduledEntityDeletions')->willReturn([]);
+        $unitOfWork->method('getScheduledCollectionUpdates')->willReturn([]);
+        $unitOfWork->method('getScheduledCollectionDeletions')->willReturnOnConsecutiveCalls([], [new stdClass()]);
+        $manager = $this->createMock(EntityManagerInterface::class);
+        $manager->method('getUnitOfWork')->willReturn($unitOfWork);
+
+        $observer = new WikiFlushObserver();
+        $observer->onFlush(new OnFlushEventArgs($manager));
+        self::assertFalse($observer->hostWritten, 'Wiki rows only.');
+        $observer->onFlush(new OnFlushEventArgs($manager));
+        self::assertTrue($observer->hostWritten, 'A collection change is the application\'s.');
+        self::assertTrue(WikiFlushObserver::isWikiEntity('Proxies\\__CG__\\Nowo\\WikiBundle\\Entity\\WikiPage'));
     }
 
     public function testRunRetryingReplaysAnOutermostTransientFailure(): void

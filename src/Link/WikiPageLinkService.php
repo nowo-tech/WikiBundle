@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Link;
 
+use InvalidArgumentException;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -159,7 +160,10 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
 
         // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
         return $runner->run(static function () use ($runner, $page, $write): mixed {
-            $runner->lockRow(WikiPage::class, $page->getId());
+            // Audit QN-I2: a page purged meanwhile is not linked (nor unlinked).
+            if (!$runner->lockRow(WikiPage::class, $page->getId())) {
+                throw new InvalidArgumentException('The page no longer exists.');
+            }
 
             return $write();
         });

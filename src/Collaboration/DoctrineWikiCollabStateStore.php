@@ -17,11 +17,11 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Nowo\TransactionContract\TransientStorageFailure;
-use Nowo\TransactionDoctrine\DoctrineTransactionRunner;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Entity\WikiCollabUpdate;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Symfony\Component\HttpFoundation\Response;
 
 use function count;
@@ -107,9 +107,10 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
 
     /**
      * 1.37 (Beacon spec 239): one transaction of the store on the wiki's connection (a savepoint inside a transaction
-     * the caller opened), through nowo-tech/transaction-doctrine's connection runner: no entity manager is flushed,
-     * cleared or reset, and after a failure the levels it opened are rolled back (the connection closed only when that
-     * rollback fails). A transient failure is a {@see TransientStorageFailure}.
+     * the caller opened), through the wiki's runner on the connection: the store flushes no entity manager, and after a
+     * failure the levels it opened are rolled back (the connection closed only when that rollback fails). A transient
+     * failure is a {@see TransientStorageFailure} when the store's transaction was the outermost one, else a
+     * {@see WikiCollabUnitLostException}.
      *
      * @template T
      *
@@ -119,7 +120,20 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
      */
     private function transactional(callable $work): mixed
     {
-        return DoctrineTransactionRunner::forConnection($this->em()->getConnection())->run($work);
+        $nested = $this->em()->getConnection()->isTransactionActive();
+        try {
+            // Audit QN-M1: through the wiki's runner, so a failure after a page save flushed inside the log's lock
+            // never leaves the application's flushed changes looking written.
+            return (new WikiTransactionRunner($this->entityManager))->runOnConnection($work);
+        } catch (TransientStorageFailure $failure) {
+            // Audit QN-L4: nested in a transaction the server may have rolled back as a whole (a MySQL deadlock): never
+            // a lock to retry under, the caller's whole unit is lost.
+            if ($nested) {
+                throw new WikiCollabUnitLostException($failure);
+            }
+
+            throw $failure;
+        }
     }
 
     /**

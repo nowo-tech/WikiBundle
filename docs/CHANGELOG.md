@@ -241,7 +241,8 @@ Target 1.37.0 (minor; Beacon spec 239, high load). See [HIGH-LOAD.md](HIGH-LOAD.
 - `WikiStorageFailureSubscriber`: on the wiki's routes only, `503` + `Retry-After` for a transient storage failure and
   `409` for a unique-key conflict, in the REST API's format (`SERVER_002`, `WIKI_CONFLICT`) or as JSON / HTTP
   exceptions, without SQL.
-- `docs/HIGH-LOAD.md`.
+- `docs/HIGH-LOAD.md`. It says plainly that inside the application's transaction the wiki's events follow the release of its savepoint,
+  not the application's commit (audit QN-L5, as in 1.36).
 
 <a id="fixed-unreleased"></a>
 ### Fixed
@@ -265,6 +266,25 @@ Target 1.37.0 (minor; Beacon spec 239, high load). See [HIGH-LOAD.md](HIGH-LOAD.
   page links, reactions. Page links compare their host object exactly (binary NO PAD collation of `object_type` /
   `object_id` on new MySQL / MariaDB schemas, `===` re-check everywhere; optional `ALTER` in UPGRADING).
 - `IDEMP_004` answers `Retry-After`.
+- Audit QN (follow-up of this release's runner):
+  - **QN-M1 — shared manager (the default): the application's pending changes could be lost without a sign.** A wiki
+    write flushes the shared manager, which writes what the application left pending; when the write then failed
+    after that flush (a later deadlock or lock wait, a failed COMMIT, a `postFlush` listener that throws), the
+    database rolled those changes back but Doctrine kept them as written, so the application's next flush wrote
+    nothing. The runner now watches its flushes and closes the manager in that case (the next flush fails loudly; the
+    manager is replaced at the next boundary). The same loss existed in **1.36 and earlier** on the paths that already
+    ran a flushing transaction: the trash purge, the save from a base revision (spec 218, REST API) and the co-editing
+    save under the log's lock, when they failed after their flush;
+  - QN-L1: a wiki deletion scheduled by a failed unit (unlink, comment, reaction, trash purge) is no longer carried out
+    by the application's next flush;
+  - QN-L2: a wiki write with a closed shared manager answers 503 (`TransientStorageFailure`), never
+    `EntityManagerClosed`;
+  - QN-L3: the attachment quota is judged with a locking read on MySQL / MariaDB, also inside the application's
+    REPEATABLE READ transaction; the limits of the other checks there are documented;
+  - QN-L4: a transient failure of the co-editing log inside the save's transaction is no longer retried outside it
+    (the log could record a save that was rolled back): the save answers a collision;
+  - QN-I2: a link to a page purged meanwhile is refused instead of failing on the foreign key;
+  - QN-I6: the 503 / 409 mapping looks down the exception chain.
 
 <a id="changed-unreleased"></a>
 ### Changed

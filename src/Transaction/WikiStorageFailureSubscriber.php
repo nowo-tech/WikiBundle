@@ -73,7 +73,7 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
 
             return;
         }
-        if ($failure instanceof UniqueConstraintViolationException) {
+        if ($this->isConflict($failure)) {
             $event->setResponse(WikiApiRequestListener::answer(new WikiApiRefusal(Response::HTTP_CONFLICT, 'WIKI_CONFLICT', 'A concurrent request changed the same data')));
         }
     }
@@ -99,7 +99,7 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
             return;
         }
 
-        if ($failure instanceof UniqueConstraintViolationException) {
+        if ($this->isConflict($failure)) {
             if ($this->wantsJson($request)) {
                 $event->setResponse($this->json('conflict', Response::HTTP_CONFLICT));
 
@@ -114,11 +114,29 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
      */
     private function retryAfter(Throwable $failure): ?int
     {
-        if ($failure instanceof TransientStorageFailure) {
-            return max(1, $failure->retryAfterSeconds() ?? self::DEFAULT_RETRY_AFTER);
+        // Audit QN-I6: down the chain, so a host decorator that wraps a wiki failure keeps the answer.
+        for ($current = $failure; $current instanceof Throwable; $current = $current->getPrevious()) {
+            if ($current instanceof TransientStorageFailure) {
+                return max(1, $current->retryAfterSeconds() ?? self::DEFAULT_RETRY_AFTER);
+            }
+            if ($current instanceof RetryableException) {
+                return self::DEFAULT_RETRY_AFTER;
+            }
         }
 
-        return $failure instanceof RetryableException ? self::DEFAULT_RETRY_AFTER : null;
+        return null;
+    }
+
+    /** Whether a unique key refused the write, anywhere down the chain. */
+    private function isConflict(Throwable $failure): bool
+    {
+        for ($current = $failure; $current instanceof Throwable; $current = $current->getPrevious()) {
+            if ($current instanceof UniqueConstraintViolationException) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isWikiRequest(Request $request): bool

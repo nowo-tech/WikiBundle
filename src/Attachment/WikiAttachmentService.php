@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
@@ -137,7 +138,9 @@ final readonly class WikiAttachmentService
                 // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
                 $runner->run(function () use ($space, $size, $limits, $attachment): void {
                     $this->runner?->lockSpace($space);
-                    if ($this->attachmentRepository->sumSizeBySpace($space) + $size > $limits->maxSpaceBytes) {
+                    // Audit QN-L3: a locking read on MySQL, so a caller's older snapshot cannot hide an upload.
+                    $used = $this->attachmentRepository instanceof DoctrineOrmWikiAttachmentRepository ? $this->attachmentRepository->sumSizeBySpaceForUpdate($space) : $this->attachmentRepository->sumSizeBySpace($space);
+                    if ($used + $size > $limits->maxSpaceBytes) {
                         throw new WikiAttachmentRejectedException(WikiAttachmentRejectedException::QUOTA_EXCEEDED);
                     }
                     $this->attachmentRepository->save($attachment);

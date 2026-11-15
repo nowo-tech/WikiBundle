@@ -122,6 +122,11 @@ No configuration, schema or code change is required. New dependencies: `nowo-tec
   meanwhile is refused (`Archived pages cannot be edited.`), as a save of an archived page always was.
 - A page save that hits a deadlock or lock wait still throws `WikiRevisionCollisionException` (its previous exception is
   now a `TransientStorageFailure`).
+- **Shared manager:** when a wiki unit that flushed changes of yours fails afterwards, the wiki closes the manager (the
+  database undid those changes; Doctrine would otherwise take them as written). Your next flush in that request fails
+  with `EntityManagerClosed`; the manager is replaced at the next request. Reload and retry, as after any failed flush.
+- Wiki events of a unit that runs inside your own transaction are dispatched when the wiki's savepoint is released, not
+  at your commit (as in 1.36); see HIGH-LOAD.md.
 - Services you build by hand keep the 1.36 behaviour unless you pass the runner (`runner:` argument of
   `WikiPageService`, `WikiPageMover`, `WikiTrashService`, `WikiCommentService`, `WikiPageLinkService`,
   `WikiAttachmentService`).
@@ -131,8 +136,9 @@ No configuration, schema or code change is required. New dependencies: `nowo-tec
 New schemas give `object_type` and `object_id` of the page links the binary NO PAD collation on MySQL / MariaDB (house
 rule LQ), and every lookup re-checks the ids with `===` either way, so this migration is **optional**: it only lets
 the database itself keep `ABC` and `abc` (or `42` and `42 `) apart, including in the `(page_id, object_type,
-object_id)` unique key. Check first that no two links of a page differ only by case, accents or trailing spaces (the
-`ALTER` fails on the unique key otherwise). PostgreSQL and SQLite compare exactly already.
+object_id)` unique key. Until you run it, linking a look-alike of an object a page is already linked to is refused
+by that key (409); nothing wrong is read. The `ALTER` is safe: going from a folding collation to a binary one never
+creates duplicates. PostgreSQL and SQLite compare exactly already.
 
 ```sql
 -- MySQL 8

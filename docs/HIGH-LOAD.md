@@ -26,12 +26,17 @@ nowo-tech/transaction-contract's `TransactionRunnerInterface`):
 - after any failure no transaction of the bundle stays open. The levels it opened are rolled back, and the connection
   is closed only when that rollback fails (after a MySQL / MariaDB deadlock inside a nested flush the server dropped the
   savepoints, so `ROLLBACK TO SAVEPOINT` fails with 1305). The worker's next request never inherits a nested connection;
-- side effects follow the commit: page, comment, link, attachment and trash events, co-editing bookkeeping
-  (`nowo_wiki.page.written`), Mercure updates. A unit that fails announces nothing; a unit that commits is announced
-  once (a listener that fails after the commit is logged and does not undo it, through `WikiEventDeferral`).
+- side effects follow the unit: page, comment, link, attachment and trash events, co-editing bookkeeping
+  (`nowo_wiki.page.written`), Mercure updates. A unit that fails announces nothing; a unit that succeeds is announced
+  once (a listener that fails afterwards is logged and does not undo it, through `WikiEventDeferral`). When the unit
+  is the outermost transaction, that is after the commit. **Inside a transaction of yours** the wiki's unit is a
+  savepoint, and its events are dispatched when that savepoint is released, not when you commit: if you then roll back,
+  listeners have heard of rows that do not exist (and an uploaded file stays in storage). Call the wiki outside your
+  transaction, or hold its events yourself until you commit (audit QN-L5; the same as in 1.36).
 
 HTTP writes make one attempt: a transient failure answers 503 and the client retries. `runRetrying()` (outermost
-transaction only, three attempts, full-jitter backoff) is there for replayable background units.
+transaction only, three attempts, full-jitter backoff) is there for replayable background units of your own; no wiki
+service calls it.
 
 ## Your entity manager is yours
 
@@ -43,12 +48,15 @@ services by its class.
   touch your manager at all. After a failure the wiki forgets what its unit loaded or wrote; a manager closed by a
   failed flush is created again on its next call.
 - **Shared manager** (the default, `database.entity_manager`): the unit runs in a connection-level transaction. After
-  a failure only the wiki rows the unit added, wrote or changed are detached; your entities stay managed and your
-  pending changes stay pending. A failed flush closes the manager (Doctrine does): it **stays closed for the rest of
-  the request** (your next flush fails loudly; a wiki write answers 503) and is replaced at the next request, message
-  or command boundary. Until 1.36 the wiki reset it in the middle of the request, which detached every entity you had
-  loaded. In this mode a wiki unit still writes what you left pending in the shared manager, as in 1.36; the
-  co-editing log and the search backfill no longer do (they write through DBAL).
+  a failure only the wiki rows the unit added, wrote, changed or scheduled for deletion are forgotten; your entities
+  stay managed and your pending changes stay pending. A failed flush closes the manager (Doctrine does): it **stays
+  closed for the rest of the request** (your next flush fails loudly; a wiki write answers 503) and is replaced at the
+  next request, message or command boundary. Until 1.36 the wiki reset it in the middle of the request, which detached
+  every entity you had loaded. In this mode a wiki unit still writes what you left pending in the shared manager, as in
+  1.36; the co-editing log and the search backfill no longer do (they write through DBAL). When a wiki unit that
+  flushed changes of yours then fails (a later deadlock or lock wait, a failed COMMIT, a `postFlush` listener that
+  throws), the database rolled them back while Doctrine still takes them as written: the wiki **closes the manager**
+  (audit QN-M1), so your next flush fails loudly instead of silently writing nothing.
 
 The connection is shared: when your code opens a transaction around a wiki call, the wiki's unit nests in it as a
 savepoint, and a wiki failure rolls back to that savepoint only. A transient failure inside your transaction is not
@@ -70,7 +78,8 @@ that loses a race keeps its 1.22+ answer (the form again with the text, or `409 
 in the API). An idempotent API write whose store failed answers `503 IDEMP_004` with `Retry-After`; a 503 releases its
 `Idempotency-Key` claim, so the retry runs.
 
-Your own controllers that call the wiki services map `TransientStorageFailure` themselves.
+The subscriber looks down the exception chain, so a decorator of a wiki service that wraps the failure keeps the
+answer. Your own controllers that call the wiki services map `TransientStorageFailure` themselves.
 
 ## Races that no longer happen
 
@@ -87,9 +96,15 @@ Each one has a test that fails on 1.36.0 (see [Tests](#tests)).
 | Two resolves of one thread both wrote and announced it; an anchor moved meanwhile was overwritten | Judged on the thread read again under its lock (`stale` for the anchor) |
 | The same reaction sent twice at once (a double click) failed on the unique key | Looked up again under the thread lock |
 | A comment edited or deleted by someone else meanwhile, or a page gone meanwhile, was written anyway | Read again under the lock: 403 / 404 |
-| Two uploads into the room left for one were both accepted (space quota passed) | The quota is judged again under the space row lock; the refused file is deleted |
+| Two uploads into the room left for one were both accepted (space quota passed) | The quota is judged again under the space row lock, with a locking read on MySQL / MariaDB (also inside a transaction of yours); the refused file is deleted |
 | Every co-editing update flushed what the application had left pending in the shared manager; a lost savepoint after a MySQL deadlock could leave a nested connection | The log is written through DBAL in a connection-level unit; no manager is flushed |
 | `wiki:search:backfill-text` flushed and cleared the application's manager | Plain rows and one `UPDATE` per changed text, a transaction per batch |
+
+**Inside a transaction of yours (MySQL / MariaDB REPEATABLE READ):** the rows are still locked, but a plain read after
+the lock uses the snapshot your transaction took at its first read. The attachment quota reads with a lock and holds.
+The reply position, the reply cap and the link lookup do not: two replies at once can share a position or pass the
+cap by one, and a concurrent identical link ends on the unique key (409, never a duplicate link). Call the wiki outside your transaction, or use READ COMMITTED, for
+the full guarantee (audit QN-L3). PostgreSQL's default READ COMMITTED sees the latest commits in every statement.
 
 ## One lock order
 
@@ -99,8 +114,11 @@ other way round. The co-editing bookkeeping of a save (`nowo_wiki.page.written`)
 under the page lock. The row locks are `SELECT … FOR UPDATE` (none on SQLite, where a writing transaction locks the
 whole database).
 
-If your code wraps a wiki page save in its own transaction while co-editing is on, the page row stays locked until
-your commit; keep such transactions short.
+The wiki's own units never take them the other way round. **One inversion comes from your side:** if your code wraps
+a page save in its own transaction while co-editing is on, the page row stays locked until your commit, and the save's
+co-editing bookkeeping then takes the log row: page, then log. A concurrent live-session save takes log, then page, so
+the two can deadlock; the server breaks it and one of them answers 409 / 503 (audit QN-I1). Keep such transactions
+short, or save outside them.
 
 ## Exact ids
 

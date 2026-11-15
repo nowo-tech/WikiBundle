@@ -546,6 +546,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         $connection = $this->em->getConnection();
         $em         = $this->createMock(EntityManagerInterface::class);
         $em->method('getConnection')->willReturn($connection);
+        $em->method('isOpen')->willReturn(true);
         $em->method('createQueryBuilder')->willThrowException(new RuntimeException('db down'));
         $em->expects(self::never())->method('flush');
 
