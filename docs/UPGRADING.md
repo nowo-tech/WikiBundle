@@ -4,6 +4,7 @@
 
 - [Unreleased](#unreleased)
 - [To 1.36.0](#to-1360)
+- [To 1.36.0](#to-1360-1)
   - [Host ports: move to the framework-free twins (optional until 2.0)](#host-ports-move-to-the-framework-free-twins-optional-until-20)
   - [XML mapping (`database.mapping_type: xml`)](#xml-mapping-databasemapping_type-xml)
   - [User references by id (`database.user_reference: id`)](#user-references-by-id-databaseuser_reference-id)
@@ -92,6 +93,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.36.0
+
+From **1.35.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ## To 1.36.0
 
