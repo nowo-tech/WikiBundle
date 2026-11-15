@@ -134,6 +134,8 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Transaction\WikiStorageFailureSubscriber;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
@@ -404,6 +406,18 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$managerName', $emName)
             ->setArgument('$private', $private ? new Reference(WikiEntityManager::class) : null));
         $emProviderRef = new Reference(WikiEntityManagerProvider::class);
+        // 1.37 (Beacon spec 239): the runner of every wiki write, injected by its class (never a runner the application
+        // binds to TransactionRunnerInterface), and the 503 / 409 answers of the wiki's routes.
+        $container->setDefinition(WikiTransactionRunner::class, (new Definition(WikiTransactionRunner::class))
+            ->setArgument('$entityManager', $emProviderRef)
+            ->setArgument('$registry', new Reference('doctrine'))
+            ->setArgument('$managerName', $emName)
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->addTag('kernel.reset', ['method' => 'reset'])
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+        $container->setAlias(WikiTransactionRunner::SERVICE_ID, WikiTransactionRunner::class);
+        $container->setDefinition(WikiStorageFailureSubscriber::class, (new Definition(WikiStorageFailureSubscriber::class))
+            ->addTag('kernel.event_subscriber'));
 
         foreach ([
             DoctrineOrmWikiSpaceRepository::class        => WikiSpaceRepositoryInterface::class,
@@ -534,8 +548,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $memos = array_map(
             static fn (string $id): Reference => new Reference($id, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE),
             [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class,
-                // 1.36.0: the private entity manager last, after the memos that may still hold its rows.
-                WikiEntityManager::class],
+                // 1.36.0: the private entity manager last, after the memos that may still hold its rows; 1.37: then a
+                // shared manager a failed wiki write closed.
+                WikiEntityManager::class, WikiTransactionRunner::class],
         );
         $container->setDefinition(WikiRequestBoundaryResetter::class, (new Definition(WikiRequestBoundaryResetter::class))
             ->setArgument('$memos', new IteratorArgument($memos))
@@ -821,6 +836,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$users', new Reference(WikiUserReferenceResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$userClasses', new Reference(WikiUserClassPolicy::class))
+            ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
         $container->setDefinition(WikiCommentsPanel::class, (new Definition(WikiCommentsPanel::class))
@@ -915,6 +931,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$attachmentRepository', new Reference(WikiAttachmentRepositoryInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$retentionDays', $trash['retention_days'])
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
     }
 
@@ -971,7 +988,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$writer', new Reference(DoctrineOrmWikiPageRepository::class))
             ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$maxDepth', $tree['max_depth'])
-            ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$runner', new Reference(WikiTransactionRunner::class)));
     }
 
     /**

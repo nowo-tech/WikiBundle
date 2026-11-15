@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Collaboration;
 
 use DateTimeImmutable;
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\DBAL\Exception\DeadlockException;
 use Doctrine\DBAL\Exception\DriverException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -18,12 +16,13 @@ use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
+use Nowo\TransactionContract\TransientStorageFailure;
+use Nowo\TransactionDoctrine\DoctrineTransactionRunner;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Entity\WikiCollabUpdate;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Symfony\Component\HttpFoundation\Response;
-use Throwable;
 
 use function count;
 use function is_numeric;
@@ -83,24 +82,22 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
 
     public function whileLocked(string $pageId, callable $work): mixed
     {
-        $em         = $this->em();
-        $connection = $em->getConnection();
-        $connection->beginTransaction();
+        $em = $this->em();
+
+        // 1.37: transaction-doctrine's connection runner: after a failure no level of this lock stays open.
         try {
-            $em->createQueryBuilder()
-                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
-                ->where('d.pageId = :page')->setParameter('page', $pageId)
-                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
-            $result = $work();
-            $connection->commit();
+            return $this->transactional(static function () use ($em, $pageId, $work): mixed {
+                $em->createQueryBuilder()
+                    ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
+                    ->where('d.pageId = :page')->setParameter('page', $pageId)
+                    ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
 
-            return $result;
-        } catch (Throwable $exception) {
-            $this->abandonTransaction($connection);
-
+                return $work();
+            });
+        } catch (DriverException $exception) {
             // MySQL ends the whole transaction on a deadlock, savepoints too, so an inner rollback fails with this code
             // and hides the deadlock: name it again for the caller (audit HO-L4).
-            if ($exception instanceof DriverException && $exception->getCode() === self::MYSQL_SAVEPOINT_MISSING) {
+            if ($exception->getCode() === self::MYSQL_SAVEPOINT_MISSING) {
                 throw new DeadlockException($exception, $exception->getQuery());
             }
 
@@ -109,18 +106,51 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
     }
 
     /**
-     * Leaves no open transaction on the connection, which a worker reuses. When a savepoint is gone a rollback cannot
-     * count the nesting down; closing resets it, the server has already rolled back, and the next query reconnects.
+     * 1.37 (Beacon spec 239): one transaction of the store on the wiki's connection (a savepoint inside a transaction
+     * the caller opened), through nowo-tech/transaction-doctrine's connection runner: no entity manager is flushed,
+     * cleared or reset, and after a failure the levels it opened are rolled back (the connection closed only when that
+     * rollback fails). A transient failure is a {@see TransientStorageFailure}.
+     *
+     * @template T
+     *
+     * @param callable(): T $work
+     *
+     * @return T
      */
-    private function abandonTransaction(Connection $connection): void
+    private function transactional(callable $work): mixed
     {
-        try {
-            while ($connection->isTransactionActive()) {
-                $connection->rollBack();
-            }
-        } catch (DbalException) {
-            $connection->close();
+        return DoctrineTransactionRunner::forConnection($this->em()->getConnection())->run($work);
+    }
+
+    /**
+     * 1.37: a log row written through DBAL, never through the entity manager, so an append never flushes what the
+     * application left pending in a shared manager (REQ-ARCH-001 rule 6). Returns its sequence number.
+     */
+    private function insertRow(string $pageId, string $kind, string $data, ?int $coversSeq = null): int
+    {
+        $em       = $this->em();
+        $metadata = $em->getClassMetadata(WikiCollabUpdate::class);
+        $values   = [
+            $metadata->getColumnName('pageId')    => $pageId,
+            $metadata->getColumnName('kind')      => $kind,
+            $metadata->getColumnName('data')      => $data,
+            $metadata->getColumnName('coversSeq') => $coversSeq,
+            $metadata->getColumnName('createdAt') => new DateTimeImmutable(),
+        ];
+        $types      = [$metadata->getColumnName('createdAt') => Types::DATETIME_IMMUTABLE, $metadata->getColumnName('coversSeq') => Types::INTEGER];
+        $connection = $em->getConnection();
+        // A sequence (PostgreSQL with the SEQUENCE strategy) gives the id first; an identity column after the insert.
+        $generator = $metadata->idGenerator;
+        if (!$generator->isPostInsertGenerator()) {
+            $id                                                 = (int) $generator->generateId($em, null);
+            $values[$metadata->getSingleIdentifierColumnName()] = $id;
+            $connection->insert($metadata->getTableName(), $values, $types);
+
+            return $id;
         }
+        $connection->insert($metadata->getTableName(), $values, $types);
+
+        return (int) $connection->lastInsertId();
     }
 
     public function info(string $pageId): WikiCollabState
@@ -179,10 +209,9 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
 
     public function appendInEpoch(string $pageId, string $update, int $maxEntries, int $maxBytes, ?string $epoch): array
     {
-        $em         = $this->em();
-        $connection = $em->getConnection();
-        $connection->beginTransaction();
-        try {
+        $em = $this->em();
+
+        return $this->transactional(function () use ($em, $pageId, $update, $maxEntries, $maxBytes, $epoch): array {
             // No ensureDocument() here: the token request created the document; a missing one was purged (409).
             /** @var list<array{updateCount: int|string, logBytes: int|string, lastSeq: int|string, snapshotSeq: int|string, logEpoch: string|null}> $locked */
             $locked = $em->createQueryBuilder()
@@ -201,11 +230,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                 default                                                    => null,
             };
             if ($refused === null) {
-                $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_UPDATE, $update);
-                $em->persist($row);
-                $em->flush();
-                $em->detach($row);
-                $stored = (int) $row->getId();
+                $stored = $this->insertRow($pageId, WikiCollabUpdate::KIND_UPDATE, $update);
                 $em->createQueryBuilder()
                     ->update(WikiCollabDocument::class, 'd')
                     ->set('d.updateCount', 'd.updateCount + 1')
@@ -219,14 +244,9 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                     ->setParameter('page', $pageId)
                     ->getQuery()->execute();
             }
-            $connection->commit();
-        } catch (Throwable $exception) {
-            $connection->rollBack();
 
-            throw $exception;
-        }
-
-        return ['refused' => $refused, 's' => $stored, 'p' => $previous, 'e' => $locked[0]['logEpoch']];
+            return ['refused' => $refused, 's' => $stored, 'p' => $previous, 'e' => $locked[0]['logEpoch']];
+        });
     }
 
     /**
@@ -237,9 +257,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
         $em = $this->em();
 
         // CW-L4: one compaction of a page at a time (row lock on the page's document; a database lock on SQLite).
-        $connection = $em->getConnection();
-        $connection->beginTransaction();
-        try {
+        return $this->transactional(function () use ($em, $pageId, $snapshot, $upToSeq): bool {
             $locked = $em->createQueryBuilder()
                 ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
                 ->where('d.pageId = :page')->setParameter('page', $pageId)
@@ -250,17 +268,14 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             $before    = $this->info($pageId);
             $compacted = $upToSeq >= $before->snapshotSeq;
             if ($compacted) {
-                $row = new WikiCollabUpdate($pageId, WikiCollabUpdate::KIND_SNAPSHOT, $snapshot, $upToSeq);
-                $em->persist($row);
-                $em->flush();
-                $em->detach($row);
+                $snapshotId = $this->insertRow($pageId, WikiCollabUpdate::KIND_SNAPSHOT, $snapshot, $upToSeq);
                 $em->createQueryBuilder()
                     ->delete(WikiCollabUpdate::class, 'u')
                     ->where('u.pageId = :page')
                     ->andWhere("(u.kind = 'update' AND u.id <= :upTo) OR (u.kind = 'snapshot' AND u.id < :snapshot)")
                     ->setParameter('page', $pageId)
                     ->setParameter('upTo', $upToSeq)
-                    ->setParameter('snapshot', $row->getId())
+                    ->setParameter('snapshot', $snapshotId)
                     ->getQuery()->execute();
                 $this->recount($pageId);
                 // The snapshot row moves the last sequence number but adds no text: a saved log stays saved.
@@ -274,14 +289,8 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                 }
             }
 
-            $connection->commit();
-        } catch (Throwable $exception) {
-            $connection->rollBack();
-
-            throw $exception;
-        }
-
-        return $compacted;
+            return $compacted;
+        });
     }
 
     public function purge(DateTimeImmutable $before): int
@@ -299,8 +308,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
     {
         $em = $this->em();
 
-        $em->beginTransaction();
-        try {
+        return $this->transactional(static function () use ($em, $before): array {
             /** @var list<string> $pages */
             $pages = $em->createQueryBuilder()
                 ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
@@ -315,14 +323,9 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
             $em->createQueryBuilder()->delete(WikiCollabUpdate::class, 'u')
                 ->where('u.pageId NOT IN (' . $em->createQueryBuilder()->select('d2.pageId')->from(WikiCollabDocument::class, 'd2')->getDQL() . ')')
                 ->getQuery()->execute();
-            $em->commit();
-        } catch (Throwable $e) {
-            $em->rollback();
 
-            throw $e;
-        }
-
-        return $pages;
+            return $pages;
+        });
     }
 
     public function claimSeed(string $pageId, DateTimeImmutable $staleBefore, string $claimant): bool
@@ -352,10 +355,8 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
     public function reset(string $pageId, ?string $baseRevisionId): void
     {
         $this->ensureDocument($pageId);
-        $em         = $this->em();
-        $connection = $em->getConnection();
-        $connection->beginTransaction();
-        try {
+        $em = $this->em();
+        $this->transactional(static function () use ($em, $pageId, $baseRevisionId): void {
             $em->createQueryBuilder()
                 ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
                 ->where('d.pageId = :page')->setParameter('page', $pageId)
@@ -382,12 +383,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                 ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
                 ->setParameter('page', $pageId)
                 ->getQuery()->execute();
-            $connection->commit();
-        } catch (Throwable $exception) {
-            $connection->rollBack();
-
-            throw $exception;
-        }
+        });
     }
 
     public function markSaved(string $pageId, string $revisionId): void

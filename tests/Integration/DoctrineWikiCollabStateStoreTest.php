@@ -542,14 +542,20 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
 
     public function testThePurgeRollsBackOnFailure(): void
     {
-        $em = $this->createMock(EntityManagerInterface::class);
-        $em->expects(self::once())->method('beginTransaction');
+        // 1.37: the store's transaction runner on the connection: rolled back, no level left open, the failure rethrown.
+        $connection = $this->em->getConnection();
+        $em         = $this->createMock(EntityManagerInterface::class);
+        $em->method('getConnection')->willReturn($connection);
         $em->method('createQueryBuilder')->willThrowException(new RuntimeException('db down'));
-        $em->expects(self::once())->method('rollback');
-        $em->expects(self::never())->method('commit');
+        $em->expects(self::never())->method('flush');
 
-        $this->expectException(RuntimeException::class);
-        (new DoctrineWikiCollabStateStore($em))->purgePages(new DateTimeImmutable());
+        try {
+            (new DoctrineWikiCollabStateStore($em))->purgePages(new DateTimeImmutable());
+            self::fail('Expected the exception.');
+        } catch (RuntimeException $e) {
+            self::assertSame('db down', $e->getMessage());
+        }
+        self::assertSame(0, $connection->getTransactionNestingLevel());
     }
 
     public function testWorksThroughTheEntityManagerProvider(): void

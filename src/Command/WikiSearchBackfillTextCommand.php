@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Command;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Nowo\TransactionDoctrine\DoctrineTransactionRunner;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Search\WikiPlainText;
@@ -74,21 +75,36 @@ final class WikiSearchBackfillTextCommand extends Command
         $changed = 0;
         $seen    = 0;
         $lastId  = '';
+        // 1.37 (Beacon spec 239): plain rows and one UPDATE per changed text, a transaction per batch on the connection:
+        // the entity manager (the application's one by default) is never flushed or cleared by this command.
+        $connection = $em->getConnection();
         do {
             // Keyset pagination on the id: rows filled by this run leave the "IS NULL" set, so an offset would skip.
-            /** @var list<WikiPageRevision> $revisions */
-            $revisions = $em->createQuery('SELECT r FROM ' . WikiPageRevision::class . ' r WHERE r.id > :last' . ($all ? '' : ' AND r.contentText IS NULL') . ' ORDER BY r.id ASC')
+            /** @var list<array{id: string, contentHtml: string, contentText: string|null}> $revisions */
+            $revisions = $em->createQuery('SELECT r.id AS id, r.contentHtml AS contentHtml, r.contentText AS contentText FROM ' . WikiPageRevision::class . ' r WHERE r.id > :last' . ($all ? '' : ' AND r.contentText IS NULL') . ' ORDER BY r.id ASC')
                 ->setParameter('last', $lastId)
                 ->setMaxResults($batch)
-                ->getResult();
+                ->getArrayResult();
+            $changed += DoctrineTransactionRunner::forConnection($connection)->run(static function () use ($em, $revisions): int {
+                $written = 0;
+                foreach ($revisions as $revision) {
+                    $text = WikiPlainText::fromHtml($revision['contentHtml']);
+                    if ($text === $revision['contentText']) {
+                        continue;
+                    }
+                    $em->createQuery('UPDATE ' . WikiPageRevision::class . ' r SET r.contentText = :text WHERE r.id = :id')
+                        ->setParameter('text', $text)
+                        ->setParameter('id', $revision['id'])
+                        ->execute();
+                    ++$written;
+                }
+
+                return $written;
+            });
             foreach ($revisions as $revision) {
-                $changed += $revision->refreshContentText() ? 1 : 0;
-                $lastId = $revision->getId();
+                $lastId = $revision['id'];
             }
             $seen += count($revisions);
-            $em->flush();
-            // @igor-ignore - Bounded memory of this console run: the batch is detached, nothing is kept on the service.
-            $em->clear();
         } while (count($revisions) === $batch);
 
         $io->success(sprintf('%d revision(s) read, %d text(s) written.', $seen, $changed));

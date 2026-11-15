@@ -9,6 +9,7 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityNotFoundException;
 use InvalidArgumentException;
 use LogicException;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -26,6 +27,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use Psr\Log\LoggerInterface;
@@ -66,6 +68,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      *                                                       is no `user_class` entity
      * @param WikiWriteProvenanceProviderInterface|null $provenance Spec 234: the channel and actor label of each
      *                                                              new revision (null: nothing recorded)
+     * @param WikiTransactionRunner|null $runner 1.37 (Beacon spec 239): one transaction per write, the page row locked
+     *                                           and read again under it (null: the writes of 1.36)
      */
     public function __construct(
         private WikiPageRepositoryInterface $pageRepository,
@@ -79,6 +83,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         private ?WikiEventDeferral $deferral = null,
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiWriteProvenanceProviderInterface $provenance = null,
+        private ?WikiTransactionRunner $runner = null,
     ) {
         $this->logger           = $logger ?? new NullLogger();
         $this->markdownRenderer = $markdownRenderer ?? new WikiMarkdownRenderer();
@@ -125,14 +130,20 @@ final readonly class WikiPageService implements WikiPageServiceInterface
             throw new InvalidArgumentException('Page slug already exists in this space.');
         }
 
-        $page = new WikiPage($space, $slug, $title, $parent);
-        $this->pageRepository->save($page);
+        // 1.37: the page, its first revision and the pointer to it in one transaction (a failure in between left a page
+        // without a revision, whose slug stayed taken).
+        [$page, $revision] = $this->unit(function () use ($space, $slug, $title, $parent, $contentHtml, $format, $author): array {
+            $page = new WikiPage($space, $slug, $title, $parent);
+            $this->pageRepository->save($page);
 
-        $revision = $this->newRevision($page, 1, $contentHtml, $format, $author);
-        $this->revisionRepository->save($revision);
+            $revision = $this->newRevision($page, 1, $contentHtml, $format, $author);
+            $this->revisionRepository->save($revision);
 
-        $page->setCurrentRevision($revision);
-        $this->pageRepository->save($page);
+            $page->setCurrentRevision($revision);
+            $this->pageRepository->save($page);
+
+            return [$page, $revision];
+        });
 
         $this->saved(new WikiPageSavedEvent($page, $revision, null, $author));
         $this->dispatch(new WikiPageCreatedEvent($page, $author), WikiEvents::PAGE_CREATED);
@@ -172,6 +183,19 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         $this->assertFormat($format);
         if ($expectedRevision !== null) {
             return $this->saveFromRevision($page, $title, $contentHtml, $author, $format, $expectedRevision);
+        }
+        if ($this->runner instanceof WikiTransactionRunner && $this->pageRepository instanceof WikiPageLockInterface) {
+            // 1.37: the last-write-wins save under the page lock: the page is read again (archived meanwhile, the current
+            // revision), the number follows the current one, and the revision and the page's pointer commit together.
+            // Two saves at once no longer collide on the number or leave the page on the older revision.
+            [$revision, $previous] = $this->underPageLock($page, null, 'Archived pages cannot be edited.', static fn (): ?WikiPageRevision => null, function (?WikiPageRevision $current) use ($page, $title, $contentHtml, $format, $author): WikiPageRevision {
+                $page->setTitle($title);
+
+                return $this->appendRevision($page, $contentHtml, $format, $author, $this->nextAfter($page, $current?->getRevisionNumber() ?? 0));
+            });
+            $this->saved(new WikiPageSavedEvent($page, $revision, $previous, $author));
+
+            return $revision;
         }
         if ($page->isArchived()) {
             throw new InvalidArgumentException('Archived pages cannot be edited.');
@@ -217,7 +241,12 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         $append   = fn (): WikiPageRevision => $from->isMarkdown()
             ? $this->appendRevision($page, (string) $from->getContentMarkdown(), WikiPageRevision::FORMAT_MARKDOWN, $actor)
             : $this->appendRevision($page, $from->getContentHtml(), WikiPageRevision::FORMAT_HTML, $actor);
-        if ($expectedRevision === null) {
+        if ($expectedRevision === null && $this->runner instanceof WikiTransactionRunner && $this->pageRepository instanceof WikiPageLockInterface) {
+            // 1.37: as the last-write-wins save, under the page lock.
+            [$revision, $previous] = $this->underPageLock($page, null, 'Archived pages cannot be restored.', static fn (): ?WikiPageRevision => null, fn (?WikiPageRevision $current): WikiPageRevision => $from->isMarkdown()
+                ? $this->appendRevision($page, (string) $from->getContentMarkdown(), WikiPageRevision::FORMAT_MARKDOWN, $actor, $this->nextAfter($page, $current?->getRevisionNumber() ?? 0))
+                : $this->appendRevision($page, $from->getContentHtml(), WikiPageRevision::FORMAT_HTML, $actor, $this->nextAfter($page, $current?->getRevisionNumber() ?? 0)));
+        } elseif ($expectedRevision === null) {
             $revision = $append();
         } else {
             [$revision, $previous] = $this->underPageLock($page, $expectedRevision, 'Archived pages cannot be restored.', static fn (): ?WikiPageRevision => null, fn (): WikiPageRevision => $from->isMarkdown()
@@ -256,7 +285,12 @@ final readonly class WikiPageService implements WikiPageServiceInterface
     public function convertToMarkdown(WikiPage $page, string $markdown, object $actor): WikiPageRevision
     {
         $previous = $page->getCurrentRevision();
-        $revision = $this->appendRevision($page, $markdown, WikiPageRevision::FORMAT_MARKDOWN, $actor);
+        if ($this->runner instanceof WikiTransactionRunner && $this->pageRepository instanceof WikiPageLockInterface) {
+            // 1.37: under the page lock like a save (archived pages included).
+            [$revision, $previous] = $this->underPageLock($page, null, null, static fn (): ?WikiPageRevision => null, fn (?WikiPageRevision $current): WikiPageRevision => $this->appendRevision($page, $markdown, WikiPageRevision::FORMAT_MARKDOWN, $actor, $this->nextAfter($page, $current?->getRevisionNumber() ?? 0)));
+        } else {
+            $revision = $this->appendRevision($page, $markdown, WikiPageRevision::FORMAT_MARKDOWN, $actor);
+        }
 
         $this->logger->info('Wiki page converted to Markdown.', [
             'bundle'   => 'nowo_wiki',
@@ -280,12 +314,9 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function archive(WikiPage $page, ?object $actor = null): void
     {
-        if ($page->isArchived()) {
+        if (!$this->toggleArchived($page, true)) {
             return;
         }
-
-        $page->archive();
-        $this->pageRepository->save($page);
 
         $this->logger->info('Wiki page archived.', [
             'bundle' => 'nowo_wiki',
@@ -305,12 +336,9 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function unarchive(WikiPage $page, ?object $actor = null): void
     {
-        if (!$page->isArchived()) {
+        if (!$this->toggleArchived($page, false)) {
             return;
         }
-
-        $page->unarchive();
-        $this->pageRepository->save($page);
 
         $this->logger->info('Wiki page unarchived.', [
             'bundle' => 'nowo_wiki',
@@ -320,6 +348,44 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         ]);
 
         $this->eventDispatcher->dispatch(new WikiPageUnarchivedEvent($page, $actor), WikiEvents::PAGE_UNARCHIVED);
+    }
+
+    /**
+     * Archives or brings back a page; false when it already was (nothing written, no event). 1.37: with the transaction
+     * runner the page row is locked and read again first, so two requests that both loaded the page active archive it
+     * once and only one of them announces it.
+     */
+    private function toggleArchived(WikiPage $page, bool $archived): bool
+    {
+        $apply = function () use ($page, $archived): bool {
+            if ($page->isArchived() === $archived) {
+                return false;
+            }
+            $archived ? $page->archive() : $page->unarchive();
+            $this->pageRepository->save($page);
+
+            return true;
+        };
+        if (!$this->runner instanceof WikiTransactionRunner) {
+            return $apply();
+        }
+        $runner = $this->runner;
+
+        return $runner->run(static fn (): bool => $runner->lockEntity($page) && $apply());
+    }
+
+    /**
+     * Runs a write as one unit of work of the transaction runner (1.37), or as it is without one.
+     *
+     * @template T
+     *
+     * @param callable(): T $write
+     *
+     * @return T
+     */
+    private function unit(callable $write): mixed
+    {
+        return $this->runner instanceof WikiTransactionRunner ? $this->runner->run($write) : $write();
     }
 
     /**
@@ -350,19 +416,44 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      * expected revision), then `$unchanged` may answer the current revision without writing, else `$write` appends.
      * Commit before any event, so no listener hears of a write that was rolled back.
      *
+     * 1.37: with the transaction runner the whole of it is one unit of work of the runner (the page transaction is then a
+     * savepoint of it); a null expected revision is the last-write-wins save, which compares nothing.
+     *
      * @param callable(?WikiPageRevision): ?WikiPageRevision $unchanged
-     * @param callable(): WikiPageRevision $write
+     * @param callable(?WikiPageRevision): WikiPageRevision $write
      *
      * @return array{0: WikiPageRevision, 1: WikiPageRevision|null} the revision written (or the current one) and the
      *                                                              revision that was current under the lock
      */
-    private function underPageLock(WikiPage $page, int $expectedRevision, string $archivedMessage, callable $unchanged, callable $write): array
+    private function underPageLock(WikiPage $page, ?int $expectedRevision, ?string $archivedMessage, callable $unchanged, callable $write): array
     {
         if (!$this->pageRepository instanceof WikiPageLockInterface) {
             throw new LogicException('An expected revision needs a page repository that implements ' . WikiPageLockInterface::class . '.');
         }
 
         $lock = $this->pageRepository;
+        if ($this->runner instanceof WikiTransactionRunner) {
+            try {
+                return $this->runner->run(fn (): array => $this->lockedWrite($lock, $page, $expectedRevision, $archivedMessage, $unchanged, $write));
+            } catch (TransientStorageFailure $failure) {
+                // A deadlock or lock wait: nothing was written; the caller's answer to a lost race (the text stays with the person).
+                throw new WikiRevisionCollisionException('The revision could not be written: another save got there first.', 0, $failure);
+            }
+        }
+
+        return $this->lockedWrite($lock, $page, $expectedRevision, $archivedMessage, $unchanged, $write);
+    }
+
+    /**
+     * The page transaction of {@see self::underPageLock()}.
+     *
+     * @param callable(?WikiPageRevision): ?WikiPageRevision $unchanged
+     * @param callable(?WikiPageRevision): WikiPageRevision $write
+     *
+     * @return array{0: WikiPageRevision, 1: WikiPageRevision|null}
+     */
+    private function lockedWrite(WikiPageLockInterface $lock, WikiPage $page, ?int $expectedRevision, ?string $archivedMessage, callable $unchanged, callable $write): array
+    {
         try {
             $lock->beginPageTransaction($page);
         } catch (RetryableException $exception) {
@@ -370,15 +461,15 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         }
 
         try {
-            if ($page->isArchived()) {
+            if ($archivedMessage !== null && $page->isArchived()) {
                 throw new InvalidArgumentException($archivedMessage);
             }
             $current = $page->getCurrentRevision();
             $number  = $current?->getRevisionNumber() ?? 0;
-            if ($number !== $expectedRevision) {
+            if ($expectedRevision !== null && $number !== $expectedRevision) {
                 throw new WikiRevisionConflictException($expectedRevision, $number, $current?->getAuthor(), $current?->getCreatedAt());
             }
-            $revision = $unchanged($current) ?? $write();
+            $revision = $unchanged($current) ?? $write($current);
             $lock->commitPageTransaction();
         } catch (Throwable $exception) {
             $lock->rollbackPageTransaction();

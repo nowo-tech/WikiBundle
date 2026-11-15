@@ -16,6 +16,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use PHPUnit\Framework\TestCase;
 
 use function dirname;
@@ -119,6 +120,8 @@ final class WikiRepositoryWorkerTest extends TestCase
         $pages    = new DoctrineOrmWikiPageRepository($provider);
         $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1');
 
+        // 1.37: the next request's boundary replaces the closed manager (never in the middle of a request).
+        (new WikiTransactionRunner($provider, $registry, 'wiki'))->reset();
         $spaces->save($space);
         $pages->save(new WikiPage($space, 'intro', 'Intro'));
 

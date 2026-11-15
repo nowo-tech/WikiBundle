@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -58,6 +59,7 @@ final readonly class WikiAttachmentService
         private EventDispatcherInterface $eventDispatcher,
         ?LoggerInterface $logger = null,
         private ?WikiUserReferenceResolverInterface $users = null,
+        private ?WikiTransactionRunner $runner = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -128,7 +130,21 @@ final readonly class WikiAttachmentService
         $attachment = new WikiAttachment($page, $space, $name, $key, $mime, $size, (string) hash_file('sha256', $path), $actor !== null ? ($this->users?->reference($actor) ?? $actor) : null);
 
         try {
-            $this->attachmentRepository->save($attachment);
+            if ($this->runner instanceof WikiTransactionRunner) {
+                // 1.37: the space quota again under the space lock: two uploads at once no longer both fit in the room
+                // that was left for one.
+                $runner     = $this->runner;
+                $repository = $this->attachmentRepository;
+                $runner->run(static function () use ($runner, $repository, $space, $size, $limits, $attachment): void {
+                    $runner->lockSpace($space);
+                    if ($repository->sumSizeBySpace($space) + $size > $limits->maxSpaceBytes) {
+                        throw new WikiAttachmentRejectedException(WikiAttachmentRejectedException::QUOTA_EXCEEDED);
+                    }
+                    $repository->save($attachment);
+                });
+            } else {
+                $this->attachmentRepository->save($attachment);
+            }
         } catch (Throwable $exception) {
             $this->storage->delete($key);
 

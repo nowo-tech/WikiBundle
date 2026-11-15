@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Repository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use SortDirection;
@@ -40,7 +41,7 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($space);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     /**
@@ -106,18 +107,24 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
      */
     public function findFirstBySlug(string $slug): ?WikiSpace
     {
-        /** @var WikiSpace|null $space */
-        $space = $this->entityManager()->createQueryBuilder()
+        /** @var list<WikiSpace> $spaces */
+        $spaces = $this->entityManager()->createQueryBuilder()
             ->select('s')
             ->from(WikiSpace::class, 's')
             ->where('s.slug = :slug')
             ->setParameter('slug', $slug)
-            ->setMaxResults(1)
+            ->orderBy('s.id', 'ASC')
             ->getQuery()
             ->setHint(Query::HINT_REFRESH, true)
-            ->getOneOrNullResult();
+            ->getResult();
+        // 1.37 (audit QL-M3): no LIMIT before the exact check, so a look-alike row never takes the exact one's place.
+        foreach ($spaces as $space) {
+            if ($space->getSlug() === $slug) {
+                return $space;
+            }
+        }
 
-        return $space;
+        return null;
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Repository;
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -32,7 +33,7 @@ final readonly class DoctrineOrmWikiAttachmentRepository implements WikiAttachme
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($attachment);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function remove(WikiAttachment $attachment): void
@@ -40,7 +41,7 @@ final readonly class DoctrineOrmWikiAttachmentRepository implements WikiAttachme
         $entityManager = $this->entityManager();
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
         $entityManager->remove($attachment);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function findById(string $id): ?WikiAttachment

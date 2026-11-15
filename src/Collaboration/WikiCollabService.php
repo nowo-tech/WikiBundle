@@ -9,6 +9,7 @@ use Doctrine\DBAL\Exception\DriverException;
 use Doctrine\DBAL\Exception\RetryableException;
 use JsonException;
 use LogicException;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Controller\WikiCollabController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -407,7 +408,7 @@ final readonly class WikiCollabService
         try {
             $store = $this->store;
             $saved = $this->afterCommit(static fn (): bool => $store instanceof WikiCollabLockingStoreInterface ? $store->whileLocked($page->getId(), $work) : $work());
-        } catch (RetryableException|DriverException $exception) {
+        } catch (RetryableException|DriverException|TransientStorageFailure $exception) {
             // Lost a race under the lock: the transaction rolled back, so nothing was written.
             $this->rethrowUnlessLockLost($exception);
 
@@ -469,7 +470,7 @@ final readonly class WikiCollabService
 
                 return true;
             }));
-        } catch (RetryableException|DriverException $exception) {
+        } catch (RetryableException|DriverException|TransientStorageFailure $exception) {
             $this->rethrowUnlessLockLost($exception);
 
             throw new WikiRevisionCollisionException('The save lost a race with another one.', 0, $exception);
@@ -689,7 +690,8 @@ final readonly class WikiCollabService
      */
     private function rethrowUnlessLockLost(Throwable $exception): void
     {
-        if (!$exception instanceof RetryableException && !($exception instanceof DriverException && $exception->getSQLState() === self::POSTGRES_LOCK_NOT_AVAILABLE)) {
+        // 1.37: TransientStorageFailure is the store's transaction runner's name for both.
+        if (!$exception instanceof RetryableException && !$exception instanceof TransientStorageFailure && !($exception instanceof DriverException && $exception->getSQLState() === self::POSTGRES_LOCK_NOT_AVAILABLE)) {
             throw $exception;
         }
     }

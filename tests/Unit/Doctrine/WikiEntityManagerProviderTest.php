@@ -30,21 +30,17 @@ final class WikiEntityManagerProviderTest extends TestCase
         self::assertSame($em, $provider->get());
     }
 
-    public function testResetsManagerClosedByAnEarlierRequest(): void
+    /** 1.37 (audit QD-M1): a closed manager is returned as it is; the runner replaces it at the next boundary. */
+    public function testNeverResetsAClosedManagerInTheMiddleOfARequest(): void
     {
         $closed = $this->createMock(EntityManagerInterface::class);
         $closed->method('isOpen')->willReturn(false);
-        $fresh = $this->createMock(EntityManagerInterface::class);
-        $fresh->method('isOpen')->willReturn(true);
 
         $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManager')->with('default')->willReturnOnConsecutiveCalls($closed, $fresh);
-        $registry->expects(self::once())->method('resetManager')->with('default')->willReturn($fresh);
+        $registry->method('getManager')->with('default')->willReturn($closed);
+        $registry->expects(self::never())->method('resetManager');
 
-        $provider = new WikiEntityManagerProvider($registry);
-
-        self::assertSame($fresh, $provider->get());
-        self::assertSame($fresh, $provider->get());
+        self::assertSame($closed, (new WikiEntityManagerProvider($registry))->get());
     }
 
     public function testRejectsNonOrmManager(): void

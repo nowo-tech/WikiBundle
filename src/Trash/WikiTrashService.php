@@ -20,6 +20,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\ValueObject\Uuid;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -72,7 +73,23 @@ final readonly class WikiTrashService
         private ?WikiPageFileExtractor $pageFiles = null,
         private ?WikiPageRevisionRepositoryInterface $revisions = null,
         private int $maxPurgeFiles = self::DEFAULT_MAX_PURGE_FILES,
+        private ?WikiTransactionRunner $runner = null,
     ) {
+    }
+
+    /**
+     * Runs a tree change as one unit of work of the transaction runner (1.37: the space transaction is then a savepoint
+     * of it, a failure leaves no level open and forgets the wiki rows it touched), or as it is without one.
+     *
+     * @template T
+     *
+     * @param callable(): T $work
+     *
+     * @return T
+     */
+    private function unit(callable $work): mixed
+    {
+        return $this->runner instanceof WikiTransactionRunner ? $this->runner->run($work) : $work();
     }
 
     /** Days a deletion stays in the trash before `wiki:trash:purge` removes it. */
@@ -88,42 +105,46 @@ final readonly class WikiTrashService
      */
     public function delete(WikiPage $page, ?object $actor = null): string
     {
-        $space = $page->getSpace();
-        $batch = Uuid::generate()->toString();
-        $this->writer->beginSpaceTransaction($space);
-        try {
-            $trashed  = $this->trash->trashedPageIds($space);
-            $children = [];
-            foreach ([...$this->pages->findActiveBySpace($space), ...$this->pages->findArchivedBySpace($space, self::MAX_PAGES)] as $candidate) {
-                if (($parentId = $candidate->getParent()?->getId()) !== null && !isset($trashed[$candidate->getId()])) {
-                    $children[$parentId][] = $candidate;
+        $space   = $page->getSpace();
+        $batch   = Uuid::generate()->toString();
+        $entries = $this->unit(function () use ($space, $page, $batch): array {
+            $this->writer->beginSpaceTransaction($space);
+            try {
+                $trashed  = $this->trash->trashedPageIds($space);
+                $children = [];
+                foreach ([...$this->pages->findActiveBySpace($space), ...$this->pages->findArchivedBySpace($space, self::MAX_PAGES)] as $candidate) {
+                    if (($parentId = $candidate->getParent()?->getId()) !== null && !isset($trashed[$candidate->getId()])) {
+                        $children[$parentId][] = $candidate;
+                    }
                 }
-            }
-            $now     = new DateTimeImmutable();
-            $entries = [];
-            $queue   = [$page];
-            $seen    = [];
-            while ($queue !== []) {
-                $node = array_shift($queue);
-                if (isset($seen[$node->getId()])) {
-                    continue;
+                $now     = new DateTimeImmutable();
+                $entries = [];
+                $queue   = [$page];
+                $seen    = [];
+                while ($queue !== []) {
+                    $node = array_shift($queue);
+                    if (isset($seen[$node->getId()])) {
+                        continue;
+                    }
+                    $seen[$node->getId()] = true;
+                    $entries[]            = new WikiTrashEntry($node, $batch, $node === $page, $node->isArchived(), $now);
+                    if (!$node->isArchived()) {
+                        $node->archive();
+                    }
+                    foreach ($children[$node->getId()] ?? [] as $child) {
+                        $queue[] = $child;
+                    }
                 }
-                $seen[$node->getId()] = true;
-                $entries[]            = new WikiTrashEntry($node, $batch, $node === $page, $node->isArchived(), $now);
-                if (!$node->isArchived()) {
-                    $node->archive();
-                }
-                foreach ($children[$node->getId()] ?? [] as $child) {
-                    $queue[] = $child;
-                }
-            }
-            $this->trash->saveBatch($entries);
-            $this->writer->commitSpaceTransaction();
-        } catch (Throwable $exception) {
-            $this->writer->rollbackSpaceTransaction();
+                $this->trash->saveBatch($entries);
+                $this->writer->commitSpaceTransaction();
+            } catch (Throwable $exception) {
+                $this->writer->rollbackSpaceTransaction();
 
-            throw $exception;
-        }
+                throw $exception;
+            }
+
+            return $entries;
+        });
 
         $ids = array_map(static fn (WikiTrashEntry $e): string => $e->getPage()->getId(), $entries);
         $this->logger->info('Wiki page moved to the trash.', ['bundle' => 'nowo_wiki', 'action' => 'trash', 'space' => $space->getSlug(), 'page' => $page->getSlug(), 'pages' => count($ids)]);
@@ -140,32 +161,40 @@ final readonly class WikiTrashService
      */
     public function restore(WikiSpace $space, string $batchId, ?object $actor = null): ?WikiPage
     {
-        $this->writer->beginSpaceTransaction($space);
-        try {
-            $entries = $this->trash->findBatch($space, $batchId);
-            if ($entries === []) {
-                $this->writer->commitSpaceTransaction();
+        $entries = $this->unit(function () use ($space, $batchId): array {
+            $this->writer->beginSpaceTransaction($space);
+            try {
+                $entries = $this->trash->findBatch($space, $batchId);
+                if ($entries === []) {
+                    $this->writer->commitSpaceTransaction();
 
-                return null;
-            }
-            $root = $entries[0]->getPage();
-            foreach ($entries as $entry) {
-                if (!$entry->wasArchived()) {
-                    $entry->getPage()->unarchive();
+                    return [];
                 }
-            }
-            // A parent archived or trashed meanwhile would hide the restored branch: it goes to the top level (D-W31).
-            if ($root->getParent()?->isArchived() === true) {
-                $root->moveTo(null, $root->getPosition());
-            }
-            // @igor-ignore - Repository write (Doctrine DELETE + flush); the store keeps no state of its own.
-            $this->trash->removeBatch($batchId);
-            $this->writer->commitSpaceTransaction();
-        } catch (Throwable $exception) {
-            $this->writer->rollbackSpaceTransaction();
+                $root = $entries[0]->getPage();
+                foreach ($entries as $entry) {
+                    if (!$entry->wasArchived()) {
+                        $entry->getPage()->unarchive();
+                    }
+                }
+                // A parent archived or trashed meanwhile would hide the restored branch: it goes to the top level (D-W31).
+                if ($root->getParent()?->isArchived() === true) {
+                    $root->moveTo(null, $root->getPosition());
+                }
+                // @igor-ignore - Repository write (Doctrine DELETE + flush); the store keeps no state of its own.
+                $this->trash->removeBatch($batchId);
+                $this->writer->commitSpaceTransaction();
+            } catch (Throwable $exception) {
+                $this->writer->rollbackSpaceTransaction();
 
-            throw $exception;
+                throw $exception;
+            }
+
+            return $entries;
+        });
+        if ($entries === []) {
+            return null;
         }
+        $root = $entries[0]->getPage();
 
         $ids = array_map(static fn (WikiTrashEntry $e): string => $e->getPage()->getId(), $entries);
         $this->logger->info('Wiki trash restored.', ['bundle' => 'nowo_wiki', 'action' => 'trash_restore', 'space' => $space->getSlug(), 'page' => $root->getSlug(), 'pages' => count($ids)]);
@@ -184,40 +213,48 @@ final readonly class WikiTrashService
      */
     public function purge(WikiSpace $space, string $batchId, ?object $actor = null): int
     {
-        $removed = [];
-        $this->writer->beginSpaceTransaction($space);
-        try {
-            $entries = $this->trash->findBatch($space, $batchId);
-            $pages   = array_values(array_filter(array_map(static fn (WikiTrashEntry $e): WikiPage => $e->getPage(), $entries), static fn (WikiPage $p): bool => $p->isArchived()));
-            if ($pages === []) {
-                // Nothing left to purge (restored meanwhile, or entries without archived pages): drop stale entries.
-                if ($entries !== []) {
-                    // @igor-ignore - Repository write (Doctrine DELETE + flush); the store keeps no state of its own.
-                    $this->trash->removeBatch($batchId);
-                }
-                $this->writer->commitSpaceTransaction();
+        $done = $this->unit(function () use ($space, $batchId): ?array {
+            $removed = [];
+            $this->writer->beginSpaceTransaction($space);
+            try {
+                $entries = $this->trash->findBatch($space, $batchId);
+                $pages   = array_values(array_filter(array_map(static fn (WikiTrashEntry $e): WikiPage => $e->getPage(), $entries), static fn (WikiPage $p): bool => $p->isArchived()));
+                if ($pages === []) {
+                    // Nothing left to purge (restored meanwhile, or entries without archived pages): drop stale entries.
+                    if ($entries !== []) {
+                        // @igor-ignore - Repository write (Doctrine DELETE + flush); the store keeps no state of its own.
+                        $this->trash->removeBatch($batchId);
+                    }
+                    $this->writer->commitSpaceTransaction();
 
-                return 0;
-            }
-            $title = $entries[0]->getPage()->getTitle();
-            if ($this->attachmentRepository instanceof WikiAttachmentRepositoryInterface) {
-                foreach ($pages as $page) {
-                    foreach ($this->attachmentRepository->findByPage($page) as $attachment) {
-                        // @igor-ignore - Repository write inside the space transaction; no service state.
-                        $this->attachmentRepository->remove($attachment);
-                        $removed[] = $attachment;
+                    return null;
+                }
+                $title = $entries[0]->getPage()->getTitle();
+                if ($this->attachmentRepository instanceof WikiAttachmentRepositoryInterface) {
+                    foreach ($pages as $page) {
+                        foreach ($this->attachmentRepository->findByPage($page) as $attachment) {
+                            // @igor-ignore - Repository write inside the space transaction; no service state.
+                            $this->attachmentRepository->remove($attachment);
+                            $removed[] = $attachment;
+                        }
                     }
                 }
-            }
-            $ids                 = array_map(static fn (WikiPage $p): string => $p->getId(), $pages);
-            [$files, $truncated] = $this->referencedFiles($pages);
-            $this->trash->deletePages($pages);
-            $this->writer->commitSpaceTransaction();
-        } catch (Throwable $exception) {
-            $this->writer->rollbackSpaceTransaction();
+                $ids                 = array_map(static fn (WikiPage $p): string => $p->getId(), $pages);
+                [$files, $truncated] = $this->referencedFiles($pages);
+                $this->trash->deletePages($pages);
+                $this->writer->commitSpaceTransaction();
+            } catch (Throwable $exception) {
+                $this->writer->rollbackSpaceTransaction();
 
-            throw $exception;
+                throw $exception;
+            }
+
+            return [$removed, $ids, $files, $truncated, $title];
+        });
+        if ($done === null) {
+            return 0;
         }
+        [$removed, $ids, $files, $truncated, $title] = $done;
 
         foreach ($removed as $attachment) {
             try {

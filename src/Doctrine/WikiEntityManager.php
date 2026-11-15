@@ -248,7 +248,7 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
     {
         $live = $this->live();
         $this->adoptForeignReferences($live);
-        $live->flush();
+        WikiFlusher::flush($live);
         $this->wrote();
     }
 

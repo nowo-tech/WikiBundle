@@ -6,9 +6,15 @@ namespace Nowo\WikiBundle\Repository;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use SortDirection;
+
+use function array_filter;
+use function array_map;
+use function array_values;
+use function in_array;
 
 /**
  * Doctrine ORM implementation of {@see WikiPageLinkRepositoryInterface} (1.9).
@@ -27,7 +33,7 @@ final readonly class DoctrineOrmWikiPageLinkRepository implements WikiPageLinkRe
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($link);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function remove(WikiPageLink $link): void
@@ -35,13 +41,13 @@ final readonly class DoctrineOrmWikiPageLinkRepository implements WikiPageLinkRe
         $entityManager = $this->entityManager();
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
         $entityManager->remove($link);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     public function findOne(WikiPage $page, string $objectType, string $objectId): ?WikiPageLink
     {
-        /** @var WikiPageLink|null $link */
-        $link = $this->entityManager()->createQueryBuilder()
+        /** @var list<WikiPageLink> $links */
+        $links = $this->entityManager()->createQueryBuilder()
             ->select('l')
             ->from(WikiPageLink::class, 'l')
             ->where('l.page = :page')
@@ -50,11 +56,16 @@ final readonly class DoctrineOrmWikiPageLinkRepository implements WikiPageLinkRe
             ->setParameter('page', $page)
             ->setParameter('type', $objectType)
             ->setParameter('id', $objectId)
-            ->setMaxResults(1)
             ->getQuery()
-            ->getOneOrNullResult();
+            ->getResult();
+        // 1.37 (house rule LQ): exact ids only, whatever the column's collation (`ABC` is not `abc`).
+        foreach ($links as $link) {
+            if ($link->getObjectType() === $objectType && $link->getObjectId() === $objectId) {
+                return $link;
+            }
+        }
 
-        return $link;
+        return null;
     }
 
     public function findByHostObject(string $objectType, string $objectId): array
@@ -68,8 +79,8 @@ final readonly class DoctrineOrmWikiPageLinkRepository implements WikiPageLinkRe
             return [];
         }
 
-        /* @var list<WikiPageLink> */
-        return $this->entityManager()->createQueryBuilder()
+        /** @var list<WikiPageLink> $links */
+        $links = $this->entityManager()->createQueryBuilder()
             ->select('l', 'p', 's')
             ->from(WikiPageLink::class, 'l')
             ->innerJoin('l.page', 'p')
@@ -82,6 +93,11 @@ final readonly class DoctrineOrmWikiPageLinkRepository implements WikiPageLinkRe
             ->orderBy('l.createdAt', SortDirection::Descending)
             ->getQuery()
             ->getResult();
+
+        // 1.37 (house rule LQ): exact ids only, whatever the column's collation.
+        $exact = array_map(strval(...), $objectIds);
+
+        return array_values(array_filter($links, static fn (WikiPageLink $link): bool => $link->getObjectType() === $objectType && in_array($link->getObjectId(), $exact, true)));
     }
 
     public function findByPage(WikiPage $page): array

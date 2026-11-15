@@ -18,6 +18,7 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
     {
         $em = $this->createMock(EntityManagerInterface::class);
         $em->expects(self::once())->method('persist');
+        $em->method('isOpen')->willReturn(true);
         $em->expects(self::once())->method('flush');
 
         (new DoctrineOrmWikiSpaceRepository($em))->save(new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't'));
@@ -112,14 +113,15 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
 
         $query = $this->createMock(Query::class);
         $query->method('setHint')->willReturnSelf();
-        $query->method('getOneOrNullResult')->willReturn($space);
+        // 1.37 (audit QL-M3): a look-alike row the collation matched first never stands in for the exact one.
+        $query->method('getResult')->willReturn([new WikiSpace('Docs', 'Docs', WikiSpaceOwnerScope::Team, 'u'), $space]);
 
         $qb = $this->createMock(QueryBuilder::class);
         $qb->method('select')->willReturnSelf();
         $qb->method('from')->willReturnSelf();
         $qb->method('where')->willReturnSelf();
         $qb->method('setParameter')->willReturnSelf();
-        $qb->method('setMaxResults')->willReturnSelf();
+        $qb->method('orderBy')->willReturnSelf();
         $qb->method('getQuery')->willReturn($query);
 
         $em = $this->createMock(EntityManagerInterface::class);
@@ -128,6 +130,7 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
         $found = (new DoctrineOrmWikiSpaceRepository($em))->findFirstBySlug('docs');
 
         self::assertSame($space, $found);
+        self::assertNull((new DoctrineOrmWikiSpaceRepository($em))->findFirstBySlug('DOCS'));
     }
 
     private function entityManagerFor(Query $query): EntityManagerInterface

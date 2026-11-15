@@ -10,6 +10,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -46,7 +47,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($page);
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
     }
 
     /**
@@ -67,7 +68,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
                 ->setLockMode(LockMode::PESSIMISTIC_WRITE)
                 ->getSingleColumnResult();
         } catch (Throwable $exception) {
-            $entityManager->rollback();
+            WikiFlusher::abandon($entityManager);
 
             throw $exception;
         }
@@ -76,13 +77,13 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
     public function commitSpaceTransaction(): void
     {
         $entityManager = $this->entityManager();
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
         $entityManager->commit();
     }
 
     public function rollbackSpaceTransaction(): void
     {
-        $this->entityManager()->rollback();
+        WikiFlusher::abandon($this->entityManager());
     }
 
     /**
@@ -110,7 +111,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
                     ->getOneOrNullResult();
             }
         } catch (Throwable $exception) {
-            $entityManager->rollback();
+            WikiFlusher::abandon($entityManager);
 
             throw $exception;
         }
@@ -119,13 +120,13 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
     public function commitPageTransaction(): void
     {
         $entityManager = $this->entityManager();
-        $entityManager->flush();
+        WikiFlusher::flush($entityManager);
         $entityManager->commit();
     }
 
     public function rollbackPageTransaction(): void
     {
-        $this->entityManager()->rollback();
+        WikiFlusher::abandon($this->entityManager());
     }
 
     /**
@@ -198,20 +199,25 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
      */
     public function findBySlug(WikiSpace $space, string $slug): ?WikiPage
     {
-        /** @var WikiPage|null $page */
-        $page = $this->entityManager()->createQueryBuilder()
+        /** @var list<WikiPage> $pages */
+        $pages = $this->entityManager()->createQueryBuilder()
             ->select('p')
             ->from(WikiPage::class, 'p')
             ->where('p.space = :space')
             ->andWhere('p.slug = :slug')
             ->setParameter('space', $space)
             ->setParameter('slug', $slug)
-            ->setMaxResults(1)
             ->getQuery()
             ->setHint(Query::HINT_REFRESH, true)
-            ->getOneOrNullResult();
+            ->getResult();
+        // 1.37 (audit QL-M3): no LIMIT before the exact check, so a look-alike row never takes the exact one's place.
+        foreach ($pages as $page) {
+            if ($page->getSlug() === $slug) {
+                return $page;
+            }
+        }
 
-        return $page;
+        return null;
     }
 
     /**
