@@ -212,7 +212,13 @@ reach applies: a restricted wiki must be named in *where*.
 ## Creating a page
 
 `POST /wikis/{wiki}/pages` takes `title` (required), `content_markdown`, `slug`, `parent` (a page id; Edit on that page
-is required as well) and, since 1.35, `position`:
+is required as well), since 1.38 `icon` and, since 1.35, `position`:
+
+- `icon` (1.38) is the page icon, `<prefix>:<name>` with a prefix of `space_icon.allowed_prefixes` (default `tabler`),
+  e.g. `"tabler:rocket"`, at most 64 characters; `null` or `""` for none. Anything else (another prefix, capitals,
+  spaces, an emoji, markup, a non-string) answers 400 `INPUT_002` (`Invalid field: icon`) before anything is written.
+  With Symfony UX Icons installed, an icon the set does not have is refused the same way. Every page payload carries
+  `icon` (`null` without one).
 
 - `position` is the 1-based place among the parent's children (the top level without `parent`), with the same meaning
   as the "Move" form of the UI: `1` is the first place, a number past the last child is the last place. Only the
@@ -238,6 +244,12 @@ transaction and the revision is compared under that lock:
 - The page has moved on: 409 `WIKI_REVISION_CONFLICT`, with `current_revision`, `updated_by` and `updated_at`. Nothing
   is written. Read the page again and decide.
 - The same title and body: 200 with the current revision. Nothing is added.
+- `icon` (1.38): absent keeps the icon, `null` or `""` clears it, a new value replaces it (checked as on create). It is
+  written after the revision in its own transaction under the page lock (not a revision: `updated_at` and `revision`
+  follow the text only). A changed icon is audited (`icon` in the changed fields), also when the text is the same.
+  When that last step fails (a lock wait on the page row, the page archived meanwhile), the revision stands and the
+  answer is the usual 200 (201 on a create) with `{"field": "icon", "reason": "not_applied"}` in `warnings`; the audit
+  row and the page's events are not lost. Icon changes made outside the API (page form, import) are not audited.
 - An empty body over a page that has content needs `"allow_empty": true`, otherwise 422 `WIKI_EMPTY_BODY`.
 - With co-editing on, if the live session holds updates no revision has, the answer is 409 `WIKI_LIVE_SESSION`.
 - A lock that cannot be taken (a deadlock or a lock wait timeout) answers 409 `WIKI_SAVE_COLLISION` with

@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "„%title%“ und ihre %count% Seite(n) werden endgültig gelöscht. Das kann nicht rückgängig gemacht werden."
     purged: "„%title%“ wurde endgültig gelöscht (%count% Seite(n))."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Unterseiten von %title%"
     move: "Verschieben"
     move_title: "„%title%“ verschieben"
     move_parent: "Übergeordnete Seite"
@@ -138,9 +140,13 @@ wiki:
     # 1.31 (web_ui.page_meta: card): the footer line "v3 · Updated …" of the content card.
     meta_revision: "v%number%"
     meta_updated: "Aktualisiert am %date%"
+    # 1.38 (page_icon.form_field): the optional icon of a page.
+    icon: "Symbol"
+    icon_help: "Optionaler UX-Symbolname wie tabler:rocket, vor dem Titel im Seitenbaum angezeigt. Leer lassen für keines."
     error:
       invalid_slug: "Der Seitentitel ergibt keine gültige Adresse; verwenden Sie Buchstaben oder Ziffern."
       slug_exists: "In diesem Bereich gibt es bereits eine Seite mit diesem Titel."
+      icon_not_saved: "Die Seite wurde gespeichert, ihr Symbol aber nicht. Versuche es erneut."
       save_failed: "Die Seite konnte nicht gespeichert werden: %reason%"
       save_collision: "Nicht gespeichert: Jemand anderes hat diese Seite im selben Moment gespeichert. Dein Text ist noch hier; speichere erneut."
       restore_collision: "Nicht wiederhergestellt: Jemand anderes hat diese Seite im selben Moment gespeichert. Öffne den Verlauf und stelle die Version erneut wieder her."

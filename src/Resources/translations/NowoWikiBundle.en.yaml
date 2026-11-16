@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "“%title%” and its %count% page(s) will be deleted for good. This cannot be undone."
     purged: "“%title%” was deleted for good (%count% page(s))."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Sub-pages of %title%"
     move: "Move"
     move_title: "Move “%title%”"
     move_parent: "Parent page"
@@ -138,9 +140,13 @@ wiki:
     # 1.31 (web_ui.page_meta: card): the footer line "v3 · Updated …" of the content card.
     meta_revision: "v%number%"
     meta_updated: "Updated %date%"
+    # 1.38 (page_icon.form_field): the optional icon of a page.
+    icon: "Icon"
+    icon_help: "Optional UX icon name such as tabler:rocket, shown before the title in the page tree. Leave empty for none."
     error:
       invalid_slug: "The page title gives an invalid address; use letters or numbers."
       slug_exists: "A page with this title already exists in this space."
+      icon_not_saved: "The page was saved, but its icon could not be saved. Try again."
       save_failed: "The page could not be saved: %reason%"
       save_collision: "Not saved: someone else saved this page at the same moment. Your text is still here; save again."
       restore_collision: "Not restored: someone else saved this page at the same moment. Open the history and restore the revision again."

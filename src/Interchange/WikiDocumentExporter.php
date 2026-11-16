@@ -216,6 +216,10 @@ final readonly class WikiDocumentExporter
             'wiki_slug'   => $page->getSlug(),
             'wiki_parent' => $parent?->getSlug() ?? '',
         ];
+        // 1.38: the page icon, only when the page has one (other exports stay byte for byte as before).
+        if ($page->getIcon() !== null) {
+            $meta['wiki_icon'] = $page->getIcon();
+        }
         $content = $this->frontMatterParser->serialize($meta, $markdown);
         file_put_contents($path, $content);
 

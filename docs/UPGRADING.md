@@ -97,6 +97,51 @@
 
 ## Unreleased
 
+Target 1.38.0, from **1.37.0**: `composer require nowo-tech/wiki-bundle:^1.38`.
+
+- **Revision line (`web_ui.page_meta: card`)**: the body card and the line are now wrapped in one UiKit card
+  (`.nowo-wiki-page-card`) and the line is in its footer slot (`<div class="… nowo-wiki-page-card__footer"><p
+  class="… nowo-wiki-page-meta">`). A host stylesheet that drew the line or the body card itself (for example a card
+  frame with its own border around the body) may drop those rules, or flatten `.nowo-wiki-page-card` (`border: 0;
+  background: transparent`) when its frame already draws the card.
+- **Page icons**: `WikiPage` gets a nullable `icon` column (`VARCHAR(64)`, no index, no special collation). The bundle
+  ships no migrations: generate one (`doctrine:migrations:diff`) or run the statement for your database (adjust the
+  table name if you changed `table_prefix`):
+
+  ```sql
+  -- MySQL / MariaDB / PostgreSQL
+  ALTER TABLE wiki_pages ADD icon VARCHAR(64) DEFAULT NULL;
+  -- SQLite
+  ALTER TABLE wiki_pages ADD COLUMN icon VARCHAR(64) DEFAULT NULL;
+  ```
+
+  Nothing else changes until a page gets an icon: existing pages keep `null`, the page form has no icon field unless
+  `page_icon.form_field: true`, exports of pages without an icon are byte for byte as before, and old exports import
+  as before. API clients see a new `icon` key (`null`) in page payloads. A host template that overrides
+  `_page_tree_item.html.twig` or the UiKit tree call of `_sidebar.html.twig` shows no icon until it includes
+  `@NowoWikiBundle/manage/_page_icon.html.twig` (`{icon: node.icon}`) or passes the `leading_template`
+  `@NowoWikiBundle/manage/_tree_page_icon.html.twig`. With `nowo_ui_kit.icon_set: ux_icon` set
+  `ux_icons.ignore_not_found: true` too (as for space icons): without `symfony/ux-icons` installed in the PHP process
+  that writes, a well-formed name that does not exist cannot be refused.
+- **Icon changes are not content**: they add no revision, dispatch no page event (`nowo_wiki.page.saved` and the
+  others) and are not in the history. Only the REST API audits them (`icon` in the changed fields). A host that needs
+  a trace of form or import changes records it itself (e.g. around `WikiPageIconService::setIcon()`).
+- **API clients**: a write whose icon could not be written after the page or revision committed answers as usual (201
+  / 200) with the warning `{"field": "icon", "reason": "not_applied"}`; retry the icon alone with a `PUT` carrying the
+  current `base_revision` and the same body.
+- **Space icons** are drawn without the UiKit canonical-kind lookup since this release (see CHANGELOG, Fixed): with
+  `ux_icon` any allowed prefix reaches `ux_icon()` as stored; with `tabler-icons` / `bootstrap-icons` only `tabler:` /
+  `bi:` icons are drawn (before, a broken class).
+- **Collapsible page tree**: the nested page tree (`tree.enabled: false`) now folds once `wiki.js` runs: by default
+  only the current page's ancestors are open. Set `nowo_wiki.tree.default_expanded: all` to keep every row open at
+  first (the 1.37 look, with the buttons), or `none`. A host that prints the tree with its own markup (an override of
+  `_page_tree_item.html.twig`) keeps its markup and no buttons until it adds the row's `<button
+  data-wiki-tree-fold="{{ node.id }}" aria-controls="nowo-wiki-tree-group-{{ node.id }}" aria-expanded="true" hidden>`
+  and the sub-list's `id` (see the bundle's template); one that includes `_page_tree.html.twig` gets it as is. A host
+  that bundles the assets itself (`web_ui.assets.scripts: false`) rebuilds them from `src/Resources/assets/src`.
+- **Wide screens**: set `web_ui.reading_width: text` (with `reading_align: start` for the text against the card's left
+  edge) to let the card fill the main column while the text keeps the reading measure.
+
 ## To 1.37.0
 
 From **1.36.0**:

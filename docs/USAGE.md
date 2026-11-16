@@ -218,6 +218,18 @@ A space has an optional `icon`: a UX icon name such as `tabler:book` or `tabler:
   `nowo_wiki.space_icon.allowed_prefixes` (default `[tabler]`). `setIcon()` throws `InvalidArgumentException`; pass the
   configured prefixes as the second argument when a host allows more than `tabler`.
 - `WikiSpaceType` (name + icon) shows the icon field only with the option `icon_field: true` (off by default).
+- 1.38 **page icons**: the same format and prefixes for `WikiPage::icon`. With `page_icon.form_field: true` the page
+  form gets the field; the REST API (`icon` in page payloads and in create / update), import / export (`wiki_icon` in
+  the front matter) and `WikiPageIconService` set it too. A seed:
+
+  ```php
+  $icons = $container->get(\Nowo\WikiBundle\Service\WikiPageIconService::class);
+  $icons->setIcon($page, 'tabler:rocket');      // or setPageIcon($pageId, 'tabler:rocket'); null or '' clears it
+  ```
+
+  It shows before the title in the page tree and in the content card. It is drawn with `nowo_ui_kit.icon_set:
+  ux_icon` (any allowed prefix), `tabler-icons` (`tabler:` names) or `bootstrap-icons` (`bi:` names, once `bi` is an
+  allowed prefix); otherwise nothing is printed.
 - A host form adds the field with `WikiSpaceIconType`; on a form whose data is a `WikiSpace` it writes through
   `setIcon()` with the configured prefixes, on a DTO or an array through the property path (the field name or `property_path`).
 
@@ -545,6 +557,15 @@ Four opt-in layout options for a three-column page (tree + page + comments), see
 - **Tree rail** (`web_ui.tree_rail: true`): a chevron button in the tree card header ("Collapse Pages") folds the
   card to a 2.75rem rail; the button then reads "Expand Pages" and shows "Pages" vertically. Keyboard: Enter / Space;
   the tree leaves the tab order while folded. Without JavaScript the button is a link to `?tree=rail` / `?tree=full`.
+- **Collapsible page tree** (1.38, the nested list): each page with sub-pages gets a chevron button before its title
+  that opens and closes them (mouse, or Tab then Enter / Space). `tree.default_expanded` picks what starts open
+  (`current_path`, default; `all`; `none`); the current page's ancestors always start open and each reader's choices
+  are remembered per space in the browser. Without JavaScript the whole tree is open. Tokens:
+  `--nowo-wiki-tree-fold-color`, `--nowo-wiki-tree-fold-size` (the room a row without sub-pages keeps, 1.5rem; 2rem
+  on touch screens).
+- **Full-width card** (1.38, `web_ui.reading_width: text`): the card fills the main column on any screen width and
+  only its text keeps `--nowo-wiki-reading-width` (with `reading_align: start`, against the card's left edge), so a
+  wide screen shows no empty band beside the page.
 - **Reading column** (`web_ui.reading_width: readable`): the page and its "Used in" / "Files" cards centred at
   `--nowo-wiki-reading-width`:
 
@@ -642,7 +663,7 @@ default; the fixes apply to everyone.
   the page's only one; otherwise the header keeps its visually hidden `<h1>` and the card line is visual only
   (`aria-hidden`).
 - **Revision line in the card** (`web_ui.page_meta: card`): "v3 · Updated Nov 11, 2026, 9:40 PM" as the card's muted
-  footer (`.nowo-wiki-page-meta`, `<time datetime>`), in the reader's locale (`IntlDateFormatter` medium date + short
+  footer (`.nowo-wiki-page-meta` in the UiKit `card_footer` slot of `.nowo-wiki-page-card` since 1.38, `<time datetime>`), in the reader's locale (`IntlDateFormatter` medium date + short
   time with the request locale; `Y-m-d H:i` without ext-intl), instead of the scaffold's Revision / Updated list.
 - **Comments as a drawer** (`comments.layout: overlay`): the UiKit side panel with `layout: overlay` at every width
   (full height, backdrop, Escape, focus trap from UiKit); the text keeps its width. It starts closed on every page

@@ -66,6 +66,7 @@ final readonly class WikiApiSerializer
             'wiki'       => $wiki->slug,
             'slug'       => $page->getSlug(),
             'title'      => $page->getTitle(),
+            'icon'       => $page->getIcon(),
             'parent'     => $page->getParent()?->getId(),
             'position'   => $page->getPosition(),
             'archived'   => $page->isArchived(),

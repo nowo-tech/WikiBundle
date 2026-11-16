@@ -4,7 +4,8 @@
   tree_truncated, max_tree_pages, tree_search_href (null = no link), bundle, actions (optional list of View\Action
   printed in the header, e.g. New page). 1.32: space_icon (UX icon name of the space, optional; nothing is shown when null) is shown before the title.
   1.14: tree_ui ({nodes, attr, movable} from WikiPageFactory::uiTree() / treeAttributes(), tree.enabled) renders the
-  UiKit `tree` partial instead of the nested list (disclosures, fold state, moves; js/nowo-ui-tree.js + wiki.js).
+  UiKit `tree` partial instead of the nested list (disclosures, fold state, moves; js/nowo-ui-tree.js + wiki.js); 1.38:
+  each page's icon through the partial's leading_template (_tree_page_icon.html.twig).
   1.29: tree_rail (WikiTreeRail::rail(), web_ui.tree_rail; null = as before) makes the card a UiKit rail host
   (data-nowo-ui-rail-host): the UiKit `rail_toggle` partial in the header ("Collapse Pages" / "Expand Pages",
   aria-controls the body, aria-expanded; a link to ?tree=rail|full without JavaScript; js/nowo-ui-rail.js stores the
@@ -15,7 +16,7 @@
 {% set _rail = tree_rail|default(null) %}
 <aside class="{{ nowo_ui_class('card', bundle) }} nowo-wiki-sidebar"{% if _rail %} id="{{ _rail.id }}" data-nowo-ui-rail-host data-nowo-ui-rail="{{ _rail.collapsed ? 'collapsed' : 'expanded' }}"{% endif %} data-wiki-sidebar{{ nowo_ui_attrs('card', bundle) }}>
     <header class="{{ nowo_ui_class('card_header', bundle) }} nowo-wiki-sidebar__header">
-        <h2 class="{{ nowo_ui_class('card_title', bundle) }} nowo-wiki-region-title"{% if _rail %} data-nowo-ui-rail-body{% endif %}>{% if space_icon|default(null) %}<span class="nowo-wiki-space-icon" aria-hidden="true">{{ include('@NowoUiKitBundle/components/_icon.html.twig', {name: space_icon, label: ''}, false)|trim|raw }}</span>{% endif %}{{ 'wiki.space.pages'|trans }}</h2>
+        <h2 class="{{ nowo_ui_class('card_title', bundle) }} nowo-wiki-region-title"{% if _rail %} data-nowo-ui-rail-body{% endif %}>{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: space_icon|default(null), base_class: 'nowo-wiki-space-icon'}, false) }}{{ 'wiki.space.pages'|trans }}</h2>
         {% if _rail %}
             {{ include(nowo_ui_partial('rail_toggle', bundle), {
                 target: _rail.body_id,
@@ -35,7 +36,7 @@
         {% if tree is empty %}
             <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.space.no_pages'|trans }}</p>
         {% elseif tree_ui|default(null) %}
-            {{ include(nowo_ui_partial('tree', bundle), {nodes: tree_ui.nodes, label: 'wiki.space.pages'|trans, attr: tree_ui.attr|merge({'data-wiki-tree-error': 'wiki.tree.error.failed'|trans}), movable: tree_ui.movable, actions_template: tree_ui.actions_template|default(null), bundle: bundle}, false) }}
+            {{ include(nowo_ui_partial('tree', bundle), {nodes: tree_ui.nodes, label: 'wiki.space.pages'|trans, attr: tree_ui.attr|merge({'data-wiki-tree-error': 'wiki.tree.error.failed'|trans}), movable: tree_ui.movable, actions_template: tree_ui.actions_template|default(null), leading_template: '@NowoWikiBundle/manage/_tree_page_icon.html.twig', bundle: bundle}, false) }}
         {% else %}
             {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {nodes: tree, depth: 0}, false) }}
         {% endif %}

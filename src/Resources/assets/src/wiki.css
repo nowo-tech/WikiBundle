@@ -149,6 +149,19 @@
   margin-inline: 0;
 }
 
+/* 1.38 web_ui.reading_width: text — the main column (and the content card) fills the width it gets, so a wide screen
+   leaves no empty band beside the card; the text inside it keeps the reading measure (--nowo-wiki-reading-width),
+   centred or, with reading_align: start, against the card's start edge. */
+.nowo-wiki-reading-text :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-icon-line, .nowo-wiki-page-meta) {
+  box-sizing: border-box;
+  max-inline-size: var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch));
+  margin-inline: auto;
+}
+
+.nowo-wiki-reading-text--start :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-icon-line, .nowo-wiki-page-meta) {
+  margin-inline: 0;
+}
+
 /* 1.30 web_ui.page_header.toolbar_position: card — the page toolbar at the top right of the content (server body and
    read-only editor), sticky while the page scrolls (--nowo-wiki-card-toolbar-top, default 0.5rem; inset from the card
    edge --nowo-wiki-card-toolbar-inset, default 0.75rem). It takes no height of its own: the body's first block (the
@@ -489,9 +502,52 @@
   }
 }
 
-/* 1.31 web_ui.page_meta: card — "v3 · Updated …" as the card's muted footer line. */
+/* 1.38 page icons (WikiPage::icon): before the title in the page tree and the card title, or as the card's first line
+   (--nowo-wiki-page-icon-line-size, default 1.75rem). Decorative: the title names the page. */
+.nowo-wiki-page-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-inline-end: var(--nowo-wiki-page-icon-gap, 0.375rem);
+  line-height: 1;
+  vertical-align: -0.125em;
+}
+
+.nowo-ui-tree__link > .nowo-wiki-page-icon {
+  margin-inline-end: 0;
+}
+
+.nowo-wiki-page-icon-line {
+  margin: 0 0 0.25rem;
+  font-size: var(--nowo-wiki-page-icon-line-size, 1.75rem);
+  line-height: 1;
+}
+
+/* 1.31 web_ui.page_meta: card — "v3 · Updated …" as the card's muted footer line. 1.38 fix: the body and the line are
+   one UiKit card (.nowo-wiki-page-card) and the line sits in its footer slot (card_footer: the theme's padding), no
+   longer flush against the card's edges. The body's own card (and the read-only editor's) is drawn flat inside it. */
+.nowo-wiki-page-card {
+  min-width: 0;
+  /* The read-only editor's popovers (comment threads, menus) must not be clipped by the card. */
+  overflow: visible;
+}
+
+.nowo-wiki-page-card > .nowo-wiki-page-card__footer {
+  border-end-start-radius: inherit;
+  border-end-end-radius: inherit;
+}
+
+.nowo-wiki-page-card > :is(.nowo-wiki-page, .nowo-wiki-comments-view),
+.nowo-wiki-page-card > .nowo-wiki-read-swap > :is(.nowo-wiki-page, .nowo-wiki-comments-view) {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .nowo-wiki-page-meta {
-  margin: 0.75rem 0 0;
+  margin: 0;
   font-size: var(--nowo-wiki-page-meta-font-size, 0.8125rem);
 }
 
@@ -729,6 +785,58 @@
   background: var(--nowo-wiki-tree-current-bg, var(--nowo-ui-surface-muted, #f6f8fb));
   color: var(--nowo-wiki-tree-current-fg, var(--nowo-ui-primary, #2563eb));
   font-weight: 600;
+}
+
+/* 1.38: the row of the nested tree: the expand / collapse button (wiki.js shows it; the UiKit tree chevron, pointing to
+   the text while closed, down while open) and the link. Once the tree is bound, rows without sub-pages keep the
+   button's width so the titles line up. The sub-list of a closed row is `hidden`. */
+.nowo-wiki-tree__row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.nowo-wiki-tree__row > .nowo-wiki-tree__link {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nowo-wiki-tree__toggle {
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  border-radius: var(--nowo-wiki-tree-radius, var(--nowo-ui-radius, 0.375rem));
+  background: transparent;
+  color: var(--nowo-wiki-tree-fold-color, var(--nowo-ui-muted, currentColor));
+  cursor: pointer;
+}
+
+.nowo-wiki-tree__toggle[hidden],
+.nowo-wiki-tree[hidden] {
+  display: none;
+}
+
+.nowo-wiki-tree__toggle:hover {
+  background: var(--nowo-wiki-tree-hover-bg, var(--nowo-ui-surface-muted, #f6f8fb));
+}
+
+.nowo-wiki-tree__toggle:focus-visible {
+  outline: 2px solid var(--nowo-ui-focus, var(--nowo-ui-primary, #2563eb));
+  outline-offset: 1px;
+}
+
+.nowo-wiki-tree__toggle[aria-expanded='true']::before {
+  transform: rotate(45deg);
+}
+
+[data-wiki-tree-ready] .nowo-wiki-tree__item:not(.nowo-wiki-tree__item--parent) > .nowo-wiki-tree__row {
+  padding-inline-start: var(--nowo-wiki-tree-fold-size, 1.5rem);
+}
+
+@media (pointer: coarse) {
+  [data-wiki-tree-ready] .nowo-wiki-tree__item:not(.nowo-wiki-tree__item--parent) > .nowo-wiki-tree__row {
+    padding-inline-start: var(--nowo-wiki-tree-fold-size, 2rem);
+  }
 }
 
 /* 1.14 (tree.enabled): items of the UiKit tree read in the text colour (a theme's link colour fails AA on the tint

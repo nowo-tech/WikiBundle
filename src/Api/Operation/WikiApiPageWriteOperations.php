@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Api\Operation;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Serializer\WikiApiPeople;
@@ -29,6 +30,7 @@ use Nowo\WikiBundle\Security\WikiPageVisibility;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Nowo\WikiBundle\Service\WikiPageCreateResult;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageMoveResult;
@@ -74,11 +76,12 @@ final readonly class WikiApiPageWriteOperations
         private ?WikiCollabService $collab = null,
         private ?WikiPageMover $mover = null,
         private ?RequestStack $requestStack = null,
+        private ?WikiPageIconService $icons = null,
     ) {
     }
 
     /**
-     * `POST /wikis/{wiki}/pages`: `title`, `content_markdown`, optional `parent`, `slug` and (1.35) `position`: the
+     * `POST /wikis/{wiki}/pages`: `title`, `content_markdown`, optional `parent`, `slug`, (1.38) `icon` and (1.35) `position`: the
      * 1-based place among the parent's children the token's user may read, as the "Move" form (1 = first, past the last
      * = last; siblings renumbered when needed). With the tree (`tree.enabled`), a create with `parent` or `position`
      * goes through {@see WikiPageMover::createAt()}: the space lock and `tree.max_depth` apply, and a parent without
@@ -103,7 +106,9 @@ final readonly class WikiApiPageWriteOperations
         $parentId = $input->string('parent', false, 36);
         $pageSlug = $input->string('slug', false, 120);
         $position = $input->int('position', 1, self::MAX_POSITION);
-        $mover    = $this->mover;
+        // 1.38: checked with the other fields, before anything is written (the first write may provision the wiki).
+        $icon  = $this->icon($input);
+        $mover = $this->mover;
         if ($position !== null && !$mover instanceof WikiPageMover) {
             throw WikiApiRefusal::invalid('position');
         }
@@ -136,7 +141,10 @@ final readonly class WikiApiPageWriteOperations
             throw $exception->reason === 'too_deep' ? new WikiApiRefusal(422, 'WIKI_MOVE_002', 'The page would be too deep') : WikiApiRefusal::notFound();
         }
         $page = $placed instanceof WikiPageCreateResult ? $placed->page : $placed;
-        $this->audit->written($principal, 'page.create', $wiki->slug, $space->getId(), $page->getId(), [], $position !== null ? ['title', 'content_markdown', 'position'] : ['title', 'content_markdown']);
+        // 1.38: the icon in its own unit under the page lock, once the page and its events are committed (audit QY-L2:
+        // its failure never turns the committed create into an error, nor drops the audit or the page's events).
+        $iconApplied = $icon !== null && $this->applyIcon($page, $icon, $input);
+        $this->audit->written($principal, 'page.create', $wiki->slug, $space->getId(), $page->getId(), [], [...['title', 'content_markdown'], ...($position !== null ? ['position'] : []), ...($iconApplied ? ['icon'] : [])]);
         $body = $this->reads->body($principal, $wiki, $page);
         if ($placed instanceof WikiPageCreateResult) {
             // Audit PT-L1: the visible place, not the sort key.
@@ -147,7 +155,8 @@ final readonly class WikiApiPageWriteOperations
     }
 
     /**
-     * `PUT …/pages/{page}`: `content_markdown`, the mandatory `base_revision`, optional `title` and `allow_empty`.
+     * `PUT …/pages/{page}`: `content_markdown`, the mandatory `base_revision`, optional `title`, `allow_empty` and (1.38)
+     * `icon` (absent: kept; null or '': cleared).
      *
      * @throws WikiApiRefusal
      *
@@ -159,16 +168,24 @@ final readonly class WikiApiPageWriteOperations
         $base          = $this->baseRevision($input);
         $title         = $this->title($input, false) ?? $page->getTitle();
         $markdown      = $this->markdown($input, true) ?? '';
-        $current       = $page->getCurrentRevision();
-        $titleChanged  = $title !== $page->getTitle();
+        // 1.38: `icon` absent keeps the icon, null or '' clears it.
+        $iconSent     = $input->has('icon');
+        $icon         = $this->icon($input);
+        $iconChanged  = $iconSent && $icon !== $page->getIcon();
+        $current      = $page->getCurrentRevision();
+        $titleChanged = $title !== $page->getTitle();
         if (trim($markdown) === '' && $input->bool('allow_empty') !== true && trim((string) ($current?->getContentMarkdown() ?? $current?->getContentText() ?? '')) !== '') {
             throw new WikiApiRefusal(422, 'WIKI_EMPTY_BODY', 'An empty body would replace this page; send allow_empty: true');
         }
         $this->audit->requireAudit();
 
         $revision = $this->underCollab($principal, $page, fn (): WikiPageRevision => $this->service->saveRevision($page, $title, $markdown, $principal->user, WikiPageRevision::FORMAT_MARKDOWN, $base));
-        if ($revision->getRevisionNumber() !== $base) {
-            $this->audit->written($principal, 'page.update', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['revision' => $revision->getId()], $titleChanged ? ['title', 'content_markdown'] : ['content_markdown']);
+        // 1.38: the icon in its own unit under the page lock, after the revision (a refused save wrote neither; audit
+        // QY-L2: a failure of the icon unit leaves the committed revision answered and audited, the icon `not_applied`).
+        $iconChanged = $iconChanged && $this->applyIcon($page, $icon, $input);
+        if ($revision->getRevisionNumber() !== $base || $iconChanged) {
+            $fields = $revision->getRevisionNumber() !== $base ? ($titleChanged ? ['title', 'content_markdown'] : ['content_markdown']) : [];
+            $this->audit->written($principal, 'page.update', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['revision' => $revision->getId()], $iconChanged ? [...$fields, 'icon'] : $fields);
         }
 
         return [$this->reads->body($principal, $wiki, $page), $wiki, $page];
@@ -346,6 +363,44 @@ final readonly class WikiApiPageWriteOperations
     }
 
     /** @throws WikiApiRefusal */
+    /**
+     * 1.38: the optional `icon` (the space icon's format and prefixes; null or '' for none), checked before any write.
+     * Without the icon service (a host that removed it) the field is listed as not supported.
+     *
+     * @throws WikiApiRefusal when the value is not an allowed icon (`INPUT_002`)
+     */
+    /**
+     * 1.38 (audit QY-L2): writes the icon after the committed content write. A failure of that unit (a lock wait or a
+     * deadlock on the page row, the page archived meanwhile) is reported as a `not_applied` warning, not as an error.
+     *
+     * @return bool whether the stored icon changed
+     */
+    private function applyIcon(WikiPage $page, ?string $icon, WikiApiInput $input): bool
+    {
+        try {
+            return $this->icons?->setIcon($page, $icon) ?? false;
+        } catch (InvalidArgumentException|TransientStorageFailure) {
+            $input->notApplied('icon');
+
+            return false;
+        }
+    }
+
+    private function icon(WikiApiInput $input): ?string
+    {
+        if (!$this->icons instanceof WikiPageIconService) {
+            $input->ignore('icon');
+
+            return null;
+        }
+        $icon = $input->string('icon', false, 64);
+        if (!$this->icons->isAllowed($icon)) {
+            throw WikiApiRefusal::invalid('icon');
+        }
+
+        return $icon === '' ? null : $icon;
+    }
+
     private function title(WikiApiInput $input, bool $required): ?string
     {
         $title = $input->string('title', $required, 255);

@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "“%title%” en de %count% pagina(’s) worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt."
     purged: "“%title%” is definitief verwijderd (%count% pagina(’s))."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Subpagina’s van %title%"
     move: "Verplaatsen"
     move_title: "“%title%” verplaatsen"
     move_parent: "Bovenliggende pagina"
@@ -138,9 +140,13 @@ wiki:
     # 1.31 (web_ui.page_meta: card): the footer line "v3 · Updated …" of the content card.
     meta_revision: "v%number%"
     meta_updated: "Bijgewerkt op %date%"
+    # 1.38 (page_icon.form_field): the optional icon of a page.
+    icon: "Pictogram"
+    icon_help: "Optionele UX-pictogramnaam zoals tabler:rocket, getoond vóór de titel in de paginaboom. Leeg laten voor geen."
     error:
       invalid_slug: "De paginatitel levert een ongeldig adres op; gebruik letters of cijfers."
       slug_exists: "Er bestaat al een pagina met deze titel in deze ruimte."
+      icon_not_saved: "De pagina is opgeslagen, maar het pictogram niet. Probeer het opnieuw."
       save_failed: "De pagina kon niet worden opgeslagen: %reason%"
       save_collision: "Niet opgeslagen: iemand anders heeft deze pagina op hetzelfde moment opgeslagen. Je tekst staat er nog; sla opnieuw op."
       restore_collision: "Niet hersteld: iemand anders heeft deze pagina op hetzelfde moment opgeslagen. Open de geschiedenis en herstel de revisie opnieuw."

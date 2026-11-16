@@ -1,10 +1,20 @@
 {#
-  One page of the tree (override point). Variables: node ({title, href, current, children}), depth (0-based).
-  The current page is marked aria-current="page".
+  One page of the tree (override point). Variables: node ({id, title, icon (1.38, null for none), href, current,
+  current_path (1.38), children}), depth (0-based). The current page is marked aria-current="page".
+  1.38: a parent row starts with a <button> (aria-expanded, aria-controls its sub-list, the UiKit tree chevron) that
+  wiki.js shows and drives; hidden without JavaScript, where every sub-list stays open. Its name is "Sub-pages of
+  <title>" (wiki.tree.toggle_children).
 #}
-<li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-{{ min(depth, 6) }}{{ node.children is not empty ? ' nowo-wiki-tree__item--parent' }}" data-wiki-depth="{{ depth }}">
-    <a href="{{ node.href }}" class="nowo-wiki-tree__link{{ node.current ? ' nowo-wiki-tree__link--current' }}"{% if node.current %} aria-current="page"{% endif %}>{{ node.title }}</a>
-    {% if node.children is not empty %}
-        {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {nodes: node.children, depth: depth + 1}, false) }}
+{%- set _parent = node.children is not empty -%}
+{%- set _group = 'nowo-wiki-tree-group-' ~ (node.id ?? '') -%}
+<li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-{{ min(depth, 6) }}{{ _parent ? ' nowo-wiki-tree__item--parent' }}" data-wiki-depth="{{ depth }}">
+    <div class="nowo-wiki-tree__row">
+        {%- if _parent -%}
+            <button type="button" class="nowo-ui-tree__toggle nowo-wiki-tree__toggle" aria-expanded="true" aria-controls="{{ _group }}" data-wiki-tree-fold="{{ node.id ?? '' }}" hidden><span class="nowo-wiki-sr-only visually-hidden">{{ 'wiki.tree.toggle_children'|trans({'%title%': node.title}, 'NowoWikiBundle') }}</span></button>
+        {%- endif -%}
+        <a href="{{ node.href }}" class="nowo-wiki-tree__link{{ node.current ? ' nowo-wiki-tree__link--current' }}"{% if node.current %} aria-current="page"{% endif %}>{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: node.icon|default(null)}, false) }}{{ node.title }}</a>
+    </div>
+    {% if _parent %}
+        {{ include('@NowoWikiBundle/manage/_page_tree.html.twig', {nodes: node.children, depth: depth + 1, group_id: _group, current_path: node.current_path|default(false)}, false) }}
     {% endif %}
 </li>

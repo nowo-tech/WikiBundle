@@ -6,8 +6,11 @@ namespace Nowo\WikiBundle\Entity;
 
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
+use InvalidArgumentException;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\ValueObject\Uuid;
+use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 
 /**
  * A page inside a wiki space (tree via parent reference).
@@ -36,6 +39,10 @@ class WikiPage
 
     #[ORM\Column(name: 'updated_at', type: 'datetime_immutable')]
     private DateTimeImmutable $updatedAt;
+
+    /** 1.38: UX icon name such as `tabler:rocket` (the space icon's format); null shows no icon. */
+    #[ORM\Column(type: 'string', length: WikiSpaceIcon::MAX_LENGTH, nullable: true)]
+    private ?string $icon = null;
 
     /**
      * Creates a page with a generated UUID and both timestamps set to now.
@@ -244,5 +251,35 @@ class WikiPage
     public function getUpdatedAt(): DateTimeImmutable
     {
         return $this->updatedAt;
+    }
+
+    /**
+     * Returns the UX icon name of the page (1.38).
+     *
+     * @return string|null icon name such as `tabler:rocket`, or null for no icon
+     */
+    public function getIcon(): ?string
+    {
+        return $this->icon;
+    }
+
+    /**
+     * Sets or clears the UX icon name of the page (1.38) and refreshes the update timestamp. Writers go through
+     * {@see WikiPageIconService}, which locks the page row in a unit of work.
+     *
+     * @param string|null $icon `<prefix>:<name>` (lowercase letters, digits, dashes; max 64 characters), or null
+     * @param list<string> $allowedPrefixes accepted icon set prefixes (`space_icon.allowed_prefixes`)
+     *
+     * @throws InvalidArgumentException when the value is not a valid icon name
+     */
+    public function setIcon(?string $icon, array $allowedPrefixes = WikiSpaceIcon::DEFAULT_PREFIXES): void
+    {
+        if ($icon !== null) {
+            WikiSpaceIcon::assertValid($icon, $allowedPrefixes);
+        }
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->icon = $icon;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->updatedAt = new DateTimeImmutable();
     }
 }

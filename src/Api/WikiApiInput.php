@@ -38,6 +38,9 @@ final class WikiApiInput
     /** @var array<string, true> fields the operation knows and does not support */
     private array $ignored = [];
 
+    /** @var array<string, true> 1.38 (audit QY-L2): fields that were valid but could not be written */
+    private array $notApplied = [];
+
     /**
      * @param array<string, mixed> $fields
      */
@@ -130,7 +133,17 @@ final class WikiApiInput
     }
 
     /**
-     * The fields nobody read, and the ignored ones that were sent.
+     * 1.38 (audit QY-L2): a valid field the write could not apply after the rest was committed (the page icon, written
+     * in its own unit): listed in `warnings` as `not_applied`.
+     */
+    public function notApplied(string $name): void
+    {
+        // @igor-ignore - Per-request value object (WikiApiInput::fromRequest), never a shared service.
+        $this->notApplied[$name] = true;
+    }
+
+    /**
+     * The fields nobody read, the ignored ones that were sent, and (1.38) the ones not applied.
      *
      * @return list<array{field: string, reason: string}>
      */
@@ -142,6 +155,9 @@ final class WikiApiInput
         }
         foreach (array_keys(array_diff_key($this->fields, $this->read)) as $field) {
             $warnings[] = ['field' => (string) $field, 'reason' => 'unknown'];
+        }
+        foreach (array_keys($this->notApplied) as $field) {
+            $warnings[] = ['field' => $field, 'reason' => 'not_applied'];
         }
 
         return $warnings;

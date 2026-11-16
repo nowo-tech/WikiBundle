@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Wiki 1.38 layout check</title>
+<link rel="stylesheet" href="nowo-ui.css"><link rel="stylesheet" href="wiki.css">
+<style>body{margin:0;padding:1rem;font-family:system-ui,sans-serif}</style></head><body class="nowo-ui">
+<!-- 1.38: reading_width text + reading_align start, card frame, page_meta card, and the nested page tree with its
+     expand / collapse buttons (the markup page_view.html.twig and _page_tree.html.twig print). -->
+<main>
+<div class="nowo-wiki-layout" id="layout">
+  <div class="nowo-wiki-layout__aside">
+    <aside class="nowo-ui-card nowo-wiki-sidebar" data-wiki-sidebar>
+      <header class="nowo-ui-card__header nowo-wiki-sidebar__header"><h2 class="nowo-ui-card__title nowo-wiki-region-title">Pages</h2></header>
+      <nav class="nowo-ui-card__body nowo-wiki-sidebar__body" aria-label="Pages">
+        <ul class="nowo-wiki-tree" data-wiki-tree data-wiki-tree-plain data-wiki-tree-default="current_path" data-wiki-tree-space="docs" data-testid="wiki-plain-tree">
+          <li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-0 nowo-wiki-tree__item--parent" data-wiki-depth="0">
+            <div class="nowo-wiki-tree__row"><button type="button" class="nowo-ui-tree__toggle nowo-wiki-tree__toggle" aria-expanded="true" aria-controls="nowo-wiki-tree-group-a" data-wiki-tree-fold="a" hidden><span class="nowo-wiki-sr-only visually-hidden">Sub-pages of Guides</span></button><a href="#a" class="nowo-wiki-tree__link"><span class="nowo-wiki-page-icon" aria-hidden="true"><span class="nowo-ui-icon">📘</span></span>Guides</a></div>
+            <ul class="nowo-wiki-tree nowo-wiki-tree--nested" id="nowo-wiki-tree-group-a" data-wiki-tree-group data-wiki-tree-current-path>
+              <li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-1 nowo-wiki-tree__item--parent" data-wiki-depth="1">
+                <div class="nowo-wiki-tree__row"><button type="button" class="nowo-ui-tree__toggle nowo-wiki-tree__toggle" aria-expanded="true" aria-controls="nowo-wiki-tree-group-b" data-wiki-tree-fold="b" hidden><span class="nowo-wiki-sr-only visually-hidden">Sub-pages of Deploy</span></button><a href="#b" class="nowo-wiki-tree__link nowo-wiki-tree__link--current" aria-current="page">Deploy</a></div>
+                <ul class="nowo-wiki-tree nowo-wiki-tree--nested" id="nowo-wiki-tree-group-b" data-wiki-tree-group>
+                  <li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-2" data-wiki-depth="2"><div class="nowo-wiki-tree__row"><a href="#c" class="nowo-wiki-tree__link">Rollback</a></div></li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-0 nowo-wiki-tree__item--parent" data-wiki-depth="0">
+            <div class="nowo-wiki-tree__row"><button type="button" class="nowo-ui-tree__toggle nowo-wiki-tree__toggle" aria-expanded="true" aria-controls="nowo-wiki-tree-group-d" data-wiki-tree-fold="d" hidden><span class="nowo-wiki-sr-only visually-hidden">Sub-pages of Reference</span></button><a href="#d" class="nowo-wiki-tree__link">Reference</a></div>
+            <ul class="nowo-wiki-tree nowo-wiki-tree--nested" id="nowo-wiki-tree-group-d" data-wiki-tree-group>
+              <li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-1" data-wiki-depth="1"><div class="nowo-wiki-tree__row"><a href="#e" class="nowo-wiki-tree__link">API</a></div></li>
+            </ul>
+          </li>
+          <li class="nowo-wiki-tree__item nowo-wiki-tree__item--depth-0" data-wiki-depth="0"><div class="nowo-wiki-tree__row"><a href="#f" class="nowo-wiki-tree__link">Glossary</a></div></li>
+        </ul>
+      </nav>
+    </aside>
+  </div>
+  <div class="nowo-wiki-layout__main nowo-wiki-reading-text nowo-wiki-reading-text--start" id="main">
+    <div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>
+      <div class="nowo-ui-card nowo-wiki-page-card" data-testid="wiki-page-card">
+        <article class="nowo-ui-card nowo-wiki-page"><div class="nowo-ui-card__body nowo-wiki-content" data-testid="wiki-content">
+          <h1>Deploy</h1>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+        </div></article>
+        <div class="nowo-ui-card__footer nowo-wiki-page-card__footer"><p class="nowo-ui-muted nowo-wiki-page-meta" data-testid="wiki-page-meta">v1 · Updated <time datetime="2026-11-14T09:58:00+00:00">Nov 14, 2026, 9:58 AM</time></p></div>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+<script src="wiki.js" defer></script>
+</body></html>

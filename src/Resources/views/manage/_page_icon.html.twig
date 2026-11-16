@@ -1,0 +1,28 @@
+{#
+  1.38: a stored `<prefix>:<name>` icon (WikiPage::icon, and since 1.38.0 WikiSpace::icon too), decorative
+  (aria-hidden: the title says it all). Variables: icon (or null), class (optional extra class), base_class (default
+  nowo-wiki-page-icon; the space icon passes nowo-wiki-space-icon), fallback (optional UiKit canonical kind drawn when
+  the icon is null or the icon set cannot draw it, e.g. `book`). The value is checked against the allowed prefixes and
+  the format before it is stored ([a-z0-9-] only) and is escaped here.
+  Audit QY-M1 / QY-L1: drawn directly per UiKit icon set, never through the canonical-kind lookup of
+  components/_icon.html.twig (which turned `lucide:home` into ux_icon('bi:lucide:home') and `tabler:rocket` into the
+  class `ti ti-tabler:rocket`):
+  - ux_icon: ux_icon(icon) as written, any allowed prefix (UiKit _icon_ux.html.twig with verbatim);
+  - tabler-icons: <i class="ti ti-<name>"> for a tabler: icon;
+  - bootstrap-icons: <i class="bi bi-<name>"> for a bi: icon;
+  - anything else (another prefix for that set, svg_inline, none): nothing, or the fallback kind.
+#}
+{%- set _set = nowo_ui_kit_icon_set|default('bootstrap-icons') -%}
+{%- set _parts = icon|default(null) ? icon|split(':', 2) : [] -%}
+{%- set _prefix = _parts|length == 2 ? _parts[0] : '' -%}
+{%- set _name = _parts|length == 2 ? _parts[1] : '' -%}
+{%- set _class = (base_class|default('nowo-wiki-page-icon')) ~ (class|default(false) ? ' ' ~ class) -%}
+{%- if _name != '' and _set == 'ux_icon' -%}
+<span class="{{ _class }}" aria-hidden="true">{{ include('@NowoUiKitBundle/components/_icon_ux.html.twig', {name: icon, verbatim: true}, false)|trim|raw }}</span>
+{%- elseif _name != '' and _set == 'tabler-icons' and _prefix == 'tabler' -%}
+<span class="{{ _class }}" aria-hidden="true"><i class="ti ti-{{ _name }}" aria-hidden="true"></i></span>
+{%- elseif _name != '' and _set == 'bootstrap-icons' and _prefix == 'bi' -%}
+<span class="{{ _class }}" aria-hidden="true"><i class="bi bi-{{ _name }}" aria-hidden="true"></i></span>
+{%- elseif fallback|default(null) -%}
+<span class="{{ _class }}" aria-hidden="true">{{ include('@NowoUiKitBundle/components/_icon.html.twig', {name: fallback, label: ''}, false)|trim|raw }}</span>
+{%- endif -%}

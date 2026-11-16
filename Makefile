@@ -1,6 +1,6 @@
 # Wiki Bundle - Development
 SHELL := /bin/bash
-.PHONY: check-seamless-swap check-new-page-menu help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
+.PHONY: check-seamless-swap check-new-page-menu check-read-layout help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
 
 COMPOSE_FILE ?= docker-compose.yml
 # Prefer Compose V2; absolute docker path avoids shadowing by local docker/ (REQ-MAKE-010).
@@ -181,6 +181,16 @@ check-new-page-menu:
 	mkdir -p $(NEW_PAGE_MENU_DIR)
 	cp tests/Browser/new-page-menu/index.html tests/Browser/new-page-menu/menu.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css vendor/nowo-tech/ui-kit-bundle/src/Resources/public/js/nowo-ui-dialog.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/js/nowo-ui-tree.js $(NEW_PAGE_MENU_DIR)/
 	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(NEW_PAGE_MENU_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/menu.js'
+
+# 1.38: the read layout and the plain page tree — Chromium (Playwright image) checks the full-width card with the text
+# at the reading measure and the revision line inside the card at 1280 / 1600 / 1920 px, light and dark, then the
+# tree's expand / collapse buttons (keyboard, remembered state, axe-core). tests/Browser/layout-138; screenshots in
+# var/layout-138. Needs `make assets` first.
+LAYOUT_138_DIR := $(CURDIR)/var/layout-138
+check-read-layout:
+	mkdir -p $(LAYOUT_138_DIR)
+	cp tests/Browser/layout-138/index.html tests/Browser/layout-138/check.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(LAYOUT_138_DIR)/
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(LAYOUT_138_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 axe-core@4.10.3 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
 
 check-open-prs:
 	@chmod +x .scripts/check-open-prs.sh

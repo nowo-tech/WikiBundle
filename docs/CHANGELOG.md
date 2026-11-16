@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added](#added-unreleased-138)
+  - [Fixed](#fixed-unreleased-138)
+  - [Tests](#tests-unreleased-138)
 - [[1.37.0] - 2026-11-15](#1370---2026-11-15)
   - [Added](#added)
   - [Fixed](#fixed)
@@ -227,6 +230,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+Target 1.38.0 (minor; Beacon requests for v1.158). See [UPGRADING.md](UPGRADING.md#unreleased).
+
+<a id="added-unreleased-138"></a>
+### Added
+
+- **Full-width card, text at the reading measure** (`web_ui.reading_width: text`): the page view's main column (and
+  the edit form with `edit_view.layout: read`) fills the width it gets, so on a wide screen the content card reaches
+  the same edge as the header actions instead of stopping at the reading measure with an empty band beside it. The
+  text inside the card (path, title, body, read-only editor, editor, revision line) keeps `--nowo-wiki-reading-width`
+  (default the UiKit `--nowo-ui-reading-width`, 75ch), centred, or against the card's start edge with
+  `reading_align: start`. `readable` and `full` are unchanged.
+- **Page icons** (`WikiPage::icon`, nullable `icon` column on `wiki_pages`): an optional UX icon per page in the space
+  icon's format (`<prefix>:<name>`, a prefix of `space_icon.allowed_prefixes`, default `tabler`, at most 64
+  characters; with Symfony UX Icons installed the icon must also exist). Shown before the title in the page tree (the
+  nested list and, with `tree.enabled`, the UiKit tree through its `leading_template`) and before the card title, or as
+  the first line of the content card (`.nowo-wiki-page-icon-line`, `data-testid="wiki-page-icon"`); drawn per UiKit icon
+  set by `_page_icon.html.twig`: `ux_icon` gets the stored name as written (any allowed prefix, e.g. `lucide:home`),
+  `tabler-icons` prints `<i class="ti ti-<name>">` for a `tabler:` icon, `bootstrap-icons` `<i class="bi bi-<name>">`
+  for a `bi:` icon; anything else prints nothing (never a broken class, never a canonical-kind lookup). Written by:
+  - the page form (new and edit) with `page_icon.form_field: true` (the space icon's field, `WikiSpaceIconType`,
+    labels `wiki.page.icon` / `wiki.page.icon_help` in the 7 locales); off by default, the icon is then kept on save;
+  - the REST API: `icon` in every page payload (list, get, create, update); `POST …/pages` and `PUT …/pages/{page}`
+    accept `icon` with the rights of the other page fields (absent on update: kept; `null` or `''`: cleared; anything
+    else not allowed: 400 `INPUT_002`, nothing written; an icon change is audited as the `icon` field);
+  - import / export: `wiki_icon` in the front matter of a page that has one (other exports are unchanged); an import
+    sets it on created and updated pages (absent: kept; empty: cleared; not allowed: left out with a report message);
+  - `Nowo\WikiBundle\Service\WikiPageIconService` (`setIcon(WikiPage, ?string)`, `setPageIcon(string $pageId,
+    ?string)`, public service) for host code and seeds.
+  Every write is one unit of the bundle's runner with the page row locked and read again with a locking read (an
+  archived page is refused, the last write wins); the value is checked server-side before anything is written. The
+  icon is written after the page or revision committed, in its own unit: when that unit fails (a lock wait or a
+  deadlock on the page row, the page archived meanwhile) the committed write stands and is answered as usual — the API
+  adds the warning `{"field": "icon", "reason": "not_applied"}` and keeps its audit row and the page's events, the
+  form shows a warning flash (`wiki.page.error.icon_not_saved`), an import reports a message (audit QY-L2).
+  **An icon change is not content:** it adds no revision, dispatches no page event and is not in the history; only the
+  REST API audits it (`icon` in the changed fields of `page.update` / `page.create`). Changes made through the page
+  form, an import or `WikiPageIconService` leave no trace but `updated_at` (audit QY-L4).
+  `WikiPageSnapshot::$icon` (optional last constructor argument).
+- **Collapsible page tree** (the nested list of `_page_tree.html.twig`, `tree.enabled: false`, used by the space home,
+  the page view, the edit form's read layout and any host sidebar that includes the partial): each parent row starts
+  with a `<button>` (`aria-expanded`, `aria-controls` its sub-list, the UiKit tree chevron, named "Sub-pages of
+  <title>", `wiki.tree.toggle_children` in the 7 locales) that opens and closes its sub-pages, with the mouse or the
+  keyboard (Enter / Space on the native button). `tree.default_expanded: current_path|all|none` (default
+  `current_path`) says which rows start open; the ancestors of the current page always do. The reader's choices are
+  remembered per space in localStorage (`nowo-wiki-tree:<space id>`, at most 500 rows; storage errors only lose the
+  memory) and win over the default. Without JavaScript the buttons stay hidden and every level is open. The script is
+  part of `wiki.js` (external, no inline handler: CSP with a nonce as before). New node keys `current_path` and
+  `space` in `WikiPageFactory::tree()`; the root carries `data-wiki-tree-plain`, `data-wiki-tree-default` and
+  `data-wiki-tree-space`. The UiKit tree (`tree.enabled: true`) keeps its own disclosures and server-side fold state.
+  The REST API's page list is flat (`parent`, `position`): nothing to fold there.
+
+<a id="tests-unreleased-138"></a>
+### Tests
+
+- `make check-read-layout` (Chromium in the Playwright image, `tests/Browser/layout-138`): the full-width card and the
+  revision line at 1280 / 1600 / 1920 px in light and dark, the tree's default, Enter / Space, the remembered choice
+  after a reload, a blocked localStorage, the tree without JavaScript, and axe-core (WCAG 2.1 A / AA) with no
+  violation.
+
+<a id="fixed-unreleased-138"></a>
+### Fixed
+
+- **Revision line inside the card** (`web_ui.page_meta: card`): "v3 · Updated …" sat flush against the card's left
+  and bottom edges, outside the card body's padding (and, in Bootstrap, outside the `.card` that defines the footer
+  padding). The body and the line are now one UiKit card (`.nowo-wiki-page-card`, `data-testid="wiki-page-card"`)
+  whose footer slot (`card_footer`, `.nowo-wiki-page-card__footer`) holds the line; the body's own card (and the
+  read-only editor's) is drawn flat inside it. The history, revision, diff and edit views have no such line (they use
+  the UiKit scaffold's meta list) and are unchanged.
+- **Space icon drawing** (since 1.32, audit QY-M1 / QY-L1): the space icon went through the UiKit icon component's
+  canonical-kind lookup. With `nowo_ui_kit.icon_set: ux_icon` a prefix other than `tabler` or `bi` reached
+  `ux_icon()` as `bi:<prefix>:<name>` (an `IconNotFoundException`, HTTP 500 on the index and every page with the
+  sidebar unless `ux_icons.ignore_not_found: true`); with `tabler-icons` / `bootstrap-icons` it printed a broken class
+  (`ti ti-tabler:book`). It is now drawn like the page icon (`_page_icon.html.twig` with `base_class:
+  nowo-wiki-space-icon`); the space list keeps its book when the space has no icon or the icon set cannot draw it.
+- **Locking re-read** (audit QY-L3): `WikiTransactionRunner::lockEntity()` (archive / unarchive, comment edits, the
+  page icon) reads the entity again with `PESSIMISTIC_WRITE`, so inside a host transaction under MySQL / MariaDB
+  REPEATABLE READ it sees the latest commit instead of the host's snapshot.
 
 ## [1.37.0] - 2026-11-15
 

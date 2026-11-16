@@ -82,6 +82,8 @@ wiki:
     purge_confirm_message: "«%title%» y sus %count% página(s) se borrarán definitivamente. No se puede deshacer."
     purged: "«%title%» se ha borrado definitivamente (%count% página(s))."
   tree:
+    # 1.38: the expand / collapse button of a parent row of the nested page tree.
+    toggle_children: "Subpáginas de %title%"
     move: "Mover"
     move_title: "Mover «%title%»"
     move_parent: "Página superior"
@@ -138,9 +140,13 @@ wiki:
     # 1.31 (web_ui.page_meta: card): the footer line "v3 · Updated …" of the content card.
     meta_revision: "v%number%"
     meta_updated: "Actualizada el %date%"
+    # 1.38 (page_icon.form_field): the optional icon of a page.
+    icon: "Icono"
+    icon_help: "Nombre de icono UX opcional, por ejemplo tabler:rocket; se muestra antes del título en el árbol de páginas. Vacío para ninguno."
     error:
       invalid_slug: "El título de la página da una dirección no válida; usa letras o números."
       slug_exists: "Ya existe una página con este título en este espacio."
+      icon_not_saved: "La página se ha guardado, pero su icono no. Inténtalo de nuevo."
       save_failed: "No se pudo guardar la página: %reason%"
       save_collision: "No guardado: otra persona guardó esta página en ese mismo momento. Tu texto sigue aquí; guarda de nuevo."
       restore_collision: "No restaurado: otra persona guardó esta página en ese mismo momento. Abre el historial y restaura de nuevo la revisión."

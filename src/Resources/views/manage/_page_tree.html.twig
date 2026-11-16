@@ -1,10 +1,21 @@
 {#
   Page tree of a space (one level per include; override `_page_tree_item.html.twig` to change one item). Value-free nodes
-  from WikiPageFactory::tree(): {title, href, current, children}. Variables: nodes, depth (0-based, default 0).
+  from WikiPageFactory::tree(): {title, icon, href, current, current_path, space, children}. Variables: nodes, depth
+  (0-based, default 0); 1.38: group_id and current_path (a nested level: the id its parent's toggle controls, and
+  whether the current page is in it).
   Indentation comes from the nesting (wiki.css); `nowo-wiki-tree__item--depth-N` is capped at 6.
+  1.38: each parent row has an expand / collapse button (_page_tree_item.html.twig). The root carries the default of
+  nowo_wiki.tree.default_expanded (data-wiki-tree-default) and the space id (data-wiki-tree-space); wiki.js
+  (wiki-plain-tree.ts) shows the buttons, opens the default rows and remembers the reader's choices per space in
+  localStorage. Without JavaScript the buttons stay hidden and every level is open.
 #}
 {% set depth = depth|default(0) %}
-<ul class="nowo-wiki-tree{{ depth > 0 ? ' nowo-wiki-tree--nested' }}"{% if depth == 0 %} data-wiki-tree{% endif %}>
+{% if depth == 0 %}
+    {%- set _space = (nodes|first).space ?? '' -%}
+    <ul class="nowo-wiki-tree" data-wiki-tree data-wiki-tree-plain data-wiki-tree-default="{{ nowo_wiki_web_ui.tree_default_expanded ?? 'current_path' }}" data-wiki-tree-space="{{ _space }}">
+{% else %}
+    <ul class="nowo-wiki-tree nowo-wiki-tree--nested"{% if group_id|default(null) %} id="{{ group_id }}"{% endif %} data-wiki-tree-group{% if current_path|default(false) %} data-wiki-tree-current-path{% endif %}>
+{% endif %}
     {% for node in nodes %}
         {{ include('@NowoWikiBundle/manage/_page_tree_item.html.twig', {node: node, depth: depth}, false) }}
     {% endfor %}

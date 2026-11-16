@@ -317,6 +317,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.import_export', $config['import_export']);
         $container->setParameter('nowo_wiki.pagination', $config['pagination']);
         $container->setParameter('nowo_wiki.space_icon.allowed_prefixes', array_values($config['space_icon']['allowed_prefixes']));
+        $container->setParameter('nowo_wiki.page_icon.form_field', $config['page_icon']['form_field']);
         $container->setParameter('nowo_wiki.attachments', $config['attachments']);
         $container->setParameter('nowo_wiki.tenant_paths', $config['tenant_paths']);
         $container->setParameter('nowo_wiki.import_export.enabled', (bool) $config['import_export']['enabled']);
@@ -330,6 +331,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'templates'       => array_diff_key($templates, ['layout' => true]),
             // 1.21: read by the page templates through the Twig global nowo_wiki_web_ui.
             'space_index' => (bool) $config['web_ui']['space_index'],
+            // 1.38: the nested page tree's default fold (tree.default_expanded), read by _page_tree.html.twig.
+            'tree_default_expanded' => $config['tree']['default_expanded'],
         ] + self::ui($config['web_ui']));
         // 1.21 (audit GV-L1): the Twig global. A service, not %nowo_wiki.web_ui%: TwigExtension resolves a parameter while it
         // loads, so with TwigBundle registered first the global would hold the prepend() defaults, not this config.
@@ -1197,9 +1200,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         return [
             'tree_rail'            => ($webUi['tree_rail'] ?? false) === true,
             'narrow_tree_position' => ($webUi['narrow_tree_position'] ?? 'before') === 'after' ? 'after' : 'before',
-            'reading_width'        => ($webUi['reading_width'] ?? 'full') === 'readable' ? 'readable' : 'full',
-            'page_header'          => ($header['layout'] ?? 'stacked') === 'compact' ? 'compact' : 'stacked',
-            'title'                => match ($header['title'] ?? 'both') {
+            'reading_width'        => match ($webUi['reading_width'] ?? 'full') {
+                'readable' => 'readable',
+                'text'     => 'text',
+                default    => 'full',
+            },
+            'page_header' => ($header['layout'] ?? 'stacked') === 'compact' ? 'compact' : 'stacked',
+            'title'       => match ($header['title'] ?? 'both') {
                 'dedupe' => 'dedupe',
                 'body'   => 'body',
                 'card'   => 'card',

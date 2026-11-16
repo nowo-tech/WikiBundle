@@ -12,6 +12,7 @@
         <field name="archivedAt" type="datetime_immutable" column="archived_at" nullable="true"/>
         <field name="createdAt" type="datetime_immutable" column="created_at"/>
         <field name="updatedAt" type="datetime_immutable" column="updated_at"/>
+        <field name="icon" type="string" length="64" nullable="true"/>
         <field name="slug" type="string" length="120"/>
         <field name="title" type="string" length="255"/>
         <many-to-one field="currentRevision" target-entity="Nowo\WikiBundle\Entity\WikiPageRevision">

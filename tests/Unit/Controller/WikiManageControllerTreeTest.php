@@ -143,7 +143,7 @@ final class WikiManageControllerTreeTest extends TestCase
         $tree = $this->twig->context['tree_ui'];
         self::assertTrue($tree['movable']);
         self::assertSame(['Guide', 'Locked', 'Operations'], array_column($tree['nodes'], 'label'));
-        self::assertSame(['id' => $this->ops->getId(), 'label' => 'Operations', 'href' => '/generated/nowo_wiki_page_view', 'current' => false, 'expanded' => true], array_diff_key($tree['nodes'][2], ['children' => true]));
+        self::assertSame(['id' => $this->ops->getId(), 'label' => 'Operations', 'page_icon' => null, 'href' => '/generated/nowo_wiki_page_view', 'current' => false, 'expanded' => true], array_diff_key($tree['nodes'][2], ['children' => true]));
         self::assertFalse($tree['nodes'][0]['expanded']);
         self::assertFalse($tree['nodes'][2]['children'][0]['expanded']);
         self::assertSame('nowo-wiki-tree', $tree['attr']['id']);
