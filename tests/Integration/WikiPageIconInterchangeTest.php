@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
@@ -23,6 +24,7 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Service\WikiPageIconService;
+use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -53,13 +55,16 @@ final class WikiPageIconInterchangeTest extends TestCase
 
     private string $dir;
 
+    private EventDispatcher $dispatcher;
+
     protected function setUp(): void
     {
         $this->em     = WikiTestDatabase::create();
         $this->author = new TestUserEntity('u-io');
         $this->em->persist($this->author);
         $this->em->flush();
-        $this->dir = sys_get_temp_dir() . '/wiki-icon-' . uniqid('', true);
+        $this->dispatcher = new EventDispatcher();
+        $this->dir        = sys_get_temp_dir() . '/wiki-icon-' . uniqid('', true);
     }
 
     protected function tearDown(): void
@@ -111,6 +116,14 @@ final class WikiPageIconInterchangeTest extends TestCase
         self::assertContains('Ignored the icon of page "runbook": not an allowed icon name.', $report->messages);
         $report = $this->import($space, "---\ntitle: Runbook\nwiki_slug: runbook\nwiki_icon: [1, 2]\n---\n\nfive\n");
         self::assertContains('Ignored the icon of page "runbook": not an allowed icon name.', $report->messages);
+        // Audit QY-L2: the page archived right after its revision committed: imported without the icon, with a message.
+        $this->dispatcher->addListener(WikiEvents::PAGE_SAVED, $archive = fn (WikiPageSavedEvent $event): int|string => $this->em->getConnection()->executeStatement('UPDATE wiki_pages SET archived_at = ? WHERE id = ?', ['2026-11-16 10:00:00', $event->page->getId()]));
+        $report = $this->import($space, "---\ntitle: Runbook\nwiki_slug: runbook\nwiki_icon: 'tabler:rocket'\n---\n\nfive b\n");
+        $this->dispatcher->removeListener(WikiEvents::PAGE_SAVED, $archive);
+        self::assertSame(1, $report->updated);
+        self::assertContains('Could not save the icon of page "runbook"; the page was imported without it.', $report->messages);
+        self::assertSame('tabler:book', $this->icon($space, 'runbook'));
+        $this->em->getConnection()->executeStatement('UPDATE wiki_pages SET archived_at = NULL');
         // Empty: cleared.
         $this->import($space, "---\ntitle: Runbook\nwiki_slug: runbook\nwiki_icon: ''\n---\n\nsix\n");
         self::assertNull($this->icon($space, 'runbook'));
@@ -145,7 +158,7 @@ final class WikiPageIconInterchangeTest extends TestCase
 
     private function pages(): WikiPageService
     {
-        return new WikiPageService(new DoctrineOrmWikiPageRepository($this->em), new DoctrineOrmWikiPageRevisionRepository($this->em), new WikiSlugger(), new WikiHtmlSanitizer(), new EventDispatcher(), runner: new WikiTransactionRunner($this->em, backoffBaseMilliseconds: 0));
+        return new WikiPageService(new DoctrineOrmWikiPageRepository($this->em), new DoctrineOrmWikiPageRevisionRepository($this->em), new WikiSlugger(), new WikiHtmlSanitizer(), $this->dispatcher, runner: new WikiTransactionRunner($this->em, backoffBaseMilliseconds: 0));
     }
 
     private function icons(): WikiPageIconService

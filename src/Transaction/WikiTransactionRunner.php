@@ -220,8 +220,8 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
     }
 
     /**
-     * Inside a unit: a write lock on the row of a wiki entity, then the entity read again under it (its state is the
-     * committed one, whatever the caller loaded before). A row that is gone answers false; the entity is left as it was.
+     * Inside a unit: a write lock on the row of a wiki entity, then the entity read again under it with a locking read
+     * (its state is the latest committed one, whatever the caller loaded before, also inside a host transaction). A row that is gone answers false; the entity is left as it was.
      *
      * @param object $entity a managed wiki entity (page, comment thread)
      */
@@ -233,7 +233,9 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
         if (!$this->lockRow($class->getName(), (string) ($id[$class->getSingleIdentifierFieldName()] ?? ''))) {
             return false;
         }
-        $manager->refresh($entity);
+        // 1.38 (audit QY-L3): a locking read, so inside a host transaction under REPEATABLE READ the entity is read from
+        // the latest commit, not from the snapshot the host's first read took (a plain refresh would be a snapshot read).
+        $manager->refresh($entity, LockMode::PESSIMISTIC_WRITE);
 
         return true;
     }

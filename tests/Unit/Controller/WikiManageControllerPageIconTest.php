@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
@@ -24,6 +25,7 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Service\WikiPageIconService;
+use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
@@ -41,6 +43,9 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
+use Symfony\Component\Translation\TranslatableMessage;
 
 /**
  * 1.38 (`page_icon.form_field`): the page form's icon field on the new and edit forms, checked against the allowed
@@ -143,6 +148,28 @@ final class WikiManageControllerPageIconTest extends TestCase
         self::assertSame('tabler:tool', $this->twig->context['tree'][0]['icon']);
     }
 
+    /**
+     * Audit QY-L2: the icon unit runs after the revision committed; when it fails (the page archived meanwhile), the
+     * save stands, the person is told with a warning and the redirect still goes to the page.
+     */
+    public function testAnIconThatCannotBeSavedAfterTheRevisionIsAWarning(): void
+    {
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(WikiEvents::PAGE_SAVED, static fn (WikiPageSavedEvent $event) => $event->page->archive());
+        $controller = $this->controller(true, $dispatcher);
+
+        $response = $controller->editPage($this->submit(['title' => 'Operations', 'icon' => 'tabler:tool'], 'wiki_edit_' . $this->ops->getId()), 'eng', 'ops');
+
+        self::assertInstanceOf(RedirectResponse::class, $response);
+        self::assertSame(1, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM wiki_page_revisions WHERE page_id = ?', [$this->ops->getId()]));
+        self::assertNull($this->stored('ops'));
+        /** @var RequestStack $stack */
+        $stack = $this->container->get('request_stack');
+        /** @var FlashBagAwareSessionInterface $session */
+        $session = $stack->getSession();
+        self::assertSame(['wiki.page.error.icon_not_saved'], array_map(static fn (mixed $m): string => $m instanceof TranslatableMessage ? $m->getMessage() : (string) $m, $session->getFlashBag()->get('warning')));
+    }
+
     private function form(): FormView
     {
         $page = $this->twig->context['page'] ?? null;
@@ -168,7 +195,7 @@ final class WikiManageControllerPageIconTest extends TestCase
         return Request::create('/form', 'POST', ['wiki_page_form' => $fields]);
     }
 
-    private function controller(bool $field = true): WikiManageController
+    private function controller(bool $field = true, ?EventDispatcher $dispatcher = null): WikiManageController
     {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
         $revisions  = new DoctrineOrmWikiPageRevisionRepository($this->em);
@@ -178,7 +205,7 @@ final class WikiManageControllerPageIconTest extends TestCase
         }
         $resolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
         $resolver->method('listSpacesForUser')->willReturn([$this->space]);
-        $service = new WikiPageService($repository, $revisions, new WikiSlugger(), new WikiHtmlSanitizer(), new EventDispatcher());
+        $service = new WikiPageService($repository, $revisions, new WikiSlugger(), new WikiHtmlSanitizer(), $dispatcher ?? new EventDispatcher());
         $routes  = [];
         foreach (['space', 'page_view', 'page_edit', 'page_new', 'page_history', 'search'] as $key) {
             $routes[$key] = ['path' => '/' . $key, 'name' => 'nowo_wiki_' . $key];

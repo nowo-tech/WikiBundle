@@ -146,6 +146,7 @@ wiki:
     error:
       invalid_slug: "O título da página gera um endereço inválido; use letras ou números."
       slug_exists: "Já existe uma página com este título neste espaço."
+      icon_not_saved: "A página foi guardada, mas o ícone não. Tente novamente."
       save_failed: "Não foi possível guardar a página: %reason%"
       save_collision: "Não guardado: outra pessoa guardou esta página no mesmo momento. O seu texto continua aqui; guarde novamente."
       restore_collision: "Não restaurado: outra pessoa guardou esta página no mesmo momento. Abra o histórico e restaure novamente a revisão."

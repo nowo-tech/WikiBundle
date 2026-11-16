@@ -247,6 +247,9 @@ transaction and the revision is compared under that lock:
 - `icon` (1.38): absent keeps the icon, `null` or `""` clears it, a new value replaces it (checked as on create). It is
   written after the revision in its own transaction under the page lock (not a revision: `updated_at` and `revision`
   follow the text only). A changed icon is audited (`icon` in the changed fields), also when the text is the same.
+  When that last step fails (a lock wait on the page row, the page archived meanwhile), the revision stands and the
+  answer is the usual 200 (201 on a create) with `{"field": "icon", "reason": "not_applied"}` in `warnings`; the audit
+  row and the page's events are not lost. Icon changes made outside the API (page form, import) are not audited.
 - An empty body over a page that has content needs `"allow_empty": true`, otherwise 422 `WIKI_EMPTY_BODY`.
 - With co-editing on, if the live session holds updates no revision has, the answer is 409 `WIKI_LIVE_SESSION`.
 - A lock that cannot be taken (a deadlock or a lock wait timeout) answers 409 `WIKI_SAVE_COLLISION` with

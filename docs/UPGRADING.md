@@ -123,6 +123,15 @@ Target 1.38.0, from **1.37.0**: `composer require nowo-tech/wiki-bundle:^1.38`.
   `@NowoWikiBundle/manage/_tree_page_icon.html.twig`. With `nowo_ui_kit.icon_set: ux_icon` set
   `ux_icons.ignore_not_found: true` too (as for space icons): without `symfony/ux-icons` installed in the PHP process
   that writes, a well-formed name that does not exist cannot be refused.
+- **Icon changes are not content**: they add no revision, dispatch no page event (`nowo_wiki.page.saved` and the
+  others) and are not in the history. Only the REST API audits them (`icon` in the changed fields). A host that needs
+  a trace of form or import changes records it itself (e.g. around `WikiPageIconService::setIcon()`).
+- **API clients**: a write whose icon could not be written after the page or revision committed answers as usual (201
+  / 200) with the warning `{"field": "icon", "reason": "not_applied"}`; retry the icon alone with a `PUT` carrying the
+  current `base_revision` and the same body.
+- **Space icons** are drawn without the UiKit canonical-kind lookup since this release (see CHANGELOG, Fixed): with
+  `ux_icon` any allowed prefix reaches `ux_icon()` as stored; with `tabler-icons` / `bootstrap-icons` only `tabler:` /
+  `bi:` icons are drawn (before, a broken class).
 - **Collapsible page tree**: the nested page tree (`tree.enabled: false`) now folds once `wiki.js` runs: by default
   only the current page's ancestors are open. Set `nowo_wiki.tree.default_expanded: all` to keep every row open at
   first (the 1.37 look, with the buttons), or `none`. A host that prints the tree with its own markup (an override of

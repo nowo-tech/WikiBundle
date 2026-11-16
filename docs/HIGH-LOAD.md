@@ -105,6 +105,9 @@ the lock uses the snapshot your transaction took at its first read. The attachme
 The reply position, the reply cap and the link lookup do not: two replies at once can share a position or pass the
 cap by one, and a concurrent identical link ends on the unique key (409, never a duplicate link). Call the wiki outside your transaction, or use READ COMMITTED, for
 the full guarantee (audit QN-L3). PostgreSQL's default READ COMMITTED sees the latest commits in every statement.
+Since 1.38 the entity re-read after a row lock (`WikiTransactionRunner::lockEntity()`: archive / unarchive, comment
+edits, the page icon) is a locking read (`PESSIMISTIC_WRITE`), so it sees the latest commit inside your transaction
+too (audit QY-L3).
 
 ## One lock order
 

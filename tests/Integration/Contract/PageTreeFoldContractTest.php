@@ -32,12 +32,12 @@ final class PageTreeFoldContractTest extends PageContractTestCase
     {
         $context = PageFixtures::pageView();
         $html    = $this->renderPage(new PageFixture(self::VIEW, $context))->html;
-        /** @var list<array{id: string, title: string, children: list<array{id: string, title: string}>}> $tree */
+        /** @var list<array{id: string, title: string, space: string, children: list<array{id: string, title: string}>}> $tree */
         $tree    = $context['tree'];
         $welcome = $tree[0]['id'];
         $deploy  = $tree[0]['children'][0]['id'];
 
-        self::assertStringContainsString('<ul class="nowo-wiki-tree" data-wiki-tree data-wiki-tree-plain data-wiki-tree-default="current_path" data-wiki-tree-space="engineering">', $html);
+        self::assertStringContainsString('<ul class="nowo-wiki-tree" data-wiki-tree data-wiki-tree-plain data-wiki-tree-default="current_path" data-wiki-tree-space="' . $tree[0]['space'] . '">', $html);
         self::assertSame(1, preg_match('#<button type="button" class="nowo-ui-tree__toggle nowo-wiki-tree__toggle" aria-expanded="true" aria-controls="nowo-wiki-tree-group-' . preg_quote($welcome, '#') . '" data-wiki-tree-fold="' . preg_quote($welcome, '#') . '" hidden><span class="nowo-wiki-sr-only visually-hidden">Sub-pages of Welcome</span></button>#', $html));
         // Welcome is on the current page's path (Deploy), Deploy's own list (Rollback) is not.
         self::assertStringContainsString('<ul class="nowo-wiki-tree nowo-wiki-tree--nested" id="nowo-wiki-tree-group-' . $welcome . '" data-wiki-tree-group data-wiki-tree-current-path>', $html);

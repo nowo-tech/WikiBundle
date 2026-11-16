@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Controller;
 
 use InvalidArgumentException;
 use Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
@@ -846,12 +847,19 @@ final class WikiManageController extends AbstractController
 
     /**
      * 1.38: writes the icon of the page form (page_icon.form_field) through {@see WikiPageIconService} (its own unit of
-     * work, the page row locked); nothing without the field.
+     * work, the page row locked); nothing without the field. Audit QY-L2: it runs after the page or revision committed,
+     * so a failure of the icon unit (a lock wait, the page archived meanwhile) is a warning flash, never an error page
+     * for a save that happened.
      */
     private function applyPageIcon(WikiPage $page, WikiPageFormData $payload): void
     {
-        if ($this->pageIconFieldEnabled()) {
+        if (!$this->pageIconFieldEnabled()) {
+            return;
+        }
+        try {
             $this->pageIcons?->setIcon($page, $payload->icon);
+        } catch (InvalidArgumentException|TransientStorageFailure) {
+            $this->flash('warning', 'wiki.page.error.icon_not_saved');
         }
     }
 

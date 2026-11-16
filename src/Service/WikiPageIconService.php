@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Service;
 
 use InvalidArgumentException;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
@@ -89,6 +90,7 @@ final readonly class WikiPageIconService
      * @param string|null $icon the icon name, or null / '' for none
      *
      * @throws InvalidArgumentException when the icon is not allowed or the page is archived (nothing written)
+     * @throws TransientStorageFailure when the page row could not be locked or written (a deadlock, a lock wait timeout)
      *
      * @return bool whether the stored value changed
      */

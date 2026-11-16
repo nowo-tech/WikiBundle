@@ -8,6 +8,7 @@ use Closure;
 use Nowo\WikiBundle\Api\Operation\WikiApiPageWriteOperations;
 use Nowo\WikiBundle\Api\WikiApiInput;
 use Nowo\WikiBundle\Api\WikiApiLevel;
+use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 
 use function array_column;
@@ -101,5 +102,41 @@ final class ApiPageIconTest extends ApiTestCase
 
         self::assertNull($icon($operations, $input));
         self::assertSame([['field' => 'icon', 'reason' => 'not_supported']], $input->warnings());
+    }
+
+    /**
+     * Audit QY-L2: the icon is written once the page or revision committed. When its unit fails (here the page is
+     * archived by another request right after the content write), the committed write is answered and audited as
+     * usual and the icon is reported `not_applied`.
+     */
+    public function testAnIconUnitThatFailsAfterTheContentLeavesTheWriteAnsweredAndAudited(): void
+    {
+        ApiAuditRecorder::$afterSaved = function (WikiPageSavedEvent $event): void {
+            $this->em()->getConnection()->executeStatement('UPDATE wiki_pages SET archived_at = ? WHERE id = ?', ['2026-11-16 10:00:00', $event->page->getId()]);
+        };
+        $created = $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Launch', 'icon' => 'tabler:rocket']);
+        self::assertSame(201, $created->getStatusCode(), (string) $created->getContent());
+        $body = $this->json($created);
+        self::assertNull($body['icon']);
+        self::assertSame([['field' => 'icon', 'reason' => 'not_applied']], $body['warnings']);
+        self::assertSame(['title', 'content_markdown'], ApiAuditRecorder::$events[0]->changedFields);
+
+        ApiAuditRecorder::$afterSaved = null;
+        $page                         = $this->page($this->eng, 'Runbook', 'one');
+        ApiAuditRecorder::$afterSaved = function (WikiPageSavedEvent $event): void {
+            $this->em()->getConnection()->executeStatement('UPDATE wiki_pages SET archived_at = ? WHERE id = ?', ['2026-11-16 10:00:00', $event->page->getId()]);
+        };
+        $saved = $this->call('PUT', '/wikis/eng/pages/' . $page->getId(), self::ANA, ['content_markdown' => 'two', 'base_revision' => 1, 'icon' => 'tabler:tool']);
+        self::assertSame(200, $saved->getStatusCode(), (string) $saved->getContent());
+        $body = $this->json($saved);
+        self::assertSame(2, $body['revision']);
+        self::assertSame([['field' => 'icon', 'reason' => 'not_applied']], $body['warnings']);
+        self::assertSame(['content_markdown'], ApiAuditRecorder::$events[1]->changedFields);
+    }
+
+    protected function tearDown(): void
+    {
+        ApiAuditRecorder::$afterSaved = null;
+        parent::tearDown();
     }
 }

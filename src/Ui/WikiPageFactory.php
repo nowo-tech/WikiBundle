@@ -614,7 +614,7 @@ final readonly class WikiPageFactory
 
     /**
      * Value-free page tree: id (1.14), title, icon (1.38, null for none), URL, current flag, (1.38) current_path (the
-     * current page is below it) and space (the space slug), and children per node.
+     * current page is below it) and space (the space id), and children per node.
      *
      * @param list<SourceNode> $nodes {@see WikiPageTreeBuilder::build()} nodes
      *
@@ -636,8 +636,9 @@ final readonly class WikiPageFactory
                 // 1.38: the current page is below this one (its row starts open in the nested tree); the space keys the
                 // fold state the browser remembers.
                 'current_path' => array_filter($below, static fn (array $child): bool => $child['current'] || $child['current_path']) !== [],
-                'space'        => $space->getSlug(),
-                'children'     => $below,
+                // Audit QY-I5: the space id, not its slug (two tenants' spaces may share a slug on one origin).
+                'space'    => $space->getId(),
+                'children' => $below,
             ];
         }
 

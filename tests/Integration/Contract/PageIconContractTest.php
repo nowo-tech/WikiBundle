@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Tests\Support\PageFixtures;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Twig\TwigFunction;
 
 use function htmlspecialchars;
@@ -45,8 +46,8 @@ final class PageIconContractTest extends PageContractTestCase
         $context['tree']      = $this->treeWithIcon();
         $html                 = $this->renderTabler($context);
 
-        self::assertSame(1, preg_match('#<div class="nowo-wiki-page-icon-line" data-testid="wiki-page-icon"><span class="nowo-wiki-page-icon nowo-wiki-page-icon--title" aria-hidden="true">.+?</span></div>#s', $html));
-        self::assertSame(1, preg_match('#<a href="[^"]*pageSlug=welcome[^"]*" class="nowo-wiki-tree__link"><span class="nowo-wiki-page-icon" aria-hidden="true">.+?</span>Welcome</a>#s', $html));
+        self::assertSame(1, preg_match('#<div class="nowo-wiki-page-icon-line" data-testid="wiki-page-icon"><span class="nowo-wiki-page-icon nowo-wiki-page-icon--title" aria-hidden="true"><i class="ti ti-rocket" aria-hidden="true"></i></span></div>#s', $html));
+        self::assertSame(1, preg_match('#<a href="[^"]*pageSlug=welcome[^"]*" class="nowo-wiki-tree__link"><span class="nowo-wiki-page-icon" aria-hidden="true"><i class="ti ti-rocket" aria-hidden="true"></i></span>Welcome</a>#s', $html));
         self::assertSame(2, substr_count($html, 'nowo-wiki-page-icon"') + substr_count($html, 'nowo-wiki-page-icon nowo-wiki-page-icon--title"'));
 
         // Without an icon: nothing.
@@ -62,7 +63,7 @@ final class PageIconContractTest extends PageContractTestCase
         $context['nowo_wiki_web_ui'] = ['layout' => ['toolbar_position' => 'card', 'tabs' => 'toolbar']];
         $html                        = $this->renderTabler($context);
 
-        self::assertSame(1, preg_match('#<h1 class="nowo-wiki-page-title" data-testid="wiki-page-title"><span class="nowo-wiki-page-icon nowo-wiki-page-icon--title" aria-hidden="true">.*?</span>Deploy</h1>#s', $html));
+        self::assertSame(1, preg_match('#<h1 class="nowo-wiki-page-title" data-testid="wiki-page-title"><span class="nowo-wiki-page-icon nowo-wiki-page-icon--title" aria-hidden="true"><i class="ti ti-rocket" aria-hidden="true"></i></span>Deploy</h1>#s', $html));
         self::assertStringNotContainsString('data-testid="wiki-page-icon"', $html);
     }
 
@@ -74,7 +75,7 @@ final class PageIconContractTest extends PageContractTestCase
         $context['tree_ui'] = ['nodes' => $factory->uiTree($context['tree'], []), 'attr' => ['id' => 'nowo-wiki-tree'], 'movable' => false];
         $html               = $this->renderTabler($context);
 
-        self::assertSame(1, preg_match('#role="treeitem"[^>]*>\s*<span class="nowo-wiki-page-icon" aria-hidden="true">.+?</span>\s*<span class="nowo-ui-tree__label">Welcome</span>#s', $html));
+        self::assertSame(1, preg_match('#role="treeitem"[^>]*>\s*<span class="nowo-wiki-page-icon" aria-hidden="true"><i class="ti ti-rocket" aria-hidden="true"></i></span>\s*<span class="nowo-ui-tree__label">Welcome</span>#s', $html));
         // The icon name is never printed as the UiKit tree's plain-text icon.
         self::assertStringNotContainsString('nowo-ui-tree__icon', $html);
     }
@@ -98,6 +99,68 @@ final class PageIconContractTest extends PageContractTestCase
 
         self::assertStringNotContainsString('<script>', $html);
         self::assertStringContainsString('aria-hidden="true"', $html);
+    }
+
+    /**
+     * Audit QY-M1 / QY-L1: the exact markup per UiKit icon set — ux_icon() gets the stored name as written (any allowed
+     * prefix, never `bi:lucide:home`), tabler-icons / bootstrap-icons get `ti ti-<name>` / `bi bi-<name>` (never
+     * `ti ti-tabler:rocket`), a name the set cannot draw prints nothing (or the fallback kind).
+     *
+     * @return iterable<string, array{string, string, string, array<string, string>}>
+     */
+    public static function iconSets(): iterable
+    {
+        yield 'ux_icon tabler' => ['ux_icon', 'tabler:rocket', '<span class="nowo-wiki-page-icon" aria-hidden="true"><svg data-icon="tabler:rocket"></svg></span>', []];
+        yield 'ux_icon lucide' => ['ux_icon', 'lucide:home', '<span class="nowo-wiki-page-icon" aria-hidden="true"><svg data-icon="lucide:home"></svg></span>', []];
+        yield 'ux_icon bi' => ['ux_icon', 'bi:book', '<span class="nowo-wiki-page-icon" aria-hidden="true"><svg data-icon="bi:book"></svg></span>', []];
+        yield 'tabler-icons tabler' => ['tabler-icons', 'tabler:rocket', '<span class="nowo-wiki-page-icon" aria-hidden="true"><i class="ti ti-rocket" aria-hidden="true"></i></span>', []];
+        yield 'tabler-icons tabler edit (not the canonical kind)' => ['tabler-icons', 'tabler:edit', '<span class="nowo-wiki-page-icon" aria-hidden="true"><i class="ti ti-edit" aria-hidden="true"></i></span>', []];
+        yield 'tabler-icons bi' => ['tabler-icons', 'bi:book', '', []];
+        yield 'bootstrap-icons bi' => ['bootstrap-icons', 'bi:book', '<span class="nowo-wiki-page-icon" aria-hidden="true"><i class="bi bi-book" aria-hidden="true"></i></span>', []];
+        yield 'bootstrap-icons tabler' => ['bootstrap-icons', 'tabler:rocket', '', []];
+        yield 'svg_inline' => ['svg_inline', 'tabler:rocket', '', []];
+        yield 'none' => ['none', 'tabler:rocket', '', []];
+        yield 'no icon' => ['tabler-icons', '', '', []];
+        yield 'space icon class' => ['tabler-icons', 'tabler:book', '<span class="nowo-wiki-space-icon" aria-hidden="true"><i class="ti ti-book" aria-hidden="true"></i></span>', ['base_class' => 'nowo-wiki-space-icon']];
+        yield 'extra class' => ['bootstrap-icons', 'bi:book', '<span class="nowo-wiki-page-icon x" aria-hidden="true"><i class="bi bi-book" aria-hidden="true"></i></span>', ['class' => 'x']];
+    }
+
+    /**
+     * @param array<string, string> $extra
+     */
+    #[DataProvider('iconSets')]
+    public function testTheExactMarkupPerIconSet(string $set, string $icon, string $expected, array $extra): void
+    {
+        self::assertSame($expected, $this->renderIcon($set, ['icon' => $icon === '' ? null : $icon] + $extra));
+    }
+
+    public function testTheFallbackKindWhenTheSetCannotDrawTheIcon(): void
+    {
+        // The space list: a book when the space has no icon, or one the set cannot draw.
+        foreach ([null, 'tabler:rocket'] as $icon) {
+            $html = $this->renderIcon('bootstrap-icons', ['icon' => $icon, 'base_class' => 'nowo-wiki-space-icon', 'fallback' => 'book']);
+            self::assertStringStartsWith('<span class="nowo-wiki-space-icon" aria-hidden="true"><i class="bi bi-book', $html);
+            self::assertStringNotContainsString('tabler', $html);
+        }
+    }
+
+    public function testTheSpaceIconUsesTheSameDrawing(): void
+    {
+        $context               = PageFixtures::pageView(true, null, false);
+        $context['space_icon'] = 'tabler:book';
+        self::assertStringContainsString('<span class="nowo-wiki-space-icon" aria-hidden="true"><i class="ti ti-book" aria-hidden="true"></i></span>Pages</h2>', $this->renderTabler($context));
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function renderIcon(string $set, array $context): string
+    {
+        $twig = $this->createTwig();
+        $twig->addGlobal('nowo_ui_kit_icon_set', $set);
+        $twig->addFunction(new TwigFunction('ux_icon', static fn (string $name): string => '<svg data-icon="' . htmlspecialchars($name, ENT_QUOTES) . '"></svg>', ['is_safe' => ['html']]));
+
+        return $twig->render('@NowoWikiBundle/manage/_page_icon.html.twig', $context);
     }
 
     public function testThePageFormGetsTheIconFieldOnlyWhenAsked(): void

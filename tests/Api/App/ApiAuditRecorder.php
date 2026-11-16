@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api\App;
 
+use Closure;
 use Doctrine\DBAL\Connection;
 use Nowo\WikiBundle\Event\WikiApiWriteEvent;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
@@ -24,6 +25,9 @@ final class ApiAuditRecorder
     /** A page listener that fails after the write (a mailer down; audit IF-L3). */
     public static bool $failSaved = false;
 
+    /** 1.38 (audit QY-L2): run after a page save was announced (the content write has committed). */
+    public static ?Closure $afterSaved = null;
+
     public function __construct(private readonly ?Connection $connection = null)
     {
     }
@@ -37,12 +41,15 @@ final class ApiAuditRecorder
     public function saved(WikiPageSavedEvent $event): void
     {
         self::$heard[] = ['page_saved', $this->level()];
+        if (self::$afterSaved instanceof Closure) {
+            (self::$afterSaved)($event);
+        }
         if (self::$failSaved) {
             throw new RuntimeException('The mailer is down.');
         }
     }
 
-    public function commented(object $event): void
+    public function commented(): void
     {
         self::$heard[] = ['comment', $this->level()];
         if (self::$failSaved) {

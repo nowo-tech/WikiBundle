@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Interchange;
 
 use InvalidArgumentException;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\Dto\WikiImportReport;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -329,8 +330,13 @@ final readonly class WikiDocumentImporter
 
             return;
         }
-        // @igor-ignore - WikiPageIconService is stateless: setIcon() writes the page row, the service keeps nothing.
-        $this->icons->setIcon($page, $icon);
+        try {
+            // @igor-ignore - WikiPageIconService is stateless: setIcon() writes the page row, the service keeps nothing.
+            $this->icons->setIcon($page, $icon);
+        } catch (InvalidArgumentException|TransientStorageFailure) {
+            // Audit QY-L2: the page is imported (committed); only its icon is missing.
+            $report->addMessage(sprintf('Could not save the icon of page "%s"; the page was imported without it.', $page->getSlug()));
+        }
     }
 
     /**

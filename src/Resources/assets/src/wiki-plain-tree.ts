@@ -110,7 +110,8 @@ export function initPlainTrees(root: ParentNode = document, storage: Storage | n
             // The selector guarantees the attribute (empty for a row without an id).
             const id = String(button.dataset.wikiTreeFold);
             const onPath = group.hasAttribute('data-wiki-tree-current-path');
-            setTreeRowOpen(button, onPath || (id in saved ? saved[id] : mode === 'all'));
+            // Own entries only (audit QY-I2): an id such as `constructor` is never read from the prototype.
+            setTreeRowOpen(button, onPath || (Object.hasOwn(saved, id) ? saved[id] : mode === 'all'));
             button.hidden = false;
         });
         tree.addEventListener('click', (event) => {

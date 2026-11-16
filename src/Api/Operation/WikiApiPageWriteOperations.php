@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Api\Operation;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Serializer\WikiApiPeople;
@@ -105,8 +106,9 @@ final readonly class WikiApiPageWriteOperations
         $parentId = $input->string('parent', false, 36);
         $pageSlug = $input->string('slug', false, 120);
         $position = $input->int('position', 1, self::MAX_POSITION);
-        $icon     = $this->icon($input);
-        $mover    = $this->mover;
+        // 1.38: checked with the other fields, before anything is written (the first write may provision the wiki).
+        $icon  = $this->icon($input);
+        $mover = $this->mover;
         if ($position !== null && !$mover instanceof WikiPageMover) {
             throw WikiApiRefusal::invalid('position');
         }
@@ -123,15 +125,7 @@ final readonly class WikiApiPageWriteOperations
         }
         $this->audit->requireQuota(WikiQuotaCheckEvent::PAGE_CREATE, $principal->user, $space);
 
-        $create = function () use ($space, $title, $markdown, $principal, $parent, $pageSlug, $icon): WikiPage {
-            $page = $this->service->create($space, $title, $markdown, $principal->user, $parent, $pageSlug, WikiPageRevision::FORMAT_MARKDOWN);
-            // 1.38: the icon in its own unit under the page lock, right after the page's (checked before anything was written).
-            if ($icon !== null) {
-                $this->icons?->setIcon($page, $icon);
-            }
-
-            return $page;
-        };
+        $create = fn (): WikiPage => $this->service->create($space, $title, $markdown, $principal->user, $parent, $pageSlug, WikiPageRevision::FORMAT_MARKDOWN);
         try {
             $placed = $this->deferral->run(fn (): WikiPage|WikiPageCreateResult => ($position !== null || $parent instanceof WikiPage) && $mover instanceof WikiPageMover
                 // 1.35: the place counts the siblings the token's user may read, as a move; a parent alone: last.
@@ -147,7 +141,10 @@ final readonly class WikiApiPageWriteOperations
             throw $exception->reason === 'too_deep' ? new WikiApiRefusal(422, 'WIKI_MOVE_002', 'The page would be too deep') : WikiApiRefusal::notFound();
         }
         $page = $placed instanceof WikiPageCreateResult ? $placed->page : $placed;
-        $this->audit->written($principal, 'page.create', $wiki->slug, $space->getId(), $page->getId(), [], [...['title', 'content_markdown'], ...($position !== null ? ['position'] : []), ...($icon !== null ? ['icon'] : [])]);
+        // 1.38: the icon in its own unit under the page lock, once the page and its events are committed (audit QY-L2:
+        // its failure never turns the committed create into an error, nor drops the audit or the page's events).
+        $iconApplied = $icon !== null && $this->applyIcon($page, $icon, $input);
+        $this->audit->written($principal, 'page.create', $wiki->slug, $space->getId(), $page->getId(), [], [...['title', 'content_markdown'], ...($position !== null ? ['position'] : []), ...($iconApplied ? ['icon'] : [])]);
         $body = $this->reads->body($principal, $wiki, $page);
         if ($placed instanceof WikiPageCreateResult) {
             // Audit PT-L1: the visible place, not the sort key.
@@ -183,8 +180,9 @@ final readonly class WikiApiPageWriteOperations
         $this->audit->requireAudit();
 
         $revision = $this->underCollab($principal, $page, fn (): WikiPageRevision => $this->service->saveRevision($page, $title, $markdown, $principal->user, WikiPageRevision::FORMAT_MARKDOWN, $base));
-        // 1.38: the icon in its own unit under the page lock, after the revision (a refused save wrote neither).
-        $iconChanged = $iconChanged && ($this->icons?->setIcon($page, $icon) ?? false);
+        // 1.38: the icon in its own unit under the page lock, after the revision (a refused save wrote neither; audit
+        // QY-L2: a failure of the icon unit leaves the committed revision answered and audited, the icon `not_applied`).
+        $iconChanged = $iconChanged && $this->applyIcon($page, $icon, $input);
         if ($revision->getRevisionNumber() !== $base || $iconChanged) {
             $fields = $revision->getRevisionNumber() !== $base ? ($titleChanged ? ['title', 'content_markdown'] : ['content_markdown']) : [];
             $this->audit->written($principal, 'page.update', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['revision' => $revision->getId()], $iconChanged ? [...$fields, 'icon'] : $fields);
@@ -371,6 +369,23 @@ final readonly class WikiApiPageWriteOperations
      *
      * @throws WikiApiRefusal when the value is not an allowed icon (`INPUT_002`)
      */
+    /**
+     * 1.38 (audit QY-L2): writes the icon after the committed content write. A failure of that unit (a lock wait or a
+     * deadlock on the page row, the page archived meanwhile) is reported as a `not_applied` warning, not as an error.
+     *
+     * @return bool whether the stored icon changed
+     */
+    private function applyIcon(WikiPage $page, ?string $icon, WikiApiInput $input): bool
+    {
+        try {
+            return $this->icons?->setIcon($page, $icon) ?? false;
+        } catch (InvalidArgumentException|TransientStorageFailure) {
+            $input->notApplied('icon');
+
+            return false;
+        }
+    }
+
     private function icon(WikiApiInput $input): ?string
     {
         if (!$this->icons instanceof WikiPageIconService) {

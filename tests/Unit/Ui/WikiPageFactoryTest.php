@@ -91,8 +91,9 @@ final class WikiPageFactoryTest extends TestCase
         }
 
         self::assertSame(['id' => 'engineering', 'name' => 'Engineering', 'slug' => 'engineering', 'icon' => null, 'href' => '/nowo_wiki_space?spaceSlug=engineering'], $index->rows[0]);
-        $welcome = new WikiPage(PageFixtures::space('engineering', 'E'), 'welcome', 'Welcome');
-        self::assertSame([['id' => $welcome->getId(), 'title' => 'Welcome', 'icon' => null, 'href' => '/nowo_wiki_page_view?spaceSlug=engineering&pageSlug=welcome', 'current' => false, 'current_path' => false, 'space' => 'engineering', 'children' => []]], $factory->tree(PageFixtures::space('engineering', 'Engineering'), [['page' => $welcome, 'children' => 'not-a-list']]));
+        $welcome     = new WikiPage(PageFixtures::space('engineering', 'E'), 'welcome', 'Welcome');
+        $engineering = PageFixtures::space('engineering', 'Engineering');
+        self::assertSame([['id' => $welcome->getId(), 'title' => 'Welcome', 'icon' => null, 'href' => '/nowo_wiki_page_view?spaceSlug=engineering&pageSlug=welcome', 'current' => false, 'current_path' => false, 'space' => $engineering->getId(), 'children' => []]], $factory->tree($engineering, [['page' => $welcome, 'children' => 'not-a-list']]));
     }
 
     public function testIndexRowsCarryTheSpaceIcon(): void
@@ -118,7 +119,7 @@ final class WikiPageFactoryTest extends TestCase
         self::assertTrue($nodes[0]['children'][0]['current_path']);
         self::assertFalse($nodes[0]['children'][0]['children'][0]['current_path']);
         self::assertTrue($nodes[0]['children'][0]['children'][0]['current']);
-        self::assertSame('eng', $nodes[0]['space']);
+        self::assertSame($space->getId(), $nodes[0]['space']);
 
         $ui = $factory->uiTree($nodes, [$root->getId(), 'gone']);
         self::assertSame(['id' => $root->getId(), 'label' => 'Welcome', 'page_icon' => null, 'href' => '/nowo_wiki_page_view?spaceSlug=eng&pageSlug=welcome', 'current' => false, 'expanded' => true], array_diff_key($ui[0], ['children' => true]));

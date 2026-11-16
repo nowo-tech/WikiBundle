@@ -121,6 +121,13 @@ describe('initPlainTrees', () => {
         expect(button('f').hidden).toBe(true);
     });
 
+    it('never reads a row from the prototype (an id such as constructor stays at the default)', () => {
+        document.body.innerHTML = tree('none').replaceAll('data-wiki-tree-fold="f"', 'data-wiki-tree-fold="constructor"');
+        initPlainTrees(document, memory());
+        expect(document.querySelector('[data-wiki-tree-fold="constructor"]')?.getAttribute('aria-expanded')).toBe('false');
+        expect(group('f').hidden).toBe(true);
+    });
+
     it('uses the defaults of a bare root', () => {
         document.body.innerHTML = tree().replace(' data-wiki-tree-default="current_path" data-wiki-tree-space="docs"', '').replace(' data-wiki-tree-fold="f"', ' data-wiki-tree-fold');
         const storage = memory();

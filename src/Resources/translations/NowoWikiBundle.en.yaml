@@ -146,6 +146,7 @@ wiki:
     error:
       invalid_slug: "The page title gives an invalid address; use letters or numbers."
       slug_exists: "A page with this title already exists in this space."
+      icon_not_saved: "The page was saved, but its icon could not be saved. Try again."
       save_failed: "The page could not be saved: %reason%"
       save_collision: "Not saved: someone else saved this page at the same moment. Your text is still here; save again."
       restore_collision: "Not restored: someone else saved this page at the same moment. Open the history and restore the revision again."
