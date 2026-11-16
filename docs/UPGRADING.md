@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.39.0](#to-1390)
 - [To 1.38.1](#to-1381)
 - [To 1.38.0](#to-1380)
 - [To 1.37.0](#to-1370)
@@ -98,6 +99,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.39.0
+
+From **1.38.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 - **Nothing changes by default.** Every 1.39 feature is opt-in: `tree.context_menu` (default `false`),
   `page_icon` / `space_icon` `.picker` and `.emoji`, `web_ui.page_nav` (default `none`). With them off, the pages are
