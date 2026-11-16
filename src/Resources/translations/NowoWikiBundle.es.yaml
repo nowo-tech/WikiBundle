@@ -281,6 +281,36 @@ wiki:
     create: "Crear página"
     error:
       placement: "Ese lugar del árbol de páginas ya no es válido. Vuelve a abrir el menú del árbol de páginas."
+  # 1.39: previous / next page (web_ui.page_nav) and the page tree's context menu (tree.context_menu).
+  page_nav:
+    label_top: "Página anterior y siguiente"
+    label_bottom: "Página anterior y siguiente (final de la página)"
+    prev: "Página anterior"
+    next: "Página siguiente"
+    prev_aria: "Página anterior: %title%"
+    next_aria: "Página siguiente: %title%"
+  tree_menu:
+    menu: "Acciones de la página"
+    more: "Acciones de «%title%»"
+    rename: "Renombrar"
+    icon: "Cambiar icono / emoji"
+    child: "Añadir página hija"
+    below: "Añadir página hermana"
+    above: "Añadir página encima"
+    copy: "Copiar enlace"
+    copied: "Enlace copiado."
+    copy_failed: "No se pudo copiar el enlace."
+    rename_field: "Renombrar «%title%»"
+    renamed: "«%from%» renombrada a «%title%»."
+    icon_title: "Cambiar icono"
+    icon_context: "Página «%title%»"
+    icon_save: "Guardar icono"
+    icon_saved: "Icono de «%title%» guardado."
+    error:
+      title_invalid: "Escribe un título (máximo 255 caracteres, sin caracteres de control)."
+      being_edited: "Alguien está editando esta página: renómbrala desde la vista de edición."
+      conflict: "La página ha cambiado mientras tanto: recarga e inténtalo de nuevo."
+      page_gone: "Esta página se archivó o eliminó mientras tanto: recarga la página."
 wiki_page_form:
   title:
     placeholder: "Título de la página"

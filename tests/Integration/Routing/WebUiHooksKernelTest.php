@@ -6,12 +6,14 @@ namespace Nowo\WikiBundle\Tests\Integration\Routing;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
+use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\Link\WikiPageLinkServiceInterface;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageServiceInterface;
 use Nowo\WikiBundle\Service\WikiSpaceService;
@@ -22,6 +24,7 @@ use Nowo\WikiBundle\Tests\Support\RecordingQuotaListener;
 use Nowo\WikiBundle\User\DoctrineWikiUserReferenceResolver;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\WikiBundle;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Symfony\Bundle\TwigBundle\TwigBundle;
@@ -38,6 +41,7 @@ use ZipArchive;
 use function array_keys;
 use function array_search;
 use function dirname;
+use function str_contains;
 use function strpos;
 use function substr_count;
 use function sys_get_temp_dir;
@@ -68,7 +72,7 @@ final class WebUiHooksKernelTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         (new Filesystem())->remove(dirname((new RoutingTestKernel(true))->getCacheDir()));
-        foreach (['-defaults', '-hooks', '-scoped', '-newpage', '-defaults-tree'] as $variant) {
+        foreach (['-defaults', '-hooks', '-scoped', '-newpage', '-defaults-tree', '-treemenu', '-treemenu-dialog', '-nav-none', '-nav-top', '-nav-bottom', '-nav-both', '-icon-emoji'] as $variant) {
             (new Filesystem())->remove(dirname((new RoutingTestKernel(true, [], $variant))->getCacheDir()));
         }
     }
@@ -247,6 +251,129 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertSame($before + 2, $this->pageCount());
     }
 
+    /** 1.39 (tree.context_menu, default on): the tree menu replaces the 1.35 menu; entries follow the configuration. */
+    public function testTheTreeContextMenu(): void
+    {
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true]], '-treemenu');
+        $html = $this->html('/tools/wiki/spaces/eng/pages/home');
+
+        self::assertStringContainsString('data-wiki-tree-menu ', $html);
+        self::assertStringNotContainsString('data-wiki-new-page-menu', $html);
+        foreach (['rename', 'icon', 'child', 'below', 'copy'] as $item) {
+            self::assertStringContainsString('data-wiki-tree-menu-item="' . $item . '"', $html);
+        }
+        self::assertStringNotContainsString('data-wiki-tree-menu-item="above"', $html);
+        self::assertSame(5, substr_count($html, 'role="menuitem"'));
+        self::assertStringContainsString('data-wiki-tree-rename="/tools/wiki/spaces/eng/tree/rename"', $html);
+        self::assertStringContainsString('data-wiki-tree-icon="/tools/wiki/spaces/eng/tree/icon"', $html);
+        self::assertStringContainsString('data-wiki-tree-new="/tools/wiki/spaces/eng/pages/new"', $html);
+        self::assertStringContainsString('data-wiki-menu-edit="1"', $html);
+        self::assertStringContainsString('data-wiki-menu-icon="1"', $html);
+        self::assertStringContainsString('data-wiki-tree-menu-more', $html);
+        self::assertStringContainsString('<template data-wiki-tree-icon-template>', $html);
+        self::assertStringContainsString('name="form[icon]"', $html);
+
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true], 'web_ui' => ['new_page_dialog' => true]], '-treemenu-dialog');
+        $html = $this->html('/tools/wiki/spaces/eng/pages/home');
+        self::assertStringContainsString('data-wiki-tree-menu-item="above"', $html);
+        self::assertStringNotContainsString('data-wiki-tree-menu-item="icon"', $html);
+        self::assertStringNotContainsString('data-wiki-tree-new=', $html);
+        self::assertStringNotContainsString('data-wiki-new-page-menu', $html);
+    }
+
+    /** 1.39: the new-page form takes ?place= with the tree menu but without the dialog. */
+    public function testTheNewPageFormTakesThePlaceWithTheTreeMenu(): void
+    {
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true]], '-treemenu');
+        $html = $this->html('/tools/wiki/spaces/eng/pages/new?place=child%3Aabc');
+
+        self::assertStringContainsString('name="wiki_page_form[place]"', $html);
+        self::assertStringContainsString('value="child:abc"', $html);
+        self::assertStringContainsString('nowo-wiki-title-input', $html);
+    }
+
+    /** Audit RS-L2: by default (tree.context_menu off) the new-page form takes no place without the dialog, as in 1.38. */
+    public function testByDefaultTheNewPageFormHasNoPlaceWithoutTheDialog(): void
+    {
+        $this->boot(['tree' => ['enabled' => true]], '-defaults-tree');
+        $html = $this->html('/tools/wiki/spaces/eng/pages/new?place=child%3Aabc');
+
+        self::assertStringNotContainsString('wiki_page_form[place]', $html);
+        self::assertStringNotContainsString('data-wiki-tree-menu', $html);
+    }
+
+    /**
+     * @return iterable<string, array{string, bool, bool}>
+     */
+    public static function pageNavPositions(): iterable
+    {
+        yield 'none' => ['none', false, false];
+        yield 'top' => ['top', true, false];
+        yield 'bottom' => ['bottom', false, true];
+        yield 'both' => ['both', true, true];
+    }
+
+    /** 1.39 (web_ui.page_nav): previous / next in reading order, rel and accessible names, per position. */
+    #[DataProvider('pageNavPositions')]
+    public function testThePageNavigation(string $position, bool $top, bool $bottom): void
+    {
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['page_nav' => $position]], '-nav-' . $position);
+        $container = $this->services();
+        $pages     = $container->get(WikiPageService::class);
+        self::assertInstanceOf(WikiPageService::class, $pages);
+        $home  = $this->pageBySlug('home');
+        $child = $pages->create($this->space, 'Variables <por> tipo', '<p>x</p>', $this->user, $home);
+        $pages->create($this->space, 'Listas', '<p>y</p>', $this->user);
+
+        $html = $this->html('/tools/wiki/spaces/eng/pages/' . $child->getSlug());
+        self::assertSame($top, str_contains($html, 'data-testid="wiki-page-nav-top"'));
+        self::assertSame($bottom, str_contains($html, 'data-testid="wiki-page-nav-bottom"'));
+        if ($position === 'none') {
+            self::assertStringNotContainsString('rel="prev"', $html);
+
+            return;
+        }
+        self::assertStringContainsString('rel="prev"', $html);
+        self::assertStringContainsString('aria-label="Previous page: Home"', $html);
+        self::assertStringContainsString('aria-label="Next page: Listas"', $html);
+        self::assertStringContainsString('href="/tools/wiki/spaces/eng/pages/home"', $html);
+
+        // The first page has no "previous" link, only its empty cell (one request per kernel).
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['page_nav' => $position]], '-nav-' . $position);
+        $pages = $this->services()->get(WikiPageService::class);
+        self::assertInstanceOf(WikiPageService::class, $pages);
+        $pages->create($this->space, 'Variables <por> tipo', '<p>x</p>', $this->user, $this->pageBySlug('home'));
+        $html = $this->html('/tools/wiki/spaces/eng/pages/home');
+        self::assertStringNotContainsString('rel="prev"', $html);
+        self::assertStringContainsString('aria-label="Next page: Variables &lt;por&gt; tipo"', $html);
+        self::assertStringContainsString('nowo-wiki-page-nav__link--empty', $html);
+    }
+
+    /** 1.39: an emoji icon is escaped text in the tree and the title line. */
+    public function testEmojiIconsRenderAsText(): void
+    {
+        if (!interface_exists(WikiExtension::ICON_SELECTOR_EMOJI_CATALOG)) {
+            self::markTestSkipped('nowo-tech/icon-selector-bundle >= 1.6 (dev dependency) is not installed.');
+        }
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true, 'emoji' => true]], '-icon-emoji');
+        $container = $this->services();
+        $icons     = $container->get(WikiPageIconService::class);
+        self::assertInstanceOf(WikiPageIconService::class, $icons);
+        $pages = $container->get(WikiPageService::class);
+        self::assertInstanceOf(WikiPageService::class, $pages);
+        $home  = $this->pageBySlug('home');
+        $child = $pages->create($this->space, 'Child', '<p>x</p>', $this->user, $home);
+        $icons->setIcon($home, 'emoji:🚀');
+        $icons->setIcon($child, 'emoji:👩🏽‍💻');
+
+        $html = $this->html('/tools/wiki/spaces/eng/pages/home');
+        self::assertGreaterThanOrEqual(2, substr_count($html, 'nowo-wiki-page-icon--emoji" aria-hidden="true">🚀</span>'));
+        self::assertStringContainsString('aria-hidden="true">👩🏽‍💻</span>', $html);
+        self::assertStringContainsString('name="form[icon]"', $html);
+    }
+
     /** GV-I5: with search.scope: space the index search form has no "all spaces" choice, which would answer 404. */
     /** 1.35 (web_ui.new_page_dialog): the dialog, the page action, the tree menu and its «…» buttons; a placed create. */
     public function testTheNewPageDialogAndTheTreeMenu(): void
@@ -347,6 +474,16 @@ final class WebUiHooksKernelTest extends TestCase
         $tokens = $container->get('security.token_storage');
         self::assertInstanceOf(TokenStorageInterface::class, $tokens);
         $tokens->setToken(new UsernamePasswordToken($this->user, 'main', ['ROLE_USER']));
+    }
+
+    private function pageBySlug(string $slug): WikiPage
+    {
+        $em = $this->services()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $page = $em->getRepository(WikiPage::class)->findOneBy(['space' => $this->space, 'slug' => $slug]);
+        self::assertInstanceOf(WikiPage::class, $page);
+
+        return $page;
     }
 
     private function services(): ContainerInterface

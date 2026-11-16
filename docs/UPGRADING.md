@@ -99,6 +99,21 @@
 
 ## Unreleased
 
+- **Nothing changes by default.** Every 1.39 feature is opt-in: `tree.context_menu` (default `false`),
+  `page_icon` / `space_icon` `.picker` and `.emoji`, `web_ui.page_nav` (default `none`). With them off, the pages are
+  those of 1.38, except the edit view's title field, now at heading size (`nowo-wiki-title-input`, label kept). Turning `tree.context_menu` on replaces the 1.35 "New page above / below / as child" menu of
+  `web_ui.new_page_dialog` (`data-wiki-new-page-menu` → `data-wiki-tree-menu`, «…» `data-wiki-new-page-more` →
+  `data-wiki-tree-menu-more`): host CSS or tests that target the old menu, and host overrides of `page_view.html.twig`
+  / `space.html.twig` (include `_tree_menu.html.twig` in `nowo_ui_modals` like the bundle), need updating first.
+- **Icon picker / emoji** need `nowo-tech/icon-selector-bundle:^1.6` (`composer require`), its API routes imported
+  and `assets:install`. On MySQL / MariaDB emoji need a `utf8mb4` connection.
+- **Milkdown 1.18**: with `nowo-tech/milkdown-editor-bundle` >= 1.18, anchored page links render `#nowo-h-<id>` (the
+  heading id) instead of `#<id>`, labelled with the page title or section text instead of "› <id>". Host CSS, tests
+  or scripts that match the old `href="…#<id>"` or the "› <id>" label need updating.
+- `WikiPageIconService`, `WikiSpaceIconType` and `WikiTreeController` gained optional trailing constructor arguments.
+- Templates: new partials `_page_nav.html.twig`, `_tree_menu.html.twig`, `_tree_menu_button.html.twig`,
+  `_icon_picker_script.html.twig`; `_page_icon.html.twig` renders `emoji:` values.
+
 ## To 1.38.1
 
 From **1.38.0**:

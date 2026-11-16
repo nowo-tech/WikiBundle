@@ -1,0 +1,3 @@
+# 1.39: the IconSelector API the picker reads (icon list, config, sanitized SVGs).
+nowo_icon_selector:
+    resource: '@NowoIconSelectorBundle/Resources/config/routes.yaml'

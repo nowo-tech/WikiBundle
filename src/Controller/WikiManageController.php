@@ -22,11 +22,13 @@ use Nowo\WikiBundle\Event\WikiEditorOptionsEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Form\WikiAiAskType;
+use Nowo\WikiBundle\Form\WikiIconPickerType;
 use Nowo\WikiBundle\Form\WikiImportType;
 use Nowo\WikiBundle\Form\WikiPageFormType;
 use Nowo\WikiBundle\Form\WikiPageMoveType;
 use Nowo\WikiBundle\Form\WikiPostActionType;
 use Nowo\WikiBundle\Form\WikiSearchType;
+use Nowo\WikiBundle\Form\WikiSpaceIconType;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
@@ -63,9 +65,12 @@ use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
 use Nowo\WikiBundle\Ui\WikiNewPageMenu;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
+use Nowo\WikiBundle\Ui\WikiPageNav;
 use Nowo\WikiBundle\Ui\WikiPages;
+use Nowo\WikiBundle\Ui\WikiTreeMenu;
 use Nowo\WikiBundle\Util\WikiTitleDedupe;
 use Nowo\WikiBundle\ValueObject\WikiPagePlacement;
+use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
@@ -166,9 +171,11 @@ final class WikiManageController extends AbstractController
      * @param string $searchScope `search.scope` (1.21): `space` leaves the "all spaces" choice out of the index search form
      * @param WikiTreeRail|null $treeRail the page tree rail (1.29, `web_ui.tree_rail`; null = off)
      * @param object|null $breadcrumbCurrentLabel 1.30: BreadcrumbKit's BreadcrumbCurrentLabelInterface (>= 2.17) when installed, else null (optional integration)
-     * @param array{title?: string, tabs?: string, path?: string, children?: string, breadcrumb_current_label?: bool, page_meta?: string} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title; 1.30 `title: body` drops the header title instead; 1.31 `title: card` prints it in the card, `page_meta: card`)
+     * @param array{title?: string, tabs?: string, path?: string, children?: string, breadcrumb_current_label?: bool, page_meta?: string, new_page_dialog?: bool, page_nav?: string} $layout 1.29 `web_ui` layout options (`title: dedupe` drops a body `<h1>` repeating the title; 1.30 `title: body` drops the header title instead; 1.31 `title: card` prints it in the card, `page_meta: card`)
      * @param WikiPageIconService|null $pageIcons 1.38: writes the page icon (null: the icon field is never shown)
      * @param bool $pageIconField 1.38 `page_icon.form_field`: the page form's optional icon field
+     * @param array{page?: array{picker: string, emoji: bool, prefixes: list<string>, icon_prefixes: list<string>}, space?: array{picker: string, emoji: bool, prefixes: list<string>, icon_prefixes: list<string>}} $iconPicker 1.39: the icon fields (`*_icon.picker`, `*_icon.emoji`)
+     * @param bool $treeContextMenu 1.39 `tree.context_menu`: the page tree's context menu
      */
     public function __construct(
         private readonly WikiAccessCheckerInterface $accessChecker,
@@ -214,6 +221,8 @@ final class WikiManageController extends AbstractController
         private readonly ?object $breadcrumbCurrentLabel = null,
         private readonly ?WikiPageIconService $pageIcons = null,
         private readonly bool $pageIconField = false,
+        private readonly array $iconPicker = [],
+        private readonly bool $treeContextMenu = false,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -303,6 +312,10 @@ final class WikiManageController extends AbstractController
                 $vars['tree_ui'] = $this->withNewPageMenu($user, $space, $treeUi, $tree);
             }
         }
+        // 1.39 (tree.context_menu): the tree menu replaces the 1.35 new-page menu.
+        if ($treeUi !== null && $this->treeContextMenu) {
+            $vars = $this->withTreeMenu($user, $space, $treeUi, $tree, $dialog !== null) + $vars;
+        }
         // 1.29 (web_ui.tree_rail): the tree card folds to a rail.
         if ($this->treeRail instanceof WikiTreeRail) {
             $vars['tree_rail'] = $this->treeRail->rail($this->currentRequest(), $user, $space);
@@ -382,7 +395,7 @@ final class WikiManageController extends AbstractController
         // The sidebar tree, its rail and the in-wiki path (shared with the edit form's read layout, 1.33).
         // 1.35 (web_ui.new_page_dialog): "New page" in the page actions opens the dialog; the tree gets its menu.
         $dialog = $this->newPageDialog($user, $space);
-        $vars   = $this->readLayoutVars($user, $space, $page, $dialog !== null);
+        $vars   = $this->readLayoutVars($user, $space, $page, $dialog !== null, true);
         if ($dialog !== null) {
             $vars['new_page_dialog'] = $dialog;
             $can['new_page_dialog']  = true;
@@ -764,8 +777,9 @@ final class WikiManageController extends AbstractController
         $this->spaceGuard->requireGranted($user, WikiAction::Create, $space);
         $data = new WikiPageFormData();
 
-        // 1.35 (web_ui.new_page_dialog): the hidden `place` field of the dialog and the tree menu.
-        $dialog = $this->newPageDialogEnabled();
+        // 1.35 (web_ui.new_page_dialog): the hidden `place` field of the dialog and the tree menu; 1.39: also the tree's
+        // context menu without the dialog ("Add child / sibling page" opens this form with ?place=).
+        $dialog = $this->newPageDialogEnabled() || ($this->treeContextMenu && $this->mover instanceof WikiPageMover);
 
         // REQ-TWIG-005: the Form's own CSRF field (token id wiki_new_<space id>) replaces the hand-rolled top-level _token.
         $form = $this->createForm(WikiPageFormType::class, $data, [
@@ -872,6 +886,16 @@ final class WikiManageController extends AbstractController
     }
 
     /** 1.38: whether the page form shows the icon field. */
+    /**
+     * 1.39 (`page_icon.picker`): the form type of the page icon field.
+     *
+     * @return class-string<WikiIconPickerType|WikiSpaceIconType>
+     */
+    private function pageIconFieldType(): string
+    {
+        return ($this->iconPicker['page']['picker'] ?? 'text') === 'icon_selector' ? WikiIconPickerType::class : WikiSpaceIconType::class;
+    }
+
     private function pageIconFieldEnabled(): bool
     {
         return $this->pageIconField && $this->pageIcons instanceof WikiPageIconService;
@@ -971,6 +995,61 @@ final class WikiManageController extends AbstractController
         }
 
         return ['nodes' => WikiNewPageMenu::annotate($treeUi['nodes'], $orphans), 'actions_template' => WikiNewPageMenu::ACTIONS_TEMPLATE] + $treeUi;
+    }
+
+    /**
+     * 1.39 (`tree.context_menu`): the page tree's context menu. Each row is marked with what the menu may offer there:
+     * Rename ({@see WikiTreeMenu::EDIT_ATTRIBUTE}) and Change icon ({@see WikiTreeMenu::ICON_ATTRIBUTE}, with
+     * `page_icon.form_field`) for users with the edit role and Edit on the space; Add child / Add sibling (the 1.35 marks)
+     * for users who may also create there. One check per page, not one per row (audit PT-L4): the endpoints check the
+     * page itself on every write. A reader gets no mark, so no menu and the browser's own context menu. Returns
+     * `tree_ui` (marked rows, the endpoints) and `tree_menu` (the icon form, whether the new-page dialog is there).
+     *
+     * @param array{nodes: list<array<string, mixed>>, attr: array<string, bool|string>, movable: bool} $treeUi
+     * @param list<array{page: WikiPage, children: list<mixed>}> $tree
+     *
+     * @return array{tree_ui?: array<string, mixed>, tree_menu?: array<string, mixed>}
+     */
+    private function withTreeMenu(UserInterface $user, WikiSpace $space, array $treeUi, array $tree, bool $dialog): array
+    {
+        // The tree's endpoints ask a firewall-trusted user and the edit role, as the moves do.
+        $edit = $this->accessChecker->canEdit($user) && $this->spaceGuard->isGranted($user, WikiAction::Edit, $space);
+        if (!$edit) {
+            return [];
+        }
+        $icon   = $this->pageIconFieldEnabled();
+        $create = $this->mover instanceof WikiPageMover && isset($this->routes['page_new'])
+            && ($this->allowUnauthenticated || $this->accessChecker->canCreate($user)) && $this->spaceGuard->isGranted($user, WikiAction::Create, $space);
+        $orphans = [];
+        foreach ($tree as $node) {
+            if ($node['page']->getParent() instanceof WikiPage) {
+                $orphans[$node['page']->getId()] = true;
+            }
+        }
+        $nodes = WikiTreeMenu::annotate($treeUi['nodes'], $icon);
+        if ($create) {
+            $nodes = WikiNewPageMenu::annotate($nodes, $orphans);
+        }
+        $attr = $treeUi['attr'];
+        foreach (['rename', 'icon'] as $action) {
+            $attr['data-wiki-tree-' . $action] = $this->generateUrl($this->routes['space_tree']['name'], ['spaceSlug' => $space->getSlug(), 'action' => $action]);
+        }
+        if ($create && !$dialog) {
+            // Without the dialog, "Add child / sibling page" opens the new-page form with ?place=.
+            $attr['data-wiki-tree-new'] = $this->generateUrl($this->routes['page_new']['name'], ['spaceSlug' => $space->getSlug()]);
+        }
+        $form = null;
+        if ($icon) {
+            $form = $this->createFormBuilder(['icon' => null], ['csrf_protection' => false, 'translation_domain' => WikiPages::DOMAIN])
+                ->add('icon', $this->pageIconFieldType(), ['label' => 'wiki.page.icon', 'help' => 'wiki.page.icon_help', 'allowed_prefixes' => $this->iconPicker['page']['prefixes'] ?? WikiSpaceIcon::DEFAULT_PREFIXES])
+                ->getForm()
+                ->createView();
+        }
+
+        return [
+            'tree_ui'   => ['nodes' => $nodes, 'attr' => $attr, 'actions_template' => WikiTreeMenu::ACTIONS_TEMPLATE] + $treeUi,
+            'tree_menu' => ['icon_form' => $form, 'dialog' => $dialog],
+        ];
     }
 
     /**
@@ -1783,6 +1862,9 @@ final class WikiManageController extends AbstractController
             'editor_type'        => $this->editorType(),
             'markdown_form_type' => $this->editor['markdown_form_type'] ?? null,
             'icon_field'         => $this->pageIconFieldEnabled(),
+            // 1.39: the text field or the IconSelector picker, with the accepted prefixes (emoji included when allowed).
+            'icon_field_type'    => $this->pageIconFieldType(),
+            'icon_field_options' => ['allowed_prefixes' => $this->iconPicker['page']['prefixes'] ?? WikiSpaceIcon::DEFAULT_PREFIXES],
         ];
     }
 
@@ -1999,7 +2081,7 @@ final class WikiManageController extends AbstractController
      *
      * @return array<string, mixed>
      */
-    private function readLayoutVars(UserInterface $user, WikiSpace $space, WikiPage $page, bool $newPageMenu = false): array
+    private function readLayoutVars(UserInterface $user, WikiSpace $space, WikiPage $page, bool $newPageMenu = false, bool $pageView = false): array
     {
         [$tree, $truncated] = $this->buildTree($user, $space);
         $nodes              = $this->pages()->tree($space, $tree, $page->getSlug());
@@ -2016,6 +2098,10 @@ final class WikiManageController extends AbstractController
         if ($treeUi !== null) {
             // 1.35: the "New page above / below / as child" menu of the tree (web_ui.new_page_dialog, page view).
             $vars['tree_ui'] = $newPageMenu ? $this->withNewPageMenu($user, $space, $treeUi, $tree) : $treeUi;
+            // 1.39 (tree.context_menu): the page view's tree menu replaces the 1.35 new-page menu.
+            if ($pageView && $this->treeContextMenu) {
+                $vars = $this->withTreeMenu($user, $space, $treeUi, $tree, $newPageMenu) + $vars;
+            }
         }
         // 1.29 (web_ui.tree_rail): the tree card folds to a rail.
         if ($this->treeRail instanceof WikiTreeRail) {
@@ -2025,8 +2111,39 @@ final class WikiManageController extends AbstractController
         if (($this->layout['path'] ?? 'none') === 'card') {
             $vars['page_path'] = $this->pagePath($user, $space, $page);
         }
+        // 1.39 (web_ui.page_nav): previous / next page from the tree just built (readable active pages, no query).
+        $nav = $this->pageNav($space, $tree, $page);
+        if ($nav !== null) {
+            $vars['page_nav'] = $nav;
+        }
 
         return $vars;
+    }
+
+    /**
+     * 1.39 (`web_ui.page_nav`): the previous and next page in the tree's reading order ({@see WikiPageNav}), with title,
+     * icon and link; null when the option is off or the page has no neighbour in the loaded tree.
+     *
+     * @param list<array{page: WikiPage, children: list<mixed>}> $tree the sidebar tree of {@see self::buildTree()}
+     *
+     * @return array{position: string, prev: array{title: string, icon: string|null, href: string}|null, next: array{title: string, icon: string|null, href: string}|null}|null
+     */
+    private function pageNav(WikiSpace $space, array $tree, WikiPage $page): ?array
+    {
+        $position = $this->layout['page_nav'] ?? 'none';
+        if (!in_array($position, ['top', 'bottom', 'both'], true) || !isset($this->routes['page_view'])) {
+            return null;
+        }
+        $link = fn (?WikiPage $neighbour): ?array => $neighbour instanceof WikiPage ? [
+            'title' => $neighbour->getTitle(),
+            'icon'  => $neighbour->getIcon(),
+            'href'  => $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $neighbour->getSlug()]),
+        ] : null;
+        $neighbours = WikiPageNav::neighbours($tree, $page);
+        $prev       = $link($neighbours['prev']);
+        $next       = $link($neighbours['next']);
+
+        return $prev === null && $next === null ? null : ['position' => $position, 'prev' => $prev, 'next' => $next];
     }
 
     /**

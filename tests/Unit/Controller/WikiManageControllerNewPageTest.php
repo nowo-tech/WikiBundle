@@ -27,6 +27,7 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
@@ -40,6 +41,7 @@ use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiNewPageMenu;
+use Nowo\WikiBundle\Ui\WikiTreeMenu;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\Container;
@@ -397,10 +399,45 @@ final class WikiManageControllerNewPageTest extends TestCase
     }
 
     /**
-     * @param list<array<string, mixed>> $nodes
-     *
      * @return list<string> labels of the nodes with the attribute, depth first
      */
+    public function testTheTreeContextMenuMarksRowsAndReplacesTheNewPageMenu(): void
+    {
+        // 1.39 (tree.context_menu): with the dialog, the menu offers it ("above" too); rows marked once per page.
+        $this->controller(menu: true, iconField: true)->viewPage('eng', 'run');
+        $tree = $this->twig->context['tree_ui'];
+        self::assertSame(WikiTreeMenu::ACTIONS_TEMPLATE, $tree['actions_template']);
+        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($tree['nodes'], WikiTreeMenu::EDIT_ATTRIBUTE));
+        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($tree['nodes'], WikiTreeMenu::ICON_ATTRIBUTE));
+        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($tree['nodes'], 'data-wiki-new-child'));
+        self::assertSame('/generated/nowo_wiki_space_tree', $tree['attr']['data-wiki-tree-rename']);
+        self::assertArrayNotHasKey('data-wiki-tree-new', $tree['attr']);
+        $menu = $this->twig->context['tree_menu'];
+        self::assertTrue($menu['dialog']);
+        self::assertInstanceOf(FormView::class, $menu['icon_form']);
+
+        // Without the dialog: the new-page form (?place=); a row whose parent is archived gets no "sibling".
+        $this->ops->archive();
+        $this->em->flush();
+        $this->controller(dialog: false, menu: true)->space('eng');
+        $tree = $this->twig->context['tree_ui'];
+        self::assertSame('/generated/nowo_wiki_page_new', $tree['attr']['data-wiki-tree-new']);
+        self::assertSame(['Deep', 'Guide', 'Locked'], $this->marked($tree['nodes'], 'data-wiki-new-sibling'));
+        self::assertSame([], $this->marked($tree['nodes'], WikiTreeMenu::ICON_ATTRIBUTE));
+        self::assertNull($this->twig->context['tree_menu']['icon_form']);
+    }
+
+    public function testReadersGetNoTreeMenuAndEditorsWithoutCreateNoAddEntries(): void
+    {
+        $this->controller(menu: true, canEdit: false)->viewPage('eng', 'run');
+        self::assertArrayNotHasKey('tree_menu', $this->twig->context);
+        self::assertSame([], $this->marked($this->twig->context['tree_ui']['nodes'], WikiTreeMenu::EDIT_ATTRIBUTE));
+
+        $this->controller(dialog: false, menu: true, canCreate: false)->viewPage('eng', 'run');
+        self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($this->twig->context['tree_ui']['nodes'], WikiTreeMenu::EDIT_ATTRIBUTE));
+        self::assertSame([], $this->marked($this->twig->context['tree_ui']['nodes'], 'data-wiki-new-child'));
+    }
+
     private function marked(array $nodes, string $attribute): array
     {
         $out = [];
@@ -496,7 +533,7 @@ final class WikiManageControllerNewPageTest extends TestCase
      * @param (Closure(WikiAction, WikiSpace, ?WikiPage): bool)|null $decide
      * @param list<WikiSpace>|null $spaces
      */
-    private function controller(bool $dialog = true, bool $tree = true, ?Closure $decide = null, int $maxDepth = 10, bool $canCreate = true, ?array $spaces = null, bool $canEdit = true): WikiManageController
+    private function controller(bool $dialog = true, bool $tree = true, ?Closure $decide = null, int $maxDepth = 10, bool $canCreate = true, ?array $spaces = null, bool $canEdit = true, bool $menu = false, bool $iconField = false): WikiManageController
     {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
         $revisions  = new DoctrineOrmWikiPageRevisionRepository($this->em);
@@ -550,6 +587,9 @@ final class WikiManageControllerNewPageTest extends TestCase
             mover: $tree ? new WikiPageMover($repository, $repository, null, $maxDepth) : null,
             treeState: $tree ? $state : null,
             layout: ['new_page_dialog' => $dialog],
+            pageIcons: $iconField ? new WikiPageIconService($repository) : null,
+            pageIconField: $iconField,
+            treeContextMenu: $menu,
         );
         $this->container = WikiControllerContainerBuilder::bind($controller, $this->user, ['twig' => $this->twig]);
 

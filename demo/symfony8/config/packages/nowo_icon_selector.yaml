@@ -1,0 +1,5 @@
+# 1.39 (nowo_wiki page_icon / space_icon .picker: icon_selector): the IconSelector picker of the page and space icon
+# fields. The wiki limits each field to space_icon.allowed_prefixes (bi in this demo, the Bootstrap Icons set of UiKit).
+nowo_icon_selector:
+    icon_sets:
+        - bootstrap-icons

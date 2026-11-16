@@ -146,6 +146,7 @@ use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\User\WikiUserDirectoryInterface;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\User\WikiUsers;
+use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
@@ -172,6 +173,7 @@ use function array_merge;
 use function array_unique;
 use function array_values;
 use function class_exists;
+use function in_array;
 use function interface_exists;
 use function is_array;
 use function is_bool;
@@ -318,6 +320,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.pagination', $config['pagination']);
         $container->setParameter('nowo_wiki.space_icon.allowed_prefixes', array_values($config['space_icon']['allowed_prefixes']));
         $container->setParameter('nowo_wiki.page_icon.form_field', $config['page_icon']['form_field']);
+        $container->setParameter('nowo_wiki.icon_picker', self::iconPicker($config));
+        $container->setParameter('nowo_wiki.space_icon.accepted_prefixes', self::iconPicker($config)['space']['prefixes']);
+        $container->setParameter('nowo_wiki.space_icon.picker', self::iconPicker($config)['space']['picker']);
+        $container->setParameter('nowo_wiki.page_icon.accepted_prefixes', self::iconPicker($config)['page']['prefixes']);
+        $container->setParameter('nowo_wiki.tree.context_menu', $config['tree']['enabled'] && $this->literalBool($config['tree']['context_menu'], 'tree.context_menu'));
         $container->setParameter('nowo_wiki.attachments', $config['attachments']);
         $container->setParameter('nowo_wiki.tenant_paths', $config['tenant_paths']);
         $container->setParameter('nowo_wiki.import_export.enabled', (bool) $config['import_export']['enabled']);
@@ -965,6 +972,47 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
+     * 1.39: the icon fields of pages and spaces. `prefixes` are the accepted `<prefix>` values, `emoji` adds the
+     * pseudo-prefix "emoji" (values `emoji:<grapheme>`). `picker: icon_selector` and `emoji` need
+     * nowo-tech/icon-selector-bundle >= 1.6 (its emoji catalogue and the `icon_prefixes` option).
+     *
+     * @param array<string, mixed> $config processed configuration
+     * @param string $catalog the IconSelector interface that marks a usable version (tests name a missing one)
+     *
+     * @throws LogicException when the picker or emoji is configured without nowo-tech/icon-selector-bundle >= 1.6
+     *
+     * @return array{page: array{picker: string, emoji: bool, prefixes: list<string>, icon_prefixes: list<string>}, space: array{picker: string, emoji: bool, prefixes: list<string>, icon_prefixes: list<string>}}
+     */
+    public static function iconPicker(array $config, string $catalog = self::ICON_SELECTOR_EMOJI_CATALOG): array
+    {
+        /** @var array{allowed_prefixes: list<string>, picker?: string, emoji?: bool} $spaceIcon */
+        $spaceIcon = $config['space_icon'];
+        /** @var array{picker?: string, emoji?: bool} $pageIcon */
+        $pageIcon = $config['page_icon'];
+        $prefixes = array_values($spaceIcon['allowed_prefixes']);
+        $out      = [];
+        foreach (['page' => $pageIcon, 'space' => $spaceIcon] as $scope => $node) {
+            $picker = $node['picker'] ?? 'text';
+            $emoji  = ($node['emoji'] ?? false) === true;
+            if (($picker === 'icon_selector' || $emoji) && !interface_exists($catalog)) {
+                throw new LogicException(sprintf('nowo_wiki.%s_icon.%s needs nowo-tech/icon-selector-bundle >= 1.6 (composer require nowo-tech/icon-selector-bundle:^1.6) with NowoIconSelectorBundle registered.', $scope, $picker === 'icon_selector' ? 'picker: icon_selector' : 'emoji: true'));
+            }
+            $out[$scope] = [
+                'picker'        => $picker,
+                'emoji'         => $emoji,
+                'prefixes'      => $emoji ? [...$prefixes, WikiSpaceIcon::EMOJI_PREFIX_NAME] : $prefixes,
+                'icon_prefixes' => $prefixes,
+            ];
+        }
+
+        /* @var array{page: array{picker: string, emoji: bool, prefixes: list<string>, icon_prefixes: list<string>}, space: array{picker: string, emoji: bool, prefixes: list<string>, icon_prefixes: list<string>}} $out */
+        return $out;
+    }
+
+    /** IconSelectorBundle >= 1.6: the emoji catalogue port (also the marker of the `icon_prefixes` option). */
+    public const ICON_SELECTOR_EMOJI_CATALOG = 'Nowo\\IconSelectorBundle\\Emoji\\EmojiCatalogInterface';
+
+    /**
      * 1.14: the page tree — the mover (space-locked transaction on the Doctrine page repository, `nowo_wiki.page.moved`)
      * and the fold state store (the session unless `tree.state_store` names a service).
      *
@@ -1165,7 +1213,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      * 1.29: `layout` (tree_rail, narrow_tree_position, reading_width, page_header, title, comments_dock), read by the
      * page view, the edit form and the space home. 1.30: tabs, toolbar_position, tree_collapsed_mode, reading_align, title `body`, path, children, breadcrumb_current_label, seamless_swap. 1.31: title `card`, page_meta. 1.33: edit_layout, edit_current_tab, edit_back. 1.35: new_page_dialog.
      *
-     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string, new_page_dialog: bool}}
+     * @return array{assets: array{styles: bool, scripts: bool}, slots: array<string, string|null>, import_export: string, layout: array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string, new_page_dialog: bool, page_nav: string}}
      */
     public static function ui(array $webUi): array
     {
@@ -1191,7 +1239,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
      *
      * @param array<string, mixed> $webUi processed `web_ui` node
      *
-     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string, new_page_dialog: bool}
+     * @return array{tree_rail: bool, narrow_tree_position: string, reading_width: string, page_header: string, title: string, tabs: string, toolbar_position: string, tree_collapsed_mode: string, reading_align: string, path: string, children: string, breadcrumb_current_label: bool, seamless_swap: bool, page_meta: string, edit_layout: string, edit_current_tab: string, edit_back: string, new_page_dialog: bool, page_nav: string}
      */
     public static function layout(array $webUi): array
     {
@@ -1233,6 +1281,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             'edit_back'        => ($header['edit_toolbar']['back'] ?? 'none') === 'view' ? 'view' : 'none',
             // 1.35
             'new_page_dialog' => ($webUi['new_page_dialog'] ?? false) === true,
+            // 1.39
+            'page_nav' => in_array($webUi['page_nav'] ?? 'none', ['top', 'bottom', 'both'], true) ? $webUi['page_nav'] : 'none',
         ];
     }
 

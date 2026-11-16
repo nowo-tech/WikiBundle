@@ -281,6 +281,36 @@ wiki:
     create: "Créer la page"
     error:
       placement: "Cet emplacement de l’arborescence n’est plus valide. Rouvrez le menu de l’arborescence."
+  # 1.39: previous / next page (web_ui.page_nav) and the page tree's context menu (tree.context_menu).
+  page_nav:
+    label_top: "Page précédente et suivante"
+    label_bottom: "Page précédente et suivante (fin de page)"
+    prev: "Page précédente"
+    next: "Page suivante"
+    prev_aria: "Page précédente : %title%"
+    next_aria: "Page suivante : %title%"
+  tree_menu:
+    menu: "Actions de la page"
+    more: "Actions pour « %title% »"
+    rename: "Renommer"
+    icon: "Changer l’icône / l’emoji"
+    child: "Ajouter une sous-page"
+    below: "Ajouter une page sœur"
+    above: "Ajouter une page au-dessus"
+    copy: "Copier le lien"
+    copied: "Lien copié."
+    copy_failed: "Le lien n’a pas pu être copié."
+    rename_field: "Renommer « %title% »"
+    renamed: "« %from% » renommée en « %title% »."
+    icon_title: "Changer l’icône"
+    icon_context: "Page « %title% »"
+    icon_save: "Enregistrer l’icône"
+    icon_saved: "Icône de « %title% » enregistrée."
+    error:
+      title_invalid: "Saisissez un titre (255 caractères au plus, sans caractères de contrôle)."
+      being_edited: "Quelqu’un modifie cette page : renommez-la depuis la vue d’édition."
+      conflict: "La page a changé entre-temps : rechargez et réessayez."
+      page_gone: "Cette page a été archivée ou supprimée entre-temps : rechargez la page."
 wiki_page_form:
   title:
     placeholder: "Titre de la page"

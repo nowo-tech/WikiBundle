@@ -8,6 +8,7 @@ use App\Entity\User;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageService;
 
 use function sprintf;
@@ -24,6 +25,7 @@ final class WikiDemoSeeder
 
     public function __construct(
         private readonly WikiPageService $pageService,
+        private readonly ?WikiPageIconService $pageIcons = null,
     ) {
     }
 
@@ -57,6 +59,10 @@ final class WikiDemoSeeder
         // 1.13: a Markdown page in the Milkdown dialect (page links by id, mention, icons, callout, math, Mermaid).
         $this->pageService->create($space, 'Milkdown showcase', $this->milkdownShowcase($welcome, $deploy), $user, null, 'milkdown-showcase', WikiPageRevision::FORMAT_MARKDOWN);
 
+        // 1.39 (page_icon.emoji, page_icon.picker): a few emoji page icons in the tree, the titles and the previous / next links.
+        foreach ([[$welcome, 'emoji:👋'], [$gettingStarted, 'emoji:🚀'], [$architecture, 'emoji:🧩'], [$runbooks, 'emoji:📘'], [$deploy, 'emoji:🚢']] as [$page, $icon]) {
+            $this->pageIcons?->setIcon($page, $icon);
+        }
         unset($legacy, $welcome, $gettingStarted, $installation, $configuration, $architecture, $frontend, $tiptap, $backend, $runbooks, $deploy, $rollback);
     }
 

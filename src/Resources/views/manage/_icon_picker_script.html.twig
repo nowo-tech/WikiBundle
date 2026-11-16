@@ -1,0 +1,6 @@
+{#- 1.39 (page_icon.picker / space_icon.picker: icon_selector): IconSelector's script for the picker of the page form,
+    the new-page dialog and the tree's "Change icon" dialog (external, deferred, with the CSP nonce when there is one).
+    Variables: nonce (optional). -#}
+{%- if nowo_wiki_icon_picker() -%}
+<script src="{{ asset('icon-selector.js', 'nowo_icon_selector') }}" defer{% if nonce|default(null) %} nonce="{{ nonce }}"{% endif %}></script>
+{%- endif -%}

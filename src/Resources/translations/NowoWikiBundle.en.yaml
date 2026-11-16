@@ -281,6 +281,36 @@ wiki:
     create: "Create page"
     error:
       placement: "That place in the page tree is no longer valid. Open the page tree menu again."
+  # 1.39: previous / next page (web_ui.page_nav) and the page tree's context menu (tree.context_menu).
+  page_nav:
+    label_top: "Previous and next page"
+    label_bottom: "Previous and next page (end of page)"
+    prev: "Previous page"
+    next: "Next page"
+    prev_aria: "Previous page: %title%"
+    next_aria: "Next page: %title%"
+  tree_menu:
+    menu: "Page actions"
+    more: "Actions for “%title%”"
+    rename: "Rename"
+    icon: "Change icon / emoji"
+    child: "Add child page"
+    below: "Add sibling page"
+    above: "Add page above"
+    copy: "Copy link"
+    copied: "Link copied."
+    copy_failed: "The link could not be copied."
+    rename_field: "Rename “%title%”"
+    renamed: "“%from%” renamed to “%title%”."
+    icon_title: "Change icon"
+    icon_context: "Page “%title%”"
+    icon_save: "Save icon"
+    icon_saved: "Icon of “%title%” saved."
+    error:
+      title_invalid: "Enter a title (at most 255 characters, no control characters)."
+      being_edited: "Someone is editing this page: rename it from the edit view."
+      conflict: "The page changed meanwhile: reload and try again."
+      page_gone: "This page was archived or deleted meanwhile: reload the page."
 wiki_page_form:
   title:
     placeholder: "Page title"

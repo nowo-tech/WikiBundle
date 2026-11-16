@@ -45,13 +45,22 @@ final class WikiPageFormType extends AbstractType
                 'label' => 'wiki.form.title',
                 // An empty title reaches the slug check (a flash), not the string property as null (a 500).
                 'empty_data' => '',
+                // 1.39: the title reads as the page title (heading size, wiki.css with the --nowo-wiki-read-* / UiKit
+                // tokens); the visible label stays, so the field keeps its accessible name.
+                'attr'     => ['class' => 'nowo-wiki-title-input', 'autocomplete' => 'off'],
+                'row_attr' => ['class' => 'nowo-wiki-title-row'],
             ]);
             if ($options['icon_field'] === true) {
                 // 1.38 (page_icon.form_field): the space icon's field, checked against the same prefixes.
-                $this->addTypedField('icon', WikiSpaceIconType::class, [
+                // 1.39: the text field or the IconSelector picker (page_icon.picker), with the page's accepted prefixes.
+                /** @var class-string<WikiIconPickerType|WikiSpaceIconType> $iconType */
+                $iconType = $options['icon_field_type'];
+                /** @var array<string, mixed> $iconOptions */
+                $iconOptions = $options['icon_field_options'];
+                $this->addTypedField('icon', $iconType, [
                     'label' => 'wiki.page.icon',
                     'help'  => 'wiki.page.icon_help',
-                ]);
+                ] + $iconOptions);
             }
             if ($options['placement'] === true) {
                 // 1.35: read by the controller (WikiPagePlacement::fromValue()); not mapped onto the payload.
@@ -126,7 +135,12 @@ final class WikiPageFormType extends AbstractType
             'placement' => false,
             // 1.38: the optional page icon field (page_icon.form_field).
             'icon_field' => false,
+            // 1.39: the icon field's type and options (page_icon.picker / page_icon.emoji).
+            'icon_field_type'    => WikiSpaceIconType::class,
+            'icon_field_options' => [],
         ]);
+        $resolver->setAllowedValues('icon_field_type', [WikiSpaceIconType::class, WikiIconPickerType::class]);
+        $resolver->setAllowedTypes('icon_field_options', 'array');
         $resolver->setAllowedTypes('icon_field', 'bool');
         $resolver->setAllowedTypes('placement', 'bool');
 

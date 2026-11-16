@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Symfony\Component\DependencyInjection\Attribute\AsDecorator;
 use Symfony\Component\DependencyInjection\Attribute\AutowireDecorated;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
@@ -27,12 +28,23 @@ use Symfony\Contracts\Service\ResetInterface;
 #[AsDecorator(LegacyWikiSpaceAccessChecker::class)]
 final readonly class DemoWikiSpaceAccessChecker implements WikiSpaceAccessCheckerInterface, ResetInterface
 {
-    public function __construct(#[AutowireDecorated] private WikiSpaceAccessCheckerInterface $inner)
-    {
+    /** 1.39 demo: with this cookie set to 1 the demo user only reads (e2e permission variants of the tree menu). */
+    public const READER_COOKIE = 'demo_wiki_reader';
+
+    public function __construct(
+        #[AutowireDecorated]
+        private WikiSpaceAccessCheckerInterface $inner,
+        private ?RequestStack $requestStack = null,
+    ) {
     }
 
     public function isGranted(UserInterface $user, WikiAction $action, WikiSpace $space, ?WikiPage $page = null): bool
     {
+        // Read per call from the current request: nothing is kept between requests (worker mode).
+        if ($this->requestStack?->getCurrentRequest()?->cookies->get(self::READER_COOKIE) === '1' && $action !== WikiAction::View) {
+            return false;
+        }
+
         $mapped = match ($action) {
             WikiAction::ViewComments                                 => WikiAction::View,
             WikiAction::Comment                                      => WikiAction::Edit,
