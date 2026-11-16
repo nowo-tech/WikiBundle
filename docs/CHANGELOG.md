@@ -262,6 +262,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The edit view's title field reads as the page title (heading size from the read view's tokens,
   `nowo-wiki-title-input`), its label kept.
 - With `tree.context_menu: true` the new-page form also takes `?place=` without `web_ui.new_page_dialog`.
+- With `nowo-tech/milkdown-editor-bundle` 1.18 (Milkdown editor), anchored page links (`[[wiki:<uuid>#<id>]]`) render
+  `#nowo-h-<id>`, the id of the target heading, and their label shows the page title or section text instead of
+  "› <id>" (a Milkdown default-output change; WikiBundle itself is unchanged).
 
 ## [1.38.1] - 2026-11-16
 

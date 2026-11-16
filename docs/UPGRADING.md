@@ -107,6 +107,9 @@
   / `space.html.twig` (include `_tree_menu.html.twig` in `nowo_ui_modals` like the bundle), need updating first.
 - **Icon picker / emoji** need `nowo-tech/icon-selector-bundle:^1.6` (`composer require`), its API routes imported
   and `assets:install`. On MySQL / MariaDB emoji need a `utf8mb4` connection.
+- **Milkdown 1.18**: with `nowo-tech/milkdown-editor-bundle` >= 1.18, anchored page links render `#nowo-h-<id>` (the
+  heading id) instead of `#<id>`, labelled with the page title or section text instead of "› <id>". Host CSS, tests
+  or scripts that match the old `href="…#<id>"` or the "› <id>" label need updating.
 - `WikiPageIconService`, `WikiSpaceIconType` and `WikiTreeController` gained optional trailing constructor arguments.
 - Templates: new partials `_page_nav.html.twig`, `_tree_menu.html.twig`, `_tree_menu_button.html.twig`,
   `_icon_picker_script.html.twig`; `_page_icon.html.twig` renders `emoji:` values.

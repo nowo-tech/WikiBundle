@@ -69,7 +69,11 @@ final class MilkdownWikiMarkdownRendererTest extends TestCase
             'See [[wiki:' . self::PAGE . "#setup]] by @ana\n\n::beacon{type=issue}\n",
         );
 
-        self::assertStringContainsString('<a class="nowo-md-ref" href="/wiki/install#setup">Install &lt;guide&gt; › setup</a>', $html);
+        // Milkdown <= 1.17: the raw anchor and "› id" in the label; >= 1.18: `#nowo-h-<id>` and the title (or section) text.
+        self::assertMatchesRegularExpression(
+            '~<a class="nowo-md-ref" href="/wiki/install(?:#setup">Install &lt;guide&gt; › setup|#nowo-h-setup">Install &lt;guide&gt;)</a>~u',
+            $html,
+        );
         self::assertStringContainsString('<a class="nowo-md-mention" href="/people/ana" title="Ana">@ana</a>', $html);
         self::assertStringContainsString('HOST BLOCK', $html);
     }
