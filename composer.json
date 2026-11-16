@@ -82,7 +82,8 @@
         "symfony/mercure-bundle": "^0.6.1 || ^0.7.0",
         "symfony/rate-limiter": "^7.4 || ^8.0",
         "symfony/var-exporter": "^7.4 || ^8.0",
-        "vincentlanglet/twig-cs-fixer": "^4.0"
+        "vincentlanglet/twig-cs-fixer": "^4.0",
+        "nowo-tech/icon-selector-bundle": "^1.6"
     },
     "autoload": {
         "psr-4": {
