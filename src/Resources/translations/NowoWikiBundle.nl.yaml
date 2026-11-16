@@ -310,6 +310,7 @@ wiki:
       title_invalid: "Voer een titel in (hoogstens 255 tekens, geen stuurtekens)."
       being_edited: "Iemand bewerkt deze pagina: hernoem haar vanuit de bewerkweergave."
       conflict: "De pagina is intussen gewijzigd: laad opnieuw en probeer het nog eens."
+      page_gone: "Deze pagina is intussen gearchiveerd of verwijderd: laad de pagina opnieuw."
 wiki_page_form:
   title:
     placeholder: "Paginatitel"

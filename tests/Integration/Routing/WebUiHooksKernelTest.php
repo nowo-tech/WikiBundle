@@ -254,7 +254,7 @@ final class WebUiHooksKernelTest extends TestCase
     /** 1.39 (tree.context_menu, default on): the tree menu replaces the 1.35 menu; entries follow the configuration. */
     public function testTheTreeContextMenu(): void
     {
-        $this->boot(['tree' => ['enabled' => true], 'page_icon' => ['form_field' => true]], '-treemenu');
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true]], '-treemenu');
         $html = $this->html('/tools/wiki/spaces/eng/pages/home');
 
         self::assertStringContainsString('data-wiki-tree-menu ', $html);
@@ -274,7 +274,7 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringContainsString('name="form[icon]"', $html);
 
         $this->kernel?->shutdown();
-        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-treemenu-dialog');
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true], 'web_ui' => ['new_page_dialog' => true]], '-treemenu-dialog');
         $html = $this->html('/tools/wiki/spaces/eng/pages/home');
         self::assertStringContainsString('data-wiki-tree-menu-item="above"', $html);
         self::assertStringNotContainsString('data-wiki-tree-menu-item="icon"', $html);
@@ -285,12 +285,22 @@ final class WebUiHooksKernelTest extends TestCase
     /** 1.39: the new-page form takes ?place= with the tree menu but without the dialog. */
     public function testTheNewPageFormTakesThePlaceWithTheTreeMenu(): void
     {
-        $this->boot(['tree' => ['enabled' => true]], '-treemenu');
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true]], '-treemenu');
         $html = $this->html('/tools/wiki/spaces/eng/pages/new?place=child%3Aabc');
 
         self::assertStringContainsString('name="wiki_page_form[place]"', $html);
         self::assertStringContainsString('value="child:abc"', $html);
         self::assertStringContainsString('nowo-wiki-title-input', $html);
+    }
+
+    /** Audit RS-L2: by default (tree.context_menu off) the new-page form takes no place without the dialog, as in 1.38. */
+    public function testByDefaultTheNewPageFormHasNoPlaceWithoutTheDialog(): void
+    {
+        $this->boot(['tree' => ['enabled' => true]], '-defaults-tree');
+        $html = $this->html('/tools/wiki/spaces/eng/pages/new?place=child%3Aabc');
+
+        self::assertStringNotContainsString('wiki_page_form[place]', $html);
+        self::assertStringNotContainsString('data-wiki-tree-menu', $html);
     }
 
     /**
@@ -341,13 +351,13 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringContainsString('nowo-wiki-page-nav__link--empty', $html);
     }
 
-    /** 1.39: an emoji icon is escaped text in the tree, the title line and the children cards. */
+    /** 1.39: an emoji icon is escaped text in the tree and the title line. */
     public function testEmojiIconsRenderAsText(): void
     {
         if (!interface_exists(WikiExtension::ICON_SELECTOR_EMOJI_CATALOG)) {
             self::markTestSkipped('nowo-tech/icon-selector-bundle >= 1.6 (dev dependency) is not installed.');
         }
-        $this->boot(['tree' => ['enabled' => true], 'page_icon' => ['form_field' => true, 'emoji' => true], 'web_ui' => ['children' => 'always']], '-icon-emoji');
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true, 'emoji' => true]], '-icon-emoji');
         $container = $this->services();
         $icons     = $container->get(WikiPageIconService::class);
         self::assertInstanceOf(WikiPageIconService::class, $icons);
@@ -368,7 +378,7 @@ final class WebUiHooksKernelTest extends TestCase
     /** 1.35 (web_ui.new_page_dialog): the dialog, the page action, the tree menu and its «…» buttons; a placed create. */
     public function testTheNewPageDialogAndTheTreeMenu(): void
     {
-        $this->boot(['tree' => ['enabled' => true, 'context_menu' => false], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
         $html = $this->html('/tools/wiki/spaces/eng/pages/home');
 
         self::assertStringContainsString('<dialog id="nowo-wiki-new-page-dialog"', $html);
@@ -389,13 +399,13 @@ final class WebUiHooksKernelTest extends TestCase
 
         // One request per kernel, as the other tests (the token does not survive a request here).
         $this->kernel?->shutdown();
-        $this->boot(['tree' => ['enabled' => true, 'context_menu' => false], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
         $space = $this->html('/tools/wiki/spaces/eng');
         self::assertStringContainsString('<dialog id="nowo-wiki-new-page-dialog"', $space);
         self::assertStringContainsString('data-wiki-new-page-menu', $space);
 
         $this->kernel?->shutdown();
-        $this->boot(['tree' => ['enabled' => true, 'context_menu' => false], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
         $entityManager = $this->services()->get(EntityManagerInterface::class);
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
         $home = $entityManager->getRepository(WikiPage::class)->findOneBy(['slug' => 'home']);

@@ -2,7 +2,7 @@
   1.30 (web_ui.children): "Pages in this section", after the page body: the readable direct sub-pages in tree order, a
   compact list with an icon (UiKit `icon` component) and the title. page_children.mode auto: shown only while the tree
   is collapsed or on one column (wiki.css).
-  Variables: page_children ({mode, items: list of {label, href, icon (1.39, optional)}}), bundle.
+  Variables: page_children ({mode, items: list of {label, href}}), bundle.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
 {% set _b = bundle|default(null) %}
@@ -15,7 +15,7 @@
     <ul class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-children__list">
         {% for child in _children.items %}
             <li class="nowo-wiki-children__item">
-                <a class="nowo-wiki-children__link" href="{{ child.href }}">{% if child.icon|default(null) %}{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: child.icon, base_class: 'nowo-wiki-children__icon', fallback: 'book'}, false) }}{% else %}<span class="nowo-wiki-children__icon" aria-hidden="true">{{ include('@NowoUiKitBundle/components/_icon.html.twig', {name: 'book', label: ''}, false)|trim|raw }}</span>{% endif %}<span class="nowo-wiki-children__label">{{ child.label }}</span></a>
+                <a class="nowo-wiki-children__link" href="{{ child.href }}"><span class="nowo-wiki-children__icon" aria-hidden="true">{{ include('@NowoUiKitBundle/components/_icon.html.twig', {name: 'book', label: ''}, false)|trim|raw }}</span><span class="nowo-wiki-children__label">{{ child.label }}</span></a>
             </li>
         {% endfor %}
     </ul>

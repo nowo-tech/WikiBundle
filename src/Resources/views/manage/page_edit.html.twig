@@ -56,9 +56,8 @@
         {% if comments|default(null) %}
             <script src="{{ asset('js/nowo-ui-side-panel.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
         {% endif %}
-        {{ include('@NowoWikiBundle/manage/_icon_picker_script.html.twig', {nonce: _nonce}, false) }}
-        {% if comments|default(null) or tree is defined %}
-        <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans({}, 'NowoWikiBundle') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        {% if nowo_wiki_icon_picker() %}{{ include('@NowoWikiBundle/manage/_icon_picker_script.html.twig', {nonce: _nonce}, false) }}{% endif %}{% if comments|default(null) or tree is defined %}
+            <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans({}, 'NowoWikiBundle') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
         {% endif %}
     {% endif %}
 {% endblock %}

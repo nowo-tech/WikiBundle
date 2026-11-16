@@ -310,6 +310,7 @@ wiki:
       title_invalid: "Geben Sie einen Titel ein (höchstens 255 Zeichen, keine Steuerzeichen)."
       being_edited: "Jemand bearbeitet diese Seite: Benennen Sie sie in der Bearbeitungsansicht um."
       conflict: "Die Seite wurde inzwischen geändert: Laden Sie neu und versuchen Sie es erneut."
+      page_gone: "Diese Seite wurde inzwischen archiviert oder gelöscht: Laden Sie die Seite neu."
 wiki_page_form:
   title:
     placeholder: "Seitentitel"

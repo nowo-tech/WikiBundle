@@ -429,7 +429,7 @@ final class ConfigurationTest extends TestCase
     public function testTreeDefaults(): void
     {
         $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
-        self::assertSame(['enabled' => false, 'context_menu' => true, 'max_depth' => 10, 'state_store' => null, 'default_expanded' => 'current_path'], $defaults['tree']);
+        self::assertSame(['enabled' => false, 'context_menu' => false, 'max_depth' => 10, 'state_store' => null, 'default_expanded' => 'current_path'], $defaults['tree']);
         self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/move', $defaults['routes']['page_move']['path']);
         self::assertSame('nowo_wiki_space_tree', $defaults['routes']['space_tree']['name']);
         self::assertNull($defaults['web_ui']['templates']['page_move']);

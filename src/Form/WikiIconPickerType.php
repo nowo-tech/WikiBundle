@@ -62,7 +62,7 @@ final class WikiIconPickerType extends AbstractType
         )));
         $resolver->setDefault('emoji', static fn (Options $options): bool => in_array(WikiSpaceIcon::EMOJI_PREFIX_NAME, $options['allowed_prefixes'], true));
         $resolver->setDefault('constraints', fn (Options $options): array => WikiSpaceIconType::iconConstraints($options['allowed_prefixes'], $this->iconRenderer, $this->emojiCatalog));
-        $resolver->setDefault('setter', static fn (Options $options): callable => WikiSpaceIconType::iconSetter($options['allowed_prefixes']));
+        $resolver->setDefault('setter', fn (Options $options): callable => WikiSpaceIconType::iconSetter($options['allowed_prefixes'], $this->emojiCatalog));
     }
 
     public function getParent(): string

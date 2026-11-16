@@ -43,7 +43,7 @@ final class WikiIconPickerConfigTest extends TestCase
         $container = $this->load([
             'space_icon' => ['allowed_prefixes' => ['tabler', 'lucide'], 'picker' => 'icon_selector'],
             'page_icon'  => ['form_field' => true, 'picker' => 'icon_selector', 'emoji' => true],
-            'tree'       => ['enabled' => true],
+            'tree'       => ['enabled' => true, 'context_menu' => true],
             'web_ui'     => ['page_nav' => 'both'],
         ]);
 
@@ -60,6 +60,8 @@ final class WikiIconPickerConfigTest extends TestCase
     {
         self::assertFalse($this->load([])->getParameter('nowo_wiki.tree.context_menu'));
         self::assertFalse($this->load(['tree' => ['enabled' => true, 'context_menu' => false]])->getParameter('nowo_wiki.tree.context_menu'));
+        // Audit RS-L2: opt-in, off by default even with the tree.
+        self::assertFalse($this->load(['tree' => ['enabled' => true]])->getParameter('nowo_wiki.tree.context_menu'));
     }
 
     public function testBadValuesAreRefused(): void

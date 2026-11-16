@@ -310,6 +310,7 @@ wiki:
       title_invalid: "Escribe un título (máximo 255 caracteres, sin caracteres de control)."
       being_edited: "Alguien está editando esta página: renómbrala desde la vista de edición."
       conflict: "La página ha cambiado mientras tanto: recarga e inténtalo de nuevo."
+      page_gone: "Esta página se archivó o eliminó mientras tanto: recarga la página."
 wiki_page_form:
   title:
     placeholder: "Título de la página"

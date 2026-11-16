@@ -310,6 +310,7 @@ wiki:
       title_invalid: "Saisissez un titre (255 caractères au plus, sans caractères de contrôle)."
       being_edited: "Quelqu’un modifie cette page : renommez-la depuis la vue d’édition."
       conflict: "La page a changé entre-temps : rechargez et réessayez."
+      page_gone: "Cette page a été archivée ou supprimée entre-temps : rechargez la page."
 wiki_page_form:
   title:
     placeholder: "Titre de la page"

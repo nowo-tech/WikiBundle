@@ -17,6 +17,7 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
+use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
@@ -176,9 +177,9 @@ final class WikiTreeControllerMenuTest extends TestCase
         $this->controller()->tree($this->post(['page' => $this->page->getId(), 'icon' => ['x']]), 'eng', 'icon');
     }
 
-    public function testRenameConflictsAnswer409AndInvalidTitlesFromTheService422(): void
+    public function testRenameConflictsAnswer409AndAPageArchivedMeanwhile410(): void
     {
-        foreach ([[new WikiRevisionConflictException(1, 2), 409, 'conflict'], [new WikiRevisionCollisionException('race'), 409, 'conflict'], [new InvalidArgumentException('slug'), 422, 'title_invalid']] as [$exception, $status, $error]) {
+        foreach ([[new WikiRevisionConflictException(1, 2), 409, 'conflict'], [new WikiRevisionCollisionException('race'), 409, 'conflict'], [new InvalidArgumentException('Archived pages cannot be edited.'), 410, 'page_gone']] as [$exception, $status, $error]) {
             $service = $this->createStub(WikiPageServiceInterface::class);
             $service->method('saveRevision')->willThrowException($exception);
             $answer = $this->controller(pageService: $service)->tree($this->post(['page' => $this->page->getId(), 'title' => 'Other']), 'eng', 'rename');
@@ -204,13 +205,59 @@ final class WikiTreeControllerMenuTest extends TestCase
         self::assertSame('Unlocked', $this->locked->getTitle());
     }
 
+    public function testChangeIconOnAPageArchivedMeanwhileAnswers410(): void
+    {
+        // Audit RS-I1: the value is valid; the write is refused under the lock (archived between the read and the lock).
+        $inner = new DoctrineOrmWikiPageRepository($this->em);
+        $pages = new class($inner) implements WikiPageRepositoryInterface {
+            public function __construct(private readonly WikiPageRepositoryInterface $inner)
+            {
+            }
+
+            public function save(WikiPage $page): void
+            {
+                throw new InvalidArgumentException('Archived pages cannot be edited.');
+            }
+
+            public function findById(string $id): ?WikiPage
+            {
+                return $this->inner->findById($id);
+            }
+
+            public function findBySlug(WikiSpace $space, string $slug): ?WikiPage
+            {
+                return $this->inner->findBySlug($space, $slug);
+            }
+
+            public function findActiveBySpace(WikiSpace $space, ?int $limit = null): array
+            {
+                return $this->inner->findActiveBySpace($space, $limit);
+            }
+
+            public function findArchivedBySpace(WikiSpace $space, int $limit = 100): array
+            {
+                return $this->inner->findArchivedBySpace($space, $limit);
+            }
+
+            public function countBySpaceAndSlug(WikiSpace $space, string $slug, ?string $excludePageId = null): int
+            {
+                return $this->inner->countBySpaceAndSlug($space, $slug, $excludePageId);
+            }
+        };
+
+        $answer = $this->controller(pageIcons: new WikiPageIconService($pages, ['tabler', 'emoji'], emojiCatalog: new EmojiCatalog()))
+            ->tree($this->post(['page' => $this->page->getId(), 'icon' => 'emoji:🚀']), 'eng', 'icon');
+        self::assertSame(410, $answer->getStatusCode());
+        self::assertSame('page_gone', $this->json($answer->getContent())['error']);
+    }
+
     public function testChangeIconNeedsTheIconField(): void
     {
         $this->expectException(NotFoundHttpException::class);
         $this->controller(iconField: false)->tree($this->post(['page' => $this->page->getId(), 'icon' => 'tabler:home']), 'eng', 'icon');
     }
 
-    private function controller(bool $roleEdit = true, ?WikiPage $deny = null, bool $menu = true, bool $service = true, bool $iconField = true, ?WikiPageServiceInterface $pageService = null, ?WikiCollabService $collab = null): WikiTreeController
+    private function controller(bool $roleEdit = true, ?WikiPage $deny = null, bool $menu = true, bool $service = true, bool $iconField = true, ?WikiPageServiceInterface $pageService = null, ?WikiCollabService $collab = null, ?WikiPageIconService $pageIcons = null): WikiTreeController
     {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
         $checker    = new CallbackSpaceAccessChecker(static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !($deny !== null && $page === $deny && $action === WikiAction::Edit));
@@ -226,7 +273,7 @@ final class WikiTreeControllerMenuTest extends TestCase
             new WikiPageMover($repository, $repository),
             new SessionWikiTreeStateStore(new RequestStack([$request])),
             pageService: $service ? ($pageService ?? $this->service) : null,
-            pageIcons: new WikiPageIconService($repository, ['tabler', 'emoji'], emojiCatalog: new EmojiCatalog()),
+            pageIcons: $pageIcons ?? new WikiPageIconService($repository, ['tabler', 'emoji'], emojiCatalog: new EmojiCatalog()),
             pageIconField: $iconField,
             collab: $collab,
             contextMenu: $menu,

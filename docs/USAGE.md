@@ -257,7 +257,7 @@ nowo_wiki:
         emoji: true
     tree:
         enabled: true
-        context_menu: true        # default
+        context_menu: true        # opt-in (default false)
     web_ui:
         page_nav: both            # none (default) | top | bottom | both
 ```
@@ -266,9 +266,9 @@ nowo_wiki:
   Emoji tab with `emoji: true`); the stored value is the same `tabler:book` string, or `emoji:🚀`. Import the
   IconSelector API routes in the host (`@NowoIconSelectorBundle/Resources/config/routes.yaml`) and run
   `assets:install`; the wiki pages load `icon-selector.js` (with the CSP nonce when there is one).
-- **Emoji**: shown as escaped text in the tree, the card title, the space list and the sub-page cards; a stored value
-  of another shape is never printed. Existing icon strings render as before.
-- **Tree menu**: see `tree.context_menu` in [CONFIGURATION](CONFIGURATION.md). Keyboard: Shift+F10 or the ContextMenu
+- **Emoji**: shown as escaped text in the tree, the card title and the space list; a stored value of another shape is
+  never printed. Existing icon strings render as before. On MySQL / MariaDB the connection must be `utf8mb4`.
+- **Tree menu** (opt-in, `tree.context_menu: true`): see [CONFIGURATION](CONFIGURATION.md). Keyboard: Shift+F10 or the ContextMenu
   key on a row, arrows / Home / End in the menu, Enter to choose, Escape to close (focus back on the row); in the rename
   field Enter saves and Escape cancels.
 - **Previous / next**: `web_ui.page_nav` prints links to the neighbours of the page in the tree's reading order.

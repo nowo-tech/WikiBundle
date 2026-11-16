@@ -43,8 +43,7 @@
         {% if new_page_dialog|default(null) and new_page_dialog.editor_type == 'tiptap' %}
             <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
         {% endif %}
-        {{ include('@NowoWikiBundle/manage/_icon_picker_script.html.twig', {nonce: _nonce}, false) }}
-        <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        {% if nowo_wiki_icon_picker() %}{{ include('@NowoWikiBundle/manage/_icon_picker_script.html.twig', {nonce: _nonce}, false) }}{% endif %}<script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
 {% endblock %}
 
@@ -56,11 +55,7 @@
     {#- 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree's menu -#}
     {% if new_page_dialog|default(null) %}
         {{ include('@NowoWikiBundle/manage/_new_page_dialog.html.twig', {new_page_dialog: new_page_dialog, with_menu: tree_ui.actions_template is defined and tree_menu is not defined, bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
-    {% endif %}
-    {#- 1.39 (tree.context_menu): the page tree's menu and its "Change icon" dialog -#}
-    {% if tree_menu|default(null) %}
-        {{ include('@NowoWikiBundle/manage/_tree_menu.html.twig', {tree_menu: tree_menu, bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
-    {% endif %}
+    {% endif %}{% if tree_menu|default(null) %}{{ include('@NowoWikiBundle/manage/_tree_menu.html.twig', {tree_menu: tree_menu, bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}{% endif %}
 {% endblock %}
 
 {% block nowo_ui_show_sections %}

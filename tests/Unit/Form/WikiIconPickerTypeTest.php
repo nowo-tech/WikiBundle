@@ -94,6 +94,21 @@ final class WikiIconPickerTypeTest extends TypeTestCase
         }
     }
 
+    public function testTheSetterChecksEmojiAgainstTheCatalogueBeforeTheModel(): void
+    {
+        // Audit RS-I5: a well-shaped value that is not one RGI emoji never reaches the entity, even before validation.
+        $space  = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, '1');
+        $setter = WikiSpaceIconType::iconSetter(['tabler', 'emoji'], new EmojiCatalog());
+        $form   = $this->factory->createNamed('icon', WikiSpaceIconType::class);
+        $setter($space, 'emoji:🚀🚀', $form);
+        self::assertNull($space->getIcon());
+        $setter($space, 'emoji:🚀', $form);
+        self::assertSame('emoji:🚀', $space->getIcon());
+        // Without a catalogue no emoji reaches the model.
+        WikiSpaceIconType::iconSetter(['tabler', 'emoji'])($space, 'emoji:🎉', $form);
+        self::assertSame('emoji:🚀', $space->getIcon());
+    }
+
     public function testThePageFormTakesTheConfiguredIconFieldAndTheTitleClass(): void
     {
         $form = $this->factory->create(WikiPageFormType::class, new WikiPageFormData(), [

@@ -183,11 +183,15 @@ final class WikiTreeController extends AbstractController
             if ($icon !== null && !is_string($icon)) {
                 throw new BadRequestHttpException('Invalid body.');
             }
+            if (!$this->pageIcons->isAllowed($icon)) {
+                return $this->refusal(Response::HTTP_UNPROCESSABLE_ENTITY, 'icon_invalid', 'wiki.space.icon_invalid');
+            }
             try {
                 // @igor-ignore - WikiPageIconService is stateless: setIcon() writes the page row, the service keeps nothing.
                 $this->pageIcons->setIcon($page, $icon);
             } catch (InvalidArgumentException) {
-                return $this->refusal(Response::HTTP_UNPROCESSABLE_ENTITY, 'icon_invalid', 'wiki.space.icon_invalid');
+                // The value was checked above: the page was archived or deleted between the read and the lock (RS-I1).
+                return $this->pageGone();
             }
             $stored = $page->getIcon();
 
@@ -233,13 +237,20 @@ final class WikiTreeController extends AbstractController
         } catch (WikiRevisionConflictException|WikiRevisionCollisionException) {
             return $this->refusal(Response::HTTP_CONFLICT, 'conflict', 'wiki.tree_menu.error.conflict');
         } catch (InvalidArgumentException) {
-            return $this->refusal(Response::HTTP_UNPROCESSABLE_ENTITY, 'title_invalid', 'wiki.tree_menu.error.title_invalid');
+            // The title was checked above: the page was archived between the read and the lock (RS-I1).
+            return $this->pageGone();
         }
 
         return new JsonResponse([
             'title'   => $page->getTitle(),
             'message' => $this->trans('wiki.tree_menu.renamed', ['%from%' => $from, '%title%' => $page->getTitle()]),
         ], Response::HTTP_OK, self::NO_STORE);
+    }
+
+    /** 410: the page left between the read and the write (archived, trashed or deleted meanwhile). */
+    private function pageGone(): JsonResponse
+    {
+        return $this->refusal(Response::HTTP_GONE, 'page_gone', 'wiki.tree_menu.error.page_gone');
     }
 
     private function refusal(int $status, string $error, string $key): JsonResponse

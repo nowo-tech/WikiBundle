@@ -82,8 +82,7 @@
         {% if comments|default(null) %}<script src="{{ asset('js/nowo-ui-side-panel.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
         {% if tree_rail|default(null) %}<script src="{{ asset('js/nowo-ui-rail.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>{% endif %}
         <script src="{{ asset('js/nowo-ui-scroll-region.js', 'nowo_ui_kit') }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
-        {{ include('@NowoWikiBundle/manage/_icon_picker_script.html.twig', {nonce: _nonce}, false) }}
-        <script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        {% if nowo_wiki_icon_picker() %}{{ include('@NowoWikiBundle/manage/_icon_picker_script.html.twig', {nonce: _nonce}, false) }}{% endif %}<script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
 {% endblock %}
 
@@ -160,10 +159,7 @@
         {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: _b}, false) }}{% endif %}{% endset %}
         {% set _toolbar %}{{ include('@NowoWikiBundle/manage/_page_toolbar.html.twig', {header: page.header, tabs: (_layout.tabs ?? 'row') == 'toolbar' ? page.header.tabs : null, tree_toggle: _tree_toggle, host_toolbar: block('wiki_page_header_toolbar'), comments: comments|default(null), bundle: _b, nowo_ui_page_type: 'show'}, false) }}{% endset %}
     {% endif %}
-    {#- 1.39 (web_ui.page_nav): previous / next page, above the title (under the path and the card toolbar) and / or after the body -#}
-    {% set _nav_position = page_nav.position|default('none') %}
     {% set _card %}
-            {% if _nav_position in ['top', 'both'] %}{{ include('@NowoWikiBundle/manage/_page_nav.html.twig', {page_nav: page_nav, placement: 'top'}, false) }}{% endif %}
             {#- 1.31 (page_header.title: card): the title in the card when the body does not start with it. It is the page's
                 <h1> when the header is not printed (toolbar and tabs in the card, no status: audit MG-1-I1), else the
                 header keeps its visually hidden <h1> and this line is only visual. -#}
@@ -204,8 +200,7 @@
                 <div class="{{ nowo_ui_class('card_footer', _b) }} nowo-wiki-page-card__footer"><p class="{{ nowo_ui_class('muted', _b) }} nowo-wiki-page-meta" data-testid="wiki-page-meta">{{ 'wiki.page.meta_revision'|trans({'%number%': page_meta.revision}) }} · {{ _updated[0] }}<time datetime="{{ page_meta.updated_at|date('c') }}">{{ page_meta.updated_at|nowo_wiki_datetime(app.request ? app.request.locale : null) }}</time>{{ _updated[1] ?? '' }}</p></div>
             </div>
             {% endif %}
-            {% if _nav_position in ['bottom', 'both'] %}{{ include('@NowoWikiBundle/manage/_page_nav.html.twig', {page_nav: page_nav, placement: 'bottom'}, false) }}{% endif %}
-    {% endset %}
+    {% endset %}{% if page_nav|default(null) %}{% set _card %}{% if page_nav.position in ['top', 'both'] %}{{ include('@NowoWikiBundle/manage/_page_nav.html.twig', {page_nav: page_nav, placement: 'top'}, false) }}{% endif %}{{ _card }}{% if page_nav.position in ['bottom', 'both'] %}{{ include('@NowoWikiBundle/manage/_page_nav.html.twig', {page_nav: page_nav, placement: 'bottom'}, false) }}{% endif %}{% endset %}{% endif %}
     {% set _after %}
             {#- 1.29: after the body, before "Used in" (empty; e.g. a host's backlinks) -#}
             {% block wiki_page_after_body %}{% endblock %}

@@ -1951,7 +1951,7 @@ final class WikiManageController extends AbstractController
      * first `max_tree_pages` + 1 active pages, the tree's own bound (audit MG-2-L3); `truncated` is then also set when
      * that list was capped.
      *
-     * @return array{items: list<array{label: string, href: string, icon: string|null}>, truncated: bool}
+     * @return array{items: list<array{label: string, href: string}>, truncated: bool}
      */
     private function pageChildren(UserInterface $user, WikiSpace $space, WikiPage $page): array
     {
@@ -2004,8 +2004,6 @@ final class WikiManageController extends AbstractController
             $items[] = [
                 'label' => $child->getTitle(),
                 'href'  => $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $child->getSlug()]),
-                // 1.39: the sub-page's own icon (or emoji) on its card, the book icon otherwise.
-                'icon' => $child->getIcon(),
             ];
         }
 

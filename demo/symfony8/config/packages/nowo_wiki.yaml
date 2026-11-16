@@ -11,8 +11,8 @@ nowo_wiki:
     # 1.14: the Outline-style page tree (UiKit tree: fold state, drag, Alt+arrows, Move form).
     tree:
         enabled: true
-        # 1.39: the page tree's context menu (Rename, Change icon / emoji, Add child / sibling page, Copy link) is on
-        # by default with the tree.
+        # 1.39 (opt-in): the page tree's context menu (Rename, Change icon / emoji, Add child / sibling page, Copy link).
+        context_menu: true
     # 1.39: page and space icons through the IconSelector picker, emoji allowed (stored as emoji:<grapheme>). The demo
     # draws icons with UiKit's Bootstrap Icons set, so the allowed prefix is bi.
     space_icon:

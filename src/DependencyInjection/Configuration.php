@@ -254,7 +254,7 @@ final class Configuration implements ConfigurationInterface
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->booleanNode('enabled')->defaultFalse()->end()
-                        ->booleanNode('context_menu')->info('1.39: the page tree\'s context menu (right click, Shift+F10 / ContextMenu key, the row\'s «…» button): Rename, Change icon / emoji (page_icon.form_field), Add child page, Add sibling page, Copy link. Each entry only for users who may do it (the server checks every write again); readers get no menu. Replaces the 1.35 new-page menu of web_ui.new_page_dialog (its "above" stays in this menu). false: the 1.38 behaviour.')->defaultTrue()->end()
+                        ->booleanNode('context_menu')->info('1.39: the page tree\'s context menu (right click, Shift+F10 / ContextMenu key, the row\'s «…» button): Rename, Change icon / emoji (page_icon.form_field), Add child page, Add sibling page, Copy link. Each entry only for users who may do it (the server checks every write again); readers get no menu. Opt-in (no change in a minor): true replaces the 1.35 new-page menu of web_ui.new_page_dialog (its "above" stays in this menu); false (default): the 1.38 behaviour.')->defaultFalse()->end()
                         ->integerNode('max_depth')->info('Deepest level of a page after a move (root pages are level 1).')->min(1)->max(50)->defaultValue(10)->end()
                         ->scalarNode('state_store')->info('Service id of a WikiTreeStateStoreInterface keeping the fold state (null: the session).')->defaultNull()->end()
                         ->enumNode('default_expanded')

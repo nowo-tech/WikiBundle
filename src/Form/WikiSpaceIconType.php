@@ -62,7 +62,7 @@ final class WikiSpaceIconType extends AbstractType
         ]);
         $resolver->setAllowedTypes('allowed_prefixes', 'string[]');
         $resolver->setDefault('constraints', fn (Options $options): array => self::iconConstraints($options['allowed_prefixes'], $this->iconRenderer, $this->emojiCatalog));
-        $resolver->setDefault('setter', static fn (Options $options): callable => self::iconSetter($options['allowed_prefixes']));
+        $resolver->setDefault('setter', fn (Options $options): callable => self::iconSetter($options['allowed_prefixes'], $this->emojiCatalog));
     }
 
     /**
@@ -89,12 +89,16 @@ final class WikiSpaceIconType extends AbstractType
      * a DTO / array through its property path; an invalid value is left out of the model.
      *
      * @param list<string> $prefixes accepted prefixes
+     * @param object|null $emojiCatalog IconSelector's `EmojiCatalogInterface` (no catalogue: no emoji reaches the model)
      */
-    public static function iconSetter(array $prefixes): callable
+    public static function iconSetter(array $prefixes, ?object $emojiCatalog = null): callable
     {
-        return static function (mixed &$data, mixed $value, FormInterface $form) use ($prefixes): void {
-            // An invalid value is left out of the model: the Callback constraint reports it on the field.
-            if (!($value === null || $value === '' || (is_string($value) && WikiSpaceIcon::isValid($value, $prefixes)))) {
+        return static function (mixed &$data, mixed $value, FormInterface $form) use ($prefixes, $emojiCatalog): void {
+            // An invalid value is left out of the model: the Callback constraint reports it on the field. An emoji is
+            // checked against the catalogue before it reaches the model (audit RS-I5); an icon's existence stays the
+            // constraint's (as in 1.38).
+            if (!($value === null || $value === '' || (is_string($value) && WikiSpaceIcon::isValid($value, $prefixes)
+                && (!WikiSpaceIcon::isEmoji($value) || WikiPageIconService::acceptable($value, $prefixes, null, $emojiCatalog))))) {
                 return;
             }
             $value = $value === '' ? null : $value;

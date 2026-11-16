@@ -310,6 +310,7 @@ wiki:
       title_invalid: "Enter a title (at most 255 characters, no control characters)."
       being_edited: "Someone is editing this page: rename it from the edit view."
       conflict: "The page changed meanwhile: reload and try again."
+      page_gone: "This page was archived or deleted meanwhile: reload the page."
 wiki_page_form:
   title:
     placeholder: "Page title"
