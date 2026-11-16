@@ -1213,7 +1213,8 @@
   }
 }
 
-.nowo-wiki-new-page-menu {
+.nowo-wiki-new-page-menu,
+.nowo-wiki-tree-menu {
   position: fixed;
   z-index: 1000;
   display: flex;
@@ -1227,11 +1228,13 @@
   box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.18);
 }
 
-.nowo-wiki-new-page-menu[hidden] {
+.nowo-wiki-new-page-menu[hidden],
+.nowo-wiki-tree-menu[hidden] {
   display: none;
 }
 
-.nowo-wiki-new-page-menu__item {
+.nowo-wiki-new-page-menu__item,
+.nowo-wiki-tree-menu__item {
   padding: 0.4rem 0.75rem;
   border: 0;
   border-radius: calc(var(--nowo-ui-radius, 0.5rem) - 0.125rem);
@@ -1242,12 +1245,15 @@
   cursor: pointer;
 }
 
-.nowo-wiki-new-page-menu__item[hidden] {
+.nowo-wiki-new-page-menu__item[hidden],
+.nowo-wiki-tree-menu__item[hidden] {
   display: none;
 }
 
 .nowo-wiki-new-page-menu__item:hover,
-.nowo-wiki-new-page-menu__item:focus-visible {
+.nowo-wiki-new-page-menu__item:focus-visible,
+.nowo-wiki-tree-menu__item:hover,
+.nowo-wiki-tree-menu__item:focus-visible {
   background: var(--nowo-ui-surface-muted, rgba(100, 116, 139, 0.12));
   outline: 2px solid var(--nowo-ui-focus, Highlight);
   outline-offset: -2px;
@@ -1255,4 +1261,131 @@
 
 .nowo-wiki-new-page__context {
   margin-block: 0 0.75rem;
+}
+
+/* 1.39 page_icon.emoji / space_icon.emoji: an emoji icon is text, sized like the icons around it. */
+.nowo-wiki-page-icon--emoji {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
+  font-style: normal;
+  font-weight: normal;
+}
+
+.nowo-wiki-page-icon-line .nowo-wiki-page-icon--emoji,
+.nowo-wiki-page-icon--title.nowo-wiki-page-icon--emoji {
+  vertical-align: baseline;
+}
+
+/* 1.39: the edit view's title field reads as the page title (the read view's h1 tokens, else UiKit's display font and
+   heading weight), the visible label kept above it. */
+.nowo-wiki-title-row .nowo-wiki-title-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  block-size: auto;
+  min-block-size: 0;
+  padding-block: 0.2em;
+  font-family: var(--nowo-wiki-read-heading-font-family, var(--nowo-ui-font-display, inherit));
+  font-size: var(--nowo-wiki-edit-title-size, var(--nowo-wiki-read-h1-size, 2em));
+  font-weight: var(--nowo-wiki-read-heading-weight, var(--nowo-ui-heading-weight, 600));
+  line-height: var(--nowo-wiki-read-heading-line-height, 1.25);
+}
+
+@media (max-width: 39.99rem) {
+  .nowo-wiki-title-row .nowo-wiki-title-input {
+    font-size: var(--nowo-wiki-edit-title-size-narrow, 1.5em);
+  }
+}
+
+/* 1.39 tree.context_menu: the row title while it is renamed (the link hidden, the field in its place, same line box). */
+.nowo-wiki-tree__rename {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0 0.25rem;
+  border: 1px solid var(--nowo-ui-focus-ring-color, var(--nowo-ui-primary, Highlight));
+  border-radius: calc(var(--nowo-ui-radius, 0.375rem) - 0.125rem);
+  background: var(--nowo-ui-surface, Canvas);
+  color: var(--nowo-ui-text, CanvasText);
+  font: inherit;
+  line-height: inherit;
+}
+
+.nowo-wiki-tree__rename[aria-invalid="true"] {
+  border-color: var(--nowo-ui-danger, #dc2626);
+}
+
+.nowo-wiki-tree-icon__error {
+  margin: 0.5rem 0 0;
+  color: var(--nowo-ui-danger-text, #b91c1c);
+}
+
+/* 1.39 web_ui.page_nav: previous / next page. Two equal cells (an empty side keeps its cell: nothing moves), the
+   neighbour's title on one line, cut with an ellipsis; stacked on phones. */
+.nowo-wiki-page-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-block: 0 var(--nowo-wiki-page-nav-gap, 1rem);
+}
+
+.nowo-wiki-page-nav--bottom {
+  margin-block: var(--nowo-wiki-page-nav-gap, 1rem) 0;
+}
+
+.nowo-wiki-page-nav__link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--nowo-ui-border, #e2e8f0);
+  border-radius: var(--nowo-ui-radius, 0.5rem);
+  color: var(--nowo-ui-text, CanvasText);
+  text-decoration: none;
+}
+
+.nowo-wiki-page-nav__link--next {
+  align-items: flex-end;
+  text-align: end;
+}
+
+.nowo-wiki-page-nav__link--empty {
+  border-color: transparent;
+}
+
+a.nowo-wiki-page-nav__link:hover {
+  border-color: var(--nowo-ui-primary, #2563eb);
+}
+
+a.nowo-wiki-page-nav__link:focus-visible {
+  outline: 2px solid var(--nowo-ui-focus-ring-color, var(--nowo-ui-primary, Highlight));
+  outline-offset: 2px;
+}
+
+.nowo-wiki-page-nav__hint {
+  color: var(--nowo-ui-text, CanvasText);
+  font-size: 0.875em;
+}
+
+.nowo-wiki-page-nav__title {
+  display: flex;
+  align-items: center;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  font-weight: 600;
+}
+
+.nowo-wiki-page-nav__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 39.99rem) {
+  .nowo-wiki-page-nav {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nowo-wiki-page-nav__link--empty {
+    display: none;
+  }
 }

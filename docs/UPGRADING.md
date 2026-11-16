@@ -99,6 +99,18 @@
 
 ## Unreleased
 
+- **Tree menu on by default** (`tree.context_menu: true` with `tree.enabled`): editors get a context menu on the page
+  tree rows (right click, Shift+F10, «…»); readers keep the browser's menu. Set `tree.context_menu: false` for the
+  1.38 behaviour. With `web_ui.new_page_dialog` the 1.35 "New page above / below / as child" menu is replaced by this
+  menu (same places; `data-wiki-new-page-menu` → `data-wiki-tree-menu`, «…» `data-wiki-new-page-more` →
+  `data-wiki-tree-menu-more`). Host CSS or tests that targeted the old menu markup need the new selectors.
+- **Icon picker / emoji** are opt-in and need `nowo-tech/icon-selector-bundle:^1.6` (`composer require`), its API
+  routes imported and `assets:install`.
+- `WikiPageIconService`, `WikiSpaceIconType` and `WikiTreeController` gained optional trailing constructor arguments.
+- Templates: new partials `_page_nav.html.twig`, `_tree_menu.html.twig`, `_tree_menu_button.html.twig`,
+  `_icon_picker_script.html.twig`; `_page_icon.html.twig` renders `emoji:` values; host overrides of
+  `page_view.html.twig` / `space.html.twig` should include `_tree_menu.html.twig` in `nowo_ui_modals` like the bundle.
+
 ## To 1.38.1
 
 From **1.38.0**:

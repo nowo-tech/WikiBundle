@@ -281,6 +281,35 @@ wiki:
     create: "Seite erstellen"
     error:
       placement: "Diese Stelle im Seitenbaum ist nicht mehr gültig. Öffnen Sie das Menü des Seitenbaums erneut."
+  # 1.39: previous / next page (web_ui.page_nav) and the page tree's context menu (tree.context_menu).
+  page_nav:
+    label_top: "Vorherige und nächste Seite"
+    label_bottom: "Vorherige und nächste Seite (Seitenende)"
+    prev: "Vorherige Seite"
+    next: "Nächste Seite"
+    prev_aria: "Vorherige Seite: %title%"
+    next_aria: "Nächste Seite: %title%"
+  tree_menu:
+    menu: "Seitenaktionen"
+    more: "Aktionen für „%title%“"
+    rename: "Umbenennen"
+    icon: "Symbol / Emoji ändern"
+    child: "Unterseite hinzufügen"
+    below: "Geschwisterseite hinzufügen"
+    above: "Seite darüber hinzufügen"
+    copy: "Link kopieren"
+    copied: "Link kopiert."
+    copy_failed: "Der Link konnte nicht kopiert werden."
+    rename_field: "„%title%“ umbenennen"
+    renamed: "„%from%“ in „%title%“ umbenannt."
+    icon_title: "Symbol ändern"
+    icon_context: "Seite „%title%“"
+    icon_save: "Symbol speichern"
+    icon_saved: "Symbol von „%title%“ gespeichert."
+    error:
+      title_invalid: "Geben Sie einen Titel ein (höchstens 255 Zeichen, keine Steuerzeichen)."
+      being_edited: "Jemand bearbeitet diese Seite: Benennen Sie sie in der Bearbeitungsansicht um."
+      conflict: "Die Seite wurde inzwischen geändert: Laden Sie neu und versuchen Sie es erneut."
 wiki_page_form:
   title:
     placeholder: "Seitentitel"

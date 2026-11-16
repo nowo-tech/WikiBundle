@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Ui\WikiTabActions;
 use Nowo\WikiBundle\Util\WikiDateFormat;
 use Nowo\WikiBundle\Util\WikiTableScroll;
+use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
 use Twig\TwigFunction;
@@ -38,12 +39,14 @@ final class WikiHtmlTwigExtension extends AbstractExtension
      * @param WikiMilkdownIconHydrator|null $iconHydrator draws dialect icons after sanitizing (1.13, milkdown)
      * @param WikiMilkdownRichContent|null $richContent read-side assets of the dialect (1.13, milkdown)
      * @param WikiFilePreviewFrames|null $previewFrames puts back the file preview frames of this request after sanitizing (1.28, milkdown)
+     * @param array<string, array{picker?: string}> $iconPicker 1.39 `nowo_wiki.icon_picker` (which icon fields use the IconSelector picker)
      */
     public function __construct(
         private readonly WikiHtmlSanitizerInterface $sanitizer,
         private readonly ?WikiMilkdownIconHydrator $iconHydrator = null,
         private readonly ?WikiMilkdownRichContent $richContent = null,
         private readonly ?WikiFilePreviewFrames $previewFrames = null,
+        private readonly array $iconPicker = [],
     ) {
     }
 
@@ -74,7 +77,25 @@ final class WikiHtmlTwigExtension extends AbstractExtension
             new TwigFunction('nowo_wiki_rich_content_assets', $this->richContentAssets(...), ['is_safe' => ['html']]),
             // 1.30 (web_ui.page_header.tabs: toolbar): the page tabs as toolbar icon buttons.
             new TwigFunction('nowo_wiki_tab_actions', WikiTabActions::fromTabs(...)),
+            // 1.39: the grapheme of an `emoji:` icon of an acceptable shape (printed as escaped text), else null.
+            new TwigFunction('nowo_wiki_icon_emoji', WikiSpaceIcon::emojiOf(...)),
+            // 1.39: whether a page or space icon field uses the IconSelector picker (its script is then loaded).
+            new TwigFunction('nowo_wiki_icon_picker', $this->usesIconPicker(...)),
         ];
+    }
+
+    /**
+     * 1.39: whether a page or space icon field uses the IconSelector picker (`*_icon.picker: icon_selector`).
+     */
+    public function usesIconPicker(): bool
+    {
+        foreach ($this->iconPicker as $scope) {
+            if (($scope['picker'] ?? 'text') === 'icon_selector') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

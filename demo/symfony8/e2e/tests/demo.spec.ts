@@ -18,7 +18,8 @@ test.describe('Wiki demo', () => {
   test('page view renders content and the page tree; links navigate', async ({ page }) => {
     await page.goto(welcome);
     await expect(page.locator('[data-wiki-sidebar] [data-wiki-tree]')).toBeVisible();
-    await expect(page.locator('[data-wiki-tree] [aria-current="page"]')).toHaveText('Welcome');
+    // 1.39: the demo page has an emoji icon (decorative, before the title).
+    await expect(page.locator('[data-wiki-tree] [aria-current="page"] .nowo-ui-tree__label')).toHaveText('Welcome');
     const content = page.getByTestId('wiki-content');
     await expect(content).toBeVisible();
     await content.locator('a', { hasText: 'Getting Started' }).first().click();

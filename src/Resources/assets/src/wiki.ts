@@ -4,6 +4,7 @@ import { bindCommentsModeration } from './wiki-comments-moderation';
 import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 import { bindTreeHiddenFocus, observeCardToolbar } from './wiki-layout';
 import { bindNewPageMenu } from './wiki-new-page';
+import { bindTreeMenu } from './wiki-tree-menu';
 import { initPlainTrees } from './wiki-plain-tree';
 
 /** True when the element scrolls its own content vertically (overflow auto / scroll and taller content). */
@@ -370,6 +371,7 @@ initPlainTrees();
 initWikiTrees();
 bindWikiTree();
 bindNewPageMenu();
+bindTreeMenu();
 bindWikiComments();
 bindCommentsModeration();
 bindThreadList();

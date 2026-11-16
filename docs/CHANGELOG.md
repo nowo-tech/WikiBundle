@@ -234,6 +234,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Icon picker** (opt-in): `page_icon.picker` / `space_icon.picker: icon_selector` turn the page and space icon fields
+  into the visual picker of `nowo-tech/icon-selector-bundle` (>= 1.6, optional dependency: `suggest`, `conflict` with
+  older versions, a clear container build error when the picker is configured without it): search + grid limited to
+  `space_icon.allowed_prefixes`, the same `<prefix>:<name>` value, the text input as the no-JS fallback
+  (`WikiIconPickerType`).
+- **Emoji icons** (opt-in): `page_icon.emoji` / `space_icon.emoji` accept one emoji stored as `emoji:<grapheme>`,
+  checked against IconSelector's RGI catalogue by every writer (form fields, tree menu, REST API, import), with a shape
+  guard in the entity setters. Emoji render as escaped text in the tree, the card title, the space list and the
+  sub-page cards; existing icons render unchanged.
+- **Tree context menu** (`tree.context_menu`, default on with `tree.enabled`): right click / Shift+F10 / ContextMenu
+  key / the row's «…» button on a page tree row opens an ARIA menu with Rename (inline, a new revision), Change icon /
+  emoji (dialog, no revision), Add child page, Add sibling page and Copy link, each only for users who may do it; new
+  endpoints `POST …/tree/rename` and `POST …/tree/icon` (same origin, CSRF, edit role and `WikiAction::Edit` on the
+  page; `409` on a concurrent change or unsaved co-editing text; `503` + `Retry-After` on transient storage failures).
+  It replaces the 1.35 new-page menu (its "above" entry stays with `web_ui.new_page_dialog`).
+- **Previous / next page** (`web_ui.page_nav: top|bottom|both`, default `none`): links to the neighbours in the
+  tree's reading order (depth first) with icon and title, `rel="prev"` / `rel="next"`, translated accessible names,
+  stacked on phones; built from the already loaded, permission-filtered tree (no extra query).
+- The sub-page cards (`web_ui.children`) show each page's own icon.
+- Translations of the new texts in en, es, fr, de, it, pt and nl.
+
+### Changed
+
+- The edit view's title field reads as the page title (heading size from the read view's tokens,
+  `nowo-wiki-title-input`), its label kept.
+- With `tree.context_menu` the new-page form also takes `?place=` without `web_ui.new_page_dialog`.
+
 ## [1.38.1] - 2026-11-16
 
 Target 1.38.1 (patch; found by Beacon while adopting 1.38.0).

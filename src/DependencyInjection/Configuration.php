@@ -12,6 +12,8 @@ use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
+use Symfony\Component\Config\Definition\Builder\BooleanNodeDefinition;
+use Symfony\Component\Config\Definition\Builder\EnumNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\ScalarNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\Builder\VariableNodeDefinition;
@@ -252,6 +254,7 @@ final class Configuration implements ConfigurationInterface
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->booleanNode('enabled')->defaultFalse()->end()
+                        ->booleanNode('context_menu')->info('1.39: the page tree\'s context menu (right click, Shift+F10 / ContextMenu key, the row\'s «…» button): Rename, Change icon / emoji (page_icon.form_field), Add child page, Add sibling page, Copy link. Each entry only for users who may do it (the server checks every write again); readers get no menu. Replaces the 1.35 new-page menu of web_ui.new_page_dialog (its "above" stays in this menu). false: the 1.38 behaviour.')->defaultTrue()->end()
                         ->integerNode('max_depth')->info('Deepest level of a page after a move (root pages are level 1).')->min(1)->max(50)->defaultValue(10)->end()
                         ->scalarNode('state_store')->info('Service id of a WikiTreeStateStoreInterface keeping the fold state (null: the session).')->defaultNull()->end()
                         ->enumNode('default_expanded')
@@ -605,6 +608,8 @@ final class Configuration implements ConfigurationInterface
                             ->validate()->ifTrue(static fn (array $v): bool => array_filter($v, static fn (mixed $p): bool => !is_string($p) || preg_match('/^[a-z0-9-]+$/D', $p) !== 1) !== [])->thenInvalid('Each prefix must match [a-z0-9-]+.')->end()
                             ->defaultValue(['tabler'])
                         ->end()
+                        ->append($this->iconPickerNode('space'))
+                        ->append($this->iconEmojiNode('space'))
                     ->end()
                 ->end()
                 ->arrayNode('page_icon')
@@ -612,6 +617,8 @@ final class Configuration implements ConfigurationInterface
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->booleanNode('form_field')->defaultFalse()->info('true: the page form (new and edit) gets an optional "Icon" field. false (default): no field, the icon is kept as it is when the page is saved.')->end()
+                        ->append($this->iconPickerNode('page'))
+                        ->append($this->iconEmojiNode('page'))
                     ->end()
                 ->end()
                 ->arrayNode('pagination')
@@ -853,6 +860,11 @@ final class Configuration implements ConfigurationInterface
                             ->info('1.35, literal boolean. true: "New page" opens a dialog with the new-page form: from the page actions of the page view, and from a menu on each row of the page tree (tree.enabled; right click, the row\'s «…» button, or the ContextMenu key / Shift+F10) with "New page above", "New page below" and "New page as child", each opening the dialog with the place filled in. The menu shows only the choices the user may take (the create right on the space, Edit on the parent page); the server checks them again. The new-page form then takes the hidden parent / position fields (also as ?parent=&position= on its own page). false (default): no dialog, no menu, the new-page form as in 1.34.')
                             ->defaultFalse()
                         ->end()
+                        ->enumNode('page_nav')
+                            ->info('1.39: previous / next page links on the page view, in the tree\'s reading order (depth first: a page, its children, then its next sibling), with each neighbour\'s icon and title. Built from the sidebar tree the view already loaded (readable, active pages, at most pagination.max_tree_pages; no extra query); nothing at the ends. top: under the in-wiki path and the card toolbar; bottom: at the end of the content; both; none (default): no links.')
+                            ->values(['none', 'top', 'bottom', 'both'])
+                            ->defaultValue('none')
+                        ->end()
                         ->enumNode('children')
                             ->info('1.30: the direct sub-pages of the page view (readable, not archived, tree order, one query): a "N subpages" chip near the top of the page that opens the list, and a "Pages in this section" card after the body. never (default, as in 1.29): neither; always: both; auto: only while the tree is collapsed or on one column (under 62rem).')
                             ->values(['never', 'auto', 'always'])
@@ -1013,9 +1025,33 @@ final class Configuration implements ConfigurationInterface
     /**
      * 1.18 `web_ui.tab_icons.<tab>`: an icon name ({@see self::TAB_ICON_PATTERN}, checked when the container is built,
      * so a malformed name never fails at render time), or null / '' for no icon.
-     *
-     * @param 'edit'|'history'|'page' $tab
      */
+    /**
+     * 1.39 `<page|space>_icon.picker`: text (default, a text input as before) or icon_selector (the visual picker of
+     * nowo-tech/icon-selector-bundle >= 1.6, limited to the allowed prefixes; the text input stays the no-JS fallback).
+     *
+     * @return EnumNodeDefinition<null>
+     */
+    private function iconPickerNode(string $scope): EnumNodeDefinition
+    {
+        return (new EnumNodeDefinition('picker'))
+            ->info(sprintf('1.39: the %s icon field. text (default): a text input, as before. icon_selector: the visual picker of nowo-tech/icon-selector-bundle (>= 1.6; search + grid limited to space_icon.allowed_prefixes, the same "<prefix>:<name>" value; the text input stays the no-JS fallback).', $scope))
+            ->values(['text', 'icon_selector'])
+            ->defaultValue('text');
+    }
+
+    /**
+     * 1.39 `<page|space>_icon.emoji`: also accept one emoji, stored as `emoji:<grapheme>`.
+     *
+     * @return BooleanNodeDefinition<null>
+     */
+    private function iconEmojiNode(string $scope): BooleanNodeDefinition
+    {
+        return (new BooleanNodeDefinition('emoji'))
+            ->info(sprintf('1.39: the %s icon may also be one emoji, stored as "emoji:<grapheme>" and checked against the RGI emoji catalogue of nowo-tech/icon-selector-bundle (>= 1.6, required); with picker: icon_selector the picker gets its Emoji tab. Emoji are always rendered as escaped text.', $scope))
+            ->defaultFalse();
+    }
+
     private function tabIconNode(string $tab): ScalarNodeDefinition
     {
         $node = new ScalarNodeDefinition($tab);

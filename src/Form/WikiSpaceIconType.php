@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Form;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use Nowo\WikiBundle\WikiBundle;
 use Override;
@@ -14,10 +15,11 @@ use Symfony\Component\Form\FormInterface;
 use Symfony\Component\OptionsResolver\Options;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\PropertyAccess\PropertyAccess;
+use Symfony\Component\PropertyAccess\PropertyPathInterface;
+use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\Constraints\Callback;
 use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
-use Throwable;
 
 use function is_array;
 use function is_object;
@@ -36,9 +38,13 @@ final class WikiSpaceIconType extends AbstractType
      * @param list<string> $allowedPrefixes `space_icon.allowed_prefixes`
      * @param object|null $iconRenderer optional Symfony UX Icons `IconRendererInterface`: when present the field also
      *                                  rejects an icon that does not exist (a missing icon would make `ux_icon()` throw)
+     * @param object|null $emojiCatalog 1.39: IconSelector's `EmojiCatalogInterface` (`*_icon.emoji`)
      */
-    public function __construct(private readonly array $allowedPrefixes = WikiSpaceIcon::DEFAULT_PREFIXES, private readonly ?object $iconRenderer = null)
-    {
+    public function __construct(
+        private readonly array $allowedPrefixes = WikiSpaceIcon::DEFAULT_PREFIXES,
+        private readonly ?object $iconRenderer = null,
+        private readonly ?object $emojiCatalog = null,
+    ) {
     }
 
     public function configureOptions(OptionsResolver $resolver): void
@@ -55,57 +61,54 @@ final class WikiSpaceIconType extends AbstractType
             'attr'               => ['maxlength' => WikiSpaceIcon::MAX_LENGTH, 'autocomplete' => 'off', 'spellcheck' => 'false'],
         ]);
         $resolver->setAllowedTypes('allowed_prefixes', 'string[]');
-        $resolver->setDefault('constraints', function (Options $options): array {
-            $prefixes = $options['allowed_prefixes'];
-            $renderer = $this->iconRenderer;
-
-            return [
-                new Length(max: WikiSpaceIcon::MAX_LENGTH),
-                new Callback(static function (mixed $value, ExecutionContextInterface $context) use ($prefixes, $renderer): void {
-                    if (is_string($value) && $value !== '' && (!WikiSpaceIcon::isValid($value, $prefixes) || !self::exists($renderer, $value))) {
-                        $context->buildViolation('wiki.space.icon_invalid')->setTranslationDomain(WikiBundle::TRANSLATION_DOMAIN)->addViolation();
-                    }
-                }),
-            ];
-        });
-        $resolver->setDefault('setter', static function (Options $options): callable {
-            $prefixes = $options['allowed_prefixes'];
-
-            return static function (mixed &$data, mixed $value, FormInterface $form) use ($prefixes): void {
-                // An invalid value is left out of the model: the Callback constraint reports it on the field.
-                if (!($value === null || $value === '' || (is_string($value) && WikiSpaceIcon::isValid($value, $prefixes)))) {
-                    return;
-                }
-                $value = $value === '' ? null : $value;
-                if ($data instanceof WikiSpace) {
-                    $data->setIcon($value, $prefixes);
-
-                    return;
-                }
-                // A DTO or an array of the host: the property path of the field.
-                $path = $form->getPropertyPath();
-                if ($path !== null && (is_array($data) || is_object($data))) {
-                    PropertyAccess::createPropertyAccessor()->setValue($data, $path, $value);
-                }
-            };
-        });
+        $resolver->setDefault('constraints', fn (Options $options): array => self::iconConstraints($options['allowed_prefixes'], $this->iconRenderer, $this->emojiCatalog));
+        $resolver->setDefault('setter', static fn (Options $options): callable => self::iconSetter($options['allowed_prefixes']));
     }
 
     /**
-     * Tells whether the optional UX Icons renderer knows the icon (true without a renderer).
+     * The field's checks (1.39: shared with {@see WikiIconPickerType}): length and {@see WikiPageIconService::acceptable()}.
+     *
+     * @param list<string> $prefixes accepted prefixes (with "emoji" when emoji are allowed)
+     *
+     * @return list<Constraint>
      */
-    private static function exists(?object $renderer, string $icon): bool
+    public static function iconConstraints(array $prefixes, ?object $renderer, ?object $emojiCatalog): array
     {
-        if ($renderer === null || !method_exists($renderer, 'renderIcon')) {
-            return true;
-        }
-        try {
-            $renderer->renderIcon($icon);
-        } catch (Throwable) {
-            return false;
-        }
+        return [
+            new Length(max: WikiSpaceIcon::MAX_LENGTH),
+            new Callback(static function (mixed $value, ExecutionContextInterface $context) use ($prefixes, $renderer, $emojiCatalog): void {
+                if (is_string($value) && $value !== '' && !WikiPageIconService::acceptable($value, $prefixes, $renderer, $emojiCatalog)) {
+                    $context->buildViolation('wiki.space.icon_invalid')->setTranslationDomain(WikiBundle::TRANSLATION_DOMAIN)->addViolation();
+                }
+            }),
+        ];
+    }
 
-        return true;
+    /**
+     * The field's setter (1.39: shared with {@see WikiIconPickerType}): a WikiSpace through {@see WikiSpace::setIcon()},
+     * a DTO / array through its property path; an invalid value is left out of the model.
+     *
+     * @param list<string> $prefixes accepted prefixes
+     */
+    public static function iconSetter(array $prefixes): callable
+    {
+        return static function (mixed &$data, mixed $value, FormInterface $form) use ($prefixes): void {
+            // An invalid value is left out of the model: the Callback constraint reports it on the field.
+            if (!($value === null || $value === '' || (is_string($value) && WikiSpaceIcon::isValid($value, $prefixes)))) {
+                return;
+            }
+            $value = $value === '' ? null : $value;
+            if ($data instanceof WikiSpace) {
+                $data->setIcon($value, $prefixes);
+
+                return;
+            }
+            // A DTO or an array of the host: the property path of the field.
+            $path = $form->getPropertyPath();
+            if ($path instanceof PropertyPathInterface && (is_array($data) || is_object($data))) {
+                PropertyAccess::createPropertyAccessor()->setValue($data, $path, $value);
+            }
+        };
     }
 
     public function getParent(): string

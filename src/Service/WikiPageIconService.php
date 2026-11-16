@@ -33,12 +33,15 @@ final readonly class WikiPageIconService
      * @param list<string> $allowedPrefixes `space_icon.allowed_prefixes`
      * @param WikiTransactionRunner|null $runner the bundle's runner (null: the plain write, tests)
      * @param object|null $iconRenderer optional Symfony UX Icons `IconRendererInterface`
+     * @param object|null $emojiCatalog 1.39: IconSelector's `EmojiCatalogInterface` (`page_icon.emoji`): an `emoji:`
+     *                                  value must be exactly one RGI emoji of it; without it no emoji is accepted
      */
     public function __construct(
         private WikiPageRepositoryInterface $pages,
         private array $allowedPrefixes = WikiSpaceIcon::DEFAULT_PREFIXES,
         private ?WikiTransactionRunner $runner = null,
         private ?object $iconRenderer = null,
+        private ?object $emojiCatalog = null,
     ) {
     }
 
@@ -71,7 +74,7 @@ final readonly class WikiPageIconService
         if ($icon === null || $icon === '') {
             return null;
         }
-        if (!WikiSpaceIcon::isValid($icon, $this->allowedPrefixes) || !$this->exists($icon)) {
+        if (!self::acceptable($icon, $this->allowedPrefixes, $this->iconRenderer, $this->emojiCatalog)) {
             throw new InvalidArgumentException(sprintf('Invalid page icon: expected "<prefix>:<name>" (max %d characters) with a prefix in [%s] and an icon that exists.', WikiSpaceIcon::MAX_LENGTH, implode(', ', $this->allowedPrefixes)));
         }
 
@@ -144,15 +147,29 @@ final readonly class WikiPageIconService
     }
 
     /**
-     * Whether the optional UX Icons renderer knows the icon (true without a renderer).
+     * The one rule of every icon writer (this service, the page and space form fields): the format and prefixes
+     * ({@see WikiSpaceIcon::isValid()}); for an icon, the optional UX Icons renderer must know it; for an emoji (1.39),
+     * the IconSelector catalogue must report exactly one RGI emoji (no catalogue: refused).
+     *
+     * @param list<string> $allowedPrefixes accepted prefixes (with "emoji" when emoji are allowed)
+     * @param object|null $iconRenderer optional Symfony UX Icons `IconRendererInterface`
+     * @param object|null $emojiCatalog optional IconSelector `EmojiCatalogInterface`
      */
-    private function exists(string $icon): bool
+    public static function acceptable(string $icon, array $allowedPrefixes, ?object $iconRenderer, ?object $emojiCatalog): bool
     {
-        if ($this->iconRenderer === null || !method_exists($this->iconRenderer, 'renderIcon')) {
+        if (!WikiSpaceIcon::isValid($icon, $allowedPrefixes)) {
+            return false;
+        }
+        if (WikiSpaceIcon::isEmoji($icon)) {
+            $emoji = WikiSpaceIcon::emojiOf($icon);
+
+            return $emoji !== null && $emojiCatalog !== null && method_exists($emojiCatalog, 'isValid') && $emojiCatalog->isValid($emoji) === true;
+        }
+        if ($iconRenderer === null || !method_exists($iconRenderer, 'renderIcon')) {
             return true;
         }
         try {
-            $this->iconRenderer->renderIcon($icon);
+            $iconRenderer->renderIcon($icon);
         } catch (Throwable) {
             return false;
         }

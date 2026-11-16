@@ -281,6 +281,35 @@ wiki:
     create: "Pagina maken"
     error:
       placement: "Die plek in de paginaboom is niet meer geldig. Open het menu van de paginaboom opnieuw."
+  # 1.39: previous / next page (web_ui.page_nav) and the page tree's context menu (tree.context_menu).
+  page_nav:
+    label_top: "Vorige en volgende pagina"
+    label_bottom: "Vorige en volgende pagina (einde van de pagina)"
+    prev: "Vorige pagina"
+    next: "Volgende pagina"
+    prev_aria: "Vorige pagina: %title%"
+    next_aria: "Volgende pagina: %title%"
+  tree_menu:
+    menu: "Pagina-acties"
+    more: "Acties voor ‘%title%’"
+    rename: "Hernoemen"
+    icon: "Pictogram / emoji wijzigen"
+    child: "Subpagina toevoegen"
+    below: "Zusterpagina toevoegen"
+    above: "Pagina erboven toevoegen"
+    copy: "Link kopiëren"
+    copied: "Link gekopieerd."
+    copy_failed: "De link kon niet worden gekopieerd."
+    rename_field: "‘%title%’ hernoemen"
+    renamed: "‘%from%’ hernoemd naar ‘%title%’."
+    icon_title: "Pictogram wijzigen"
+    icon_context: "Pagina ‘%title%’"
+    icon_save: "Pictogram opslaan"
+    icon_saved: "Pictogram van ‘%title%’ opgeslagen."
+    error:
+      title_invalid: "Voer een titel in (hoogstens 255 tekens, geen stuurtekens)."
+      being_edited: "Iemand bewerkt deze pagina: hernoem haar vanuit de bewerkweergave."
+      conflict: "De pagina is intussen gewijzigd: laad opnieuw en probeer het nog eens."
 wiki_page_form:
   title:
     placeholder: "Paginatitel"

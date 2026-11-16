@@ -20,7 +20,8 @@ async function seriousViolations(page: Page, include?: string, exclude?: string)
 /** Labels of the children of a parent item, in order. */
 async function children(page: Page, parent: string): Promise<string[]> {
   const group = page.locator(`#${await item(page, parent).getAttribute('aria-owns')}`);
-  return group.locator(':scope > li > .nowo-ui-tree__row > [role="treeitem"]').allInnerTexts();
+  // 1.39: the labels only (a row may start with its page icon or emoji).
+  return group.locator(':scope > li > .nowo-ui-tree__row > [role="treeitem"] .nowo-ui-tree__label').allInnerTexts();
 }
 
 test.describe.configure({ mode: 'serial' });

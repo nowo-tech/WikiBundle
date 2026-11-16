@@ -115,7 +115,8 @@
         }
     },
     "conflict": {
-        "nowo-tech/milkdown-editor-bundle": "<1.13.0"
+        "nowo-tech/milkdown-editor-bundle": "<1.13.0",
+        "nowo-tech/icon-selector-bundle": "<1.6.0"
     },
     "suggest": {
         "nowo-tech/breadcrumb-kit-bundle": "^2.17: the current crumb named after the wiki page (nowo_wiki.web_ui.breadcrumb_current_label); optional, older versions are ignored.",
@@ -124,7 +125,8 @@
         "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.13): page links, mentions, icons, math and Mermaid; >= 1.17 for the read-only task-list checkboxes and callouts that match the server render.",
         "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
         "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
-        "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales."
+        "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales.",
+        "nowo-tech/icon-selector-bundle": "^1.6: the visual icon picker (page_icon.picker / space_icon.picker: icon_selector) and emoji icons (page_icon.emoji / space_icon.emoji)."
     },
     "minimum-stability": "stable",
     "prefer-stable": true,

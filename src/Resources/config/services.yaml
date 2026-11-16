@@ -140,8 +140,10 @@ services:
     Nowo\WikiBundle\Service\WikiPageIconService:
         public: true
         arguments:
-            $allowedPrefixes: '%nowo_wiki.space_icon.allowed_prefixes%'
+            # 1.39: with page_icon.emoji the pseudo-prefix "emoji" is accepted too (checked against the IconSelector catalogue).
+            $allowedPrefixes: '%nowo_wiki.page_icon.accepted_prefixes%'
             $iconRenderer: '@?Symfony\UX\Icons\IconRendererInterface'
+            $emojiCatalog: '@?Nowo\IconSelectorBundle\Emoji\EmojiCatalogInterface'
 
     Nowo\WikiBundle\Service\WikiPageService:
         arguments:
@@ -205,6 +207,9 @@ services:
             $layout: '%nowo_wiki.web_ui.layout%'
             # 1.38: the page form's icon field (page_icon.form_field)
             $pageIconField: '%nowo_wiki.page_icon.form_field%'
+            # 1.39: the icon pickers (page_icon / space_icon .picker, .emoji) and the tree's context menu
+            $iconPicker: '%nowo_wiki.icon_picker%'
+            $treeContextMenu: '%nowo_wiki.tree.context_menu%'
             # 1.30: optional BreadcrumbKit >= 2.17 (web_ui.breadcrumb_current_label); null without it
             $breadcrumbCurrentLabel: '@?Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface'
 
@@ -230,6 +235,10 @@ services:
         public: true
         autoconfigure: false
         tags: ['controller.service_arguments', 'container.service_subscriber']
+        arguments:
+            # 1.39 (tree.context_menu): Rename and Change icon of the tree menu.
+            $pageIconField: '%nowo_wiki.page_icon.form_field%'
+            $contextMenu: '%nowo_wiki.tree.context_menu%'
 
     Nowo\WikiBundle\Controller\WikiCollabController:
         public: true
@@ -274,6 +283,26 @@ services:
     # 1.32: the space icon field checks the configured icon set prefixes.
     Nowo\WikiBundle\Form\WikiSpaceIconType:
         arguments:
-            $allowedPrefixes: '%nowo_wiki.space_icon.allowed_prefixes%'
+            $allowedPrefixes: '%nowo_wiki.space_icon.accepted_prefixes%'
             $iconRenderer: '@?Symfony\UX\Icons\IconRendererInterface'
+            $emojiCatalog: '@?Nowo\IconSelectorBundle\Emoji\EmojiCatalogInterface'
+        tags: ['form.type']
+
+    Nowo\WikiBundle\Form\WikiSpaceType:
+        arguments:
+            $iconPicker: '%nowo_wiki.space_icon.picker%'
+        tags: ['form.type']
+
+    Nowo\WikiBundle\Twig\WikiHtmlTwigExtension:
+        arguments:
+            # 1.39: the icon helpers (nowo_wiki_icon_emoji, nowo_wiki_icon_picker)
+            $iconPicker: '%nowo_wiki.icon_picker%'
+
+    # 1.39 (page_icon.picker / space_icon.picker: icon_selector): the IconSelector picker; its parent type exists only
+    # with nowo-tech/icon-selector-bundle >= 1.6 (the configuration refuses the picker without it).
+    Nowo\WikiBundle\Form\WikiIconPickerType:
+        arguments:
+            $allowedPrefixes: '%nowo_wiki.space_icon.accepted_prefixes%'
+            $iconRenderer: '@?Symfony\UX\Icons\IconRendererInterface'
+            $emojiCatalog: '@?Nowo\IconSelectorBundle\Emoji\EmojiCatalogInterface'
         tags: ['form.type']

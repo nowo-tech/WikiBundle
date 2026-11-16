@@ -22,6 +22,13 @@ use Symfony\Component\Validator\Constraints\NotBlank;
  */
 final class WikiSpaceType extends AbstractType
 {
+    /**
+     * @param string $iconPicker 1.39 `space_icon.picker`: text (the text field) or icon_selector ({@see WikiIconPickerType})
+     */
+    public function __construct(private readonly string $iconPicker = 'text')
+    {
+    }
+
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder->add('name', TextType::class, [
@@ -30,7 +37,7 @@ final class WikiSpaceType extends AbstractType
             'attr'        => ['maxlength' => 255],
         ]);
         if ($options['icon_field'] === true) {
-            $builder->add('icon', WikiSpaceIconType::class);
+            $builder->add('icon', $this->iconPicker === 'icon_selector' ? WikiIconPickerType::class : WikiSpaceIconType::class);
         }
     }
 

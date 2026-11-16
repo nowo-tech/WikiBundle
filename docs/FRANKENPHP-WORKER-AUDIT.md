@@ -191,6 +191,15 @@ Good patterns observed: all services are `final readonly` or have no properties;
 | `Api/WikiApiInput::ignore()` / `take()` | mutation of `read` / `ignored` | `WikiApiInput` is a per-request value object built by `fromRequest()`; it is not a service. |
 | `Controller/WikiManageController::viewPage()` (1.30) | mutation of the injected `breadcrumbCurrentLabel` | Optional BreadcrumbKit >= 2.17 port (`web_ui.breadcrumb_current_label`): BreadcrumbKit scopes the label to the current main request (route and parameters) and drops it at the request boundary; outside a routed request the call is a no-op. Wiki stores nothing. |
 
+### 1.39 additions (icon picker, emoji, tree menu, previous / next)
+
+No new state. `WikiPageNav` and `WikiTreeMenu` are pure static helpers; previous / next is computed per request from
+the tree the page view already built (no memo of permissions across requests). The tree menu endpoints
+(`WikiTreeController` `rename` / `icon`) keep nothing: the rename goes through the page service under the page lock,
+the icon through `WikiPageIconService` (stateless). The emoji catalogue is IconSelector's `EmojiCatalog`, immutable
+data read once in its constructor. The `icon_picker` configuration reaches `WikiHtmlTwigExtension` as a constructor
+array (read-only).
+
 ## Usage recommendations in worker mode
 
 - The bundle works without `services_resetter` (scenario B). Keeping it enabled is still recommended for the rest of the application (Doctrine identity map, token storage).

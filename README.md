@@ -16,10 +16,15 @@ This bundle is **FrankenPHP worker mode friendly**, including kernel reset false
 | --- | --- | --- |
 | ![Wiki page view: UiKit page header with Edit, History and Archive, the nested page tree of the space next to the rendered page](docs/images/demo/wiki-page.webp) | ![Space home: New page and exports in the header, page tree, in-space search and the archived pages with Restore](docs/images/demo/wiki-space.webp) | ![Version history: revisions with Compare and Restore, the restore confirmation open as a native dialog](docs/images/demo/wiki-history.webp) |
 
+| Tree menu and previous / next (1.39) | Icon / emoji picker (1.39) | Edit view (1.39) |
+| --- | --- | --- |
+| ![Page tree context menu open on a row (Rename, Change icon / emoji, Add child page, Add sibling page, Copy link), emoji page icons and the previous / next page links](docs/images/demo/wiki-tree-menu.webp) | ![Change icon dialog with the IconSelector picker on its Emoji tab](docs/images/demo/wiki-icon-picker.webp) | ![Edit view: the title field at heading size above the icon picker](docs/images/demo/wiki-edit.webp) |
+
 ## Features
 
 - Wiki **spaces** scoped per team or user
 - **Pages** with slug, parent/child tree, archive (revisions kept)
+- **Page tree menu, icon / emoji picker, previous / next** (1.39) — right click / Shift+F10 / «…» on a tree row: Rename, Change icon / emoji, Add child / sibling page, Copy link (permission-aware); optional visual picker and emoji icons with **[IconSelectorBundle](https://github.com/nowo-tech/IconSelectorBundle)** ^1.6; `web_ui.page_nav` links in reading order ([Usage](docs/USAGE.md#icon-picker-emoji-icons-and-the-tree-menu-139))
 - **Immutable revisions** on every save
 - **Revision diff** between any two versions
 - Full-text **search** in title and current revision body (per space or all accessible spaces), with contextual excerpts

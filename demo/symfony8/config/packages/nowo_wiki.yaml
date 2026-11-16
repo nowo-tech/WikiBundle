@@ -11,6 +11,18 @@ nowo_wiki:
     # 1.14: the Outline-style page tree (UiKit tree: fold state, drag, Alt+arrows, Move form).
     tree:
         enabled: true
+        # 1.39: the page tree's context menu (Rename, Change icon / emoji, Add child / sibling page, Copy link) is on
+        # by default with the tree.
+    # 1.39: page and space icons through the IconSelector picker, emoji allowed (stored as emoji:<grapheme>). The demo
+    # draws icons with UiKit's Bootstrap Icons set, so the allowed prefix is bi.
+    space_icon:
+        allowed_prefixes: [bi]
+        picker: icon_selector
+        emoji: true
+    page_icon:
+        form_field: true
+        picker: icon_selector
+        emoji: true
     # 1.14 (T065): Delete moves a page and its sub-pages to the trash (restore, purge, 30-day retention).
     trash:
         enabled: true
@@ -53,6 +65,8 @@ nowo_wiki:
             title: dedupe
         slots:
             page_header_extra: 'wiki/_header_extra.html.twig'
+        # 1.39: previous / next page in the tree's reading order, above and after the content.
+        page_nav: both
         tab_icons:
             page: 'bi:file-earmark-text'
             edit: 'bi:pencil'

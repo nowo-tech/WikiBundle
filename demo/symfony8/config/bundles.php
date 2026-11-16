@@ -7,6 +7,7 @@ use Doctrine\Bundle\FixturesBundle\DoctrineFixturesBundle;
 use Doctrine\Bundle\MigrationsBundle\DoctrineMigrationsBundle;
 use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\HotReloadBundle\NowoHotReloadBundle;
+use Nowo\IconSelectorBundle\NowoIconSelectorBundle;
 use Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle;
 use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\TwigInspectorBundle\NowoTwigInspectorBundle;
@@ -18,6 +19,7 @@ use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Bundle\WebProfilerBundle\WebProfilerBundle;
+use Symfony\UX\Icons\UXIconsBundle;
 use Twig\Extra\TwigExtraBundle\TwigExtraBundle;
 
 return [
@@ -38,4 +40,6 @@ return [
     AiBundle::class                 => ['all' => true],
     TwigExtraBundle::class          => ['all' => true],
     NowoFormKitBundle::class        => ['all' => true],
+    UXIconsBundle::class            => ['all' => true],
+    NowoIconSelectorBundle::class   => ['all' => true],
 ];

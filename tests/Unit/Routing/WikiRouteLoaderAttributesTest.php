@@ -66,7 +66,7 @@ final class WikiRouteLoaderAttributesTest extends TestCase
         self::assertSame(['GET', 'POST'], $collection->get('move')?->getMethods());
         self::assertSame(WikiTreeController::class . '::tree', $collection->get('tree')?->getDefault('_controller'));
         self::assertSame(['POST'], $collection->get('tree')?->getMethods());
-        self::assertSame('move|state', $collection->get('tree')?->getRequirement('action'));
+        self::assertSame('move|state|rename|icon', $collection->get('tree')?->getRequirement('action'));
     }
 
     public function testTheCommentRoutesTakeTheirOptionalPath(): void

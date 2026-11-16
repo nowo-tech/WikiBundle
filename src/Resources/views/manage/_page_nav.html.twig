@@ -1,0 +1,21 @@
+{#
+  1.39 (web_ui.page_nav): previous / next page links in the tree's reading order (WikiPageNav), top (under the in-wiki
+  path and the card toolbar) and / or bottom (after the content). Each link: rel prev / next, an accessible name
+  "Previous page: <title>" / "Next page: <title>", the neighbour's icon (decorative, emoji as escaped text) and its
+  title, truncated on one line. An empty side keeps its cell, so the links never move (no layout shift).
+  Variables: page_nav ({prev, next}: {title, icon, href} or null), placement (top|bottom).
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+<nav class="nowo-wiki-page-nav nowo-wiki-page-nav--{{ placement }}" aria-label="{{ placement == 'top' ? 'wiki.page_nav.label_top'|trans : 'wiki.page_nav.label_bottom'|trans }}" data-testid="wiki-page-nav-{{ placement }}">
+    {% for side in ['prev', 'next'] %}
+        {% set _link = attribute(page_nav, side) %}
+        {% if _link %}
+            <a class="nowo-wiki-page-nav__link nowo-wiki-page-nav__link--{{ side }}" href="{{ _link.href }}" rel="{{ side }}" aria-label="{{ side == 'prev' ? 'wiki.page_nav.prev_aria'|trans({'%title%': _link.title}) : 'wiki.page_nav.next_aria'|trans({'%title%': _link.title}) }}" data-testid="wiki-page-nav-{{ side }}">
+                <span class="nowo-wiki-page-nav__hint">{% if side == 'prev' %}<span aria-hidden="true">← </span>{{ 'wiki.page_nav.prev'|trans }}{% else %}{{ 'wiki.page_nav.next'|trans }}<span aria-hidden="true"> →</span>{% endif %}</span>
+                <span class="nowo-wiki-page-nav__title">{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: _link.icon}, false) }}<span class="nowo-wiki-page-nav__text">{{ _link.title }}</span></span>
+            </a>
+        {% else %}
+            <span class="nowo-wiki-page-nav__link nowo-wiki-page-nav__link--{{ side }} nowo-wiki-page-nav__link--empty" aria-hidden="true"></span>
+        {% endif %}
+    {% endfor %}
+</nav>

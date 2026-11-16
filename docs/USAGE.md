@@ -10,6 +10,7 @@
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Space icon (1.32)](#space-icon-132)
+- [Icon picker, emoji icons and the tree menu (1.39)](#icon-picker-emoji-icons-and-the-tree-menu-139)
 - [New page dialog and tree menu (1.35)](#new-page-dialog-and-tree-menu-135)
 - [Member badges and write provenance](#member-badges-and-write-provenance)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
@@ -240,6 +241,39 @@ $builder->add('icon', WikiSpaceIconType::class);
 ```
 
 Space exports carry no space metadata beyond the title (the pages are exported), so the icon is not part of them.
+
+## Icon picker, emoji icons and the tree menu (1.39)
+
+```yaml
+# composer require nowo-tech/icon-selector-bundle:^1.6   (picker or emoji)
+nowo_wiki:
+    space_icon:
+        allowed_prefixes: [tabler]
+        picker: icon_selector     # text (default) | icon_selector
+        emoji: true               # also one emoji, stored as emoji:<grapheme>
+    page_icon:
+        form_field: true
+        picker: icon_selector
+        emoji: true
+    tree:
+        enabled: true
+        context_menu: true        # default
+    web_ui:
+        page_nav: both            # none (default) | top | bottom | both
+```
+
+- **Picker**: the page and space icon fields become IconSelector's picker (search + grid of the allowed prefixes, the
+  Emoji tab with `emoji: true`); the stored value is the same `tabler:book` string, or `emoji:🚀`. Import the
+  IconSelector API routes in the host (`@NowoIconSelectorBundle/Resources/config/routes.yaml`) and run
+  `assets:install`; the wiki pages load `icon-selector.js` (with the CSP nonce when there is one).
+- **Emoji**: shown as escaped text in the tree, the card title, the space list and the sub-page cards; a stored value
+  of another shape is never printed. Existing icon strings render as before.
+- **Tree menu**: see `tree.context_menu` in [CONFIGURATION](CONFIGURATION.md). Keyboard: Shift+F10 or the ContextMenu
+  key on a row, arrows / Home / End in the menu, Enter to choose, Escape to close (focus back on the row); in the rename
+  field Enter saves and Escape cancels.
+- **Previous / next**: `web_ui.page_nav` prints links to the neighbours of the page in the tree's reading order.
+- **Edit view title**: the title field of the page form reads as the page title (class `nowo-wiki-title-input`, the
+  read view's `--nowo-wiki-read-h1-size` / heading tokens; override with `--nowo-wiki-edit-title-size`). The label stays.
 
 ## New page dialog and tree menu (1.35)
 

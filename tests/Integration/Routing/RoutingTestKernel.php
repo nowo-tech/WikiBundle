@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Integration\Routing;
 
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use Nowo\FormKitBundle\NowoFormKitBundle;
+use Nowo\IconSelectorBundle\NowoIconSelectorBundle;
 use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -22,9 +23,12 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\UX\Icons\UXIconsBundle;
 use Twig\Extra\TwigExtraBundle\TwigExtraBundle;
 
+use function class_exists;
 use function dirname;
+use function str_contains;
 use function sys_get_temp_dir;
 
 use const PHP_VERSION_ID;
@@ -57,6 +61,11 @@ final class RoutingTestKernel extends Kernel
         yield new NowoFormKitBundle();
         yield new NowoTiptapEditorBundle();
         yield new WikiBundle();
+        // 1.39: the icon picker / emoji variants need nowo-tech/icon-selector-bundle (a dev dependency).
+        if (str_contains($this->variant, '-icon') && class_exists(NowoIconSelectorBundle::class)) {
+            yield new UXIconsBundle();
+            yield new NowoIconSelectorBundle();
+        }
     }
 
     /** Outside the repository: the kernel would otherwise generate config/reference.php in the package. */
