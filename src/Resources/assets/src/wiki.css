@@ -224,9 +224,15 @@
     padding-inline-end: 0;
   }
 
-  /* 1.31 fix (item 9a of the Beacon review): the toolbar is its own row here, so the page head takes the full width. */
+  /* 1.31 fix (item 9a of the Beacon review): the toolbar is its own row here, so the page head takes the full width.
+     1.38.1: it also loses its 2.5rem height (below, after the base rule): that height lines the path up with the
+     floating toolbar on wide screens; here its centred line left a visible gap under the toolbar row. */
   .nowo-wiki-card-frame > .nowo-wiki-page-head {
     padding-inline-end: 0;
+  }
+
+  .nowo-wiki-card-toolbar:has(+ .nowo-wiki-page-head) {
+    margin-block-end: 0.25rem;
   }
 }
 
@@ -591,6 +597,12 @@
 .nowo-wiki-card-frame > .nowo-wiki-page-head {
   padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
   min-block-size: 2.5rem;
+}
+
+@media (max-width: 39.99rem) {
+  .nowo-wiki-card-frame > .nowo-wiki-page-head {
+    min-block-size: 0;
+  }
 }
 
 .nowo-wiki-path {

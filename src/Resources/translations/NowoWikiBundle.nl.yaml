@@ -287,3 +287,5 @@ wiki_page_form:
     help: "Getoond in de paginaboom, het kruimelpad en de zoekresultaten."
   content:
     placeholder: "Begin met schrijven…"
+  icon:
+    placeholder: "tabler:book"

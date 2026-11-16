@@ -287,3 +287,5 @@ wiki_page_form:
     help: "Mostrato nell’albero delle pagine, nel percorso e nei risultati di ricerca."
   content:
     placeholder: "Inizia a scrivere…"
+  icon:
+    placeholder: "tabler:book"

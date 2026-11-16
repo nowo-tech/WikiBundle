@@ -287,3 +287,5 @@ wiki_page_form:
     help: "Se muestra en el árbol de páginas, las migas de pan y los resultados de búsqueda."
   content:
     placeholder: "Empieza a escribir…"
+  icon:
+    placeholder: "tabler:book"

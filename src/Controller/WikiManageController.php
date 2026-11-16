@@ -849,16 +849,24 @@ final class WikiManageController extends AbstractController
      * 1.38: writes the icon of the page form (page_icon.form_field) through {@see WikiPageIconService} (its own unit of
      * work, the page row locked); nothing without the field. Audit QY-L2: it runs after the page or revision committed,
      * so a failure of the icon unit (a lock wait, the page archived meanwhile) is a warning flash, never an error page
-     * for a save that happened.
+     * for a save that happened. Audit QY-D-I1: except a transient failure inside an already open transaction (rethrown).
      */
     private function applyPageIcon(WikiPage $page, WikiPageFormData $payload): void
     {
         if (!$this->pageIconFieldEnabled()) {
             return;
         }
+        // Audit QY-D-I1 (the QN-L4 rule): inside a transaction the controller did not open (the co-editing log's lock
+        // around the save) a transient failure may have rolled the whole unit back, revision included: never swallowed.
+        $nested = $this->pageIcons?->isInTransaction() ?? false;
         try {
             $this->pageIcons?->setIcon($page, $payload->icon);
-        } catch (InvalidArgumentException|TransientStorageFailure) {
+        } catch (InvalidArgumentException) {
+            $this->flash('warning', 'wiki.page.error.icon_not_saved');
+        } catch (TransientStorageFailure $failure) {
+            if ($nested) {
+                throw $failure;
+            }
             $this->flash('warning', 'wiki.page.error.icon_not_saved');
         }
     }

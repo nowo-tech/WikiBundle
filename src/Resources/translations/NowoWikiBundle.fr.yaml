@@ -287,3 +287,5 @@ wiki_page_form:
     help: "Affiché dans l’arborescence, le fil d’Ariane et les résultats de recherche."
   content:
     placeholder: "Commencez à écrire…"
+  icon:
+    placeholder: "tabler:book"

@@ -287,3 +287,5 @@ wiki_page_form:
     help: "Wird im Seitenbaum, in der Brotkrumennavigation und in den Suchergebnissen angezeigt."
   content:
     placeholder: "Schreiben Sie los…"
+  icon:
+    placeholder: "tabler:book"

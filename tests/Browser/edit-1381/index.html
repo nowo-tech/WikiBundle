@@ -1,0 +1,20 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Wiki 1.38.1 edit view check</title>
+<link rel="stylesheet" href="nowo-ui.css"><link rel="stylesheet" href="wiki.css">
+<style>body{margin:0;padding:1rem;font-family:system-ui,sans-serif}</style></head><body class="nowo-ui">
+<!-- 1.38.1: the card frame of the edit view (web_ui.edit_view.layout: read, toolbar_position: card) as
+     _read_scaffold.html.twig prints it: the card toolbar, the page head with the in-wiki path, the form. -->
+<main>
+<div class="nowo-wiki-layout"><div class="nowo-wiki-layout__aside"></div>
+<div class="nowo-wiki-layout__main">
+  <div class="nowo-wiki-card-frame" data-nowo-wiki-card-frame>
+    <div class="nowo-wiki-card-toolbar" data-nowo-wiki-card-toolbar>
+      <div class="nowo-wiki-card-toolbar__bar" role="group" aria-label="Page actions" data-testid="wiki-card-toolbar"><button type="button">Back</button><button type="button">Edit</button><button type="button">History</button></div>
+    </div>
+    <div class="nowo-wiki-page-head" data-testid="wiki-page-head">
+      <nav class="nowo-wiki-path" aria-label="Path" data-testid="wiki-page-path"><ol class="nowo-wiki-path__list"><li class="nowo-wiki-path__item nowo-wiki-path__item--parent"><a class="nowo-wiki-path__link" href="#space">Engineering</a></li></ol></nav>
+    </div>
+    <div class="nowo-wiki-edit-body" data-testid="wiki-edit-body"><label for="t">Title</label><input id="t" value="Getting Started"></div>
+  </div>
+</div></div>
+</main></body></html>
