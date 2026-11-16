@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Fixed](#fixed-unreleased-1381)
 - [[1.38.0] - 2026-11-16](#1380---2026-11-16)
   - [Added](#added)
   - [Tests](#tests)
@@ -231,6 +232,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+Target 1.38.1 (patch; found by Beacon while adopting 1.38.0).
+
+<a id="fixed-unreleased-1381"></a>
+### Fixed
+
+- **Page form: the Icon field showed the raw key `wiki_page_form.icon.placeholder`.** FormKit derives a field's
+  placeholder from the form's block prefix and the field name (`auto_placeholder`), so the page form's `icon` field (1.38,
+  `page_icon.form_field`) asked for a key that no catalogue had. Added in all seven locales (example `tabler:book`). The
+  translation parity script only compares the catalogues with each other, so a key missing from all of them passed it;
+  the new `TranslationKeysUsedExistTest` fails when a key written in a template or a form type, or a FormKit
+  placeholder key of the page form, is missing from the default locale.
+- **Edit view on phones (375 px): a gap between the card toolbar and the in-wiki path.** The page head kept its 2.5rem
+  minimum height (which lines the path up with the floating toolbar on wide screens) and the toolbar its 0.5rem
+  margin, so the toolbar row and the path were about 18px apart. Below 40rem the head has no minimum height and the
+  gap under the toolbar row is 0.25rem. New Chromium check `make check-edit-view` (320 / 375 / 1280 px, light and dark).
+- **Audit QY-D-I1: the page form swallowed a transient icon failure inside an open transaction.** With co-editing on,
+  the edit form saves inside the log's lock, so the icon unit is nested in that transaction; a deadlock there rolls the
+  whole unit back, revision included, yet `applyPageIcon()` answered it with the "icon not saved" warning. As for the
+  co-editing store (QN-L4), the `TransientStorageFailure` is now rethrown when the wiki's connection already has a
+  transaction open (`WikiPageIconService::isInTransaction()`); outside one it stays a warning flash, as in 1.38.0.
+  Not reachable today (the page row is already locked by the save), so this is hardening.
 
 ## [1.38.0] - 2026-11-16
 

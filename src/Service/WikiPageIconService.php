@@ -53,6 +53,15 @@ final readonly class WikiPageIconService
     }
 
     /**
+     * Whether the wiki's connection already has a transaction open (the page form's save runs inside the co-editing
+     * log's lock, 1.38.1): a transient failure of {@see self::setIcon()} is then the failure of that whole unit.
+     */
+    public function isInTransaction(): bool
+    {
+        return $this->runner?->manager()->getConnection()->isTransactionActive() ?? false;
+    }
+
+    /**
      * Normalises an icon value: '' is no icon (null). Throws when the value is not acceptable.
      *
      * @throws InvalidArgumentException when the value is not an allowed icon name
