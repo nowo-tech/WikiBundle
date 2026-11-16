@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.38.1](#to-1381)
 - [To 1.38.0](#to-1380)
 - [To 1.37.0](#to-1370)
   - [High load (Beacon spec 239)](#high-load-beacon-spec-239)
@@ -97,6 +98,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.38.1
+
+From **1.38.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ## To 1.38.0
 
