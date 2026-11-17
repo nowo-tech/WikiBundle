@@ -7,7 +7,7 @@
  *   the copied label (title, accessible name and the polite live region of the control).
  * - **Legacy fragments:** a URL ending with `#<id>` where no element has that id, but a heading has `nowo-h-<id>`, scrolls
  *   to that heading (links written before 1.40 pointed at `#<id>`). Nothing else happens: a missing section leaves the
- *   page at the top, as the browser does.
+ *   page at the top, as the browser does. Also on `hashchange`.
  */
 
 const LINK = 'a.nowo-md-heading-anchor[data-wiki-section-link]';
@@ -15,6 +15,23 @@ const PREFIX = 'nowo-h-';
 const FLASH_MS = 1600;
 
 const bound = new WeakSet<Document>();
+const watched = new WeakSet<Document>();
+
+/** The polite live region that says "Link copied" (audit RY-I3), made once per document. */
+export function liveRegion(doc: Document): HTMLElement {
+    const existing = doc.querySelector<HTMLElement>('[data-wiki-section-link-status]');
+    if (existing) {
+        return existing;
+    }
+    const region = doc.createElement('div');
+    region.setAttribute('data-wiki-section-link-status', '');
+    region.setAttribute('role', 'status');
+    region.setAttribute('aria-live', 'polite');
+    region.className = 'nowo-milkdown-sr-only';
+    doc.body.appendChild(region);
+
+    return region;
+}
 
 /** The page URL (no query, no fragment) followed by the link's fragment. */
 export function sectionUrl(link: HTMLAnchorElement, win: Window = window): string {
@@ -31,7 +48,11 @@ function flash(link: HTMLAnchorElement, text: string, win: Window): void {
     if (name) {
         name.textContent = text;
     }
+    // Audit RY-I3: screen readers hear it through a polite status, not only through the control's name.
+    const region = liveRegion(link.ownerDocument);
+    region.textContent = text;
     win.setTimeout(() => {
+        region.textContent = '';
         link.setAttribute('title', label);
         if (name) {
             name.textContent = label;
@@ -95,4 +116,21 @@ export function mapLegacyFragment(doc: Document = document): boolean {
     heading.scrollIntoView();
 
     return true;
+}
+
+/**
+ * Maps legacy fragments now and on every later `hashchange` (audit RY-I4: an in-page `#<id>` link or a typed fragment),
+ * once per document.
+ *
+ * @param doc - The document.
+ */
+export function watchLegacyFragments(doc: Document = document): void {
+    mapLegacyFragment(doc);
+    if (watched.has(doc)) {
+        return;
+    }
+    watched.add(doc);
+    (doc.defaultView as Window).addEventListener('hashchange', () => {
+        mapLegacyFragment(doc);
+    });
 }

@@ -49,6 +49,9 @@ final class WikiHeadingOutlineTest extends TestCase
 
     public function testUnicodeTextAndIds(): void
     {
+        // Audit RY-I1: format characters (bidi overrides, zero-width) never reach a label.
+        self::assertSame('Plan', WikiHeadingOutline::fromHtml("<h2 id=\"nowo-h-plan\">P\u{202E}la\u{200B}n</h2>")[0]['text']);
+        self::assertSame('See  now', WikiHeadingOutline::textOf('See <a class="nowo-md-ref" href="/x">Other</a> now'));
         self::assertSame([['id' => 'año-nuevo', 'level' => 2, 'text' => 'Año nuevo']], WikiHeadingOutline::fromHtml('<h2 id="nowo-h-año-nuevo">Año  nuevo</h2>'));
     }
 

@@ -210,10 +210,17 @@ final readonly class WikiCollabService
         $current = $page->getCurrentRevision()?->getId();
         // 1.40 (owner O7): a log of an older collaboration schema ({@see WikiCollabSchema}) is replaced like a stale one,
         // unless it holds text no save has taken in yet (that waits for the session's next save).
+        $epoch = $this->store instanceof WikiCollabEpochStoreInterface ? $this->store->currentEpoch($id) : null;
         $stale = $info->baseRevisionId !== $current
-            || ($this->store instanceof WikiCollabEpochStoreInterface && !$info->hasUnsavedUpdates() && !WikiCollabSchema::isCurrent($this->store->currentEpoch($id)));
+            || ($this->store instanceof WikiCollabEpochStoreInterface && !$info->hasUnsavedUpdates() && !WikiCollabSchema::isCurrent($epoch));
         if ($stale && ($info->isEmpty() || $this->idleFor($info) >= $this->options['reset_after_idle'])) {
-            $this->store->reset($id, $current);
+            // Audit RY-L3: decided on a read outside the lock, so the drop is made only if the log is still that log (an
+            // update that landed meanwhile keeps it); a store without the conditional drop resets as before.
+            if ($this->store instanceof WikiCollabConditionalResetStoreInterface) {
+                $this->store->resetIf($id, $current, $epoch, $info->seq);
+            } else {
+                $this->store->reset($id, $current);
+            }
             $info = $this->store->info($id);
         }
 

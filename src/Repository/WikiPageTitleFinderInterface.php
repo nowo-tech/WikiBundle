@@ -10,7 +10,8 @@ use Nowo\WikiBundle\Entity\WikiPage;
  * 1.40: title-only page lookups of the link picker (contract "section anchors and link picker" §3.1) and the current
  * HTML of pages for section labels, each in one query. {@see DoctrineOrmWikiPageRepository} implements it; spaces and
  * pages are named by id, so it works the same with attribute and XML mapping (standard and DDD hosts). A host page
- * repository without it is read through {@see WikiPageRepositoryInterface} (slower, same answers).
+ * repository without it is read through {@see WikiPageRepositoryInterface::findActiveBySpace()}: at most
+ * `api.search_candidates` pages per wiki in tree order, filtered in PHP, so a larger wiki may miss matches (audit RY-L5).
  *
  * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
  * hosts reach wiki data through the services, the id operations and the events. Permissions are the caller's job.

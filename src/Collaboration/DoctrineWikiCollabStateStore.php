@@ -38,7 +38,7 @@ use const PHP_INT_MAX;
  * Appends are single inserts, the seed claim is a conditional update (one winner), compaction inserts the snapshot
  * before deleting what it covers — no read-modify-write, so concurrent requests never lose an update.
  */
-final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface, WikiCollabEpochStoreInterface
+final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingStoreInterface, WikiCollabPagePurgeInterface, WikiCollabEpochStoreInterface, WikiCollabConditionalResetStoreInterface
 {
     /** MySQL and MariaDB: `SAVEPOINT ... does not exist`. */
     private const MYSQL_SAVEPOINT_MISSING = 1305;
@@ -369,35 +369,76 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
     public function reset(string $pageId, ?string $baseRevisionId): void
     {
         $this->ensureDocument($pageId);
-        $em = $this->em();
-        $this->transactional(static function () use ($em, $pageId, $baseRevisionId): void {
-            $em->createQueryBuilder()
-                ->select('d.pageId')->from(WikiCollabDocument::class, 'd')
-                ->where('d.pageId = :page')->setParameter('page', $pageId)
-                ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
-            $em->createQueryBuilder()
-                ->delete(WikiCollabUpdate::class, 'u')
-                ->where('u.pageId = :page')->setParameter('page', $pageId)
-                ->getQuery()->execute();
-            $em->createQueryBuilder()
-                ->update(WikiCollabDocument::class, 'd')
-                ->set('d.baseRevisionId', ':base')
-                ->set('d.seededAt', 'NULL')
-                ->set('d.seededBy', 'NULL')
-                ->set('d.updateCount', 0)
-                ->set('d.logBytes', 0)
-                ->set('d.lastSeq', 0)
-                ->set('d.snapshotSeq', 0)
-                ->set('d.savedSeq', 0)
-                ->set('d.logEpoch', ':epoch')
-                ->setParameter('epoch', WikiCollabSchema::newEpoch())
-                ->set('d.updatedAt', ':now')
-                ->where('d.pageId = :page')
-                ->setParameter('base', $baseRevisionId)
-                ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
-                ->setParameter('page', $pageId)
-                ->getQuery()->execute();
+        $this->transactional(function () use ($pageId, $baseRevisionId): void {
+            $this->lockDocument($pageId);
+            $this->dropLog($pageId, $baseRevisionId);
         });
+    }
+
+    /**
+     * 1.40 (audit RY-L3): drops the log only when, under the document's row lock, its name and its last number are
+     * still the ones the caller read (in the same lock order as {@see self::reset()}).
+     */
+    public function resetIf(string $pageId, ?string $baseRevisionId, ?string $expectedEpoch, int $expectedSeq): bool
+    {
+        $this->ensureDocument($pageId);
+
+        /* @var bool */
+        return $this->transactional(function () use ($pageId, $baseRevisionId, $expectedEpoch, $expectedSeq): bool {
+            $row = $this->lockDocument($pageId);
+            if ($row === null || $row['logEpoch'] !== $expectedEpoch || max((int) $row['lastSeq'], (int) $row['snapshotSeq']) !== $expectedSeq) {
+                return false;
+            }
+            $this->dropLog($pageId, $baseRevisionId);
+
+            return true;
+        });
+    }
+
+    /**
+     * Locks the page's document row (PESSIMISTIC_WRITE) and returns its log name and numbers.
+     *
+     * @return array{logEpoch: string|null, lastSeq: int|string, snapshotSeq: int|string}|null
+     */
+    private function lockDocument(string $pageId): ?array
+    {
+        /** @var list<array{logEpoch: string|null, lastSeq: int|string, snapshotSeq: int|string}> $rows */
+        $rows = $this->em()->createQueryBuilder()
+            ->select('d.logEpoch AS logEpoch', 'd.lastSeq AS lastSeq', 'd.snapshotSeq AS snapshotSeq')->from(WikiCollabDocument::class, 'd')
+            ->where('d.pageId = :page')->setParameter('page', $pageId)
+            ->getQuery()->setLockMode(LockMode::PESSIMISTIC_WRITE)->getArrayResult();
+
+        return $rows[0] ?? null;
+    }
+
+    /**
+     * Deletes the log and starts a new, empty one with a new name (inside the caller's transaction and row lock).
+     */
+    private function dropLog(string $pageId, ?string $baseRevisionId): void
+    {
+        $em = $this->em();
+        $em->createQueryBuilder()
+            ->delete(WikiCollabUpdate::class, 'u')
+            ->where('u.pageId = :page')->setParameter('page', $pageId)
+            ->getQuery()->execute();
+        $em->createQueryBuilder()
+            ->update(WikiCollabDocument::class, 'd')
+            ->set('d.baseRevisionId', ':base')
+            ->set('d.seededAt', 'NULL')
+            ->set('d.seededBy', 'NULL')
+            ->set('d.updateCount', 0)
+            ->set('d.logBytes', 0)
+            ->set('d.lastSeq', 0)
+            ->set('d.snapshotSeq', 0)
+            ->set('d.savedSeq', 0)
+            ->set('d.logEpoch', ':epoch')
+            ->setParameter('epoch', WikiCollabSchema::newEpoch())
+            ->set('d.updatedAt', ':now')
+            ->where('d.pageId = :page')
+            ->setParameter('base', $baseRevisionId)
+            ->setParameter('now', new DateTimeImmutable(), Types::DATETIME_IMMUTABLE)
+            ->setParameter('page', $pageId)
+            ->getQuery()->execute();
     }
 
     public function markSaved(string $pageId, string $revisionId): void

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bindSectionLinks, mapLegacyFragment, sectionUrl } from './wiki-section-links';
+import { bindSectionLinks, liveRegion, mapLegacyFragment, sectionUrl, watchLegacyFragments } from './wiki-section-links';
 
 const heading = (id: string, label = 'Link to this section'): string =>
     `<h2 id="nowo-h-${id}">Set up <a class="nowo-md-heading-anchor" data-wiki-section-link data-wiki-copied-label="Link copied" href="#nowo-h-${id}" title="${label}"><span class="nowo-milkdown-sr-only">${label}</span><span>#</span></a></h2>`;
@@ -45,7 +45,13 @@ describe('section links (1.40)', () => {
         expect(window.location.hash).toBe('#nowo-h-setup');
         expect(link.getAttribute('title')).toBe('Link copied');
         expect(link.querySelector('.nowo-milkdown-sr-only')?.textContent).toBe('Link copied');
+        const status = document.querySelector('[data-wiki-section-link-status]') as HTMLElement;
+        expect(status.getAttribute('role')).toBe('status');
+        expect(status.getAttribute('aria-live')).toBe('polite');
+        expect(status.textContent).toBe('Link copied');
+        expect(liveRegion(document)).toBe(status);
         vi.advanceTimersByTime(2000);
+        expect(status.textContent).toBe('');
         expect(link.getAttribute('title')).toBe('Link to this section');
         expect(link.querySelector('.nowo-milkdown-sr-only')?.textContent).toBe('Link to this section');
     });
@@ -115,6 +121,21 @@ describe('section links (1.40)', () => {
             window.history.replaceState(null, '', `/p${hash}`);
             expect(mapLegacyFragment(document)).toBe(false);
         }
+        expect(target.scrollIntoView).toHaveBeenCalledTimes(1);
+    });
+
+    it('maps legacy fragments again on hashchange, binding once', () => {
+        document.body.innerHTML = heading('later');
+        const target = document.getElementById('nowo-h-later') as HTMLElement;
+        target.scrollIntoView = vi.fn();
+        window.history.replaceState(null, '', '/p');
+
+        watchLegacyFragments(document);
+        watchLegacyFragments(document);
+        expect(target.scrollIntoView).not.toHaveBeenCalled();
+        window.history.replaceState(null, '', '/p#later');
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+
         expect(target.scrollIntoView).toHaveBeenCalledTimes(1);
     });
 });

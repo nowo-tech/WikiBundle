@@ -968,6 +968,8 @@
   }
 }
 
+/* 1.40 (audit RY-I3): the polite status that says "Link copied" (appended to <body> by wiki.js). */
+[data-wiki-section-link-status],
 .nowo-wiki-content .nowo-milkdown-sr-only {
   position: absolute;
   width: 1px;

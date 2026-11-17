@@ -101,6 +101,8 @@ final class SectionAnchorsRenderTest extends TestCase
         self::assertSame(['setup', 'plain'], array_column($reader['sections'], 'id'));
         self::assertSame($reader['markdown'], $view->markdown($this->space, $this->page, $source));
         self::assertSame(['markdown' => '', 'sections' => []], $view->view($this->space, $this->page, ' '));
+        // Audit RY-L1: a heading with a page link keeps its implicit id, so no suffix is written.
+        self::assertStringNotContainsString('{#', $view->markdown($this->space, $this->page, '## See [[wiki:' . $this->target->getId() . ']] now'));
     }
 
     public function testTheSectionResolverAsksOnlyAboutPagesResolvedInTheFrame(): void

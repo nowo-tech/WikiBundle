@@ -18,6 +18,8 @@ use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownSectionResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
+use Symfony\Component\DependencyInjection\Reference;
 
 /**
  * 1.40 (W2): `editor.milkdown.link_picker` and `stable_heading_ids` — services and routes only with Milkdown, a required
@@ -70,6 +72,18 @@ final class WikiExtensionLinkPickerTest extends TestCase
         $controller = $container->getDefinition(WikiLinkPickerController::class);
         self::assertSame(WikiLinkPickerService::class, (string) $controller->getArgument('$picker'));
         self::assertSame('limiter.wiki_link_picker', (string) $controller->getArgument('$rateLimiter'));
+    }
+
+    /** Audit RY-I6: a host alias of the tenant port is the one the picker service gets. */
+    public function testAHostTenantResolverReachesThePicker(): void
+    {
+        $container = $this->load(['editor' => ['type' => 'milkdown', 'milkdown' => ['link_picker' => ['enabled' => true, 'rate_limiter' => 'limiter.x']]]]);
+        $container->setDefinition('app.link_tenants', new Definition(WikiTenantPathsLinkTenantResolver::class));
+        $container->setAlias(WikiLinkTenantResolverInterface::class, 'app.link_tenants');
+
+        $argument = $container->getDefinition(WikiLinkPickerService::class)->getArgument('$tenants');
+        self::assertInstanceOf(Reference::class, $argument);
+        self::assertSame($container->getDefinition('app.link_tenants'), $container->findDefinition((string) $argument));
     }
 
     public function testThePickerNeedsMilkdown(): void

@@ -146,6 +146,12 @@ Since 1.40 the bundle serves the page picker itself (`editor.milkdown.link_picke
   to 100 characters and stripped of control, format and bidi characters.
 - **Worker mode:** the services are stateless (`final readonly`); the rate limiter is created per call; the render
   frame lives for one render; nothing is cached across requests (N-request test with two users and two tenants).
+- **Timing (audit RY-L2, known):** the candidates answer is filtered after the title query, with one ancestor walk per
+  hit, so its response time grows with the number of matching titles the person may **not** read. A patient caller can
+  estimate that count (never a title, an id or a wiki name), within the rate limit. This is the same class as the
+  search page's post-filtering. Planned for 1.41: filtering in SQL or padding to a fixed number of reads.
+- **Host repositories:** without `WikiPageTitleFinderInterface` the picker reads at most `api.search_candidates` pages
+  per wiki (tree order) before the title filter; the same gates apply.
 
 **Section anchors (1.40).** Heading ids are only ever `nowo-h-` + the shared grammar (`Markdown\WikiHeadingAnchor`,
 at most 1000 per page; the sanitizer pattern matches it), so page content cannot clobber host ids or globals. A hidden

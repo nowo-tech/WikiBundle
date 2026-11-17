@@ -98,6 +98,8 @@ final readonly class WikiLinkPickerService
      * @param WikiRenderContext $renderContext the render frame of the sections render
      * @param string $searchScope `search.scope` (`space`: the current wiki only)
      * @param list<string> $excludedSpaces `search.excluded_spaces`: wikis without the picker (no title search)
+     * @param int $searchCandidates pages a host repository without {@see WikiPageTitleFinderInterface} reads per wiki
+     *                              before the title filter (`api.search_candidates`, audit RY-L5)
      */
     public function __construct(
         private WikiPageRepositoryInterface $pages,
@@ -113,6 +115,7 @@ final readonly class WikiLinkPickerService
         private WikiRenderContext $renderContext,
         private string $searchScope = 'all',
         private array $excludedSpaces = [],
+        private int $searchCandidates = 500,
     ) {
     }
 
@@ -187,7 +190,8 @@ final readonly class WikiLinkPickerService
         $revision = $page->getCurrentRevision();
         $markdown = $revision?->getContentMarkdown();
         if ($markdown === null || !$this->renderer instanceof WikiViewerMarkdownRendererInterface) {
-            return WikiHeadingOutline::fromHtml($revision?->getContentHtml() ?? '');
+            // Audit RY-I2: the stored (viewer-neutral) HTML: top-level headings only, as the section labels.
+            return WikiHeadingOutline::fromHtml($revision?->getContentHtml() ?? '', true);
         }
         $renderer = $this->renderer;
         $html     = $this->sanitizer->sanitize($this->renderContext->within($pageSpace, $page, static fn (): string => $renderer->renderForViewer($markdown)));
@@ -230,7 +234,7 @@ final readonly class WikiLinkPickerService
                 if (count($groups) === self::MAX_WIKIS) {
                     continue;
                 }
-                $groups[$id] = ['wiki' => $page->getSpace()->getName(), 'pages' => []];
+                $groups[$id] = ['wiki' => self::withoutFormatCharacters($page->getSpace()->getName()), 'pages' => []];
             }
             if (count($groups[$id]['pages']) === self::MAX_PER_WIKI) {
                 continue;
@@ -311,11 +315,12 @@ final readonly class WikiLinkPickerService
             return $this->pages->findByTitle($ids, $query, $rows);
         }
 
-        // A host page repository without the finder: its pages read space by space (capped), filtered in PHP.
+        // A host page repository without the finder: up to `search_candidates` pages of each wiki in tree order (audit
+        // RY-L5), filtered on their title in PHP. A wiki with more pages may miss matches past that bound.
         $found  = [];
         $needle = mb_strtolower($query, 'UTF-8');
         foreach ($spaces as $space) {
-            foreach ($this->pages->findActiveBySpace($space, $rows) as $page) {
+            foreach ($this->pages->findActiveBySpace($space, $this->searchCandidates) as $page) {
                 if ($needle === '' || mb_stripos($page->getTitle(), $needle, 0, 'UTF-8') !== false) {
                     $found[] = $page;
                 }
@@ -351,7 +356,16 @@ final readonly class WikiLinkPickerService
      */
     private function row(WikiPage $page): array
     {
-        return ['id' => $page->getId(), 'label' => $page->getTitle(), 'url' => $this->url($page)];
+        return ['id' => $page->getId(), 'label' => self::withoutFormatCharacters($page->getTitle()), 'url' => $this->url($page)];
+    }
+
+    /**
+     * Audit RY-I1: a title or wiki name without format characters (bidi overrides, zero-width), which could make a label
+     * look like another one.
+     */
+    private static function withoutFormatCharacters(string $text): string
+    {
+        return (string) preg_replace('/\p{Cf}+/u', '', $text);
     }
 
     private function url(WikiPage $page): string

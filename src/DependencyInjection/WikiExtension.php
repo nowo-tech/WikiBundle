@@ -862,7 +862,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$sanitizer', new Reference(WikiHtmlSanitizerInterface::class))
             ->setArgument('$renderContext', new Reference(WikiRenderContext::class))
             ->setArgument('$searchScope', $config['search']['scope'])
-            ->setArgument('$excludedSpaces', array_values($config['search']['excluded_spaces'])));
+            ->setArgument('$excludedSpaces', array_values($config['search']['excluded_spaces']))
+            ->setArgument('$searchCandidates', $config['api']['search_candidates']));
         $container->getDefinition(WikiLinkPickerController::class)
             ->setArgument('$picker', new Reference(WikiLinkPickerService::class))
             ->setArgument('$rateLimiter', new Reference((string) $picker['rate_limiter']));

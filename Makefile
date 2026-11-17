@@ -1,6 +1,6 @@
 # Wiki Bundle - Development
 SHELL := /bin/bash
-.PHONY: check-section-links check-seamless-swapcheck-new-page-menu check-read-layout check-edit-view help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
+.PHONY: check-section-links check-seamless-swap check-new-page-menu check-read-layout check-edit-view help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
 
 COMPOSE_FILE ?= docker-compose.yml
 # Prefer Compose V2; absolute docker path avoids shadowing by local docker/ (REQ-MAKE-010).
@@ -151,7 +151,8 @@ check-twig-extra:
 
 # Run Igor worker-state audit (REQ-CS-008)
 igor: ensure-up
-	$(COMPOSE) exec -T php composer igor
+	# Igor takes more than composer's 300 s process timeout on this bundle (audit RY): no timeout.
+	$(COMPOSE) exec -T -e COMPOSER_PROCESS_TIMEOUT=0 php composer igor
 check-no-raw-html-form:
 	@chmod +x .scripts/check-no-raw-html-form.sh
 	@./.scripts/check-no-raw-html-form.sh

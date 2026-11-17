@@ -429,6 +429,28 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         self::assertSame(0, $this->store->info('never-opened')->savedSeq);
     }
 
+    /** 1.40 (audit RY-L3): the conditional drop checks the name and the last number under the row lock. */
+    public function testResetIfDropsOnlyTheLogTheCallerSaw(): void
+    {
+        $name = $this->store->epoch('r1');
+        $this->store->append('r1', 'dQ==');
+        $seen = $this->store->info('r1')->seq;
+
+        // An update landed after the caller's read: the log stays.
+        $this->store->append('r1', 'dg==');
+        self::assertFalse($this->store->resetIf('r1', 'rev-2', $name, $seen));
+        self::assertFalse($this->store->resetIf('r1', 'rev-2', 'another-name', $seen + 1));
+        self::assertSame($name, $this->store->currentEpoch('r1'));
+        self::assertSame(2, $this->store->info('r1')->updateCount);
+
+        self::assertTrue($this->store->resetIf('r1', 'rev-2', $name, $seen + 1));
+        self::assertNotSame($name, $this->store->currentEpoch('r1'));
+        self::assertTrue($this->store->info('r1')->isEmpty());
+        self::assertSame('rev-2', $this->store->info('r1')->baseRevisionId);
+        // A log never named yet: null is its name.
+        self::assertTrue($this->store->resetIf('r2', null, null, 0));
+    }
+
     /** Audit HV-M1: named once, stable until a reset, new after every reset. */
     public function testALogKeepsItsNameUntilAReset(): void
     {

@@ -73,6 +73,15 @@ final class SectionAnchorGrammarTest extends TestCase
         );
     }
 
+    /** Audit RY-L1: the slug is taken from the text the id sees, without references, mentions, icons and math. */
+    public function testReferencesMentionsIconsAndMathDoNotCountForTheSlug(): void
+    {
+        $html = '<h2 id="nowo-h-see-now">See <a class="nowo-md-ref" href="/p">Other page</a> now</h2>'
+            . '<h2 id="nowo-h-ask-x">Ask <span class="nowo-md-mention">@ana</span><span class="nowo-md-icon" data-icon="home"></span> <code>x</code><span class="nowo-md-math">y</span></h2>';
+
+        self::assertSame('<h2>See <a class="nowo-md-ref" href="/p">Other page</a> now</h2><h2>Ask <span class="nowo-md-mention">@ana</span><span class="nowo-md-icon" data-icon="home"></span> <code>x</code><span class="nowo-md-math">y</span></h2>', WikiHeadingIdConverter::keepDifferentIds($html));
+    }
+
     public function testTheDeprecatedAlignedHeaderConverterStillAligns(): void
     {
         $environment = Environment::createDefaultEnvironment(['header_style' => 'atx']);

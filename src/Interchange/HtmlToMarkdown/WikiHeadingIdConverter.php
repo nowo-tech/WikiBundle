@@ -7,13 +7,13 @@ namespace Nowo\WikiBundle\Interchange\HtmlToMarkdown;
 use League\HTMLToMarkdown\Converter\HeaderConverter;
 use League\HTMLToMarkdown\ElementInterface;
 use Nowo\WikiBundle\Markdown\WikiHeadingAnchor;
+use Nowo\WikiBundle\Markdown\WikiHeadingOutline;
 
 use function html_entity_decode;
 use function preg_replace;
 use function preg_replace_callback;
 use function rtrim;
 use function str_starts_with;
-use function strip_tags;
 
 use const ENT_HTML5;
 use const ENT_QUOTES;
@@ -60,8 +60,9 @@ final class WikiHeadingIdConverter extends HeaderConverter
         return preg_replace_callback(
             '~<h([1-6])\b([^>]*?)\sid="([^"]*)"([^>]*)>(.*?)</h\1\s*>~is',
             static function (array $m): string {
-                $id   = WikiHeadingAnchor::normalise(html_entity_decode($m[3], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-                $text = html_entity_decode(strip_tags($m[5]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $id = WikiHeadingAnchor::normalise(html_entity_decode($m[3], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                // Audit RY-L1: the text the id sees (no page references, mentions, icons or math), as the sections do.
+                $text = WikiHeadingOutline::textOf($m[5]);
                 if ($id !== '' && $id !== WikiHeadingAnchor::slug($text)) {
                     return $m[0];
                 }

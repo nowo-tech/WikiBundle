@@ -107,14 +107,18 @@ final readonly class WikiViewerMarkdownView
             $html = $this->attachmentFilter->filter($space, $html);
         }
         $sections = WikiHeadingOutline::fromHtml($html);
+        // 1.40: a heading keeps its id as the `{#id}` suffix only where it differs from its text's slug (owner O1),
+        // judged before page links become token text (audit RY-L1: their titles are not heading text).
+        if ($this->converter->dialect) {
+            $html = WikiHeadingIdConverter::keepDifferentIds($html);
+        }
         if ($frame instanceof WikiRenderFrame) {
             $html = $this->pageLinksAsTokens($html, $frame);
         }
         $html = preg_replace(self::FILE_CARD_DECORATION, '', $html) ?? $html;
 
-        // 1.40: a heading keeps its id as the `{#id}` suffix only where it differs from its text's slug (owner O1).
         return [
-            'markdown' => $this->converter->htmlToMarkdown($this->converter->dialect ? WikiHeadingIdConverter::keepDifferentIds($html) : $html),
+            'markdown' => $this->converter->htmlToMarkdown($html),
             'sections' => $sections,
         ];
     }

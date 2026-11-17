@@ -32,7 +32,7 @@ use const LIBXML_NOWARNING;
  * {@see self::MAX_SECTIONS} are returned. The text is the heading's own text and code: page references (titles of other
  * pages), mentions, icons and math are left out, so a section label never carries another page's title or a person's
  * name. With `$topLevelOnly`, headings nested in any block (callouts, details, quotes, lists, host containers) are left
- * out too. Stateless; nothing is kept between calls.
+ * out too. Format characters (bidi, zero-width) are removed from the text. Stateless; nothing is kept between calls.
  */
 final class WikiHeadingOutline
 {
@@ -60,13 +60,8 @@ final class WikiHeadingOutline
             return [];
         }
 
-        $document = new DOMDocument();
-        $previous = libxml_use_internal_errors(true);
-        $loaded   = $document->loadHTML('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>' . $html . '</body></html>', LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-        $body = $document->getElementsByTagName('body')->item(0);
-        if (!$loaded || !$body instanceof DOMElement) {
+        $body = self::body($html);
+        if (!$body instanceof DOMElement) {
             return []; // @codeCoverageIgnore
         }
 
@@ -75,6 +70,36 @@ final class WikiHeadingOutline
         self::collect($body, $topLevelOnly, $sections, $seen, 0);
 
         return $sections;
+    }
+
+    /**
+     * 1.40 (audit RY-L1): the heading's own text of the inner HTML of one heading, as its id sees it — text and code,
+     * without page references, mentions, icons and math (the same rule as the sections). Not trimmed or cleaned: the
+     * caller slugs it.
+     *
+     * @param string $innerHtml sanitized inner HTML of a heading
+     */
+    public static function textOf(string $innerHtml): string
+    {
+        $body = self::body('<p>' . $innerHtml . '</p>');
+        $p    = $body?->firstChild;
+
+        return $p instanceof DOMElement ? self::text($p, 0) : '';
+    }
+
+    /**
+     * The `<body>` of an HTML fragment parsed as UTF-8, or null.
+     */
+    private static function body(string $html): ?DOMElement
+    {
+        $document = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded   = $document->loadHTML('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>' . $html . '</body></html>', LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        $body = $document->getElementsByTagName('body')->item(0);
+
+        return $loaded && $body instanceof DOMElement ? $body : null;
     }
 
     /**
@@ -92,7 +117,8 @@ final class WikiHeadingOutline
                 $id  = str_starts_with($raw, WikiHeadingAnchor::PREFIX) ? WikiHeadingAnchor::normalise($raw) : '';
                 if ($id !== '' && !isset($seen[$id])) {
                     $seen[$id] = true;
-                    $text      = trim((string) preg_replace('/\s+/u', ' ', self::text($node, 0)));
+                    // Audit RY-I1: no format (bidi, zero-width) characters in a label.
+                    $text = trim((string) preg_replace(['/\p{Cf}+/u', '/\s+/u'], ['', ' '], self::text($node, 0)));
                     if ($text !== '') {
                         $sections[] = ['id' => $id, 'level' => (int) $level[1], 'text' => mb_substr($text, 0, self::MAX_TEXT, 'UTF-8')];
                     }

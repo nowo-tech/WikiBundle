@@ -41,6 +41,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_column;
 use function array_map;
+use function array_slice;
 use function count;
 use function memory_get_usage;
 use function str_repeat;
@@ -206,6 +207,12 @@ final class WikiLinkPickerServiceTest extends TestCase
         $this->em->flush();
 
         self::assertSame([['id' => 'a', 'level' => 2, 'text' => 'A']], $this->service()->sections($this->user, $this->eng, $this->pages['notes']->getId()));
+        // Audit RY-I2: the stored (viewer-neutral) HTML gives top-level headings only.
+        $nested = new WikiPageRevision($this->pages['notes'], 2, '<h2 id="nowo-h-a">A</h2><details><h3 id="nowo-h-b">B</h3></details>', null);
+        $this->pages['notes']->setCurrentRevision($nested);
+        $this->em->persist($nested);
+        $this->em->flush();
+        self::assertSame(['a'], array_column($this->service()->sections($this->user, $this->eng, $this->pages['notes']->getId()) ?? [], 'id'));
         self::assertSame([], $this->service(renderer: new WikiMarkdownRenderer())->sections($this->user, $this->eng, $this->pages['install']->getId()));
     }
 
@@ -222,6 +229,24 @@ final class WikiLinkPickerServiceTest extends TestCase
 
         self::assertSame(['Install guide', 'Installer notes', '100% install_ notes'], array_column($service->candidates($this->user, $this->eng, 'install')['here'], 'label'));
         self::assertCount(3, $service->candidates($this->user, $this->eng, '')['here']);
+
+        // Audit RY-L5: more than the 50 rows of a page of answers are read before the title filter.
+        $many = [];
+        for ($i = 1; $i <= 120; ++$i) {
+            $many[] = new WikiPage($this->eng, 'p' . $i, $i === 120 ? 'Needle' : 'Other ' . $i);
+        }
+        $big = $this->createStub(WikiPageRepositoryInterface::class);
+        $big->method('findActiveBySpace')->willReturnCallback(static fn (WikiSpace $space, ?int $limit = null): array => array_slice($many, 0, $limit));
+        self::assertSame(['Needle'], array_column($this->service(repository: $big)->candidates($this->user, $this->eng, 'needle')['here'], 'label'));
+    }
+
+    /** Audit RY-I1: labels and wiki names carry no format (bidi, zero-width) characters. */
+    public function testLabelsWithoutFormatCharacters(): void
+    {
+        $this->page($this->eng, 'spoof', "Install \u{202E}gnp.exe");
+        $this->em->flush();
+
+        self::assertContains('Install gnp.exe', array_column($this->service()->candidates($this->user, $this->eng, 'install')['here'], 'label'));
     }
 
     public function testUrlsWithoutARouteOrWithARoutingError(): void

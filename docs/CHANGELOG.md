@@ -260,7 +260,8 @@ owner decisions O1–O11 of 2026-11-16). Needs nowo-tech/milkdown-editor-bundle 
   reserved first, then slugs with the lowest free `-N`, linear, at most 1000 headings); Unicode ids (owner decision O2).
 - **"Link to this section"** on every heading of the page view (Twig filter `nowo_wiki_section_links`, after the
   sanitizer): a plain fragment link without JavaScript; with `wiki.js` a click copies the page URL with `#nowo-h-<id>`
-  and says *Link copied*. A legacy `#<id>` fragment scrolls to its `nowo-h-<id>` heading. Translated in the 7 locales.
+  and says *Link copied* (also through a polite `role="status"`). A legacy `#<id>` fragment scrolls to its
+  `nowo-h-<id>` heading, on load and on `hashchange`. Translated in the 7 locales.
 - **Section labels** (owner decision O3): a link to a section reads `Title › Section text`
   (`Markdown\Milkdown\WikiMilkdownSectionResolver`, only for pages that resolved for the viewer in this render, from
   the viewer-neutral cache, top-level headings, text only); a missing section reads `Title`.
@@ -268,7 +269,9 @@ owner decisions O1–O11 of 2026-11-16). Needs nowo-tech/milkdown-editor-bundle 
   OpenAPI `Section`).
 - `Markdown\WikiHeadingAnchor` (the shared id grammar), `Markdown\WikiHeadingOutline`,
   `Repository\WikiPageTitleFinderInterface` (implemented by `DoctrineOrmWikiPageRepository`),
-  `Interchange\HtmlToMarkdown\WikiHeadingIdConverter`, `Collaboration\WikiCollabSchema`.
+  `Interchange\HtmlToMarkdown\WikiHeadingIdConverter`, `Collaboration\WikiCollabSchema`,
+  `Collaboration\WikiCollabConditionalResetStoreInterface` (implemented by `DoctrineWikiCollabStateStore`: the
+  session start drops a stale log only if, under the row lock, it is still the log it read; audit RY-L3).
 
 ### Changed
 
@@ -292,6 +295,8 @@ owner decisions O1–O11 of 2026-11-16). Needs nowo-tech/milkdown-editor-bundle 
 
 - The importer does not turn `other.md#id` back into `[[wiki:<uuid>#id]]` (an export followed by an import loses page
   links, with or without anchors; owner decision O9: a later slice).
+- The candidates endpoint filters after the title query, so its timing grows with the number of matching titles the
+  person may not read (audit RY-L2; see docs/SECURITY.md). SQL filtering or padding is planned for 1.41.
 - An API `PUT` that drops a `{#id}` suffix changes that heading's id; the server does not carry ids over from the base
   revision (owner decision O8, documented in docs/API.md).
 
