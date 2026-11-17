@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.41.0](#to-1410)
 - [To 1.40.2](#to-1402)
 - [To 1.40.1](#to-1401)
 - [To 1.40.0](#to-1400)
@@ -102,6 +103,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.41.0
+
+From **1.40.2**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 Target: **1.41.0**. Nothing changes unless `tree.context_menu: true` (opt-in since 1.39).
 
