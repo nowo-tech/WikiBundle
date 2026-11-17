@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Api;
 
 use DateTimeImmutable;
+use Nowo\WikiBundle\Entity\WikiComment;
+use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
 use Nowo\WikiBundle\Trash\WikiTrashService;
@@ -95,6 +98,88 @@ final class WorkerNoResetTrashTest extends ApiTestCase
         self::assertSame(['batches' => 3, 'pages' => 6], $trash->purgeExpired(new DateTimeImmutable('+1 year')));
         $saved = $this->raw('PUT', '/wikis/eng/pages/' . $keeper->getId(), ['content_markdown' => 'v2', 'base_revision' => 1]);
         self::assertSame(200, $saved->getStatusCode(), (string) $saved->getContent());
+    }
+
+    /**
+     * Audit SH-I2: a worker's next request after `clear()`: the purged page, its revisions and its comments are loaded
+     * again, their to-one relations (current revision, comment thread, sub-page parent) as lazy proxies, before the
+     * trash delete, the purge and later writes on the same kernel.
+     */
+    public function testLazyProxiesAfterClearThenTrashPurgeAndSave(): void
+    {
+        $trash  = $this->trash();
+        $keeper = $this->page($this->eng, 'Keeper', 'v1');
+        $parent = $this->page($this->eng, 'Parent', 'p1');
+        $saved  = $this->raw('PUT', '/wikis/eng/pages/' . $parent->getId(), ['content_markdown' => 'p2', 'base_revision' => 1]);
+        self::assertSame(200, $saved->getStatusCode(), (string) $saved->getContent());
+        $child = $this->page($this->eng, 'Child', 'c', $parent);
+        $em    = $this->wikiEm();
+        $page  = $em->find(WikiPage::class, $parent->getId());
+        self::assertInstanceOf(WikiPage::class, $page);
+        $thread = new WikiCommentThread($page, null);
+        $em->persist($thread);
+        $em->persist(new WikiComment($thread, null, 'hello'));
+        $em->flush();
+
+        // A previous request of the worker: fresh objects whose relations are lazy proxies.
+        $em->clear();
+        $page = $em->find(WikiPage::class, $parent->getId());
+        self::assertInstanceOf(WikiPage::class, $page);
+        self::assertCount(1, $em->getRepository(WikiComment::class)->findAll());
+        self::assertCount(2, $em->getRepository(WikiPageRevision::class)->findBy(['page' => $page]));
+        self::assertNotNull($em->find(WikiPage::class, $child->getId()));
+        $batch = $trash->delete($page);
+
+        // The purging request: the page with its current revision as a proxy, the comment with its thread as a proxy.
+        $em->clear();
+        self::assertNotNull($em->find(WikiPage::class, $parent->getId()));
+        self::assertCount(1, $em->getRepository(WikiComment::class)->findAll());
+        self::assertSame(2, $trash->purge($this->eng(), $batch));
+
+        $saved = $this->raw('PUT', '/wikis/eng/pages/' . $keeper->getId(), ['content_markdown' => 'v2', 'base_revision' => 1]);
+        self::assertSame(200, $saved->getStatusCode(), (string) $saved->getContent());
+        $other = $this->page($this->eng, 'Other', 'o');
+        self::assertSame(1, $trash->purge($this->eng(), $trash->delete($this->fresh($other))));
+        $saved = $this->raw('PUT', '/wikis/eng/pages/' . $keeper->getId(), ['content_markdown' => 'v3', 'base_revision' => 2]);
+        self::assertSame(200, $saved->getStatusCode(), (string) $saved->getContent());
+
+        $em->clear();
+        self::assertNull($em->find(WikiPage::class, $parent->getId()));
+        self::assertCount(0, $em->getRepository(WikiComment::class)->findAll());
+        self::assertSame(3, $em->find(WikiPage::class, $keeper->getId())?->getCurrentRevision()?->getRevisionNumber());
+    }
+
+    /**
+     * Audit SH-I1: a sub-page that survives the purge of its parent keeps its pending changes. Its parent is set to null
+     * in memory and in the unit of work's original data (as the DQL did in the database), not read again.
+     */
+    public function testSurvivingSubPageKeepsItsPendingChanges(): void
+    {
+        $trash       = $this->trash();
+        $parent      = $this->page($this->eng, 'Parent', 'p');
+        $child       = $this->page($this->eng, 'Child', 'c', $parent);
+        $childBatch  = $trash->delete($this->fresh($child));
+        $parentBatch = $trash->delete($this->fresh($parent));
+        $survivor    = $this->fresh($child);
+        self::assertSame($parent->getId(), $survivor->getParent()?->getId());
+        $survivor->setTitle('Renamed, not flushed yet');
+
+        self::assertSame(1, $trash->purge($this->eng(), $parentBatch));
+
+        $em = $this->wikiEm();
+        self::assertSame($survivor, $this->fresh($child), 'still managed, not detached');
+        self::assertSame('Renamed, not flushed yet', $survivor->getTitle(), 'the pending change was not dropped');
+        self::assertNull($survivor->getParent());
+        $unitOfWork = $em->getUnitOfWork();
+        $unitOfWork->computeChangeSets();
+        self::assertArrayNotHasKey('parent', $unitOfWork->getEntityChangeSet($survivor), 'the original parent follows the database');
+        $em->flush();
+        $em->clear();
+        $reloaded = $em->find(WikiPage::class, $child->getId());
+        self::assertInstanceOf(WikiPage::class, $reloaded);
+        self::assertSame('Renamed, not flushed yet', $reloaded->getTitle());
+        self::assertNull($reloaded->getParent());
+        self::assertInstanceOf(WikiPage::class, $trash->restore($this->eng(), $childBatch));
     }
 
     private function trash(): WikiTrashService

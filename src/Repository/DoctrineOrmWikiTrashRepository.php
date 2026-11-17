@@ -171,8 +171,10 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
      * and pointing at detached pages, and the sub-pages left in place kept their old parent: the next flush on that
      * manager (the next wiki write in the same request or command, or of a worker whose manager is never cleared)
      * failed with "new entity found through WikiTrashEntry#page". A wiki row that points at a forgotten one is
-     * forgotten too (comment → thread → page, label → revision → page); a page that survives the purge is read again
-     * (its parent pointer was cleared in the database). The application's entities are left as they are.
+     * forgotten too (comment → thread → page, label → revision → page). A page that survives the purge gets its pointer
+     * to a purged page set to null in memory and in the unit of work's original data, as the DQL did in the database
+     * (1.40.2, audit SH-I1: not read again, which dropped that page's other pending changes). The application's
+     * entities are left as they are.
      *
      * @param list<string> $ids the purged page ids
      */
@@ -181,7 +183,8 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
         $purged     = array_fill_keys($ids, true);
         $unitOfWork = $entityManager->getUnitOfWork();
         $gone       = [];
-        $refresh    = [];
+        // Surviving pages: object id => [page, metadata, fields that point at a forgotten row].
+        $unlink = [];
         do {
             $more = false;
             foreach ($unitOfWork->getIdentityMap() as $class => $entities) {
@@ -191,7 +194,7 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
                 $metadata = $entityManager->getClassMetadata($class);
                 foreach ($entities as $entity) {
                     $oid = spl_object_id($entity);
-                    if (isset($gone[$oid]) || isset($refresh[$oid])) {
+                    if (isset($gone[$oid]) || isset($unlink[$oid])) {
                         continue;
                     }
                     if ($entity instanceof WikiPage && isset($purged[$entity->getId()])) {
@@ -200,19 +203,21 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
 
                         continue;
                     }
+                    $fields = [];
                     foreach ($metadata->associationMappings as $field => $mapping) {
                         $target = $mapping->isToOne() ? $metadata->getFieldValue($entity, $field) : null;
-                        if (!is_object($target) || !(isset($gone[spl_object_id($target)]) || ($target instanceof WikiPage && isset($purged[$target->getId()])))) {
-                            continue;
+                        if (is_object($target) && (isset($gone[spl_object_id($target)]) || ($target instanceof WikiPage && isset($purged[$target->getId()])))) {
+                            $fields[] = $field;
                         }
-                        if ($entity instanceof WikiPage) {
-                            $refresh[$oid] = $entity;
-                        } else {
-                            $gone[$oid] = $entity;
-                            $more       = true;
-                        }
-
-                        break;
+                    }
+                    if ($fields === []) {
+                        continue;
+                    }
+                    if ($entity instanceof WikiPage) {
+                        $unlink[$oid] = [$entity, $metadata, $fields];
+                    } else {
+                        $gone[$oid] = $entity;
+                        $more       = true;
                     }
                 }
             }
@@ -220,8 +225,11 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
         foreach ($gone as $entity) {
             $entityManager->detach($entity);
         }
-        foreach ($refresh as $page) {
-            $entityManager->refresh($page);
+        foreach ($unlink as $oid => [$page, $metadata, $fields]) {
+            foreach ($fields as $field) {
+                $metadata->setFieldValue($page, $field, null);
+                $unitOfWork->setOriginalEntityProperty($oid, $field, null);
+            }
         }
     }
 
