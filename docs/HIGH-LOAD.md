@@ -7,7 +7,7 @@ worker mode with the kernel **not** reset between requests, RoadRunner, Messenge
 
 - [One unit of work per write](#one-unit-of-work-per-write)
 - [Your entity manager is yours](#your-entity-manager-is-yours)
-- [Transient failures: 503, conflicts: 409](#transient-failures-503-conflicts-409)
+- [Transient failures and conflicts: 409](#transient-failures-and-conflicts-409)
 - [Races that no longer happen](#races-that-no-longer-happen)
 - [One lock order](#one-lock-order)
 - [Exact ids](#exact-ids)
@@ -34,7 +34,7 @@ nowo-tech/transaction-contract's `TransactionRunnerInterface`):
   listeners have heard of rows that do not exist (and an uploaded file stays in storage). Call the wiki outside your
   transaction, or hold its events yourself until you commit (audit QN-L5; the same as in 1.36).
 
-HTTP writes make one attempt: a transient failure answers 503 and the client retries. `runRetrying()` (outermost
+HTTP writes make one attempt: a transient failure answers 409 + `Retry-After` (503 with the policy opt-in) and the client retries. `runRetrying()` (outermost
 transaction only, three attempts, full-jitter backoff) is there for replayable background units of your own; no wiki
 service calls it.
 
@@ -50,7 +50,7 @@ services by its class.
 - **Shared manager** (the default, `database.entity_manager`): the unit runs in a connection-level transaction. After
   a failure only the wiki rows the unit added, wrote, changed or scheduled for deletion are forgotten; your entities
   stay managed and your pending changes stay pending. A failed flush closes the manager (Doctrine does): it **stays
-  closed for the rest of the request** (your next flush fails loudly; a wiki write answers 503) and is replaced at the
+  closed for the rest of the request** (your next flush fails loudly; a wiki write answers 409) and is replaced at the
   next request, message or command boundary. Until 1.36 the wiki reset it in the middle of the request, which detached
   every entity you had loaded. In this mode a wiki unit still writes what you left pending in the shared manager, as in
   1.36; the co-editing log and the search backfill no longer do (they write through DBAL). When a wiki unit that
@@ -63,17 +63,17 @@ savepoint, and a wiki failure rolls back to that savepoint only. A transient fai
 replayed by the wiki (the server may have rolled back your work too): it reaches you as `TransientStorageFailure`
 (or, from a page save, as `WikiRevisionCollisionException` with it as previous); retry your whole transaction.
 
-## Transient failures: 503, conflicts: 409
+## Transient failures and conflicts: 409
 
 On the wiki's routes (a controller of the bundle, or a route of the REST API), `WikiStorageFailureSubscriber`
 (`kernel.exception`) maps:
 
 | Failure | REST API | Internal JSON endpoints | Pages |
 |---------|----------|-------------------------|-------|
-| `TransientStorageFailure`, or a DBAL `RetryableException` (deadlock, lock wait timeout) | `503` `{"err", "ECODE": "SERVER_002"}` + `Retry-After` | `503` `{"error": "unavailable"}` + `Retry-After` | `ServiceUnavailableHttpException` (your error page) |
+| `TransientStorageFailure`, or a DBAL `RetryableException` (deadlock, lock wait timeout) | `409` `{"err", "ECODE": "SERVER_002"}` + `Retry-After` | `409` `{"error": "unavailable"}` + `Retry-After` | `HttpException` 409 (your error page) |
 | A unique key refused a concurrent write (a page or space slug taken meanwhile) | `409` `{"ECODE": "WIKI_CONFLICT"}` | `409` `{"error": "conflict"}` | `ConflictHttpException` |
 
-The storage error stays the previous exception, for your logs: no SQL or parameter reaches the client. A page save
+Since 1.42 the status is the shared transaction-doctrine policy's (409; `nowo_transaction_doctrine.conflict_response.status: 503` keeps 503), and a conflict that already committed (`ConcurrencyConflict`, `committed: true`) gets no `Retry-After`. The REST API and the pages then carry the reload text ("Part of your change may have been saved. Reload before trying again."); the internal JSON endpoints keep `{"error": "unavailable"}` byte for byte, so the missing `Retry-After` is their only signal. A REST write sent with an `Idempotency-Key` keeps its claim in that case: a retry replays the answer instead of writing again. The storage error stays the previous exception, for your logs: no SQL or parameter reaches the client. A page save
 that loses a race keeps its 1.22+ answer (the form again with the text, or `409 WIKI_SAVE_COLLISION` + `Retry-After`
 in the API). An idempotent API write whose store failed answers `503 IDEMP_004` with `Retry-After`; a 503 releases its
 `Idempotency-Key` claim, so the retry runs.
@@ -137,7 +137,7 @@ exact one's place. The API keeps its id-with-class rules (audit OX-L1).
   failure inside your transaction marks the whole transaction rollback-only.
 - **Lock waits:** a unit waits for a locked row as long as the server lets it (`innodb_lock_wait_timeout`, 50 s by
   default on MySQL; `lock_timeout` on PostgreSQL, unlimited by default). Keep it below your request timeout (5–10 s
-  for web workers): a timeout becomes a 503, never a stuck worker.
+  for web workers): a timeout becomes a 409 + `Retry-After` (503 with the policy opt-in), never a stuck worker.
 - **Connection poolers:** PgBouncer in transaction pooling mode is fine (the wiki holds no session state between
   units); statement pooling is not supported.
 

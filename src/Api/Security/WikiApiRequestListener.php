@@ -142,6 +142,15 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
         $event->setResponse(self::answer($refusal));
     }
 
+    /**
+     * A write that already committed (a `ConcurrencyConflict` with `committed: true`) is answered by another listener
+     * than this one: keeps its idempotency claim, so that a retry replays the answer instead of writing again.
+     */
+    public static function markWroteAnyway(Request $request): void
+    {
+        $request->attributes->set(self::AFTER_COMMIT, true);
+    }
+
     /** Whether the request's write was stored although it was answered with a refusal (audit IF-L8). */
     public static function wroteAnyway(Request $request): bool
     {

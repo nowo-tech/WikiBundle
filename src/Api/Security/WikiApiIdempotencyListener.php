@@ -27,6 +27,7 @@ use function hash_file;
 use function http_build_query;
 use function in_array;
 use function is_array;
+use function is_string;
 use function json_decode;
 use function json_encode;
 use function ksort;
@@ -74,6 +75,20 @@ final readonly class WikiApiIdempotencyListener implements EventSubscriberInterf
     public static function target(Request $request, string $wikiSlug, ?string $pageId): void
     {
         $request->attributes->set(self::TARGET, [$wikiSlug, $pageId]);
+    }
+
+    /**
+     * A write that already committed (a `ConcurrencyConflict` with `committed: true`) is answered by a listener that runs
+     * before the controller could tell what it touched: keeps the claim (a retry replays the stored answer instead of
+     * writing again) and takes the wiki from the route, so that the replay passes its access check.
+     */
+    public static function keepClaim(Request $request): void
+    {
+        WikiApiRequestListener::markWroteAnyway($request);
+        $wiki = $request->attributes->get('wiki');
+        if (!$request->attributes->has(self::TARGET) && is_string($wiki) && $wiki !== '') {
+            self::target($request, $wiki, null);
+        }
     }
 
     /** The scope of a token's keys in the store (Beacon forgets it on revocation and erasure). */
