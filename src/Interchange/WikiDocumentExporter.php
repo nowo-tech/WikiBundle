@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Interchange;
 
-use InvalidArgumentException;
 use Nowo\WikiBundle\Dto\WikiExportReport;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -70,7 +69,7 @@ final readonly class WikiDocumentExporter
      * @param (callable(list<WikiPage>): list<WikiPage>)|null $pageFilter keeps the pages the requesting user may read
      *                                                                    (1.10; the web export passes the per-page View rule, the CLI exports everything)
      *
-     * @throws InvalidArgumentException when an output directory cannot be created
+     * @throws WikiInterchangeException when an output directory cannot be created
      *
      * @return WikiExportReport output path and number of exported pages
      */
@@ -107,7 +106,7 @@ final readonly class WikiDocumentExporter
     {
 
         if (!is_dir($targetDir) && !mkdir($targetDir, 0700, true) && !is_dir($targetDir)) {
-            throw new InvalidArgumentException('Unable to create export directory.');
+            throw new WikiInterchangeException('Unable to create export directory.');
         }
 
         $pages = $this->pageRepository->findActiveBySpace($space);
@@ -148,7 +147,7 @@ final readonly class WikiDocumentExporter
         $name   = $renames[$page->getId()] ?? $this->sanitizeFilesystemName($page->getTitle());
         $folder = $targetDir . DIRECTORY_SEPARATOR . $name;
         if (!is_dir($folder) && !mkdir($folder, 0700, true) && !is_dir($folder)) {
-            throw new InvalidArgumentException('Unable to create export folder.');
+            throw new WikiInterchangeException('Unable to create export folder.');
         }
 
         $this->writeMarkdownFile(

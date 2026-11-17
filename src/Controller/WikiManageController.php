@@ -33,6 +33,7 @@ use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
+use Nowo\WikiBundle\Interchange\WikiInterchangeException;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\LinkPicker\WikiLinkPickerEditorOptions;
@@ -50,17 +51,23 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
+use Nowo\WikiBundle\Service\WikiInvalidIconException;
+use Nowo\WikiBundle\Service\WikiInvalidSlugException;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageMoveScope;
+use Nowo\WikiBundle\Service\WikiPageNotFoundException;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
+use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Service\WikiUnknownFormatException;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
@@ -70,10 +77,12 @@ use Nowo\WikiBundle\Ui\WikiPageNav;
 use Nowo\WikiBundle\Ui\WikiPages;
 use Nowo\WikiBundle\Ui\WikiTreeMenu;
 use Nowo\WikiBundle\Util\WikiTitleDedupe;
+use Nowo\WikiBundle\ValueObject\WikiInvalidPlacementException;
 use Nowo\WikiBundle\ValueObject\WikiPagePlacement;
 use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
@@ -808,7 +817,7 @@ final class WikiManageController extends AbstractController
 
             try {
                 $placement = $dialog ? WikiPagePlacement::fromValue($form->get('place')->getData()) : null;
-            } catch (InvalidArgumentException) {
+            } catch (WikiInvalidPlacementException) {
                 $placement = false;
             }
             // Without tree.enabled there is no ordering (nor depth limit) to place a page in.
@@ -839,7 +848,8 @@ final class WikiManageController extends AbstractController
                     $placement->isChild()                                                                           => $mover->createAt($space, $parent, PHP_INT_MAX, $create)->page,
                     default                                                                                         => $mover->createNextTo($space, $pages[0], $placement->isAfter(), $create)->page,
                 };
-            } catch (InvalidArgumentException $exception) {
+            } catch (WikiInvalidSlugException|WikiSlugTakenException|WikiUnknownFormatException $exception) {
+                // 1.41: the page service's refusals only (audit SH-L1): an ORM error is not a slug problem.
                 $this->flash('error', $this->pageErrorMessage($exception));
 
                 return $this->renderNewPage($space, $form);
@@ -877,7 +887,7 @@ final class WikiManageController extends AbstractController
         $nested = $this->pageIcons?->isInTransaction() ?? false;
         try {
             $this->pageIcons?->setIcon($page, $payload->icon);
-        } catch (InvalidArgumentException) {
+        } catch (WikiInvalidIconException|WikiPageArchivedException|WikiPageNotFoundException) {
             $this->flash('warning', 'wiki.page.error.icon_not_saved');
         } catch (TransientStorageFailure $failure) {
             if ($nested) {
@@ -1006,6 +1016,10 @@ final class WikiManageController extends AbstractController
      * for users who may also create there. One check per page, not one per row (audit PT-L4): the endpoints check the
      * page itself on every write. A reader gets no mark, so no menu and the browser's own context menu. Returns
      * `tree_ui` (marked rows, the endpoints) and `tree_menu` (the icon form, whether the new-page dialog is there).
+     * 1.41: Edit and Move up / down / to… (`{@see WikiTreeMenu::MOVE_ATTRIBUTE}`, a movable tree) with the edit rights,
+     * Duplicate with the create rights, Archive (canArchive() and Archive on the space) and Delete (the trash:
+     * canArchive() and Delete on the space) without needing the edit role; `tree_menu.items` says which entries the
+     * menu renders and `tree_menu.move_form` holds the "Move to…" parent field.
      *
      * @param array{nodes: list<array<string, mixed>>, attr: array<string, bool|string>, movable: bool} $treeUi
      * @param list<array{page: WikiPage, children: list<mixed>}> $tree
@@ -1014,13 +1028,18 @@ final class WikiManageController extends AbstractController
      */
     private function withTreeMenu(UserInterface $user, WikiSpace $space, array $treeUi, array $tree, bool $dialog): array
     {
-        // The tree's endpoints ask a firewall-trusted user and the edit role, as the moves do.
+        // The tree's endpoints ask a firewall-trusted user and the role gate of each action, as the manage pages do.
         $edit = $this->accessChecker->canEdit($user) && $this->spaceGuard->isGranted($user, WikiAction::Edit, $space);
-        if (!$edit) {
+        // 1.41: Archive (and its undo) as the page view's Archive; Delete as its Delete (the trash).
+        $archive = isset($this->routes['page_archive'], $this->routes['page_unarchive']) && $this->accessChecker->canArchive($user)
+            && $this->spaceGuard->isGranted($user, WikiAction::Archive, $space);
+        $delete = $this->trash instanceof WikiTrashService && $this->accessChecker->canArchive($user) && $this->spaceGuard->isGranted($user, WikiAction::Delete, $space);
+        if (!$edit && !$archive && !$delete) {
             return [];
         }
-        $icon   = $this->pageIconFieldEnabled();
-        $create = $this->mover instanceof WikiPageMover && isset($this->routes['page_new'])
+        $icon   = $edit && $this->pageIconFieldEnabled();
+        $move   = $edit && $treeUi['movable'];
+        $create = $edit && $this->mover instanceof WikiPageMover && isset($this->routes['page_new'])
             && ($this->allowUnauthenticated || $this->accessChecker->canCreate($user)) && $this->spaceGuard->isGranted($user, WikiAction::Create, $space);
         $orphans = [];
         foreach ($tree as $node) {
@@ -1028,14 +1047,25 @@ final class WikiManageController extends AbstractController
                 $orphans[$node['page']->getId()] = true;
             }
         }
-        $nodes = WikiTreeMenu::annotate($treeUi['nodes'], $icon);
+        $flags = [];
+        foreach ([WikiTreeMenu::EDIT_ATTRIBUTE => $edit, WikiTreeMenu::MOVE_ATTRIBUTE => $move, WikiTreeMenu::ARCHIVE_ATTRIBUTE => $archive, WikiTreeMenu::DELETE_ATTRIBUTE => $delete] as $flag => $on) {
+            if ($on) {
+                $flags[] = $flag;
+            }
+        }
+        $nodes = WikiTreeMenu::mark($treeUi['nodes'], $flags, $icon, $edit && isset($this->routes['page_edit']) ? $this->editHrefs($space, $tree) : []);
         if ($create) {
             $nodes = WikiNewPageMenu::annotate($nodes, $orphans);
         }
-        $attr = $treeUi['attr'];
-        foreach (['rename', 'icon'] as $action) {
-            $attr['data-wiki-tree-' . $action] = $this->generateUrl($this->routes['space_tree']['name'], ['spaceSlug' => $space->getSlug(), 'action' => $action]);
+        $attr    = $treeUi['attr'];
+        $actions = ['rename' => $edit, 'icon' => $icon, 'archive' => $archive, 'unarchive' => $archive, 'delete' => $delete, 'duplicate' => $create, 'parents' => $move];
+        foreach ($actions as $action => $on) {
+            if ($on) {
+                $attr['data-wiki-tree-' . $action] = $this->generateUrl($this->routes['space_tree']['name'], ['spaceSlug' => $space->getSlug(), 'action' => $action]);
+            }
         }
+        // 1.41: where the page goes after its own page was deleted.
+        $attr['data-wiki-tree-space'] = $this->generateUrl($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         if ($create && !$dialog) {
             // Without the dialog, "Add child / sibling page" opens the new-page form with ?place=.
             $attr['data-wiki-tree-new'] = $this->generateUrl($this->routes['page_new']['name'], ['spaceSlug' => $space->getSlug()]);
@@ -1047,11 +1077,54 @@ final class WikiManageController extends AbstractController
                 ->getForm()
                 ->createView();
         }
+        $moveForm = null;
+        if ($move) {
+            // 1.41: the "Move to…" dialog's parent field; its choices come from the tree's parents endpoint.
+            $moveForm = $this->createFormBuilder(['parent' => null], ['csrf_protection' => false, 'translation_domain' => WikiPages::DOMAIN])
+                ->add('parent', ChoiceType::class, ['label' => 'wiki.tree.move_parent', 'required' => true, 'choices' => [], 'attr' => ['data-wiki-tree-move-parent' => true]])
+                ->getForm()
+                ->createView();
+        }
 
         return [
             'tree_ui'   => ['nodes' => $nodes, 'attr' => $attr, 'actions_template' => WikiTreeMenu::ACTIONS_TEMPLATE] + $treeUi,
-            'tree_menu' => ['icon_form' => $form, 'dialog' => $dialog],
+            'tree_menu' => [
+                'icon_form' => $form,
+                'move_form' => $moveForm,
+                'dialog'    => $dialog,
+                'items'     => [
+                    'edit'    => $edit && isset($this->routes['page_edit']),
+                    'rename'  => $edit,
+                    'icon'    => $icon,
+                    'create'  => $create,
+                    'move'    => $move,
+                    'archive' => $archive,
+                    'delete'  => $delete,
+                ],
+            ],
         ];
+    }
+
+    /**
+     * 1.41: the edit form's address of every page of the tree (the menu's Edit).
+     *
+     * @param list<array{page: WikiPage, children: list<mixed>}> $tree
+     *
+     * @return array<string, string>
+     */
+    private function editHrefs(WikiSpace $space, array $tree): array
+    {
+        $hrefs = [];
+        $walk  = function (array $nodes) use (&$walk, &$hrefs, $space): void {
+            foreach ($nodes as $node) {
+                /* @var array{page: WikiPage, children: list<array{page: WikiPage, children: list<mixed>}>} $node */
+                $hrefs[$node['page']->getId()] = $this->generateUrl($this->routes['page_edit']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $node['page']->getSlug()]);
+                $walk($node['children']);
+            }
+        };
+        $walk($tree);
+
+        return $hrefs;
     }
 
     /**
@@ -1478,7 +1551,8 @@ final class WikiManageController extends AbstractController
                 // DJ-L1: pages the user may not read are never matched, updated or used as parents.
                 array_fill_keys(array_map(static fn (WikiPage $page): string => $page->getId(), $this->visiblePages($user, $space, $this->pageRepository->findActiveBySpace($space))), true),
             );
-        } catch (InvalidArgumentException $exception) {
+        } catch (WikiInterchangeException $exception) {
+            // 1.41: a refused archive only (audit SH-L1): an ORM error is not reported as a bad archive.
             $this->flash('error', new TranslatableMessage('wiki.import.failed', ['%reason%' => $exception->getMessage()], WikiPages::DOMAIN));
 
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);

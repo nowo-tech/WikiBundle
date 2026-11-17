@@ -74,3 +74,50 @@ export function observeCardToolbar(root: ParentNode = document, Observer: typeof
 
     return bars.length;
 }
+
+const drawerDocs = new WeakSet<Document>();
+
+/**
+ * 1.41: the page tree as a drawer in the UiKit shell's focus mode. The "Pages" button (`[data-wiki-focus-tree-toggle]`,
+ * printed only when UiKit's focus mode is enabled and shown by wiki.css only while the shell has `data-focus-mode`)
+ * opens and closes the tree card (`[data-wiki-sidebar]`, `data-wiki-drawer-open`; wiki.css turns it into a drawer at the
+ * start edge in focus mode). Escape, or a click outside the drawer and the button, closes it; on open the focus moves
+ * to the tree's tab stop, on close back to the button. Outside focus mode the attribute changes nothing.
+ *
+ * @param doc - The document (bound once).
+ */
+export function bindFocusTreeDrawer(doc: Document = document): void {
+    if (drawerDocs.has(doc)) {
+        return;
+    }
+    drawerDocs.add(doc);
+    const set = (button: HTMLElement, open: boolean): void => {
+        const drawer = doc.querySelector<HTMLElement>('[data-wiki-sidebar]');
+        if (!drawer) {
+            return;
+        }
+        button.setAttribute('aria-expanded', String(open));
+        drawer.toggleAttribute('data-wiki-drawer-open', open);
+        (open ? drawer.querySelector<HTMLElement>('[data-nowo-ui-tree-item][tabindex="0"]') : button)?.focus();
+    };
+    const openButton = (): HTMLElement | null => doc.querySelector<HTMLElement>('[data-wiki-focus-tree-toggle][aria-expanded="true"]');
+    doc.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const button = target?.closest<HTMLElement>('[data-wiki-focus-tree-toggle]');
+        if (button) {
+            set(button, button.getAttribute('aria-expanded') !== 'true');
+
+            return;
+        }
+        const open = openButton();
+        if (open && !target?.closest('[data-wiki-sidebar]')) {
+            set(open, false);
+        }
+    });
+    doc.addEventListener('keydown', (event) => {
+        const open = event.key === 'Escape' ? openButton() : null;
+        if (open) {
+            set(open, false);
+        }
+    });
+}

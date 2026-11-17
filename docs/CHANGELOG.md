@@ -8,49 +8,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
-- [[1.40.2] - 2026-11-17](#1402---2026-11-17)
-  - [Changed](#changed)
   - [Added](#added)
+  - [Changed](#changed)
   - [Fixed](#fixed)
-  - [Documentation](#documentation)
-- [[1.40.1] - 2026-11-17](#1401---2026-11-17)
+- [[1.40.2] - 2026-11-17](#1402---2026-11-17)
   - [Changed](#changed-1)
   - [Added](#added-1)
-- [[1.40.0] - 2026-11-17](#1400---2026-11-17)
-  - [Added](#added-2)
+  - [Fixed](#fixed-1)
+  - [Documentation](#documentation)
+- [[1.40.1] - 2026-11-17](#1401---2026-11-17)
   - [Changed](#changed-2)
+  - [Added](#added-2)
+- [[1.40.0] - 2026-11-17](#1400---2026-11-17)
+  - [Added](#added-3)
+  - [Changed](#changed-3)
   - [Deprecated](#deprecated)
   - [Known gaps](#known-gaps)
 - [[1.39.0] - 2026-11-17](#1390---2026-11-17)
-  - [Added](#added-3)
-  - [Changed](#changed-3)
-- [[1.38.1] - 2026-11-16](#1381---2026-11-16)
-  - [Fixed](#fixed-1)
-- [[1.38.0] - 2026-11-16](#1380---2026-11-16)
   - [Added](#added-4)
-  - [Tests](#tests)
-  - [Fixed](#fixed-2)
-- [[1.37.0] - 2026-11-15](#1370---2026-11-15)
-  - [Added](#added-5)
-  - [Fixed](#fixed-3)
   - [Changed](#changed-4)
+- [[1.38.1] - 2026-11-16](#1381---2026-11-16)
+  - [Fixed](#fixed-2)
+- [[1.38.0] - 2026-11-16](#1380---2026-11-16)
+  - [Added](#added-5)
+  - [Tests](#tests)
+  - [Fixed](#fixed-3)
+- [[1.37.0] - 2026-11-15](#1370---2026-11-15)
+  - [Added](#added-6)
+  - [Fixed](#fixed-4)
+  - [Changed](#changed-5)
   - [Tests](#tests-1)
 - [[1.36.0] - 2026-11-15](#1360---2026-11-15)
-  - [Added](#added-6)
+  - [Added](#added-7)
   - [Security](#security)
   - [Deprecated](#deprecated-1)
-  - [Changed](#changed-5)
+  - [Changed](#changed-6)
   - [Tests](#tests-2)
 - [[1.35.0] - 2026-11-14](#1350---2026-11-14)
-  - [Added](#added-7)
-  - [Changed](#changed-6)
-- [[1.34.0] - 2026-11-14](#1340---2026-11-14)
   - [Added](#added-8)
-- [[1.33.0] - 2026-11-14](#1330---2026-11-14)
+  - [Changed](#changed-7)
+- [[1.34.0] - 2026-11-14](#1340---2026-11-14)
   - [Added](#added-9)
-  - [Fixed](#fixed-4)
-- [[1.32.0] - 2026-11-13](#1320---2026-11-13)
+- [[1.33.0] - 2026-11-14](#1330---2026-11-14)
   - [Added](#added-10)
+  - [Fixed](#fixed-5)
+- [[1.32.0] - 2026-11-13](#1320---2026-11-13)
+  - [Added](#added-11)
 - [[1.31.1] - 2026-11-13](#1311---2026-11-13)
   - [Security](#security-1)
   - [Tests](#tests-3)
@@ -63,34 +66,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-2)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
   - [Added](#added-13)
-  - [Changed](#changed-7)
+  - [Changed](#changed-8)
 - [[1.28.0] - 2026-11-10](#1280---2026-11-10)
   - [Added](#added-14)
-  - [Changed](#changed-8)
+  - [Changed](#changed-9)
 - [[1.27.0] - 2026-11-09](#1270---2026-11-09)
   - [Added](#added-15)
 - [[1.26.0] - 2026-11-09](#1260---2026-11-09)
   - [Fixed](#fixed-7)
-  - [Changed](#changed-9)
+  - [Changed](#changed-10)
   - [Documentation](#documentation-1)
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
   - [Fixed](#fixed-8)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
   - [Added](#added-16)
-  - [Changed](#changed-10)
+  - [Changed](#changed-11)
 - [[1.24.1] - 2026-11-08](#1241---2026-11-08)
   - [Security](#security-3)
   - [Added](#added-17)
   - [Known limitation](#known-limitation)
-  - [Changed](#changed-11)
+  - [Changed](#changed-12)
 - [[1.24.0] - 2026-11-08](#1240---2026-11-08)
   - [Added](#added-18)
-  - [Changed](#changed-12)
+  - [Changed](#changed-13)
   - [Security](#security-4)
   - [Tests](#tests-4)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
   - [Fixed](#fixed-9)
-  - [Changed](#changed-13)
+  - [Changed](#changed-14)
   - [Added](#added-19)
 - [[1.22.0] - 2026-11-07](#1220---2026-11-07)
   - [Fixed](#fixed-10)
@@ -107,10 +110,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.19.1] - 2026-11-06](#1191---2026-11-06)
   - [Fixed](#fixed-13)
 - [[1.19.0] - 2026-11-06](#1190---2026-11-06)
-  - [Changed](#changed-14)
+  - [Changed](#changed-15)
   - [Dependencies](#dependencies)
 - [[1.18.0] - 2026-11-05](#1180---2026-11-05)
-  - [Changed](#changed-15)
+  - [Changed](#changed-16)
   - [Added](#added-23)
   - [Dependencies](#dependencies-1)
 - [[1.17.0] - 2026-11-05](#1170---2026-11-05)
@@ -119,11 +122,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Fixed](#fixed-14)
 - [[1.16.1] - 2026-11-04](#1161---2026-11-04)
   - [Added](#added-25)
-  - [Changed](#changed-16)
+  - [Changed](#changed-17)
   - [Fixed](#fixed-15)
 - [[1.16.0] - 2026-11-04](#1160---2026-11-04)
   - [Added](#added-26)
-  - [Changed](#changed-17)
+  - [Changed](#changed-18)
 - [[1.15.1] - 2026-11-04](#1151---2026-11-04)
   - [Fixed](#fixed-16)
 - [[1.15.0] - 2026-11-04](#1150---2026-11-04)
@@ -132,40 +135,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Fixed](#fixed-17)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
   - [Added](#added-28)
-  - [Changed](#changed-18)
+  - [Changed](#changed-19)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
   - [Security](#security-6)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
   - [Fixed](#fixed-18)
-  - [Changed](#changed-19)
+  - [Changed](#changed-20)
   - [Added](#added-29)
   - [Documentation](#documentation-3)
 - [[1.13.0] - 2026-11-03](#1130---2026-11-03)
   - [Added](#added-30)
-  - [Changed](#changed-20)
+  - [Changed](#changed-21)
 - [[1.12.0] - 2026-10-31](#1120---2026-10-31)
   - [Added](#added-31)
-  - [Changed](#changed-21)
+  - [Changed](#changed-22)
   - [Fixed](#fixed-19)
 - [[1.11.1] - 2026-10-30](#1111---2026-10-30)
   - [Fixed](#fixed-20)
 - [[1.11.0] - 2026-10-30](#1110---2026-10-30)
   - [Added](#added-32)
-  - [Changed](#changed-22)
+  - [Changed](#changed-23)
 - [[1.10.0] - 2026-10-30](#1100---2026-10-30)
   - [Added](#added-33)
-  - [Changed](#changed-23)
+  - [Changed](#changed-24)
   - [Security](#security-7)
   - [Deprecated](#deprecated-2)
   - [Removed](#removed)
 - [[1.9.0] - 2026-10-30](#190---2026-10-30)
   - [Added](#added-34)
-  - [Changed](#changed-24)
-- [[1.8.1] - 2026-10-29](#181---2026-10-29)
   - [Changed](#changed-25)
+- [[1.8.1] - 2026-10-29](#181---2026-10-29)
+  - [Changed](#changed-26)
 - [[1.8.0] - 2026-10-29](#180---2026-10-29)
   - [Added](#added-35)
-  - [Changed](#changed-26)
+  - [Changed](#changed-27)
   - [Fixed](#fixed-21)
   - [Removed](#removed-1)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
@@ -173,51 +176,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
   - [Security](#security-8)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
-  - [Changed](#changed-27)
-  - [Added](#added-36)
   - [Changed](#changed-28)
-- [[1.6.4] - 2026-10-24](#164---2026-10-24)
+  - [Added](#added-36)
   - [Changed](#changed-29)
-- [[1.6.3] - 2026-10-18](#163---2026-10-18)
+- [[1.6.4] - 2026-10-24](#164---2026-10-24)
   - [Changed](#changed-30)
-- [[1.6.2] - 2026-10-13](#162---2026-10-13)
+- [[1.6.3] - 2026-10-18](#163---2026-10-18)
   - [Changed](#changed-31)
+- [[1.6.2] - 2026-10-13](#162---2026-10-13)
+  - [Changed](#changed-32)
 - [[1.6.1] - 2026-10-13](#161---2026-10-13)
   - [Fixed](#fixed-23)
 - [[1.6.0] - 2026-10-13](#160---2026-10-13)
   - [Fixed](#fixed-24)
   - [Deprecated](#deprecated-3)
-  - [Changed](#changed-32)
+  - [Changed](#changed-33)
 - [[1.5.0] - 2026-10-13](#150---2026-10-13)
   - [Security](#security-9)
   - [Added](#added-37)
 - [[1.4.1] - 2026-10-13](#141---2026-10-13)
-  - [Changed](#changed-33)
+  - [Changed](#changed-34)
   - [Dependencies](#dependencies-2)
 - [[1.4.0] - 2026-10-09](#140---2026-10-09)
-  - [Changed](#changed-34)
+  - [Changed](#changed-35)
   - [Fixed](#fixed-25)
   - [Dependencies](#dependencies-3)
 - [[1.3.5] - 2026-09-27](#135---2026-09-27)
   - [Fixed](#fixed-26)
   - [Added](#added-38)
-  - [Changed](#changed-35)
-- [[1.3.4] - 2026-08-24](#134---2026-08-24)
   - [Changed](#changed-36)
+- [[1.3.4] - 2026-08-24](#134---2026-08-24)
+  - [Changed](#changed-37)
   - [Notes](#notes)
 - [[1.3.3] - 2026-08-19](#133---2026-08-19)
-  - [Changed](#changed-37)
-- [[1.3.2] - 2026-08-18](#132---2026-08-18)
   - [Changed](#changed-38)
+- [[1.3.2] - 2026-08-18](#132---2026-08-18)
+  - [Changed](#changed-39)
 - [[1.3.1] - 2026-08-07](#131---2026-08-07)
   - [Fixed](#fixed-27)
 - [[1.3.0] - 2026-08-04](#130---2026-08-04)
-  - [Changed](#changed-39)
-  - [Added](#added-39)
   - [Changed](#changed-40)
+  - [Added](#added-39)
+  - [Changed](#changed-41)
 - [[1.2.0] - 2026-08-03](#120---2026-08-03)
   - [Added](#added-40)
-  - [Changed](#changed-41)
+  - [Changed](#changed-42)
   - [Compatibility](#compatibility)
   - [Upgrade](#upgrade)
 - [[1.1.1] - 2026-07-31](#111---2026-07-31)
@@ -226,29 +229,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Upgrade](#upgrade-1)
 - [[1.1.0] - 2026-07-30](#110---2026-07-30)
   - [Added](#added-41)
-  - [Changed](#changed-42)
+  - [Changed](#changed-43)
   - [Documentation](#documentation-4)
 - [[1.0.5] - 2026-07-29](#105---2026-07-29)
   - [Added](#added-42)
-  - [Changed](#changed-43)
+  - [Changed](#changed-44)
 - [[1.0.4] - 2026-07-22](#104---2026-07-22)
   - [Added](#added-43)
-  - [Changed](#changed-44)
+  - [Changed](#changed-45)
 - [[1.0.3] - 2026-07-16](#103---2026-07-16)
   - [Fixed](#fixed-29)
   - [Added](#added-44)
-  - [Changed](#changed-45)
-- [[1.0.2] - 2026-07-16](#102---2026-07-16)
   - [Changed](#changed-46)
+- [[1.0.2] - 2026-07-16](#102---2026-07-16)
+  - [Changed](#changed-47)
 - [[1.0.1] - 2026-07-16](#101---2026-07-16)
   - [Fixed](#fixed-30)
   - [Added](#added-45)
-  - [Changed](#changed-47)
+  - [Changed](#changed-48)
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
   - [Added](#added-46)
   - [Security](#security-10)
 
 ## [Unreleased]
+
+### Added
+
+- **Tree menu: the rest of the page actions (`tree.context_menu`, Beacon request).** Target: 1.41.0. The page tree's
+  context menu now also offers **Open in new tab**, **Edit**, **New page above** and **New page below** (two entries,
+  with or without `web_ui.new_page_dialog`; they replace "Add sibling page"), **Duplicate**, **Move up**, **Move down**,
+  **Move to…**, **Archive** (with an undo line offering **Unarchive**) and **Delete** (with `trash.enabled`), in groups
+  with separators. Each entry shows only for users with the rights the matching page asks (the role gates of
+  `WikiAccessCheckerInterface` and the host's `WikiAction` checks on the space; one check per page view, audit PT-L4),
+  and every endpoint checks the page itself again:
+  - `POST tree/archive` / `tree/unarchive`: canArchive() and `WikiAction::Archive`; Unarchive answers 404 for a page that
+    is not archived, is in the trash, or is not readable, and asks the host's quota (`page_unarchive`).
+  - `POST tree/delete`: the trash (`trash.enabled`; without it there is no Delete entry and Archive is the way to take a
+    page out, as on the page view), canArchive() and `WikiAction::Delete`. `preview: true` answers the count and the
+    sentence of the confirm dialog: the pages the user may read (as the trash list, audit DO-I2). The page and all its
+    sub-pages go to the trash in one deletion, archived ones and those the user cannot see included; the sentence says
+    the count is of the sub-pages the user can see (audit SM-L2).
+  - `POST tree/duplicate` (`Service\WikiPageDuplicator`): canCreate() and canEdit(), Create on the space and Edit on
+    the parent (a placed new page, audit PT-L2), the host's quota (`page_create`). The copy holds the current revision
+    (body and format), the icon, the title with a translated "(copy)" suffix and the slug `<slug>-copy` (`-copy-2`, …),
+    right below the page, under the space lock of the tree writes; a page moved by someone else after the parent check
+    answers 409 `stale` (audit SM-L1). Needs the `page_new` route too (audit SM-I3). **The page only** (owner default):
+    the service's `$withChildren` variant (readable sub-pages, at most 200 pages) is not exposed. The copy has the
+    readers of its place; host access rules are not copied: the new `nowo_wiki.page.duplicated` event
+    (`Event\WikiPageDuplicatedEvent`: source, copy, actor) lets a host copy them (audit SM-I1).
+  - `POST tree/parents`: the parents "Move to…" offers, with the rules of the "Move" form (pages of the tree the user may
+    edit, outside the page's sub-tree, the top level with Edit on the space; the whole tree is built before the
+    `pagination.max_tree_pages` cap, audit SM-I4). The move itself is the tree's `move`
+    endpoint (a cycle answers `422 cycle`); Move up / Move down are the tree's Alt+arrow moves.
+  - Every write is POST, JSON, same origin, with the tree's CSRF token, and goes through the existing services
+    (`WikiPageService`, `WikiTrashService`, `WikiPageMover`): their locks, transactions, revisions and events.
+- Keyboard and touch for every entry: Shift+F10 / the ContextMenu key on a row, arrows / Home / End / Enter / Escape in
+  the menu (WAI-ARIA menu, focus back on the row), and a **long press** (500 ms, cancelled by moving the finger) on touch
+  screens; the click that ends a long press does not follow the row's link.
+- Translations of the new texts in the 7 locales.
+- **Focus mode (Beacon request; UiKit >= 2.55).** The page view and the page edit form print UiKit's
+  `focus_mode_toggle` partial in their toolbar with the area `wiki` (`data-nowo-ui-focus-area="wiki"`), after the tree
+  toggle. In focus mode (the shell's `data-focus-mode`) the page tree leaves the layout and becomes a drawer at the
+  start edge, opened and closed by a "Pages" button (`aria-expanded`, Escape, a click outside; `wiki.js`), so it is
+  never out of reach. Attributes and CSS only on the wiki side: with a UiKit without focus mode (the partial does not
+  exist, `ignore_missing`) or with `theme.focus_mode` off, nothing is printed and the pages are those of 1.40.
+
+### Changed
+
+- Requires `nowo-tech/ui-kit-bundle` **^2.54** (was ^2.48). The focus toggle still uses `ignore_missing`: UiKit's focus
+  mode partial ships in 2.55.
+- The tree's `move` endpoint answers **409** (was 422) when the page was moved by someone else meanwhile (`stale`); the
+  other refusals stay 422. The tree script only reads whether the answer is OK.
+- `WikiTrashService::delete()` refuses a page that is already in the trash (`Service\WikiPageArchivedException`, "The
+  page is already in the trash."), read active by a request before another one trashed it; up to 1.40 a second deletion
+  was recorded. The trash's Delete answers 404, the tree menu 410.
+
+### Fixed
+
+- **Broad `catch (InvalidArgumentException)` in the web controllers (audit SH-L1 follow-up).** The tree's rename and
+  icon writes, the new-page form (place, create, icon) and the import caught every `InvalidArgumentException`, so an
+  ORM error (`ORMInvalidArgumentException`) was answered as a refused page (410 "archived meanwhile", a slug or icon
+  flash, "import failed"). They now catch the dedicated classes only: the page service's 1.40.2 exceptions, the new
+  `ValueObject\WikiInvalidPlacementException` (`WikiPagePlacement`) and `Interchange\WikiInterchangeException` (every
+  refusal of the import / export readers and archive helper). `WikiSlugger::slugify()` throws
+  `WikiInvalidSlugException`. All extend `InvalidArgumentException` with the same messages. The importer's icon step catches the
+  icon service's refusals only (audit SM-I2); its per-document catch stays as it is (a document refused for any reason
+  is counted as failed).
 
 ## [1.40.2] - 2026-11-17
 

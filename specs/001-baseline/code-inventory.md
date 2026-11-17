@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-11-17 (every file of `src/` mapped after reading it, including 1.22 to 1.40; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 506)
+**Last audited**: 2026-11-17 (every file of `src/` mapped after reading it, including 1.22 to 1.41; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 518)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -81,6 +81,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Event/WikiEditorOptionsEvent.php` | Host options for the page editor, before it is built | FR-EVT-002 |
 | `Event/WikiEvents.php` | Domain events | FR-EVT-001 |
 | `Event/WikiPageCreatedEvent.php` | After a page was created | FR-EVT-002 |
+| `Event/WikiPageDuplicatedEvent.php` | 1.41: after the tree menu's Duplicate wrote a copy (source, copy), for host access rules | FR-EVT-002 |
 | `Event/WikiPageRestoredEvent.php` | After an old revision was restored as a new one | FR-EVT-002 |
 | `Event/WikiPageUnarchivedEvent.php` | After a page was unarchived | FR-EVT-002 |
 | `Event/WikiQuotaCheckEvent.php` | Cancellable check before a metered write (1.21) | FR-EVT-003 |
@@ -155,6 +156,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Interchange/WikiDocumentNode.php` | Import/export interchange | FR-IX-001 |
 | `Interchange/WikiDocumentTreeReader.php` | Import/export interchange | FR-IX-001 |
 | `Interchange/WikiFormatDetector.php` | Import/export interchange | FR-IX-001 |
+| `Interchange/WikiInterchangeException.php` | 1.41: the import / export refusal (an `InvalidArgumentException`, audit SH-L1 rule) | FR-IX-001 |
 | `Interchange/WikiFrontMatterParser.php` | Import/export interchange | FR-IX-001 |
 | `Interchange/WikiMarkdownConverter.php` | Import/export interchange | FR-IX-001 |
 | `Doctrine/WikiEntityManagerProvider.php` | Per-call entity manager (closed-manager reset) | FR-WORKER-001 |
@@ -282,7 +284,7 @@ This file proves that **every production source artifact** under `src/` is refer
 
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
-| `Controller/WikiTreeController.php` | Tree endpoints (move, state) | FR-TREE-001 |
+| `Controller/WikiTreeController.php` | Tree endpoints (move, state; 1.39 rename, icon; 1.41 archive, unarchive, delete, duplicate, parents) | FR-TREE-001, FR-TREE-002 |
 | `Controller/WikiTreeMoveTrait.php` | Who may move | FR-TREE-001 |
 | `Event/WikiPageMovedEvent.php` | Audit event of a move | FR-TREE-001 |
 | `Form/WikiPageMoveType.php` | Move form | FR-TREE-001 |
@@ -458,6 +460,14 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Security/WikiSpaceAccessPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
 | `Security/WikiTeamMembershipSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
 | `Service/WikiPageCreateResult.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiPageDuplicator.php` | 1.41: Duplicate of the tree menu (the page only by default; placed by the mover) | FR-TREE-002 |
+| `Service/WikiInvalidIconException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
+| `Service/WikiInvalidSlugException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
+| `Service/WikiPageArchivedException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
+| `Service/WikiPageNotFoundException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
+| `Service/WikiRevisionMismatchException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
+| `Service/WikiSlugTakenException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
+| `Service/WikiUnknownFormatException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
 | `Service/WikiPageOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
 | `Service/WikiPageOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
 | `Service/WikiPageServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
@@ -477,6 +487,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `User/WikiUsers.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
 | `ValueObject/WikiOwnerScopeId.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
 | `ValueObject/WikiPagePlacement.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiInvalidPlacementException.php` | 1.41: a page place that is not one (an `InvalidArgumentException`, audit SH-L1 rule) | FR-TREE-002 |
 | `ValueObject/WikiPageSnapshot.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
 | `ValueObject/WikiRequestContext.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
 | `ValueObject/WikiRevisionSnapshot.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
@@ -668,6 +679,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Resources/views/manage/_tree_menu_button.html.twig` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
 | `Resources/views/manage/_tree_new_page_button.html.twig` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
 | `Resources/views/manage/_tree_toggle.html.twig` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/views/manage/_focus_toggle.html.twig` | 1.41: the UiKit shell's focus mode toggle (area wiki) and the tree drawer button; nothing without UiKit focus mode | FR-UI-013 |
 | `Ui/WikiNewPageMenu.php` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
 | `Ui/WikiPageNav.php` | Previous / next page links (`web_ui.page_nav`) | FR-NAV-001 |
 | `Ui/WikiTreeMenu.php` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Interchange;
 
-use InvalidArgumentException;
-
 use function file_get_contents;
 use function sprintf;
 use function strlen;
@@ -30,17 +28,17 @@ final readonly class WikiMarkdownFileReader
      *
      * @param string $path Markdown file path
      *
-     * @throws InvalidArgumentException when the file cannot be read (never an empty document, audit GV-I14) or is over the limit
+     * @throws WikiInterchangeException when the file cannot be read (never an empty document, audit GV-I14) or is over the limit
      */
     public function read(string $path): string
     {
         $content = @file_get_contents($path, false, null, 0, $this->maxDocumentBytes + 1);
         if ($content === false) {
-            throw new InvalidArgumentException(sprintf('Markdown document "%s" cannot be read.', basename($path)));
+            throw new WikiInterchangeException(sprintf('Markdown document "%s" cannot be read.', basename($path)));
         }
 
         if (strlen($content) > $this->maxDocumentBytes) {
-            throw new InvalidArgumentException(sprintf('Markdown document "%s" exceeds the limit of %d bytes per document.', basename($path), $this->maxDocumentBytes));
+            throw new WikiInterchangeException(sprintf('Markdown document "%s" exceeds the limit of %d bytes per document.', basename($path), $this->maxDocumentBytes));
         }
 
         return $content;

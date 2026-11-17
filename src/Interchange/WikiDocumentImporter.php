@@ -13,7 +13,10 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Service\WikiInvalidIconException;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Service\WikiPageIconService;
+use Nowo\WikiBundle\Service\WikiPageNotFoundException;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use Psr\Log\LoggerInterface;
@@ -79,7 +82,7 @@ final readonly class WikiDocumentImporter
      *                                                  available" and a document asking for them is refused; in such an import a `wiki_parent` that
      *                                                  does not exist is refused the same way
      *
-     * @throws InvalidArgumentException when the source is neither a directory nor a ZIP archive
+     * @throws WikiInterchangeException when the source is neither a directory nor a ZIP archive
      *
      * @return WikiImportReport counters and per-document messages
      */
@@ -127,7 +130,7 @@ final readonly class WikiDocumentImporter
      * @param string $zipPath ZIP archive path
      * @param WikiInterchangeFormat $format source format (Auto detects it)
      *
-     * @throws InvalidArgumentException when the archive cannot be read, as in {@see self::import()}
+     * @throws WikiInterchangeException when the archive cannot be read, as in {@see self::import()}
      */
     public function countDocuments(string $zipPath, WikiInterchangeFormat $format): int
     {
@@ -161,7 +164,7 @@ final readonly class WikiDocumentImporter
             $workingPath = $this->archiveHelper->extractZip($sourcePath);
             $cleanupDir  = $workingPath;
         } elseif (!is_dir($sourcePath)) {
-            throw new InvalidArgumentException('Import source must be a directory or ZIP archive.');
+            throw new WikiInterchangeException('Import source must be a directory or ZIP archive.');
         }
 
         try {
@@ -256,7 +259,7 @@ final readonly class WikiDocumentImporter
         $slug  = $node->slug ?? $this->slugger->slugify($title);
         // DJ-L1: a page the user may not read is never overwritten, matched or renamed around (no duplicate slug).
         if (isset($hiddenSlugs[$slug])) {
-            throw new InvalidArgumentException(sprintf('Slug "%s" is not available.', $slug));
+            throw new WikiInterchangeException(sprintf('Slug "%s" is not available.', $slug));
         }
         $slug = $this->ensureUniqueSlug($space, $slug, $slugMap, $node->slug !== null);
 
@@ -267,7 +270,7 @@ final readonly class WikiDocumentImporter
             $parent = $slugMap[$node->parentSlug];
         } elseif ($node->parentSlug !== null && ($strictParents || isset($hiddenSlugs[$node->parentSlug]))) {
             // A hidden parent and (for a user's import) a missing one read the same: no existence oracle.
-            throw new InvalidArgumentException(sprintf('Parent "%s" is not available.', $node->parentSlug));
+            throw new WikiInterchangeException(sprintf('Parent "%s" is not available.', $node->parentSlug));
         }
 
         [$content, $format] = Configuration::storesMarkdown($this->editorType)
@@ -333,8 +336,9 @@ final readonly class WikiDocumentImporter
         try {
             // @igor-ignore - WikiPageIconService is stateless: setIcon() writes the page row, the service keeps nothing.
             $this->icons->setIcon($page, $icon);
-        } catch (InvalidArgumentException|TransientStorageFailure) {
-            // Audit QY-L2: the page is imported (committed); only its icon is missing.
+        } catch (WikiInvalidIconException|WikiPageArchivedException|WikiPageNotFoundException|TransientStorageFailure) {
+            // Audit QY-L2: the page is imported (committed); only its icon is missing. 1.41 (audit SM-I2): only the icon
+            // service's refusals, not every InvalidArgumentException (an ORM error is not a missing icon).
             $report->addMessage(sprintf('Could not save the icon of page "%s"; the page was imported without it.', $page->getSlug()));
         }
     }
@@ -345,7 +349,7 @@ final readonly class WikiDocumentImporter
     private function ensureUniqueSlug(WikiSpace $space, string $slug, array $slugMap, bool $preserveRequestedSlug): string
     {
         if (!$this->slugger->isValid($slug)) {
-            throw new InvalidArgumentException('Invalid slug in import document.');
+            throw new WikiInterchangeException('Invalid slug in import document.');
         }
 
         if (isset($slugMap[$slug])) {
@@ -357,7 +361,7 @@ final readonly class WikiDocumentImporter
         }
 
         if ($preserveRequestedSlug) {
-            throw new InvalidArgumentException(sprintf('Slug "%s" is not available.', $slug));
+            throw new WikiInterchangeException(sprintf('Slug "%s" is not available.', $slug));
         }
 
         $base = $slug;

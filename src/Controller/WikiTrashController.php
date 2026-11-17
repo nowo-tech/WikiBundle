@@ -15,6 +15,7 @@ use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
@@ -100,7 +101,12 @@ final class WikiTrashController extends AbstractController
             throw new AccessDeniedHttpException('Invalid CSRF token.');
         }
 
-        $trash->delete($page, $user);
+        try {
+            $trash->delete($page, $user);
+        } catch (WikiPageArchivedException) {
+            // 1.41: another request put it in the trash meanwhile; the trash lists that deletion.
+            throw new NotFoundHttpException('Page not found.');
+        }
         $this->flash('success', new TranslatableMessage('wiki.trash.deleted', ['%title%' => $page->getTitle()], WikiPages::DOMAIN));
 
         return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);

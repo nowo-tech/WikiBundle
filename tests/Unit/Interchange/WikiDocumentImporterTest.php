@@ -16,6 +16,7 @@ use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
 use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
+use Nowo\WikiBundle\Interchange\WikiInterchangeException;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -224,7 +225,7 @@ MD);
         }
 
         self::assertSame(['info: Wiki import started.', 'error: Wiki import failed.'], $logger->lines());
-        self::assertSame(InvalidArgumentException::class, $logger->records[1]['context']['exception_class']);
+        self::assertSame(WikiInterchangeException::class, $logger->records[1]['context']['exception_class']);
     }
 
     public function testRejectsMissingSource(): void

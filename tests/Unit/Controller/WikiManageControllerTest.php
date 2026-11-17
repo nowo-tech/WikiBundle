@@ -65,6 +65,7 @@ use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Service\WikiUnknownFormatException;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\EpochInMemoryCollabStateStore;
@@ -1774,11 +1775,21 @@ final class WikiManageControllerTest extends TestCase
         $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.page.error.invalid_slug');
 
         $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
-        $pageRepo->method('countBySpaceAndSlug')->willThrowException(new InvalidArgumentException('Storage refused the page.'));
+        $pageRepo->method('countBySpaceAndSlug')->willThrowException(new WikiUnknownFormatException('Storage refused the page.'));
         $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
         $container  = WikiControllerContainerBuilder::bind($controller, $user);
         $controller->newPage($this->createWikiPageFormRequest($container, 'wiki_new_' . $space->getId(), ['title' => 'Fine', 'content' => '<p>Body</p>']), 'eng');
         $this->assertTranslatable($this->flashes($container, 'error')[0], 'wiki.page.error.save_failed', ['%reason%' => 'Storage refused the page.']);
+
+        // 1.41 (audit SH-L1): any other InvalidArgumentException (Doctrine's ORMInvalidArgumentException is one) is not
+        // a refused page: it is not flashed as one.
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('countBySpaceAndSlug')->willThrowException(new InvalidArgumentException('ORM failure.'));
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('ORM failure.');
+        $controller->newPage($this->createWikiPageFormRequest($container, 'wiki_new_' . $space->getId(), ['title' => 'Fine', 'content' => '<p>Body</p>']), 'eng');
     }
 
     public function testImportSpaceNotFoundWhenImportExportDisabled(): void

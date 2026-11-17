@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Util;
 
-use InvalidArgumentException;
+use Nowo\WikiBundle\Service\WikiInvalidSlugException;
 
 use function preg_match;
 use function preg_replace;
@@ -21,7 +21,8 @@ final class WikiSlugger
      *
      * @param string $value user-facing text (e.g. a page title)
      *
-     * @throws InvalidArgumentException when the value yields an empty slug
+     * @throws WikiInvalidSlugException when the value yields an empty slug (an {@see \InvalidArgumentException}; 1.41:
+     *                                  the dedicated class, same message)
      *
      * @return string URL-safe slug
      */
@@ -32,7 +33,7 @@ final class WikiSlugger
         $slug = trim($slug, '-');
 
         if ($slug === '') {
-            throw new InvalidArgumentException('Slug cannot be empty.');
+            throw new WikiInvalidSlugException('Slug cannot be empty.');
         }
 
         return $slug;

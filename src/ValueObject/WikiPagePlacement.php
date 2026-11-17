@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\ValueObject;
 
-use InvalidArgumentException;
-
 use function explode;
 use function in_array;
 use function is_string;
@@ -31,24 +29,24 @@ final readonly class WikiPagePlacement
      * @param string $kind {@see self::CHILD}, {@see self::ABOVE} or {@see self::BELOW}
      * @param string $pageId id of the page the place is relative to
      *
-     * @throws InvalidArgumentException when the kind is unknown or the id is not a page id
+     * @throws WikiInvalidPlacementException when the kind is unknown or the id is not a page id
      */
     public function __construct(
         public string $kind,
         public string $pageId,
     ) {
         if (!in_array($kind, [self::CHILD, self::ABOVE, self::BELOW], true)) {
-            throw new InvalidArgumentException('Invalid page place.');
+            throw new WikiInvalidPlacementException('Invalid page place.');
         }
         if ($pageId === '' || strlen($pageId) > 36 || preg_match('/^[A-Za-z0-9-]+$/D', $pageId) !== 1) {
-            throw new InvalidArgumentException('Invalid page id.');
+            throw new WikiInvalidPlacementException('Invalid page id.');
         }
     }
 
     /**
      * Reads the raw value of the form field or the query (`kind:id`); null when nothing was asked.
      *
-     * @throws InvalidArgumentException when the value is not such an intent
+     * @throws WikiInvalidPlacementException when the value is not such an intent
      */
     public static function fromValue(mixed $value): ?self
     {
@@ -56,7 +54,7 @@ final readonly class WikiPagePlacement
             return null;
         }
         if (!is_string($value) || !str_contains($value, ':')) {
-            throw new InvalidArgumentException('Invalid page place.');
+            throw new WikiInvalidPlacementException('Invalid page place.');
         }
         [$kind, $pageId] = explode(':', trim($value), 2);
 

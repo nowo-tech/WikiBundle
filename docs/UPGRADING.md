@@ -103,6 +103,35 @@
 
 ## Unreleased
 
+Target: **1.41.0**. Nothing changes unless `tree.context_menu: true` (opt-in since 1.39).
+
+- **UiKit ^2.54.** `composer update nowo-tech/ui-kit-bundle` (the wiki now requires `^2.54`, was `^2.48`).
+
+- **More entries in the tree menu.** With `tree.context_menu: true` the menu also offers Open in new tab, Edit, New page
+  above / below (two entries, also without `web_ui.new_page_dialog`), Duplicate, Move up / down / to…, Archive (with an
+  Unarchive undo) and, with `trash.enabled`, Delete. Users see an entry only with the rights of the matching page:
+  - Archive: the role gate `canArchive()` and `WikiAction::Archive` on the space; Delete: `canArchive()` and
+    `WikiAction::Delete` (as the trash). Users with those rights but **without the edit role** now get a menu (with
+    Archive / Delete, Open in new tab and Copy link) where 1.40 gave them none.
+  - Duplicate: `canCreate()`, `canEdit()`, Create on the space and Edit on the parent; quota event `page_create`.
+  - Move up / down / to…: a movable tree (`canEdit()` and Edit on the space).
+  The endpoints are new actions of the tree route (`POST …/tree/{archive|unarchive|delete|duplicate|parents}`): a host
+  that lists the wiki's routes in a firewall or an access rule needs no change (same route name and path prefix).
+- **Hosts that override `_tree_menu.html.twig`** get the new variables `tree_menu.items` (which entries to render) and
+  `tree_menu.move_form` (the "Move to…" parent field); without `items` the template renders the 1.40 entries. The
+  entry `below` is now labelled "New page below" and `above` ("New page above") is rendered without the new-page
+  dialog too.
+- **Focus mode.** With nowo-tech/ui-kit-bundle >= 2.55 (focus mode) and `nowo_ui_kit.theme.focus_mode.enabled: true`, the page view
+  and edit form show the focus toggle (area `wiki`); in focus mode the page tree is a drawer behind a "Pages" button.
+  Nothing to configure in the wiki; with an older UiKit nothing changes.
+- **`stale` moves answer 409.** A script that calls the tree's `move` endpoint and tests for `422` on a lost race should
+  test the `error` code (`stale`) or accept 409.
+- **Exceptions (audit SH-L1 follow-up).** `WikiPagePlacement` throws `ValueObject\WikiInvalidPlacementException`, the
+  import / export classes `Interchange\WikiInterchangeException`, `WikiSlugger::slugify()` `WikiInvalidSlugException`,
+  and `WikiTrashService::delete()` `WikiPageArchivedException` for a page already in the trash. All extend
+  `InvalidArgumentException` with the same messages: code that catches that keeps working; catch the dedicated class to
+  tell a refusal from an ORM error.
+
 ## To 1.40.2
 
 From **1.40.1**:

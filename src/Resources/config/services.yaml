@@ -44,6 +44,8 @@ services:
             - '../../Trash/'
             - '../../History/'
             - '../../Service/WikiPageMover.php'
+            # 1.41: registered with the mover (tree.enabled).
+            - '../../Service/WikiPageDuplicator.php'
             # 1.16: registered by WikiExtension (comments only with comments.enabled; avatars always, by alias).
             - '../../Comment/'
             - '../../Panel/'
@@ -243,6 +245,9 @@ services:
             # 1.39 (tree.context_menu): Rename and Change icon of the tree menu.
             $pageIconField: '%nowo_wiki.page_icon.form_field%'
             $contextMenu: '%nowo_wiki.tree.context_menu%'
+            # 1.41: Archive / Unarchive, Duplicate (page_view) and the parents list (max_tree_pages).
+            $routes: '%nowo_wiki.routes%'
+            $pagination: '%nowo_wiki.pagination%'
 
     Nowo\WikiBundle\Controller\WikiCollabController:
         public: true

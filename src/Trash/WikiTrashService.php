@@ -20,6 +20,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\ValueObject\Uuid;
 use Psr\Log\LoggerInterface;
@@ -101,6 +102,9 @@ final readonly class WikiTrashService
     /**
      * Moves the page and its sub-pages to the trash.
      *
+     * @throws WikiPageArchivedException when the page is already in the trash (1.41: another request deleted it between
+     *                                   the caller's read and the space lock; up to 1.40 a second deletion was recorded)
+     *
      * @return string the batch id
      */
     public function delete(WikiPage $page, ?object $actor = null): string
@@ -110,7 +114,10 @@ final readonly class WikiTrashService
         $entries = $this->unit(function () use ($space, $page, $batch): array {
             $this->writer->beginSpaceTransaction($space);
             try {
-                $trashed  = $this->trash->trashedPageIds($space);
+                $trashed = $this->trash->trashedPageIds($space);
+                if (isset($trashed[$page->getId()])) {
+                    throw new WikiPageArchivedException('The page is already in the trash.');
+                }
                 $children = [];
                 foreach ([...$this->pages->findActiveBySpace($space), ...$this->pages->findArchivedBySpace($space, self::MAX_PAGES)] as $candidate) {
                     if (($parentId = $candidate->getParent()?->getId()) !== null && !isset($trashed[$candidate->getId()])) {

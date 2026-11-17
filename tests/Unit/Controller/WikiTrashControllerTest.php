@@ -106,6 +106,11 @@ final class WikiTrashControllerTest extends TestCase
         // An archived (trashed) page is not there any more.
         $this->assertThrows(NotFoundHttpException::class, fn (): RedirectResponse => $controller->delete($this->post(WikiTrashController::deleteTokenId($this->ops)), 'eng', 'ops'));
         $this->assertThrows(NotFoundHttpException::class, fn (): RedirectResponse => $controller->delete($this->post('x'), 'eng', 'nope'));
+
+        // 1.41: read active by a request before another one trashed it: refused under the lock, no second deletion.
+        $this->em->getConnection()->executeStatement('UPDATE wiki_pages SET archived_at = NULL WHERE id = ?', [$this->ops->getId()]);
+        $this->ops->unarchive();
+        $this->assertThrows(NotFoundHttpException::class, fn (): RedirectResponse => $controller->delete($this->post(WikiTrashController::deleteTokenId($this->ops)), 'eng', 'ops'));
     }
 
     public function testDeleteRefusals(): void

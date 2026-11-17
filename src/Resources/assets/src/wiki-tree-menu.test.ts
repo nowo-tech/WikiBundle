@@ -80,9 +80,10 @@ afterEach(() => {
 describe('allowedItems / placeFor / titleOf', () => {
     it('offers what the server marked, plus Copy link', () => {
         setup([['a', 'eics'], ['b', 'e'], ['r', '']]);
-        expect(allowedItems(li('a'))).toEqual(['rename', 'icon', 'child', 'below', 'above', 'copy']);
+        // 1.41: Open in new tab and Copy link come with any other entry; Duplicate with the sibling mark.
+        expect(allowedItems(li('a'))).toEqual(['open', 'rename', 'icon', 'child', 'above', 'below', 'duplicate', 'copy']);
         expect(allowedItems(li('a'), ['rename', 'child', 'below', 'copy'])).toEqual(['rename', 'child', 'below', 'copy']);
-        expect(allowedItems(li('b'))).toEqual(['rename', 'copy']);
+        expect(allowedItems(li('b'))).toEqual(['open', 'rename', 'copy']);
         expect(allowedItems(li('b'), ['rename'])).toEqual(['rename']);
         // A reader: nothing, the browser's own context menu.
         expect(allowedItems(li('r'))).toEqual([]);

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Interchange;
 
-use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 
 use function array_filter;
@@ -59,7 +58,7 @@ final readonly class WikiDocumentTreeReader
      * @param string $rootDir root directory of the export
      * @param WikiInterchangeFormat $format export layout (Outline or Notion)
      *
-     * @throws InvalidArgumentException when a Markdown file is over the per-document limit
+     * @throws WikiInterchangeException when a Markdown file is over the per-document limit
      *
      * @return list<WikiDocumentNode>
      */

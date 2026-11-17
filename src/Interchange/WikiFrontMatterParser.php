@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Interchange;
 
-use InvalidArgumentException;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -28,7 +27,7 @@ final class WikiFrontMatterParser
      *
      * @param string $content raw Markdown file content
      *
-     * @throws InvalidArgumentException when a block that starts like YAML is over {@see self::MAX_FRONT_MATTER_BYTES}
+     * @throws WikiInterchangeException when a block that starts like YAML is over {@see self::MAX_FRONT_MATTER_BYTES}
      *
      * @return array{meta: array<string, mixed>, body: string}
      */
@@ -47,7 +46,7 @@ final class WikiFrontMatterParser
         if (strlen($yamlBlock) > self::MAX_FRONT_MATTER_BYTES) {
             // Parsed YAML costs many times its size (audit GV-L3). Two `---` rules far apart are just a long body.
             if (preg_match('/^[\w.-]+:(?:\s|$)/', $yamlBlock) === 1) {
-                throw new InvalidArgumentException(sprintf('Markdown front matter exceeds the limit of %d bytes.', self::MAX_FRONT_MATTER_BYTES));
+                throw new WikiInterchangeException(sprintf('Markdown front matter exceeds the limit of %d bytes.', self::MAX_FRONT_MATTER_BYTES));
             }
 
             return ['meta' => [], 'body' => $content];

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bindTreeHiddenFocus, observeCardToolbar, TREE_ID } from './wiki-layout';
+import { bindFocusTreeDrawer, bindTreeHiddenFocus, observeCardToolbar, TREE_ID } from './wiki-layout';
 
 const layout = (mode: string): string => `
 <header><button type="button" data-nowo-ui-rail-toggle data-nowo-wiki-tree-toggle id="header-toggle">Expand</button><button type="button" id="other">Other</button></header>
@@ -109,5 +109,64 @@ describe('wiki layout 1.30: card toolbar width', () => {
         expect(observeCardToolbar()).toBe(1);
         document.body.innerHTML = '';
         expect(observeCardToolbar()).toBe(0);
+    });
+});
+
+describe('bindFocusTreeDrawer (1.41)', () => {
+    const page = (withSidebar = true): void => {
+        document.body.innerHTML = '<button type="button" aria-expanded="false" data-wiki-focus-tree-toggle>Pages</button>'
+            + (withSidebar ? '<aside data-wiki-sidebar><ul role="tree"><li><a href="/a" data-nowo-ui-tree-item tabindex="-1">A</a></li><li><a href="/b" data-nowo-ui-tree-item tabindex="0">B</a></li></ul></aside>' : '')
+            + '<p id="elsewhere">x</p>';
+    };
+    const button = (): HTMLElement => document.querySelector('[data-wiki-focus-tree-toggle]') as HTMLElement;
+    const drawer = (): HTMLElement => document.querySelector('[data-wiki-sidebar]') as HTMLElement;
+
+    it('opens the tree drawer on the tree\'s tab stop and closes it with the button, Escape or a click outside', () => {
+        page();
+        bindFocusTreeDrawer(document);
+        bindFocusTreeDrawer(document);
+        button().click();
+        expect(button().getAttribute('aria-expanded')).toBe('true');
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(true);
+        expect(document.activeElement?.textContent).toBe('B');
+        // A click inside the drawer keeps it open; another key does nothing.
+        (drawer().querySelector('a') as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(true);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(false);
+        expect(button().getAttribute('aria-expanded')).toBe('false');
+        expect(document.activeElement).toBe(button());
+
+        button().click();
+        document.getElementById('elsewhere')!.click();
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(false);
+        button().click();
+        button().click();
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(false);
+        // Closed: Escape and clicks elsewhere do nothing; a click on the document itself neither.
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        document.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        expect(button().getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('a tree without a tab stop opens without moving the focus', () => {
+        page();
+        drawer().querySelectorAll('a').forEach((a) => a.setAttribute('tabindex', '-1'));
+        const doc = document;
+        bindFocusTreeDrawer(doc);
+        button().focus();
+        button().click();
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(true);
+        expect(document.activeElement).toBe(button());
+    });
+
+    it('a page without the tree card leaves the button alone', () => {
+        page(false);
+        const doc = document.implementation.createHTMLDocument('x');
+        doc.body.innerHTML = document.body.innerHTML;
+        bindFocusTreeDrawer(doc);
+        (doc.querySelector('[data-wiki-focus-tree-toggle]') as HTMLElement).click();
+        expect(doc.querySelector('[data-wiki-focus-tree-toggle]')!.getAttribute('aria-expanded')).toBe('false');
     });
 });
