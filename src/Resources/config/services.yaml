@@ -56,6 +56,8 @@ services:
             - '../../Search/'
             # 1.36: port gates and helpers, wired by WikiPortsPass / WikiExtension only.
             - '../../Port/'
+            # 1.40: the link picker and the editor options of section anchors, registered by WikiExtension (milkdown only).
+            - '../../LinkPicker/'
 
     Nowo\WikiBundle\Service\WikiAuthorResolver:
         arguments:
@@ -212,6 +214,8 @@ services:
             $treeContextMenu: '%nowo_wiki.tree.context_menu%'
             # 1.30: optional BreadcrumbKit >= 2.17 (web_ui.breadcrumb_current_label); null without it
             $breadcrumbCurrentLabel: '@?Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface'
+            # 1.40: stable heading ids and the link picker in the Milkdown page editor (null with another editor)
+            $linkPickerOptions: '@?Nowo\WikiBundle\LinkPicker\WikiLinkPickerEditorOptions'
 
     Nowo\WikiBundle\Controller\WikiHistoryController:
         public: true
@@ -257,6 +261,15 @@ services:
             $routes: '%nowo_wiki.routes%'
             $translator: '@?translator'
             $layout: '%nowo_wiki.web_ui.layout%'
+
+    # 1.40: the link picker endpoints (404 without editor.milkdown.link_picker.enabled: the picker is then null).
+    Nowo\WikiBundle\Controller\WikiLinkPickerController:
+        public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
+        arguments:
+            $picker: null
+            $rateLimiter: null
 
     Nowo\WikiBundle\Controller\WikiAttachmentController:
         public: true

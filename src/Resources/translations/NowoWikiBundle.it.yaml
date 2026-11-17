@@ -127,6 +127,8 @@ wiki:
     history: Cronologia
     unarchive: 'Ripristina pagina'
     used_in: 'Usata in'
+    section_link: 'Link a questa sezione'
+    section_link_copied: 'Link copiato'
     toolbar: 'Azioni della pagina'
     files: 'File'
     file: 'File'

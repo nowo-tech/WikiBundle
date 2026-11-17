@@ -6,9 +6,6 @@ namespace Nowo\WikiBundle\Markdown\Milkdown;
 
 use League\CommonMark\Event\DocumentParsedEvent;
 use League\CommonMark\Extension\CommonMark\Node\Block\Heading;
-use League\CommonMark\Extension\CommonMark\Node\Inline\Code;
-use League\CommonMark\Node\Inline\Text;
-use League\CommonMark\Node\Node;
 use Nowo\MilkdownEditorBundle\Markdown\HeadingIds;
 
 use function count;
@@ -18,17 +15,20 @@ use function count;
  * runs outside letters, marks and digits become `-`, at most 80 characters, `section` when empty) and the same
  * duplicate suffixes (`-2`, `-3`… in document order, skipping a suffix an earlier heading already took literally).
  *
- * Unlike {@see HeadingIds::slugs()}, which retries every suffix from `-2` for each duplicate (N identical headings
- * cost ~N²/2, audit EP-L1), the next free suffix is kept per base, so a document is linear; the output is the same.
- * At most {@see self::MAX_IDS} headings per document get an id (later ones get none). Stateless (worker-safe).
+ * 1.40 (Milkdown 1.18): a heading's explicit id, the `{#id}` suffix that Milkdown's `HeadingIdSuffixParser` keeps in
+ * the heading's data ({@see HeadingIds::explicit()}), wins: every valid explicit id is reserved first (the first
+ * occurrence wins), then each other heading takes its slug or the lowest free `-N` ({@see HeadingIds::resolve()},
+ * linear, as the 1.16.2 EP-L1 fix). At most {@see self::MAX_IDS} headings per document get an id (later ones get none).
+ * The server never rewrites ids in the stored Markdown: duplicates and invalid ids are only resolved here, at render
+ * time. Stateless (worker-safe).
  */
 final readonly class WikiHeadingIds
 {
     /** Headings per document that get an id. */
-    public const MAX_IDS = 1000;
+    public const MAX_IDS = HeadingIds::MAX_IDS;
 
     /**
-     * Unique slugs of headings in order (the same result as {@see HeadingIds::slugs()}, in linear time).
+     * Unique slugs of headings in order (headings without an explicit id).
      *
      * @param list<string> $texts heading texts in document order
      *
@@ -36,21 +36,7 @@ final readonly class WikiHeadingIds
      */
     public static function slugs(array $texts): array
     {
-        $used = [];
-        $next = [];
-        $out  = [];
-        foreach ($texts as $text) {
-            $base      = HeadingIds::slug($text);
-            $candidate = $base;
-            while (isset($used[$candidate])) {
-                $next[$base] ??= 2;
-                $candidate = $base . '-' . $next[$base]++;
-            }
-            $used[$candidate] = true;
-            $out[]            = $candidate;
-        }
-
-        return $out;
+        return HeadingIds::slugs($texts);
     }
 
     /**
@@ -61,33 +47,18 @@ final readonly class WikiHeadingIds
     public function onDocumentParsed(DocumentParsedEvent $event): void
     {
         $headings = [];
-        $texts    = [];
+        $input    = [];
         foreach ($event->getDocument()->iterator() as $node) {
             if ($node instanceof Heading) {
                 $headings[] = $node;
-                $texts[]    = $this->text($node);
+                $input[]    = ['text' => HeadingIds::text($node), 'explicit' => HeadingIds::explicit($node)];
                 if (count($headings) === self::MAX_IDS) {
                     break;
                 }
             }
         }
-        foreach (self::slugs($texts) as $i => $slug) {
-            $headings[$i]->data->set('attributes/id', HeadingIds::PREFIX . $slug);
+        foreach (HeadingIds::resolve($input) as $i => $id) {
+            $headings[$i]->data->set('attributes/id', HeadingIds::PREFIX . $id);
         }
-    }
-
-    /**
-     * The text of a heading as the editor counts it: text and inline code only.
-     */
-    private function text(Node $heading): string
-    {
-        $text = '';
-        foreach ($heading->iterator() as $node) {
-            if ($node instanceof Text || $node instanceof Code) {
-                $text .= $node->getLiteral();
-            }
-        }
-
-        return $text;
     }
 }

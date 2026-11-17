@@ -127,6 +127,8 @@ wiki:
     history: Verlauf
     unarchive: 'Seite wiederherstellen'
     used_in: 'Verwendet in'
+    section_link: 'Link zu diesem Abschnitt'
+    section_link_copied: 'Link kopiert'
     toolbar: 'Seitenaktionen'
     files: 'Dateien'
     file: 'Datei'

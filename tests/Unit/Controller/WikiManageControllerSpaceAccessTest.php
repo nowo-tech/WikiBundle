@@ -27,6 +27,7 @@ use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
+use Nowo\WikiBundle\LinkPicker\WikiLinkPickerEditorOptions;
 use Nowo\WikiBundle\PageFile\WikiPageFile;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
@@ -60,6 +61,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Throwable;
@@ -505,6 +507,28 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
         ], $seen);
     }
 
+    /** 1.40: stable heading ids and the link picker reach the editor options before the host's listener. */
+    public function testTheLinkPickerOptionsComeBeforeTheHostListener(): void
+    {
+        $seen = [];
+        $urls = $this->createStub(UrlGeneratorInterface::class);
+        $urls->method('generate')->willReturn('/c');
+        [$controller] = $this->controller(
+            CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Create),
+            static function (WikiEditorOptionsEvent $event) use (&$seen): void {
+                $seen = $event->options;
+                // This test's page form is the Tiptap field, which takes none of the Milkdown options.
+                $event->options = [];
+            },
+            linkPickerOptions: new WikiLinkPickerEditorOptions($urls, ['link_candidates' => ['path' => '/c', 'name' => 'c'], 'link_sections' => ['path' => '/s', 'name' => 's']], true),
+        );
+
+        $controller->newPage(Request::create('/n'), 'eng');
+
+        self::assertSame(['stable_heading_ids', 'link_picker'], $seen['features']);
+        self::assertSame(['[[' => '/c'], $seen['suggestions']);
+    }
+
     public function testWithoutADispatcherTheEditorGetsNoExtraOption(): void
     {
         [$controller] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Create), dispatcher: false);
@@ -570,7 +594,7 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
      *
      * @return array{0: WikiManageController, 1: Container}
      */
-    private function controller(CallbackSpaceAccessChecker $checker, ?callable $onEditorOptions = null, bool $dispatcher = true, ?array $tree = null, ?WikiDocumentExporter $exporter = null, ?array $spaces = null, int $pagination = 500, ?WikiPageFileExtractor $pageFiles = null, ?WikiQuotaGate $quota = null): array
+    private function controller(CallbackSpaceAccessChecker $checker, ?callable $onEditorOptions = null, bool $dispatcher = true, ?array $tree = null, ?WikiDocumentExporter $exporter = null, ?array $spaces = null, int $pagination = 500, ?WikiPageFileExtractor $pageFiles = null, ?WikiQuotaGate $quota = null, ?WikiLinkPickerEditorOptions $linkPickerOptions = null): array
     {
         $spaceResolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
         $spaceResolver->method('listSpacesForUser')->willReturn($spaces ?? []);
@@ -657,6 +681,7 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
             },
             pageFiles: $pageFiles,
             quota: $quota,
+            linkPickerOptions: $linkPickerOptions,
         );
         $container = WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $this->twig]);
 

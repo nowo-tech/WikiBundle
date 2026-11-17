@@ -6,6 +6,7 @@ import { bindTreeHiddenFocus, observeCardToolbar } from './wiki-layout';
 import { bindNewPageMenu } from './wiki-new-page';
 import { bindTreeMenu } from './wiki-tree-menu';
 import { initPlainTrees } from './wiki-plain-tree';
+import { bindSectionLinks, mapLegacyFragment } from './wiki-section-links';
 
 /** True when the element scrolls its own content vertically (overflow auto / scroll and taller content). */
 const scrollsItself = (el: HTMLElement): boolean => {
@@ -377,7 +378,10 @@ bindCommentsModeration();
 bindThreadList();
 bindTreeHiddenFocus();
 observeCardToolbar();
+// 1.40: section links copy the page URL with the fragment; a legacy #<id> fragment finds its nowo-h-<id> heading.
+bindSectionLinks();
 whenLoaded(() => {
+    mapLegacyFragment();
     openRequestedPanel();
     void renderWikiRichContent();
 });

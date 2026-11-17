@@ -31,6 +31,7 @@ use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullPageResolver;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullUserResolver;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\PageResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\RenderContextProviderInterface;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\SectionResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceParserInterface;
@@ -93,6 +94,10 @@ use function trim;
  * asks the host's `FilePreviewResolverInterface` about `view="preview"` cards inside the render's frame
  * ({@see WikiMilkdownFilePreviewResolver}) and frames the approved previews with Milkdown's `file_preview_sandbox`
  * ({@see WikiFilePreviewFrames}). The neutral environment never shows previews.
+ *
+ * 1.40 (Milkdown 1.18): `{#id}` heading suffixes give explicit heading ids ({@see WikiHeadingIds}); page links to a
+ * section point at `#nowo-h-<id>` and, in the viewer environment, read `Title › Section text` through
+ * {@see WikiMilkdownSectionResolver}.
  */
 final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendererInterface, WikiViewerMarkdownRendererInterface, WikiMarkdownReferenceParserInterface, WikiMarkdownLimitsInterface
 {
@@ -131,6 +136,8 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      *                        in the viewer environment (false: a plain link, as 1.24)
      * @param FilePreviewResolverInterface|null $filePreviews 1.28: the host's preview resolver (viewer only, with file cards; null: no previews)
      * @param WikiFilePreviewFrames|null $previewFrames 1.28: keeps the approved frames past the sanitizer (null: no previews)
+     * @param SectionResolverInterface|null $sections 1.40: section texts of `[[wiki:<uuid>#<id>]]` labels (viewer only;
+     *                                                null: the page title alone)
      */
     public function __construct(
         array $options,
@@ -147,6 +154,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         bool $fileCards = false,
         ?FilePreviewResolverInterface $filePreviews = null,
         ?WikiFilePreviewFrames $previewFrames = null,
+        ?SectionResolverInterface $sections = null,
     ) {
         $previews               = $fileCards && $filePreviews instanceof FilePreviewResolverInterface && $previewFrames instanceof WikiFilePreviewFrames;
         $this->maxInputLength   = $this->intOption($options, 'max_input_length', MilkdownMarkdownRenderer::DEFAULT_MAX_INPUT_LENGTH);
@@ -173,6 +181,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
             $fileCards,
             $previews && $filePreviews instanceof FilePreviewResolverInterface ? new WikiMilkdownFilePreviewResolver($filePreviews, $hostSchemes ?? new HostSchemes(), $renderContext) : null,
             $previews ? $previewFrames : null,
+            $sections,
         ));
     }
 
@@ -248,6 +257,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
      * @param bool $fileCards 1.25 (WK-8): `::file` cards as Milkdown's file card (viewer environment only)
      * @param WikiMilkdownFilePreviewResolver|null $previews 1.28: previews of `view="preview"` cards (viewer environment only)
      * @param WikiFilePreviewFrames|null $previewFrames 1.28: where the approved frames wait for the sanitizer to pass
+     * @param SectionResolverInterface|null $sections 1.40: section texts of page-link labels (viewer environment only)
      */
     private function environment(
         array $options,
@@ -264,6 +274,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
         bool $fileCards = false,
         ?WikiMilkdownFilePreviewResolver $previews = null,
         ?WikiFilePreviewFrames $previewFrames = null,
+        ?SectionResolverInterface $sections = null,
     ): Environment {
         $htmlInput   = $options['html_input'] ?? 'escape';
         $markColors  = $options['mark_colors'] ?? ['yellow'];
@@ -319,6 +330,7 @@ final readonly class MilkdownWikiMarkdownRenderer implements WikiMarkdownRendere
                 $previews,
                 renderContext: $renderContext,
                 hideRefusedLinks: ($options['host_refused_links'] ?? 'text') === 'hidden',
+                sections: $sections,
             ),
             !in_array($options['math'] ?? true, [false, 0, '0', 'false', ''], true),
         ));

@@ -183,6 +183,35 @@ final class ApiPageReadTest extends ApiTestCase
         self::assertSame('html', $body['format']);
         self::assertNull($body['content_markdown']);
         self::assertSame('Plain old text', $body['content_text']);
+        self::assertSame([], $body['sections']);
+    }
+
+    /**
+     * 1.40 (owner O6): the page body lists its sections in the same view as its content; the reader's Markdown keeps
+     * links to a section and differing heading ids.
+     */
+    public function testSectionsInTheSameViewAsTheContent(): void
+    {
+        $target = $this->page($this->eng, 'Target', "## Set up {#setup}\n\n## Other");
+        $source = "# Runbook\n\n## Install guide {#install}\n\n## Usage\n\nSee [[wiki:" . $target->getId() . '#setup]].';
+        $page   = $this->page($this->eng, 'Runbook', $source);
+
+        $this->token('ana-edit', 'u-ana', WikiApiLevel::Edit);
+        $edit = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'ana-edit'));
+        self::assertSame('source', $edit['content_view']);
+        self::assertSame([
+            ['id' => 'runbook', 'level' => 1, 'text' => 'Runbook'],
+            ['id' => 'install', 'level' => 2, 'text' => 'Install guide'],
+            ['id' => 'usage', 'level' => 2, 'text' => 'Usage'],
+        ], $edit['sections']);
+
+        $this->token('bob', 'u-bob', WikiApiLevel::Read);
+        $viewer = $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'bob'));
+        self::assertSame('viewer', $viewer['content_view']);
+        self::assertSame($edit['sections'], $viewer['sections']);
+        self::assertStringContainsString('## Install guide {#install}', $viewer['content_markdown']);
+        self::assertStringNotContainsString('{#usage}', $viewer['content_markdown']);
+        self::assertStringContainsString('[[wiki:' . $target->getId() . '#setup]]', $viewer['content_markdown']);
     }
 
     public function testAPageWithoutRevisionHasAnEmptyBody(): void
@@ -196,6 +225,7 @@ final class ApiPageReadTest extends ApiTestCase
         self::assertNull($body['revision']);
         self::assertNull($body['updated_by']);
         self::assertSame('', $body['content_markdown']);
+        self::assertSame([], $body['sections']);
     }
 
     public function testThePersonsViewRightAndTheLevelTable(): void

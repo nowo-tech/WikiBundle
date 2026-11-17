@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabLockingStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabNumberedStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabSchema;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
@@ -966,6 +967,32 @@ final class WikiCollabServiceTest extends TestCase
                 return $this->state;
             }
         };
+    }
+
+    /**
+     * 1.40 (owner O7): a log named with an older collaboration schema starts a new epoch at the page's next session (old
+     * tabs then get 409 log_epoch and reload), unless it holds text no save has taken in; a current one is kept.
+     */
+    public function testALogOfAnOlderSchemaStartsANewEpochAtTheNextSession(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $id          = $this->page->getId();
+        $this->store->reset($id, null);
+
+        $this->store->epochs[$id] = 'legacy';
+        $service->token(new Request(), $this->page, $this->user);
+        self::assertNotSame('legacy', $this->store->currentEpoch($id));
+
+        $current                  = WikiCollabSchema::newEpoch();
+        $this->store->epochs[$id] = $current;
+        $service->token(new Request(), $this->page, $this->user);
+        self::assertSame($current, $this->store->currentEpoch($id));
+
+        $this->store->append($id, 'AQI=');
+        $this->store->epochs[$id] = 'legacy-unsaved';
+        $service->token(new Request(), $this->page, $this->user);
+        self::assertSame('legacy-unsaved', $this->store->currentEpoch($id));
     }
 
     /** Audit HV-M1: `state` names the log; a store that cannot keeps today's answer. */

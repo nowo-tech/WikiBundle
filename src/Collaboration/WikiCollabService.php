@@ -208,7 +208,11 @@ final readonly class WikiCollabService
         $id      = $page->getId();
         $info    = $this->store->info($id);
         $current = $page->getCurrentRevision()?->getId();
-        if ($info->baseRevisionId !== $current && ($info->isEmpty() || $this->idleFor($info) >= $this->options['reset_after_idle'])) {
+        // 1.40 (owner O7): a log of an older collaboration schema ({@see WikiCollabSchema}) is replaced like a stale one,
+        // unless it holds text no save has taken in yet (that waits for the session's next save).
+        $stale = $info->baseRevisionId !== $current
+            || ($this->store instanceof WikiCollabEpochStoreInterface && !$info->hasUnsavedUpdates() && !WikiCollabSchema::isCurrent($this->store->currentEpoch($id)));
+        if ($stale && ($info->isEmpty() || $this->idleFor($info) >= $this->options['reset_after_idle'])) {
             $this->store->reset($id, $current);
             $info = $this->store->info($id);
         }

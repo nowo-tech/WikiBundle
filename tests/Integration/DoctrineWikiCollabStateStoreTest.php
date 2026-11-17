@@ -434,7 +434,8 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
     {
         self::assertNull($this->store->currentEpoch('e1'));
         $name = $this->store->epoch('e1');
-        self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $name);
+        // 1.40 (owner O7): the collaboration schema version is folded into the name.
+        self::assertMatchesRegularExpression('/^s2-[0-9a-f]{28}$/', $name);
         self::assertSame($name, $this->store->epoch('e1'));
         self::assertSame($name, $this->store->currentEpoch('e1'));
 

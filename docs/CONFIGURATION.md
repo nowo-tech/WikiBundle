@@ -203,6 +203,46 @@ ids of `[[wiki:<id>]]` links (also of pages the reader may not see), mention han
 is why readers never get it (Milkdown audit DN-I2). A page view that renders the button answers
 `Cache-Control: private, no-store`, so no shared cache (reverse proxy, CDN) keeps the source and serves it to another
 user (audit DR-I1). If you cache wiki pages in front of Symfony, keep that header.
+
+### Section anchors and the link picker (1.40)
+
+Needs `editor.type: milkdown` and nowo-tech/milkdown-editor-bundle >= 1.18.
+
+```yaml
+framework:
+    rate_limiter:
+        wiki_link_picker: { policy: sliding_window, limit: 120, interval: '1 minute' }
+
+nowo_wiki:
+    editor:
+        type: milkdown
+        milkdown:
+            stable_heading_ids: true          # default
+            link_picker:
+                enabled: true                 # default false
+                cross_wiki: true              # default
+                rate_limiter: limiter.wiki_link_picker   # required when enabled
+```
+
+| Key | Default | Effect |
+|---|---|---|
+| `editor.milkdown.stable_heading_ids` | `true` | Milkdown's `stable_heading_ids` in the page editor: a heading keeps its id while edited; the editor writes `{#id}` when the id differs from the heading's slug (owner decision O1). `false`: ids follow the text, as in 1.39. The read view honours `{#id}` either way. |
+| `editor.milkdown.link_picker.enabled` | `false` | Milkdown's `link_picker` (link button, `Ctrl+K`, `[[`, *Edit link…*) with the bundle's routes `link_candidates` / `link_sections` as `suggestions['[[']` / `link_sections` (a host's own values, set through `WikiEvents::EDITOR_OPTIONS`, win). External URLs: `http`, `https`, `mailto` (owner decision O5, Milkdown's default). Off: no route, no service. |
+| `editor.milkdown.link_picker.cross_wiki` | `true` | Also offer pages of the other wikis of the same tenant (from 2 characters; never with `search.scope: space`). Read per request through `LinkPicker\WikiLinkPickerSettingsInterface`: alias it to read the value from elsewhere (for instance the database). |
+| `editor.milkdown.link_picker.rate_limiter` | `null` | Service id of a Symfony `RateLimiterFactory`, applied per user to both routes (429 + `Retry-After`). Required when enabled. |
+| `routes.link_candidates` | `/tools/wiki/spaces/{spaceSlug}/link-candidates`, `nowo_wiki_link_candidates` | Candidates `{here: [{id, label, url}], others: [{wiki, pages}]}`; copied under every `tenant_paths` row. |
+| `routes.link_sections` | `/tools/wiki/spaces/{spaceSlug}/link-candidates/{pageId}/sections`, `nowo_wiki_link_sections` | Sections `{sections: [{id, level, text}]}` of one page, or 404. |
+
+**Same tenant (owner decision O4).** Other wikis are offered only from the current wiki's tenant: by default the
+`tenant_paths` row whose `slug_requirement` matches the space slug first (without `tenant_paths`, every space is one
+tenant; with `tenant_only`, a space outside every row has none). Alias
+`Nowo\WikiBundle\LinkPicker\WikiLinkTenantResolverInterface` (`tenantOf(WikiSpaceSnapshot): ?string`) to group wikis
+by your own tenant. A wiki in `search.excluded_spaces` gets no candidates. See [SECURITY](SECURITY.md) for the rules.
+
+**Read view.** Every heading gets a "link to this section" control (Twig filter `nowo_wiki_section_links` in
+`page_view.html.twig`, after `nowo_wiki_safe_html`), and links to a section read `Title › Section text` (section text
+from the linked page's top-level headings, only for pages the viewer may open).
+
 ## Page tree (1.14)
 
 ```yaml

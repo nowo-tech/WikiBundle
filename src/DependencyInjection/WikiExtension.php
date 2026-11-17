@@ -56,6 +56,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
+use Nowo\WikiBundle\Controller\WikiLinkPickerController;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\PrivateEntityManagerPass;
 use Nowo\WikiBundle\Doctrine\PrivateEntityManagerMiddleware;
@@ -72,12 +73,19 @@ use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiObjectLinkSourceInterface;
+use Nowo\WikiBundle\LinkPicker\ConfiguredWikiLinkPickerSettings;
+use Nowo\WikiBundle\LinkPicker\WikiLinkPickerEditorOptions;
+use Nowo\WikiBundle\LinkPicker\WikiLinkPickerService;
+use Nowo\WikiBundle\LinkPicker\WikiLinkPickerSettingsInterface;
+use Nowo\WikiBundle\LinkPicker\WikiLinkTenantResolverInterface;
+use Nowo\WikiBundle\LinkPicker\WikiTenantPathsLinkTenantResolver;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownIconHydrator;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownPageResolver;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRenderContext;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownRichContent;
+use Nowo\WikiBundle\Markdown\Milkdown\WikiMilkdownSectionResolver;
 use Nowo\WikiBundle\Markdown\WikiMarkdownExtensionInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
@@ -252,6 +260,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             if (!$config['web_ui']['tree_rail']) {
                 unset($config['routes']['space_panel_state']);
             }
+        }
+        // 1.40: the link picker routes exist only with the picker on (editor.type milkdown, checked by registerLinkPicker()).
+        $config['editor']['milkdown']['link_picker']['enabled'] = $this->literalBool($config['editor']['milkdown']['link_picker']['enabled'], 'editor.milkdown.link_picker.enabled');
+        if (!$config['editor']['milkdown']['link_picker']['enabled']) {
+            unset($config['routes']['link_candidates'], $config['routes']['link_sections']);
         }
         // 1.19.1: with the AI off (default) its question route is not registered, so no endpoint or link exists.
         if (!$config['ai']['enabled']) {
@@ -484,6 +497,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerHistory($container, $config, $emProviderRef);
         $this->registerPanelState($container, $config);
         $this->registerComments($container, $config, $emProviderRef);
+        $this->registerLinkPicker($container, $config);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
         // 1.16: wiki:search:backfill-text fills the revisions' plain-text column.
@@ -710,6 +724,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 ->addTag('kernel.reset', ['method' => 'reset']));
         }
 
+        // 1.40 (owner O3): `Title › Section text` labels of page links, for pages resolved for the viewer in this render.
+        $container->setDefinition(WikiMilkdownSectionResolver::class, (new Definition(WikiMilkdownSectionResolver::class))
+            ->setArgument('$pages', new Reference(WikiPageRepositoryInterface::class))
+            ->setArgument('$renderContext', new Reference(WikiRenderContext::class)));
+
         $pageResolver = $config['editor']['milkdown']['page_resolver'] ?? null;
         $container->setDefinition(MilkdownWikiMarkdownRenderer::class, (new Definition(MilkdownWikiMarkdownRenderer::class))
             ->setArgument('$options', [])
@@ -728,6 +747,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             // 1.28 (spec 212 B): previews of view="preview" cards through the host's resolver (file_cards: card only).
             ->setArgument('$filePreviews', $filePreviews ? new Reference(FilePreviewResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE) : null)
             ->setArgument('$previewFrames', $filePreviews ? new Reference(WikiFilePreviewFrames::class) : null)
+            ->setArgument('$sections', new Reference(WikiMilkdownSectionResolver::class))
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
             // 1.25: MilkdownBridgePass drops the host file arguments when editor.milkdown.host_files says so.
             ->addTag(MilkdownBridgePass::HOST_FILES_TAG, ['mode' => $config['editor']['milkdown']['host_files'] ?? Configuration::HOST_FILES_AUTO]));
@@ -786,6 +806,66 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$showNames', (bool) $config['history']['show_names'])
             ->setArgument('$avatars', new Reference(WikiAvatars::class))
             ->setArgument('$users', new Reference(WikiUsers::class)));
+    }
+
+    /**
+     * 1.40 (contract "section anchors and link picker" §3.1): the Milkdown editor options of section anchors
+     * (`editor.milkdown.stable_heading_ids`) and, with `editor.milkdown.link_picker.enabled`, the picker's service, its
+     * runtime settings and tenant ports (both aliasable) and the two JSON routes.
+     *
+     * @param array<string, mixed> $config processed configuration
+     *
+     * @throws LogicException with the picker on and another editor type, or without a rate limiter
+     */
+    private function registerLinkPicker(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool, cross_wiki: bool, rate_limiter: string|null} $picker */
+        $picker   = $config['editor']['milkdown']['link_picker'];
+        $milkdown = $config['editor']['type'] === Configuration::EDITOR_MILKDOWN;
+        if ($picker['enabled'] && !$milkdown) {
+            throw new LogicException('nowo_wiki.editor.milkdown.link_picker needs nowo_wiki.editor.type "milkdown".');
+        }
+        if ($picker['enabled'] && (!is_string($picker['rate_limiter']) || $picker['rate_limiter'] === '')) {
+            throw new LogicException('nowo_wiki.editor.milkdown.link_picker needs a rate limiter: set editor.milkdown.link_picker.rate_limiter to the service id of a Symfony RateLimiterFactory (e.g. limiter.wiki_link_picker from framework.rate_limiter.wiki_link_picker: {policy: sliding_window, limit: 120, interval: "1 minute"}). It limits both picker routes per user.');
+        }
+        $stable = $this->literalBool($config['editor']['milkdown']['stable_heading_ids'], 'editor.milkdown.stable_heading_ids');
+        if (!$milkdown || (!$stable && !$picker['enabled'])) {
+            return;
+        }
+
+        $container->setDefinition(WikiLinkPickerEditorOptions::class, (new Definition(WikiLinkPickerEditorOptions::class))
+            ->setArgument('$urlGenerator', new Reference('router'))
+            ->setArgument('$routes', $config['routes'])
+            ->setArgument('$linkPicker', $picker['enabled'])
+            ->setArgument('$stableHeadingIds', $stable)
+            ->setArgument('$profiles', new Reference(ProfileRegistry::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+        if (!$picker['enabled']) {
+            return;
+        }
+
+        $container->setDefinition(ConfiguredWikiLinkPickerSettings::class, (new Definition(ConfiguredWikiLinkPickerSettings::class))
+            ->setArgument('$crossWiki', $picker['cross_wiki']));
+        $container->setAlias(WikiLinkPickerSettingsInterface::class, ConfiguredWikiLinkPickerSettings::class);
+        $container->setDefinition(WikiTenantPathsLinkTenantResolver::class, (new Definition(WikiTenantPathsLinkTenantResolver::class))
+            ->setArgument('$tenantPaths', new Reference(WikiTenantPaths::class)));
+        $container->setAlias(WikiLinkTenantResolverInterface::class, WikiTenantPathsLinkTenantResolver::class);
+        $container->setDefinition(WikiLinkPickerService::class, (new Definition(WikiLinkPickerService::class))
+            ->setArgument('$pages', new Reference(WikiPageRepositoryInterface::class))
+            ->setArgument('$guard', new Reference(WikiSpaceGuard::class))
+            ->setArgument('$accessChecker', new Reference(WikiAccessCheckerInterface::class))
+            ->setArgument('$spaces', new Reference(WikiSpaceAccessResolverInterface::class))
+            ->setArgument('$urlGenerator', new Reference('router'))
+            ->setArgument('$routes', $config['routes'])
+            ->setArgument('$settings', new Reference(WikiLinkPickerSettingsInterface::class))
+            ->setArgument('$tenants', new Reference(WikiLinkTenantResolverInterface::class))
+            ->setArgument('$renderer', new Reference(WikiMarkdownRendererInterface::class))
+            ->setArgument('$sanitizer', new Reference(WikiHtmlSanitizerInterface::class))
+            ->setArgument('$renderContext', new Reference(WikiRenderContext::class))
+            ->setArgument('$searchScope', $config['search']['scope'])
+            ->setArgument('$excludedSpaces', array_values($config['search']['excluded_spaces'])));
+        $container->getDefinition(WikiLinkPickerController::class)
+            ->setArgument('$picker', new Reference(WikiLinkPickerService::class))
+            ->setArgument('$rateLimiter', new Reference((string) $picker['rate_limiter']));
     }
 
     /**

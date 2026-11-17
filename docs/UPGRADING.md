@@ -100,6 +100,59 @@
 
 ## Unreleased
 
+Target **1.40.0**, from **1.39.0** (section anchors and the link picker):
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/milkdown-editor-bundle
+php bin/console assets:install
+```
+
+- **Milkdown >= 1.18.** With `editor.type: milkdown` the bundle needs `nowo-tech/milkdown-editor-bundle` 1.18 or later
+  (composer `conflict` with older versions). Other editor types are not affected.
+- **Collaboration: one reload for open tabs.** The collaboration schema version (Milkdown `CollabSchema::VERSION`, 2)
+  is now part of the log name (`s2-…`). A page's log named before 1.40 starts a new epoch at its next session (when
+  the log is empty, or idle for `collaboration.reset_after_idle` and fully saved; a log with unsaved text waits for its
+  next save). Tabs still open with the older editor then get `409 log_epoch` and reload once. No migration: the
+  `log_epoch` column is unchanged and old logs read as before.
+- **Stable heading ids** are on with Milkdown (`editor.milkdown.stable_heading_ids: true`): after a heading is
+  renamed, or for a repeated heading, the editor saves `{#id}` at the end of the heading line (`## Install guide
+  {#setup}`), so links to that section keep working. `stable_heading_ids: false` keeps the 1.39 editor behaviour; the
+  read view honours `{#id}` either way.
+- **Link picker (opt-in).** Turn it on with a rate limiter:
+
+  ```yaml
+  framework:
+      rate_limiter:
+          wiki_link_picker: { policy: sliding_window, limit: 120, interval: '1 minute' }
+  nowo_wiki:
+      editor:
+          type: milkdown
+          milkdown:
+              link_picker: { enabled: true, rate_limiter: limiter.wiki_link_picker }
+  ```
+
+  It registers `nowo_wiki_link_candidates` and `nowo_wiki_link_sections` (and their `tenant_paths` copies) and sets
+  `suggestions['[[']` / `link_sections` of the page editor. A host that already serves its own `[[` candidates through
+  `WikiEvents::EDITOR_OPTIONS` keeps its URL; switch it to the bundle's route (or answer the `{here, others}` shape of
+  Milkdown 1.18) to get grouped results and sections. Firewall: the routes live under the wiki's path prefix like every
+  other space route. Other wikis are offered from the same tenant only: by default the `tenant_paths` row; alias
+  `Nowo\WikiBundle\LinkPicker\WikiLinkTenantResolverInterface` for a finer tenant (an organisation, for instance).
+- **Read view.** Links to a section point at `#nowo-h-<id>` and read `Title › Section text` (or `Title`); every heading
+  gets a "link to this section" control. **Overridden `page_view.html.twig`**: add the filter after
+  `nowo_wiki_safe_html`, as the bundle does —
+  `{{ content_html|default('')|nowo_wiki_safe_html|nowo_wiki_section_links('wiki.page.section_link'|trans, 'wiki.page.section_link_copied'|trans)|… }}`.
+  New translation keys `wiki.page.section_link`, `wiki.page.section_link_copied`.
+- **Anchor grammar.** Page-link anchors and heading ids follow Milkdown 1.18's grammar (Unicode lower-case letters,
+  marks and digits joined by single `-`, 1–90 characters). An anchor outside it (`a--b`, upper case) is dropped and
+  the link kept; the sanitizer no longer keeps a heading id with an upper-case letter (the slug never wrote one).
+- **REST API.** The page body has a new `sections` field (`[{id, level, text}]`, same view as the content). Clients that
+  write Markdown with `PUT` should keep `{#id}` suffixes, or those headings' ids change (see [API](API.md)).
+- **Reader's Markdown / API viewer view.** Links to a section come back as `[[wiki:<uuid>#<id>]]`, and headings whose
+  id differs from their slug keep `{#id}`.
+- `WikiManageController`, `MilkdownWikiMarkdownRenderer` and `WikiApiContent::revision()` gained optional trailing
+  arguments; `WikiViewerMarkdownView::view()` returns the Markdown and the sections of one render.
+  `WikiAlignedHeaderConverter` is deprecated (the dialect converter uses `WikiHeadingIdConverter`).
+
 ## To 1.39.0
 
 From **1.38.1**:

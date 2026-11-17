@@ -139,9 +139,10 @@ final readonly class WikiApiPageReadOperations
         $people = $this->people->presentAll($principal, [$revision?->getAuthor(), $creator], $page);
         $head   = $this->serializer->pageHead($wiki, $page, $revision?->getRevisionNumber(), $revision?->getCreatedAt(), $people[0], $people[1], $revision?->getChannel(), $this->actorLabels?->visibleOnPage($revision?->getActorLabel(), $revision?->getAuthor(), $page, $principal->user));
         if (!$revision instanceof WikiPageRevision) {
-            return $head + ['format' => WikiPageRevision::FORMAT_MARKDOWN, 'content_view' => $this->content->view($principal, $page), 'content_markdown' => ''];
+            return $head + ['format' => WikiPageRevision::FORMAT_MARKDOWN, 'content_view' => $this->content->view($principal, $page), 'content_markdown' => '', 'sections' => []];
         }
 
-        return $head + $this->content->revision($principal, $page, $revision, $this->content->view($principal, $page));
+        // 1.40 (owner O6): the body lists its sections, in the same view as its content.
+        return $head + $this->content->revision($principal, $page, $revision, $this->content->view($principal, $page), true);
     }
 }

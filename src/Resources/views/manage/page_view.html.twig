@@ -189,7 +189,7 @@
             {% block wiki_page_body %}
             <article class="{{ nowo_ui_class('card', _b) }} nowo-wiki-page"{% if comments_view|default(null) %} data-nowo-wiki-server-body{% endif %}{{ nowo_ui_attrs('card', _b) }}>
                 <div class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-content{% if rich_content|default(false) %} nowo-md{% endif %}" data-testid="wiki-content" data-nowo-ui-rendered-content{% if rich_content|default(false) %} data-wiki-rich-content{% endif %}>
-                    {{ content_html|default('')|nowo_wiki_safe_html|nowo_wiki_scroll_tables('wiki.table_scroll'|trans) }}
+                    {{ content_html|default('')|nowo_wiki_safe_html|nowo_wiki_section_links('wiki.page.section_link'|trans, 'wiki.page.section_link_copied'|trans)|nowo_wiki_scroll_tables('wiki.table_scroll'|trans) }}
                 </div>
             </article>
             {% endblock %}

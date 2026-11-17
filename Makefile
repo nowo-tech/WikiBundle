@@ -1,6 +1,6 @@
 # Wiki Bundle - Development
 SHELL := /bin/bash
-.PHONY: check-seamless-swap check-new-page-menu check-read-layout check-edit-view help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
+.PHONY: check-section-links check-seamless-swapcheck-new-page-menu check-read-layout check-edit-view help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
 
 COMPOSE_FILE ?= docker-compose.yml
 # Prefer Compose V2; absolute docker path avoids shadowing by local docker/ (REQ-MAKE-010).
@@ -199,6 +199,15 @@ check-edit-view:
 	mkdir -p $(EDIT_1381_DIR)
 	cp tests/Browser/edit-1381/index.html tests/Browser/edit-1381/check.js src/Resources/public/wiki.css vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(EDIT_1381_DIR)/
 	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(EDIT_1381_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
+
+# 1.40: section anchors in the read view — Chromium (Playwright image) checks the "link to this section" control (hover,
+# focus, copy, address bar), page#section, a legacy #id, a missing section and a hidden page's placeholder
+# (tests/Browser/section-links), with axe-core. Needs `make assets` first; screenshot in var/section-links.
+SECTION_LINKS_DIR := $(CURDIR)/var/section-links
+check-section-links:
+	mkdir -p $(SECTION_LINKS_DIR)
+	cp tests/Browser/section-links/index.html tests/Browser/section-links/check.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(SECTION_LINKS_DIR)/
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(SECTION_LINKS_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 axe-core@4.10.3 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
 
 check-open-prs:
 	@chmod +x .scripts/check-open-prs.sh

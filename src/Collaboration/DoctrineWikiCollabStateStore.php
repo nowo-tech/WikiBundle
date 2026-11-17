@@ -390,7 +390,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                 ->set('d.snapshotSeq', 0)
                 ->set('d.savedSeq', 0)
                 ->set('d.logEpoch', ':epoch')
-                ->setParameter('epoch', bin2hex(random_bytes(16)))
+                ->setParameter('epoch', WikiCollabSchema::newEpoch())
                 ->set('d.updatedAt', ':now')
                 ->where('d.pageId = :page')
                 ->setParameter('base', $baseRevisionId)
@@ -491,7 +491,7 @@ final readonly class DoctrineWikiCollabStateStore implements WikiCollabCountingS
                 return $named;
             }
             // @codeCoverageIgnoreEnd
-            $named = bin2hex(random_bytes(16));
+            $named = WikiCollabSchema::newEpoch();
             $this->em()->createQueryBuilder()
                 ->update(WikiCollabDocument::class, 'd')
                 ->set('d.logEpoch', ':epoch')

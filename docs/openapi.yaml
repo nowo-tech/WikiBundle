@@ -1642,6 +1642,11 @@ components:
             - 'null'
           content_text:
             type: string
+          sections:
+            type: array
+            description: '1.40: the headings a link can point at (`[[wiki:<uuid>#<id>]]`, the read view''s `#nowo-h-<id>`), in document order, at most 200, in the same view as the content: every heading of the source''s render for content_view source, the headings of the reader''s render (with the token''s reach) for viewer. `text` is the heading''s own text (no titles of linked pages, no mentions). Empty for an HTML page.'
+            items:
+              $ref: '#/components/schemas/Section'
           warnings:
             type: array
             items:
@@ -1650,6 +1655,24 @@ components:
         - format
         - content_view
         - content_markdown
+        - sections
+    Section:
+      type: object
+      properties:
+        id:
+          type: string
+          description: The heading id (Unicode lower-case letters, marks and digits joined by single hyphens, 1–90 characters), without the `nowo-h-` DOM prefix.
+        level:
+          type: integer
+          minimum: 1
+          maximum: 6
+        text:
+          type: string
+          maxLength: 200
+      required:
+      - id
+      - level
+      - text
     PageCreate:
       type: object
       properties:

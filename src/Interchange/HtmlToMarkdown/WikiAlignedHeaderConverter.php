@@ -9,6 +9,9 @@ use League\HTMLToMarkdown\ElementInterface;
 
 /**
  * Headings with the Milkdown dialect alignment (1.13, {@see WikiAlignmentTrait}).
+ *
+ * @deprecated since 1.40, the dialect converter uses {@see WikiHeadingIdConverter} (alignment and the `{#id}` suffix);
+ *             removed in 2.0
  */
 final class WikiAlignedHeaderConverter extends HeaderConverter
 {

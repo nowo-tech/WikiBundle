@@ -35,6 +35,7 @@ use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
+use Nowo\WikiBundle\LinkPicker\WikiLinkPickerEditorOptions;
 use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
@@ -223,6 +224,7 @@ final class WikiManageController extends AbstractController
         private readonly bool $pageIconField = false,
         private readonly array $iconPicker = [],
         private readonly bool $treeContextMenu = false,
+        private readonly ?WikiLinkPickerEditorOptions $linkPickerOptions = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -1890,6 +1892,11 @@ final class WikiManageController extends AbstractController
         if ($page instanceof WikiPage && $this->collab instanceof WikiCollabService && isset($this->routes['page_collab'])) {
             $url                      = $this->generateUrl($this->routes['page_collab']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug(), 'action' => 'state']);
             $options['collaboration'] = $this->collab->editorOptions($page, $user, substr($url, 0, -strlen('/state')));
+        }
+
+        // 1.40: stable heading ids and the link picker (Milkdown >= 1.18); a host listener below may still change them.
+        if ($this->linkPickerOptions instanceof WikiLinkPickerEditorOptions) {
+            $options = $this->linkPickerOptions->apply($options, $space);
         }
 
         if (!$this->eventDispatcher instanceof EventDispatcherInterface) {

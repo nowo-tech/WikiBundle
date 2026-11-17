@@ -26,10 +26,10 @@ use League\HTMLToMarkdown\Converter\TableConverter;
 use League\HTMLToMarkdown\Converter\TextConverter;
 use League\HTMLToMarkdown\Environment as HtmlEnvironment;
 use League\HTMLToMarkdown\HtmlConverter;
-use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiAlignedHeaderConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiAlignedParagraphConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiDialectTextConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiEmbedConverter;
+use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiHeadingIdConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiMarkConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiStrikethroughConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiTaskItemConverter;
@@ -70,7 +70,8 @@ final readonly class WikiMarkdownConverter
      *
      * @param bool $dialect 1.13: write the Milkdown dialect (`nowo_wiki.editor.type: milkdown`) — page links and
      *                      mentions kept as tokens, `<mark>` as `:mark[…]`, centred / right-aligned blocks in
-     *                      `::: {align=…}`, embeds as links
+     *                      `::: {align=…}`, embeds as links; 1.40: headings keep a `nowo-h-` id as the `{#id}` suffix
+     *                      ({@see WikiHeadingIdConverter})
      */
     public function __construct(
         public bool $dialect = false,
@@ -99,7 +100,7 @@ final readonly class WikiMarkdownConverter
         if ($dialect) {
             foreach ([
                 new WikiDialectTextConverter(), new WikiMarkConverter(), new WikiEmbedConverter(),
-                new WikiAlignedParagraphConverter(), new WikiAlignedHeaderConverter(),
+                new WikiAlignedParagraphConverter(), new WikiHeadingIdConverter(),
             ] as $converter) {
                 $htmlEnvironment->addConverter($converter);
             }
