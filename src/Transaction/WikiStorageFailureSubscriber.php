@@ -83,6 +83,8 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
         if ($hint !== null) {
             $policy = $this->policy ?? new ConflictResponsePolicy();
             if (self::committed($failure)) {
+                // Audit SR-WK-I2: keep the idempotency claim, a retry of the same key replays this answer.
+                WikiApiRequestListener::markWroteAnyway($request);
                 $event->setResponse(WikiApiRequestListener::answer(new WikiApiRefusal($policy->status, 'SERVER_002', self::PARTIAL_MESSAGE)));
 
                 return;

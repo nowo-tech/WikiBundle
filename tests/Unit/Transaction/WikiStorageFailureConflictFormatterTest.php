@@ -37,6 +37,20 @@ final class WikiStorageFailureConflictFormatterTest extends TestCase
 
         self::assertSame(503, $response?->getStatusCode());
         self::assertSame('{"error":"unavailable"}', $response->getContent());
+        self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+    }
+
+    public function testACommittedRestWriteKeepsItsIdempotencyClaim(): void
+    {
+        $formatter = new WikiStorageFailureConflictFormatter();
+
+        $committed = new Request(attributes: [WikiApiRequestListener::ROUTE_FLAG => true]);
+        $formatter->format($committed, $this->context(409, true));
+        self::assertTrue(WikiApiRequestListener::wroteAnyway($committed));
+
+        $open = new Request(attributes: [WikiApiRequestListener::ROUTE_FLAG => true]);
+        $formatter->format($open, $this->context(409));
+        self::assertFalse(WikiApiRequestListener::wroteAnyway($open));
     }
 
     public function testPagesAndOtherRoutesFallThrough(): void
@@ -51,7 +65,7 @@ final class WikiStorageFailureConflictFormatterTest extends TestCase
         self::assertNull($formatter->format($other, $this->context(409)));
     }
 
-    private function context(int $status): ConflictResponseContext
+    private function context(int $status, bool $committed = false): ConflictResponseContext
     {
         $driver = new class('Deadlock') extends RuntimeException implements DriverExceptionInterface {
             public function getSQLState(): string
@@ -60,6 +74,6 @@ final class WikiStorageFailureConflictFormatterTest extends TestCase
             }
         };
 
-        return new ConflictResponseContext($status, 1, 'concurrency_conflict', 'Retry later.', 3, new DeadlockException($driver, null), false);
+        return new ConflictResponseContext($status, 1, 'concurrency_conflict', 'Retry later.', 3, new DeadlockException($driver, null), $committed);
     }
 }

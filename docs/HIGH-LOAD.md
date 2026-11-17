@@ -73,7 +73,7 @@ On the wiki's routes (a controller of the bundle, or a route of the REST API), `
 | `TransientStorageFailure`, or a DBAL `RetryableException` (deadlock, lock wait timeout) | `409` `{"err", "ECODE": "SERVER_002"}` + `Retry-After` | `409` `{"error": "unavailable"}` + `Retry-After` | `HttpException` 409 (your error page) |
 | A unique key refused a concurrent write (a page or space slug taken meanwhile) | `409` `{"ECODE": "WIKI_CONFLICT"}` | `409` `{"error": "conflict"}` | `ConflictHttpException` |
 
-Since 1.42 the status is the shared transaction-doctrine policy's (409; `nowo_transaction_doctrine.conflict_response.status: 503` keeps 503), and a conflict that already committed (`ConcurrencyConflict`, `committed: true`) gets no `Retry-After` and a reload message. The storage error stays the previous exception, for your logs: no SQL or parameter reaches the client. A page save
+Since 1.42 the status is the shared transaction-doctrine policy's (409; `nowo_transaction_doctrine.conflict_response.status: 503` keeps 503), and a conflict that already committed (`ConcurrencyConflict`, `committed: true`) gets no `Retry-After`. The REST API and the pages then carry the reload text ("Part of your change may have been saved. Reload before trying again."); the internal JSON endpoints keep `{"error": "unavailable"}` byte for byte, so the missing `Retry-After` is their only signal. A REST write sent with an `Idempotency-Key` keeps its claim in that case: a retry replays the answer instead of writing again. The storage error stays the previous exception, for your logs: no SQL or parameter reaches the client. A page save
 that loses a race keeps its 1.22+ answer (the form again with the text, or `409 WIKI_SAVE_COLLISION` + `Retry-After`
 in the API). An idempotent API write whose store failed answers `503 IDEMP_004` with `Retry-After`; a 503 releases its
 `Idempotency-Key` claim, so the retry runs.
@@ -137,7 +137,7 @@ exact one's place. The API keeps its id-with-class rules (audit OX-L1).
   failure inside your transaction marks the whole transaction rollback-only.
 - **Lock waits:** a unit waits for a locked row as long as the server lets it (`innodb_lock_wait_timeout`, 50 s by
   default on MySQL; `lock_timeout` on PostgreSQL, unlimited by default). Keep it below your request timeout (5–10 s
-  for web workers): a timeout becomes a 503, never a stuck worker.
+  for web workers): a timeout becomes a 409 + `Retry-After` (503 with the policy opt-in), never a stuck worker.
 - **Connection poolers:** PgBouncer in transaction pooling mode is fine (the wiki holds no session state between
   units); statement pooling is not supported.
 

@@ -182,6 +182,7 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $body = json_decode((string) $api->getResponse()->getContent(), true);
         self::assertSame('SERVER_002', $body['ECODE']);
         self::assertStringContainsString('Reload', $body['err']);
+        self::assertTrue(WikiApiRequestListener::wroteAnyway($api->getRequest()), 'the idempotency claim is kept');
 
         $request = $this->wikiRequest();
         $request->headers->set('Accept', 'application/json');
@@ -202,6 +203,7 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $open  = new ConcurrencyConflict(3, TransientFailureKind::Deadlock, null, new LockWaitTimeoutException(self::driver(), null), false);
         $retry = $this->event($this->apiRequest(), $open);
         (new WikiStorageFailureSubscriber(new ConflictResponsePolicy(409, 7)))->onApiException($retry);
+        self::assertFalse(WikiApiRequestListener::wroteAnyway($retry->getRequest()));
         self::assertSame('7', $retry->getResponse()?->headers->get('Retry-After'));
     }
 

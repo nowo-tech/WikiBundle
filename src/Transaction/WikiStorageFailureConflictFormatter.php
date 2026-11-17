@@ -27,10 +27,16 @@ final readonly class WikiStorageFailureConflictFormatter implements ConflictResp
     public function format(Request $request, ConflictResponseContext $context): ?Response
     {
         if ($request->attributes->getBoolean(WikiApiRequestListener::ROUTE_FLAG)) {
+            if ($context->committed) {
+                // Audit SR-WK-I2: keep the idempotency claim, a retry of the same key replays this answer.
+                WikiApiRequestListener::markWroteAnyway($request);
+            }
+
             return new JsonResponse(['err' => $context->message, 'ECODE' => 'SERVER_002'], $context->status);
         }
         if (WikiStorageFailureSubscriber::isWikiRequest($request) && WikiStorageFailureSubscriber::wantsJson($request)) {
-            return new JsonResponse(['error' => 'unavailable'], $context->status);
+            // Audit SR-WK-I1: the subscriber's JSON answer sets nosniff too.
+            return new JsonResponse(['error' => 'unavailable'], $context->status, ['X-Content-Type-Options' => 'nosniff']);
         }
 
         return null;
