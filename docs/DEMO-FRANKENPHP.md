@@ -10,6 +10,7 @@ The Symfony 8 demo runs on [FrankenPHP](https://frankenphp.dev/) inside Docker (
 - [Stack](#stack)
 - [Path repositories](#path-repositories)
 - [Commands](#commands)
+- [Demo smoke (REQ-TEST-011)](#demo-smoke-req-test-011)
 - [Styling](#styling)
 - [Production note](#production-note)
 - [Switching classic vs worker (`FRANKENPHP_MODE`)](#switching-classic-vs-worker-frankenphp_mode)
@@ -47,9 +48,18 @@ make -C demo/symfony8 update-bundle   # refresh autoload + cache
 make -C demo/symfony8 test            # lint YAML/Twig + schema validate
 ```
 
+## Demo smoke (REQ-TEST-011)
+
+The smoke test boots the FrankenPHP demo and asserts HTTP 200 on the wiki home:
+
+- **URL:** `http://127.0.0.1:8025/tools/wiki` (the port is `PORT` in `demo/symfony8/.env`, 8025 by default).
+- **Command:** `make demo-smoke` from the repository root (it runs `make -C demo demo-smoke`: `up`, then polls the URL for up to 60 tries).
+- **CI:** the `Demo smoke` workflow (`.github/workflows/demo-smoke.yml`) runs it weekly (Monday 07:00 UTC), on every `v*` tag and on demand (`workflow_dispatch`).
+- **Worker mode:** the demo runs in FrankenPHP worker mode by default (`FRANKENPHP_MODE=worker`). `DEMO_KERNEL_RESET=0 make demo-smoke` keeps the booted kernel alive without running the services resetter between requests (demo `src/Kernel.php`), the way a host with kernel reset off runs it. The smoke pages answer 200 with a clean console in both settings; see the note on the full e2e suite in the CHANGELOG (Unreleased).
+
 ## Styling
 
-The demo is a UiKit host (REQ-UI-003): `templates/base.html.twig` is the demo shell (masthead, Bootstrap 5 + Bootstrap Icons, `public/css/demo.css`), `templates/layouts/admin.html.twig` bridges it to the UiKit canonical blocks and is set as `nowo_ui_kit.layouts.admin`, and `twig.form_themes` uses `bootstrap_5_layout.html.twig`. The bundle loads only `wiki.css` / `wiki.js` (asset package `nowo_wiki`).
+The demo is a UiKit host (REQ-UI-003, REQ-DEMO-014): `templates/base.html.twig` extends `@NowoUiKit/layout/admin.html.twig` (UiKit masthead and navigation classes, flashes, the theme toggle) with UiKit's default theme and its own `nowo-ui.css` only. It loads no Bootstrap, no CDN and overrides no global token, and it is set as `nowo_ui_kit.layouts.admin` (`css_framework: custom`), so every wiki page renders in it. `nowo-tech/ui-kit-bundle` is a direct requirement of the demo. The bundle loads only `wiki.css` / `wiki.js` (asset package `nowo_wiki`).
 
 ## Production note
 

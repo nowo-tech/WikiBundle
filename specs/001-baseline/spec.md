@@ -140,11 +140,35 @@ As an integrator, I decide the plan limits, navigation, page parts and assets wi
 - **FR-ROUTE-002** (1.9): `tenant_paths`: copies of the space-scoped routes under host paths, and a router decorator that generates them.
 - **FR-I18N-004**: Seven locale files.
 
+### Releases 1.22 to 1.40
+
+- **FR-COLLAB-002** (1.22, 1.23): Co-editing log hygiene: a save outside the shared session never loses the others' text; every log has a random epoch that changes with each reset (`update` and `compact` answer 409 on an old epoch); an update stored while a session save is in flight stays unsaved; conditional-reset, numbered, locking and epoch store interfaces, the subscription policy and the Mercure cookie.
+- **FR-SAVE-001** (1.24): Saves from a known revision: `saveRevision()` and `restore()` take `$expectedRevision`, lock the page row and refuse a collision or a conflict (`WikiRevisionCollisionException`, `WikiRevisionConflictException`) with the conflict pages shown to the editor.
+- **FR-RENDER-001** (1.24): Per-viewer render: `WikiRenderContext` / `WikiRenderFrame` / `WikiRenderReach` name the space and page of each render (page body, comments, reader's Markdown); `WikiViewerMarkdownView` gives a reader who may not edit the Markdown of what they see, never the source.
+- **FR-RENDER-002** (1.24.1, 1.28): Host files and file previews follow the render's reach; `editor.milkdown.file_previews` (default on with Milkdown) through `WikiFilePreviewFrames`, bounded per request.
+- **FR-API-001** (1.24): REST API (`nowo_wiki.api`, off by default: no route, service or listener): stateless reads of wikis, pages (metadata, filters, ancestors checked), revisions and search through the host's `authenticator` and `directory` hooks; 1.40 adds `sections: [{id, level, text}]` to the page body.
+- **FR-API-002** (1.24+): REST API writes, comments and delegated calls: page create, save, move (with `position`, 1.35), archive; comments; `WikiApiWriteEvent` after each write; rights re-checked on every call.
+- **FR-API-003** (1.24+): API host hooks (authenticator, directory, users, files, file store, plan gate and policy, rate limiter, wiki management) each with a denying or null default, so an unwired hook fails closed.
+- **FR-API-004** (1.24+): API idempotency (`Idempotency-Key`: claim, replay, outcome in `WikiApiIdempotencyRecord`, `wiki:api:purge-idempotency`) and the request boundary (`WikiApiGuard`, request listener, render reach); `WikiApiSafetyPass` refuses a container whose API hooks are unsafe.
+- **FR-USER-001** (1.27): User reference resolver and ports typed with ids and snapshots: `WikiUserReferenceResolverInterface`, scalar `actorId()` on the events, service ports (`WikiPageServiceInterface`, `WikiSpaceServiceInterface`) and the framework-free twins of the ports that used Symfony types.
+- **FR-ARCH-001** (1.36, REQ-ARCH-001 rules 1 and 3): Framework-free host ports: `WikiUserRef` and the value objects (`WikiPageSnapshot`, `WikiSpaceSnapshot`, `WikiRequestContext`, ...), the `Port\*Gate` adapters between a deprecated port and its twin (`WikiPortsPass`), operations by id (`WikiPageOperationsInterface`, `WikiSpaceOperationsInterface`) and events carrying ids.
+- **FR-ARCH-002** (1.36, rule 6, opt-in): `database.private_entity_manager`: the wiki on its own entity manager (connection, driver, middleware, repository factory, `PrivateEntityManagerPass`). Default stays `false` until 2.0.
+- **FR-ARCH-003** (1.36, rule 4, opt-in): `database.mapping_type: xml` loads the 13 `*.orm.xml` files under `Resources/config/doctrine-xml` (`WikiDoctrineMapping`, `WikiMappingManagerPass`, `WikiExcludedEntityNamespaceDriver`).
+- **FR-SEC-011** (1.31.1, 1.36): Stored user and owner ids match exactly (binary collation `WikiSpaceCollationListener`, `WikiUserRefType`, `WikiStoredUserRef` refuses unusable ids); a look-alike id never opens another owner's space.
+- **FR-WORKER-002** (1.29.1, 1.36): No state leaks between requests where the kernel is not reset: `WikiRequestBoundaryResetter` (request, Messenger, console), `WikiTransactionRunner` / `WikiSavepoint` / `WikiFlusher` / `WikiEventDeferral`, locking re-read of the entity before a change.
+- **FR-UI-013** (1.29 to 1.38): Page layout options, all opt-in or default-preserving: compact header, `page_header.tabs: toolbar`, toolbar position, `page_meta: card`, `reading_width` and `reading_align`, `tree_rail` and `tree_collapsed_mode`, `narrow_tree_position`, `breadcrumb_current_label`, edit view in the read layout, comments dock breakpoint, `comments.layout`, `comments.thread_list`, collapsible plain tree, table scroll.
+- **FR-ICON-001** (1.32, 1.38, 1.39): Icons: `WikiSpace::icon` and `WikiPage::icon` (UX names), emoji icons stored as `emoji:<grapheme>`, and the icon picker field (`page_icon.picker` / `space_icon.picker: icon_selector`).
+- **FR-MEMBER-001 / FR-PROV-001** (1.34): Member badges beside author names (`WikiMemberBadgeProviderInterface`, null by default) and write provenance of each revision (`WikiWriteProvenanceProviderInterface`, erased with the author).
+- **FR-TREE-002** (1.35, 1.39): New page as a dialog (`web_ui.new_page_dialog`), create at a place (web `place`, API `position`), and the tree context menu (`tree.context_menu`).
+- **FR-NAV-001** (1.39): Previous / next page links (`web_ui.page_nav: top|bottom|both`, default `none`).
+- **FR-SECTION-001** (1.40): Stable heading ids in the Milkdown editor, explicit ids (`## Title {#setup}` renders `nowo-h-setup`), "Link to this section" on every heading and section labels (`Title > Section text`).
+- **FR-LINKPICK-001** (1.40, `editor.milkdown.link_picker`, opt-in): the Milkdown link picker: page and section search inside the same tenant only (`WikiLinkPickerController`, `WikiLinkPickerService`, tenant resolver port).
+
 ---
 
 ## Success Criteria
 
-- **SC-001**: 100% of production files in `src/` appear in [`code-inventory.md`](code-inventory.md) with requirement IDs (256/256 mapped; the co-located Vitest files `*.test.ts` are excluded).
+- **SC-001**: 100% of production files in `src/` appear in [`code-inventory.md`](code-inventory.md) with requirement IDs (506/506 mapped; the co-located Vitest files `*.test.ts` are excluded).
 - **SC-002**: Configuration keys in `docs/CONFIGURATION.md` match `Configuration.php`.
 - **SC-003**: `composer qa` / `make release-check` pass in CI (PHPUnit, PHPStan, Vitest where applicable).
 - **SC-004**: No Packagist-visible behavior change without spec, inventory, and test updates.

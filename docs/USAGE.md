@@ -16,6 +16,7 @@
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
   - [Page layout (1.29)](#page-layout-129)
+- [Demo smoke (REQ-TEST-011)](#demo-smoke-req-test-011)
 - [Translations (REQ-I18N-001)](#translations-req-i18n-001)
 - [Events](#events)
 - [Links to host objects (1.9)](#links-to-host-objects-19)
@@ -777,6 +778,16 @@ nowo_wiki:
                 current_tab: hidden
                 back: view
 ```
+
+## Demo smoke (REQ-TEST-011)
+
+To check the bundle in a running host, boot the demo and assert HTTP 200 on the wiki home:
+
+```bash
+make demo-smoke   # boots demo/symfony8 and polls http://127.0.0.1:8025/tools/wiki
+```
+
+The port comes from `PORT` in `demo/symfony8/.env`. The `Demo smoke` GitHub workflow runs the same command weekly, on tags and on demand. See [DEMO-FRANKENPHP.md](DEMO-FRANKENPHP.md#demo-smoke-req-test-011).
 
 ## Translations (REQ-I18N-001)
 

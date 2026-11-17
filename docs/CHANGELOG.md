@@ -245,6 +245,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Demo shell on UiKit (REQ-DEMO-014).** `demo/symfony8/templates/base.html.twig` extends `@NowoUiKit/layout/admin.html.twig`
+  with UiKit's default theme (`nowo_ui_kit.css_framework: custom`): no Bootstrap, no jsDelivr CDN, no demo stylesheet, no
+  global token override. `nowo-tech/ui-kit-bundle` is a direct requirement of the demo. The demo Caddyfiles no longer
+  rewrite `/.well-known/mercure` to `index.php` (the hot reload stream answered 404 in the browser console).
+- Demo only: `DEMO_KERNEL_RESET=0` keeps the booted kernel alive without the services resetter between requests.
+
+### Added
+
+- `make test-with-db` / `make test-coverage-with-db` (REQ-TEST-005), the `Demo smoke` workflow (weekly, tags, manual;
+  REQ-TEST-011), a table of contents in `docs/COMMENTS-CONTRACT.md`, and the Spec Kit baseline (`specs/001-baseline`)
+  re-mapped for every file of `src/` up to 1.40 (506 files, FR-API, FR-ARCH, FR-LINKPICK and others).
+
+### Known issue (demo, no package change)
+
+- With `DEMO_KERNEL_RESET=0` (worker, services resetter off) the full demo e2e suite is not green on every run: the
+  trash delete can raise `ORMInvalidArgumentException` ("new entity found through WikiTrashEntry#page") and the page tree
+  move or the Milkdown save can answer an error. Each spec passes alone; the default setting passes all 51 specs.
+  Tracked for a fix (REQ-RUNTIME-002 / the no-reset rule).
+
 ## [1.40.1] - 2026-11-17
 
 Target: 1.40.1 (Beacon feedback on the page icon picker). No change in `src/`: the causes were in IconSelector and are

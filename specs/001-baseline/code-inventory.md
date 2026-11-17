@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-11-06 (every file of `src/` mapped after reading it, including 1.9 to 1.21; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 256)
+**Last audited**: 2026-11-17 (every file of `src/` mapped after reading it, including 1.22 to 1.40; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 506)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -392,6 +392,306 @@ This file proves that **every production source artifact** under `src/` is refer
 | `PageFile/WikiPageFile.php` | A file a page refers to (cleaned name, safe URL) | FR-FILES-001 |
 | `PageFile/WikiPageFileExtractor.php` | Lists a page's file cards and images from its Markdown | FR-FILES-001 |
 
+## Framework-free ports and Doctrine isolation (1.27 / 1.36)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Ai/WikiAiAnswererInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Ai/WikiAiReply.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Attachment/WikiAttachmentLimitsPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Avatar/WikiUserAvatarSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `DependencyInjection/Compiler/PrivateEntityManagerPass.php` | Private entity manager (`database.private_entity_manager`, opt-in; REQ-ARCH-001 rule 6) | FR-ARCH-002 |
+| `DependencyInjection/Compiler/WikiMappingManagerPass.php` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `DependencyInjection/Compiler/WikiPortsPass.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `DependencyInjection/WikiDoctrineMapping.php` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Doctrine/PrivateEntityManagerConnection.php` | Private entity manager (`database.private_entity_manager`, opt-in; REQ-ARCH-001 rule 6) | FR-ARCH-002 |
+| `Doctrine/PrivateEntityManagerDriver.php` | Private entity manager (`database.private_entity_manager`, opt-in; REQ-ARCH-001 rule 6) | FR-ARCH-002 |
+| `Doctrine/PrivateEntityManagerMiddleware.php` | Private entity manager (`database.private_entity_manager`, opt-in; REQ-ARCH-001 rule 6) | FR-ARCH-002 |
+| `Doctrine/PrivateManagerRepositoryFactory.php` | Private entity manager (`database.private_entity_manager`, opt-in; REQ-ARCH-001 rule 6) | FR-ARCH-002 |
+| `Doctrine/Type/WikiUserRefType.php` | Exact, binary matching of stored user and owner ids (look-alike ids never match) | FR-SEC-011 |
+| `Doctrine/WikiExcludedEntityNamespaceDriver.php` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Doctrine/WikiSpaceCollationListener.php` | Exact, binary matching of stored user and owner ids (look-alike ids never match) | FR-SEC-011 |
+| `Link/WikiObjectLinkSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Link/WikiPageLinkOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Link/WikiPageLinkOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Link/WikiPageLinkServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Panel/WikiPanelStatesInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Port/WikiAccessPolicyGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiAiAnswererGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiApiFileStoreGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiApiPlanPolicyGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiApiRequestAuthenticatorGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiApiWikiDirectoryGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiAttachmentLimitsPolicyGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiCollabSubscriptionGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiObjectLinkSourceGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiPanelStatesGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiPorts.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiRequestContexts.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiSnapshots.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiSpaceAccessPolicyGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiSpaceIdLocatorGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiSpaceReachGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiTeamMembershipSourceGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiTreeStatesGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiUserAvatarSourceGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiUserRefs.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Repository/WikiPageChildrenFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Repository/WikiPageLockInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Repository/WikiPageMetadata.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Repository/WikiPageMetadataFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Repository/WikiPageMetadataQuery.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Repository/WikiPageTitleFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Resources/config/doctrine-xml/WikiAttachment.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiCollabDocument.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiCollabUpdate.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiComment.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiCommentReaction.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiCommentThread.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiPage.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiPageLink.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiPageRevision.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiRevisionLabel.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiSpace.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Resources/config/doctrine-xml/WikiTrashEntry.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
+| `Security/WikiAccessPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Security/WikiSpaceAccessPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Security/WikiTeamMembershipSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiPageCreateResult.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiPageOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiPageOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiPageServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiSpaceIdLocatorInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiSpaceOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiSpaceOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiSpaceReachInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiSpaceServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Tree/WikiTreeStatesInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `User/DoctrineWikiUserReferenceResolver.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `User/WikiRefUser.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `User/WikiUserClassPolicy.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `User/WikiUserDirectoryInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `User/WikiUserFields.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `User/WikiUserId.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `User/WikiUserReferenceResolverInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `User/WikiUsers.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiOwnerScopeId.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiPagePlacement.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiPageSnapshot.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiRequestContext.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiRevisionSnapshot.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiSpaceIcon.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiSpaceSnapshot.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiStoredUserRef.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+| `ValueObject/WikiUserRef.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
+
+## REST API (1.24+)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Api/Command/WikiApiPurgeIdempotencyCommand.php` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
+| `Api/Controller/WikiApiCommentController.php` | REST API writes, comments and delegated calls (rights re-checked per call) | FR-API-002 |
+| `Api/Controller/WikiApiDelegatedController.php` | REST API writes, comments and delegated calls (rights re-checked per call) | FR-API-002 |
+| `Api/Controller/WikiApiReadController.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Controller/WikiApiWikiController.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Controller/WikiApiWriteController.php` | REST API writes, comments and delegated calls (rights re-checked per call) | FR-API-002 |
+| `Api/Hook/DenyingWikiApiFiles.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/DenyingWikiApiPlanGate.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/DenyingWikiApiRateLimiter.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/DenyingWikiApiWikiManagement.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/NullWikiApiUsers.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiAuthenticatorInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiDirectoryInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiFileStoreInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiFilesInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiIdempotencyStoreInterface.php` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
+| `Api/Hook/WikiApiPlanGateInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiPlanPolicyInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiRateLimiterInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiRequestAuthenticatorInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiUsersInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiWikiDirectoryInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Hook/WikiApiWikiManagementInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Api/Idempotency/DoctrineWikiApiIdempotencyStore.php` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
+| `Api/Operation/WikiApiAudit.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Operation/WikiApiCommentReadOperations.php` | REST API write and comment operation behind the controller | FR-API-002 |
+| `Api/Operation/WikiApiCommentWriteOperations.php` | REST API write and comment operation behind the controller | FR-API-002 |
+| `Api/Operation/WikiApiComments.php` | REST API write and comment operation behind the controller | FR-API-002 |
+| `Api/Operation/WikiApiDelegatedOperations.php` | REST API write and comment operation behind the controller | FR-API-002 |
+| `Api/Operation/WikiApiPageReadOperations.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Operation/WikiApiPageWriteOperations.php` | REST API write and comment operation behind the controller | FR-API-002 |
+| `Api/Operation/WikiApiRevisionOperations.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Operation/WikiApiSearchOperations.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Operation/WikiApiWikiOperations.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Repository/WikiApiUsersReader.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Security/WikiApiGuard.php` | API request boundary: authentication, guard, render reach and the compile-time safety check (fails closed) | FR-API-004 |
+| `Api/Security/WikiApiIdempotencyListener.php` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
+| `Api/Security/WikiApiRenderReach.php` | API request boundary: authentication, guard, render reach and the compile-time safety check (fails closed) | FR-API-004 |
+| `Api/Security/WikiApiRequestListener.php` | API request boundary: authentication, guard, render reach and the compile-time safety check (fails closed) | FR-API-004 |
+| `Api/Serializer/WikiApiContent.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Serializer/WikiApiPeople.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Serializer/WikiApiSerializer.php` | REST API reads: pages, revisions, search, wikis; serialization with the body sections of 1.40 | FR-API-001 |
+| `Api/Value/WikiApiDownload.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/Value/WikiApiFile.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/Value/WikiApiIdempotencyClaim.php` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
+| `Api/Value/WikiApiIdempotencyOutcome.php` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
+| `Api/Value/WikiApiNewWiki.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/Value/WikiApiRateLimitState.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/Value/WikiApiUpload.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/Value/WikiApiUploadedFile.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/Value/WikiApiWiki.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/Value/WikiApiWikiFilter.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/Value/WikiApiWikiPatch.php` | Immutable value of the REST API (wiki, file, upload, filter, patch, rate-limit state) | FR-API-001 |
+| `Api/WikiApiAuthFailure.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiCapability.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiCredential.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiInput.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiLevel.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiPrincipal.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiQuery.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiRefusal.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiRoutes.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `Api/WikiApiWhere.php` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+| `DependencyInjection/Compiler/WikiApiSafetyPass.php` | API request boundary: authentication, guard, render reach and the compile-time safety check (fails closed) | FR-API-004 |
+| `Entity/WikiApiIdempotencyRecord.php` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
+| `Event/WikiApiWriteEvent.php` | Event dispatched after an API write | FR-API-002 |
+| `Resources/config/doctrine-xml/WikiApiIdempotencyRecord.orm.xml` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
+| `Resources/config/services_api.yaml` | REST API core (capabilities, principal, credential, query, refusal, routes) and its service wiring (`nowo_wiki.api`, off by default) | FR-API-001 |
+
+## Co-editing epochs and resets (1.22 / 1.23)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Collaboration/WikiCollabConditionalResetStoreInterface.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+| `Collaboration/WikiCollabCookie.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+| `Collaboration/WikiCollabCookieListener.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+| `Collaboration/WikiCollabEpochStoreInterface.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+| `Collaboration/WikiCollabLockingStoreInterface.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+| `Collaboration/WikiCollabNumberedStoreInterface.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+| `Collaboration/WikiCollabSchema.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+| `Collaboration/WikiCollabSubscriptionPolicyInterface.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+| `Collaboration/WikiCollabUnitLostException.php` | Co-editing log epochs, numbered and conditional reset stores, locking, subscription policy and the Mercure cookie (1.22 / 1.23) | FR-COLLAB-002 |
+
+## Link picker and section links (1.40)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Controller/WikiLinkPickerController.php` | Milkdown link picker (`editor.milkdown.link_picker`, opt-in): same-tenant page and section search | FR-LINKPICK-001 |
+| `LinkPicker/ConfiguredWikiLinkPickerSettings.php` | Milkdown link picker (`editor.milkdown.link_picker`, opt-in): same-tenant page and section search | FR-LINKPICK-001 |
+| `LinkPicker/WikiLinkPickerEditorOptions.php` | Milkdown link picker (`editor.milkdown.link_picker`, opt-in): same-tenant page and section search | FR-LINKPICK-001 |
+| `LinkPicker/WikiLinkPickerService.php` | Milkdown link picker (`editor.milkdown.link_picker`, opt-in): same-tenant page and section search | FR-LINKPICK-001 |
+| `LinkPicker/WikiLinkPickerSettingsInterface.php` | Milkdown link picker (`editor.milkdown.link_picker`, opt-in): same-tenant page and section search | FR-LINKPICK-001 |
+| `LinkPicker/WikiLinkTenantResolverInterface.php` | Milkdown link picker (`editor.milkdown.link_picker`, opt-in): same-tenant page and section search | FR-LINKPICK-001 |
+| `LinkPicker/WikiTenantPathsLinkTenantResolver.php` | Milkdown link picker (`editor.milkdown.link_picker`, opt-in): same-tenant page and section search | FR-LINKPICK-001 |
+| `Markdown/Milkdown/WikiMilkdownSectionResolver.php` | Stable and explicit heading ids, heading outline and "Link to this section" | FR-SECTION-001 |
+| `Markdown/WikiHeadingAnchor.php` | Stable and explicit heading ids, heading outline and "Link to this section" | FR-SECTION-001 |
+| `Markdown/WikiHeadingOutline.php` | Stable and explicit heading ids, heading outline and "Link to this section" | FR-SECTION-001 |
+| `Resources/assets/src/wiki-section-links.ts` | Stable and explicit heading ids, heading outline and "Link to this section" | FR-SECTION-001 |
+
+## Worker safety and transactions (1.29.1 / 1.36)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Doctrine/WikiEntityManager.php` | Per-request state and transactions that stay safe in FrankenPHP worker mode with kernel reset off: entity manager access, flush, savepoints, event deferral, boundary reset | FR-WORKER-002 |
+| `Doctrine/WikiFlusher.php` | Per-request state and transactions that stay safe in FrankenPHP worker mode with kernel reset off: entity manager access, flush, savepoints, event deferral, boundary reset | FR-WORKER-002 |
+| `Doctrine/WikiSavepoint.php` | Per-request state and transactions that stay safe in FrankenPHP worker mode with kernel reset off: entity manager access, flush, savepoints, event deferral, boundary reset | FR-WORKER-002 |
+| `Service/WikiEventDeferral.php` | Per-request state and transactions that stay safe in FrankenPHP worker mode with kernel reset off: entity manager access, flush, savepoints, event deferral, boundary reset | FR-WORKER-002 |
+| `Service/WikiRequestBoundaryResetter.php` | Per-request state and transactions that stay safe in FrankenPHP worker mode with kernel reset off: entity manager access, flush, savepoints, event deferral, boundary reset | FR-WORKER-002 |
+| `Transaction/WikiFlushObserver.php` | Per-request state and transactions that stay safe in FrankenPHP worker mode with kernel reset off: entity manager access, flush, savepoints, event deferral, boundary reset | FR-WORKER-002 |
+| `Transaction/WikiStorageFailureSubscriber.php` | Per-request state and transactions that stay safe in FrankenPHP worker mode with kernel reset off: entity manager access, flush, savepoints, event deferral, boundary reset | FR-WORKER-002 |
+| `Transaction/WikiTransactionRunner.php` | Per-request state and transactions that stay safe in FrankenPHP worker mode with kernel reset off: entity manager access, flush, savepoints, event deferral, boundary reset | FR-WORKER-002 |
+
+## Icons (1.32 / 1.38 / 1.39)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Form/WikiIconPickerType.php` | Page and space icons: UX name, emoji and the icon picker field | FR-ICON-001 |
+| `Form/WikiSpaceIconType.php` | Page and space icons: UX name, emoji and the icon picker field | FR-ICON-001 |
+| `Form/WikiSpaceType.php` | Space form, including the optional icon | FR-ICON-001 |
+| `Resources/views/manage/_icon_picker_script.html.twig` | Page and space icons: UX name, emoji and the icon picker field | FR-ICON-001 |
+| `Resources/views/manage/_page_icon.html.twig` | Page and space icons: UX name, emoji and the icon picker field | FR-ICON-001 |
+| `Resources/views/manage/_tree_page_icon.html.twig` | Page and space icons: UX name, emoji and the icon picker field | FR-ICON-001 |
+| `Service/WikiPageIconService.php` | Page and space icons: UX name, emoji and the icon picker field | FR-ICON-001 |
+
+## Member badges and write provenance (1.34)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `History/WikiActorLabels.php` | Write provenance of a revision (which client wrote it), its erasure with the author and the labels shown | FR-PROV-001 |
+| `Member/NullWikiMemberBadgeProvider.php` | Member badges next to author names, through a host provider (null by default) | FR-MEMBER-001 |
+| `Member/WikiMemberBadge.php` | Member badges next to author names, through a host provider (null by default) | FR-MEMBER-001 |
+| `Member/WikiMemberBadgeProviderInterface.php` | Member badges next to author names, through a host provider (null by default) | FR-MEMBER-001 |
+| `Member/WikiMemberBadges.php` | Member badges next to author names, through a host provider (null by default) | FR-MEMBER-001 |
+| `Member/WikiMemberRef.php` | Member badges next to author names, through a host provider (null by default) | FR-MEMBER-001 |
+| `Provenance/NullWikiWriteProvenanceProvider.php` | Write provenance of a revision (which client wrote it), its erasure with the author and the labels shown | FR-PROV-001 |
+| `Provenance/WikiProvenanceAuthorErasedListener.php` | Write provenance of a revision (which client wrote it), its erasure with the author and the labels shown | FR-PROV-001 |
+| `Provenance/WikiWriteProvenance.php` | Write provenance of a revision (which client wrote it), its erasure with the author and the labels shown | FR-PROV-001 |
+| `Provenance/WikiWriteProvenanceErasure.php` | Write provenance of a revision (which client wrote it), its erasure with the author and the labels shown | FR-PROV-001 |
+| `Provenance/WikiWriteProvenanceProviderInterface.php` | Write provenance of a revision (which client wrote it), its erasure with the author and the labels shown | FR-PROV-001 |
+| `Repository/WikiPageProvenance.php` | Write provenance of a revision (which client wrote it), its erasure with the author and the labels shown | FR-PROV-001 |
+| `Repository/WikiPageProvenanceFinderInterface.php` | Write provenance of a revision (which client wrote it), its erasure with the author and the labels shown | FR-PROV-001 |
+| `Resources/views/manage/_member_label_suffix.html.twig` | Member badges next to author names, through a host provider (null by default) | FR-MEMBER-001 |
+
+## Saving and rendering (1.24 / 1.28)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Interchange/HtmlToMarkdown/WikiHeadingIdConverter.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Interchange/WikiMarkdownFileReader.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Markdown/Milkdown/WikiFilePreviewFrames.php` | File previews and host files inside the per-viewer render (1.24.1 / 1.28) | FR-RENDER-002 |
+| `Markdown/Milkdown/WikiLeafHostFiles.php` | File previews and host files inside the per-viewer render (1.24.1 / 1.28) | FR-RENDER-002 |
+| `Markdown/Milkdown/WikiMilkdownFilePreviewResolver.php` | File previews and host files inside the per-viewer render (1.24.1 / 1.28) | FR-RENDER-002 |
+| `Markdown/Milkdown/WikiMilkdownHostFileResolver.php` | File previews and host files inside the per-viewer render (1.24.1 / 1.28) | FR-RENDER-002 |
+| `Markdown/Milkdown/WikiMilkdownRenderContext.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Markdown/Milkdown/WikiNeutralTranslator.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Markdown/WikiRenderContext.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Markdown/WikiRenderFrame.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Markdown/WikiRenderReach.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Markdown/WikiRenderReachIntersection.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Markdown/WikiViewerMarkdownView.php` | Per-viewer render: context, frames and reach, the reader's Markdown, Markdown file reading and HTML to Markdown heading ids | FR-RENDER-001 |
+| `Resources/views/manage/_collab_conflict.html.twig` | Save from a known revision: collision and conflict outcomes shown to the editor | FR-SAVE-001 |
+| `Resources/views/manage/page_restore_conflict.html.twig` | Save from a known revision: collision and conflict outcomes shown to the editor | FR-SAVE-001 |
+| `Service/WikiRevisionCollisionException.php` | Save from a known revision: collision and conflict outcomes shown to the editor | FR-SAVE-001 |
+| `Service/WikiRevisionConflictException.php` | Save from a known revision: collision and conflict outcomes shown to the editor | FR-SAVE-001 |
+
+## Tree menu and page navigation (1.35 / 1.39)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Panel/WikiTreeRail.php` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/assets/src/wiki-new-page.ts` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/assets/src/wiki-plain-tree.ts` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/assets/src/wiki-tree-menu.ts` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/views/manage/_new_page_dialog.html.twig` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/views/manage/_page_nav.html.twig` | Previous / next page links (`web_ui.page_nav`) | FR-NAV-001 |
+| `Resources/views/manage/_tree_menu.html.twig` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/views/manage/_tree_menu_button.html.twig` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/views/manage/_tree_new_page_button.html.twig` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Resources/views/manage/_tree_toggle.html.twig` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Ui/WikiNewPageMenu.php` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+| `Ui/WikiPageNav.php` | Previous / next page links (`web_ui.page_nav`) | FR-NAV-001 |
+| `Ui/WikiTreeMenu.php` | New page dialog, create-at-a-place, the tree context menu and the plain (collapsible) tree | FR-TREE-002 |
+
+## Page layout options (1.29 - 1.38)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Resources/assets/src/wiki-comments-list.ts` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Resources/assets/src/wiki-layout.ts` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Resources/views/manage/_comments_toggle.html.twig` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Resources/views/manage/_page_children.html.twig` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Resources/views/manage/_page_children_chip.html.twig` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Resources/views/manage/_page_header_compact.html.twig` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Resources/views/manage/_page_path.html.twig` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Resources/views/manage/_page_toolbar.html.twig` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Resources/views/manage/_read_scaffold.html.twig` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Ui/WikiBreadcrumbParentLabel.php` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Ui/WikiTabActions.php` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Util/WikiDateFormat.php` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Util/WikiPlainLabel.php` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Util/WikiTableScroll.php` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+| `Util/WikiTitleDedupe.php` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |
@@ -422,6 +722,16 @@ This file proves that **every production source artifact** under `src/` is refer
 | Avatars (1.16) | 4 | 4 |
 | Comments (1.16) | 18 | 18 |
 | Page files (1.20) | 3 | 3 |
-| **Total production sources** | **256** | **256** |
+| Framework-free ports and Doctrine isolation (1.27 / 1.36) | 88 | 88 |
+| REST API (1.24+) | 68 | 68 |
+| Co-editing epochs and resets (1.22 / 1.23) | 9 | 9 |
+| Link picker and section links (1.40) | 11 | 11 |
+| Worker safety and transactions (1.29.1 / 1.36) | 8 | 8 |
+| Icons (1.32 / 1.38 / 1.39) | 7 | 7 |
+| Member badges and write provenance (1.34) | 14 | 14 |
+| Saving and rendering (1.24 / 1.28) | 17 | 17 |
+| Tree menu and page navigation (1.35 / 1.39) | 13 | 13 |
+| Page layout options (1.29 - 1.38) | 15 | 15 |
+| **Total production sources** | **506** | **506** |
 
-Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 256. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
+Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 506. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).

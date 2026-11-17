@@ -86,7 +86,7 @@ test.describe('Wiki page tree', () => {
     await page.goto('/tools/wiki/spaces/engineering/pages/resources');
     await (await headerAction(page, page.getByTestId('wiki-move'))).click();
     await expect(page.getByTestId('wiki-page-move')).toBeVisible();
-    // The Cancel button is the shared UiKit form scaffold in the demo's stock Bootstrap secondary colour (every wiki
+    // The Cancel button is the shared UiKit form scaffold in UiKit's default secondary colour (every wiki
     // form has it; a demo theme matter, not the Move form's).
     expect(await seriousViolations(page, 'form', '.nowo-ui-btn--secondary')).toEqual([]);
     await page.getByLabel('Parent page').selectOption({ label: 'Runbooks' });

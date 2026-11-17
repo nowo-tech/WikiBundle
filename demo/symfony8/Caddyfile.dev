@@ -21,6 +21,7 @@
 
 	@phpRoute {
 		not file {path}
+		not path /.well-known/mercure*
 	}
 	rewrite @phpRoute /index.php
 
