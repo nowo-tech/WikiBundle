@@ -53,9 +53,6 @@
     "nowo-tech/hot-reload-bundle": {
         "version": "v1.3.2"
     },
-    "nowo-tech/icon-selector-bundle": {
-        "version": "v1.8.0"
-    },
     "nowo-tech/milkdown-editor-bundle": {
         "version": "v1.1.1"
     },
@@ -266,19 +263,6 @@
             "version": "7.0",
             "ref": "0df5844274d871b37fc3816c57a768ffc60a43a5"
         }
-    },
-    "symfony/ux-icons": {
-        "version": "3.7",
-        "recipe": {
-            "repo": "github.com/symfony/recipes",
-            "branch": "main",
-            "version": "3.4",
-            "ref": "16a3114526e46593b494471d1654dfa46831beb5"
-        },
-        "files": [
-            "assets/icons/symfony.svg",
-            "config/packages/ux_icons.yaml"
-        ]
     },
     "symfony/validator": {
         "version": "8.1",
