@@ -1,6 +1,12 @@
 /**
  * 1.39 (`tree.context_menu`): the page tree's context menu.
  *
+ * 1.41: also Open in new tab, Edit (`data-wiki-edit-href`), New page above / below, Duplicate, Move up / down / to…
+ * (`data-wiki-menu-move`: the tree's Alt+arrow moves and drops, so the tree's move endpoint and its ordering), Archive
+ * (`data-wiki-menu-archive`, with an undo line offering Unarchive) and Delete (`data-wiki-menu-delete`, the trash, behind
+ * the confirm dialog with the count of pages). A long press (touch) opens the menu as a right click does; separators
+ * show only between visible groups.
+ *
  * The server renders one ARIA menu (`[data-wiki-tree-menu]`) with its entries (`[data-wiki-tree-menu-item]`: rename,
  * icon, child, below, above, copy), a polite status line, the "Change icon" dialog (`[data-wiki-tree-icon-dialog]`)
  * and, on each tree row, a hidden «…» button. It marks what each row offers (`data-wiki-menu-edit`: Rename;
@@ -15,10 +21,32 @@
  */
 
 /** An entry of the menu. */
-export type TreeMenuItem = 'rename' | 'icon' | 'child' | 'below' | 'above' | 'copy';
+export type TreeMenuItem = 'open' | 'edit' | 'rename' | 'icon' | 'child' | 'above' | 'below' | 'duplicate' | 'up' | 'down' | 'moveto' | 'copy' | 'archive' | 'delete';
 
 const NODE = 'li[data-nowo-ui-tree-node]';
-const ITEMS: readonly TreeMenuItem[] = ['rename', 'icon', 'child', 'below', 'above', 'copy'];
+const ITEMS: readonly TreeMenuItem[] = ['open', 'edit', 'rename', 'icon', 'child', 'above', 'below', 'duplicate', 'up', 'down', 'moveto', 'copy', 'archive', 'delete'];
+
+/** How long a touch stays down before it opens the menu (ms), and how far it may move meanwhile (px). */
+export const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP = 10;
+
+/** The mark each entry needs on the row ("open" and "copy" come with any other entry). */
+const MARKS: Partial<Record<TreeMenuItem, string>> = {
+    edit: 'data-wiki-edit-href',
+    rename: 'data-wiki-menu-edit',
+    icon: 'data-wiki-menu-icon',
+    child: 'data-wiki-new-child',
+    above: 'data-wiki-new-sibling',
+    below: 'data-wiki-new-sibling',
+    duplicate: 'data-wiki-new-sibling',
+    up: 'data-wiki-menu-move',
+    down: 'data-wiki-menu-move',
+    moveto: 'data-wiki-menu-move',
+    archive: 'data-wiki-menu-archive',
+    delete: 'data-wiki-menu-delete',
+};
+
+const siblingRows = (item: HTMLLIElement): HTMLLIElement[] => [...(item.parentElement as HTMLElement).children].filter((el) => el.matches(NODE)) as HTMLLIElement[];
 
 const linkOf = (item: HTMLLIElement): HTMLAnchorElement | null =>
     item.querySelector<HTMLAnchorElement>(':scope > .nowo-ui-tree__row > [data-nowo-ui-tree-item]');
@@ -39,24 +67,17 @@ const treeOf = (item: HTMLLIElement): HTMLElement | null => item.closest<HTMLEle
  * @param rendered - Entries the menu has.
  */
 export function allowedItems(item: HTMLLIElement, rendered: readonly TreeMenuItem[] = ITEMS): TreeMenuItem[] {
-    const has = (attr: string): boolean => item.hasAttribute(attr);
-    const out = ITEMS.filter((entry) => {
-        switch (entry) {
-            case 'rename':
-                return has('data-wiki-menu-edit');
-            case 'icon':
-                return has('data-wiki-menu-icon');
-            case 'child':
-                return has('data-wiki-new-child');
-            case 'below':
-            case 'above':
-                return has('data-wiki-new-sibling');
-            default:
-                return false;
-        }
-    }).filter((entry) => rendered.includes(entry));
+    const siblings = siblingRows(item);
+    const at = siblings.indexOf(item);
+    const marked = ITEMS.filter((entry) => {
+        const mark = MARKS[entry];
+        // Move up / down only where there is a sibling on that side.
+        const edge = (entry === 'up' && at === 0) || (entry === 'down' && at === siblings.length - 1);
 
-    return out.length > 0 && rendered.includes('copy') ? [...out, 'copy'] : out;
+        return mark !== undefined && item.hasAttribute(mark) && !edge && rendered.includes(entry);
+    });
+
+    return marked.length === 0 ? [] : ITEMS.filter((entry) => marked.includes(entry) || ((entry === 'open' || entry === 'copy') && rendered.includes(entry)));
 }
 
 /** The place the new-page form receives for an entry (`child:<id>`, `below:<id>`, `above:<id>`). */
@@ -86,6 +107,10 @@ interface TreeAnswer {
     icon_html?: string;
     message?: string;
     error?: string;
+    url?: string;
+    parents?: { id: string; label: string }[];
+    root?: boolean;
+    parent?: string | null;
 }
 
 /**
@@ -163,7 +188,7 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
         }
     };
 
-    const open = (item: HTMLLIElement, x: number, y: number, button: HTMLElement | null): boolean => {
+    const open = (item: HTMLLIElement, x: number, y: number, button: HTMLElement | null, above: number = y): boolean => {
         const allowed = allowedItems(item, rendered);
         if (allowed.length === 0) {
             return false;
@@ -172,13 +197,28 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
         menu.querySelectorAll<HTMLElement>('[data-wiki-tree-menu-item]').forEach((el) => {
             el.hidden = !allowed.includes(el.dataset.wikiTreeMenuItem as TreeMenuItem);
         });
+        // A separator shows only between two visible groups.
+        let pending: HTMLElement | null = null;
+        let shown = false;
+        for (const el of menu.children as HTMLCollectionOf<HTMLElement>) {
+            if (el.hasAttribute('data-wiki-tree-menu-separator')) {
+                el.hidden = true;
+                pending = shown ? el : null;
+            } else if (!el.hidden) {
+                pending?.removeAttribute('hidden');
+                pending = null;
+                shown = true;
+            }
+        }
         current = item;
         opener = button;
         button?.setAttribute('data-wiki-open', '');
         menu.hidden = false;
         const view = doc.defaultView as Window;
         menu.style.left = `${Math.max(0, Math.min(x, view.innerWidth - menu.offsetWidth - 8))}px`;
-        menu.style.top = `${Math.max(0, Math.min(y, view.innerHeight - menu.offsetHeight - 8))}px`;
+        // 1.41: without room below, the menu opens above its anchor (the row or the «…» button) rather than over it.
+        const top = y + menu.offsetHeight + 8 > view.innerHeight ? above - menu.offsetHeight : y;
+        menu.style.top = `${Math.max(0, Math.min(top, view.innerHeight - menu.offsetHeight - 8))}px`;
         entries()[0]?.focus();
 
         return true;
@@ -352,9 +392,207 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
         );
     };
 
+    const view = doc.defaultView as Window;
+
+    /** The sentence of a refusal: the server's; "not allowed" for a 403 without one (the firewall's page); else "failed". */
+    const refusal = (code: number, data: TreeAnswer): string => data.message ?? text(code === 403 ? 'denied' : 'failed');
+
+    /** Posts the row's page to one of its tree's endpoints (`data-wiki-tree-<name>`). */
+    const send = (item: HTMLLIElement, name: string, body: Record<string, unknown> = {}): Promise<{ status: number; data: TreeAnswer }> => {
+        const tree = treeOf(item) as HTMLElement;
+
+        return postTree(`${tree.dataset[name]}`, `${tree.dataset.wikiTreeToken}`, { page: item.dataset.nowoUiTreeNode, ...body }, fetcher);
+    };
+
+    /** Runs a request; its refusal (or a network failure) is said in the status line. */
+    const request = (item: HTMLLIElement, name: string, body: Record<string, unknown>, done: (data: TreeAnswer) => void): void => {
+        send(item, name, body).then(
+            ({ status: code, data }) => (code === 200 ? done(data) : say(refusal(code, data))),
+            () => say(text('failed')),
+        );
+    };
+
+    /** Takes a row (and its sub-tree) out of the tree; the tree keeps one tab stop, which takes the focus. */
+    const removeRow = (item: HTMLLIElement): void => {
+        const tree = treeOf(item) as HTMLElement;
+        item.remove();
+        const links = [...tree.querySelectorAll<HTMLElement>('[data-nowo-ui-tree-item]')];
+        const stop = links.find((l) => l.tabIndex === 0) ?? links[0];
+        if (stop) {
+            stop.tabIndex = 0;
+            stop.focus();
+        }
+    };
+
+    // The confirm dialog of Archive and Delete (one action at a time).
+    const confirmDialog = doc.querySelector<HTMLDialogElement>('[data-wiki-tree-confirm-dialog]');
+    let confirmed: (() => Promise<void>) | null = null;
+
+    const askConfirm = (item: HTMLLIElement, kind: 'archive' | 'delete', message: string, run: (fail: (text: string) => void) => Promise<void>): void => {
+        const dialog = confirmDialog as HTMLDialogElement;
+        (dialog.querySelector('[data-wiki-tree-confirm-message]') as HTMLElement).textContent = message;
+        const ok = dialog.querySelector<HTMLButtonElement>('[data-wiki-tree-confirm-ok]') as HTMLButtonElement;
+        ok.textContent = `${ok.dataset[kind]}`;
+        const error = dialog.querySelector<HTMLElement>('[data-wiki-tree-confirm-error]') as HTMLElement;
+        error.hidden = true;
+        const fail = (reason: string): void => {
+            error.textContent = reason;
+            error.hidden = false;
+        };
+        confirmed = () => run(fail);
+        const back = linkOf(item) as HTMLElement;
+        dialog.addEventListener('close', () => {
+            confirmed = null;
+            if (back.isConnected) {
+                back.focus();
+            }
+        }, { once: true });
+        openDialog(dialog);
+    };
+
+    confirmDialog?.querySelector<HTMLButtonElement>('[data-wiki-tree-confirm-ok]')?.addEventListener('click', (event) => {
+        const ok = event.currentTarget as HTMLButtonElement;
+        if (!confirmed || ok.disabled) {
+            return;
+        }
+        ok.disabled = true;
+        void confirmed().finally(() => {
+            ok.disabled = false;
+        });
+    });
+
+    // The undo line of Archive: Unarchive brings the page back (the tree is drawn again).
+    const undo = doc.querySelector<HTMLElement>('[data-wiki-tree-undo]');
+    let archived: { tree: HTMLElement; id: string } | null = null;
+    undo?.querySelector('[data-wiki-tree-undo-button]')?.addEventListener('click', () => {
+        if (!archived) {
+            return;
+        }
+        const { tree, id } = archived;
+        postTree(`${tree.dataset.wikiTreeUnarchive}`, `${tree.dataset.wikiTreeToken}`, { page: id }, fetcher).then(
+            ({ status: code, data }) => {
+                if (code !== 200) {
+                    say(refusal(code, data));
+
+                    return;
+                }
+                archived = null;
+                (undo as HTMLElement).hidden = true;
+                view.location.reload();
+            },
+            () => say(text('failed')),
+        );
+    });
+
+    const archive = (item: HTMLLIElement): void => {
+        const tree = treeOf(item) as HTMLElement;
+        const id = `${item.dataset.nowoUiTreeNode}`;
+        askConfirm(item, 'archive', text('archiveConfirm').replace('%title%', () => titleOf(item)), async (fail) => {
+            const { status: code, data } = await send(item, 'wikiTreeArchive').catch(() => ({ status: 0, data: {} as TreeAnswer }));
+            if (code !== 200) {
+                fail(refusal(code, data));
+
+                return;
+            }
+            // The row first: the dialog then has no row to give the focus back to, the tree's tab stop takes it.
+            removeRow(item);
+            (confirmDialog as HTMLDialogElement).close();
+            say(`${data.message}`);
+            if (undo) {
+                archived = { tree, id };
+                (undo.querySelector('[data-wiki-tree-undo-text]') as HTMLElement).textContent = `${data.message}`;
+                undo.hidden = false;
+            }
+        });
+    };
+
+    const remove = (item: HTMLLIElement): void => {
+        const tree = treeOf(item) as HTMLElement;
+        // The count of pages that go comes from the server (the pages the user may read).
+        request(item, 'wikiTreeDelete', { preview: true }, (preview) => askConfirm(item, 'delete', `${preview.message}`, async (fail) => {
+            const { status: code, data } = await send(item, 'wikiTreeDelete').catch(() => ({ status: 0, data: {} as TreeAnswer }));
+            if (code !== 200) {
+                fail(refusal(code, data));
+
+                return;
+            }
+            if (item.querySelector('[aria-current="page"]')) {
+                // The page being read (or one above it) went to the trash: back to the space.
+                (confirmDialog as HTMLDialogElement).close();
+                view.location.assign(`${tree.dataset.wikiTreeSpace}`);
+
+                return;
+            }
+            removeRow(item);
+            (confirmDialog as HTMLDialogElement).close();
+            say(`${data.message}`);
+        }));
+    };
+
+    // "Move to…": the parents the server offers; the move itself is the tree's drop (or, outside the drawn tree, the
+    // move endpoint and the page again).
+    const moveDialog = doc.querySelector<HTMLDialogElement>('[data-wiki-tree-move-dialog]');
+    let moving: { item: HTMLLIElement; current: string | null } | null = null;
+
+    const moveTo = (item: HTMLLIElement, parent: string | null): void => {
+        const tree = treeOf(item) as HTMLElement;
+        const id = `${item.dataset.nowoUiTreeNode}`;
+        const rows = [...tree.querySelectorAll<HTMLLIElement>(NODE)];
+        const roots = rows.filter((row) => row.parentElement === tree);
+        const last = roots[roots.length - 1];
+        const detail = parent === null
+            ? (last !== item ? { id, targetId: `${last.dataset.nowoUiTreeNode}`, position: 'after' } : null)
+            : (rows.some((row) => row.dataset.nowoUiTreeNode === parent) ? { id, targetId: parent, position: 'inside' } : null);
+        if (detail) {
+            linkOf(item)?.dispatchEvent(new CustomEvent('nowo-ui:tree:drop', { bubbles: true, cancelable: true, detail }));
+
+            return;
+        }
+        request(item, 'wikiTreeMove', { parent, index: 1_000_000 }, () => view.location.reload());
+    };
+
+    moveDialog?.querySelector('form')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const select = (event.currentTarget as HTMLFormElement).querySelector('select') as HTMLSelectElement;
+        const target = moving as { item: HTMLLIElement; current: string | null };
+        const parent = select.value === '' ? null : select.value;
+        (moveDialog as HTMLDialogElement).close();
+        if (parent !== target.current) {
+            moveTo(target.item, parent);
+        }
+    });
+
+    const openMove = (item: HTMLLIElement): void => {
+        request(item, 'wikiTreeParents', {}, (data) => {
+            const dialog = moveDialog as HTMLDialogElement;
+            const select = dialog.querySelector('select') as HTMLSelectElement;
+            const context = dialog.querySelector<HTMLElement>('[data-wiki-tree-move-context]') as HTMLElement;
+            context.textContent = `${context.dataset.template}`.replace('%title%', () => titleOf(item));
+            const options = (data.parents ?? []).map((parent) => new Option(parent.label, parent.id));
+            if (data.root) {
+                options.unshift(new Option(`${context.dataset.root}`, ''));
+            }
+            select.replaceChildren(...options);
+            select.value = data.parent ?? '';
+            moving = { item, current: data.parent ?? null };
+            const back = linkOf(item);
+            dialog.addEventListener('close', () => back?.focus(), { once: true });
+            openDialog(dialog);
+            select.focus();
+        });
+    };
+
     const choose = (item: HTMLLIElement, entry: TreeMenuItem): void => {
-        close(entry === 'copy');
+        // Entries that open a field or a dialog move the focus there; the others give it back to the row.
+        close(!['rename', 'icon', 'child', 'above', 'below', 'moveto', 'archive'].includes(entry));
+        const link = linkOf(item) as HTMLAnchorElement;
         switch (entry) {
+            case 'open':
+                view.open(link.href, '_blank', 'noopener');
+                break;
+            case 'edit':
+                view.location.assign(`${item.getAttribute('data-wiki-edit-href')}`);
+                break;
             case 'rename':
                 startRename(item);
                 break;
@@ -363,6 +601,23 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
                 break;
             case 'copy':
                 copyLink(item);
+                break;
+            case 'duplicate':
+                request(item, 'wikiTreeDuplicate', {}, (data) => view.location.assign(`${data.url}`));
+                break;
+            case 'up':
+            case 'down':
+                // The tree's Alt+arrow move: the move endpoint, the place in the tree and the announcement.
+                link.dispatchEvent(new CustomEvent('nowo-ui:tree:move', { bubbles: true, cancelable: true, detail: { id: item.dataset.nowoUiTreeNode, direction: entry } }));
+                break;
+            case 'moveto':
+                openMove(item);
+                break;
+            case 'archive':
+                archive(item);
+                break;
+            case 'delete':
+                remove(item);
                 break;
             default:
                 newPage(item, entry);
@@ -387,7 +642,49 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
         }
     };
 
+    // 1.41: a long press on a row (touch) opens the menu as a right click does; moving the finger cancels it, and the
+    // click that ends it does not follow the row's link.
+    let press: { timer: number; x: number; y: number } | null = null;
+    let swallowClick = false;
+    const cancelPress = (): void => {
+        if (press) {
+            view.clearTimeout(press.timer);
+            press = null;
+        }
+    };
+    doc.addEventListener('pointerdown', (event) => {
+        cancelPress();
+        swallowClick = false;
+        const item = event.pointerType === 'touch' && menu.isConnected ? rowItem(event.target) : null;
+        if (!item) {
+            return;
+        }
+        const { clientX: x, clientY: y } = event;
+        press = {
+            x,
+            y,
+            timer: view.setTimeout(() => {
+                press = null;
+                swallowClick = open(item, x, y, null);
+            }, LONG_PRESS_MS),
+        };
+    });
+    doc.addEventListener('pointermove', (event) => {
+        if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > LONG_PRESS_SLOP) {
+            cancelPress();
+        }
+    });
+    doc.addEventListener('pointerup', cancelPress);
+    doc.addEventListener('pointercancel', cancelPress);
+    doc.addEventListener('click', (event) => {
+        if (swallowClick && event.target instanceof Element && rowItem(event.target)) {
+            event.preventDefault();
+        }
+        swallowClick = false;
+    }, true);
+
     doc.addEventListener('contextmenu', (event) => {
+        cancelPress();
         const item = menu.isConnected ? rowItem(event.target) : null;
         // The rename field keeps the browser's own menu (copy / paste).
         if (!item || (event.target as Element).matches('.nowo-wiki-tree__rename')) {
@@ -416,7 +713,7 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
             return;
         }
         const box = event.target.getBoundingClientRect();
-        if (open(item, box.left, box.bottom, null)) {
+        if (open(item, box.left, box.bottom, null, box.top)) {
             event.preventDefault();
         }
     });
@@ -433,7 +730,7 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
                 return;
             }
             const box = more.getBoundingClientRect();
-            open(item, box.left, box.bottom, more);
+            open(item, box.left, box.bottom, more, box.top);
 
             return;
         }

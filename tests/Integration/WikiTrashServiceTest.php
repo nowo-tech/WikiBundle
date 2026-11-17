@@ -30,6 +30,7 @@ use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiTrashRepository;
 use Nowo\WikiBundle\Repository\WikiPageTreeWriterInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
@@ -116,6 +117,22 @@ final class WikiTrashServiceTest extends TestCase
         self::assertSame($ops, $run->getParent());
         self::assertFalse($deep->isArchived());
         self::assertTrue($old->isArchived());
+    }
+
+    /** 1.41: a page already in the trash (deleted by another request after this one read it) is not deleted twice. */
+    public function testAPageAlreadyInTheTrashIsRefused(): void
+    {
+        $ops     = $this->page('ops');
+        $service = $this->service();
+        $service->delete($ops, $this->user);
+
+        try {
+            $service->delete($ops, $this->user);
+            self::fail('deleted twice');
+        } catch (WikiPageArchivedException $exception) {
+            self::assertSame('The page is already in the trash.', $exception->getMessage());
+        }
+        self::assertCount(1, $service->roots($this->space));
     }
 
     public function testACorruptParentCycleIsDeletedOnceAndTheEntryTellsItsRoot(): void

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Unit\Controller;
 
 use Doctrine\ORM\EntityManager;
-use InvalidArgumentException;
 use Nowo\IconSelectorBundle\Emoji\EmojiCatalog;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
@@ -21,6 +20,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageService;
@@ -179,7 +179,7 @@ final class WikiTreeControllerMenuTest extends TestCase
 
     public function testRenameConflictsAnswer409AndAPageArchivedMeanwhile410(): void
     {
-        foreach ([[new WikiRevisionConflictException(1, 2), 409, 'conflict'], [new WikiRevisionCollisionException('race'), 409, 'conflict'], [new InvalidArgumentException('Archived pages cannot be edited.'), 410, 'page_gone']] as [$exception, $status, $error]) {
+        foreach ([[new WikiRevisionConflictException(1, 2), 409, 'conflict'], [new WikiRevisionCollisionException('race'), 409, 'conflict'], [new WikiPageArchivedException('Archived pages cannot be edited.'), 410, 'page_gone']] as [$exception, $status, $error]) {
             $service = $this->createStub(WikiPageServiceInterface::class);
             $service->method('saveRevision')->willThrowException($exception);
             $answer = $this->controller(pageService: $service)->tree($this->post(['page' => $this->page->getId(), 'title' => 'Other']), 'eng', 'rename');
@@ -216,7 +216,7 @@ final class WikiTreeControllerMenuTest extends TestCase
 
             public function save(WikiPage $page): void
             {
-                throw new InvalidArgumentException('Archived pages cannot be edited.');
+                throw new WikiPageArchivedException('Archived pages cannot be edited.');
             }
 
             public function findById(string $id): ?WikiPage

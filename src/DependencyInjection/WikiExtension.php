@@ -136,7 +136,10 @@ use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Nowo\WikiBundle\Service\WikiPageDuplicator;
+use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMover;
+use Nowo\WikiBundle\Service\WikiPageServiceInterface;
 use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
@@ -154,6 +157,7 @@ use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\User\WikiUserDirectoryInterface;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\User\WikiUsers;
+use Nowo\WikiBundle\Util\WikiSlugger;
 use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -1122,6 +1126,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$maxDepth', $tree['max_depth'])
             ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$runner', new Reference(WikiTransactionRunner::class)));
+        // 1.41 (tree.context_menu): "Duplicate" of the tree menu, placed by the mover.
+        $container->setDefinition(WikiPageDuplicator::class, (new Definition(WikiPageDuplicator::class))
+            ->setArgument('$pages', new Reference(WikiPageServiceInterface::class))
+            ->setArgument('$mover', new Reference(WikiPageMover::class))
+            ->setArgument('$repository', new Reference(WikiPageRepositoryInterface::class))
+            ->setArgument('$slugger', new Reference(WikiSlugger::class))
+            ->setArgument('$icons', new Reference(WikiPageIconService::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
     }
 
     /**

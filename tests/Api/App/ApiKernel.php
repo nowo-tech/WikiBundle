@@ -53,6 +53,8 @@ final class ApiKernel extends Kernel
      * @param bool $legacySpaceChecker 1.29.1: the bundle's LegacyWikiSpaceAccessChecker decides (not the test host), behind
      *                                 a locator that finds spaces by slug only
      * @param bool $debug false for memory measurements (the debug collectors keep every request until kernel.reset)
+     * @param bool $slugLocator 1.41: the web UI finds spaces by slug (the test host still decides every right), so the
+     *                          wiki pages render for the API's test people
      */
     public function __construct(
         private readonly array $api = [],
@@ -60,6 +62,7 @@ final class ApiKernel extends Kernel
         private readonly bool $withFirewall = true,
         private readonly bool $legacySpaceChecker = false,
         bool $debug = true,
+        private readonly bool $slugLocator = false,
     ) {
         parent::__construct('test', $debug);
     }
@@ -85,7 +88,7 @@ final class ApiKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return $this->getProjectDir() . '/' . md5(serialize([$this->api, $this->wiki, $this->withFirewall, $this->legacySpaceChecker, $this->debug, WikiTestDatabase::url(), self::twinPorts(), self::privateEntityManager()])) . '/cache';
+        return $this->getProjectDir() . '/' . md5(serialize([$this->api, $this->wiki, $this->withFirewall, $this->legacySpaceChecker, $this->slugLocator, $this->debug, WikiTestDatabase::url(), self::twinPorts(), self::privateEntityManager()])) . '/cache';
     }
 
     public function getLogDir(): string
@@ -153,10 +156,11 @@ final class ApiKernel extends Kernel
             $filesPort = 'app.api_files_twin';
         }
         $services->set('app.api_firewall', ApiFirewallAuthenticator::class)->args([service('app.api_host')]);
-        if ($this->legacySpaceChecker) {
+        if ($this->legacySpaceChecker || $this->slugLocator) {
             $services->set('app.slug_locator', ApiSlugLocator::class)->args([service(WikiSpaceRepositoryInterface::class)]);
             $services->alias(WikiSpaceLocatorInterface::class, 'app.slug_locator');
-        } else {
+        }
+        if (!$this->legacySpaceChecker) {
             $services->alias(WikiSpaceAccessCheckerInterface::class, $hostPorts);
         }
         $services->set('app.audit', ApiAuditRecorder::class)->public()->args([service('doctrine.dbal.default_connection')])

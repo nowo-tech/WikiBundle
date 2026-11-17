@@ -1,0 +1,16 @@
+{#-
+  1.41: focus mode of the UiKit shell (nowo-tech/ui-kit-bundle >= 2.54, nowo_ui_kit.theme.focus_mode) on the page view
+  and the page edit form, in the toolbar after the tree toggle.
+  - The UiKit `focus_mode_toggle` partial with the area "wiki" (data-nowo-ui-focus-area="wiki": the state is remembered
+    for the wiki). The partial renders nothing unless focus mode is enabled; with an older UiKit it does not exist and
+    nothing is printed (ignore_missing). The wiki adds no script for it: UiKit's js/nowo-ui-focus-mode.js drives it.
+  - With focus mode enabled and a page tree on the page: the "Pages" button. In focus mode (the shell's
+    data-focus-mode) the tree leaves the layout and becomes a drawer at the start edge, closed until this button opens
+    it (wiki.js, bindFocusTreeDrawer: aria-expanded, Escape); outside focus mode the button is not shown.
+  Variables: bundle, tree (bool: the page has the tree sidebar).
+-#}
+{%- trans_default_domain 'NowoWikiBundle' -%}
+{{- include('@NowoUiKitBundle/partials/_focus_mode_toggle.html.twig', {area: 'wiki', bundle: bundle|default(null)}, false, true) -}}
+{%- if tree|default(false) and (nowo_ui_kit_focus_mode.enabled ?? false) is same as(true) -%}
+<button type="button" class="{{ nowo_ui_class('btn_secondary', bundle|default(null)) }} nowo-wiki-focus-tree-toggle" aria-expanded="false" data-wiki-focus-tree-toggle data-testid="wiki-focus-tree-toggle">{{ 'wiki.focus.tree'|trans }}</button>
+{%- endif -%}

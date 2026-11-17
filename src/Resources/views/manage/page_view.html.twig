@@ -112,7 +112,8 @@
     {% set _compact_header = ((_layout.page_header ?? 'stacked') == 'compact' or _tabs_toolbar or _in_card) and page.header.tabs %}
     {% set _host_toolbar %}{% if page.header.tabs and not _in_card %}{{ block('wiki_page_header_toolbar') }}{% endif %}{% endset %}
     {#- 1.30 web_ui.tree_collapsed_mode: hidden — the tree's expand button sits in the toolbar -#}
-    {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' and page.header.tabs and not _in_card %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: page.bundle}, false) }}{% endif %}{% endset %}
+    {#- 1.41: then the focus mode toggle (UiKit >= 2.54, else nothing) -#}
+    {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' and page.header.tabs and not _in_card %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: page.bundle}, false) }}{% endif %}{{ include('@NowoWikiBundle/manage/_focus_toggle.html.twig', {bundle: page.bundle, tree: tree|default([]) is not empty}, false) }}{% endset %}
     {% if _compact_header %}
         {{ include('@NowoWikiBundle/manage/_page_header_compact.html.twig', {header: page.header, comments: _in_card ? null : comments|default(null), bundle: page.bundle, nowo_ui_page_type: 'show', host_toolbar: _host_toolbar, tree_toggle: _tree_toggle, tabs_toolbar: _tabs_toolbar, toolbar_in_card: _in_card, title_in_body: title_in_body|default(false)}, false) }}
     {% else %}
@@ -156,7 +157,7 @@
     {% set _in_card = (_layout.toolbar_position ?? 'header') == 'card' and page.header.tabs %}
     {% set _toolbar = '' %}
     {% if _in_card %}
-        {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: _b}, false) }}{% endif %}{% endset %}
+        {% set _tree_toggle %}{% if tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: _b}, false) }}{% endif %}{{ include('@NowoWikiBundle/manage/_focus_toggle.html.twig', {bundle: _b, tree: tree|default([]) is not empty}, false) }}{% endset %}
         {% set _toolbar %}{{ include('@NowoWikiBundle/manage/_page_toolbar.html.twig', {header: page.header, tabs: (_layout.tabs ?? 'row') == 'toolbar' ? page.header.tabs : null, tree_toggle: _tree_toggle, host_toolbar: block('wiki_page_header_toolbar'), comments: comments|default(null), bundle: _b, nowo_ui_page_type: 'show'}, false) }}{% endset %}
     {% endif %}
     {% set _card %}

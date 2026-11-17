@@ -11,6 +11,8 @@
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Space icon (1.32)](#space-icon-132)
 - [Icon picker, emoji icons and the tree menu (1.39)](#icon-picker-emoji-icons-and-the-tree-menu-139)
+  - [Tree menu entries (1.41)](#tree-menu-entries-141)
+  - [Focus mode (1.41, UiKit >= 2.54)](#focus-mode-141-uikit--254)
 - [New page dialog and tree menu (1.35)](#new-page-dialog-and-tree-menu-135)
 - [Member badges and write provenance](#member-badges-and-write-provenance)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
@@ -276,7 +278,35 @@ nowo_wiki:
   never printed. Existing icon strings render as before. On MySQL / MariaDB the connection must be `utf8mb4`.
 - **Tree menu** (opt-in, `tree.context_menu: true`): see [CONFIGURATION](CONFIGURATION.md). Keyboard: Shift+F10 or the ContextMenu
   key on a row, arrows / Home / End in the menu, Enter to choose, Escape to close (focus back on the row); in the rename
-  field Enter saves and Escape cancels.
+  field Enter saves and Escape cancels. 1.41: on touch screens a long press on a row opens it too.
+
+### Tree menu entries (1.41)
+
+| Entry | Shown to | What it does |
+| --- | --- | --- |
+| Open in new tab | anyone who gets the menu | The page in a new tab. |
+| Edit | edit role + Edit on the space | The page's edit form. |
+| Rename | edit role + Edit on the space | The row's title becomes a field; a new revision with the same body. |
+| Change icon / emoji | the same, with `page_icon.form_field` | The page icon field (IconSelector's picker with `page_icon.picker: icon_selector`). |
+| Add child page | create role + Create, and the edit rights | The new-page dialog (or form) placed as the last child. |
+| New page above / below | the same (not on a row whose parent is archived) | The new page right above / below the row. |
+| Duplicate | the same | A copy of the page (current revision, icon, title "… (copy)") right below it, then the copy opens. The page only, not its sub-pages. |
+| Move up / Move down | a movable tree (edit rights), where a sibling is on that side | The tree's Alt+arrow move. |
+| Move to… | a movable tree | A dialog with the parents the "Move" form offers (never the page's own sub-tree); the tree's move. |
+| Copy link | anyone who gets the menu | The page address to the clipboard. |
+| Archive | archive role + Archive on the space | After a confirmation; the row leaves the tree and an undo line offers **Unarchive**. |
+| Delete | `trash.enabled`, archive role + Delete on the space | After a confirmation that says how many pages go; the page and its sub-pages go to the trash (restore from the trash). |
+
+The marks are decided once per page view (audit PT-L4); every endpoint checks the page itself again (403 / 404) and
+answers a sentence the menu shows. A move that lost a race answers 409, a page archived or trashed meanwhile 410.
+
+### Focus mode (1.41, UiKit >= 2.54)
+
+With UiKit's shell focus mode on (`nowo_ui_kit.theme.focus_mode.enabled: true`; `keep` lists what stays, e.g.
+`[breadcrumb_min, search, timer_chip]`), the page view and the page edit form show the focus toggle in their toolbar,
+remembered under the area `wiki`. In focus mode the page tree is not hidden: it becomes a drawer at the start edge,
+opened by the **Pages** button of the toolbar (Escape or a click outside closes it, the focus goes back to the button).
+With a UiKit without focus mode the wiki prints nothing for it.
 - **Previous / next**: `web_ui.page_nav` prints links to the neighbours of the page in the tree's reading order.
 - **Edit view title**: the title field of the page form reads as the page title (class `nowo-wiki-title-input`, the
   read view's `--nowo-wiki-read-h1-size` / heading tokens; override with `--nowo-wiki-edit-title-size`). The label stays.

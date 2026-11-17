@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Interchange;
 
 use FilesystemIterator;
-use InvalidArgumentException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -104,7 +103,7 @@ final readonly class WikiArchiveHelper
      *
      * @param string $zipPath path of the ZIP archive
      *
-     * @throws InvalidArgumentException when the archive is missing, unreadable or exceeds the limits
+     * @throws WikiInterchangeException when the archive is missing, unreadable or exceeds the limits
      * @throws RuntimeException when the temporary directory cannot be created or the disk cannot be written
      *
      * @return string path of the temporary directory holding the extracted files
@@ -112,12 +111,12 @@ final readonly class WikiArchiveHelper
     public function extractZip(string $zipPath): string
     {
         if (!is_file($zipPath)) {
-            throw new InvalidArgumentException('Archive file not found.');
+            throw new WikiInterchangeException('Archive file not found.');
         }
 
         $zip = new ZipArchive();
         if ($zip->open($zipPath) !== true) {
-            throw new InvalidArgumentException('Unable to open ZIP archive.');
+            throw new WikiInterchangeException('Unable to open ZIP archive.');
         }
 
         try {
@@ -164,7 +163,7 @@ final readonly class WikiArchiveHelper
     /**
      * Writes the Markdown entries, one bounded chunk at a time, counting the bytes that really come out of each.
      *
-     * @throws InvalidArgumentException when an entry cannot be read or written, or goes over a limit
+     * @throws WikiInterchangeException when an entry cannot be read or written, or goes over a limit
      */
     private function extractDocuments(ZipArchive $zip, string $targetDir): void
     {
@@ -173,7 +172,7 @@ final readonly class WikiArchiveHelper
             $stat = $zip->statIndex($i);
             // @codeCoverageIgnoreStart
             if ($stat === false) {
-                throw new InvalidArgumentException('Unable to read ZIP archive entry.');
+                throw new WikiInterchangeException('Unable to read ZIP archive entry.');
             }
             // @codeCoverageIgnoreEnd
 
@@ -189,12 +188,12 @@ final readonly class WikiArchiveHelper
     }
 
     /**
-     * @throws InvalidArgumentException when the directory cannot be created (a file holds its name)
+     * @throws WikiInterchangeException when the directory cannot be created (a file holds its name)
      */
     private function createDirectory(string $directory, string $entry): void
     {
         if (!is_dir($directory) && !@mkdir($directory, 0700, true) && !is_dir($directory)) {
-            throw new InvalidArgumentException(sprintf('ZIP archive entry "%s" cannot be extracted.', $entry));
+            throw new WikiInterchangeException(sprintf('ZIP archive entry "%s" cannot be extracted.', $entry));
         }
     }
 
@@ -203,7 +202,7 @@ final readonly class WikiArchiveHelper
      *
      * @param int $writtenBefore bytes of the archive written so far
      *
-     * @throws InvalidArgumentException when the entry cannot be read (encrypted, corrupt) or goes over a limit
+     * @throws WikiInterchangeException when the entry cannot be read (encrypted, corrupt) or goes over a limit
      * @throws RuntimeException when the disk cannot be written
      *
      * @return int bytes written
@@ -213,7 +212,7 @@ final readonly class WikiArchiveHelper
         $source = @$zip->getStreamIndex($index);
         $target = @fopen($path, 'w');
         if ($source === false || $target === false) {
-            throw new InvalidArgumentException(sprintf('ZIP archive entry "%s" cannot be extracted.', $name));
+            throw new WikiInterchangeException(sprintf('ZIP archive entry "%s" cannot be extracted.', $name));
         }
 
         $bytes = 0;
@@ -222,15 +221,15 @@ final readonly class WikiArchiveHelper
             while (!feof($source)) {
                 $chunk = @fread($source, self::COPY_CHUNK_BYTES);
                 if ($chunk === false) {
-                    throw new InvalidArgumentException(sprintf('ZIP archive entry "%s" cannot be extracted.', $name));
+                    throw new WikiInterchangeException(sprintf('ZIP archive entry "%s" cannot be extracted.', $name));
                 }
 
                 $bytes += strlen($chunk);
                 if ($bytes > $this->maxDocumentBytes) {
-                    throw new InvalidArgumentException(sprintf('ZIP archive entry "%s" exceeds the limit of %d bytes per document.', $name, $this->maxDocumentBytes));
+                    throw new WikiInterchangeException(sprintf('ZIP archive entry "%s" exceeds the limit of %d bytes per document.', $name, $this->maxDocumentBytes));
                 }
                 if ($writtenBefore + $bytes > $this->maxUncompressedBytes) {
-                    throw new InvalidArgumentException(sprintf('ZIP archive uncompressed size exceeds the limit of %d bytes.', $this->maxUncompressedBytes));
+                    throw new WikiInterchangeException(sprintf('ZIP archive uncompressed size exceeds the limit of %d bytes.', $this->maxUncompressedBytes));
                 }
                 // @codeCoverageIgnoreStart
                 if (fwrite($target, $chunk) !== strlen($chunk)) {
@@ -270,7 +269,7 @@ final readonly class WikiArchiveHelper
     private function assertWithinLimits(ZipArchive $zip): void
     {
         if ($zip->numFiles > $this->maxEntries) {
-            throw new InvalidArgumentException(sprintf('ZIP archive has too many entries (%d, max %d).', $zip->numFiles, $this->maxEntries));
+            throw new WikiInterchangeException(sprintf('ZIP archive has too many entries (%d, max %d).', $zip->numFiles, $this->maxEntries));
         }
 
         $total       = 0;
@@ -280,20 +279,20 @@ final readonly class WikiArchiveHelper
             $stat = $zip->statIndex($i);
             // @codeCoverageIgnoreStart
             if ($stat === false) {
-                throw new InvalidArgumentException('Unable to read ZIP archive entry.');
+                throw new WikiInterchangeException('Unable to read ZIP archive entry.');
             }
             // @codeCoverageIgnoreEnd
 
             $name = str_replace('\\', '/', $stat['name']);
             if (str_contains($name, "\0") || str_starts_with($name, '/') || preg_match('#^[A-Za-z]:#', $name) === 1 || in_array('..', explode('/', $name), true)) {
-                throw new InvalidArgumentException(sprintf('ZIP archive entry "%s" escapes the extraction directory.', $stat['name']));
+                throw new WikiInterchangeException(sprintf('ZIP archive entry "%s" escapes the extraction directory.', $stat['name']));
             }
 
             $this->countDirectories($name, $directories);
 
             $total += $stat['size'];
             if ($total > $this->maxUncompressedBytes) {
-                throw new InvalidArgumentException(sprintf('ZIP archive uncompressed size exceeds the limit of %d bytes.', $this->maxUncompressedBytes));
+                throw new WikiInterchangeException(sprintf('ZIP archive uncompressed size exceeds the limit of %d bytes.', $this->maxUncompressedBytes));
             }
 
             if (!$this->isMarkdown($name)) {
@@ -301,7 +300,7 @@ final readonly class WikiArchiveHelper
             }
 
             if ($stat['size'] > $this->maxDocumentBytes) {
-                throw new InvalidArgumentException(sprintf('ZIP archive entry "%s" exceeds the limit of %d bytes per document.', $stat['name'], $this->maxDocumentBytes));
+                throw new WikiInterchangeException(sprintf('ZIP archive entry "%s" exceeds the limit of %d bytes per document.', $stat['name'], $this->maxDocumentBytes));
             }
             $markdown += $stat['size'];
         }
@@ -317,7 +316,7 @@ final readonly class WikiArchiveHelper
      * @param string $name entry name, with forward slashes
      * @param array<string, true> $directories hashes of the directories seen
      *
-     * @throws InvalidArgumentException over the limit
+     * @throws WikiInterchangeException over the limit
      */
     private function countDirectories(string $name, array &$directories): void
     {
@@ -332,7 +331,7 @@ final readonly class WikiArchiveHelper
 
             $directories[$key] = true;
             if (count($directories) > $this->maxEntries) {
-                throw new InvalidArgumentException(sprintf('ZIP archive names too many directories (max %d).', $this->maxEntries));
+                throw new WikiInterchangeException(sprintf('ZIP archive names too many directories (max %d).', $this->maxEntries));
             }
         }
     }
@@ -351,7 +350,7 @@ final readonly class WikiArchiveHelper
     {
         $limit = ini_parse_quantity((string) ini_get('memory_limit'));
         if ($limit > 0 && $markdownBytes * 2 > $limit - memory_get_usage()) {
-            throw new InvalidArgumentException(sprintf('ZIP archive Markdown documents (%d bytes) do not fit in the memory limit of this server.', $markdownBytes));
+            throw new WikiInterchangeException(sprintf('ZIP archive Markdown documents (%d bytes) do not fit in the memory limit of this server.', $markdownBytes));
         }
     }
 
@@ -388,14 +387,14 @@ final readonly class WikiArchiveHelper
      * @param string $sourceDir directory to archive
      * @param string $zipPath path of the ZIP archive to create
      *
-     * @throws InvalidArgumentException when the source directory does not exist
+     * @throws WikiInterchangeException when the source directory does not exist
      * @throws RuntimeException when the archive cannot be created, or was not written (1.15.1: ZipArchive writes no
      *                          file for an empty directory, so callers would otherwise get a path that does not exist)
      */
     public function createZipFromDirectory(string $sourceDir, string $zipPath): void
     {
         if (!is_dir($sourceDir)) {
-            throw new InvalidArgumentException('Export directory not found.');
+            throw new WikiInterchangeException('Export directory not found.');
         }
 
         $zip = new ZipArchive();

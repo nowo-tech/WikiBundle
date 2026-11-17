@@ -40,6 +40,7 @@ use ZipArchive;
 
 use function array_keys;
 use function array_search;
+use function count;
 use function dirname;
 use function str_contains;
 use function strpos;
@@ -72,7 +73,7 @@ final class WebUiHooksKernelTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         (new Filesystem())->remove(dirname((new RoutingTestKernel(true))->getCacheDir()));
-        foreach (['-defaults', '-hooks', '-scoped', '-newpage', '-defaults-tree', '-treemenu', '-treemenu-dialog', '-nav-none', '-nav-top', '-nav-bottom', '-nav-both', '-icon-emoji'] as $variant) {
+        foreach (['-defaults', '-hooks', '-scoped', '-newpage', '-defaults-tree', '-treemenu', '-treemenu-dialog', '-treemenu-trash', '-nav-none', '-nav-top', '-nav-bottom', '-nav-both', '-icon-emoji'] as $variant) {
             (new Filesystem())->remove(dirname((new RoutingTestKernel(true, [], $variant))->getCacheDir()));
         }
     }
@@ -259,11 +260,25 @@ final class WebUiHooksKernelTest extends TestCase
 
         self::assertStringContainsString('data-wiki-tree-menu ', $html);
         self::assertStringNotContainsString('data-wiki-new-page-menu', $html);
-        foreach (['rename', 'icon', 'child', 'below', 'copy'] as $item) {
+        // 1.41: New page above / below are two entries with or without the new-page dialog; Delete needs the trash.
+        $items = ['open', 'edit', 'rename', 'icon', 'child', 'above', 'below', 'duplicate', 'up', 'down', 'moveto', 'copy', 'archive'];
+        foreach ($items as $item) {
             self::assertStringContainsString('data-wiki-tree-menu-item="' . $item . '"', $html);
         }
-        self::assertStringNotContainsString('data-wiki-tree-menu-item="above"', $html);
-        self::assertSame(5, substr_count($html, 'role="menuitem"'));
+        self::assertStringNotContainsString('data-wiki-tree-menu-item="delete"', $html);
+        self::assertSame(count($items), substr_count($html, 'role="menuitem"'));
+        self::assertSame(4, substr_count($html, 'role="separator"'));
+        foreach (['archive', 'unarchive', 'duplicate', 'parents'] as $action) {
+            self::assertStringContainsString('data-wiki-tree-' . $action . '="/tools/wiki/spaces/eng/tree/' . $action . '"', $html);
+        }
+        self::assertStringNotContainsString('data-wiki-tree-delete=', $html);
+        self::assertStringContainsString('data-wiki-tree-space="/tools/wiki/spaces/eng"', $html);
+        self::assertStringContainsString('data-wiki-edit-href="/tools/wiki/spaces/eng/pages/home/edit"', $html);
+        self::assertStringContainsString('data-wiki-menu-move="1"', $html);
+        self::assertStringContainsString('data-wiki-menu-archive="1"', $html);
+        self::assertStringContainsString('data-wiki-tree-confirm-dialog', $html);
+        self::assertStringContainsString('data-wiki-tree-undo', $html);
+        self::assertStringContainsString('data-wiki-tree-move-dialog', $html);
         self::assertStringContainsString('data-wiki-tree-rename="/tools/wiki/spaces/eng/tree/rename"', $html);
         self::assertStringContainsString('data-wiki-tree-icon="/tools/wiki/spaces/eng/tree/icon"', $html);
         self::assertStringContainsString('data-wiki-tree-new="/tools/wiki/spaces/eng/pages/new"', $html);
@@ -279,7 +294,13 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringContainsString('data-wiki-tree-menu-item="above"', $html);
         self::assertStringNotContainsString('data-wiki-tree-menu-item="icon"', $html);
         self::assertStringNotContainsString('data-wiki-tree-new=', $html);
-        self::assertStringNotContainsString('data-wiki-new-page-menu', $html);
+        self::assertStringNotContainsString('data-wiki-new-page-menu', $html);        // Trash on: Delete, behind the confirm dialog.
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true, 'context_menu' => true], 'trash' => ['enabled' => true]], '-treemenu-trash');
+        $html = $this->html('/tools/wiki/spaces/eng/pages/home');
+        self::assertStringContainsString('data-wiki-tree-menu-item="delete"', $html);
+        self::assertStringContainsString('data-wiki-menu-delete="1"', $html);
+        self::assertStringContainsString('data-wiki-tree-delete="/tools/wiki/spaces/eng/tree/delete"', $html);
     }
 
     /** 1.39: the new-page form takes ?place= with the tree menu but without the dialog. */

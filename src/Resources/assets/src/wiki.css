@@ -1304,6 +1304,40 @@
   margin-block: 0 0.75rem;
 }
 
+/* 1.41 tree.context_menu: the menu's group separators, its destructive entry, the undo line of Archive, and no system
+   callout over a row while a long press opens the menu (touch). */
+.nowo-wiki-tree-menu__separator {
+  block-size: 1px;
+  margin: 0.25rem 0.5rem;
+  background: var(--nowo-ui-border, #e2e8f0);
+}
+
+.nowo-wiki-tree-menu__separator[hidden] {
+  display: none;
+}
+
+.nowo-wiki-tree-menu__item--danger {
+  color: var(--nowo-ui-danger-text, #b91c1c);
+}
+
+.nowo-wiki-tree-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: 0.5rem 0;
+}
+
+.nowo-wiki-tree-undo[hidden] {
+  display: none;
+}
+
+[data-wiki-tree] [data-wiki-menu-edit] > .nowo-ui-tree__row > [data-nowo-ui-tree-item],
+[data-wiki-tree] [data-wiki-menu-archive] > .nowo-ui-tree__row > [data-nowo-ui-tree-item],
+[data-wiki-tree] [data-wiki-menu-delete] > .nowo-ui-tree__row > [data-nowo-ui-tree-item] {
+  -webkit-touch-callout: none;
+}
+
 /* 1.39 page_icon.emoji / space_icon.emoji: an emoji icon is text, sized like the icons around it. */
 .nowo-wiki-page-icon--emoji {
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
@@ -1429,4 +1463,41 @@ a.nowo-wiki-page-nav__link:focus-visible {
   .nowo-wiki-page-nav__link--empty {
     display: none;
   }
+}
+
+/* 1.41 focus mode (UiKit >= 2.54, the shell's data-focus-mode): the page tree leaves the layout and becomes a drawer at
+   the start edge, closed until the "Pages" button opens it (data-wiki-drawer-open, wiki.js). Nothing changes outside
+   focus mode, nor with a UiKit without it (the attribute is never set). */
+.nowo-wiki-focus-tree-toggle {
+  display: none;
+}
+
+[data-focus-mode] .nowo-wiki-focus-tree-toggle {
+  display: inline-flex;
+}
+
+[data-focus-mode] .nowo-wiki-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-focus-mode] .nowo-wiki-layout > .nowo-wiki-layout__aside {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 1000;
+  inline-size: min(20rem, calc(100vw - 2rem));
+  max-block-size: 100dvh;
+  overflow-y: auto;
+  visibility: hidden;
+}
+
+[data-focus-mode] .nowo-wiki-layout > .nowo-wiki-layout__aside:has(> [data-wiki-drawer-open]) {
+  visibility: visible;
+  box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.18);
+}
+
+[data-focus-mode] .nowo-wiki-layout > .nowo-wiki-layout__aside > [data-wiki-sidebar] {
+  min-block-size: 100%;
+  margin: 0;
+  border-radius: 0;
 }

@@ -28,7 +28,8 @@ test.describe('Tree context menu', () => {
     await page.goto(deploy);
     await item(page, 'Rollback').click({ button: 'right' });
     await expect(menu(page)).toBeVisible();
-    await expect(entries(page)).toHaveText(['Rename', 'Change icon / emoji', 'Add child page', 'Add sibling page', 'Copy link']);
+    // 1.41: the 1.39 entries keep their place among the new ones ("Add sibling page" is now "New page below").
+    await expect(entries(page)).toHaveText(['Open in new tab', 'Edit', 'Rename', 'Change icon / emoji', 'Add child page', 'New page above', 'New page below', 'Duplicate', 'Move up', 'Move to…', 'Copy link', 'Archive', 'Delete']);
     await expect(entries(page).first()).toBeFocused();
     expect(await seriousViolations(page, '[data-wiki-tree-menu]')).toEqual([]);
     await page.keyboard.press('Escape');
@@ -127,8 +128,10 @@ test.describe('Tree context menu', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto(deploy);
     await item(page, 'Rollback').click({ button: 'right' });
-    // Chosen with the keyboard (End, Enter): the last entry.
+    // Chosen with the keyboard (End, then up past Delete and Archive).
     await page.keyboard.press('End');
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
     await expect(menu(page).getByRole('menuitem', { name: 'Copy link' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('wiki-tree-menu-status')).toHaveText('Link copied.');

@@ -1364,11 +1364,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             scheme?: scalar|Param|null,
  *             url?: "written"|"resolved"|Param, // Default: "written"
  *         }>,
- *         host_url_hosts?: list<scalar|Param|null>,
+ *         host_url_hosts?: list<mixed>,
  *         host_refused_links?: "text"|"hidden"|Param, // 1.13: a link with a host scheme (app-file:<id>) the resolver refuses keeps its text without a target (text, default, as 1.9) or becomes *Content not visible* (hidden). Links matched by host_url_patterns are always hidden. // Default: "text"
  *         host_image_origins?: list<scalar|Param|null>,
  *         image_block?: bool|Param, // 1.9: a paragraph holding only an image renders as a figure: caption from the title, {width=… align=…} block (classes and the width attribute, no style). Enable with the editor feature image_block. // Default: false
  *         file_preview_sandbox?: list<scalar|Param|null>,
+ *         file_preview_written_urls?: bool|Param, // 1.16 (spec 212 B): file cards whose href matches a host_url_patterns entry with url: written also get a preview, in the editor and in the default FilePreviewResolverInterface: the preview template of the pattern's scheme with the matched id, never the written URL. A host FilePreviewResolverInterface decides on its own (it already receives those cards). // Default: false
+ *         file_preview_types?: list<scalar|Param|null>,
  *         mark_colors?: list<scalar|Param|null>,
  *     },
  * }
@@ -1382,7 +1384,11 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         driver?: scalar|Param|null, // Deprecated: The "nowo_wiki.database.driver.driver" option is deprecated and has no effect: the bundle only ships Doctrine ORM repositories. It will be removed in 2.0. // Default: "doctrine_orm"
  *         platform?: scalar|Param|null, // Deprecated: The "nowo_wiki.database.platform.platform" option is deprecated and has no effect: the database platform comes from the Doctrine connection. It will be removed in 2.0. // Default: "mysql"
  *         entity_manager?: scalar|Param|null, // Default: "default"
+ *         mapping_type?: "attribute"|"xml"|Param, // 1.36: "attribute" (default) maps the wiki entities from their ORM attributes; "xml" from Resources/config/doctrine-xml (same tables, columns and indexes), for hosts that map everything in XML. // Default: "attribute"
+ *         user_reference?: "entity"|"id"|Param, // 1.36: "entity" (default) stores revision authors, link creators, uploaders, comment authors, resolvers and reactions as ManyToOne relations to user_class; "id" stores the user's id in a string column (no foreign key, user_class need not be a Doctrine entity; set user_directory for names and avatars). // Default: "entity"
+ *         private_entity_manager?: bool|Param, // 1.36: true reads and writes the wiki rows through a private entity manager on the connection and mapping of entity_manager, so a wiki write never flushes, clears or closes the application's manager. The only mode in 2.0. // Default: false
  *     },
+ *     user_directory?: scalar|Param|null, // 1.36: service id of a User\WikiUserDirectoryInterface that finds a user by id (database.user_reference: id; names and avatars of stored users). Null: stored users are shown without a name. // Default: null
  *     route_prefix?: scalar|Param|null, // Deprecated: The "nowo_wiki.route_prefix.route_prefix" option is deprecated, use "nowo_wiki.web_ui.path_prefix" instead. // Deprecated since 1.10: use web_ui.path_prefix. // Default: null
  *     dashboard_route?: scalar|Param|null, // Default: null
  *     tenant_paths?: list<array{ // Default: []
@@ -1426,13 +1432,16 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     },
  *     tree?: array{ // 1.14: Outline-style page tree in the sidebar (UiKit tree, nowo-tech/ui-kit-bundle >= 2.24): disclosures, current branch unfolded, fold state per user and space, moves by drag and drop, Alt+arrows and a "Move" form. Off: the 1.13 nested list.
  *         enabled?: bool|Param, // Default: false
+ *         context_menu?: bool|Param, // 1.39: the page tree's context menu (right click, Shift+F10 / ContextMenu key, the row's «…» button): Rename, Change icon / emoji (page_icon.form_field), Add child page, Add sibling page, Copy link. 1.41: also Open in new tab, Edit, New page above / below, Duplicate, Move up / down / to…, Archive / Unarchive and Delete (trash.enabled). Each entry only for users who may do it (the server checks every write again); readers get no menu. Opt-in (no change in a minor): true replaces the 1.35 new-page menu of web_ui.new_page_dialog (its "above" stays in this menu); false (default): the 1.38 behaviour. // Default: false
  *         max_depth?: int|Param, // Deepest level of a page after a move (root pages are level 1). // Default: 10
  *         state_store?: scalar|Param|null, // Service id of a WikiTreeStateStoreInterface keeping the fold state (null: the session). // Default: null
+ *         default_expanded?: "current_path"|"all"|"none"|Param, // 1.38, the nested page tree (enabled: false): which parent rows start open once wiki.js runs (each parent row gets an expand / collapse button; the reader's choices are remembered per space in localStorage and win over this default). current_path (default): the ancestors of the current page; all: every row; none: only the ancestors of the current page, which always start open so the current page stays visible. Without JavaScript every row is open. // Default: "current_path"
  *     },
  *     history?: array{ // 1.15: the history timeline — sessions, author labels, named versions (Save version) and Copy to new page. Off: the 1.14 revision list, no named-version table in the schema.
  *         timeline?: bool|Param, // Default: false
  *         session_minutes?: int|Param, // Saves by the same author less than this many minutes apart form one session. // Default: 30
  *         show_names?: bool|Param, // Show display names of authors (only names that say nothing about the login), else an opaque "Editor xxxx" per page, as co-editing. // Default: false
+ *         show_actor_labels?: scalar|Param|null, // Spec 234 (audit PQ-M1): show the actor label of a write (a token name) beside an author shown under a real name, when it passes the same safe-name rule (null: follow show_names). Authors always see their own. Never beside an opaque "Editor xxxx". // Default: null
  *         retention_days?: int|Param, // Revisions older than this are thinned by wiki:history:thin to one per session and day; named versions and the current revision are kept (D-W6). // Default: 30
  *     },
  *     trash?: array{ // 1.14 (T065): Delete moves a page and its sub-pages to the trash of the space (restore together, purge for good, retention). Off: no Delete action, no trash table in the schema.
@@ -1461,6 +1470,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         moderation_panel?: bool|Param, // 1.21, literal boolean. true: users with ModerateComments get "Moderate threads" in the comments panel: every thread of the page with "Delete thread" behind a confirm dialog (DELETE …/comments/threads/{id}). false (default): no such section (the endpoint stays). // Default: false
  *         error_notices?: bool|Param, // 1.21. true: a comment write refused for a cap (422 limit_reached) or the rate limit (429) shows its own text (a UiKit toast when the UiKit toast script is loaded, else a notice in the panel). false (default): only the editor's "could not be saved". // Default: false
  *         dock_min_width?: "md"|"lg"|"xl"|Param, // 1.29: from which width the comments panel docks as a column beside the page (UiKit side panel drawer_below): md (default, 768 px, as before), lg (1200 px) or xl (1440 px); below it the panel is an overlay drawer. A panel the server renders open starts closed under lg / xl (it opens as a drawer from the toggle). lg is recommended with the page tree. // Default: "md"
+ *         layout?: "inline"|"overlay"|Param, // 1.31: how the comments panel opens (UiKit side panel layout). inline (default, as in 1.30): a column beside the page from dock_min_width, a drawer below it. overlay: a drawer over the page at every width (the text keeps its width); it starts closed on every page (the remembered open state is not applied; ?comments=1 still opens it after load). // Default: "inline"
+ *         thread_list?: "plain"|"uikit"|Param, // 1.31: the thread list of the comments panel (the Milkdown thread component). plain (default, as in 1.30): the component's own list. uikit: wiki.js gives it UiKit list rows, a neutral badge with the plural count of each thread ("1 comment", "3 comments", CLDR plural rules of the page language), a UiKit checkbox for "Show resolved", and "Comment thread" for a thread without a title, in the wiki's translations. // Default: "plain"
  *         read_view_source?: bool|Param, // Literal boolean. true: on the read view, viewers with ViewComments who may not edit the page also get its Markdown source (the read-only Milkdown mount with inline highlights; HTML comments, link targets, reference definitions and directive arguments included). false (default): only editors do; the others see the threads rendered by the server. // Default: false
  *         shortcut?: scalar|Param|null, // Keyboard shortcut of the comments toggle, e.g. "Alt+Shift+C" (exposed as aria-keyshortcuts); null: none. // Default: null
  *     },
@@ -1478,6 +1489,12 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             host_files?: "auto"|"on"|"off"|Param, // 1.25: resolve host file references (nowo_milkdown_editor.markdown.host_schemes and host_url_patterns) in the per-viewer render of pages and comments, through the host HostFileResolverInterface with the render's WikiRenderFrame (space, page, the API's reach). auto (default): only when host_url_patterns is set; on: also with host_schemes alone; off: never (as 1.24). Under a reach, a resolver that is not a ContextualHostFileResolverInterface resolves nothing. // Default: "auto"
  *             file_cards?: "link"|"card"|Param, // 1.25 (WK-8): how ::file[name]{href size type} cards read in the per-viewer render of pages and comments (UI and API reader view) when no host DirectiveRendererInterface supports "file". link (default, as 1.24): a plain link to the card's href. card: Milkdown's own file card (FileCard: badge, name, size, link / icon / card views), linked to the URL Milkdown's host file resolution gave it (host_files), so a refused file reads *Content not visible*; a host renderer for "file" is then no longer needed. The neutral content_html render keeps the link. // Default: "link"
  *             file_previews?: bool|Param, // 1.28 (Symfony Beacon spec 212 block B): with file_cards: card, a view="preview" card of the per-viewer render frames the preview URL the host's Milkdown FilePreviewResolverInterface gives it (inside the render's WikiRenderFrame; under the API's reach only host-reference cards are asked), sandboxed with nowo_milkdown_editor.markdown.file_preview_sandbox, lazy and without referrer. Milkdown's default resolver answers only for its preview templates, so without a host resolver or a preview template nothing changes. The page CSP needs frame-src for the preview origin. false: preview cards read as cards (as 1.27). // Default: true
+ *             stable_heading_ids?: bool|Param, // 1.40 (Milkdown >= 1.18 stable_heading_ids): heading ids stay the same while a page is edited (a renamed heading keeps its id, written as the {#id} suffix when it differs from the text's slug), so links to a section keep working. false: the editor computes ids from the text, as before 1.40. // Default: true
+ *             link_picker?: array{ // 1.40 (Milkdown >= 1.18 link_picker): one picker for the link button, Ctrl+K and [[ — a wiki page of this wiki or another wiki of the same tenant, then a section; or an external http, https or mailto URL. Serves the internal JSON routes link_candidates and link_sections. Needs editor.type milkdown and a rate limiter.
+ *                 enabled?: bool|Param, // Default: false
+ *                 cross_wiki?: bool|Param, // Also offer pages of the other wikis of the same tenant (tenant_paths row, or a host LinkPicker\WikiLinkTenantResolverInterface); never with search.scope: space nor from search.excluded_spaces. Read per request through LinkPicker\WikiLinkPickerSettingsInterface. // Default: true
+ *                 rate_limiter?: scalar|Param|null, // Service id of a Symfony RateLimiterFactory applied per user to both picker routes (e.g. limiter.wiki_link_picker). Required when enabled. // Default: null
+ *             },
  *         },
  *     },
  *     security?: array{
@@ -1530,6 +1547,16 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // Default: true
  *         max_upload_bytes?: int|Param, // Default: 52428800
  *         max_document_bytes?: int|Param, // 1.21.1: largest Markdown document an import accepts, in bytes. A ZIP entry over it is refused before anything is extracted (or as soon as a lying entry passes it), and a file over it in a directory source (wiki:import) before anything is written. // Default: 8388608
+ *     },
+ *     space_icon?: array{ // 1.32: the optional UX icon of a wiki space (WikiSpace::icon).
+ *         allowed_prefixes?: list<scalar|Param|null>,
+ *         picker?: "text"|"icon_selector"|Param, // 1.39: the space icon field. text (default): a text input, as before. icon_selector: the visual picker of nowo-tech/icon-selector-bundle (>= 1.6; search + grid limited to space_icon.allowed_prefixes, the same "<prefix>:<name>" value; the text input stays the no-JS fallback). // Default: "text"
+ *         emoji?: bool|Param, // 1.39: the space icon may also be one emoji, stored as "emoji:<grapheme>" and checked against the RGI emoji catalogue of nowo-tech/icon-selector-bundle (>= 1.6, required); with picker: icon_selector the picker gets its Emoji tab. Emoji are always rendered as escaped text. // Default: false
+ *     },
+ *     page_icon?: array{ // 1.38: the optional icon of a page (WikiPage::icon): the space icon's format (`<prefix>:<name>`, a prefix of space_icon.allowed_prefixes). A page with an icon shows it before its title in the page tree and next to the page title; the REST API and import / export read and write it.
+ *         form_field?: bool|Param, // true: the page form (new and edit) gets an optional "Icon" field. false (default): no field, the icon is kept as it is when the page is saved. // Default: false
+ *         picker?: "text"|"icon_selector"|Param, // 1.39: the page icon field. text (default): a text input, as before. icon_selector: the visual picker of nowo-tech/icon-selector-bundle (>= 1.6; search + grid limited to space_icon.allowed_prefixes, the same "<prefix>:<name>" value; the text input stays the no-JS fallback). // Default: "text"
+ *         emoji?: bool|Param, // 1.39: the page icon may also be one emoji, stored as "emoji:<grapheme>" and checked against the RGI emoji catalogue of nowo-tech/icon-selector-bundle (>= 1.6, required); with picker: icon_selector the picker gets its Emoji tab. Emoji are always rendered as escaped text. // Default: false
  *     },
  *     pagination?: array{ // REQ-PERF-001: caps on the list pages of the manage UI.
  *         spaces_per_page?: int|Param, // Space cards per page on the wiki index (?page=N). // Default: 24
@@ -1654,6 +1681,14 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}"
  *             name?: scalar|Param|null, // Default: "nowo_wiki_page_collab"
  *         },
+ *         link_candidates?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/link-candidates"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_link_candidates"
+ *         },
+ *         link_sections?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/link-candidates/{pageId}/sections"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_link_sections"
+ *         },
  *     },
  *     templates?: array{ // Deprecated since 1.10: use web_ui.layout_template and web_ui.templates.<page>.
  *         layout?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.layout.layout" option is deprecated, use "nowo_wiki.web_ui.layout_template" instead. // Default: null
@@ -1676,16 +1711,37 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             ...<string, mixed>
  *         },
  *         tree_rail?: bool|Param, // 1.29, literal boolean. true: the page tree card of the space home and the page view gets a collapse button (UiKit rail_toggle) that folds it to a thin rail; the state is kept per user in the panel state store (comments.state_store, default the session; localStorage without a session) and ?tree=rail|full overrides it. false (default): no button, as before. // Default: false
+ *         tree_collapsed_mode?: "rail"|"hidden"|Param, // 1.30, with tree_rail: what a collapsed tree leaves on the page view. rail (default, as in 1.29): a thin rail with the vertical "Pages" title. hidden: nothing (the main column takes the whole width); an expand button (UiKit rail_toggle) appears in the page header toolbar, before the comments toggle, and reopens it. The state is kept as with rail (panel state store, ?tree=rail|full). The space home (no tab row) keeps the rail. // Default: "rail"
+ *         read_view?: array{ // 1.30: the read-only editor of the page view (commenters with the page source, comments.read_view_source).
+ *             seamless_swap?: bool|Param, // 1.30, literal boolean. true: the read-only editor is mounted in the same box as the server-rendered body (one grid cell, the larger height reserved, no reflow), styled with the same typography (--nowo-wiki-read-* tokens on both) and cross-faded in when ready (no fade with prefers-reduced-motion). false (default): as in 1.29, the editor replaces the hidden body when ready. // Default: false
+ *         },
+ *         edit_view?: array{ // 1.33: the edit form of an existing page.
+ *             layout?: "form"|"read"|Param, // 1.33. form (default, as in 1.32): the UiKit form scaffold (header, tab row, the form). read: the read view's layout around the form: the page tree (with tree_rail, its fold state and its toolbar button), the reading column (reading_width / reading_align), the card toolbar (page_header.toolbar_position: card) and the in-wiki path (page_header.path: card); the form takes the place of the page body (block wiki_page_form_body, in .nowo-wiki-edit-body, which gives the editor the read view's typography). The new-page form keeps the form layout. // Default: "form"
+ *         },
+ *         new_page_dialog?: bool|Param, // 1.35, literal boolean. true: "New page" opens a dialog with the new-page form: from the page actions of the page view, and from a menu on each row of the page tree (tree.enabled; right click, the row's «…» button, or the ContextMenu key / Shift+F10) with "New page above", "New page below" and "New page as child", each opening the dialog with the place filled in. The menu shows only the choices the user may take (the create right on the space, Edit on the parent page); the server checks them again. The new-page form then takes the hidden parent / position fields (also as ?parent=&position= on its own page). false (default): no dialog, no menu, the new-page form as in 1.34. // Default: false
+ *         page_nav?: "none"|"top"|"bottom"|"both"|Param, // 1.39: previous / next page links on the page view, in the tree's reading order (depth first: a page, its children, then its next sibling), with each neighbour's icon and title. Built from the sidebar tree the view already loaded (readable, active pages, at most pagination.max_tree_pages; no extra query); nothing at the ends. top: under the in-wiki path and the card toolbar; bottom: at the end of the content; both; none (default): no links. // Default: "none"
+ *         children?: "never"|"auto"|"always"|Param, // 1.30: the direct sub-pages of the page view (readable, not archived, tree order, one query): a "N subpages" chip near the top of the page that opens the list, and a "Pages in this section" card after the body. never (default, as in 1.29): neither; always: both; auto: only while the tree is collapsed or on one column (under 62rem). // Default: "never"
+ *         breadcrumb_current_label?: bool|Param, // 1.30, literal boolean, needs nowo-tech/breadcrumb-kit-bundle >= 2.17 (optional). true: the page view names the current BreadcrumbKit crumb after the page title (BreadcrumbCurrentLabelInterface). Without BreadcrumbKit, or with an older one, nothing happens. // Default: false
  *         narrow_tree_position?: "before"|"after"|Param, // 1.29: where the page tree goes on the page view below 62rem (one column): before (default, as before) or after the page. // Default: "before"
- *         reading_width?: "full"|"readable"|Param, // 1.29: width of the page view's main column. full (default, as before): the whole column; readable: centred, at most --nowo-wiki-reading-width (default the UiKit --nowo-ui-reading-width, 75ch). // Default: "full"
+ *         reading_width?: "full"|"readable"|"text"|Param, // 1.29: width of the page view's main column. full (default, as before): the whole column; readable: centred, at most --nowo-wiki-reading-width (default the UiKit --nowo-ui-reading-width, 75ch). 1.38 text: the content card takes the whole main column (no empty band beside it on a wide screen) and the text inside it (path, title, body, editor, revision line) keeps that measure, placed by reading_align. // Default: "full"
+ *         page_meta?: "scaffold"|"card"|Param, // 1.31: where the page view shows the revision and its date. scaffold (default, as in 1.30): the UiKit show scaffold's meta list (Revision / Updated, Y-m-d H:i). card: one muted footer line of the content card ("v3 · Updated …"), the date in the reader's locale (medium date, short time; Y-m-d H:i without the intl extension). // Default: "scaffold"
+ *         reading_align?: "center"|"start"|Param, // 1.30, with reading_width: readable: where the column sits in the main area. center (default, as in 1.29): centred; start: at the start, next to the tree, with the same maximum width. 1.38, with reading_width: text: where the text sits inside the full-width card (start: aligned to the card's start edge). // Default: "center"
  *         page_header?: array{ // 1.29: header of the page view and the edit form.
  *             layout?: "stacked"|"compact"|Param, // stacked (default, as before): the UiKit header, then the tab row (Page / Edit / History + the comments toggle). compact: the tabs and the actions (icon buttons and a "more" menu, the comments toggle at the end) on one row under the title (UiKit tabs_inline). // Default: "stacked"
- *             title?: "both"|"dedupe"|Param, // both (default): the header title and the page body as written. dedupe: on the read view, a first body heading <h1> whose text equals the page title (trimmed, spaces collapsed, case-insensitive) is not shown; the stored revision, the editor, search, export and the API are unchanged. // Default: "both"
+ *             title?: "both"|"dedupe"|"body"|"card"|Param, // both (default): the header title and the page body as written. dedupe: on the read view (server body and the read-only editor), a first body heading <h1> whose text equals the page title (trimmed, spaces collapsed, case-insensitive) is not shown; the stored revision, the editor, search, export and the API are unchanged. 1.30 body: the other way round: when the body starts with that <h1>, the page view header shows neither the title nor the space subtitle (UiKit compact presentation: the title stays as a visually hidden <h1>; the tabs, actions and toolbar stay) and the body keeps its heading; without such a heading the header is unchanged. 1.31 card: the page view header never shows the title (as with body); when the body does not start with that <h1>, the title is printed as the <h1> of the content card, after the path / sub-pages head and before the body (--nowo-wiki-read-h1-size). // Default: "both"
+ *             tabs?: "row"|"toolbar"|Param, // 1.30. row (default, as in 1.29): the Page / Edit / History tabs (tab row, or inline in the compact header). toolbar: no tabs; on the page view Edit (pencil) and History (clock) are icon buttons of the toolbar (tree toggle, Edit, History, host buttons, comments, then the actions and the "more" menu); on the edit form and the history "Back to page" replaces the Page tab; the current view keeps aria-current="page". Uses the one-row header whatever layout is. // Default: "row"
+ *             toolbar_position?: "header"|"card"|Param, // 1.30. header (default, as in 1.29): the page view toolbar is in the page header. card: it moves to the top right of the content (server body and read-only editor), sticky while the page scrolls; the header keeps the title (or nothing with title: body) and the tabs (unless tabs: toolbar). // Default: "header"
+ *             edit_toolbar?: array{ // 1.33: the tabs / toolbar of the edit form of a page.
+ *                 current_tab?: "shown"|"hidden"|Param, // shown (default, as in 1.32): the Edit tab (or toolbar button) stays, marked current. hidden: the edit form leaves it out (Page / History only). // Default: "shown"
+ *                 back?: "none"|"view"|Param, // none (default, as in 1.32): no extra button. view: a "View page" icon button (UiKit `view` icon, an eye) among the header actions of the edit form; with tabs: toolbar it takes the place of "Back to page". // Default: "none"
+ *             },
+ *             path?: "none"|"card"|Param, // 1.30. none (default, as in 1.29). card: the in-wiki path (space › ancestors) above the page body of the page view, each level a link; more than three levels fold the middle ones into a "…" menu; under 30rem only "‹ parent". An ancestor the viewer may not read is "…" without link, title or name. // Default: "none"
  *         },
- *         slots?: array{ // 1.21: host templates drawn in place of a part of the pages (included with the page variables; null = the bundle part). sidebar: the page tree card of the space home and the page view; space_intro: the search card of the space home; page_header_extra: after the page header of the page view (before the tab row).
+ *         slots?: array{ // 1.21: host templates drawn in place of a part of the pages (included with the page variables; null = the bundle part). sidebar: the page tree card of the space home and the page view; space_intro: the search card of the space home; page_header_extra: after the page header of the page view (before the tab row); 1.30 page_header_toolbar: host buttons in the page header toolbar of the page view and the edit form (compact header: before the tree and comments toggles; stacked header: at the end of the tab row).
  *             sidebar?: scalar|Param|null, // Default: null
  *             space_intro?: scalar|Param|null, // Default: null
  *             page_header_extra?: scalar|Param|null, // Default: null
+ *             page_header_toolbar?: scalar|Param|null, // Default: null
  *         },
  *         path_prefix?: scalar|Param|null, // Prefix of every wiki route path (e.g. /admin). null = the deprecated route_prefix, else none. // Default: null
  *         layout_template?: scalar|Param|null, // Layout the pages extend. null = nowo_ui_kit.layouts.admin. A pre-1.10 layout without the UiKit canonical blocks is wrapped in a deprecated bridge. // Default: null
@@ -1738,6 +1794,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             testid?: scalar|Param|null, // Default: null
  *         }>,
  *     },
+ *     base_stylesheet?: bool|Param, // 2.51: link UiKit's opt-in default theme (css/nowo-ui-base.css) before nowo-ui.css in the document / error layouts: body font stack, page gutters and masthead height for hosts that bring no CSS framework and no theme stylesheet. Its rules nest in `@layer theme.nowo-ui-base`, below `base`, so a framework, host utilities and unlayered host CSS still win. Leave it false when the host already has a framework or a theme file. // Default: false
  *     font_preload?: array{ // 2.21: <link rel="preload" as="font" crossorigin> tags printed in the <head> of the document and error layouts (Twig nowo_ui_font_preload()) for the fonts painted above the fold. Empty = no tags.
  *         fonts?: list<scalar|Param|null>,
  *         manifest?: array{ // Hashed builds: pick the fonts from a Vite manifest (.vite/manifest.json). A missing manifest (dev server) prints nothing.
@@ -1899,6 +1956,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         sidebar_rail_value?: scalar|Param|null, // Cookie value of the icons-only rail. // Default: "rail"
  *         sidebar_storage?: scalar|Param|null, // localStorage key of the aside mode (data-nowo-ui-sidebar-storage on the shell root; kit_styles + rail only). // Default: null
  *         sidebar_layout?: "below-header"|"full-height"|Param, // 2.32: below-header (default, the 2.31 markup byte for byte) | full-height: on desktop the aside runs from the top edge with the burger and the brand in its head (aside_brand_html / brand_icon_html + brand_name / brand_html), the header and the footer start at its right edge. The app_shell_open option sidebar_layout, then the request attribute _nowo_ui_sidebar_layout, win over it. // Default: "below-header"
+ *         sidebar_style?: "classic"|"inset"|Param, // 2.52: classic (default, the 2.51 markup byte for byte) | inset: on desktop the header, the aside and the footer share one shell surface with no border between them, and the content is an inset panel with rounded corners (tokens --nowo-ui-shell-inset-gap / -radius / -surface / -panel-surface). Phones are unchanged. The app_shell_open option sidebar_style, then the request attribute _nowo_ui_sidebar_style, win over it. // Default: "classic"
  *         brand?: array{ // 2.32: the shell brand from config (no template override): the aside head of the full-height layout, and the header brand when a page passes neither brand_html nor brand. The app_shell_open options brand_name / brand_href / brand_icon_src / brand_icon_html / aside_brand_html win.
  *             name?: scalar|Param|null, // Brand name (text); the icons-only rail hides it and keeps it as the link name. // Default: null
  *             href?: scalar|Param|null, // Brand link: relative, http, https or mailto (validated when the container compiles; javascript:, data: and other schemes are refused). // Default: null
@@ -2299,7 +2357,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // Default: false
  *     },
  *     html?: bool|array{
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *     },
  *     markdown?: bool|array{
  *         enabled?: bool|Param, // Default: false
@@ -2478,6 +2536,40 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     }>,
  *     ...<string, mixed>
  * }
+ * @psalm-type UxIconsConfig = array{
+ *     icon_dir?: scalar|Param|null, // The local directory where icons are stored. // Default: "%kernel.project_dir%/assets/icons"
+ *     default_icon_attributes?: array<string, scalar|Param|null>,
+ *     icon_sets?: array<string, array{ // the icon set prefix (e.g. "acme") // Default: []
+ *         path?: scalar|Param|null, // The local icon set directory path. (cannot be used with 'alias')
+ *         alias?: scalar|Param|null, // The remote icon set identifier. (cannot be used with 'path')
+ *         icon_attributes?: array<string, scalar|Param|null>,
+ *         suffixes?: array<string, array{ // The suffix name (e.g. "solid", "20-solid") // Default: []
+ *             icon_attributes?: array<string, scalar|Param|null>,
+ *         }>,
+ *     }>,
+ *     aliases?: array<string, string|Param>,
+ *     iconify?: bool|array{ // Configuration for the remote icon service.
+ *         enabled?: bool|Param, // Default: true
+ *         on_demand?: bool|Param, // Whether to download icons "on demand". // Default: true
+ *         auto_lock?: bool|Param, // Persist "on demand" icons to the local icon directory (see "icon_dir"). Recommended in dev only. Requires "on_demand" to be enabled. // Default: false
+ *         endpoint?: scalar|Param|null, // The endpoint for the Iconify icons API. // Default: "https://api.iconify.design"
+ *     },
+ *     ignore_not_found?: bool|Param, // Ignore error when an icon is not found. Set to 'true' to fail silently. // Default: false
+ * }
+ * @psalm-type NowoIconSelectorConfig = array{
+ *     icon_sets?: list<scalar|Param|null>,
+ *     use_iconify_collection?: bool|Param, // When true, the server fetches the full icon list from api.iconify.design/collection for each icon_sets entry (requires symfony/http-client). When false, the bundle static list is used. Also sets the default of "source" (true = iconify, false = bundle). // Default: false
+ *     source?: "iconify"|"bundle"|"ux_icons_local"|Param, // Where the picker reads the icon list and the SVG previews from. "iconify": the browser calls api.iconify.design (third-party requests). "bundle": same-origin only, from the bundle icons and SVG endpoints. "ux_icons_local": same-origin only, offering just the SVG files committed under the UX Icons directory (ux_icons_dir) whose prefix belongs to icon_sets. Null = "iconify" when use_iconify_collection is true, else "bundle". // Default: null
+ *     ux_icons_dir?: scalar|Param|null, // Directory scanned by source "ux_icons_local". Null = the ux_icons.icon_dir setting when the host sets it, else %kernel.project_dir%/assets/icons (the UX Icons default). // Default: null
+ *     stylesheet_nonce?: bool|Param, // When true, the stylesheet <link> carries the CSP nonce: the "csp_nonce" request attribute (nowo-tech HttpHardening convention) when present, else NelmioSecurityBundle getNonce("style"). Off by default: asking Nelmio creates a style nonce, and browsers then ignore 'unsafe-inline' for every other inline style on the page. // Default: false
+ *     include_stylesheet?: bool|Param, // When true, the form theme links the bundle stylesheet (asset package nowo_icon_selector, icon-selector.css) next to each widget. Set false when your layout or asset pipeline loads icon-selector.css itself. The bundle never injects inline <style> elements or style attributes (strict CSP). // Default: true
+ *     iconify_http_timeout?: float|Param, // HTTP timeout in seconds for each Iconify collection API request when use_iconify_collection is true. Keep below PHP max_execution_time / FrankenPHP write timeout. // Default: 15.0
+ *     icons_api_path?: scalar|Param|null, // Path for the JSON API that returns available icons. Used by the frontend to fetch the list. // Default: "/api/icon-selector/icons"
+ *     form_theme?: scalar|Param|null, // Base form layout so the icon selector theme matches your app (e.g. form_div_layout.html.twig, bootstrap_5_layout.html.twig). Must match twig.form_themes. // Default: "form_div_layout.html.twig"
+ *     theme?: "auto"|"uikit"|"bootstrap"|Param, // 1.8: look of the picker widget. "uikit": neutral markup styled from the UiKit design tokens (--nowo-ui-*, CSS system colours as fallbacks; follows prefers-color-scheme and UiKit data-theme), no Bootstrap classes. "bootstrap": the Bootstrap utility classes of 1.7 (unchanged). "auto" (default): "uikit" when NowoUiKitBundle is registered, else "bootstrap". A field can override it with its "theme" option. // Default: "auto"
+ *     emoji_data_url?: scalar|Param|null, // URL of the bundled emoji dataset used by the picker when a field sets emoji: true. Null = /bundles/nowoiconselector/emoji-data.json?v=<emoji version> (after assets:install). // Default: null
+ *     debug?: bool|Param, // When true, the frontend logs all debug/info/warn messages to the console. When false, only the initial "script loaded" message is shown. // Default: false
+ * }
  * @psalm-type ConfigType = array{
  *     imports?: ImportsConfig,
  *     parameters?: ParametersConfig,
@@ -2494,6 +2586,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     ai?: AiConfig,
  *     twig_extra?: TwigExtraConfig,
  *     nowo_form_kit?: NowoFormKitConfig,
+ *     ux_icons?: UxIconsConfig,
+ *     nowo_icon_selector?: NowoIconSelectorConfig,
  *     "when@dev"?: array{
  *         imports?: ImportsConfig,
  *         parameters?: ParametersConfig,
@@ -2514,6 +2608,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         ai?: AiConfig,
  *         twig_extra?: TwigExtraConfig,
  *         nowo_form_kit?: NowoFormKitConfig,
+ *         ux_icons?: UxIconsConfig,
+ *         nowo_icon_selector?: NowoIconSelectorConfig,
  *     },
  *     "when@prod"?: array{
  *         imports?: ImportsConfig,
@@ -2531,6 +2627,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         ai?: AiConfig,
  *         twig_extra?: TwigExtraConfig,
  *         nowo_form_kit?: NowoFormKitConfig,
+ *         ux_icons?: UxIconsConfig,
+ *         nowo_icon_selector?: NowoIconSelectorConfig,
  *     },
  *     "when@test"?: array{
  *         imports?: ImportsConfig,
@@ -2551,6 +2649,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         ai?: AiConfig,
  *         twig_extra?: TwigExtraConfig,
  *         nowo_form_kit?: NowoFormKitConfig,
+ *         ux_icons?: UxIconsConfig,
+ *         nowo_icon_selector?: NowoIconSelectorConfig,
  *     },
  *     ...<string, ExtensionType|array{ // extra keys must follow the when@%env% pattern or match an extension alias
  *         imports?: ImportsConfig,

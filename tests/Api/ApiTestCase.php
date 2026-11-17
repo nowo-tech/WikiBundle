@@ -70,6 +70,9 @@ abstract class ApiTestCase extends WebTestCase
     /** 1.29.1: false for memory measurements (debug collectors keep every request until kernel.reset). */
     protected static bool $debug = true;
 
+    /** 1.41: the web UI finds spaces by slug, the test host deciding the rights ({@see ApiKernel}). */
+    protected static bool $slugLocator = false;
+
     /** Whether this process already dropped the kernels' caches (they are reused across runs otherwise). */
     private static bool $freshCaches = false;
 
@@ -123,7 +126,7 @@ abstract class ApiTestCase extends WebTestCase
 
     protected static function createKernel(array $options = []): KernelInterface
     {
-        return new ApiKernel(static::$apiConfig, static::$wikiConfig, static::$withFirewall, static::$legacySpaceChecker, static::$debug);
+        return new ApiKernel(static::$apiConfig, static::$wikiConfig, static::$withFirewall, static::$legacySpaceChecker, static::$debug, static::$slugLocator);
     }
 
     protected function token(string $secret, string $user, ?WikiApiLevel $level, ?WikiApiWhere $where = null): void
