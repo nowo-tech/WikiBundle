@@ -194,7 +194,7 @@ own messages in one listener:
   deletes keeps pointing at a detached page, and the next flush of that manager fails (the purge forgets the wiki's own
   rows only). Store the page id instead of a relation, use `private_entity_manager: true`, or listen to
   `nowo_wiki.trash.purged` (`WikiTrashEvent::$pageIds`, after the commit) and detach your rows that point at those pages
-  ([UPGRADING › Unreleased](UPGRADING.md#unreleased) has an example).
+  ([UPGRADING › Unreleased](UPGRADING.md#to-1402) has an example).
 
 ## Pagination and list limits (REQ-PERF-001)
 
