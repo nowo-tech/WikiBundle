@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api\App;
 
+use Closure;
 use Doctrine\DBAL\Exception\RetryableException;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
@@ -16,13 +17,17 @@ use RuntimeException;
 
 /**
  * The Doctrine page repository with races on demand: a slug check that misses a concurrent create (the insert then
- * hits the unique index, audit IF-I10), or a lock that cannot be taken (a deadlock or a lock wait timeout).
+ * hits the unique index, audit IF-I10), a lock that cannot be taken (a deadlock or a lock wait timeout), or (audit
+ * SH-L1) a save that fails as the ORM would.
  */
 final class ApiPageRepository implements WikiPageRepositoryInterface, WikiPageBatchFinderInterface, WikiPageLockInterface
 {
     public static bool $missSlugs = false;
 
     public static bool $lockFails = false;
+
+    /** Audit SH-L1: run before each save (it may throw, as the ORM does on a flush). */
+    public static ?Closure $beforeSave = null;
 
     private DoctrineOrmWikiPageRepository $inner;
 
@@ -33,6 +38,9 @@ final class ApiPageRepository implements WikiPageRepositoryInterface, WikiPageBa
 
     public function save(WikiPage $page): void
     {
+        if (self::$beforeSave instanceof Closure) {
+            (self::$beforeSave)($page);
+        }
         $this->inner->save($page);
     }
 

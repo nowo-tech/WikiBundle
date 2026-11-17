@@ -259,12 +259,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   REQ-TEST-011), a table of contents in `docs/COMMENTS-CONTRACT.md`, and the Spec Kit baseline (`specs/001-baseline`)
   re-mapped for every file of `src/` up to 1.40 (506 files, FR-API, FR-ARCH, FR-LINKPICK and others).
 
-### Known issue (demo, no package change)
+### Fixed
 
-- With `DEMO_KERNEL_RESET=0` (worker, services resetter off) the full demo e2e suite is not green on every run: the
-  trash delete can raise `ORMInvalidArgumentException` ("new entity found through WikiTrashEntry#page") and the page tree
-  move or the Milkdown save can answer an error. Each spec passes alone; the default setting passes all 51 specs.
-  Tracked for a fix (REQ-RUNTIME-002 / the no-reset rule).
+- **Trash purge left rows managed that pointed at the purged pages (REQ-RUNTIME-002).** Target: 1.40.2. The purge deletes
+  the pages, their revisions, links, comments and trash entries with DQL, but up to 1.40.1 only the purged `WikiPage`
+  objects were detached: the trash entries loaded by the purge, the page's current revision, comment threads and the
+  sub-pages left in place (their parent was cleared in the database only) stayed managed and pointing at detached pages.
+  The next flush with work on that entity manager failed with `ORMInvalidArgumentException` ("A new entity was found
+  through the relationship 'WikiTrashEntry#page'"), so every later wiki write on it failed (trash delete, restore, tree
+  move, page save; the REST API answered `409 WIKI_PAGE_ARCHIVED` for the save). Nothing was written by the failing
+  flush. A manager survives a purge when the services resetter does not run: a FrankenPHP worker whose host removes or
+  bypasses it (the demo with `DEMO_KERNEL_RESET=0`), `messenger:consume --no-reset`, or a long command that purges and
+  then writes. Stock hosts (the resetter clears the managers at each request, also with `FRANKENPHP_RESET_KERNEL=false`)
+  only met it when the same request purged and wrote again. Affected: 1.14.0 (the trash) to 1.40.1, in both the shared and
+  the private entity manager mode (the private one is dropped at each request boundary, so there only within one unit).
+  The purge now forgets every wiki row the DQL removed, and every wiki row pointing at one (transitively); a surviving
+  sub-page gets its parent set to null in memory and in the unit of work's original data, as the DQL did in the database,
+  so its other pending changes are kept (audit SH-I1: no longer `refresh()`ed); a restore forgets the trash entries it
+  deleted. `WorkerNoResetTrashTest` (one kernel, no resetter: trash, purge, restore, move and save in turn, and the same
+  after `clear()` with the pages reloaded as lazy proxies; audit SH-I2) covers it in both entity manager modes.
+- **REST API: an ORM error answered as a business refusal (audit SH-L1).** Target: 1.40.2. The page create, save, restore
+  and icon writes caught every `InvalidArgumentException`, and Doctrine's `ORMInvalidArgumentException` is one: an ORM
+  failure answered `409 WIKI_PAGE_ARCHIVED`, `409 WIKI_003` (slug taken) or the icon `not_applied` warning, which hid the
+  purge bug above. The services now throw dedicated exceptions, all extending `InvalidArgumentException` with the same
+  messages (`Service\WikiPageArchivedException`, `WikiInvalidSlugException`, `WikiSlugTakenException`,
+  `WikiUnknownFormatException`, `WikiRevisionMismatchException`, `WikiInvalidIconException`,
+  `WikiPageNotFoundException`), and the API catches only those: an ORM error in a create, save or restore is logged and
+  answered `500 SERVER_001`. In the icon unit, which runs after the content write committed, an unexpected error (an ORM
+  error included) is now logged at error level (`Wiki API: the icon could not be written after the committed write.`,
+  with the exception class) and the icon stays `not_applied`: the committed write is still answered, audited and keeps
+  its idempotent claim (QY-L2). The codes and messages of the business refusals are unchanged; code that catches
+  `InvalidArgumentException` keeps working. `WikiApiPageWriteOperations` takes an optional logger (last argument).
+
+### Documentation
+
+- UPGRADING / USAGE: host entities with a `ManyToOne(WikiPage)` in the shared entity manager and the trash purge (audit
+  SH-L2).
 
 ## [1.40.1] - 2026-11-17
 

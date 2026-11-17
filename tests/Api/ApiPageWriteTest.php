@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Api;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\ORM\ORMInvalidArgumentException;
+use InvalidArgumentException;
 use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
+use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 use Nowo\WikiBundle\Tests\Api\App\ApiPageRepository;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
@@ -18,6 +22,7 @@ use Nowo\WikiBundle\Tests\Support\RecordingQuotaListener;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 use function array_column;
+use function array_filter;
 use function array_map;
 use function count;
 use function file_put_contents;
@@ -177,6 +182,53 @@ final class ApiPageWriteTest extends ApiTestCase
         $this->assertRefusal($collision, 409, 'WIKI_SAVE_COLLISION');
         self::assertSame('1', $collision->headers->get('Retry-After'));
         self::assertCount(1, ApiAuditRecorder::$events);
+    }
+
+    /**
+     * Audit SH-L1: Doctrine's ORMInvalidArgumentException is an InvalidArgumentException too. In a save or a create it
+     * is a server error (logged, `500 SERVER_001`), never read as an archived page or a taken slug; in the icon unit,
+     * after the committed write, it is logged and the icon `not_applied`. The business refusals keep their codes.
+     */
+    public function testAnOrmErrorIsAServerErrorNotABusinessRefusal(): void
+    {
+        self::assertInstanceOf(InvalidArgumentException::class, new WikiPageArchivedException('x'));
+        self::assertInstanceOf(InvalidArgumentException::class, new WikiSlugTakenException('x'));
+        $page = $this->page($this->eng, 'Runbook', 'one');
+        $path = '/wikis/eng/pages/' . $page->getId();
+        $orm  = static fn (): ORMInvalidArgumentException => new ORMInvalidArgumentException('A new entity was found through the relationship \'WikiTrashEntry#page\'.');
+
+        // The business refusals, unchanged.
+        $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Other', 'slug' => 'runbook']), 409, 'WIKI_003');
+        $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Other', 'slug' => 'Bad Slug']), 400, 'INPUT_002');
+        ApiTestHost::$race = static function (WikiPage $target): void {
+            static::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('UPDATE wiki_pages SET archived_at = ? WHERE id = ?', ['2026-11-18 10:00:00', $target->getId()]);
+        };
+        $this->assertRefusal($this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]), 409, 'WIKI_PAGE_ARCHIVED');
+        ApiTestHost::$race = null;
+        static::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('UPDATE wiki_pages SET archived_at = NULL WHERE id = ?', [$page->getId()]);
+
+        // An ORM error in the write: 500, logged; not 409.
+        ApiPageRepository::$beforeSave = static fn () => throw $orm();
+        $this->assertRefusal($this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]), 500, 'SERVER_001');
+        $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Fresh']), 500, 'SERVER_001');
+
+        $logger = static::getContainer()->get('logger');
+        self::assertInstanceOf(RecordingLogger::class, $logger);
+        self::assertCount(2, array_filter($logger->lines(), static fn (string $line): bool => $line === 'error: Wiki API: unexpected error.'));
+        self::assertSame([], ApiAuditRecorder::$events);
+
+        // An ORM error in the icon unit, after the content write committed (QY-L2): the write is answered and audited,
+        // the icon is `not_applied`, and the error is logged (not silent).
+        ApiPageRepository::$beforeSave = static fn (WikiPage $saved) => $saved->getIcon() === 'tabler:tool' ? throw $orm() : null;
+        $saved                         = $this->call('PUT', $path, self::ANA, ['content_markdown' => 'three', 'base_revision' => 1, 'icon' => 'tabler:tool']);
+        self::assertSame(200, $saved->getStatusCode(), (string) $saved->getContent());
+        $body = $this->json($saved);
+        self::assertSame(2, $body['revision']);
+        self::assertSame([['field' => 'icon', 'reason' => 'not_applied']], $body['warnings']);
+        self::assertSame(['page.update'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        self::assertSame(['content_markdown'], ApiAuditRecorder::$events[0]->changedFields);
+        self::assertCount(1, array_filter($logger->lines(), static fn (string $line): bool => $line === 'error: Wiki API: the icon could not be written after the committed write.'));
+        self::assertCount(2, array_filter($logger->lines(), static fn (string $line): bool => $line === 'error: Wiki API: unexpected error.'));
     }
 
     public function testTwoCreatesWithOneSlugAtTheSameInstant(): void

@@ -91,6 +91,7 @@ abstract class ApiTestCase extends WebTestCase
         ApiAuditRecorder::$failSaved      = false;
         ApiPageRepository::$missSlugs     = false;
         ApiPageRepository::$lockFails     = false;
+        ApiPageRepository::$beforeSave    = null;
         ApiCollabStore::$failReset        = false;
         ApiCollabHub::$published          = [];
         ApiCollabHub::$down               = false;

@@ -190,6 +190,11 @@ own messages in one listener:
 - With the attribute mapping the bundle maps its entities in the default entity manager; with another
   `database.entity_manager`, add the `WikiBundle` mapping to that manager yourself or use `mapping_type: xml`, which
   maps it there.
+- In the shared entity manager mode, a managed entity of yours with a `ManyToOne(WikiPage)` to a page the trash purge
+  deletes keeps pointing at a detached page, and the next flush of that manager fails (the purge forgets the wiki's own
+  rows only). Store the page id instead of a relation, use `private_entity_manager: true`, or listen to
+  `nowo_wiki.trash.purged` (`WikiTrashEvent::$pageIds`, after the commit) and detach your rows that point at those pages
+  ([UPGRADING › Unreleased](UPGRADING.md#unreleased) has an example).
 
 ## Pagination and list limits (REQ-PERF-001)
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Service;
 
-use InvalidArgumentException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Port\WikiSnapshots;
@@ -67,7 +66,7 @@ final readonly class WikiPageIconService
     /**
      * Normalises an icon value: '' is no icon (null). Throws when the value is not acceptable.
      *
-     * @throws InvalidArgumentException when the value is not an allowed icon name
+     * @throws WikiInvalidIconException when the value is not an allowed icon name (an {@see \InvalidArgumentException}, 1.40.2)
      */
     public function normalize(?string $icon): ?string
     {
@@ -75,7 +74,7 @@ final readonly class WikiPageIconService
             return null;
         }
         if (!self::acceptable($icon, $this->allowedPrefixes, $this->iconRenderer, $this->emojiCatalog)) {
-            throw new InvalidArgumentException(sprintf('Invalid page icon: expected "<prefix>:<name>" (max %d characters) with a prefix in [%s] and an icon that exists.', WikiSpaceIcon::MAX_LENGTH, implode(', ', $this->allowedPrefixes)));
+            throw new WikiInvalidIconException(sprintf('Invalid page icon: expected "<prefix>:<name>" (max %d characters) with a prefix in [%s] and an icon that exists.', WikiSpaceIcon::MAX_LENGTH, implode(', ', $this->allowedPrefixes)));
         }
 
         return $icon;
@@ -88,7 +87,7 @@ final readonly class WikiPageIconService
     {
         try {
             $this->normalize($icon);
-        } catch (InvalidArgumentException) {
+        } catch (WikiInvalidIconException) {
             return false;
         }
 
@@ -101,7 +100,9 @@ final readonly class WikiPageIconService
      * @param WikiPage $page the page
      * @param string|null $icon the icon name, or null / '' for none
      *
-     * @throws InvalidArgumentException when the icon is not allowed or the page is archived (nothing written)
+     * @throws WikiInvalidIconException when the icon is not allowed (nothing written)
+     * @throws WikiPageArchivedException when the page is archived (nothing written)
+     * @throws WikiPageNotFoundException when the page no longer exists (nothing written)
      * @throws TransientStorageFailure when the page row could not be locked or written (a deadlock, a lock wait timeout)
      *
      * @return bool whether the stored value changed
@@ -111,7 +112,7 @@ final readonly class WikiPageIconService
         $icon  = $this->normalize($icon);
         $apply = function () use ($page, $icon): bool {
             if ($page->isArchived()) {
-                throw new InvalidArgumentException('Archived pages cannot be edited.');
+                throw new WikiPageArchivedException('Archived pages cannot be edited.');
             }
             if ($page->getIcon() === $icon) {
                 return false;
@@ -127,19 +128,21 @@ final readonly class WikiPageIconService
         $runner = $this->runner;
 
         // Same as archiving: the page row locked and read again, so a page archived meanwhile is refused.
-        return $runner->run(static fn (): bool => $runner->lockEntity($page) ? $apply() : throw new InvalidArgumentException('The page no longer exists.'));
+        return $runner->run(static fn (): bool => $runner->lockEntity($page) ? $apply() : throw new WikiPageNotFoundException('The page no longer exists.'));
     }
 
     /**
      * Sets or clears the icon of the page with exactly that id (the by-id twin of {@see self::setIcon()}).
      *
-     * @throws InvalidArgumentException when no page has that id, the icon is not allowed or the page is archived
+     * @throws WikiPageNotFoundException when no page has that id
+     * @throws WikiInvalidIconException when the icon is not allowed
+     * @throws WikiPageArchivedException when the page is archived
      */
     public function setPageIcon(string $pageId, ?string $icon): WikiPageSnapshot
     {
         $page = $this->pages->findById($pageId);
         if (!$page instanceof WikiPage || $page->getId() !== $pageId) {
-            throw new InvalidArgumentException(sprintf('Unknown page "%s".', $pageId));
+            throw new WikiPageNotFoundException(sprintf('Unknown page "%s".', $pageId));
         }
         $this->setIcon($page, $icon);
 
