@@ -43,8 +43,10 @@ use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Service\WikiRevisionConflictException;
 use Nowo\WikiBundle\Service\WikiRevisionMismatchException;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Throwable;
 
 use function trim;
 
@@ -82,6 +84,7 @@ final readonly class WikiApiPageWriteOperations
         private ?WikiPageMover $mover = null,
         private ?RequestStack $requestStack = null,
         private ?WikiPageIconService $icons = null,
+        private ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -390,7 +393,13 @@ final readonly class WikiApiPageWriteOperations
         try {
             return $this->icons?->setIcon($page, $icon) ?? false;
         } catch (WikiInvalidIconException|WikiPageArchivedException|WikiPageNotFoundException|TransientStorageFailure) {
-            // 1.40.2 (audit SH-L1): an ORM error is no longer reported as `not_applied`; it surfaces as a server error.
+            $input->notApplied('icon');
+
+            return false;
+        } catch (Throwable $exception) {
+            // 1.40.2 (audit SH-L1): an unexpected error (an ORM error included) is no longer silent: it is logged as an
+            // error. The content write committed, so it stays answered and audited (QY-L2): the icon is `not_applied`.
+            $this->logger?->error('Wiki API: the icon could not be written after the committed write.', ['bundle' => 'nowo_wiki', 'exception_class' => $exception::class]);
             $input->notApplied('icon');
 
             return false;

@@ -84,6 +84,9 @@ services:
         arguments:
             $collab: '@?Nowo\WikiBundle\Collaboration\WikiCollabService'
             $mover: '@?Nowo\WikiBundle\Service\WikiPageMover'
+            $logger: '@?logger'
+        tags:
+            - { name: monolog.logger, channel: nowo_wiki }
 
     Nowo\WikiBundle\Api\Controller\WikiApiWriteController:
         public: true

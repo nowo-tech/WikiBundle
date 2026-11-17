@@ -185,9 +185,9 @@ final class ApiPageWriteTest extends ApiTestCase
     }
 
     /**
-     * Audit SH-L1: Doctrine's ORMInvalidArgumentException is an InvalidArgumentException too. It is a server error
-     * (logged, `500 SERVER_001`), never read as an archived page, a taken slug or an icon not applied; the business
-     * refusals keep their codes.
+     * Audit SH-L1: Doctrine's ORMInvalidArgumentException is an InvalidArgumentException too. In a save or a create it
+     * is a server error (logged, `500 SERVER_001`), never read as an archived page or a taken slug; in the icon unit,
+     * after the committed write, it is logged and the icon `not_applied`. The business refusals keep their codes.
      */
     public function testAnOrmErrorIsAServerErrorNotABusinessRefusal(): void
     {
@@ -212,13 +212,23 @@ final class ApiPageWriteTest extends ApiTestCase
         $this->assertRefusal($this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]), 500, 'SERVER_001');
         $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Fresh']), 500, 'SERVER_001');
 
-        // An ORM error in the icon unit (after the content write): 500, logged; not the `not_applied` warning.
-        ApiPageRepository::$beforeSave = static fn (WikiPage $saved) => $saved->getIcon() === 'tabler:tool' ? throw $orm() : null;
-        $this->assertRefusal($this->call('PUT', $path, self::ANA, ['content_markdown' => 'three', 'base_revision' => 1, 'icon' => 'tabler:tool']), 500, 'SERVER_001');
-
         $logger = static::getContainer()->get('logger');
         self::assertInstanceOf(RecordingLogger::class, $logger);
-        self::assertCount(3, array_filter($logger->lines(), static fn (string $line): bool => $line === 'error: Wiki API: unexpected error.'));
+        self::assertCount(2, array_filter($logger->lines(), static fn (string $line): bool => $line === 'error: Wiki API: unexpected error.'));
+        self::assertSame([], ApiAuditRecorder::$events);
+
+        // An ORM error in the icon unit, after the content write committed (QY-L2): the write is answered and audited,
+        // the icon is `not_applied`, and the error is logged (not silent).
+        ApiPageRepository::$beforeSave = static fn (WikiPage $saved) => $saved->getIcon() === 'tabler:tool' ? throw $orm() : null;
+        $saved                         = $this->call('PUT', $path, self::ANA, ['content_markdown' => 'three', 'base_revision' => 1, 'icon' => 'tabler:tool']);
+        self::assertSame(200, $saved->getStatusCode(), (string) $saved->getContent());
+        $body = $this->json($saved);
+        self::assertSame(2, $body['revision']);
+        self::assertSame([['field' => 'icon', 'reason' => 'not_applied']], $body['warnings']);
+        self::assertSame(['page.update'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        self::assertSame(['content_markdown'], ApiAuditRecorder::$events[0]->changedFields);
+        self::assertCount(1, array_filter($logger->lines(), static fn (string $line): bool => $line === 'error: Wiki API: the icon could not be written after the committed write.'));
+        self::assertCount(2, array_filter($logger->lines(), static fn (string $line): bool => $line === 'error: Wiki API: unexpected error.'));
     }
 
     public function testTwoCreatesWithOneSlugAtTheSameInstant(): void

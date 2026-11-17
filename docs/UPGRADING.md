@@ -110,7 +110,9 @@ Target: 1.40.2. No configuration or schema change.
   `WikiPageNotFoundException`. Each extends `InvalidArgumentException` with the message thrown before, so a
   `catch (InvalidArgumentException)` keeps working; catch the new classes instead if Doctrine errors must not be read
   as a refusal (`ORMInvalidArgumentException` is an `InvalidArgumentException` too). The REST API now answers an ORM
-  error `500 SERVER_001` (logged) instead of `409 WIKI_PAGE_ARCHIVED`, `409 WIKI_003` or the icon `not_applied` warning.
+  error in a create, save or restore `500 SERVER_001` (logged) instead of `409 WIKI_PAGE_ARCHIVED` or `409 WIKI_003`.
+  An unexpected error in the icon unit (after the committed content write) still answers the write with the icon
+  `not_applied`, and is now logged at error level.
 - **Your own entities that point at wiki pages (audit SH-L2).** The trash purge deletes pages with DQL and then makes the
   wiki's entity manager forget every wiki row it removed. It does not touch your entities: in the shared entity manager
   mode (`database.private_entity_manager: false`), a managed entity of yours with a `ManyToOne(WikiPage)` to a purged

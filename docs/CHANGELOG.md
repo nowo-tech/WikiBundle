@@ -284,9 +284,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   purge bug above. The services now throw dedicated exceptions, all extending `InvalidArgumentException` with the same
   messages (`Service\WikiPageArchivedException`, `WikiInvalidSlugException`, `WikiSlugTakenException`,
   `WikiUnknownFormatException`, `WikiRevisionMismatchException`, `WikiInvalidIconException`,
-  `WikiPageNotFoundException`), and the API catches only those: an ORM error is logged and answered `500 SERVER_001`.
-  The codes and messages of the business refusals are unchanged; code that catches `InvalidArgumentException` keeps
-  working.
+  `WikiPageNotFoundException`), and the API catches only those: an ORM error in a create, save or restore is logged and
+  answered `500 SERVER_001`. In the icon unit, which runs after the content write committed, an unexpected error (an ORM
+  error included) is now logged at error level (`Wiki API: the icon could not be written after the committed write.`,
+  with the exception class) and the icon stays `not_applied`: the committed write is still answered, audited and keeps
+  its idempotent claim (QY-L2). The codes and messages of the business refusals are unchanged; code that catches
+  `InvalidArgumentException` keeps working. `WikiApiPageWriteOperations` takes an optional logger (last argument).
 
 ### Documentation
 
