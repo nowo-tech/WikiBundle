@@ -7,7 +7,6 @@ namespace Nowo\WikiBundle\Service;
 use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityNotFoundException;
-use InvalidArgumentException;
 use LogicException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
@@ -106,7 +105,9 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      * @param string $format content format, {@see WikiPageRevision::FORMAT_HTML} or
      *                       {@see WikiPageRevision::FORMAT_MARKDOWN} (1.11)
      *
-     * @throws InvalidArgumentException when the slug is invalid or already exists in the space, or the format is unknown
+     * @throws WikiInvalidSlugException when the slug is invalid (an {@see \InvalidArgumentException}, 1.40.2)
+     * @throws WikiSlugTakenException when the slug already exists in the space (an {@see \InvalidArgumentException})
+     * @throws WikiUnknownFormatException when the format is unknown (an {@see \InvalidArgumentException})
      * @throws UniqueConstraintViolationException when another create took the slug meanwhile (nothing written)
      *
      * @return WikiPage the persisted page
@@ -123,11 +124,11 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         $this->assertFormat($format);
         $slug ??= $this->slugger->slugify($title);
         if (!$this->slugger->isValid($slug)) {
-            throw new InvalidArgumentException('Invalid page slug.');
+            throw new WikiInvalidSlugException('Invalid page slug.');
         }
 
         if ($this->pageRepository->countBySpaceAndSlug($space, $slug) > 0) {
-            throw new InvalidArgumentException('Page slug already exists in this space.');
+            throw new WikiSlugTakenException('Page slug already exists in this space.');
         }
 
         // 1.37: the page, its first revision and the pointer to it in one transaction (a failure in between left a page
@@ -165,7 +166,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      *                                   title and body equal to the current revision's write nothing and return it.
      *                                   Null keeps the last-write-wins save of earlier versions
      *
-     * @throws InvalidArgumentException when the page is archived or the format is unknown
+     * @throws WikiPageArchivedException when the page is archived (an {@see \InvalidArgumentException}, 1.40.2)
+     * @throws WikiUnknownFormatException when the format is unknown (an {@see \InvalidArgumentException})
      * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
      * @throws WikiRevisionConflictException when the current revision is not the expected one: nothing was written (1.24)
      * @throws LogicException when an expected revision is given and the page repository cannot lock a page (1.24)
@@ -198,7 +200,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
             return $revision;
         }
         if ($page->isArchived()) {
-            throw new InvalidArgumentException('Archived pages cannot be edited.');
+            throw new WikiPageArchivedException('Archived pages cannot be edited.');
         }
 
         $previous = $page->getCurrentRevision();
@@ -220,7 +222,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      * @param int|null $expectedRevision 1.24 (spec 218): the revision number the restore started from, compared under
      *                                   the page lock as in {@see self::saveRevision()}; a restore always appends
      *
-     * @throws InvalidArgumentException when the page is archived or the revision belongs to another page
+     * @throws WikiPageArchivedException when the page is archived (an {@see \InvalidArgumentException}, 1.40.2)
+     * @throws WikiRevisionMismatchException when the revision belongs to another page (an {@see \InvalidArgumentException})
      * @throws WikiRevisionCollisionException when the revision write lost a race: nothing was written (1.22)
      * @throws WikiRevisionConflictException when the current revision is not the expected one: nothing was written (1.24)
      * @throws LogicException when an expected revision is given and the page repository cannot lock a page (1.24)
@@ -230,11 +233,11 @@ final readonly class WikiPageService implements WikiPageServiceInterface
     public function restore(WikiPage $page, WikiPageRevision $from, object $actor, ?int $expectedRevision = null): WikiPageRevision
     {
         if ($expectedRevision === null && $page->isArchived()) {
-            throw new InvalidArgumentException('Archived pages cannot be restored.');
+            throw new WikiPageArchivedException('Archived pages cannot be restored.');
         }
 
         if ($from->getPage()->getId() !== $page->getId()) {
-            throw new InvalidArgumentException('The revision belongs to another page.');
+            throw new WikiRevisionMismatchException('The revision belongs to another page.');
         }
 
         $previous = $page->getCurrentRevision();
@@ -462,7 +465,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
 
         try {
             if ($archivedMessage !== null && $page->isArchived()) {
-                throw new InvalidArgumentException($archivedMessage);
+                throw new WikiPageArchivedException($archivedMessage);
             }
             $current = $page->getCurrentRevision();
             $number  = $current?->getRevisionNumber() ?? 0;
@@ -578,7 +581,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
     private function assertFormat(string $format): void
     {
         if ($format !== WikiPageRevision::FORMAT_HTML && $format !== WikiPageRevision::FORMAT_MARKDOWN) {
-            throw new InvalidArgumentException(sprintf('Unknown revision format "%s".', $format));
+            throw new WikiUnknownFormatException(sprintf('Unknown revision format "%s".', $format));
         }
     }
 

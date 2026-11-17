@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Api\Operation;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
-use InvalidArgumentException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
@@ -29,15 +28,21 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Nowo\WikiBundle\Service\WikiInvalidIconException;
+use Nowo\WikiBundle\Service\WikiInvalidSlugException;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Service\WikiPageCreateResult;
 use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageMoveResult;
 use Nowo\WikiBundle\Service\WikiPageMoveScope;
+use Nowo\WikiBundle\Service\WikiPageNotFoundException;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Service\WikiRevisionConflictException;
+use Nowo\WikiBundle\Service\WikiRevisionMismatchException;
+use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -131,8 +136,12 @@ final readonly class WikiApiPageWriteOperations
                 // 1.35: the place counts the siblings the token's user may read, as a move; a parent alone: last.
                 ? $mover->createAt($space, $parent, $position !== null ? $position - 1 : PHP_INT_MAX, $create, new WikiPageMoveScope($this->readableIds($principal, $space), null))
                 : $create());
-        } catch (InvalidArgumentException $exception) {
-            throw $exception->getMessage() === 'Invalid page slug.' ? WikiApiRefusal::invalid('slug') : new WikiApiRefusal(409, 'WIKI_003', 'This slug is taken');
+        } catch (WikiInvalidSlugException) {
+            // 1.40.2 (audit SH-L1): the bundle's refusals only. Doctrine's ORMInvalidArgumentException is an
+            // InvalidArgumentException too: it is a server error (logged, SERVER_001), never a taken slug.
+            throw WikiApiRefusal::invalid('slug');
+        } catch (WikiSlugTakenException) {
+            throw new WikiApiRefusal(409, 'WIKI_003', 'This slug is taken');
         } catch (UniqueConstraintViolationException) {
             // Another create took the slug between the check and the insert (audit IF-I10): nothing was written.
             throw new WikiApiRefusal(409, 'WIKI_003', 'This slug is taken');
@@ -343,7 +352,8 @@ final readonly class WikiApiPageWriteOperations
             throw new WikiApiRefusal(409, 'WIKI_REVISION_CONFLICT', 'The page changed since base_revision', ['current_revision' => $conflict->currentRevision, 'updated_by' => $this->people->present($principal, $conflict->updatedBy, $page), 'updated_at' => WikiApiSerializer::ms($conflict->updatedAt)]);
         } catch (WikiRevisionCollisionException) {
             throw new WikiApiRefusal(409, 'WIKI_SAVE_COLLISION', 'Another save got there first; nothing was written', [], ['Retry-After' => '1']);
-        } catch (InvalidArgumentException) {
+        } catch (WikiPageArchivedException|WikiRevisionMismatchException) {
+            // 1.40.2 (audit SH-L1): not every InvalidArgumentException; an ORM error is a server error, not "archived".
             throw new WikiApiRefusal(409, 'WIKI_PAGE_ARCHIVED', 'This page is archived');
         }
 
@@ -379,7 +389,8 @@ final readonly class WikiApiPageWriteOperations
     {
         try {
             return $this->icons?->setIcon($page, $icon) ?? false;
-        } catch (InvalidArgumentException|TransientStorageFailure) {
+        } catch (WikiInvalidIconException|WikiPageArchivedException|WikiPageNotFoundException|TransientStorageFailure) {
+            // 1.40.2 (audit SH-L1): an ORM error is no longer reported as `not_applied`; it surfaces as a server error.
             $input->notApplied('icon');
 
             return false;
