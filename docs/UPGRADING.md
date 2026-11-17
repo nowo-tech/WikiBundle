@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.40.1](#to-1401)
 - [To 1.40.0](#to-1400)
 - [To 1.39.0](#to-1390)
 - [To 1.38.1](#to-1381)
@@ -100,6 +101,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.40.1
+
+From **1.40.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 Target: 1.40.1. With `page_icon.picker` / `space_icon.picker: icon_selector`, upgrade IconSelector to 1.8
 (`composer require nowo-tech/icon-selector-bundle:^1.8`): its picker texts then come from its own catalogue whatever
