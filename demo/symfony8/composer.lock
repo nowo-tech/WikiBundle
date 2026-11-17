@@ -2130,16 +2130,16 @@
         },
         {
             "name": "nowo-tech/icon-selector-bundle",
-            "version": "v1.6.0",
+            "version": "v1.7.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/IconSelectorBundle.git",
-                "reference": "f6d2239574d4ca13105d578920e77d70b27ee7a8"
+                "reference": "70a688e04fc2b081e98869dfe78dc6d2406cccda"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/IconSelectorBundle/zipball/f6d2239574d4ca13105d578920e77d70b27ee7a8",
-                "reference": "f6d2239574d4ca13105d578920e77d70b27ee7a8",
+                "url": "https://api.github.com/repos/nowo-tech/IconSelectorBundle/zipball/70a688e04fc2b081e98869dfe78dc6d2406cccda",
+                "reference": "70a688e04fc2b081e98869dfe78dc6d2406cccda",
                 "shasum": ""
             },
             "require": {
@@ -2166,6 +2166,7 @@
                 "phpstan/phpstan-symfony": "^2.0",
                 "phpunit/phpunit": "^11.0",
                 "rector/rector": "^2.0",
+                "symfony/asset": "^6.4 || ^7.0 || ^8.0",
                 "symfony/browser-kit": "^6.4 || ^7.0 || ^8.0",
                 "symfony/dom-crawler": "^6.4 || ^7.0 || ^8.0",
                 "symfony/http-client": "^6.4 || ^7.0 || ^8.0",
@@ -2223,8 +2224,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-16T17:57:52+00:00",
-            "published-time": "2026-11-16T21:16:33+00:00"
+            "time": "2026-11-17T05:40:11+00:00",
+            "published-time": "2026-11-17T05:42:23+00:00"
         },
         {
             "name": "nowo-tech/milkdown-editor-bundle",
@@ -2673,7 +2674,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "91ccc85b5ae72a12992a3d36ba59ec410583d307"
+                "reference": "fb13a38539480ea71f857ed8058a83d67dfa36f8"
             },
             "require": {
                 "doctrine/dbal": "^3.8.2 || ^4.0",

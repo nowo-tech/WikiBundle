@@ -242,6 +242,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: 1.40.1 (Beacon feedback on the page icon picker). No change in `src/`: the causes were in IconSelector and are
+fixed in nowo-tech/icon-selector-bundle 1.8.0.
+
+### Changed
+
+- Development and demo require nowo-tech/icon-selector-bundle `^1.8` (root `require-dev`, demo). Hosts with
+  `page_icon.picker` / `space_icon.picker: icon_selector` should upgrade IconSelector to 1.8: with 1.6 / 1.7 the
+  picker showed its untranslated keys (`search_placeholder`) because `WikiIconPickerType` sets the wiki's
+  `translation_domain`, drew Bootstrap classes on UiKit hosts, and dropped a page save made with a Save button outside
+  the form (`form="…"`, as Beacon's toolbar) while the picker was loading.
+- Demo: the IconSelector source is `ux_icons_local` (as in Symfony Beacon), with a few Bootstrap Icons committed under
+  `demo/symfony8/assets/icons/bi/`.
+
+### Added
+
+- Demo e2e `icon-picker-save.spec.ts`: page form picker in search mode with emoji and `ux_icons_local` — no raw key,
+  UiKit look and no inline style; search "robot", pick it, save, then the stored value and the tree icon; Beacon's flow
+  (text field filled and an outer Save clicked while the picker loads).
+
 ## [1.40.0] - 2026-11-17
 
 Target: 1.40.0 (minor). Section anchors and the link picker (contract "section anchors and link picker", slices W1–W4;

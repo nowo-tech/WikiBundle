@@ -101,6 +101,12 @@
 
 ## Unreleased
 
+Target: 1.40.1. With `page_icon.picker` / `space_icon.picker: icon_selector`, upgrade IconSelector to 1.8
+(`composer require nowo-tech/icon-selector-bundle:^1.8`): its picker texts then come from its own catalogue whatever
+the wiki form's `translation_domain`, it takes the UiKit look by itself (`nowo_icon_selector.theme: auto`), sets no
+inline style, and a Save button outside the page form is no longer ignored while the picker loads. No wiki
+configuration changes. 1.6 / 1.7 keep working with `picker: text` (and emoji).
+
 ## To 1.40.0
 
 From **1.39.0**:

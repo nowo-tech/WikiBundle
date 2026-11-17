@@ -1,5 +1,9 @@
 # 1.39 (nowo_wiki page_icon / space_icon .picker: icon_selector): the IconSelector picker of the page and space icon
 # fields. The wiki limits each field to space_icon.allowed_prefixes (bi in this demo, the Bootstrap Icons set of UiKit).
+# source ux_icons_local (as in Symfony Beacon): the picker offers only the SVG files committed under assets/icons/bi
+# (Bootstrap Icons, MIT, https://icons.getbootstrap.com) and makes no third-party request. IconSelector >= 1.8 picks its
+# UiKit theme on its own (theme: auto, UiKit is installed). e2e: e2e/tests/icon-picker-save.spec.ts.
 nowo_icon_selector:
     icon_sets:
         - bootstrap-icons
+    source: ux_icons_local
