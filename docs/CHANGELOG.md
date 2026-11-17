@@ -273,9 +273,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   then writes. Stock hosts (the resetter clears the managers at each request, also with `FRANKENPHP_RESET_KERNEL=false`)
   only met it when the same request purged and wrote again. Affected: 1.14.0 (the trash) to 1.40.1, in both the shared and
   the private entity manager mode (the private one is dropped at each request boundary, so there only within one unit).
-  The purge now forgets every wiki row the DQL removed, and every wiki row pointing at one (transitively), and reads the
-  surviving sub-pages again; a restore forgets the trash entries it deleted. `WorkerNoResetTrashTest` (one kernel, no
-  resetter: trash, purge, restore, move and save in turn) covers it.
+  The purge now forgets every wiki row the DQL removed, and every wiki row pointing at one (transitively); a surviving
+  sub-page gets its parent set to null in memory and in the unit of work's original data, as the DQL did in the database,
+  so its other pending changes are kept (audit SH-I1: no longer `refresh()`ed); a restore forgets the trash entries it
+  deleted. `WorkerNoResetTrashTest` (one kernel, no resetter: trash, purge, restore, move and save in turn, and the same
+  after `clear()` with the pages reloaded as lazy proxies; audit SH-I2) covers it in both entity manager modes.
+- **REST API: an ORM error answered as a business refusal (audit SH-L1).** Target: 1.40.2. The page create, save, restore
+  and icon writes caught every `InvalidArgumentException`, and Doctrine's `ORMInvalidArgumentException` is one: an ORM
+  failure answered `409 WIKI_PAGE_ARCHIVED`, `409 WIKI_003` (slug taken) or the icon `not_applied` warning, which hid the
+  purge bug above. The services now throw dedicated exceptions, all extending `InvalidArgumentException` with the same
+  messages (`Service\WikiPageArchivedException`, `WikiInvalidSlugException`, `WikiSlugTakenException`,
+  `WikiUnknownFormatException`, `WikiRevisionMismatchException`, `WikiInvalidIconException`,
+  `WikiPageNotFoundException`), and the API catches only those: an ORM error is logged and answered `500 SERVER_001`.
+  The codes and messages of the business refusals are unchanged; code that catches `InvalidArgumentException` keeps
+  working.
+
+### Documentation
+
+- UPGRADING / USAGE: host entities with a `ManyToOne(WikiPage)` in the shared entity manager and the trash purge (audit
+  SH-L2).
 
 ## [1.40.1] - 2026-11-17
 

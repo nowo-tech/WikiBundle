@@ -102,6 +102,38 @@
 
 ## Unreleased
 
+Target: 1.40.2. No configuration or schema change.
+
+- **Business refusals have their own exception classes (audit SH-L1).** `WikiPageService`, `WikiPageIconService` (and so
+  the REST API) throw `Service\WikiPageArchivedException`, `WikiInvalidSlugException`, `WikiSlugTakenException`,
+  `WikiUnknownFormatException`, `WikiRevisionMismatchException`, `WikiInvalidIconException` or
+  `WikiPageNotFoundException`. Each extends `InvalidArgumentException` with the message thrown before, so a
+  `catch (InvalidArgumentException)` keeps working; catch the new classes instead if Doctrine errors must not be read
+  as a refusal (`ORMInvalidArgumentException` is an `InvalidArgumentException` too). The REST API now answers an ORM
+  error `500 SERVER_001` (logged) instead of `409 WIKI_PAGE_ARCHIVED`, `409 WIKI_003` or the icon `not_applied` warning.
+- **Your own entities that point at wiki pages (audit SH-L2).** The trash purge deletes pages with DQL and then makes the
+  wiki's entity manager forget every wiki row it removed. It does not touch your entities: in the shared entity manager
+  mode (`database.private_entity_manager: false`), a managed entity of yours with a `ManyToOne(WikiPage)` to a purged
+  page keeps pointing at a detached page, and the next flush of that manager fails with `ORMInvalidArgumentException`
+  ("A new entity was found through the relationship …"); with a foreign key, that column needs `ON DELETE CASCADE` or
+  `SET NULL`, else the purge itself fails. This is not new in 1.40.2. In a FrankenPHP worker without the
+  services resetter, or in a long command, that manager outlives the purge. Either:
+  - store the page id (a string column, as the wiki's own collab and idempotency tables do) instead of a relation;
+  - or use `database.private_entity_manager: true`: your entities then cannot hold wiki entities of your manager;
+  - or listen to `nowo_wiki.trash.purged` (`WikiEvents::TRASH_PURGED`, dispatched after the commit; `WikiTrashEvent::$pageIds`
+    lists every purged page id) and detach (or `refresh()`) your managed rows that point at one of those pages:
+
+        #[AsEventListener(WikiEvents::TRASH_PURGED)]
+        public function onPurged(WikiTrashEvent $event): void
+        {
+            $purged = array_fill_keys($event->pageIds, true);
+            foreach ($this->em->getUnitOfWork()->getIdentityMap()[MyPageNote::class] ?? [] as $note) {
+                if (isset($purged[$note->getPage()->getId()])) {
+                    $this->em->detach($note);
+                }
+            }
+        }
+
 ## To 1.40.1
 
 From **1.40.0**:
