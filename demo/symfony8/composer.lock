@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "082a740c73aa54953639fe988606cbf5",
+    "content-hash": "f6435e3500975c409f11685bcc3fd5c8",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -2130,16 +2130,16 @@
         },
         {
             "name": "nowo-tech/icon-selector-bundle",
-            "version": "v1.6.0",
+            "version": "v1.8.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/IconSelectorBundle.git",
-                "reference": "f6d2239574d4ca13105d578920e77d70b27ee7a8"
+                "reference": "bf0bc6a4bc4f4d2838520bc643d391de920d18ab"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/IconSelectorBundle/zipball/f6d2239574d4ca13105d578920e77d70b27ee7a8",
-                "reference": "f6d2239574d4ca13105d578920e77d70b27ee7a8",
+                "url": "https://api.github.com/repos/nowo-tech/IconSelectorBundle/zipball/bf0bc6a4bc4f4d2838520bc643d391de920d18ab",
+                "reference": "bf0bc6a4bc4f4d2838520bc643d391de920d18ab",
                 "shasum": ""
             },
             "require": {
@@ -2166,6 +2166,7 @@
                 "phpstan/phpstan-symfony": "^2.0",
                 "phpunit/phpunit": "^11.0",
                 "rector/rector": "^2.0",
+                "symfony/asset": "^6.4 || ^7.0 || ^8.0",
                 "symfony/browser-kit": "^6.4 || ^7.0 || ^8.0",
                 "symfony/dom-crawler": "^6.4 || ^7.0 || ^8.0",
                 "symfony/http-client": "^6.4 || ^7.0 || ^8.0",
@@ -2223,8 +2224,8 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-16T17:57:52+00:00",
-            "published-time": "2026-11-16T21:16:33+00:00"
+            "time": "2026-11-17T07:39:18+00:00",
+            "published-time": "2026-11-17T07:40:59+00:00"
         },
         {
             "name": "nowo-tech/milkdown-editor-bundle",
@@ -2673,7 +2674,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "91ccc85b5ae72a12992a3d36ba59ec410583d307"
+                "reference": "aa09a006c036a541197a70690430a3ae27399b2c"
             },
             "require": {
                 "doctrine/dbal": "^3.8.2 || ^4.0",
@@ -2714,7 +2715,7 @@
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
                 "igor-php/igor-php": "^0.10.0",
-                "nowo-tech/icon-selector-bundle": "^1.6",
+                "nowo-tech/icon-selector-bundle": "^1.8",
                 "nowo-tech/milkdown-editor-bundle": "^1.18",
                 "nowo-tech/phpstan-frankenphp": "^1.4",
                 "phpstan/extension-installer": "^1.0",
@@ -2736,7 +2737,7 @@
             "suggest": {
                 "nowo-tech/breadcrumb-kit-bundle": "^2.17: the current crumb named after the wiki page (nowo_wiki.web_ui.breadcrumb_current_label); optional, older versions are ignored.",
                 "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
-                "nowo-tech/icon-selector-bundle": "^1.6: the visual icon picker (page_icon.picker / space_icon.picker: icon_selector) and emoji icons (page_icon.emoji / space_icon.emoji).",
+                "nowo-tech/icon-selector-bundle": "^1.6: the visual icon picker (page_icon.picker / space_icon.picker: icon_selector; ^1.8 recommended: picker texts in its own domain, UiKit theme, no submit lost while it loads) and emoji icons (page_icon.emoji / space_icon.emoji).",
                 "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.18): page links, mentions, icons, math and Mermaid, stable heading ids, section anchors and the link picker (editor.milkdown.link_picker).",
                 "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales.",
                 "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
