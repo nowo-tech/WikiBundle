@@ -15,12 +15,15 @@ use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
+use Nowo\WikiBundle\Transaction\WikiFlushObserver;
 use SortDirection;
 use Throwable;
 
 use function array_fill_keys;
 use function array_map;
 use function array_values;
+use function is_object;
+use function spl_object_id;
 
 /**
  * Doctrine trash store (1.14, T065): the `<prefix>_page_trash` table, part of the schema only with `trash.enabled`.
@@ -120,6 +123,13 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
         $entityManager->createQueryBuilder()->delete(WikiTrashEntry::class, 't')
             ->where('t.batchId = :batch')->setParameter('batch', $batchId)
             ->getQuery()->execute();
+        // 1.40.2 (REQ-RUNTIME-002): the DQL delete left the entries of the batch managed; a manager kept across
+        // requests (no services resetter) would carry them forever.
+        foreach ($entityManager->getUnitOfWork()->getIdentityMap()[WikiTrashEntry::class] ?? [] as $entry) {
+            if ($entry instanceof WikiTrashEntry && $entry->getBatchId() === $batchId) {
+                $entityManager->detach($entry);
+            }
+        }
         WikiFlusher::flush($entityManager);
     }
 
@@ -152,8 +162,66 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
 
             throw $exception;
         }
-        foreach ($pages as $page) {
-            $entityManager->detach($page);
+        $this->forgetPurged($entityManager, $ids);
+    }
+
+    /**
+     * 1.40.2 (REQ-RUNTIME-002): after the DQL deletes, the manager forgets every wiki row they removed, not only the
+     * purged pages. Up to 1.40.1 the trash entries, revisions, links and comments of the purged pages stayed managed
+     * and pointing at detached pages, and the sub-pages left in place kept their old parent: the next flush on that
+     * manager (the next wiki write in the same request or command, or of a worker whose manager is never cleared)
+     * failed with "new entity found through WikiTrashEntry#page". A wiki row that points at a forgotten one is
+     * forgotten too (comment → thread → page, label → revision → page); a page that survives the purge is read again
+     * (its parent pointer was cleared in the database). The application's entities are left as they are.
+     *
+     * @param list<string> $ids the purged page ids
+     */
+    private function forgetPurged(EntityManagerInterface $entityManager, array $ids): void
+    {
+        $purged     = array_fill_keys($ids, true);
+        $unitOfWork = $entityManager->getUnitOfWork();
+        $gone       = [];
+        $refresh    = [];
+        do {
+            $more = false;
+            foreach ($unitOfWork->getIdentityMap() as $class => $entities) {
+                if (!WikiFlushObserver::isWikiEntity($class)) {
+                    continue;
+                }
+                $metadata = $entityManager->getClassMetadata($class);
+                foreach ($entities as $entity) {
+                    $oid = spl_object_id($entity);
+                    if (isset($gone[$oid]) || isset($refresh[$oid])) {
+                        continue;
+                    }
+                    if ($entity instanceof WikiPage && isset($purged[$entity->getId()])) {
+                        $gone[$oid] = $entity;
+                        $more       = true;
+
+                        continue;
+                    }
+                    foreach ($metadata->associationMappings as $field => $mapping) {
+                        $target = $mapping->isToOne() ? $metadata->getFieldValue($entity, $field) : null;
+                        if (!is_object($target) || !(isset($gone[spl_object_id($target)]) || ($target instanceof WikiPage && isset($purged[$target->getId()])))) {
+                            continue;
+                        }
+                        if ($entity instanceof WikiPage) {
+                            $refresh[$oid] = $entity;
+                        } else {
+                            $gone[$oid] = $entity;
+                            $more       = true;
+                        }
+
+                        break;
+                    }
+                }
+            }
+        } while ($more);
+        foreach ($gone as $entity) {
+            $entityManager->detach($entity);
+        }
+        foreach ($refresh as $page) {
+            $entityManager->refresh($page);
         }
     }
 
