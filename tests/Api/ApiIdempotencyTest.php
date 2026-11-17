@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Api;
 
 use Doctrine\DBAL\Connection;
+use Nowo\TransactionDoctrine\TransientFailureKind;
+use Nowo\TransactionDoctrine\WriteUnit\ConcurrencyConflict;
 use Nowo\WikiBundle\Api\Command\WikiApiPurgeIdempotencyCommand;
 use Nowo\WikiBundle\Api\Hook\WikiApiIdempotencyStoreInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiIdempotencyListener;
@@ -14,6 +16,7 @@ use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use RuntimeException;
 use Symfony\Component\Console\Tester\CommandTester;
 
 use function hash;
@@ -79,6 +82,40 @@ final class ApiIdempotencyTest extends ApiTestCase
 
         $store->forget($scope);
         self::assertSame(0, (int) $sql->fetchOne('SELECT COUNT(*) FROM wiki_api_idempotency'));
+    }
+
+    /**
+     * Audit SR2-WK-L1: a REST write that already committed before a conflict keeps its claim and a retry with the same
+     * key replays the stored 409 (no second write); one that did not commit releases it and the retry runs.
+     */
+    public function testACommittedConflictKeepsTheClaimAndTheRetryReplaysIt(): void
+    {
+        $page = $this->page($this->eng, 'Runbook', 'one');
+        $path = '/wikis/eng/pages/' . $page->getId();
+        $body = ['content_markdown' => 'two', 'base_revision' => 1];
+        $fail = static function (bool $committed): void {
+            ApiTestHost::$race = static function () use ($committed): never {
+                throw new ConcurrencyConflict(2, TransientFailureKind::Deadlock, null, new RuntimeException('SQL secret'), $committed);
+            };
+        };
+
+        $fail(true);
+        $first = $this->call('PUT', $path, self::ANA, $body, ['Idempotency-Key' => 'k-c']);
+        $this->assertRefusal($first, 409, 'SERVER_002');
+        self::assertNull($first->headers->get('Retry-After'));
+        self::assertStringContainsString('Reload', (string) $first->getContent());
+
+        $retry = $this->call('PUT', $path, self::ANA, $body, ['Idempotency-Key' => 'k-c']);
+        self::assertSame(409, $retry->getStatusCode());
+        self::assertSame('true', $retry->headers->get('Idempotency-Replayed'));
+        self::assertSame((string) $first->getContent(), (string) $retry->getContent());
+
+        // Not committed: the claim is released and the same key runs again.
+        $fail(false);
+        $open = $this->call('PUT', $path, self::ANA, $body, ['Idempotency-Key' => 'k-u']);
+        self::assertSame(409, $open->getStatusCode());
+        self::assertSame('1', $open->headers->get('Retry-After'));
+        self::assertSame(200, $this->call('PUT', $path, self::ANA, $body, ['Idempotency-Key' => 'k-u'])->getStatusCode());
     }
 
     public function testExpiredAnswersArePurged(): void

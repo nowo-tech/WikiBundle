@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Transaction;
 
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponseContext;
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponseFormatterInterface;
+use Nowo\WikiBundle\Api\Security\WikiApiIdempotencyListener;
 use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -29,7 +30,7 @@ final readonly class WikiStorageFailureConflictFormatter implements ConflictResp
         if ($request->attributes->getBoolean(WikiApiRequestListener::ROUTE_FLAG)) {
             if ($context->committed) {
                 // Audit SR-WK-I2: keep the idempotency claim, a retry of the same key replays this answer.
-                WikiApiRequestListener::markWroteAnyway($request);
+                WikiApiIdempotencyListener::keepClaim($request);
             }
 
             return new JsonResponse(['err' => $context->message, 'ECODE' => 'SERVER_002'], $context->status);

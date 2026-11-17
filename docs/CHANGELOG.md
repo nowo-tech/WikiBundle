@@ -8,7 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
-- [[1.42.0] - 2026-11-18](#1420---2026-11-18)
   - [Changed](#changed)
   - [Added](#added)
 - [[1.41.0] - 2026-11-17](#1410---2026-11-17)
@@ -257,12 +256,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.42.0] - 2026-11-18
-
 ### Changed
 
 - **Transient storage failures answer 409 + `Retry-After` (was 503).** Owner platform decision (final lock conflict = 409 + `Retry-After`). `WikiStorageFailureSubscriber` reads the status and the default `Retry-After` from nowo-tech/transaction-doctrine 1.3's shared `ConflictResponsePolicy` (service `nowo_transaction_doctrine.conflict_response_policy`, injected optionally; `new ConflictResponsePolicy()`, 409 and 1 s, when the host does not register that bundle). The REST API keeps `{"err", "ECODE": "SERVER_002"}` and the internal JSON endpoints `{"error": "unavailable"}`; the HTML pages get `$policy->httpException(…)` instead of a `ServiceUnavailableHttpException`. A `ConcurrencyConflict` with `committed: true` anywhere in the chain gets the same status but **no** `Retry-After` and the message "Part of your change may have been saved. Reload before trying again.". The unique-key 409 (`WIKI_CONFLICT`, `{"error": "conflict"}`) is unchanged. `nowo_transaction_doctrine.conflict_response.status: 503` keeps 503. See [UPGRADING](UPGRADING.md#to-1420).
 - `nowo-tech/transaction-doctrine` requirement raised to `^1.3`.
+- A REST write that already committed before a conflict (`ConcurrencyConflict` with `committed: true`) keeps its `Idempotency-Key` claim: the stored 409 answer is replayed on a retry with the same key (`Idempotency-Replayed: true`) instead of writing again. A conflict that did not commit releases the claim, so the retry runs.
 
 ### Added
 

@@ -9,6 +9,7 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponsePolicy;
 use Nowo\TransactionDoctrine\WriteUnit\ConcurrencyConflict;
+use Nowo\WikiBundle\Api\Security\WikiApiIdempotencyListener;
 use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -84,7 +85,7 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
             $policy = $this->policy ?? new ConflictResponsePolicy();
             if (self::committed($failure)) {
                 // Audit SR-WK-I2: keep the idempotency claim, a retry of the same key replays this answer.
-                WikiApiRequestListener::markWroteAnyway($request);
+                WikiApiIdempotencyListener::keepClaim($request);
                 $event->setResponse(WikiApiRequestListener::answer(new WikiApiRefusal($policy->status, 'SERVER_002', self::PARTIAL_MESSAGE)));
 
                 return;

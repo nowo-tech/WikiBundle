@@ -3,7 +3,6 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
-- [To 1.42.0](#to-1420)
 - [To 1.41.0](#to-1410)
 - [To 1.40.2](#to-1402)
 - [To 1.40.1](#to-1401)
@@ -104,8 +103,6 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
-
-## To 1.42.0
 
 From **1.41.0**:
 
