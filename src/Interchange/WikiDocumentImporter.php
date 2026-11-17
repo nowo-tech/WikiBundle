@@ -13,7 +13,10 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Service\WikiInvalidIconException;
+use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Service\WikiPageIconService;
+use Nowo\WikiBundle\Service\WikiPageNotFoundException;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use Psr\Log\LoggerInterface;
@@ -333,8 +336,9 @@ final readonly class WikiDocumentImporter
         try {
             // @igor-ignore - WikiPageIconService is stateless: setIcon() writes the page row, the service keeps nothing.
             $this->icons->setIcon($page, $icon);
-        } catch (InvalidArgumentException|TransientStorageFailure) {
-            // Audit QY-L2: the page is imported (committed); only its icon is missing.
+        } catch (WikiInvalidIconException|WikiPageArchivedException|WikiPageNotFoundException|TransientStorageFailure) {
+            // Audit QY-L2: the page is imported (committed); only its icon is missing. 1.41 (audit SM-I2): only the icon
+            // service's refusals, not every InvalidArgumentException (an ORM error is not a missing icon).
             $report->addMessage(sprintf('Could not save the icon of page "%s"; the page was imported without it.', $page->getSlug()));
         }
     }

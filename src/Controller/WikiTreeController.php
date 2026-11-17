@@ -45,7 +45,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function array_shift;
-use function array_slice;
+use function count;
 use function in_array;
 use function is_array;
 use function is_bool;
@@ -380,7 +380,8 @@ final class WikiTreeController extends AbstractController
      */
     private function duplicate(UserInterface $user, WikiSpace $space, WikiPage $page): JsonResponse
     {
-        if (!$this->duplicator instanceof WikiPageDuplicator || !isset($this->routes['page_view'])) {
+        // Audit SM-I3: a host without the new-page route (no page creation in the UI) gets no copies either.
+        if (!$this->duplicator instanceof WikiPageDuplicator || !isset($this->routes['page_view'], $this->routes['page_new'])) {
             throw new NotFoundHttpException('Not found.');
         }
         $parent = $page->getParent();
@@ -395,7 +396,8 @@ final class WikiTreeController extends AbstractController
         // The copy keeps the suffix within the title column (as the history's copy, audit DT-I2).
         $suffix = $this->trans('wiki.tree_menu.copy_suffix');
         $title  = rtrim(mb_substr($page->getTitle(), 0, self::MAX_TITLE - mb_strlen($suffix) - 1)) . ' ' . $suffix;
-        $scope  = new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), $parent?->getId());
+        // Audit SM-L1: the scope carries the parent checked above; a page moved since then answers 409 `stale`.
+        $scope = new WikiPageMoveScope($this->readableIds($user, $space, $this->pageRepository->findActiveBySpace($space)), $parent?->getId());
         try {
             $copy = $this->duplicator->duplicate($page, $title, $user, $scope)->page;
         } catch (WikiPageMoveException $exception) {
@@ -436,13 +438,14 @@ final class WikiTreeController extends AbstractController
                 $visible[] = $candidate;
             }
         }
-        $max     = max(1, $this->pagination['max_tree_pages'] ?? 500);
-        $tree    = ($this->treeBuilder ?? new WikiPageTreeBuilder())->build(array_slice($visible, 0, $max));
+        $max = max(1, $this->pagination['max_tree_pages'] ?? 500);
+        // Audit SM-I4: the whole tree first, then the cap, so the page's own sub-tree is always left out.
+        $tree    = ($this->treeBuilder ?? new WikiPageTreeBuilder())->build($visible);
         $parents = [];
-        $walk    = function (array $nodes, int $depth) use (&$walk, &$parents, $user, $space, $page): void {
+        $walk    = function (array $nodes, int $depth) use (&$walk, &$parents, $user, $space, $page, $max): void {
             foreach ($nodes as $node) {
                 /** @var array{page: WikiPage, children: list<array{page: WikiPage, children: list<mixed>}>} $node */
-                if ($node['page'] === $page) {
+                if ($node['page'] === $page || count($parents) >= $max) {
                     // The page's own sub-tree: a move there would be a cycle.
                     continue;
                 }

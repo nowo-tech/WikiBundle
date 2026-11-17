@@ -12,7 +12,7 @@
 - [Space icon (1.32)](#space-icon-132)
 - [Icon picker, emoji icons and the tree menu (1.39)](#icon-picker-emoji-icons-and-the-tree-menu-139)
   - [Tree menu entries (1.41)](#tree-menu-entries-141)
-  - [Focus mode (1.41, UiKit >= 2.54)](#focus-mode-141-uikit--254)
+  - [Focus mode (1.41, UiKit >= 2.55)](#focus-mode-141-uikit--255)
 - [New page dialog and tree menu (1.35)](#new-page-dialog-and-tree-menu-135)
 - [Member badges and write provenance](#member-badges-and-write-provenance)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
@@ -290,17 +290,17 @@ nowo_wiki:
 | Change icon / emoji | the same, with `page_icon.form_field` | The page icon field (IconSelector's picker with `page_icon.picker: icon_selector`). |
 | Add child page | create role + Create, and the edit rights | The new-page dialog (or form) placed as the last child. |
 | New page above / below | the same (not on a row whose parent is archived) | The new page right above / below the row. |
-| Duplicate | the same | A copy of the page (current revision, icon, title "… (copy)") right below it, then the copy opens. The page only, not its sub-pages. |
+| Duplicate | the same, with the `page_new` route | A copy of the page (current revision, icon, title "… (copy)") right below it, then the copy opens. The page only, not its sub-pages, history, comments or attachments. The copy has the readers of its place in the tree: host access rules are not copied; listen to `nowo_wiki.page.duplicated` (`WikiPageDuplicatedEvent`: source, copy, actor) to copy yours. A page moved by someone else meanwhile answers 409. |
 | Move up / Move down | a movable tree (edit rights), where a sibling is on that side | The tree's Alt+arrow move. |
 | Move to… | a movable tree | A dialog with the parents the "Move" form offers (never the page's own sub-tree); the tree's move. |
 | Copy link | anyone who gets the menu | The page address to the clipboard. |
 | Archive | archive role + Archive on the space | After a confirmation; the row leaves the tree and an undo line offers **Unarchive**. |
-| Delete | `trash.enabled`, archive role + Delete on the space | After a confirmation that says how many pages go; the page and its sub-pages go to the trash (restore from the trash). |
+| Delete | `trash.enabled`, archive role + Delete on the space | After a confirmation; the page and **all** its sub-pages go to the trash as one deletion (restore from the trash), archived ones and those the user cannot see included. The count in the confirmation is the sub-pages the user can see, and says so. |
 
 The marks are decided once per page view (audit PT-L4); every endpoint checks the page itself again (403 / 404) and
 answers a sentence the menu shows. A move that lost a race answers 409, a page archived or trashed meanwhile 410.
 
-### Focus mode (1.41, UiKit >= 2.54)
+### Focus mode (1.41, UiKit >= 2.55)
 
 With UiKit's shell focus mode on (`nowo_ui_kit.theme.focus_mode.enabled: true`; `keep` lists what stays, e.g.
 `[breadcrumb_min, search, timer_chip]`), the page view and the page edit form show the focus toggle in their toolbar,

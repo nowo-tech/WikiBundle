@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * 1.41 — focus mode of the UiKit shell (UiKit >= 2.54, theme.focus_mode). The demo's UiKit has no focus mode yet: the
+ * 1.41 — focus mode of the UiKit shell (UiKit >= 2.55, theme.focus_mode). The demo's UiKit has no focus mode yet: the
  * wiki then prints neither the toggle nor the "Pages" drawer button, and the tree keeps its place in the layout.
  * When UiKit is tagged, this file also covers the toggle (area "wiki") and the tree drawer.
  */

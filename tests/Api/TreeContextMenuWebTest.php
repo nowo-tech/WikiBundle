@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api;
 
+use Doctrine\DBAL\Connection;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
 use Nowo\WikiBundle\Enum\WikiAction;
@@ -12,6 +13,7 @@ use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Symfony\Component\HttpFoundation\Response;
 
 use function array_column;
+use function assert;
 use function json_encode;
 use function preg_match;
 
@@ -122,6 +124,29 @@ final class TreeContextMenuWebTest extends ApiTestCase
         // Every later write on the same kernel still works (REQ-RUNTIME-002).
         self::assertSame(200, $this->post('rename', ['page' => $other->getId(), 'title' => 'Other renamed'], $token)->getStatusCode());
         self::assertSame('Other renamed', $this->fresh($other)->getTitle());
+    }
+
+    /**
+     * Audit SM-L1 (P5): the page is moved by someone else between the Edit check on its parent and the space lock: the
+     * copy is not written under a parent the user was never checked against, the answer is 409 `stale`.
+     */
+    public function testADuplicateThatLostTheRaceToAMoveIsAConflict(): void
+    {
+        $parent            = $this->page($this->eng, 'P', 'p');
+        $child             = $this->page($this->eng, 'C', 'c', $parent);
+        $token             = $this->treeToken($this->signedInPage($this->ana));
+        $id                = $child->getId();
+        ApiTestHost::$race = static function (WikiPage $target) use ($id): void {
+            $connection = static::getContainer()->get('doctrine.dbal.default_connection');
+            assert($connection instanceof Connection);
+            $connection->executeStatement('UPDATE wiki_pages SET parent_id = NULL WHERE id = ?', [$id]);
+        };
+
+        $answer = $this->post('duplicate', ['page' => $child->getId()], $token);
+        self::assertSame(409, $answer->getStatusCode(), (string) $answer->getContent());
+        self::assertSame('stale', $this->json($answer)['error']);
+        $this->wikiEm()->clear();
+        self::assertCount(2, $this->wikiEm()->getRepository(WikiPage::class)->findAll(), 'no copy');
     }
 
     private function signedInPage(TestUserEntity $user): string

@@ -76,7 +76,7 @@
     {% set _in_card = _read and (_layout.toolbar_position ?? 'header') == 'card' %}
     {% set _host_toolbar %}{% if page.header.tabs and not _in_card %}{{ block('wiki_page_header_toolbar') }}{% endif %}{% endset %}
     {#- 1.33 read layout with tree_collapsed_mode: hidden: the tree's expand button in the toolbar -#}
-    {#- 1.41: then the focus mode toggle (UiKit >= 2.54, else nothing) -#}
+    {#- 1.41: then the focus mode toggle (UiKit >= 2.55, else nothing) -#}
     {% set _tree_toggle %}{% if _read and not _in_card and tree_rail|default(null) and (_layout.tree_collapsed_mode ?? 'rail') == 'hidden' %}{{ include('@NowoWikiBundle/manage/_tree_toggle.html.twig', {tree_rail: tree_rail, bundle: page.bundle}, false) }}{% endif %}{% if not _in_card %}{{ include('@NowoWikiBundle/manage/_focus_toggle.html.twig', {bundle: page.bundle, tree: _read and tree|default([]) is not empty}, false) }}{% endif %}{% endset %}
     {#- 1.29 web_ui.page_header.layout: compact = tabs and actions in the header, one row (no tab row) -#}
     {% if ((_layout.page_header ?? 'stacked') == 'compact' or _tabs_toolbar or _in_card) and page.header.tabs %}

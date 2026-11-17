@@ -37,6 +37,9 @@ final class WikiEvents
     /** {@see WikiPageMovedEvent}: a page was moved in the page tree (1.14). */
     public const PAGE_MOVED = 'nowo_wiki.page.moved';
 
+    /** {@see WikiPageDuplicatedEvent}: the tree menu's Duplicate wrote a copy of a page (1.41). */
+    public const PAGE_DUPLICATED = 'nowo_wiki.page.duplicated';
+
     /** {@see WikiTrashEvent}: a page and its sub-pages were moved to the trash (1.14). */
     public const PAGE_TRASHED = 'nowo_wiki.page.trashed';
 

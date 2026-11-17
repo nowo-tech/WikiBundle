@@ -267,14 +267,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `POST tree/delete`: the trash (`trash.enabled`; without it there is no Delete entry and Archive is the way to take a
     page out, as on the page view), canArchive() and `WikiAction::Delete`. `preview: true` answers the count and the
     sentence of the confirm dialog: the pages the user may read (as the trash list, audit DO-I2). The page and all its
-    sub-pages go to the trash in one deletion.
+    sub-pages go to the trash in one deletion, archived ones and those the user cannot see included; the sentence says
+    the count is of the sub-pages the user can see (audit SM-L2).
   - `POST tree/duplicate` (`Service\WikiPageDuplicator`): canCreate() and canEdit(), Create on the space and Edit on
     the parent (a placed new page, audit PT-L2), the host's quota (`page_create`). The copy holds the current revision
     (body and format), the icon, the title with a translated "(copy)" suffix and the slug `<slug>-copy` (`-copy-2`, …),
-    right below the page, under the space lock of the tree writes. **The page only** (owner default): the service's
-    `$withChildren` variant (readable sub-pages, at most 200 pages) is not exposed.
+    right below the page, under the space lock of the tree writes; a page moved by someone else after the parent check
+    answers 409 `stale` (audit SM-L1). Needs the `page_new` route too (audit SM-I3). **The page only** (owner default):
+    the service's `$withChildren` variant (readable sub-pages, at most 200 pages) is not exposed. The copy has the
+    readers of its place; host access rules are not copied: the new `nowo_wiki.page.duplicated` event
+    (`Event\WikiPageDuplicatedEvent`: source, copy, actor) lets a host copy them (audit SM-I1).
   - `POST tree/parents`: the parents "Move to…" offers, with the rules of the "Move" form (pages of the tree the user may
-    edit, outside the page's sub-tree, the top level with Edit on the space). The move itself is the tree's `move`
+    edit, outside the page's sub-tree, the top level with Edit on the space; the whole tree is built before the
+    `pagination.max_tree_pages` cap, audit SM-I4). The move itself is the tree's `move`
     endpoint (a cycle answers `422 cycle`); Move up / Move down are the tree's Alt+arrow moves.
   - Every write is POST, JSON, same origin, with the tree's CSRF token, and goes through the existing services
     (`WikiPageService`, `WikiTrashService`, `WikiPageMover`): their locks, transactions, revisions and events.
@@ -282,7 +287,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the menu (WAI-ARIA menu, focus back on the row), and a **long press** (500 ms, cancelled by moving the finger) on touch
   screens; the click that ends a long press does not follow the row's link.
 - Translations of the new texts in the 7 locales.
-- **Focus mode (Beacon request; UiKit >= 2.54).** The page view and the page edit form print UiKit's
+- **Focus mode (Beacon request; UiKit >= 2.55).** The page view and the page edit form print UiKit's
   `focus_mode_toggle` partial in their toolbar with the area `wiki` (`data-nowo-ui-focus-area="wiki"`), after the tree
   toggle. In focus mode (the shell's `data-focus-mode`) the page tree leaves the layout and becomes a drawer at the
   start edge, opened and closed by a "Pages" button (`aria-expanded`, Escape, a click outside; `wiki.js`), so it is
@@ -291,6 +296,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Requires `nowo-tech/ui-kit-bundle` **^2.54** (was ^2.48). The focus toggle still uses `ignore_missing`: UiKit's focus
+  mode partial ships in 2.55.
 - The tree's `move` endpoint answers **409** (was 422) when the page was moved by someone else meanwhile (`stale`); the
   other refusals stay 422. The tree script only reads whether the answer is OK.
 - `WikiTrashService::delete()` refuses a page that is already in the trash (`Service\WikiPageArchivedException`, "The
@@ -305,7 +312,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flash, "import failed"). They now catch the dedicated classes only: the page service's 1.40.2 exceptions, the new
   `ValueObject\WikiInvalidPlacementException` (`WikiPagePlacement`) and `Interchange\WikiInterchangeException` (every
   refusal of the import / export readers and archive helper). `WikiSlugger::slugify()` throws
-  `WikiInvalidSlugException`. All extend `InvalidArgumentException` with the same messages.
+  `WikiInvalidSlugException`. All extend `InvalidArgumentException` with the same messages. The importer's icon step catches the
+  icon service's refusals only (audit SM-I2); its per-document catch stays as it is (a document refused for any reason
+  is counted as failed).
 
 ## [1.40.2] - 2026-11-17
 

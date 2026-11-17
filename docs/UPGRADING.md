@@ -105,6 +105,8 @@
 
 Target: **1.41.0**. Nothing changes unless `tree.context_menu: true` (opt-in since 1.39).
 
+- **UiKit ^2.54.** `composer update nowo-tech/ui-kit-bundle` (the wiki now requires `^2.54`, was `^2.48`).
+
 - **More entries in the tree menu.** With `tree.context_menu: true` the menu also offers Open in new tab, Edit, New page
   above / below (two entries, also without `web_ui.new_page_dialog`), Duplicate, Move up / down / to…, Archive (with an
   Unarchive undo) and, with `trash.enabled`, Delete. Users see an entry only with the rights of the matching page:
@@ -119,7 +121,7 @@ Target: **1.41.0**. Nothing changes unless `tree.context_menu: true` (opt-in sin
   `tree_menu.move_form` (the "Move to…" parent field); without `items` the template renders the 1.40 entries. The
   entry `below` is now labelled "New page below" and `above` ("New page above") is rendered without the new-page
   dialog too.
-- **Focus mode.** With nowo-tech/ui-kit-bundle >= 2.54 and `nowo_ui_kit.theme.focus_mode.enabled: true`, the page view
+- **Focus mode.** With nowo-tech/ui-kit-bundle >= 2.55 (focus mode) and `nowo_ui_kit.theme.focus_mode.enabled: true`, the page view
   and edit form show the focus toggle (area `wiki`); in focus mode the page tree is a drawer behind a "Pages" button.
   Nothing to configure in the wiki; with an older UiKit nothing changes.
 - **`stale` moves answer 409.** A script that calls the tree's `move` endpoint and tests for `422` on a lost race should

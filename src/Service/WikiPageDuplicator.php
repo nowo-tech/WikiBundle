@@ -7,8 +7,11 @@ namespace Nowo\WikiBundle\Service;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiPageDuplicatedEvent;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 use function rtrim;
 use function sprintf;
@@ -22,7 +25,8 @@ use const PHP_INT_MAX;
  * given by the caller, same body and format: a new page with its own first revision, so the history starts again),
  * its icon, and goes right below the page under the same parent, written by {@see WikiPageMover::createNextTo()}: the
  * space lock, the sibling ordering and the depth limit of every tree write, the page service's create (revision,
- * events). Its slug is the page's slug with `-copy` (`-copy-2`, `-copy-3`, … when taken), chosen under the space lock.
+ * events), then {@see WikiEvents::PAGE_DUPLICATED} (1.41, audit SM-I1: the copy has the readers of its place; host access
+ * rules are not copied). Its slug is the page's slug with `-copy` (`-copy-2`, `-copy-3`, … when taken), chosen under the space lock.
  *
  * Owner default (1.41): the page only, not its sub-pages. `$withChildren` (not exposed by any endpoint) also copies the
  * active sub-pages the actor may read (`$scope`), each under its copy, last place, at most {@see self::MAX_PAGES} pages;
@@ -45,6 +49,7 @@ final readonly class WikiPageDuplicator
         private WikiSlugger $slugger,
         private ?WikiPageIconService $icons = null,
         private int $maxPages = self::MAX_PAGES,
+        private ?EventDispatcherInterface $dispatcher = null,
     ) {
     }
 
@@ -66,8 +71,9 @@ final readonly class WikiPageDuplicator
     {
         $space  = $page->getSpace();
         $create = fn (): WikiPage => $this->copy($page, $title, $page->getParent(), $actor);
-        $result = $this->mover->createNextTo($space, $page, true, $create, $scope);
-        $this->copyIcon($page, $result->page);
+        // Audit SM-L1: with a scope, its parent id is the parent the caller checked; a page moved since then is `stale`.
+        $result = $this->mover->createNextTo($space, $page, true, $create, $scope, true);
+        $this->copied($page, $result->page, $actor);
 
         if ($withChildren) {
             $written = 1;
@@ -87,7 +93,7 @@ final readonly class WikiPageDuplicator
                 return;
             }
             $copy = $this->mover->createAt($to->getSpace(), $to, PHP_INT_MAX, fn (): WikiPage => $this->copy($child, $child->getTitle(), $to, $actor), $scope)->page;
-            $this->copyIcon($child, $copy);
+            $this->copied($child, $copy, $actor);
             ++$written;
             $this->copyChildren($child, $copy, $actor, $scope, $written, $seen + [$child->getId() => true]);
         }
@@ -137,6 +143,13 @@ final readonly class WikiPageDuplicator
         }
 
         return $slug;
+    }
+
+    /** After a copy committed: its icon, then {@see WikiEvents::PAGE_DUPLICATED} (the host may copy its access rules). */
+    private function copied(WikiPage $source, WikiPage $copy, object $actor): void
+    {
+        $this->copyIcon($source, $copy);
+        $this->dispatcher?->dispatch(new WikiPageDuplicatedEvent($source, $copy, $actor), WikiEvents::PAGE_DUPLICATED);
     }
 
     /**

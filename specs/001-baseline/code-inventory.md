@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-11-17 (every file of `src/` mapped after reading it, including 1.22 to 1.41; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 517)
+**Last audited**: 2026-11-17 (every file of `src/` mapped after reading it, including 1.22 to 1.41; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 518)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -81,6 +81,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Event/WikiEditorOptionsEvent.php` | Host options for the page editor, before it is built | FR-EVT-002 |
 | `Event/WikiEvents.php` | Domain events | FR-EVT-001 |
 | `Event/WikiPageCreatedEvent.php` | After a page was created | FR-EVT-002 |
+| `Event/WikiPageDuplicatedEvent.php` | 1.41: after the tree menu's Duplicate wrote a copy (source, copy), for host access rules | FR-EVT-002 |
 | `Event/WikiPageRestoredEvent.php` | After an old revision was restored as a new one | FR-EVT-002 |
 | `Event/WikiPageUnarchivedEvent.php` | After a page was unarchived | FR-EVT-002 |
 | `Event/WikiQuotaCheckEvent.php` | Cancellable check before a metered write (1.21) | FR-EVT-003 |

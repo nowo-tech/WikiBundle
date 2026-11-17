@@ -54,7 +54,6 @@ use Throwable;
 
 use function array_column;
 use function array_map;
-use function count;
 use function json_decode;
 use function json_encode;
 use function mb_strlen;
@@ -343,6 +342,13 @@ final class WikiTreeControllerMenuActionsTest extends TestCase
         $this->controller(withDuplicator: false)->tree($this->post(['page' => $this->run->getId()]), 'eng', 'duplicate');
     }
 
+    /** Audit SM-I3: a host without the new-page route gets no copies either. */
+    public function testDuplicateNeedsTheNewPageRoute(): void
+    {
+        $this->expectException(NotFoundHttpException::class);
+        $this->controller(routes: ['page_view' => ['path' => '/', 'name' => 'nowo_wiki_page_view']])->tree($this->post(['page' => $this->run->getId()]), 'eng', 'duplicate');
+    }
+
     public function testParentsAreTheMoveFormsChoices(): void
     {
         $deep   = $this->page('Deep', $this->run);
@@ -362,7 +368,7 @@ final class WikiTreeControllerMenuActionsTest extends TestCase
 
         // A capped tree offers its first pages only.
         $capped = $this->json($this->controller(pagination: ['max_tree_pages' => 2])->tree($this->post(['page' => $this->guide->getId()]), 'eng', 'parents'));
-        self::assertLessThan(2, count($capped['parents']));
+        self::assertCount(2, $capped['parents']);
     }
 
     public function testAMoveThatLostARaceIsAConflictAndACycleIsRefused(): void
@@ -489,6 +495,7 @@ final class WikiTreeControllerMenuActionsTest extends TestCase
             quota: new WikiQuotaGate($dispatcher),
             routes: $routes ?? [
                 'page_view'      => ['path' => '/', 'name' => 'nowo_wiki_page_view'],
+                'page_new'       => ['path' => '/', 'name' => 'nowo_wiki_page_new'],
                 'page_archive'   => ['path' => '/', 'name' => 'nowo_wiki_page_archive'],
                 'page_unarchive' => ['path' => '/', 'name' => 'nowo_wiki_page_unarchive'],
             ],

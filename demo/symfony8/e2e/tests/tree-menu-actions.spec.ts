@@ -146,7 +146,7 @@ test.describe('Tree menu: page actions (1.41)', () => {
     // Delete from the copy's own page: the count in the confirmation, then back to the space.
     await page.goto(copyUrl);
     await choose(page, copyName, 'Delete');
-    await expect(page.getByTestId('wiki-tree-confirm-message')).toHaveText(`“${copyName}” and 0 sub-page(s) will go to the trash. You can restore them from the trash.`);
+    await expect(page.getByTestId('wiki-tree-confirm-message')).toHaveText(`“${copyName}” and all its sub-pages (0 that you can see, and any you cannot see) will go to the trash. You can restore them from the trash.`);
     await page.getByTestId('wiki-tree-confirm-ok').click();
     await expect(page).toHaveURL(new RegExp(`${space}$`));
     await expect(item(page, copyName)).toHaveCount(0);

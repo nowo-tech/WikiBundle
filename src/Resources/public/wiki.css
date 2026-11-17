@@ -1465,7 +1465,7 @@ a.nowo-wiki-page-nav__link:focus-visible {
   }
 }
 
-/* 1.41 focus mode (UiKit >= 2.54, the shell's data-focus-mode): the page tree leaves the layout and becomes a drawer at
+/* 1.41 focus mode (UiKit >= 2.55, the shell's data-focus-mode): the page tree leaves the layout and becomes a drawer at
    the start edge, closed until the "Pages" button opens it (data-wiki-drawer-open, wiki.js). Nothing changes outside
    focus mode, nor with a UiKit without it (the attribute is never set). */
 .nowo-wiki-focus-tree-toggle {

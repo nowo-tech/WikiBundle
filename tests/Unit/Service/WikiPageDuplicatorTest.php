@@ -10,6 +10,8 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiPageDuplicatedEvent;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
@@ -74,6 +76,25 @@ final class WikiPageDuplicatorTest extends TestCase
         self::assertSame(3, $result->count);
         self::assertGreaterThan($first->getPosition(), $result->page->getPosition());
         self::assertLessThan($second->getPosition(), $result->page->getPosition());
+    }
+
+    /** Audit SM-I1: one event per copy (source, copy, actor), for the host's access rules. */
+    public function testEveryCopyIsAnnounced(): void
+    {
+        $root       = $this->service->create($this->space, 'Root', 'r', $this->user);
+        $child      = $this->service->create($this->space, 'Child', 'c', $this->user, $root);
+        $seen       = [];
+        $dispatcher = new EventDispatcher();
+        $dispatcher->addListener(WikiEvents::PAGE_DUPLICATED, static function (WikiPageDuplicatedEvent $event) use (&$seen): void {
+            $seen[] = [$event->source->getTitle(), $event->copy->getTitle(), $event->actorId(), $event->spaceId(), $event->sourceSnapshot()->id, $event->copySnapshot()->id];
+        });
+        $duplicator = new WikiPageDuplicator($this->service, new WikiPageMover($this->repository, $this->repository), $this->repository, new WikiSlugger(), null, WikiPageDuplicator::MAX_PAGES, $dispatcher);
+        $copy       = $duplicator->duplicate($root, 'Root (copy)', $this->user, null, true)->page;
+
+        self::assertCount(2, $seen);
+        self::assertSame(['Root', 'Root (copy)', $this->user->getUserIdentifier(), $this->space->getId(), $root->getId(), $copy->getId()], $seen[0]);
+        self::assertSame(['Child', 'Child'], [$seen[1][0], $seen[1][1]]);
+        self::assertSame($child->getId(), $seen[1][4]);
     }
 
     public function testAnIconRefusedOnTheCopyLeavesTheCopyWithoutIt(): void

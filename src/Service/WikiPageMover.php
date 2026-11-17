@@ -153,13 +153,15 @@ final readonly class WikiPageMover
      * @param bool $after true: right below the sibling; false: right above it
      * @param callable(): WikiPage $create writes the page under the sibling's parent
      * @param WikiPageMoveScope|null $scope what the actor sees (for the answer's index only)
+     * @param bool $scopeParent 1.41 (audit SM-L1): the scope's parent id is the parent the caller checked (compared after
+     *                          the lock, as a move's, DI-I2) instead of the sibling's parent as the caller holds it now
      *
      * @throws WikiPageMoveException `page_missing` when the sibling is gone, archived or of another space, `stale` when its
      *                               parent changed since the caller checked it, `too_deep`; nothing is written
      */
-    public function createNextTo(WikiSpace $space, WikiPage $sibling, bool $after, callable $create, ?WikiPageMoveScope $scope = null): WikiPageCreateResult
+    public function createNextTo(WikiSpace $space, WikiPage $sibling, bool $after, callable $create, ?WikiPageMoveScope $scope = null, bool $scopeParent = false): WikiPageCreateResult
     {
-        $checkedParent = $sibling->getParent()?->getId();
+        $checkedParent = $scopeParent && $scope instanceof WikiPageMoveScope ? $scope->fromParentId : $sibling->getParent()?->getId();
 
         return $this->locked($space, function (array $byId, callable $parentOf) use ($space, $sibling, $after, $create, $scope, $checkedParent): WikiPageCreateResult {
             $current = $byId[$sibling->getId()] ?? null;
