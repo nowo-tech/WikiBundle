@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f6435e3500975c409f11685bcc3fd5c8",
+    "content-hash": "31f6ec0058370e675c735120644b0e00",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -2674,7 +2674,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "aa09a006c036a541197a70690430a3ae27399b2c"
+                "reference": "c2966cc6d71867541583348968ce5a1ccf59f9b8"
             },
             "require": {
                 "doctrine/dbal": "^3.8.2 || ^4.0",

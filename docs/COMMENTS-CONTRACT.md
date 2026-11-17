@@ -4,6 +4,23 @@ Status: **v1.1, 2026-11-03 — OK'd by Beacon** (answers in section 9). Owner: W
 Related: `.uic-work/milkdown-1.6/CONTRACT.md` (Milkdown 1.6 comments: anchor v1, JS API, thread component,
 endpoints 6.1, and the WikiBundle review in that file, which this contract builds on).
 
+## Table of contents
+
+- [0. Principles](#0-principles)
+- [1. Page tabs](#1-page-tabs)
+- [2. The aside](#2-the-aside)
+- [3. Open / closed state per user](#3-open--closed-state-per-user)
+- [4. Rights (checker actions)](#4-rights-checker-actions)
+- [5. Endpoints](#5-endpoints)
+- [6. Milkdown 1.6 component in the aside](#6-milkdown-16-component-in-the-aside)
+- [7. Storage (unchanged from the WikiBundle review)](#7-storage-unchanged-from-the-wikibundle-review)
+- [8. Events (PHP)](#8-events-php)
+- [9. Beacon's answers (2026-11-03, contract OK'd)](#9-beacons-answers-2026-11-03-contract-okd)
+- [Changelog of this contract](#changelog-of-this-contract)
+- [Addendum (2026-11-04): avatars in 1.16](#addendum-2026-11-04-avatars-in-116)
+- [Addendum (2026-11-04): search must ignore directive markers](#addendum-2026-11-04-search-must-ignore-directive-markers)
+- [Implementation note (1.16.0, after Beacon's PR review of 2026-11-04)](#implementation-note-1160-after-beacons-pr-review-of-2026-11-04)
+
 ## 0. Principles
 
 - **Opt-in.** `nowo_wiki.comments.enabled: false` by default: no toggle, no aside, no routes, no tables. The one

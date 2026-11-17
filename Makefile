@@ -1,6 +1,6 @@
 # Wiki Bundle - Development
 SHELL := /bin/bash
-.PHONY: check-section-links check-seamless-swap check-new-page-menu check-read-layout check-edit-view help up down build clean shell install test test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
+.PHONY: check-section-links check-seamless-swap check-new-page-menu check-read-layout check-edit-view help up down build clean shell install test test-with-db test-coverage-with-db test-coverage coverage-php-percent cs-check cs-fix qa assets assets-build assets-watch assets-test test-ts test-coverage-100 setup-hooks twig-lint ensure-up rector rector-dry phpstan igor release-check release-check-demos demo-smoke composer-sync update validate validate-translations check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history check-twig-extra check-no-raw-html-form
 
 COMPOSE_FILE ?= docker-compose.yml
 # Prefer Compose V2; absolute docker path avoids shadowing by local docker/ (REQ-MAKE-010).
@@ -57,6 +57,8 @@ help:
 	@echo "  check-no-cursor-coauthor  REQ-GIT-001 commit trailer check"
 	@echo "  setup-hooks     Install .githooks (commit-msg)"
 	@echo "  demo-smoke      REQ-TEST-011: boot demo and assert HTTP 200"
+	@echo "  test-with-db    REQ-TEST-005: database + api suites (WIKI_TEST_DATABASE_URL for MySQL/PostgreSQL)"
+	@echo "  test-coverage-with-db  the same suites with coverage"
 	@echo ""
 	@echo "Demos:"
 	@echo "  make -C demo up | down | update-bundle | release-check"
@@ -107,6 +109,18 @@ test-ts: ensure-up
 test: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer install --no-interaction
 	$(COMPOSE) exec $(SERVICE_PHP) composer test
+
+# REQ-TEST-005: the `database` and `api` suites (SQLite by default, as in CI's base job). Point them at MySQL or
+# PostgreSQL with `make test-with-db WIKI_TEST_DATABASE_URL=mysql://...` (CI runs both engines plus MariaDB).
+WIKI_DB_ENV := $(if $(WIKI_TEST_DATABASE_URL),-e WIKI_TEST_DATABASE_URL=$(WIKI_TEST_DATABASE_URL),)
+
+test-with-db: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer install --no-interaction
+	$(COMPOSE) exec -T $(WIKI_DB_ENV) $(SERVICE_PHP) composer test -- --testsuite database,api
+
+test-coverage-with-db: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer install --no-interaction
+	$(COMPOSE) exec -T $(WIKI_DB_ENV) $(SERVICE_PHP) composer test-coverage -- --testsuite database,api | tee coverage-php-db.txt
 
 test-coverage: ensure-up
 	$(COMPOSE) exec -T $(SERVICE_PHP) composer install --no-interaction
