@@ -21,12 +21,14 @@ use Throwable;
 
 use function array_values;
 use function max;
+use function mb_strtolower;
+use function str_replace;
 
 /**
  * Lookups refresh already-managed pages ({@see Query::HINT_REFRESH}) so a page renamed or archived
  * by another worker is not served from a stale identity map.
  */
-final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepositoryInterface, WikiPageBatchFinderInterface, WikiPageChildrenFinderInterface, WikiPageTreeWriterInterface, WikiPageLockInterface, WikiPageMetadataFinderInterface
+final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepositoryInterface, WikiPageBatchFinderInterface, WikiPageChildrenFinderInterface, WikiPageTreeWriterInterface, WikiPageLockInterface, WikiPageMetadataFinderInterface, WikiPageTitleFinderInterface
 {
     /**
      * Creates the repository.
@@ -243,6 +245,62 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
             ->getQuery()
             ->setHint(Query::HINT_REFRESH, true)
             ->getResult();
+    }
+
+    public function findByTitle(array $spaceIds, string $query, int $limit): array
+    {
+        if ($spaceIds === [] || $limit < 1) {
+            return [];
+        }
+
+        $builder = $this->entityManager()->createQueryBuilder()
+            ->select('p', 's')
+            ->from(WikiPage::class, 'p')
+            ->join('p.space', 's')
+            ->where('IDENTITY(p.space) IN (:spaces)')
+            ->andWhere('p.archivedAt IS NULL')
+            ->setParameter('spaces', array_values($spaceIds))
+            ->setMaxResults($limit);
+        $needle = mb_strtolower($query, 'UTF-8');
+        if ($needle === '') {
+            $builder->orderBy('p.updatedAt', SortDirection::Descending)->addOrderBy('p.id', SortDirection::Ascending);
+        } else {
+            $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $needle);
+            $builder
+                ->andWhere("LOWER(p.title) LIKE :contains ESCAPE '!'")
+                ->addSelect("CASE WHEN LOWER(p.title) LIKE :prefix ESCAPE '!' THEN 0 ELSE 1 END AS HIDDEN prefixRank")
+                ->setParameter('contains', '%' . $escaped . '%')
+                ->setParameter('prefix', $escaped . '%')
+                ->orderBy('prefixRank', SortDirection::Ascending)
+                ->addOrderBy('p.title', SortDirection::Ascending)
+                ->addOrderBy('p.id', SortDirection::Ascending);
+        }
+
+        /* @var list<WikiPage> */
+        return $builder->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
+    }
+
+    public function currentHtml(array $pageIds): array
+    {
+        if ($pageIds === []) {
+            return [];
+        }
+
+        /** @var list<array{id: string, html: string}> $rows */
+        $rows = $this->entityManager()->createQueryBuilder()
+            ->select('p.id AS id', 'r.contentHtml AS html')
+            ->from(WikiPage::class, 'p')
+            ->join('p.currentRevision', 'r')
+            ->where('p.id IN (:ids)')
+            ->setParameter('ids', array_values($pageIds))
+            ->getQuery()
+            ->getArrayResult();
+        $html = [];
+        foreach ($rows as $row) {
+            $html[(string) $row['id']] = (string) $row['html'];
+        }
+
+        return $html;
     }
 
     /**

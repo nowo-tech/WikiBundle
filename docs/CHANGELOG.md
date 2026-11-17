@@ -237,6 +237,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target: 1.40.0 (minor). Section anchors and the link picker (contract "section anchors and link picker", slices W1–W4;
+owner decisions O1–O11 of 2026-11-16). Needs nowo-tech/milkdown-editor-bundle **>= 1.18** with `editor.type: milkdown`
+(`conflict` with older versions). See [UPGRADING](UPGRADING.md#unreleased).
+
+### Added
+
+- **Link picker** (`editor.milkdown.link_picker`, opt-in, Milkdown only): the Milkdown 1.18 picker (link button,
+  `Ctrl+K`, `[[`, *Edit link…*) gets its data from two internal JSON routes, `link_candidates`
+  (`GET …/spaces/{spaceSlug}/link-candidates?q=`, `{here, others}`) and `link_sections`
+  (`GET …/spaces/{spaceSlug}/link-candidates/{pageId}/sections`, `{sections}`), served by `WikiLinkPickerController` /
+  `LinkPicker\WikiLinkPickerService`. Pages of the current wiki first (recent ones for an empty query), then, from 2
+  characters, pages of the other wikis of the **same tenant** (owner decision O4: the `tenant_paths` row, or a host
+  `WikiLinkTenantResolverInterface`), at most 5 wikis × 3 pages. Title-only matches; every page readable with every
+  ancestor; archived pages, `search.scope: space` and `search.excluded_spaces` respected; the same answer for "no
+  match" and "not allowed"; a required per-user `rate_limiter`; same origin; `Cache-Control: private, no-store`. The
+  page editor gets `suggestions['[[']` and `link_sections` (a host's own values win). `cross_wiki` is read per request
+  through `WikiLinkPickerSettingsInterface`.
+- **Stable heading ids** (`editor.milkdown.stable_heading_ids`, default on with Milkdown): the editor keeps a heading's
+  id while it is edited and writes `{#id}` when the id differs from the heading's slug (owner decision O1).
+- **Explicit heading ids** in the read view: `## Install guide {#setup}` renders `<h2 id="nowo-h-setup">` (explicit ids
+  reserved first, then slugs with the lowest free `-N`, linear, at most 1000 headings); Unicode ids (owner decision O2).
+- **"Link to this section"** on every heading of the page view (Twig filter `nowo_wiki_section_links`, after the
+  sanitizer): a plain fragment link without JavaScript; with `wiki.js` a click copies the page URL with `#nowo-h-<id>`
+  and says *Link copied* (also through a polite `role="status"`). A legacy `#<id>` fragment scrolls to its
+  `nowo-h-<id>` heading, on load and on `hashchange`. Translated in the 7 locales.
+- **Section labels** (owner decision O3): a link to a section reads `Title › Section text`
+  (`Markdown\Milkdown\WikiMilkdownSectionResolver`, only for pages that resolved for the viewer in this render, from
+  the viewer-neutral cache, top-level headings, text only); a missing section reads `Title`.
+- **REST API:** the page body has `sections: [{id, level, text}]` in the same view as its content (owner decision O6;
+  OpenAPI `Section`).
+- `Markdown\WikiHeadingAnchor` (the shared id grammar), `Markdown\WikiHeadingOutline`,
+  `Repository\WikiPageTitleFinderInterface` (implemented by `DoctrineOrmWikiPageRepository`),
+  `Interchange\HtmlToMarkdown\WikiHeadingIdConverter`, `Collaboration\WikiCollabSchema`,
+  `Collaboration\WikiCollabConditionalResetStoreInterface` (implemented by `DoctrineWikiCollabStateStore`: the
+  session start drops a stale log only if, under the row lock, it is still the log it read; audit RY-L3).
+
+### Changed
+
+- **One anchor grammar** (Milkdown 1.18 `HeadingIds::ANCHOR`): the reference extractor fallback, portable exports,
+  the dialect text converter and the sanitizer's heading ids accept Unicode ids; a `nowo-h-` prefix in a token is read
+  as the bare id; an invalid anchor is dropped and the page link kept. Heading ids with upper-case letters are no
+  longer kept by the sanitizer (the slug never produced them).
+- **Links to a section** point at `#nowo-h-<id>` (they pointed at `#<id>`, which matched no element).
+- **Reader's Markdown and API viewer view:** links to a section come back as `[[wiki:<uuid>#<id>]]` (the anchor was
+  dropped) and headings keep a differing id as `{#id}`.
+- **Collaboration (owner decision O7):** `CollabSchema::VERSION` (2) is folded into the log epoch (`s2-…`). A page's
+  log of an older schema starts a new epoch at the next session (when empty, or idle and fully saved), so tabs of a
+  pre-1.18 editor get `409 log_epoch` and reload.
+- Milkdown `require-dev` / `suggest` `^1.18` and `conflict` `<1.18.0`.
+
+### Deprecated
+
+- `Interchange\HtmlToMarkdown\WikiAlignedHeaderConverter` (replaced by `WikiHeadingIdConverter`); removed in 2.0.
+
+### Known gaps
+
+- The importer does not turn `other.md#id` back into `[[wiki:<uuid>#id]]` (an export followed by an import loses page
+  links, with or without anchors; owner decision O9: a later slice).
+- The candidates endpoint filters after the title query, so its timing grows with the number of matching titles the
+  person may not read (audit RY-L2; see docs/SECURITY.md). SQL filtering or padding is planned for 1.41.
+- An API `PUT` that drops a `{#id}` suffix changes that heading's id; the server does not carry ids over from the base
+  revision (owner decision O8, documented in docs/API.md).
+
 ## [1.39.0] - 2026-11-17
 
 ### Added

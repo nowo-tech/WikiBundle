@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "fa2f05f2d9d376909f0dd5452289e866",
+    "content-hash": "082a740c73aa54953639fe988606cbf5",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -2228,16 +2228,16 @@
         },
         {
             "name": "nowo-tech/milkdown-editor-bundle",
-            "version": "v1.13.0",
+            "version": "v1.18.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/MilkdownEditorBundle.git",
-                "reference": "859555a707679efaf54de92041e97fbd76415b89"
+                "reference": "7f0826d179530781ccb4d7eb90a4c2f600c8f8fd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/859555a707679efaf54de92041e97fbd76415b89",
-                "reference": "859555a707679efaf54de92041e97fbd76415b89",
+                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/7f0826d179530781ccb4d7eb90a4c2f600c8f8fd",
+                "reference": "7f0826d179530781ccb4d7eb90a4c2f600c8f8fd",
                 "shasum": ""
             },
             "require": {
@@ -2326,8 +2326,8 @@
                 "issues": "https://github.com/nowo-tech/MilkdownEditorBundle/issues",
                 "source": "https://github.com/nowo-tech/MilkdownEditorBundle"
             },
-            "time": "2026-11-08T17:46:25+00:00",
-            "published-time": "2026-11-08T17:48:22+00:00"
+            "time": "2026-11-16T23:39:09+00:00",
+            "published-time": "2026-11-16T23:40:50+00:00"
         },
         {
             "name": "nowo-tech/tiptap-editor-bundle",
@@ -2566,16 +2566,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.48.0",
+            "version": "v2.53.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "7f65af5ed35fcf6403d87b38beb5452bc8367622"
+                "reference": "73e4d4095e43208b2d2f2d818814faa2449d7e6e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/7f65af5ed35fcf6403d87b38beb5452bc8367622",
-                "reference": "7f65af5ed35fcf6403d87b38beb5452bc8367622",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/73e4d4095e43208b2d2f2d818814faa2449d7e6e",
+                "reference": "73e4d4095e43208b2d2f2d818814faa2449d7e6e",
                 "shasum": ""
             },
             "require": {
@@ -2664,8 +2664,8 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-11-11T15:01:35+00:00",
-            "published-time": "2026-11-11T15:03:35+00:00"
+            "time": "2026-11-16T22:25:43+00:00",
+            "published-time": "2026-11-16T22:27:58+00:00"
         },
         {
             "name": "nowo-tech/wiki-bundle",
@@ -2673,7 +2673,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "e8fca1ce4746a11548f4dd224b1350e8d8945ca3"
+                "reference": "91ccc85b5ae72a12992a3d36ba59ec410583d307"
             },
             "require": {
                 "doctrine/dbal": "^3.8.2 || ^4.0",
@@ -2709,13 +2709,13 @@
             },
             "conflict": {
                 "nowo-tech/icon-selector-bundle": "<1.6.0",
-                "nowo-tech/milkdown-editor-bundle": "<1.13.0"
+                "nowo-tech/milkdown-editor-bundle": "<1.18.0"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
                 "igor-php/igor-php": "^0.10.0",
                 "nowo-tech/icon-selector-bundle": "^1.6",
-                "nowo-tech/milkdown-editor-bundle": "^1.13",
+                "nowo-tech/milkdown-editor-bundle": "^1.18",
                 "nowo-tech/phpstan-frankenphp": "^1.4",
                 "phpstan/extension-installer": "^1.0",
                 "phpstan/phpstan": "^2.0",
@@ -2737,7 +2737,7 @@
                 "nowo-tech/breadcrumb-kit-bundle": "^2.17: the current crumb named after the wiki page (nowo_wiki.web_ui.breadcrumb_current_label); optional, older versions are ignored.",
                 "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
                 "nowo-tech/icon-selector-bundle": "^1.6: the visual icon picker (page_icon.picker / space_icon.picker: icon_selector) and emoji icons (page_icon.emoji / space_icon.emoji).",
-                "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.13): page links, mentions, icons, math and Mermaid; >= 1.17 for the read-only task-list checkboxes and callouts that match the server render.",
+                "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.18): page links, mentions, icons, math and Mermaid, stable heading ids, section anchors and the link picker (editor.milkdown.link_picker).",
                 "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales.",
                 "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
                 "symfony/mercure-bundle": "Co-editing of Milkdown pages (nowo_wiki.collaboration): private Mercure updates and the subscriber cookie.",

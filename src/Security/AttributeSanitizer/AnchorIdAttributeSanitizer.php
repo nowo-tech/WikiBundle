@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Security\AttributeSanitizer;
 
+use Nowo\WikiBundle\Markdown\WikiHeadingAnchor;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 use Symfony\Component\HtmlSanitizer\Visitor\AttributeSanitizer\AttributeSanitizerInterface;
 
@@ -14,8 +15,9 @@ use function preg_match;
  * Keeps an `id` only when it is one of the anchors the Markdown renderer writes (1.16.2), so page content can never
  * clobber a host element id, a global (`window.location`, `document.forms`…) or `Object.prototype`:
  *
- * - on `h1`…`h6`: a heading id `nowo-h-<slug>` (Milkdown's `HeadingIds` slug: letters, marks and digits joined by
- *   single hyphens, at most 90 characters after the prefix);
+ * - on `h1`…`h6`: a heading id `nowo-h-<id>` (1.40: the heading id grammar of {@see WikiHeadingAnchor}, Milkdown
+ *   1.18's `HeadingIds::ANCHOR`: lower-case / other letters, marks and digits joined by single hyphens, at most 90
+ *   characters after the prefix);
  * - on `li`: a footnote `nowo-fn-<8 hex>-<n>`, on `sup` its reference `nowo-fn-ref-<8 hex>-<n>[__<k>]`.
  *
  * Any other value, or an `id` on any other element (including one a host allowed with `extra_allowed_attributes`), is
@@ -33,7 +35,8 @@ final class AnchorIdAttributeSanitizer implements AttributeSanitizerInterface
 
     private const HEADING_ELEMENTS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 
-    private const HEADING_PATTERN = '/^nowo-h-(?=.{1,90}$)[\p{L}\p{M}\p{N}]+(?:-[\p{L}\p{M}\p{N}]+)*$/Du';
+    /** 1.40: `nowo-h-` + the heading id grammar ({@see WikiHeadingAnchor::ANCHOR}), 1–90 characters after the prefix. */
+    private const HEADING_PATTERN = '/^nowo-h-(?=.{1,90}$)' . WikiHeadingAnchor::ANCHOR . '$/Du';
 
     private const FOOTNOTE_PATTERN = '/^nowo-fn-[0-9a-f]{8}-[1-9][0-9]{0,5}$/D';
 

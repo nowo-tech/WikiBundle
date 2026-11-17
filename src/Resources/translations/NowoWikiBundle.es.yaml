@@ -127,6 +127,8 @@ wiki:
     history: Historial
     unarchive: 'Recuperar página'
     used_in: 'Usada en'
+    section_link: 'Enlace a esta sección'
+    section_link_copied: 'Enlace copiado'
     toolbar: 'Acciones de la página'
     files: 'Archivos'
     file: 'Archivo'

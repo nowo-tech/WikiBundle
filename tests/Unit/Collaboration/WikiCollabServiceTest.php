@@ -10,10 +10,12 @@ use Doctrine\DBAL\Exception\DeadlockException;
 use Doctrine\DBAL\Exception\DriverException;
 use LogicException;
 use Nowo\TransactionContract\TransientStorageFailure;
+use Nowo\WikiBundle\Collaboration\WikiCollabConditionalResetStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabException;
 use Nowo\WikiBundle\Collaboration\WikiCollabLockingStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabNumberedStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabSchema;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
@@ -966,6 +968,65 @@ final class WikiCollabServiceTest extends TestCase
                 return $this->state;
             }
         };
+    }
+
+    /**
+     * 1.40 (owner O7): a log named with an older collaboration schema starts a new epoch at the page's next session (old
+     * tabs then get 409 log_epoch and reload), unless it holds text no save has taken in; a current one is kept.
+     */
+    public function testALogOfAnOlderSchemaStartsANewEpochAtTheNextSession(): void
+    {
+        $this->store = new EpochInMemoryCollabStateStore();
+        $service     = $this->service();
+        $id          = $this->page->getId();
+        $this->store->reset($id, null);
+
+        $this->store->epochs[$id] = 'legacy';
+        $service->token(new Request(), $this->page, $this->user);
+        self::assertNotSame('legacy', $this->store->currentEpoch($id));
+
+        $current                  = WikiCollabSchema::newEpoch();
+        $this->store->epochs[$id] = $current;
+        $service->token(new Request(), $this->page, $this->user);
+        self::assertSame($current, $this->store->currentEpoch($id));
+
+        $this->store->append($id, 'AQI=');
+        $this->store->epochs[$id] = 'legacy-unsaved';
+        $service->token(new Request(), $this->page, $this->user);
+        self::assertSame('legacy-unsaved', $this->store->currentEpoch($id));
+    }
+
+    /** 1.40 (audit RY-L3): a store with the conditional drop is asked with the name and the number the token read. */
+    public function testTheSessionStartDropsTheLogOnlyIfItIsStillTheOneItSaw(): void
+    {
+        $store = new class extends EpochInMemoryCollabStateStore implements WikiCollabConditionalResetStoreInterface {
+            /** @var list<array{0: string|null, 1: string|null, 2: int}> */
+            public array $asked = [];
+
+            public bool $still = false;
+
+            public function resetIf(string $pageId, ?string $baseRevisionId, ?string $expectedEpoch, int $expectedSeq): bool
+            {
+                $this->asked[] = [$baseRevisionId, $expectedEpoch, $expectedSeq];
+                if ($this->still) {
+                    $this->reset($pageId, $baseRevisionId);
+                }
+
+                return $this->still;
+            }
+        };
+        $this->store = $store;
+        $id          = $this->page->getId();
+        $store->reset($id, null);
+        $store->epochs[$id] = 'legacy';
+
+        $this->service()->token(new Request(), $this->page, $this->user);
+        self::assertSame([[$this->page->getCurrentRevision()?->getId(), 'legacy', 0]], $store->asked);
+        self::assertSame('legacy', $store->currentEpoch($id), 'An update landed meanwhile: the log stays.');
+
+        $store->still = true;
+        $this->service()->token(new Request(), $this->page, $this->user);
+        self::assertNotSame('legacy', $store->currentEpoch($id));
     }
 
     /** Audit HV-M1: `state` names the log; a store that cannot keeps today's answer. */

@@ -75,6 +75,9 @@ final class AnchorIdAttributeSanitizerTest extends TestCase
         yield 'trailing hyphen' => ['h2', 'nowo-h-a-'];
         yield 'trailing newline' => ['h2', "nowo-h-a\n"];
         yield 'dot' => ['h2', 'nowo-h-a.b'];
+        // 1.40: the heading id grammar (lower-case letters, marks and digits; no leading mark).
+        yield 'upper case' => ['h2', 'nowo-h-Intro'];
+        yield 'leading mark' => ['h2', "nowo-h-\u{301}a"];
         yield 'too long' => ['h2', 'nowo-h-' . str_repeat('a', 91)];
         yield 'invalid utf-8' => ['h2', "nowo-h-\xC3"];
         yield 'footnote label text' => ['li', 'nowo-fn-my note'];

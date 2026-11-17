@@ -139,6 +139,13 @@ pages the reader may open come back as `[[wiki:<uuid>]]`. Pages the reader may n
 directive attributes, and raw HTML when it is stripped. A page over the renderer's limits gives a fixed placeholder
 instead of its text. Comment bodies follow the same rule.
 
+**Sections (1.40).** The page body (`GET …/pages/{page}` and the write answers) lists `sections: [{id, level, text}]`,
+the headings a link can point at (`[[wiki:<uuid>#<id>]]`; the read view's DOM id is `nowo-h-<id>`), in document order,
+at most 200, in the same view as the content: every heading of the source's render for `source`, the headings of the
+reader's render (with the token's reach) for `viewer`. `text` is the heading's own text, without titles of linked
+pages or mentions. An HTML page has none. The viewer Markdown keeps links to a section as `[[wiki:<uuid>#<id>]]` and
+writes a heading's id as `## Title {#id}` when it differs from the slug of its text.
+
 Host files (1.25) go through the host's file resolver with the token's reach. This covers Milkdown host references
 and, with Milkdown's `host_url_patterns`, plain URLs such as `/files/<uuid>/original`. A file whose wiki lies outside
 *where*, or that the person may not read, reads *Content not visible*, without its uuid, alt text or name. See
@@ -254,6 +261,11 @@ transaction and the revision is compared under that lock:
 - With co-editing on, if the live session holds updates no revision has, the answer is 409 `WIKI_LIVE_SESSION`.
 - A lock that cannot be taken (a deadlock or a lock wait timeout) answers 409 `WIKI_SAVE_COLLISION` with
   `Retry-After: 1`. Nothing is written.
+
+**Heading ids (1.40).** A heading whose id differs from the slug of its text carries it in the Markdown as a `{#id}`
+suffix (`## Install guide {#setup}`, written by the editor after a rename or for a repeated heading). Keep these suffixes
+when you rewrite a page with `PUT`: the server does not carry ids over from `base_revision` (owner decision O8), so a
+dropped suffix gives that heading the id of its text again, and links to the old id then land at the top of the page.
 
 `POST …/revisions/{number}/restore` takes `base_revision` too and always appends a new revision.
 

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "cf7258042036273dd30aec7566c3b081",
+    "content-hash": "3537ba19167df83dd668c160ca4d787b",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -8032,16 +8032,16 @@
         },
         {
             "name": "nowo-tech/milkdown-editor-bundle",
-            "version": "v1.17.0",
+            "version": "v1.18.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/MilkdownEditorBundle.git",
-                "reference": "bcff0411ca05885fbbb2727e99937ae1b2182bf0"
+                "reference": "7f0826d179530781ccb4d7eb90a4c2f600c8f8fd"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/bcff0411ca05885fbbb2727e99937ae1b2182bf0",
-                "reference": "bcff0411ca05885fbbb2727e99937ae1b2182bf0",
+                "url": "https://api.github.com/repos/nowo-tech/MilkdownEditorBundle/zipball/7f0826d179530781ccb4d7eb90a4c2f600c8f8fd",
+                "reference": "7f0826d179530781ccb4d7eb90a4c2f600c8f8fd",
                 "shasum": ""
             },
             "require": {
@@ -8130,8 +8130,8 @@
                 "issues": "https://github.com/nowo-tech/MilkdownEditorBundle/issues",
                 "source": "https://github.com/nowo-tech/MilkdownEditorBundle"
             },
-            "time": "2026-11-12T07:09:38+00:00",
-            "published-time": "2026-11-12T07:11:35+00:00"
+            "time": "2026-11-16T23:39:09+00:00",
+            "published-time": "2026-11-16T23:40:50+00:00"
         },
         {
             "name": "nowo-tech/phpstan-frankenphp",

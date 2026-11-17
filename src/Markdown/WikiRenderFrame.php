@@ -7,6 +7,8 @@ namespace Nowo\WikiBundle\Markdown;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 
+use function in_array;
+
 /**
  * 1.24 (spec 218): one viewer render in progress — the space and page it renders, the reach it may not go beyond, and
  * the page links the resolver resolved for it (URL → page id). Lives only for the render ({@see WikiRenderContext}).
@@ -36,6 +38,12 @@ final class WikiRenderFrame
             // @igor-ignore - One frame per render, made and dropped by WikiRenderContext; never a shared service.
             $this->pageLinks[$url] = $pageId;
         }
+    }
+
+    /** 1.40: whether a page link of this render resolved to the page (the viewer may open it). */
+    public function hasResolvedPage(string $pageId): bool
+    {
+        return in_array($pageId, $this->pageLinks, true);
     }
 
     /** The page a resolved link URL of this render points to, or null. */

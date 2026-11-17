@@ -127,6 +127,8 @@ wiki:
     history: Geschiedenis
     unarchive: 'Pagina terugzetten'
     used_in: 'Gebruikt in'
+    section_link: 'Link naar deze sectie'
+    section_link_copied: 'Link gekopieerd'
     toolbar: 'Pagina-acties'
     files: 'Bestanden'
     file: 'Bestand'

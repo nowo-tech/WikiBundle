@@ -125,6 +125,41 @@ apply the same rule: call `WikiSpaceGuard::isPageReadable()` (or `WikiPageVisibi
 `WikiSpaceAccessCheckerInterface`) for every page they return, so a page under a hidden parent never shows up there
 either (audit DJ-I2).
 
+Since 1.40 the bundle serves the page picker itself (`editor.milkdown.link_picker`), so a host no longer needs its own
+`[[` endpoint: `link_candidates` (`GET …/spaces/{spaceSlug}/link-candidates?q=`) and `link_sections`
+(`GET …/spaces/{spaceSlug}/link-candidates/{pageId}/sections`), internal UI JSON routes (`WikiLinkPickerController`,
+`LinkPicker\WikiLinkPickerService`):
+
+- **Gates:** a firewall-trusted user (403), the list gate, View on the space, then View on every page and every
+  ancestor; archived pages are left out. A wiki in `search.excluded_spaces` gets no candidates and no sections.
+- **No oracle:** "no match", a missing wiki, a hidden wiki and "not allowed" give the same `{here: [], others: []}`;
+  sections answer the same 404 for a missing, archived, unreadable or out-of-reach page. A wiki is named only when it has
+  a readable hit; no counts are sent. Titles only are matched (never the content or the Markdown), `LIKE` escaped.
+- **Same tenant only** (owner decision O4): other wikis come from the current wiki's tenant (`tenant_paths` row, or the
+  host's `WikiLinkTenantResolverInterface`); none with `search.scope: space`, `cross_wiki: false`, or `tenant_only`
+  for a wiki outside every row. At most 5 wikis × 3 pages (10 in all) and 10 pages of the current wiki.
+- **Sections** come from the viewer's own render of the page (inside a render frame, sanitized), so a heading the render
+  hides never shows; their text leaves out page references, mentions, icons and math.
+- **Transport:** GET only, no side effects; same origin (`Sec-Fetch-Site` other than `same-origin` / `none`, or a
+  foreign `Origin`: 403); `Accept: application/json` (406 otherwise); a required per-user rate limiter (429 +
+  `Retry-After`); `Cache-Control: private, no-store`, `Vary: Cookie`, `X-Content-Type-Options: nosniff`. `q` is cut
+  to 100 characters and stripped of control, format and bidi characters.
+- **Worker mode:** the services are stateless (`final readonly`); the rate limiter is created per call; the render
+  frame lives for one render; nothing is cached across requests (N-request test with two users and two tenants).
+- **Timing (audit RY-L2, known):** the candidates answer is filtered after the title query, with one ancestor walk per
+  hit, so its response time grows with the number of matching titles the person may **not** read. A patient caller can
+  estimate that count (never a title, an id or a wiki name), within the rate limit. This is the same class as the
+  search page's post-filtering. Planned for 1.41: filtering in SQL or padding to a fixed number of reads.
+- **Host repositories:** without `WikiPageTitleFinderInterface` the picker reads at most `api.search_candidates` pages
+  per wiki (tree order) before the title filter; the same gates apply.
+
+**Section anchors (1.40).** Heading ids are only ever `nowo-h-` + the shared grammar (`Markdown\WikiHeadingAnchor`,
+at most 1000 per page; the sanitizer pattern matches it), so page content cannot clobber host ids or globals. A hidden
+page's placeholder carries no anchor and no section text; section labels (`Title › Section`) are given only for pages
+already resolved for the viewer in the same render, from the viewer-neutral cache, top-level headings, text only. The
+"link to this section" control is added after the sanitizer (`nowo_wiki_section_links`), with the id validated again
+and escaped. The server never rewrites ids in stored Markdown.
+
 ## Look-alike owner ids (1.31.1)
 
 **Affected:** 1.0.0–1.31.0, on MySQL and MariaDB. **Fixed:** 1.31.1 (house rule LQ).

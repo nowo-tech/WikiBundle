@@ -68,6 +68,22 @@ final class WikiHtmlTwigExtensionTest extends TestCase
         self::assertStringContainsString('<script type="module"', $output);
     }
 
+    public function testSectionLinksAreAddedAfterSanitizingOnMilkdownPagesOnly(): void
+    {
+        $packages = new Packages(new Package(new EmptyVersionStrategy()), ['nowo_milkdown_editor' => new Package(new EmptyVersionStrategy())]);
+        $milkdown = new WikiHtmlTwigExtension(new WikiHtmlSanitizer(), null, new WikiMilkdownRichContent(new MilkdownEditorTwig($this->createStub(MarkdownRendererInterface::class), $packages)));
+        $twig     = new Environment(new ArrayLoader(['t' => "{{ html|nowo_wiki_safe_html|nowo_wiki_section_links('Link to this section', 'Copied \"!') }}"]));
+        $twig->addExtension($milkdown);
+
+        $output = $twig->render('t', ['html' => '<h2 id="nowo-h-setup">Set up</h2><h3 id="nowo-h-Bad">Bad</h3><p>Text</p>']);
+
+        self::assertStringContainsString('<h2 id="nowo-h-setup">Set up <a class="nowo-md-heading-anchor" data-wiki-section-link data-wiki-copied-label="Copied &quot;!" href="#nowo-h-setup" title="Link to this section">', $output);
+        self::assertStringContainsString('<span class="nowo-milkdown-sr-only">Link to this section</span>', $output);
+        self::assertStringNotContainsString('nowo-h-Bad', $output);
+        self::assertSame('', $milkdown->sectionLinks('', 'L', 'C'));
+        self::assertSame('<h2 id="nowo-h-a">A</h2>', (new WikiHtmlTwigExtension(new WikiHtmlSanitizer()))->sectionLinks('<h2 id="nowo-h-a">A</h2>', 'L', 'C'));
+    }
+
     public function testNoRichContentAssetsWithoutMilkdown(): void
     {
         self::assertSame('', (new WikiHtmlTwigExtension(new WikiHtmlSanitizer()))->richContentAssets());

@@ -18,7 +18,9 @@ use const PREG_SET_ORDER;
 
 /**
  * Finds the page references of a Markdown revision (1.11, spec dialect `[[wiki:<uuid>]]` and
- * `[[wiki:<uuid>#anchor]]`), outside code spans and fenced / indented code.
+ * `[[wiki:<uuid>#anchor]]`), outside code spans and fenced / indented code. 1.40: the anchor follows the heading id
+ * grammar ({@see WikiHeadingAnchor}: Unicode, a `nowo-h-` prefix read as the bare id); an invalid anchor is dropped and
+ * the reference kept, as the Milkdown dialect parser does.
  *
  * 1.13: when the Markdown renderer is a {@see WikiMarkdownReferenceParserInterface} (`editor.type: milkdown`) the
  * references come from the renderer's own parser, so the index gets exactly the links and mentions a reader sees;
@@ -45,7 +47,8 @@ final readonly class WikiMarkdownReferenceExtractor
         $this->parser = $renderer instanceof WikiMarkdownReferenceParserInterface ? $renderer : null;
     }
 
-    private const PAGE_REFERENCE = '/\[\[wiki:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:#([A-Za-z0-9_-]{1,128}))?\]\]/';
+    /** 1.40: the anchor is read with the heading id grammar ({@see WikiHeadingAnchor}); an invalid one is dropped. */
+    private const PAGE_REFERENCE = '/\[\[wiki:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:#(' . WikiHeadingAnchor::TOKEN_ANCHOR . '))?\]\]/';
 
     private const CODE = [
         '/^( {0,3})(`{3,}|~{3,})[^\n]*\n.*?(?:^ {0,3}\2[`~]*[ \t]*$|\z)/ms',
@@ -78,7 +81,8 @@ final readonly class WikiMarkdownReferenceExtractor
         $references = [];
         foreach ($matches as $match) {
             $id     = strtolower($match[1]);
-            $anchor = isset($match[2]) && $match[2] !== '' ? $match[2] : null;
+            $anchor = WikiHeadingAnchor::normalise($match[2] ?? '');
+            $anchor = $anchor !== '' ? $anchor : null;
 
             $references[$id . '#' . ($anchor ?? '')] = ['id' => $id, 'anchor' => $anchor];
         }

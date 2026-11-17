@@ -349,7 +349,10 @@ final class ConfigurationTest extends TestCase
 
         $defaults = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User']]);
         self::assertSame(Configuration::EDITOR_TIPTAP, $defaults['editor']['type']);
-        self::assertSame(['page_resolver' => null, 'copy_markdown' => false, 'host_files' => 'auto', 'file_cards' => 'link', 'file_previews' => true], $defaults['editor']['milkdown']);
+        self::assertSame(['page_resolver' => null, 'copy_markdown' => false, 'host_files' => 'auto', 'file_cards' => 'link', 'file_previews' => true, 'stable_heading_ids' => true, 'link_picker' => ['enabled' => false, 'cross_wiki' => true, 'rate_limiter' => null]], $defaults['editor']['milkdown']);
+        // 1.40: the link picker routes.
+        self::assertSame(['path' => '/tools/wiki/spaces/{spaceSlug}/link-candidates', 'name' => 'nowo_wiki_link_candidates'], $defaults['routes']['link_candidates']);
+        self::assertSame(['path' => '/tools/wiki/spaces/{spaceSlug}/link-candidates/{pageId}/sections', 'name' => 'nowo_wiki_link_sections'], $defaults['routes']['link_sections']);
     }
 
     public function testCollaborationDefaultsAndValidation(): void

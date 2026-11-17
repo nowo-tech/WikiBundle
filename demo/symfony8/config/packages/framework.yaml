@@ -18,6 +18,11 @@ framework:
             policy: sliding_window
             limit: 120
             interval: '1 minute'
+        # 1.40: nowo_wiki.editor.milkdown.link_picker.rate_limiter (picker requests per user).
+        wiki_link_picker:
+            policy: sliding_window
+            limit: 240
+            interval: '1 minute'
 
 when@test:
     framework:

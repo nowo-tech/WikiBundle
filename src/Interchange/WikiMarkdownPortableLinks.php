@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Interchange;
 
+use Nowo\WikiBundle\Markdown\WikiHeadingAnchor;
+
 use function array_slice;
 use function count;
 use function explode;
@@ -20,6 +22,10 @@ use function strtolower;
  * Markdown links to the exported files (1.13, Milkdown dialect exports), so Outline, Notion or any Markdown viewer
  * shows `[Title](other-page.md#anchor)` instead of the raw token. Links to pages outside the export stay tokens (no
  * title of a page the exporter did not include is ever written); code spans and fenced code are left untouched.
+ *
+ * 1.40: anchors follow the heading id grammar ({@see WikiHeadingAnchor}: Unicode, written as is, a
+ * `nowo-h-` prefix read as the bare id); an invalid anchor is dropped and the link kept. The exported page keeps its
+ * `{#id}` heading suffixes (owner decision O1), so `other.md#id` lands on the heading in Pandoc and MkDocs.
  */
 final class WikiMarkdownPortableLinks
 {
@@ -27,7 +33,7 @@ final class WikiMarkdownPortableLinks
      * One pass over the document (CV-L3: no placeholder masking): fenced code (groups 1-2), a code span (group 3) or a
      * page link (groups 4-5). Code is returned unchanged, so a link inside code is never rewritten.
      */
-    private const TOKENS = '/^( {0,3})(`{3,}|~{3,})[^\n]*\n.*?(?:^ {0,3}\2[`~]*[ \t]*$|\z)|(`+)(?!`).+?(?<!`)\3(?!`)|\[\[wiki:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:#([a-z0-9][a-z0-9-]{0,80}))?\]\]/ms';
+    private const TOKENS = '/^( {0,3})(`{3,}|~{3,})[^\n]*\n.*?(?:^ {0,3}\2[`~]*[ \t]*$|\z)|(`+)(?!`).+?(?<!`)\3(?!`)|\[\[wiki:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:#([^\]\s#]{1,200}))?\]\]/ms';
 
     /**
      * Rewrites the page links of the exported pages.
@@ -49,7 +55,9 @@ final class WikiMarkdownPortableLinks
                 return $match[0];
             }
 
-            $anchor = isset($match[5]) ? '#' . $match[5] : '';
+            // 1.40: the heading id grammar; the target file's heading reads `{#id}` (Pandoc, MkDocs), so `#id` finds it.
+            $anchor = WikiHeadingAnchor::normalise($match[5] ?? '');
+            $anchor = $anchor !== '' ? '#' . $anchor : '';
 
             return '[' . str_replace(['\\', '[', ']'], ['\\\\', '\\[', '\\]'], $target['title']) . '](' . self::relative($fromDirectory, $target['path']) . $anchor . ')';
         }, $markdown) ?? $markdown;
