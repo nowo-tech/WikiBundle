@@ -11,6 +11,9 @@ use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
 use Nowo\TransactionContract\TransientStorageFailure;
+use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponsePolicy;
+use Nowo\TransactionDoctrine\TransientFailureKind;
+use Nowo\TransactionDoctrine\WriteUnit\ConcurrencyConflict;
 use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
 use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Transaction\WikiStorageFailureSubscriber;
@@ -20,14 +23,14 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
-use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Throwable;
 
 use function json_decode;
 
 /**
- * 1.37 (Beacon spec 239): storage failures of the wiki's routes answer 503 + Retry-After or 409, never SQL.
+ * 1.37 (Beacon spec 239): storage failures of the wiki's routes answer 409 + Retry-After (the shared policy's status; 503 opt-in), never SQL.
  */
 final class WikiStorageFailureSubscriberTest extends TestCase
 {
@@ -43,7 +46,7 @@ final class WikiStorageFailureSubscriberTest extends TestCase
 
         $response = $event->getResponse();
         self::assertNotNull($response);
-        self::assertSame(503, $response->getStatusCode());
+        self::assertSame(409, $response->getStatusCode());
         self::assertSame('3', $response->headers->get('Retry-After'));
         self::assertSame(['err' => 'Service temporarily unavailable', 'ECODE' => 'SERVER_002'], json_decode((string) $response->getContent(), true));
     }
@@ -79,14 +82,14 @@ final class WikiStorageFailureSubscriberTest extends TestCase
     }
 
     #[DataProvider('transientFailures')]
-    public function testAnInternalJsonEndpointAnswers503(Throwable $failure, string $retryAfter): void
+    public function testAnInternalJsonEndpointAnswers409(Throwable $failure, string $retryAfter): void
     {
         $request = $this->wikiRequest();
         $request->headers->set('Accept', 'application/json');
         $event = $this->event($request, $failure);
         (new WikiStorageFailureSubscriber())->onException($event);
 
-        self::assertSame(503, $event->getResponse()?->getStatusCode());
+        self::assertSame(409, $event->getResponse()?->getStatusCode());
         self::assertSame($retryAfter, $event->getResponse()?->headers->get('Retry-After'));
         self::assertSame('{"error":"unavailable"}', $event->getResponse()?->getContent());
     }
@@ -109,8 +112,8 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $event      = $this->event($this->wikiRequest(), $failure);
         $subscriber->onException($event);
         $mapped = $event->getThrowable();
-        self::assertInstanceOf(ServiceUnavailableHttpException::class, $mapped);
-        self::assertSame(2, $mapped->getHeaders()['Retry-After'] ?? null);
+        self::assertInstanceOf(HttpException::class, $mapped);
+        self::assertSame('2', $mapped->getHeaders()['Retry-After'] ?? null);
         self::assertSame($failure, $mapped->getPrevious());
 
         $conflict = new UniqueConstraintViolationException(self::driver(), null);
@@ -136,6 +139,70 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $own = $this->event($this->wikiRequest(), $bug);
         $subscriber->onException($own);
         self::assertSame($bug, $own->getThrowable());
+    }
+
+    public function testThe503OptInOfThePolicyKeepsTheOldStatusEverywhere(): void
+    {
+        $subscriber = new WikiStorageFailureSubscriber(new ConflictResponsePolicy(ConflictResponsePolicy::STATUS_SERVICE_UNAVAILABLE, 4));
+
+        $api = $this->event($this->apiRequest(), new TransientStorageFailure());
+        $subscriber->onApiException($api);
+        self::assertSame(503, $api->getResponse()?->getStatusCode());
+        self::assertSame('4', $api->getResponse()->headers->get('Retry-After'));
+        self::assertSame('SERVER_002', json_decode((string) $api->getResponse()->getContent(), true)['ECODE']);
+
+        $request = $this->wikiRequest();
+        $request->headers->set('Accept', 'application/json');
+        $json = $this->event($request, new TransientStorageFailure(8));
+        $subscriber->onException($json);
+        self::assertSame(503, $json->getResponse()?->getStatusCode());
+        self::assertSame('8', $json->getResponse()->headers->get('Retry-After'));
+
+        $page = $this->event($this->wikiRequest(), new TransientStorageFailure(6));
+        $subscriber->onException($page);
+        self::assertInstanceOf(HttpException::class, $page->getThrowable());
+        self::assertSame(503, $page->getThrowable()->getStatusCode());
+        self::assertSame('6', $page->getThrowable()->getHeaders()['Retry-After'] ?? null);
+
+        // The unique-key answer is unchanged.
+        $unique = $this->event($this->apiRequest(), new UniqueConstraintViolationException(self::driver(), null));
+        $subscriber->onApiException($unique);
+        self::assertSame(409, $unique->getResponse()?->getStatusCode());
+    }
+
+    public function testACommittedConflictHasNoRetryAfterOnApiJsonAndHtml(): void
+    {
+        $conflict   = new ConcurrencyConflict(3, TransientFailureKind::Deadlock, null, new LockWaitTimeoutException(self::driver(), null), true);
+        $subscriber = new WikiStorageFailureSubscriber();
+
+        $api = $this->event($this->apiRequest(), new RuntimeException('wrapped', 0, $conflict));
+        $subscriber->onApiException($api);
+        self::assertSame(409, $api->getResponse()?->getStatusCode());
+        self::assertFalse($api->getResponse()->headers->has('Retry-After'));
+        $body = json_decode((string) $api->getResponse()->getContent(), true);
+        self::assertSame('SERVER_002', $body['ECODE']);
+        self::assertStringContainsString('Reload', $body['err']);
+
+        $request = $this->wikiRequest();
+        $request->headers->set('Accept', 'application/json');
+        $json = $this->event($request, $conflict);
+        $subscriber->onException($json);
+        self::assertSame(409, $json->getResponse()?->getStatusCode());
+        self::assertFalse($json->getResponse()->headers->has('Retry-After'));
+        self::assertSame('{"error":"unavailable"}', $json->getResponse()->getContent());
+
+        $page = $this->event($this->wikiRequest(), $conflict);
+        $subscriber->onException($page);
+        self::assertInstanceOf(HttpException::class, $page->getThrowable());
+        self::assertSame(409, $page->getThrowable()->getStatusCode());
+        self::assertArrayNotHasKey('Retry-After', $page->getThrowable()->getHeaders());
+        self::assertSame($conflict, $page->getThrowable()->getPrevious());
+
+        // Not committed: the retry is invited, with the policy's fallback.
+        $open  = new ConcurrencyConflict(3, TransientFailureKind::Deadlock, null, new LockWaitTimeoutException(self::driver(), null), false);
+        $retry = $this->event($this->apiRequest(), $open);
+        (new WikiStorageFailureSubscriber(new ConflictResponsePolicy(409, 7)))->onApiException($retry);
+        self::assertSame('7', $retry->getResponse()?->headers->get('Retry-After'));
     }
 
     public function testTheFlusherRefusesAClosedManagerAndAbandonsCleanly(): void

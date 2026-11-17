@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.42.0](#to-1420)
 - [To 1.41.0](#to-1410)
 - [To 1.40.2](#to-1402)
 - [To 1.40.1](#to-1401)
@@ -103,6 +104,42 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.42.0
+
+From **1.41.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/transaction-doctrine
+```
+
+**409 (was 503).** A transient storage failure on a wiki route (deadlock, lock wait timeout, `TransientStorageFailure`)
+now answers **409 Conflict + `Retry-After`**, the status of the shared `ConflictResponsePolicy` of
+nowo-tech/transaction-doctrine 1.3 (required `^1.3`). JSON field names (`{"err", "ECODE": "SERVER_002"}` in the REST
+API, `{"error": "unavailable"}` in the internal endpoints) and the unique-key 409 (`WIKI_CONFLICT`, `{"error": "conflict"}`)
+are unchanged. `nowo_transaction_doctrine.conflict_response.status: 503` keeps the old status:
+
+```yaml
+# config/packages/nowo_transaction_doctrine.yaml
+nowo_transaction_doctrine:
+    conflict_response:
+        status: 503   # 409 (default) or 503
+        retry_after: 1
+```
+
+- **Hosts that never register `Nowo\TransactionDoctrine\Symfony\NowoTransactionDoctrineBundle` move to 409 too** (the
+  bundle falls back to `new ConflictResponsePolicy()`: 409, 1 s). The only way back to 503 is to register that bundle in
+  `config/bundles.php` and set `conflict_response.status: 503`.
+- Clients that retry on 503 + `Retry-After` must also retry on 409 + `Retry-After`. API clients that treat a 409 as
+  "my write lost to another" should tell `ECODE: SERVER_002` (retry the same request) from `WIKI_CONFLICT`.
+- A write that already committed part of its work (`ConcurrencyConflict` with `committed: true`, commit detection of
+  the transaction-doctrine bundle) is answered with the same status but **without** `Retry-After`, as a reload prompt
+  (message "Part of your change may have been saved. Reload before trying again."): never retry it blindly.
+- HTML pages now throw `HttpException(409|503)` with the storage error as previous, instead of
+  `ServiceUnavailableHttpException`; match on the status, not the class, in a custom error page.
+- New `WikiStorageFailureConflictFormatter` (tag `nowo_transaction_doctrine.conflict_response_formatter`): if you list
+  wiki routes in `nowo_transaction_doctrine.controller_routes`, the responder's answer for them now uses the wiki's JSON
+  shapes instead of `{"error": "concurrency_conflict"}`.
 
 ## To 1.41.0
 

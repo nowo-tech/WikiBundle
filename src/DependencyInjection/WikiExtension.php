@@ -16,6 +16,7 @@ use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
 use Nowo\MilkdownEditorBundle\ProfileRegistry;
 use Nowo\MilkdownEditorBundle\Twig\MilkdownEditorTwig;
+use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponseFormatterInterface;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
@@ -145,6 +146,7 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Transaction\WikiStorageFailureConflictFormatter;
 use Nowo\WikiBundle\Transaction\WikiStorageFailureSubscriber;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Trash\WikiTrashService;
@@ -444,7 +446,13 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
         $container->setAlias(WikiTransactionRunner::SERVICE_ID, WikiTransactionRunner::class);
         $container->setDefinition(WikiStorageFailureSubscriber::class, (new Definition(WikiStorageFailureSubscriber::class))
+            // The shared policy (409 by default); absent when the host did not register nowo-tech/transaction-doctrine's bundle (the subscriber then uses 409 + 1 s).
+            ->setArguments(['$policy' => new Reference('nowo_transaction_doctrine.conflict_response_policy', ContainerInterface::NULL_ON_INVALID_REFERENCE)])
             ->addTag('kernel.event_subscriber'));
+        if (interface_exists(ConflictResponseFormatterInterface::class)) {
+            $container->setDefinition(WikiStorageFailureConflictFormatter::class, (new Definition(WikiStorageFailureConflictFormatter::class))
+                ->addTag(ConflictResponseFormatterInterface::TAG));
+        }
 
         foreach ([
             DoctrineOrmWikiSpaceRepository::class        => WikiSpaceRepositoryInterface::class,
