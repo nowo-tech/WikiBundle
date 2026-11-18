@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.44.0] - 2026-11-18](#1440---2026-11-18)
   - [Added](#added)
   - [Fixed](#fixed)
   - [Tests](#tests)
@@ -262,9 +263,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-11-18
+
 ### Added
 
-- **SearchKit provider for wiki pages** (Beacon re-audit KIT-85, SearchKit spec 240 / CONTRACT-240): `nowo_wiki.search_kit_provider: true` (off by default) puts the wiki's pages into SearchKit's "search everywhere" — header search, palette, results page (paged) and recents — through the wiki's own read rules, so a host no longer re-implements them. Registered only when SearchKitBundle >= 1.8 is installed (optional, `suggest`); without it, or with an older one, nothing is registered. Deny by default: the role gate (`list`), the viewer's spaces from the tenant / team resolver with `View` from the space checker (in the SQL), live pages only (archived and trashed pages left out), the page **and every ancestor** readable — all before matching, counting, ranking or excerpting. No title, excerpt, count or gap of a hidden page: totals are exact (`exactTotal`) only when the candidate scan (`search_kit_provider.candidates`, 200) read every match, otherwise SearchKit caps them to the rows returned. Rows: page title, the wiki's `routes.page_view` link (router, `tenant_paths` aware), the space name, the readable ancestors and — when the title does not match — the wiki search's own plain-text excerpt (no markup). Typed filter `space:` / `-space:` (an unknown and a forbidden space answer the same), SearchKit scope ids by owner id (`scope: owner`) or slug, "see all" to the wiki search page. The viewer of SearchKit's user identifier comes from `search_kit_provider.viewer_resolver` (`Search\WikiSearchViewerResolverInterface`) or a Symfony user provider (`user_provider`, `security.user_providers` by default), and must carry exactly that identifier. New framework-free port `Search\WikiReadablePageFinder` for hosts that wrap the rules themselves. Stateless (FrankenPHP worker mode with kernel reset off). See [USAGE](USAGE.md#searchkit-provider-144), [SECURITY](SECURITY.md#searchkit-provider-144) and [UPGRADING](UPGRADING.md#unreleased).
+- **SearchKit provider for wiki pages** (Beacon re-audit KIT-85, SearchKit spec 240 / CONTRACT-240): `nowo_wiki.search_kit_provider: true` (off by default) puts the wiki's pages into SearchKit's "search everywhere" — header search, palette, results page (paged) and recents — through the wiki's own read rules, so a host no longer re-implements them. Registered only when SearchKitBundle >= 1.8 is installed (optional, `suggest`); without it, or with an older one, nothing is registered. Deny by default: the role gate (`list`), the viewer's spaces from the tenant / team resolver with `View` from the space checker (in the SQL), live pages only (archived and trashed pages left out), the page **and every ancestor** readable — all before matching, counting, ranking or excerpting. No title, excerpt, count or gap of a hidden page: totals are exact (`exactTotal`) only when the candidate scan (`search_kit_provider.candidates`, 200) read every match, otherwise SearchKit caps them to the rows returned. Rows: page title, the wiki's `routes.page_view` link (router, `tenant_paths` aware), the space name, the readable ancestors and — when the title does not match — the wiki search's own plain-text excerpt (no markup). Typed filter `space:` / `-space:` (an unknown and a forbidden space answer the same), SearchKit scope ids by owner id (`scope: owner`) or slug, "see all" to the wiki search page. The viewer of SearchKit's user identifier comes from `search_kit_provider.viewer_resolver` (`Search\WikiSearchViewerResolverInterface`) or a Symfony user provider (`user_provider`, `security.user_providers` by default), and must carry exactly that identifier. New framework-free port `Search\WikiReadablePageFinder` for hosts that wrap the rules themselves. Stateless (FrankenPHP worker mode with kernel reset off). See [USAGE](USAGE.md#searchkit-provider-144), [SECURITY](SECURITY.md#searchkit-provider-144) and [UPGRADING](UPGRADING.md#to-1440).
 
 - **Focus mode Pages drawer below the bars, with a close button and a backdrop** (Beacon focus-drawer request 2026-11-18, items 2–3). In UiKit's focus mode the page-tree drawer starts below the host top bar and the focus bar (`--nowo-wiki-focus-drawer-top`, else `var(--nowo-ui-top-offset, var(--nowo-ui-focus-bar-height, 0px))` from UiKit >= 2.57; `0px` with an older UiKit) and fills the rest of the viewport, on a layer below the focus bar's (`--nowo-wiki-focus-drawer-z`, default `--nowo-ui-focus-bar-z` − 1, was 1000); a backdrop under it closes it on click; the tree card's header gets a close button (`wiki.focus.close_tree`, `aria-controls` the card, focus back on the Pages button), shown only in focus mode. "Pages", the header's other buttons and the rail toggle are unchanged. The demo turns UiKit's focus mode on (UiKit ^2.57, transaction-doctrine 1.4 in its lock; its base template is a focus-mode shell) and its e2e animation waits ignore endless animations. See [USAGE](USAGE.md#focus-mode-141-uikit--255).
 
@@ -2588,7 +2591,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.43.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.44.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.44.0](#to-1440)
 - [To 1.43.0](#to-1430)
 - [To 1.42.0](#to-1420)
 - [To 1.41.0](#to-1410)
@@ -105,6 +106,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.44.0
+
+From **1.43.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 From **1.43.0**:
 
