@@ -11,10 +11,13 @@
   aria-controls the body, aria-expanded; a link to ?tree=rail|full without JavaScript; js/nowo-ui-rail.js stores the
   state through the panel state endpoint, or localStorage without a session); the title and the body are
   data-nowo-ui-rail-body (display: none in the rail, so out of the tab order); the rail shows "Pages" vertically.
+  1.44: with UiKit's focus mode enabled, a close button in the header (`data-wiki-focus-drawer-close`, shown by wiki.css
+  only in focus mode, aria-controls the card: `nowo-wiki-pages` without a rail) closes the focus drawer.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
 {% set _rail = tree_rail|default(null) %}
-<aside class="{{ nowo_ui_class('card', bundle) }} nowo-wiki-sidebar"{% if _rail %} id="{{ _rail.id }}" data-nowo-ui-rail-host data-nowo-ui-rail="{{ _rail.collapsed ? 'collapsed' : 'expanded' }}"{% endif %} data-wiki-sidebar{{ nowo_ui_attrs('card', bundle) }}>
+{% set _focus_drawer = (nowo_ui_kit_focus_mode.enabled ?? false) is same as(true) %}
+<aside class="{{ nowo_ui_class('card', bundle) }} nowo-wiki-sidebar"{% if _rail %} id="{{ _rail.id }}" data-nowo-ui-rail-host data-nowo-ui-rail="{{ _rail.collapsed ? 'collapsed' : 'expanded' }}"{% elseif _focus_drawer %} id="nowo-wiki-pages"{% endif %} data-wiki-sidebar{{ nowo_ui_attrs('card', bundle) }}>
     <header class="{{ nowo_ui_class('card_header', bundle) }} nowo-wiki-sidebar__header">
         <h2 class="{{ nowo_ui_class('card_title', bundle) }} nowo-wiki-region-title"{% if _rail %} data-nowo-ui-rail-body{% endif %}>{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: space_icon|default(null), base_class: 'nowo-wiki-space-icon'}, false) }}{{ 'wiki.space.pages'|trans }}</h2>
         {% if _rail %}
@@ -30,6 +33,10 @@
                 attr: {'data-testid': 'wiki-tree-rail-toggle'},
                 bundle: bundle,
             }, false) }}
+        {% endif %}
+        {% if _focus_drawer %}
+            {#- 1.44: closes the drawer in focus mode (wiki.css shows it only there; focus back on the "Pages" button). -#}
+            <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }} nowo-wiki-focus-drawer-close" aria-controls="{{ _rail ? _rail.id : 'nowo-wiki-pages' }}" aria-label="{{ 'wiki.focus.close_tree'|trans }}" title="{{ 'wiki.focus.close_tree'|trans }}" data-wiki-focus-drawer-close data-testid="wiki-focus-drawer-close"><span aria-hidden="true">×</span></button>
         {% endif %}
     </header>
     <nav class="{{ nowo_ui_class('card_body', bundle) }} nowo-wiki-sidebar__body"{% if _rail %} id="{{ _rail.body_id }}" data-nowo-ui-rail-body{% endif %} aria-label="{{ 'wiki.space.pages'|trans }}">

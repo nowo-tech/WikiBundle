@@ -1503,15 +1503,46 @@ a.nowo-wiki-page-nav__link:focus-visible {
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* 1.44 (Beacon focus-drawer 2026-11-18): the drawer starts below the host top bar and UiKit's focus bar
+   (--nowo-ui-top-offset = host top height + focus bar height, --nowo-ui-focus-bar-height; UiKit >= 2.57, 0px with an
+   older UiKit) or at --nowo-wiki-focus-drawer-top when the host sets it, and fills the rest of the viewport. It stays
+   below the focus bar's layer (--nowo-ui-focus-bar-z, 45): one below by default (--nowo-wiki-focus-drawer-z). */
 [data-focus-mode] .nowo-wiki-layout > .nowo-wiki-layout__aside {
+  --nowo-wiki-focus-drawer-start: var(--nowo-wiki-focus-drawer-top, var(--nowo-ui-top-offset, var(--nowo-ui-focus-bar-height, 0px)));
   position: fixed;
-  inset-block: 0;
+  inset-block-start: var(--nowo-wiki-focus-drawer-start);
+  inset-block-end: 0;
   inset-inline-start: 0;
-  z-index: 1000;
+  z-index: var(--nowo-wiki-focus-drawer-z, calc(var(--nowo-ui-focus-bar-z, 45) - 1));
   inline-size: min(20rem, calc(100vw - 2rem));
-  max-block-size: 100dvh;
+  max-block-size: calc(100dvh - var(--nowo-wiki-focus-drawer-start));
   overflow-y: auto;
   visibility: hidden;
+}
+
+/* 1.44: the backdrop under the open drawer (wiki.js adds it; a click on it closes the drawer). */
+.nowo-wiki-focus-backdrop {
+  display: none;
+}
+
+[data-focus-mode] .nowo-wiki-focus-backdrop {
+  display: block;
+  position: fixed;
+  inset-block-start: var(--nowo-wiki-focus-drawer-top, var(--nowo-ui-top-offset, var(--nowo-ui-focus-bar-height, 0px)));
+  inset-block-end: 0;
+  inset-inline: 0;
+  z-index: calc(var(--nowo-wiki-focus-drawer-z, calc(var(--nowo-ui-focus-bar-z, 45) - 1)) - 1);
+  background: var(--nowo-wiki-focus-backdrop-bg, rgba(15, 23, 42, 0.35));
+}
+
+/* 1.44: the drawer's close button, only in focus mode. */
+.nowo-wiki-focus-drawer-close {
+  display: none;
+}
+
+[data-focus-mode] .nowo-wiki-focus-drawer-close {
+  display: inline-flex;
+  margin-inline-start: auto;
 }
 
 [data-focus-mode] .nowo-wiki-layout > .nowo-wiki-layout__aside:has(> [data-wiki-drawer-open]) {

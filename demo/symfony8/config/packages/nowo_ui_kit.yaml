@@ -4,3 +4,9 @@ nowo_ui_kit:
     css_framework: custom
     layouts:
         admin: 'base.html.twig'
+    # 1.44 (WikiBundle focus drawer, UiKit >= 2.55): the shell's focus mode, so the demo and its e2e cover the wiki's
+    # toggle and the "Pages" drawer (below the focus bar, close button, backdrop, Escape closes only the drawer).
+    theme:
+        focus_mode:
+            enabled: true
+            keep: [breadcrumb_min]

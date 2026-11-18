@@ -150,6 +150,75 @@ describe('bindFocusTreeDrawer (1.41)', () => {
         expect(button().getAttribute('aria-expanded')).toBe('false');
     });
 
+    it('1.44: one Escape closes only the drawer (consumed before UiKit focus mode); the next one reaches it', () => {
+        page();
+        bindFocusTreeDrawer(document);
+        const reached: boolean[] = [];
+        // UiKit's focus mode: a document listener that ignores a handled Escape.
+        const focusMode = (event: KeyboardEvent): void => {
+            if (event.key === 'Escape') {
+                reached.push(event.defaultPrevented);
+            }
+        };
+        document.addEventListener('keydown', focusMode);
+        button().click();
+        const item = drawer().querySelector('[tabindex="0"]') as HTMLElement;
+        const first = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+        item.dispatchEvent(first);
+        expect(first.defaultPrevented).toBe(true);
+        expect(reached).toEqual([]);
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(false);
+        expect(document.activeElement).toBe(button());
+        button().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        expect(reached).toEqual([false]);
+
+        // Modified or composing Escape, and an Escape already handled, leave the drawer open.
+        button().click();
+        for (const init of [{ shiftKey: true }, { ctrlKey: true }, { altKey: true }, { metaKey: true }, { isComposing: true }]) {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true, ...init }));
+        }
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(true);
+        document.removeEventListener('keydown', focusMode);
+    });
+
+    it('1.44: an Escape that belongs to a field or a menu inside the drawer is left to it', () => {
+        page();
+        drawer().insertAdjacentHTML('beforeend', '<input id="rename"><div role="menu"><button type="button" id="menu-item">Rename</button></div>');
+        bindFocusTreeDrawer(document);
+        button().click();
+        for (const id of ['rename', 'menu-item']) {
+            const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+            document.getElementById(id)!.dispatchEvent(event);
+            expect(event.defaultPrevented).toBe(false);
+            expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(true);
+        }
+        // A field outside the drawer does not own it: the drawer closes.
+        document.body.insertAdjacentHTML('beforeend', '<input id="outside">');
+        document.getElementById('outside')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(false);
+    });
+
+    it('1.44: the close button and the backdrop close the drawer, focus back on the button', () => {
+        document.body.innerHTML = '<button type="button" aria-expanded="false" data-wiki-focus-tree-toggle>Pages</button>'
+            + '<div class="layout"><div class="aside"><aside data-wiki-sidebar id="nowo-wiki-pages"><header><button type="button" data-wiki-focus-drawer-close aria-controls="nowo-wiki-pages"><span>×</span></button></header>'
+            + '<ul role="tree"><li><a href="/b" data-nowo-ui-tree-item tabindex="0">B</a></li></ul></aside></div></div>';
+        bindFocusTreeDrawer(document);
+        button().click();
+        const shade = document.querySelector('[data-wiki-focus-backdrop]') as HTMLElement;
+        expect(shade).not.toBeNull();
+        expect(shade.nextElementSibling?.className).toBe('aside');
+        expect(shade.getAttribute('aria-hidden')).toBe('true');
+        (document.querySelector('[data-wiki-focus-drawer-close] span') as HTMLElement).click();
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(false);
+        expect(document.querySelector('[data-wiki-focus-backdrop]')).toBeNull();
+        expect(document.activeElement).toBe(button());
+
+        button().click();
+        (document.querySelector('[data-wiki-focus-backdrop]') as HTMLElement).click();
+        expect(drawer().hasAttribute('data-wiki-drawer-open')).toBe(false);
+        expect(document.querySelectorAll('[data-wiki-focus-backdrop]')).toHaveLength(0);
+    });
+
     it('a tree without a tab stop opens without moving the focus', () => {
         page();
         drawer().querySelectorAll('a').forEach((a) => a.setAttribute('tabindex', '-1'));

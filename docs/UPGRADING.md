@@ -137,6 +137,12 @@ see [USAGE › SearchKit provider › Beacon](USAGE.md#beacon-replacing-wikipage
 - **The scope.** A SearchKit scope id selects the spaces whose owner id it is (`scope: owner`, e.g. a project UUID) or
   the space with that slug (`scope: slug`).
 
+**Focus mode Pages drawer.** It now starts below the top bar and UiKit's focus bar, has a close button and a backdrop,
+and one Escape closes only the drawer. Remove a host workaround that moved the drawer (Beacon:
+`assets/styles/_focus_mode.scss`); with a UiKit older than 2.57, or a top bar UiKit does not measure, set
+`--nowo-wiki-focus-drawer-top` on the shell. A host template that overrides `manage/_sidebar.html.twig` should add the
+close button (see the bundle's template).
+
 ## To 1.43.0
 
 From **1.42.0**:

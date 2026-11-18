@@ -14,7 +14,7 @@ const menu = (page: Page) => page.getByTestId('wiki-tree-menu');
 const entries = (page: Page) => menu(page).getByRole('menuitem');
 
 async function seriousViolations(page: Page, include?: string): Promise<string[]> {
-  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity));
   let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).exclude('.sf-toolbar');
   if (include) builder = builder.include(include);
   const { violations } = await builder.analyze();

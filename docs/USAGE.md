@@ -387,6 +387,22 @@ With UiKit's shell focus mode on (`nowo_ui_kit.theme.focus_mode.enabled: true`; 
 remembered under the area `wiki`. In focus mode the page tree is not hidden: it becomes a drawer at the start edge,
 opened by the **Pages** button of the toolbar (Escape or a click outside closes it, the focus goes back to the button).
 With a UiKit without focus mode the wiki prints nothing for it.
+
+1.44 (Beacon focus-drawer request 2026-11-18):
+
+- **Below the bars.** The drawer starts at `--nowo-wiki-focus-drawer-top`, else
+  `var(--nowo-ui-top-offset, var(--nowo-ui-focus-bar-height, 0px))` (UiKit >= 2.57 sets them; an older UiKit gives
+  `0px`, the 1.43 position; UiKit's `--nowo-ui-top-offset` is the host's `--nowo-ui-host-top-height` plus the focus bar),
+  and is the viewport height minus that. Its layer stays below the focus bar's (`--nowo-ui-focus-bar-z`, 45):
+  `--nowo-wiki-focus-drawer-z`, one below it by default (it was 1000), the backdrop one below the drawer.
+- **Backdrop.** While it is open a backdrop (`.nowo-wiki-focus-backdrop`, `--nowo-wiki-focus-backdrop-bg`) covers the
+  page below the same top; a click on it closes the drawer.
+- **Close button.** The tree card's header (with "Pages" and its other buttons) gets a close button
+  (`data-wiki-focus-drawer-close`, label `wiki.focus.close_tree` "Close Pages", `aria-controls` the card), shown only in
+  focus mode; the focus goes back to the **Pages** button.
+- **Escape.** One Escape closes only the drawer (the wiki handles it first and marks it handled, so UiKit's focus mode
+  ignores it); the next Escape leaves focus mode. An Escape inside a text field, the tree's menu or a dialog in the
+  drawer is left to them.
 - **Previous / next**: `web_ui.page_nav` prints links to the neighbours of the page in the tree's reading order.
 - **Edit view title**: the title field of the page form reads as the page title (class `nowo-wiki-title-input`, the
   read view's `--nowo-wiki-read-h1-size` / heading tokens; override with `--nowo-wiki-edit-title-size`). The label stays.

@@ -298,6 +298,7 @@ wiki:
   # 1.41: focus mode (UiKit shell): the button that opens the page tree as a drawer.
   focus:
     tree: "Páginas"
+    close_tree: "Fechar Páginas"
   tree_menu:
     menu: "Ações da página"
     more: "Ações de «%title%»"
