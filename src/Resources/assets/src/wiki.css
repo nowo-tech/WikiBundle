@@ -537,9 +537,6 @@
    one UiKit card (.nowo-wiki-page-card) and the line sits in its footer slot (card_footer: the theme's padding), no
    longer flush against the card's edges. The body's own card (and the read-only editor's) is drawn flat inside it. */
 .nowo-wiki-page-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--nowo-wiki-page-card-gap, 0);
   min-width: 0;
   padding: var(--nowo-wiki-page-card-padding, 0);
   border: var(--nowo-wiki-page-card-border, 1px solid var(--nowo-ui-card-border, var(--nowo-ui-border)));
@@ -554,6 +551,13 @@
    own frame set --nowo-wiki-page-card-margin-end. */
 .nowo-ui-card.nowo-wiki-page-card {
   margin-block-end: var(--nowo-wiki-page-card-margin-end, 1rem);
+}
+
+/* The gap between the body and the footer line is the second child's top margin (no flex: the card stays a block, so
+   nothing changes in how the children flow, collapse margins or blockify while the token is unset). Both children
+   carry no top margin today (the body is drawn flat above, the footer slot has none). */
+.nowo-wiki-page-card > * + * {
+  margin-block-start: var(--nowo-wiki-page-card-gap, 0);
 }
 
 .nowo-wiki-page-card > .nowo-wiki-page-card__footer {

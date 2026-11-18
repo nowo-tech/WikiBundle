@@ -74,8 +74,10 @@ describe('page-card design tokens keep the 1.42.0 defaults', () => {
 
     it('page card keeps the UiKit card look (padding 0, 1px border, theme radius and surface, no shadow, no gap)', () => {
         const [card] = rules('.nowo-wiki-page-card');
+        expect(card).not.toHaveProperty('display');
+        expect(card).not.toHaveProperty('gap');
+        expect(rules('.nowo-wiki-page-card > * + *')).toEqual([{ 'margin-block-start': '0' }]);
         expect(card).toMatchObject({
-            gap: '0',
             padding: '0',
             border: '1px solid var(--nowo-ui-card-border, var(--nowo-ui-border))',
             'border-radius': 'var(--nowo-ui-card-radius, var(--nowo-ui-radius))',

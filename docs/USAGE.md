@@ -825,7 +825,7 @@ every default below is the value the rule had before (a test compares the rules 
 | Token | Part | Default |
 |-------|------|---------|
 | `--nowo-wiki-page-card-padding` | card (`.nowo-wiki-page-card`, with `page_meta: card`) | `0` (the body and the footer pad themselves) |
-| `--nowo-wiki-page-card-gap` | card, between the body and the footer line (the card is a flex column) | `0` |
+| `--nowo-wiki-page-card-gap` | card, space between the body and the footer line (a top margin on the later children; the card stays a block) | `0` |
 | `--nowo-wiki-page-card-bg` | card | `var(--nowo-ui-card-bg, var(--nowo-ui-surface))` |
 | `--nowo-wiki-page-card-border` | card (full `border` shorthand) | `1px solid var(--nowo-ui-card-border, var(--nowo-ui-border))` |
 | `--nowo-wiki-page-card-radius` | card | `var(--nowo-ui-card-radius, var(--nowo-ui-radius))` |
