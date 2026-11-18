@@ -544,7 +544,7 @@ jobs:
         run: |
           # The real SearchKit is installed and autoloaded (the stub file is only required by the tests when it is missing).
           php -r 'require "vendor/autoload.php"; exit(class_exists(Nowo\SearchKitBundle\Model\SearchQuery::class) ? 0 : 1);'
-          vendor/bin/phpunit --fail-on-skipped tests/Unit/Search tests/Unit/DependencyInjection/WikiExtensionSearchKitTest.php tests/Database/WikiReadablePageFinderTest.php tests/Api/SearchKitProviderTest.php
+          vendor/bin/phpunit --fail-on-skipped tests/Unit/Search tests/Unit/DependencyInjection/WikiExtensionSearchKitTest.php tests/Database/WikiReadablePageFinderTest.php tests/Api/SearchKitProviderTest.php tests/Api/SearchKitProviderSessionTest.php tests/Unit/Security/ConfigurableWikiAccessCheckerTest.php
 
   private-entity-manager:
     name: API and database suites through the private entity manager
