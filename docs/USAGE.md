@@ -776,7 +776,7 @@ backlinks, related objects) — override one block instead of copying `nowo_ui_s
 - **Reading column at the start** (`web_ui.reading_align: start`).
 - **Title in the body** (`web_ui.page_header.title: body`): pages written as `# <title>` drop the header title.
 - **Tabs as buttons** (`web_ui.page_header.tabs: toolbar`) and **toolbar in the content card**
-  (`web_ui.page_header.toolbar_position: card`), Notion / Confluence style. With all of them:
+  (`web_ui.page_header.toolbar_position: card`). With all of them:
 
   ```yaml
   nowo_wiki:

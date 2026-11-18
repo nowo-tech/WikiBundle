@@ -4,7 +4,7 @@
 
 > ⭐ **Found this useful?** Give it a **star** on [GitHub](https://github.com/nowo-tech/WikiBundle) so more developers can find it.
 
-Symfony bundle for a **versionable team wiki**: spaces, page trees, immutable revisions, diff, search, and Tiptap rich-text editing (Notion-like variant).
+Symfony bundle for a **versionable team wiki**: spaces, page trees, immutable revisions, diff, search, and Tiptap rich-text editing or the Milkdown Markdown editor.
 
 **FrankenPHP demos:** runtime is selected with **`FRANKENPHP_MODE`** (`worker` default, or `classic` for per-request PHP / hot-reload). See [docs/DEMO-FRANKENPHP.md](docs/DEMO-FRANKENPHP.md).
 

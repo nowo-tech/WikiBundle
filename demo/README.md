@@ -18,7 +18,7 @@ Sample content: **Engineering** and **Product** spaces with nested pages, images
 ## What to try
 
 1. Browse spaces and the nested page tree.
-2. Edit a page with the Notion-style Tiptap editor (markdown shortcuts, no toolbar).
+2. Edit a page with the Tiptap editor (Markdown shortcuts, no toolbar).
 3. Open version history and diff between revisions.
 4. Search within a space.
 5. Comments (1.16): open a page of the **Product** space and use the comments toggle at the end of the page tabs

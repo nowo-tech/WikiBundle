@@ -13,7 +13,7 @@ nowo_wiki:
             link_picker:
                 enabled: true
                 rate_limiter: limiter.wiki_link_picker
-    # 1.14: the Outline-style page tree (UiKit tree: fold state, drag, Alt+arrows, Move form).
+    # 1.14: the page tree (UiKit tree: fold state, drag, Alt+arrows, Move form).
     tree:
         enabled: true
         # 1.39 (opt-in): the page tree's context menu (Rename, Change icon / emoji, Add child / sibling page, Copy link);
