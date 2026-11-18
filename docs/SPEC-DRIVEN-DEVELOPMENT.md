@@ -25,7 +25,7 @@ There is no separate executable spec language (for example Gherkin); Spec Kit sp
 
 ## Product vision
 
-Versionable internal wiki for Symfony apps: runbooks, ADRs, and team documentation with Outline/Notion-style rich text (Tiptap), immutable revisions, and pluggable ACL.
+Versionable internal wiki for Symfony apps: runbooks, ADRs, and team documentation with block-based rich text (Tiptap or Milkdown), immutable revisions, and pluggable ACL.
 
 ## Scope
 
@@ -33,7 +33,7 @@ Versionable internal wiki for Symfony apps: runbooks, ADRs, and team documentati
 |---------------|-------------------|
 | Spaces (team/user), page tree, revisions, diff, search | Public/anonymous wiki |
 | Tiptap or Milkdown editor, Markdown storage, archive pages | Built-in billing or plan limits (the host decides, `nowo_wiki.quota.check`) |
-| Markdown/Obsidian import-export (CLI + interchange services) | Full CSP / rate-limit middleware in bundle |
+| Markdown import-export (CLI + interchange services) | Full CSP / rate-limit middleware in bundle |
 | Optional Symfony AI assistant (`WikiAiAssistantInterface`) | |
 | `WikiAccessCheckerInterface`, space- and page-aware checker, team membership resolver, tenant paths | |
 | Opt-in: co-editing (Mercure), page tree moves, trash, history timeline, comments, page files | |

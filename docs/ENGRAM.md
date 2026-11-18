@@ -21,7 +21,7 @@ Persistent context for agents working on this repository.
 
 ## Purpose
 
-Versionable team wiki (Outline/Notion-style): spaces, page trees, immutable revisions, diff, search, Tiptap rich text.
+Versionable team wiki: spaces, page trees, immutable revisions, diff, search, Tiptap rich text.
 
 ## Key extension points
 

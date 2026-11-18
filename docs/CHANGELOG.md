@@ -1834,7 +1834,7 @@ Empty space export, export index, front matter round trip
 - **Exporting a space with no visible pages no longer returns 500** (reported by symfony-beacon). ZipArchive writes no
   file for an archive without entries, so the web export (`nowo_wiki_space_export`) ended in
   `FileNotFoundException: ".../wiki-export-<slug>-<hex>.zip" does not exist`, and `wiki:export --zip` reported success
-  without writing the archive. Every export now holds a `README.md` index at its root (Outline-style): the space
+  without writing the archive. Every export now holds a `README.md` index at its root: the space
   title, the export date (UTC) and the exported pages as nested relative links, or a line saying the space has no
   pages visible to the exporter. It lists exactly the exported pages (never the title of a page the exporter may not
   read), escapes titles for Markdown link text and is translated in the `NowoWikiBundle` domain (`wiki.export.readme.*`,
@@ -1907,11 +1907,11 @@ Collaboration cost: counters on the document row, split limiters
 
 ## [1.14.0] - 2026-11-03
 
-Outline-style page tree and trash
+Page tree and trash
 
 ### Added
 
-- **Outline-style page tree** (`tree.enabled`, opt-in, T062 / T049): the sidebar renders the UiKit 2.24 `tree`
+- **Page tree** (`tree.enabled`, opt-in, T062 / T049): the sidebar renders the UiKit 2.24 `tree`
   (WAI-ARIA treeview: one tab stop, arrows, Home / End, type-ahead, `*`) with disclosures, the current page's branch
   unfolded and the fold state of each user and space applied by the server (no flash; kept in the session unless
   `tree.state_store` names your service). Users who may edit move pages by dragging (drop line, *inside* / *between*),
@@ -2016,8 +2016,8 @@ Patch for hosts adopting 1.13 (Beacon requests) and the audit Info residuals CW-
 
 ### Documentation
 
-- `docs/ROADMAP.md`: knowledge-base roadmap towards Notion / Outline parity (page tree, trash, version history,
-  comments, templates, search, per-page permissions, public links, Notion-style databases), parity matrix, open
+- `docs/ROADMAP.md`: knowledge-base roadmap (page tree, trash, version history,
+  comments, templates, search, per-page permissions, public links, databases), feature matrix, open
   decisions.
 
 ## [1.13.0] - 2026-11-03
@@ -2577,7 +2577,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 ### Added
 
 - **Core wiki** — spaces (team/user scope), page tree, immutable revisions, diff, search.
-- **Tiptap integration** — `WikiPageFormType` + `nowo-tech/tiptap-editor-bundle` (Notion variant).
+- **Tiptap integration** — `WikiPageFormType` + `nowo-tech/tiptap-editor-bundle`.
 - **Import / export** — Outline and Notion Markdown interchange (UI + `wiki:import` / `wiki:export` console commands, ZIP support).
 - **Symfony AI (optional)** — `/tools/wiki/ask`, `WikiKnowledgeSearchTool`, context injection via `symfony/ai-bundle`.
 - **Security** — `WikiAccessCheckerInterface`, `WikiSpaceAccessResolver`, CSRF on POST, `WikiHtmlSanitizer`, role-based import/export ACL.
