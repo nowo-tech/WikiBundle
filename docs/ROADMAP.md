@@ -104,7 +104,7 @@ Shipped and in use, by area (each with its opt-in switch; see [CONFIGURATION](CO
 | Pages | Page tree with drag, keyboard moves, context menu | Yes | — | — | Lazy children: Later |
 | Pages | Page icons (icon or emoji) | Yes | Yes (picker) | — | — |
 | Pages | Cover images | No | — | W + S | Later |
-| Pages | Collections (grouping between space and pages) | No | — | W | Considering |
+| Pages | Collections (grouping between space and pages) | No | — | — | Not planned (D-W33) |
 | Pages | Favourites and recently viewed | No | — | W | **Next** |
 | Pages | Drafts and publish | No | — | W | Later |
 | Pages | Review dates (owner, interval, "may be out of date") | No | — | W + H | Later |
@@ -163,23 +163,26 @@ Shipped and in use, by area (each with its opt-in switch; see [CONFIGURATION](CO
 
 ## Next
 
-Ordered by value inside each area. One line each: what it is and why it helps.
+Four waves, in order (owner decision D-W32, 2026-11-18); the items of one wave may run in parallel, and wave 4 runs
+the databases MVP and per-page permissions in parallel. Items marked **—** have no wave: they are picked up beside the
+waves when capacity allows (external embeds wait for the open decisions D2 and D3 in the editor roadmap). One line
+each: what it is and why it helps.
 
-| Area | Item | What and why | Owner |
-|------|------|--------------|-------|
-| Pages | **Favourites and recently viewed** | Per-user starred pages and recent pages at the top of the tree and in the palette; the fastest way back to the pages people use daily. Never lists pages the viewer lost access to. | W |
-| Links | **Backlinks panel** | "Linked from" under the page body from the stored page references, per viewer; shows context and keeps the knowledge base connected. The `wiki_page_after_body` slot is already there. | W |
-| Links | **Table of contents** | A side panel with the page's headings (the same `sections` the REST API returns since 1.40) plus the editor's TOC block; long pages become navigable. | W + E |
-| Mentions | **Mention notifications** | Typed events when someone is mentioned in a page or comment, only for people who can read it; the host delivers them. Viewer-aware user resolver (CV-I5) first. | W + H |
-| Notifications | **Watching pages and spaces** | Automatic for authors and commenters, manual for anyone; events for replies, edits (daily digest) and moves, delivered by the host. Without this, comments and mentions go unseen. | W + H |
-| History | **Rendered diff and version view** | Use the editor's `nowo_milkdown_diff()` (block then word level, escaped, per viewer) instead of the line diff, and its read-only `version_view` for old versions; history becomes readable for non-technical users. | W (+ E shipped) |
-| Collaboration | **Presence on pages** | Avatars of who is viewing or editing a page (Mercure awareness), with *follow* in the editor; people see each other before they collide. | W + E |
-| Templates | **Page templates** | Space and instance templates with fixed `{{variable}}` substitution, seed templates and "start from a template" in the empty page and the tree; consistent pages for meeting notes, runbooks, postmortems. See [Templates](#templates). | W + E |
-| Search | **Full-text index with filters and highlighting** | The database's own full-text index (MySQL FULLTEXT, PostgreSQL tsvector), filters (space, author, dates, status), highlighted excerpts and terms highlighted on open; today search is a literal match. See [Search](#search). | W + SK |
-| Embeds | **External embeds and link previews** | Allow-listed iframes and bookmark cards rendered by the editor and the server render; the wiki side supplies the host unfurl endpoint config and CSP notes. | E + H (+ W config) |
-| Databases | **Databases MVP** | Database pages with a schema, rows as pages, the basic property types, table and board views with filters, sorts and grouping, CSV import / export, the `::database` block; structured data next to the prose it belongs to. See [Databases](#databases). | W + E + U |
-| Sharing | **Per-page permissions** | Levels (full, edit, comment, view, none), inheritance down the tree, *Restrict this page*, *Who has access*, an audit trail; needed before guests and public links. See [Per-page permissions and guests](#per-page-permissions-and-guests). | W + H |
-| Import / export | **Page and sub-tree export with attachments** | Export one page or a branch, not only a space, with its files in the ZIP; covers "send me this runbook" without admin help. | W + S |
+| Wave | Area | Item | What and why | Owner |
+|------|------|------|--------------|-------|
+| 1 | Pages | **Favourites and recently viewed** | Per-user starred pages and recent pages at the top of the tree and in the palette; the fastest way back to the pages people use daily. Never lists pages the viewer lost access to. | W |
+| 1 | Links | **Backlinks panel** | "Linked from" under the page body from the stored page references, per viewer; shows context and keeps the knowledge base connected. The `wiki_page_after_body` slot is already there. | W |
+| 1 | History | **Rendered diff and version view** | Use the editor's `nowo_milkdown_diff()` (block then word level, escaped, per viewer) instead of the line diff, and its read-only `version_view` for old versions; history becomes readable for non-technical users. | W (+ E shipped) |
+| 2 | Templates | **Page templates** | Space and instance templates with fixed `{{variable}}` substitution, seed templates and "start from a template" in the empty page and the tree; consistent pages for meeting notes, runbooks, postmortems. See [Templates](#templates). | W + E |
+| 2 | Notifications | **Watching pages and spaces** | Automatic for authors and commenters, manual for anyone; events for replies, edits (daily digest) and moves, delivered by the host. Without this, comments and mentions go unseen. | W + H |
+| 2 | Mentions | **Mention notifications** | Typed events when someone is mentioned in a page or comment, only for people who can read it; the host delivers them. Viewer-aware user resolver (CV-I5) first. | W + H |
+| 3 | Search | **Full-text index with filters and highlighting** | The database's own full-text index (MySQL FULLTEXT, PostgreSQL tsvector), filters (space, author, dates, status), highlighted excerpts and terms highlighted on open; today search is a literal match. See [Search](#search). | W + SK |
+| 4 | Databases | **Databases MVP** | Database pages with a schema, rows as pages, the basic property types, table and board views with filters, sorts and grouping, CSV import / export, the `::database` block; structured data next to the prose it belongs to. See [Databases](#databases). | W + E + U |
+| 4 | Sharing | **Per-page permissions** | Levels (full, edit, comment, view, none), inheritance down the tree, *Restrict this page*, *Who has access*, an audit trail; needed before guests and public links. See [Per-page permissions and guests](#per-page-permissions-and-guests). | W + H |
+| — | Links | **Table of contents** | A side panel with the page's headings (the same `sections` the REST API returns since 1.40) plus the editor's TOC block; long pages become navigable. | W + E |
+| — | Collaboration | **Presence on pages** | Avatars of who is viewing or editing a page (Mercure awareness), with *follow* in the editor; people see each other before they collide. | W + E |
+| — | Import / export | **Page and sub-tree export with attachments** | Export one page or a branch, not only a space, with its files in the ZIP; covers "send me this runbook" without admin help. | W + S |
+| — | Embeds | **External embeds and link previews** | Allow-listed iframes and bookmark cards rendered by the editor and the server render; the wiki side supplies the host unfurl endpoint config and CSP notes. | E + H (+ W config) |
 
 ## Later
 
@@ -215,7 +218,6 @@ Not yet scheduled; accept, reshape or drop each one.
 
 | Area | Item | What and why | Owner |
 |------|------|--------------|-------|
-| Pages | **Collections** | A grouping level between space and pages with its own icon, colour and permissions; useful for very large spaces, but the tree and per-page permissions may cover it. | W |
 | Pages | **Page analytics** | Views, viewers (opt-in), popular and stale pages; feeds review dates. Aggregates only by default (privacy). | W + H |
 | Pages | **Translations of a page** | Links between the same page in several locales; multilingual wikis. | W |
 | Pages | **Related-pages graph** | An accessible graph with a list fallback of links around a page. | W |
@@ -228,6 +230,7 @@ Not yet scheduled; accept, reshape or drop each one.
 
 ## Deliberate gaps
 
+- **Collections** (D-W33): no grouping level between space and pages; the tree plus per-page permissions cover it.
 - **Moves across spaces** (D-W1): pages move within one space; a cross-space move is an export and import.
 - **Synced editing of one block in many pages:** Markdown has no shared nodes and permissions differ per page; the
   read-only reusable section covers the need.
@@ -356,10 +359,13 @@ Moved out of the plan because they shipped (version in brackets):
 | D-W30 | Pages **archived before** a delete | Stay archived after a restore (2026-11-03) |
 | D-W31 | A restored page whose **parent is gone** | Comes back at the top level (2026-11-03) |
 | — | Databases with schema pages, views, relations, rollups and formulas | In scope (owner, 2026-11-03) |
+| D-W32 | **Order of the Next items** | Four waves: (1) favourites and recents, backlinks, rendered diff; (2) templates, watching and notifications; (3) search; (4) the databases MVP and per-page permissions in parallel (owner, 2026-11-18) |
+| D-W33 | **Collections** | None: the tree plus per-page permissions cover the need (owner, 2026-11-18) |
 
 ## Open decisions
 
-Recommended answers are the defaults until the owner decides.
+Still open on 2026-11-18, among others: the template questions D-W10, D-W11 and D-W12, and neutral aliases for the import
+format names. Recommended answers are the defaults until the owner decides.
 
 | # | Decision | Recommendation |
 |---|----------|----------------|
@@ -383,8 +389,7 @@ Recommended answers are the defaults until the owner decides.
 | D-W24 | **Password required** on public links? | Optional; required when the space says so |
 | D-W25 | **Mentions** on public pages | Anonymised ("a team member") |
 | D-W26 | **Search-engine indexing** of public pages | Per link by an admin only; off by default |
-| D-W32 | **Order of the Next items** | Favourites + backlinks + rendered diff first (small), then templates and notifications, then search, then the databases MVP and per-page permissions in parallel |
-| D-W33 | **Collections**: build them or rely on the tree and per-page permissions? | Rely on the tree; revisit after per-page permissions |
+| — | **Neutral aliases for the import / export format names** (`--format` values, `WikiInterchangeFormat` cases, UI strings) | Open; the names stay as they are for now |
 
 ## Links
 
