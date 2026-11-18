@@ -117,12 +117,12 @@ What it does, for a viewer (SearchKit's `SearchQuery::$userIdentifier`):
 | Step | Rule |
 |---|---|
 | Viewer | `viewer_resolver`, else the Symfony user provider; the user must carry exactly the identifier. None: no group |
-| Role gate | `security.access_checker` `canList()` (the search page's `list` feature) |
+| Role gate | `security.access_checker` `canList()` for the viewer (the search page's `list` feature; 1.44: the default checker decides another user than the session's on that user's roles) |
 | Spaces | The viewer's spaces from the tenant / team resolver, each with `View` from the space checker; narrowed by the SearchKit scope and the `space:` filter. Only these reach the SQL |
 | Rows | Live pages only (archived and trashed pages are left out), matched on the title and the plain text of the current revision — never the Markdown source (`WikiSearchService::searchPlainText()`, as the REST API) |
 | Pages | `View` on the page **and every ancestor** (`WikiPageVisibility`, the page view's rule) |
 | Group | Key and row kind `wiki`, label `wiki.search_kit.group`. Rows: page title; the page view URL (`routes.page_view` through the router, so `tenant_paths` copies apply); subtitle = space name · readable ancestors · the wiki search's plain-text excerpt when the title does not match. `score` (title before body) and `date` (last change) for SearchKit's ranking |
-| Total | The readable hits; `exactTotal: true` only when the scan read every match (fewer than `candidates`), otherwise SearchKit caps it to the rows |
+| Total | The readable hits; `exactTotal: true` only when the scan read every match, otherwise SearchKit caps it to the rows |
 | See all | With more readable hits than rows: the wiki search page of their one space, or (with `search.scope: all`) across spaces |
 | Results page | `PaginatedSearchProviderInterface`: pages of the same ranked, readable list (no gap) |
 | Recents | `SearchReferenceResolverInterface`: a `wiki` reference whose `spaceSlug` / `pageSlug` name a page the viewer may read **now** and whose URL is that page's view URL; anything else is null |
@@ -133,8 +133,11 @@ raw HTML of the source is text there too, and SearchKit prints it as text (DOM t
 match itself. Hosts that wrap the rules in their own provider use the framework-free port
 `Nowo\WikiBundle\Search\WikiReadablePageFinder` (`spaces()`, `find()`, `page()`), registered with the option.
 
-The scan is bounded: at most `candidates` matching rows, read in page-id order before the page / ancestor rule, so with
-many hidden matches a viewer may see fewer hits than exist (never more, never a hidden one). Synonym alternatives of
+The scan is bounded: the title matches first, then every match, each at most `candidates` rows read in page-id order
+before the page / ancestor rule, so a title hit is never crowded out by body matches; with many hidden matches a viewer
+may still see fewer body hits than exist (never more, never a hidden one; [SECURITY](SECURITY.md#searchkit-provider-144)).
+Each search reads at most 2 × `candidates` rows (each with its revision's text), on every keystroke: keep the default
+of 200. With several Symfony user providers, set `user_provider` to the firewall's own provider rather than the chain. Synonym alternatives of
 SearchKit (`SearchQuery::terms()`) are used for ranking only; the SQL matches the typed text.
 
 ### Beacon: replacing WikiPageSearchProvider

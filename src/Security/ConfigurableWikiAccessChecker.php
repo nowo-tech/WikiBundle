@@ -50,139 +50,144 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
      * Tells whether the user may enter the wiki manage area: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canAccess(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || $this->hasAnyRole($this->accessRoles);
+        return $this->isAdmin($user) || $this->hasAnyRole($this->accessRoles, $user);
     }
 
     /**
      * Tells whether the user may list wiki spaces and pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canList(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->listRoles));
+        return $this->isAdmin($user) || ($this->hasAnyRole($this->accessRoles, $user) && $this->hasAnyRole($this->listRoles, $user));
     }
 
     /**
      * Tells whether the user may create wiki spaces and pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canCreate(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->createRoles));
+        return $this->isAdmin($user) || ($this->hasAnyRole($this->accessRoles, $user) && $this->hasAnyRole($this->createRoles, $user));
     }
 
     /**
      * Tells whether the user may edit wiki pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canEdit(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->editRoles));
+        return $this->isAdmin($user) || ($this->hasAnyRole($this->accessRoles, $user) && $this->hasAnyRole($this->editRoles, $user));
     }
 
     /**
      * Tells whether the user may view the revision history of wiki pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canViewHistory(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->historyRoles));
+        return $this->isAdmin($user) || ($this->hasAnyRole($this->accessRoles, $user) && $this->hasAnyRole($this->historyRoles, $user));
     }
 
     /**
      * Tells whether the user may archive wiki pages: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canArchive(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->archiveRoles));
+        return $this->isAdmin($user) || ($this->hasAnyRole($this->accessRoles, $user) && $this->hasAnyRole($this->archiveRoles, $user));
     }
 
     /**
      * Tells whether the user may ask the wiki AI assistant: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canAskAi(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->aiRoles));
+        return $this->isAdmin($user) || ($this->hasAnyRole($this->accessRoles, $user) && $this->hasAnyRole($this->aiRoles, $user));
     }
 
     /**
      * Tells whether the user may import documents into the wiki: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canImport(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->importRoles));
+        return $this->isAdmin($user) || ($this->hasAnyRole($this->accessRoles, $user) && $this->hasAnyRole($this->importRoles, $user));
     }
 
     /**
      * Tells whether the user may export wiki content: granted to admin roles, or to users holding an access role and a role of this permission.
      * Always denied when the security token is not trusted for the current request.
      *
-     * @param UserInterface|null $user user to check (ignored; the current security token is evaluated)
+     * @param UserInterface|null $user user to check (1.44: decided for that user when it is not the session's user; otherwise the current security token is evaluated)
      *
      * @return bool true when access is granted
      */
     public function canExport(?UserInterface $user = null): bool
     {
-        return $this->isAdmin() || ($this->hasAnyRole($this->accessRoles) && $this->hasAnyRole($this->exportRoles));
+        return $this->isAdmin($user) || ($this->hasAnyRole($this->accessRoles, $user) && $this->hasAnyRole($this->exportRoles, $user));
     }
 
-    private function isAdmin(): bool
+    private function isAdmin(?UserInterface $user): bool
     {
-        if (!$this->isTokenTrusted()) {
-            return false;
-        }
-
-        foreach ($this->adminRoles as $role) {
-            if ($this->security->isGranted($role)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->hasAnyRole($this->adminRoles, $user);
     }
 
     /**
+     * Whether the user holds one of the roles. 1.44 (audit TI-M1): a user other than the session's (a search run for
+     * another identifier inside a request, e.g. SearchKit's `searchFor()`) is decided for that user
+     * (`Security::isGrantedForUser()`, its own roles), never on the session's token. The session's user, and a call with
+     * no user or with no session user, are decided on the current token, which must be trusted.
+     *
      * @param list<string> $roles
      */
-    private function hasAnyRole(array $roles): bool
+    private function hasAnyRole(array $roles, ?UserInterface $user = null): bool
     {
+        $session = $this->security->getUser();
+        if ($user instanceof UserInterface && $session instanceof UserInterface && $user->getUserIdentifier() !== $session->getUserIdentifier()) {
+            foreach ($roles as $role) {
+                if ($this->security->isGrantedForUser($user, $role)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
         if (!$this->isTokenTrusted()) {
             return false;
         }

@@ -39,9 +39,12 @@ use function trim;
  * 4. the pages: {@see WikiAction::View} on the page **and every ancestor** ({@see WikiPageVisibility}, the page view's own
  *    rule), so a page below a hidden one is never a hit.
  *
- * The page ACL is the host's PHP checker, so it runs on a bounded candidate scan: at most `$candidates` matching rows,
- * read in id order; the hits and their number are the readable ones among them only. A hidden row therefore never shows
- * as a title, an excerpt, a count or a gap; the work done is that of the scan whatever the viewer may read.
+ * The page ACL is the host's PHP checker, so it runs on a bounded candidate scan: the title matches first, then every
+ * match, each at most `$candidates` rows read in id order; the hits and their number are the readable ones among them
+ * only. A hidden row never shows as a title or an excerpt and is never counted. Residual (audit TI-L2, accepted): past the
+ * budget, hidden matches in the viewer's own spaces use up scan slots, so whether a further readable body match shows and
+ * whether the total is marked exact can depend on how many hidden pages match there — an existence signal of the same
+ * kind as the scan's timing. Other tenants' and spaces' pages are never in the SQL.
  */
 final readonly class WikiReadablePageFinder
 {
@@ -120,23 +123,52 @@ final readonly class WikiReadablePageFinder
 
         $readable  = [];
         $decisions = [];
-        $read      = 0;
-        $after     = null;
-        $complete  = false;
         $limits    = $this->renderer instanceof WikiMarkdownLimitsInterface ? $this->renderer : null;
-        while (!$complete && $read < $this->candidates) {
-            $batch = min(self::BATCH, $this->candidates - $read);
-            $hits  = $this->search->searchPlainText($spaces, $text, $batch, $after, $limits, $after, $rows);
-            $read += $rows;
+        // 1.44 (audit TI-L2): title matches first, so body matches (or hidden pages) never crowd a title hit out of the
+        // budget; then every match (title or text), skipping the pages already read. At most twice `candidates` rows.
+        $this->scan($viewer, $readable, $decisions, fn (?string $after, int $batch, ?string &$last, ?int &$rows): array => $this->search->searchTitles($spaces, $text, $batch, $after, $last, $rows));
+        $complete = $this->scan($viewer, $readable, $decisions, fn (?string $after, int $batch, ?string &$last, ?int &$rows): array => $this->search->searchPlainText($spaces, $text, $batch, $after, $limits, $last, $rows));
+
+        return new WikiReadablePageHits($readable, $complete);
+    }
+
+    /**
+     * Reads matching rows in batches (at most `candidates`), adding the readable pages not seen yet to `$readable`.
+     *
+     * @param list<array{page: WikiPage, space: WikiSpace, excerpt: string}> $readable
+     * @param array<string, bool> $decisions page id => readable (shared memo; a page met twice is not added twice)
+     * @param callable(?string, int, ?string, ?int): list<array{page: WikiPage, space: WikiSpace, excerpt: string}> $read
+     *
+     * @param-out list<array{page: WikiPage, space: WikiSpace, excerpt: string}> $readable
+     *
+     * @return bool whether every matching row was read
+     */
+    private function scan(UserInterface $viewer, array &$readable, array &$decisions, callable $read): bool
+    {
+        $seen = [];
+        foreach ($readable as $hit) {
+            $seen[$hit['page']->getId()] = true;
+        }
+        $done     = 0;
+        $after    = null;
+        $complete = false;
+        while (!$complete && $done < $this->candidates) {
+            $batch = min(self::BATCH, $this->candidates - $done);
+            $last  = null;
+            $rows  = 0;
+            $hits  = $read($after, $batch, $last, $rows);
+            $after = $last;
+            $done += $rows;
             $complete = $rows < $batch;
             foreach ($hits as $hit) {
-                if (WikiPageVisibility::isReadable($this->checker, $viewer, $hit['space'], $hit['page'], $decisions)) {
-                    $readable[] = $hit;
+                if (!isset($seen[$hit['page']->getId()]) && WikiPageVisibility::isReadable($this->checker, $viewer, $hit['space'], $hit['page'], $decisions)) {
+                    $seen[$hit['page']->getId()] = true;
+                    $readable[]                  = $hit;
                 }
             }
         }
 
-        return new WikiReadablePageHits($readable, $complete);
+        return $complete;
     }
 
     /**

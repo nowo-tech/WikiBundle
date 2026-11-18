@@ -35,6 +35,25 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await expect(shell(page)).not.toHaveAttribute('data-focus-mode', /./);
     });
 
+    test('with the drawer open, Escape closes the tree menu first, then the drawer, then focus mode', async ({ page }) => {
+      await enterFocusMode(page);
+      await page.getByTestId('wiki-focus-tree-toggle').click();
+      const sidebar = page.locator('[data-wiki-sidebar]');
+      await expect(sidebar).toHaveAttribute('data-wiki-drawer-open', '');
+      // The tree menu is printed outside the drawer (nowo_ui_modals), as in production.
+      await sidebar.locator('[role="treeitem"]').first().click({ button: 'right' });
+      const menu = page.getByTestId('wiki-tree-menu');
+      await expect(menu).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(menu).toBeHidden();
+      await expect(sidebar).toHaveAttribute('data-wiki-drawer-open', '');
+      await page.keyboard.press('Escape');
+      await expect(sidebar).not.toHaveAttribute('data-wiki-drawer-open', '');
+      await expect(shell(page)).toHaveAttribute('data-focus-mode', 'on');
+      await page.keyboard.press('Escape');
+      await expect(shell(page)).not.toHaveAttribute('data-focus-mode', /./);
+    });
+
     test('the drawer starts below the focus bar, closes with its button and with the backdrop', async ({ page }) => {
       await enterFocusMode(page);
       const toggle = page.getByTestId('wiki-focus-tree-toggle');

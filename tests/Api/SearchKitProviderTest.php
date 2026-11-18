@@ -23,6 +23,7 @@ use Symfony\Component\Security\Core\User\InMemoryUser;
 use Twig\Environment;
 
 use function array_map;
+use function implode;
 use function json_encode;
 use function sort;
 use function sprintf;
@@ -277,6 +278,24 @@ final class SearchKitProviderTest extends ApiTestCase
         self::assertInstanceOf(TokenStorageInterface::class, $tokens);
         $tokens->setToken(null);
         self::assertNull($this->provider()->search(new SearchQuery('vortex', null, 10, userIdentifier: 'u-bob')));
+    }
+
+    /** 1.44 (audit TI-M1): inside another person's session the role gate is the viewer's: a roleless session still finds Bob's pages. */
+    public function testASearchForAnotherIdentifierUsesTheViewersRolesNotTheSessions(): void
+    {
+        $this->page($this->eng, 'Quark', 'quark');
+        $tokens = self::getContainer()->get('security.token_storage');
+        self::assertInstanceOf(TokenStorageInterface::class, $tokens);
+        $query = new SearchQuery('quark', null, 10, userIdentifier: 'u-bob');
+
+        foreach ([[], ['ROLE_USER']] as $roles) {
+            $session = new InMemoryUser('someone-else', null, $roles);
+            $tokens->setToken(new UsernamePasswordToken($session, 'main', $roles));
+            self::assertSame(['Quark'], $this->titles($this->provider()->search($query)), implode(',', $roles));
+        }
+        // Bob's own session without the role: the session's token decides, as on the wiki's pages.
+        $tokens->setToken(new UsernamePasswordToken(new InMemoryUser('u-bob', null, []), 'main', []));
+        self::assertNull($this->provider()->search($query));
     }
 
     public function testOneKeptAliveContainerCarriesNoViewerStateBetweenSearches(): void

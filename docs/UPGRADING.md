@@ -130,10 +130,13 @@ see [USAGE › SearchKit provider › Beacon](USAGE.md#beacon-replacing-wikipage
   when your identifiers need another lookup.
 - **Which spaces.** The provider searches the spaces your `team_membership_resolver` (or `space_access_resolver` /
   `space_reach` port) lists for the viewer and your space checker opens. A space they do not list is never searched.
-- **The role gate.** The provider asks `security.access_checker` `canList()`. The default
-  `ConfigurableWikiAccessChecker` evaluates the current security token: inside SearchKit's endpoint that is the viewer;
-  outside a request (a console `searchFor()`) it denies, so nothing is found. Configure a checker that honours its user
-  argument if you search for other people outside a request.
+- **The role gate.** The provider asks `security.access_checker` `canList()` for the viewer. 1.44: the default
+  `ConfigurableWikiAccessChecker` decides a user other than the session's user on that user's own roles
+  (`Security::isGrantedForUser()`) — this also applies to every other wiki call made for another user than the session's
+  (it used to read the session's token). The session's own user is decided on the token as before; outside a request
+  (a console `searchFor()`) it still denies. A host checker should likewise decide for its user argument.
+- **The user provider.** With several Symfony user providers, set `search_kit_provider.user_provider` to the firewall's
+  own provider (`security.user.provider.concrete.<name>`), not the chain.
 - **The scope.** A SearchKit scope id selects the spaces whose owner id it is (`scope: owner`, e.g. a project UUID) or
   the space with that slug (`scope: slug`).
 

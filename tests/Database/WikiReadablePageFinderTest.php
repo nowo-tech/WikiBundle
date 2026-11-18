@@ -42,6 +42,8 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Translation\IdentityTranslator;
 
 use function array_map;
+use function array_unique;
+use function array_values;
 use function count;
 use function in_array;
 use function sort;
@@ -141,9 +143,10 @@ final class WikiReadablePageFinderTest extends TestCase
 
         $bounded = $this->finder(candidates: 10);
         $hits    = $bounded->find($this->user, $bounded->spaces($this->user), 'flux');
-        // Ten rows read (page-id order), the readable ones among them only, and the scan says it stopped early.
+        // Ten title rows, then ten rows of every match (page-id order), the readable ones among them only, and the scan
+        // says it stopped early.
         self::assertFalse($hits->complete);
-        self::assertLessThanOrEqual(10, count($hits->hits));
+        self::assertLessThanOrEqual(20, count($hits->hits));
         foreach ($hits->hits as $hit) {
             self::assertNotContains($hit['page']->getSlug(), $this->hidden);
         }
@@ -152,6 +155,38 @@ final class WikiReadablePageFinderTest extends TestCase
         $hits = $all->find($this->user, $all->spaces($this->user), 'flux');
         self::assertTrue($hits->complete);
         self::assertCount(12, $hits->hits);
+    }
+
+    /** 1.44 (audit TI-L2): title matches are read first, so body matches and hidden pages never crowd them out. */
+    public function testTitleMatchesAreReadBeforeTheBudgetIsSpentOnBodyMatches(): void
+    {
+        for ($i = 0; $i < 15; ++$i) {
+            $this->hidden[] = $this->page($this->eng, sprintf('Secret %02d', $i), 'garnet in the body')->getSlug();
+            $this->page($this->eng, sprintf('Body %02d', $i), 'garnet in the body');
+        }
+        $this->page($this->eng, 'Garnet', 'title page');
+        $this->em->clear();
+
+        $finder = $this->finder(candidates: 10);
+        $hits   = $finder->find($this->user, $finder->spaces($this->user), 'garnet');
+        self::assertContains('Garnet', $this->titles($hits));
+        self::assertFalse($hits->complete);
+        // No page twice: the title pass and the body pass share what they read.
+        $ids = array_map(static fn (array $hit): string => $hit['page']->getId(), $hits->hits);
+        self::assertSame($ids, array_values(array_unique($ids)));
+        foreach ($hits->hits as $hit) {
+            self::assertNotContains($hit['page']->getSlug(), $this->hidden);
+        }
+
+        $search = new WikiSearchService($this->em);
+        $spaces = $finder->spaces($this->user);
+        self::assertSame([], $search->searchTitles($spaces, ' ', 10));
+        self::assertSame([], $search->searchTitles([], 'garnet', 10));
+        self::assertSame([], $search->searchTitles($spaces, 'garnet', 0));
+        $first = $search->searchTitles($spaces, 'GARNET', 10, null, $last, $rows);
+        self::assertSame(1, $rows);
+        self::assertSame('', $first[0]['excerpt']);
+        self::assertSame([], $search->searchTitles($spaces, 'garnet', 10, $last));
     }
 
     public function testAPageOverTheRenderersLimitsMatchesOnItsTitleOnly(): void

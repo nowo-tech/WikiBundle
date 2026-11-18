@@ -77,8 +77,18 @@ export function observeCardToolbar(root: ParentNode = document, Observer: typeof
 
 const drawerDocs = new WeakSet<Document>();
 
-/** 1.44: where an Escape belongs to something inside the drawer (a text field, a tree menu, a dialog, an open popup). */
+/** 1.44: what owns an Escape (a text field, a menu, a dialog, an open popup), wherever it is on the page. */
 const ESCAPE_OWNERS = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="menu"], [role="listbox"], [role="dialog"], dialog, [aria-haspopup][aria-expanded="true"]';
+
+/**
+ * 1.44 (audit TI-L1): the overlays a drawer row opens — the tree menu, the new-page menu, the dialogs — live outside the
+ * drawer (`nowo_ui_modals`); a click or the focus inside them keeps the drawer open.
+ */
+const DRAWER_OVERLAYS = '[data-wiki-tree-menu], [data-wiki-new-page-menu], dialog, [role="dialog"], [role="menu"], [data-nowo-ui-popover]';
+
+/** Whether a menu or a dialog is open anywhere: its Escape comes first. */
+const overlayOpen = (doc: Document): boolean => doc.querySelector('dialog[open]') !== null
+    || [...doc.querySelectorAll<HTMLElement>('[data-wiki-tree-menu], [data-wiki-new-page-menu]')].some((menu) => menu.closest('[hidden]') === null);
 
 /**
  * 1.41: the page tree as a drawer in the UiKit shell's focus mode. The "Pages" button (`[data-wiki-focus-tree-toggle]`,
@@ -90,8 +100,11 @@ const ESCAPE_OWNERS = 'input, textarea, select, [contenteditable]:not([contented
  *
  * 1.44 (bug): the drawer consumes the Escape that closes it — a window capture-phase listener, so it runs before UiKit's
  * focus mode (a document listener), with `preventDefault()` (UiKit ignores a handled Escape) and `stopPropagation()`. One
- * Escape closes the drawer only; the next one leaves focus mode. An Escape that belongs to something inside the drawer
- * (a text field, the tree's menu, a dialog) is left to it.
+ * Escape closes the drawer only; the next one leaves focus mode. An Escape that belongs to something else — a text
+ * field, a menu or a dialog anywhere on the page (the tree menu and the dialogs a drawer row opens live outside the
+ * drawer), or any open tree / new-page menu or `dialog[open]` — is left to it (audit TI-L1). Clicks and focus inside
+ * those overlays keep the drawer open; the focus leaving the drawer for anything else closes it (audit TI-I2), without
+ * moving the focus back.
  *
  * @param doc - The document (bound once).
  */
@@ -100,7 +113,7 @@ export function bindFocusTreeDrawer(doc: Document = document): void {
         return;
     }
     drawerDocs.add(doc);
-    const set = (button: HTMLElement, open: boolean): void => {
+    const set = (button: HTMLElement, open: boolean, moveFocus = true): void => {
         const drawer = doc.querySelector<HTMLElement>('[data-wiki-sidebar]');
         if (!drawer) {
             return;
@@ -108,7 +121,9 @@ export function bindFocusTreeDrawer(doc: Document = document): void {
         button.setAttribute('aria-expanded', String(open));
         drawer.toggleAttribute('data-wiki-drawer-open', open);
         backdrop(drawer, open);
-        (open ? drawer.querySelector<HTMLElement>('[data-nowo-ui-tree-item][tabindex="0"]') : button)?.focus();
+        if (moveFocus) {
+            (open ? drawer.querySelector<HTMLElement>('[data-nowo-ui-tree-item][tabindex="0"]') : button)?.focus();
+        }
     };
     const backdrop = (drawer: HTMLElement, open: boolean): void => {
         doc.querySelectorAll('[data-wiki-focus-backdrop]').forEach((element) => element.remove());
@@ -132,8 +147,18 @@ export function bindFocusTreeDrawer(doc: Document = document): void {
             return;
         }
         const open = openButton();
+        if (open && target?.closest(DRAWER_OVERLAYS) && !target.closest('[data-wiki-sidebar]')) {
+            return;
+        }
         if (open && (!target?.closest('[data-wiki-sidebar]') || target.closest('[data-wiki-focus-drawer-close]'))) {
             set(open, false);
+        }
+    });
+    doc.addEventListener('focusin', (event) => {
+        const open = openButton();
+        const target = event.target instanceof Element ? event.target : null;
+        if (open && target && target !== open && !target.closest('[data-wiki-sidebar]') && !target.closest(DRAWER_OVERLAYS)) {
+            set(open, false, false);
         }
     });
     const onKeydown = (event: KeyboardEvent): void => {
@@ -142,8 +167,7 @@ export function bindFocusTreeDrawer(doc: Document = document): void {
         }
         const open = openButton();
         const target = event.target instanceof Element ? event.target : null;
-        const owner = target?.closest(ESCAPE_OWNERS) ?? null;
-        if (!open || (owner !== null && owner.closest('[data-wiki-sidebar]') !== null)) {
+        if (!open || target?.closest(ESCAPE_OWNERS) || overlayOpen(doc)) {
             return;
         }
         event.preventDefault();
