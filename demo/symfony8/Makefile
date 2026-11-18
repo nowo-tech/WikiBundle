@@ -88,7 +88,7 @@ shell:
 	@$(COMPOSE) exec $(SERVICE_PHP) sh
 
 update-bundle: ensure-up
-	@$(COMPOSE) exec -T $(SERVICE_PHP) composer update nowo-tech/wiki-bundle --no-interaction --no-scripts
+	@$(COMPOSE) exec -T $(SERVICE_PHP) composer update nowo-tech/wiki-bundle -w --no-interaction --no-scripts
 	@$(COMPOSE) exec -T $(SERVICE_PHP) composer dump-autoload
 	@$(COMPOSE) exec -T $(SERVICE_PHP) php bin/console assets:install public --symlink --relative
 	@$(COMPOSE) exec -T $(SERVICE_PHP) php bin/console cache:clear --env=dev --no-warmup || true
