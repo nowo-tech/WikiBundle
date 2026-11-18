@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.43.0](#to-1430)
 - [To 1.42.0](#to-1420)
 - [To 1.41.0](#to-1410)
 - [To 1.40.2](#to-1402)
@@ -104,6 +105,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.43.0
+
+From **1.42.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 From **1.42.0**, nothing to change: the new `--nowo-wiki-page-card-*`, `--nowo-wiki-read-max-width` and `--nowo-wiki-read-h{1,2,3}-weight` tokens default to the 1.42 values. A host that styled `.nowo-wiki-page-card`, `.nowo-wiki-page-title` or `.nowo-wiki-page-head` itself keeps working; it can replace those rules with the tokens (see [USAGE › Theming the page card](USAGE.md#theming-the-page-card-143)).
 
