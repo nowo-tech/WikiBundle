@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     test: {
         environment: 'jsdom',
+        // wiki-css-tokens.test.ts reads wiki.css as text (?raw); Vitest would otherwise stub every CSS import.
+        css: { include: [/wiki\.css/] },
         include: ['src/Resources/assets/src/**/*.test.ts'],
         coverage: {
             provider: 'v8',
