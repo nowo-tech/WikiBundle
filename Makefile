@@ -182,12 +182,14 @@ demo-smoke:
 
 # 1.30: web_ui.read_view.seamless_swap — Chromium (Playwright image) checks that the read-only editor swaps in with no
 # movement at 1280 and 390 px (tests/Browser/seamless-swap). Needs `make assets` first; files are copied over var/.
+# The Playwright image and the ad-hoc playwright install follow the exact @playwright/test version pinned in the demo e2e package.json.
+PLAYWRIGHT_VERSION := $(shell sed -n 's/.*"@playwright\/test": "\([0-9.]*\)".*/\1/p' demo/symfony8/e2e/package.json)
 SEAMLESS_DIR := $(CURDIR)/var/seamless-swap
 check-seamless-swap:
 	mkdir -p $(SEAMLESS_DIR)/mk
 	cp tests/Browser/seamless-swap/index.html tests/Browser/seamless-swap/widget.html tests/Browser/seamless-swap/cls.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(SEAMLESS_DIR)/
 	cp -r vendor/nowo-tech/milkdown-editor-bundle/src/Resources/public/. $(SEAMLESS_DIR)/mk/
-	docker run --rm -v $(SEAMLESS_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/cls.js'
+	docker run --rm -v $(SEAMLESS_DIR):/work -w /tmp mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@$(PLAYWRIGHT_VERSION) >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/cls.js'
 
 # 1.35: web_ui.new_page_dialog — Chromium (Playwright image) drives the page tree's "New page" menu and the new-page
 # dialog (tests/Browser/new-page-menu): keyboard, right click, «…», focus, modal. Needs `make assets` first.
@@ -195,7 +197,7 @@ NEW_PAGE_MENU_DIR := $(CURDIR)/var/new-page-menu
 check-new-page-menu:
 	mkdir -p $(NEW_PAGE_MENU_DIR)
 	cp tests/Browser/new-page-menu/index.html tests/Browser/new-page-menu/menu.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css vendor/nowo-tech/ui-kit-bundle/src/Resources/public/js/nowo-ui-dialog.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/js/nowo-ui-tree.js $(NEW_PAGE_MENU_DIR)/
-	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(NEW_PAGE_MENU_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/menu.js'
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(NEW_PAGE_MENU_DIR):/work -w /tmp mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@$(PLAYWRIGHT_VERSION) >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/menu.js'
 
 # 1.38: the read layout and the plain page tree — Chromium (Playwright image) checks the full-width card with the text
 # at the reading measure and the revision line inside the card at 1280 / 1600 / 1920 px, light and dark, then the
@@ -205,7 +207,7 @@ LAYOUT_138_DIR := $(CURDIR)/var/layout-138
 check-read-layout:
 	mkdir -p $(LAYOUT_138_DIR)
 	cp tests/Browser/layout-138/index.html tests/Browser/layout-138/check.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(LAYOUT_138_DIR)/
-	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(LAYOUT_138_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 axe-core@4.10.3 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(LAYOUT_138_DIR):/work -w /tmp mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@$(PLAYWRIGHT_VERSION) axe-core@4.10.3 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
 
 # 1.38.1: Chromium check of the edit view's card toolbar and page head at 320 / 375 / 1280 px (tests/Browser/edit-1381):
 # no gap between the toolbar row and the path on phones. Needs `make assets` first; screenshots in var/edit-1381.
@@ -213,7 +215,7 @@ EDIT_1381_DIR := $(CURDIR)/var/edit-1381
 check-edit-view:
 	mkdir -p $(EDIT_1381_DIR)
 	cp tests/Browser/edit-1381/index.html tests/Browser/edit-1381/check.js src/Resources/public/wiki.css vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(EDIT_1381_DIR)/
-	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(EDIT_1381_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(EDIT_1381_DIR):/work -w /tmp mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@$(PLAYWRIGHT_VERSION) >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
 
 # 1.40: section anchors in the read view — Chromium (Playwright image) checks the "link to this section" control (hover,
 # focus, copy, address bar), page#section, a legacy #id, a missing section and a hidden page's placeholder
@@ -222,7 +224,7 @@ SECTION_LINKS_DIR := $(CURDIR)/var/section-links
 check-section-links:
 	mkdir -p $(SECTION_LINKS_DIR)
 	cp tests/Browser/section-links/index.html tests/Browser/section-links/check.js src/Resources/public/wiki.css src/Resources/public/wiki.js vendor/nowo-tech/ui-kit-bundle/src/Resources/public/css/nowo-ui.css $(SECTION_LINKS_DIR)/
-	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(SECTION_LINKS_DIR):/work -w /tmp mcr.microsoft.com/playwright:v1.64.1-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@1.64.1 axe-core@4.10.3 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
+	docker run --rm --user "$$(id -u):$$(id -g)" -e HOME=/tmp -v $(SECTION_LINKS_DIR):/work -w /tmp mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-jammy sh -c '(python3 -m http.server 8000 -d /work >/dev/null 2>&1 &); npm init -y >/dev/null && npm i playwright@$(PLAYWRIGHT_VERSION) axe-core@4.10.3 >/dev/null 2>&1; sleep 1; NODE_PATH=/tmp/node_modules node /work/check.js'
 
 check-open-prs:
 	@chmod +x .scripts/check-open-prs.sh
