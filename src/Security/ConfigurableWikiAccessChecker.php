@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Security;
 
+use InvalidArgumentException;
+use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
+use Nowo\WikiBundle\User\WikiUserId;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Core\User\UserInterface;
 
@@ -179,10 +182,15 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
     private function hasAnyRole(array $roles, ?UserInterface $user = null): bool
     {
         $session = $this->security->getUser();
-        if ($user instanceof UserInterface && $session instanceof UserInterface && $user->getUserIdentifier() !== $session->getUserIdentifier()) {
+        if ($user instanceof UserInterface && $session instanceof UserInterface && !$this->isSessionUser($user, $session)) {
             foreach ($roles as $role) {
-                if ($this->security->isGrantedForUser($user, $role)) {
-                    return true;
+                try {
+                    if ($this->security->isGrantedForUser($user, $role)) {
+                        return true;
+                    }
+                } catch (InvalidArgumentException) {
+                    // Audit TI-D1: IS_AUTHENTICATED_* / PUBLIC_ACCESS cannot be decided for a user without a session (an
+                    // offline token): not granted, never a 500.
                 }
             }
 
@@ -199,6 +207,21 @@ final readonly class ConfigurableWikiAccessChecker implements WikiAccessCheckerI
         }
 
         return false;
+    }
+
+    /**
+     * Whether the user is the session's user: the same identifier, or (audit TI-D2) the same exact id — the REST API's
+     * principal may be a security adapter of another class that the API already matched to the firewall's user by id
+     * ({@see WikiApiRequestListener}); it is judged on the firewall's token, as before 1.44.
+     */
+    private function isSessionUser(UserInterface $user, UserInterface $session): bool
+    {
+        if ($user->getUserIdentifier() === $session->getUserIdentifier()) {
+            return true;
+        }
+        $id = WikiUserId::of($user);
+
+        return $id !== null && $id === WikiUserId::of($session);
     }
 
     private function isTokenTrusted(): bool

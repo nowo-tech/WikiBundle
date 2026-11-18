@@ -7,10 +7,12 @@ namespace Nowo\WikiBundle\Tests\Unit\Security;
 use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\Security\Core\Exception\InvalidArgumentException as SecurityInvalidArgumentException;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function in_array;
+use function str_starts_with;
 
 final class ConfigurableWikiAccessCheckerTest extends TestCase
 {
@@ -83,5 +85,80 @@ final class ConfigurableWikiAccessCheckerTest extends TestCase
         self::assertTrue($checker->canList($carol));
         self::assertTrue($checker->canList(new InMemoryUser('alice', null, [])));
         self::assertTrue($checker->canList());
+    }
+
+    /** 1.44 (audit TI-D1): authentication attributes cannot be decided for another user (offline token): not granted, no exception. */
+    public function testAuthenticationAttributesForAnotherUserAreNotGrantedAndNeverThrow(): void
+    {
+        $security = $this->createMock(Security::class);
+        $security->method('getUser')->willReturn(new InMemoryUser('alice', null, ['ROLE_USER']));
+        $security->method('isGranted')->willReturn(true);
+        $security->method('isGrantedForUser')->willReturnCallback(static function (UserInterface $user, string $role): bool {
+            if (str_starts_with($role, 'IS_AUTHENTICATED') || $role === 'PUBLIC_ACCESS') {
+                throw new SecurityInvalidArgumentException('Cannot decide on authentication attributes when an offline token is used.');
+            }
+
+            return in_array($role, $user->getRoles(), true);
+        });
+        $checker = new ConfigurableWikiAccessChecker($security, ['PUBLIC_ACCESS'], ['ROLE_USER', 'IS_AUTHENTICATED_FULLY'], ['ROLE_USER', 'IS_AUTHENTICATED_FULLY'], [], [], [], [], [], [], []);
+
+        self::assertFalse($checker->canList(new InMemoryUser('bob', null, [])));
+        self::assertTrue($checker->canList(new InMemoryUser('carol', null, ['ROLE_USER'])));
+    }
+
+    /**
+     * 1.44 (audit TI-D2): the REST API's principal may be a security adapter of another class with the same id as the
+     * firewall's user (another identifier, broader stored roles): it is the session's user, judged on the token only.
+     */
+    public function testAnAdapterWithTheSessionUsersIdIsJudgedOnTheToken(): void
+    {
+        $firewall = new class implements UserInterface {
+            public function getId(): string
+            {
+                return '7';
+            }
+
+            public function getUserIdentifier(): string
+            {
+                return 'sso|7';
+            }
+
+            public function getRoles(): array
+            {
+                return ['ROLE_USER'];
+            }
+
+            public function eraseCredentials(): void
+            {
+            }
+        };
+        $adapter = new class implements UserInterface {
+            public function getId(): int
+            {
+                return 7;
+            }
+
+            public function getUserIdentifier(): string
+            {
+                return 'admin-7';
+            }
+
+            public function getRoles(): array
+            {
+                return ['ROLE_ADMIN'];
+            }
+
+            public function eraseCredentials(): void
+            {
+            }
+        };
+        $security = $this->createMock(Security::class);
+        $security->method('getUser')->willReturn($firewall);
+        $security->method('isGranted')->willReturn(false);
+        $security->expects(self::never())->method('isGrantedForUser');
+        $checker = new ConfigurableWikiAccessChecker($security, ['ROLE_ADMIN'], ['ROLE_USER'], ['ROLE_USER'], [], [], [], [], [], [], []);
+
+        self::assertFalse($checker->canList($adapter));
+        self::assertFalse($checker->canAccess($adapter));
     }
 }
