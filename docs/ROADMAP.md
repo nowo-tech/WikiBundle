@@ -1,704 +1,344 @@
 # Roadmap
 
-Feature roadmap of WikiBundle after **1.13.0** (2026-11-03), written on 2026-11-03. It is a plan, not a commitment:
-every item becomes a Spec Kit feature with its own spec, tasks and tests before it is built, and versions may move.
+Feature roadmap of WikiBundle after **1.44.0** (2026-11-18), refreshed on 2026-11-18 from a feature gap review of the
+code (entities, controllers, REST API, Twig views, TypeScript assets, configuration tree, events) and of both
+changelogs. It replaces the roadmap of 2026-11-03. It is a plan, not a commitment: every item becomes a Spec Kit
+feature with its own spec, tasks and tests before it is built, and versions may move.
 
-**Goal.** A knowledge base that is as close as possible to **Notion** and **Outline**, built on what WikiBundle
-already guarantees: Markdown revisions are the source of truth (with the Milkdown editor), every page, title, count
-and excerpt is filtered **per viewer**, pages follow the UiKit page contract, and the host (symfony-beacon) owns
-users, notifications and storage. The editor side is planned in the
-[MilkdownEditorBundle roadmap](https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/ROADMAP.md); the
-task ids (T0xx) refer to symfony-beacon `specs/178-wiki/tasks.md`.
+**Goal.** A knowledge base that offers what teams expect from a modern block-based workspace: a page tree, block
+editing with handle, block menu, right-click and slash menus, inline comments, embeds, templates, presence, history,
+and structured databases (schema pages, properties, table, board, calendar and timeline views, relations, rollups and
+formulas). The constraints do not move: **Markdown revisions stay the source of truth**, every page, title, count and
+excerpt is filtered **per viewer**, the server render and the exports read the same dialect as the editor,
+accessibility (WCAG 2.2 AA) and a strict nonce CSP hold for every new view, and the host (symfony-beacon) owns users,
+notifications and storage.
+
+The editor side (blocks, marks, menus, embeds, the database block) is planned in the
+[MilkdownEditorBundle roadmap](https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/ROADMAP.md). Items
+marked **E** below need that bundle; items marked **W + E** need both. Task ids (T0xx) refer to symfony-beacon
+`specs/178-wiki/tasks.md`.
 
 ## Table of contents
 
 - [Ground rules](#ground-rules)
-- [Where we are (1.13.0)](#where-we-are-1130)
-- [Notion / Outline parity matrix](#notion--outline-parity-matrix)
-  - [Parity summary](#parity-summary)
-- [Milestones](#milestones)
-  - [Progress](#progress)
-- [Plans](#plans)
-  - [Page tree sidebar (T062, T049)](#page-tree-sidebar-t062-t049)
-  - [Structure: collections, icons, covers, emoji titles, tags](#structure-collections-icons-covers-emoji-titles-tags)
-  - [Trash (T065)](#trash-t065)
-  - [Version history](#version-history)
-  - [Inline and page comments (T064)](#inline-and-page-comments-t064)
-  - [Templates (T069)](#templates-t069)
-  - [Search with filters and highlighting](#search-with-filters-and-highlighting)
-  - [Discovery: recents, starred, backlinks, related pages](#discovery-recents-starred-backlinks-related-pages)
-  - [Lifecycle: drafts, duplicate, archive, pins, review dates](#lifecycle-drafts-duplicate-archive-pins-review-dates)
-  - [Notifications, subscriptions, mentions, presence](#notifications-subscriptions-mentions-presence)
-  - [Per-page permissions](#per-page-permissions)
+- [Where we are (1.44.0)](#where-we-are-1440)
+- [Feature status matrix](#feature-status-matrix)
+- [Next](#next)
+- [Later](#later)
+- [Considering](#considering)
+- [Deliberate gaps](#deliberate-gaps)
+- [Design notes](#design-notes)
+  - [Databases](#databases)
+  - [Per-page permissions and guests](#per-page-permissions-and-guests)
   - [Public links](#public-links)
-  - [Import and export](#import-and-export)
-  - [API, webhooks, command palette](#api-webhooks-command-palette)
-  - [Accessibility, performance and audit residuals](#accessibility-performance-and-audit-residuals)
-- [Notion-style databases](#notion-style-databases)
-- [Proposed (not yet requested)](#proposed-not-yet-requested)
+  - [Search](#search)
+  - [Templates](#templates)
+  - [Inline and page comments (T064)](#inline-and-page-comments-t064)
+- [Done since the 2026-11-03 roadmap](#done-since-the-2026-11-03-roadmap)
 - [Decided](#decided)
 - [Open decisions](#open-decisions)
 - [Links](#links)
 
 ## Ground rules
 
-1. **Backward compatible and opt-in.** New entities come with migrations; new UI with configuration switches
-   (`nowo_wiki.features.*` or the matching section) off or neutral by default, unless a release says otherwise.
-2. **Per-viewer first.** No title, count, excerpt, diff line, comment or search hit of a page the viewer may not read,
-   ever. Filtering happens **before** ranking, counting and pagination; caches are viewer-neutral and the per-viewer
-   pass runs on top.
-3. **Markdown stays the document.** Comments, anchors, database rows, tree order and permissions live in tables,
-   never inside the page body; exports and search therefore never leak them.
-4. **UiKit for UI primitives.** Reusable widgets (treeview, board, calendar, gallery) go to UiKitBundle so
-   DashboardMenu, TaskBoard and others reuse them. Under symfony-beacon's UiKit-change rule a UiKit change must keep
-   existing output byte-identical and needs Beacon's OK before release.
-5. **Who builds it.** **W** = WikiBundle, **E** = MilkdownEditorBundle, **U** = UiKitBundle, **S** = StorageKitBundle,
-   **SK** = SearchKitBundle, **H** = host (symfony-beacon). Each item says which.
+1. **Backward compatible and opt-in.** New entities come with migrations; new UI with a configuration switch that is
+   off or neutral by default, unless a release says otherwise.
+2. **Per viewer first.** No title, count, excerpt, diff line, comment, row or search hit of a page the viewer may not
+   read, ever. Filtering happens **before** ranking, counting and pagination; caches are viewer-neutral and the
+   per-viewer pass runs on top.
+3. **Markdown stays the document.** Comments, anchors, database rows, tree order and permissions live in tables, never
+   inside the page body; exports and search therefore never leak them.
+4. **One render.** The server render, the reader's Markdown, the REST API and every export go through the same dialect
+   and the same per-viewer resolvers as the editor.
+5. **UiKit for UI primitives.** Reusable widgets (tree, board, calendar, gallery, timeline) go to UiKitBundle so other
+   bundles reuse them; existing UiKit output stays byte-identical and needs Beacon's OK before release.
+6. **Runtime.** Every feature works in FrankenPHP worker mode with the kernel reset off, holds under concurrent writes
+   (REQ-RUNTIME-003) and runs on both standard Symfony and DDD hosts (standard by default, DDD opt-in).
+7. **Who builds it.** **W** = WikiBundle, **E** = MilkdownEditorBundle, **U** = UiKitBundle, **S** = StorageKitBundle,
+   **SK** = SearchKitBundle, **H** = host (symfony-beacon).
 
-## Where we are (1.13.0)
+## Where we are (1.44.0)
 
-- Spaces (team / user), pages with parent / position / slug, archive and unarchive, immutable revisions
-  (`<prefix>_page_revisions`, HTML or Markdown), a **line diff** between two revisions, restore as a new revision.
-- Sidebar: a nested, fully expanded `<ul>` tree (`WikiPageFactory::tree()`), capped at `max_tree_pages` with a link
-  to search; breadcrumbs in the UiKit page header.
-- Search: literal `LIKE` on title and current revision, excerpts from the viewer-neutral `content_html` cache.
-- Import / export of Outline and Notion Markdown trees; attachments (local private storage); page links index
-  (`WikiPageLink`, reference extractor); events for hosts; optional Symfony AI Q&A filtered to readable pages.
-- Milkdown editor bridge (`editor.type: milkdown`), per-viewer render, Mercure co-editing with a bounded Yjs log.
+Shipped and in use, by area (each with its opt-in switch; see [CONFIGURATION](CONFIGURATION.md)):
 
-## Notion / Outline parity matrix
+- **Pages and hierarchy.** Team and user spaces with icons; pages with parent, position and slug; a collapsible page
+  tree (UiKit tree, fold state, drag, Alt+arrow moves, *Move to…* form, depth limit, same-space moves); a tree context
+  menu (rename, icon, duplicate, move, archive, delete, Shift+F10); new page as a dialog placed in the tree; page
+  icons (UX icons or one emoji) with an icon picker; breadcrumbs and in-wiki path; previous / next page; a sub-pages
+  chip; archive and unarchive.
+- **Editor.** The Milkdown editor (Markdown storage, dialect, per-viewer render), co-editing over Mercure with a
+  bounded Yjs log and epochs, link picker with section links, stable and explicit heading ids, *Link to this section*
+  on read pages, file cards and sandboxed file previews, *Copy as Markdown*, focusable code blocks.
+- **Comments.** Inline threads anchored in the text and page-level threads, replies, reactions, resolve / reopen,
+  moderation panel, per-user and per-page limits, a side panel (dock or overlay, phones as a drawer), live updates
+  while co-editing, REST endpoints, author export and erasure, mention erasure.
+- **History.** Immutable revisions (Markdown or HTML), a timeline with sessions and author labels, named versions,
+  line diff, restore as a new revision, *Copy to new page*, retention thinning, write provenance and member badges,
+  "former person" for deleted users, saves from a known revision (409 on conflict).
+- **Trash.** Delete with the sub-tree, restore by batch, twice-confirmed purge, retention and a purge command, files
+  purge event for host storage.
+- **Search.** Per-viewer plain-text search on titles and bodies (no Markdown source), excerpts, space scope, excluded
+  spaces, a SearchKit provider for the host's Ctrl / ⌘ + K palette.
+- **Import and export.** Space import from Markdown export trees (directory or ZIP, two common front-matter layouts,
+  auto-detected), space export to Markdown with portable relative links and a `README.md` index, HTML → Markdown
+  conversion with a fidelity report.
+- **API and events.** A REST API (spaces, pages with Markdown in / out and sections, revisions, diff, restore, move,
+  create at a place, archive, comments, files, idempotency keys, OpenAPI 3.1); 28 Symfony events; framework-free host
+  ports; links from pages to host objects ("Used in").
+- **Sharing and permissions.** Roles per action (16 `WikiAction`s), a space and page-aware access checker,
+  `tenant_paths` routes; no per-page grants, guests or public links yet.
+- **Layout.** UiKit page contract, page tabs or toolbar, focus mode with a page drawer, reading width options, design
+  tokens for tree and page card, host Twig slots, print styles, phone layouts.
+- **AI.** Optional Symfony AI questions over the pages the viewer may read, with sources.
+- **Privacy and tenancy.** Per-tenant routes, look-alike id hardening, id-mode user references, a private entity
+  manager, comment and provenance erasure, AI context filtered per viewer.
 
-Knowledge-base features (the editor features are in the Milkdown roadmap's matrix). Status **Yes / Partial / No**.
+## Feature status matrix
 
-| # | Feature | Notion | Outline | Us (1.13) | Owner | Spec 178 | Target |
-|---|---------|--------|---------|-----------|-------|----------|--------|
-| 1 | Spaces / teamspaces | Yes | Yes | **Yes** | — | — | — |
-| 2 | Collections (documents) inside a space | Teamspaces | Yes | No | W | T048 | 1.14 |
-| 3 | Outline-style page tree (disclosures, lazy, fold state, current branch) | Yes | Yes | Partial (flat expanded list, capped) | W + U | T062 | **1.14** |
-| 4 | Drag and drop reorder / move, *Move to…* | Yes | Yes | No | W + U | T049 | **1.14** |
-| 5 | Breadcrumbs | Yes | Yes | **Yes** | — | — | — |
-| 6 | Starred and recents | Yes | Yes | No | W | T051 | 1.14 |
-| 7 | Page icons, emoji titles, covers | Yes | Icon | No | W + E | T057, T063 | 1.14 |
-| 8 | Tags | Properties | No | No | W | T046, T063 | 1.18 |
-| 9 | Search with filters and highlighting | Yes | Yes | Partial (literal match, excerpts) | W + SK | T046 | 1.18 |
-| 10 | Instant search (Ctrl / ⌘ + K) | Yes | Yes | No | SK + H | T066 | 1.18 |
-| 11 | Backlinks / *Linked from* panel | Yes | Yes | Partial (link index) | W | T050 | 1.18 |
-| 12 | Related-pages graph | No | No | No | W | — | 1.22 (beyond parity) |
-| 13 | Drafts vs published | Partial | Yes | No | W | T055 | 1.17 |
-| 14 | Templates (per space, global, variables) | Yes | Yes | No | W + E | T069 | **1.17** |
-| 15 | Trash with restore and purge | Yes | Yes | Partial (archive) | W + S | T065 | **1.15** |
-| 16 | Duplicate (with children) | Yes | Yes | No | W | T065 | 1.15 |
-| 17 | Pins | Yes (favourites) | Yes | No | W | T065 | 1.17 |
-| 18 | Review dates / *verified* | Yes (wikis) | No | No | W + H | T068 | 1.17 |
-| 19 | Version history (timeline, named versions, rendered diff, restore) | Yes | Yes | Partial (revisions, line diff, restore) | W + E | — | **1.15** |
-| 20 | Inline comments (anchored threads) | Yes | Yes | No | W + E + H | T064 | **1.16** |
-| 21 | Page-level comments | Yes | Yes | No | W | T064 | 1.16 |
-| 22 | Notifications and subscriptions | Yes | Yes | No (events only) | W + H | T064 | 1.16 |
-| 23 | Mentions with notifications, per-viewer | Yes | Yes | Partial (render only) | W + H | — | 1.16 |
-| 24 | Presence on pages | Yes | Yes | Partial (editor cursors) | W + E | T060 | 1.16 |
-| 25 | Per-page permissions (levels, inheritance, restrict, guests) | Yes | Yes | Partial (space + page-aware checker) | W + H (RbacKit) | T056 | 1.20 |
-| 26 | Public links (expiry, password, noindex, revoke) | Yes | Yes | No | W + S + H | T056 | 1.20 |
-| 27 | Embed a page elsewhere | Yes | Yes | No | W | — | 1.20 |
-| 28 | Import from Notion / Outline (+ Confluence) | Yes | Yes | Partial (Markdown trees) | W | T044, T052 | 1.22 |
-| 29 | Export Markdown / HTML / PDF with attachments | Yes | Yes | Partial (Markdown trees) | W + H | T044, T045 | 1.22 |
-| 30 | Databases (properties, views) | Yes | No | No | W + E + U | — | 1.19 → 1.23 |
-| 31 | API and webhooks | Yes | Yes | No (Symfony events) | W | — | 1.22 |
-| 32 | Keyboard-first navigation (treeview, palette, shortcuts) | Yes | Yes | No | W + U + SK | T066 | 1.14, 1.18 |
-| 33 | AI Q&A over the wiki | Yes | Yes | **Yes** (optional) | — | — | — |
+**Yes** = shipped, **Partial** = some of it shipped, **No** = not started. *Owner* says who builds the missing part.
+*Next / Later / Considering* point at the sections below.
 
-### Parity summary
+| Area | Feature | Wiki | Editor | Owner | Plan |
+|------|---------|------|--------|-------|------|
+| Pages | Spaces, nested pages, breadcrumbs | Yes | — | — | — |
+| Pages | Page tree with drag, keyboard moves, context menu | Yes | — | — | Lazy children: Later |
+| Pages | Page icons (icon or emoji) | Yes | Yes (picker) | — | — |
+| Pages | Cover images | No | — | W + S | Later |
+| Pages | Collections (grouping between space and pages) | No | — | W | Considering |
+| Pages | Favourites and recently viewed | No | — | W | **Next** |
+| Pages | Drafts and publish | No | — | W | Later |
+| Pages | Review dates (owner, interval, "may be out of date") | No | — | W + H | Later |
+| Editor | Block handle, block menu, drag | — | Yes | — | — |
+| Editor | Right-click menu | — | Yes | — | — |
+| Editor | Slash menu with groups, keywords, full list | — | Partial (flat list, 10 rows) | E | **Next** (E) |
+| Editor | Callouts, collapsible sections, colours, icons | — | Yes | — | — |
+| Editor | Columns | — | No | E | Later (E) |
+| Editor | Reusable sections (read-only transclusion) | No | No | W + E | Later |
+| Editor | Table of contents block and side panel | No | No | W + E | **Next** |
+| Editor | Find and replace | — | No | E | **Next** (E) |
+| Tables | Tables with row / column actions | — | Yes | — | Table toolbar: Later (E) |
+| Embeds | Images with caption, size, alignment | Yes | Yes | — | Lightbox: Later (E) |
+| Embeds | Host files as cards and previews | Yes | Yes | — | — |
+| Embeds | External embeds from an allow-list, link previews | No | No | E + H | **Next** |
+| Embeds | Embed a wiki page elsewhere | No | — | W | Later |
+| Links | Page links by id, per-viewer titles, section links | Yes | Yes | — | — |
+| Links | Backlinks panel ("Linked from") | No | — | W | **Next** |
+| Links | Broken-link and broken-anchor report | No | — | W | Later |
+| Mentions | People mentions rendered per viewer | Partial | Yes | W + H | Mention notifications: **Next** |
+| Comments | Inline and page comments, reactions, resolve | Yes | Yes | — | — |
+| Comments | Inline highlights for readers on the server render | Partial (read-only editor swap) | Partial | W + E | Later |
+| Comments | Comments on a whole block or image | No | No | E + W | Later |
+| Comments | Suggested edits (reviewable proposals) | No | No | W + E | Considering |
+| History | Timeline, named versions, restore, copy to new page | Yes | — | — | — |
+| History | Rendered (block / word) diff | Partial (line diff) | Yes (`nowo_milkdown_diff`) | W | **Next** |
+| History | Read-only view of an old version in the editor | No | Yes (`version_view`) | W | **Next** |
+| Collaboration | Co-editing with cursors and names | Yes | Yes | — | — |
+| Collaboration | Presence avatars on pages, follow a collaborator | No | No | W + E | **Next** |
+| Search | Per-viewer search, palette provider | Yes | — | — | — |
+| Search | Full-text index, ranking, filters, highlighting | No | — | W + SK | **Next** |
+| Search | Search in comments and attachments | No | — | W | Later |
+| Templates | Page templates with variables | No | No | W + E | **Next** |
+| Databases | Database pages, properties, table and board views | No | No | W + E + U | **Next** (MVP) |
+| Databases | List, gallery, calendar views; row templates | No | No | W + E + U | Later |
+| Databases | Timeline view, relations, rollups, formulas | No | No | W + E + U | Later |
+| Sharing | Per-page permissions with inheritance | Partial (page-aware checker) | — | W + H | **Next** |
+| Sharing | Guests (people with access to some pages only) | No | — | W + H | Later |
+| Sharing | Public links (expiry, password, no-index, revoke) | No | — | W + S + H | Later |
+| Import / export | Markdown import and export of a space | Yes | — | — | — |
+| Import / export | Export of a page or sub-tree, with attachments | No | — | W | **Next** |
+| Import / export | HTML and PDF export | No | — | W + H | Later |
+| Import / export | Database import from CSV | No | — | W | Later (with databases) |
+| API | REST API with OpenAPI | Yes | — | — | Database endpoints with databases |
+| API | Signed webhooks | No | — | W + H | Later |
+| API | Agent tool surface (search, read, write under the viewer's rights) | Partial (one AI search tool) | — | W + H | Considering |
+| Notifications | Watching pages and spaces, digests | No (events only) | — | W + H | **Next** |
+| Trash | Trash with restore and purge | Yes | — | — | Trash search, "deleted by me": Later |
+| Layout | Focus mode | Yes | — | — | — |
+| Layout | Phone layouts (tree drawer, comments drawer) | Partial | Partial | W + E | Later |
+| Layout | Offline reading | No | — | W | Considering |
+| Accessibility | APG tree, keyboard moves, axe in e2e | Yes | Yes | — | Every new view |
+| Tenancy | Per-tenant routes and spaces | Yes | — | — | — |
+| Privacy | Erasure and export of a person's data | Yes | — | — | Extend to every new table |
+| AI | Questions over readable pages | Yes | — | — | Summaries: Considering |
 
-**Yes = 1, Partial = ½:** 3 Yes and 10 Partial over 33 rows = **8 / 33 ≈ 24 %** today. With the milestones below:
-≈ 40 % after 1.15, ≈ 55 % after 1.17, ≈ 70 % after 1.18, ≈ 85 % after 1.20 and ≈ 97 % after 1.23.
+## Next
 
-**Biggest gaps:** (1) the Outline-style page tree with drag / move; (2) trash and a real version history;
-(3) inline comments with notifications; (4) templates; (5) search with filters and highlighting. Databases are the
-largest single scope but Outline has none, so they matter for Notion parity only.
+Ordered by value inside each area. One line each: what it is and why it helps.
 
-## Milestones
+| Area | Item | What and why | Owner |
+|------|------|--------------|-------|
+| Pages | **Favourites and recently viewed** | Per-user starred pages and recent pages at the top of the tree and in the palette; the fastest way back to the pages people use daily. Never lists pages the viewer lost access to. | W |
+| Links | **Backlinks panel** | "Linked from" under the page body from the stored page references, per viewer; shows context and keeps the knowledge base connected. The `wiki_page_after_body` slot is already there. | W |
+| Links | **Table of contents** | A side panel with the page's headings (the same `sections` the REST API returns since 1.40) plus the editor's TOC block; long pages become navigable. | W + E |
+| Mentions | **Mention notifications** | Typed events when someone is mentioned in a page or comment, only for people who can read it; the host delivers them. Viewer-aware user resolver (CV-I5) first. | W + H |
+| Notifications | **Watching pages and spaces** | Automatic for authors and commenters, manual for anyone; events for replies, edits (daily digest) and moves, delivered by the host. Without this, comments and mentions go unseen. | W + H |
+| History | **Rendered diff and version view** | Use the editor's `nowo_milkdown_diff()` (block then word level, escaped, per viewer) instead of the line diff, and its read-only `version_view` for old versions; history becomes readable for non-technical users. | W (+ E shipped) |
+| Collaboration | **Presence on pages** | Avatars of who is viewing or editing a page (Mercure awareness), with *follow* in the editor; people see each other before they collide. | W + E |
+| Templates | **Page templates** | Space and instance templates with fixed `{{variable}}` substitution, seed templates and "start from a template" in the empty page and the tree; consistent pages for meeting notes, runbooks, postmortems. See [Templates](#templates). | W + E |
+| Search | **Full-text index with filters and highlighting** | The database's own full-text index (MySQL FULLTEXT, PostgreSQL tsvector), filters (space, author, dates, status), highlighted excerpts and terms highlighted on open; today search is a literal match. See [Search](#search). | W + SK |
+| Embeds | **External embeds and link previews** | Allow-listed iframes and bookmark cards rendered by the editor and the server render; the wiki side supplies the host unfurl endpoint config and CSP notes. | E + H (+ W config) |
+| Databases | **Databases MVP** | Database pages with a schema, rows as pages, the basic property types, table and board views with filters, sorts and grouping, CSV import / export, the `::database` block; structured data next to the prose it belongs to. See [Databases](#databases). | W + E + U |
+| Sharing | **Per-page permissions** | Levels (full, edit, comment, view, none), inheritance down the tree, *Restrict this page*, *Who has access*, an audit trail; needed before guests and public links. See [Per-page permissions and guests](#per-page-permissions-and-guests). | W + H |
+| Import / export | **Page and sub-tree export with attachments** | Export one page or a branch, not only a space, with its files in the ZIP; covers "send me this runbook" without admin help. | W + S |
 
-The "now" track (1.13.1–1.18) closes the most visible gaps first; two of them can run in parallel when they touch
-different code (for example 1.15 and 1.16). Version numbers give the order, not dates.
+## Later
 
-| Version | Theme | Content | Owners | Effort |
-|---------|-------|---------|--------|--------|
-| **1.13.1** | Audit residuals | CW-I10, CW-I7, CW-I9, CW-I12, CV-I9 (see [residuals](#accessibility-performance-and-audit-residuals)) | W | S |
-| **1.14** | Tree and navigation | Outline-style tree (T062), move / reorder with ranks (T049), collections (T048), icons / emoji titles / covers (T063, T057), starred + recents (T051), *Move to…* dialog, CV-I5 contract | W + U (treeview) | L |
-| **1.15** | Safety net | Trash with restore / purge (T065), duplicate (T065), version history (sessions, named versions, rendered diff, restore, copy to new page, retention) | W + S + E (optional diff view) | L |
-| **1.16** | Comments | Inline and page comments (T064) in a right-side panel toggled from the page tabs, reactions, resolve, notifications and subscriptions, mentions filtered per viewer, presence, live updates | W + E + H | L |
-| **1.17** | Templates and lifecycle | Templates (space / global, variables, seeds, row templates later), drafts (T055), pins (T065), review dates (T068) | W + E + H | L |
-| **1.18** | Search and discovery | DB full-text index, filters, highlighting, SearchKit provider (Ctrl / ⌘ + K), tags (T046), backlinks panel (T050) | W + SK + H | L |
-| **1.19** | Databases MVP | Database pages, rows as pages, basic property types, table + board views, filters / sorts / grouping, CSV import / export, `::database` block | W + E + U | L |
-| **1.20** | Permissions and public links | Per-page permissions (levels, inheritance, restrict, guests, *Who has access*, audit) on RbacKit, public links (token, expiry, password, noindex, revoke, embed) (T056) | W + S + H | L |
-| **1.21** | Databases 2 | List, gallery, calendar views; row templates; bulk edit; Notion database CSV import; live cell updates; row comments | W + E + U | L |
-| **1.22** | Interchange and API | Notion (Markdown + CSV) / Outline (JSON + Markdown) / Confluence (optional) import, Markdown / HTML / PDF export with attachments, REST API, webhooks, related-pages graph | W + H | L |
-| **1.23** | Databases 3 | Timeline view, relations, rollups, formulas, per-row visibility, schema migrations of complex types | W + E + U | L |
-| 2.0 | Cleanup | Drop the TipTap path once hosts moved to Milkdown; remove deprecated options | W | — |
+| Area | Item | What and why | Owner |
+|------|------|--------------|-------|
+| Pages | **Lazy tree children and live tree updates** | Collapsed parents load on demand and moves by others appear without reload (ids only on the topic); keeps very large spaces fast and current. | W + U |
+| Pages | **Cover images** | An optional cover per page from host storage, alt text or decorative, vertical offset; gives landing pages identity. | W + S |
+| Pages | **Drafts and publish** | Draft revisions on top of the published one, visible to editors only, excluded from others' search; lets people work in the open without half-finished text reaching readers. | W |
+| Pages | **Review dates** | Owner, interval, a "may be out of date" banner, *Reviewed* and a *Due for review* list; keeps a knowledge base trustworthy. | W + H |
+| Pages | **Space home pages** | Pinned pages, description and recent changes on a space's landing page; a better first screen than a bare tree. | W |
+| Editor | **Reusable sections** | A read-only `::include{page heading}` resolved per viewer, edited at the source; one procedure reused in many pages without copies. | W + E |
+| Links | **Broken-link and broken-anchor report** | Per space, the links to pages or sections that no longer exist; ids are stable but anchors and archived pages still break. | W |
+| Comments | **Inline highlights on the server render** | The anchored read view (canonical text on both sides, a DOM quote resolver, CSS Custom Highlight API) so every reader sees inline threads without the editor. See [Inline and page comments](#inline-and-page-comments-t064). | W + E |
+| Comments | **Live comments on the read view** | A read-only Mercure topic per page for viewers who may see comments, without co-editing. | W |
+| Comments | **Comments on blocks and images** | Threads anchored to a whole block (image, embed, table, database view) rather than a text quote. | E + W |
+| Search | **Search in comments and attachments** | Comment bodies in a separate per-viewer index, then extracted attachment text; finds decisions made in threads. | W |
+| Databases | **Databases 2** | List, gallery and calendar views, files and phone properties, row templates, bulk edit, live cell updates, row comments. | W + E + U |
+| Databases | **Databases 3** | Timeline view, relations, rollups, formulas in a sandboxed grammar, per-row visibility, type migrations of complex types. | W + E + U |
+| Sharing | **Guests** | People outside the space with grants on chosen pages only; they see only those pages in tree, search and palette. | W + H |
+| Sharing | **Public links** | Read-only links to a page (and optionally its sub-pages) with expiry, password, no-index and revoke, served without app chrome. See [Public links](#public-links). | W + S + H |
+| Sharing | **Embed a wiki page elsewhere** | The public link in an `embed` mode with `frame-ancestors` from a host allow-list. | W + H |
+| Import / export | **HTML and PDF export** | Rendered per viewer, with print styles; PDF through a host-provided renderer. | W + H |
+| Import / export | **Richer import** | Database CSVs, link rewriting of `other.md#id` back to `[[wiki:<uuid>#id]]` (known gap of 1.40), collections, a fidelity report in the web UI. | W |
+| API | **Signed webhooks** | HMAC-signed deliveries of the wiki events with retries, host-configured endpoints, SSRF protections; integrations without polling. | W + H |
+| API | **Database endpoints** | Schemas, rows and views over the REST API with the same per-viewer rules. | W |
+| Trash | **Trash search and "deleted by me"** | Filter and search the trash, bulk restore; finds the one page someone deleted last week. | W |
+| Layout | **Phone polish** | Touch-friendly tree moves, bottom sheets for menus, comments and database views on small screens. | W + E + U |
+| AI | **Citations to headings** | AI answers link to the section that supports them (section ids exist since 1.40). | W |
 
-Editor releases each milestone depends on: 1.14 → Milkdown 1.3 (heading anchors for *Copy link*); 1.15 → Milkdown 1.4
-(version view, optional); 1.16 → Milkdown 1.6 (comment anchors,
-mountable thread component) and UiKit ≥ 2.25 (side panel); 1.17 → Milkdown 1.5 (template picker, variable
-chips); 1.19 → Milkdown 1.6 (database block).
+## Considering
 
-### Progress
+Not yet scheduled; accept, reshape or drop each one.
 
-Ticked when the PR is open and green. Defaults taken for open decisions are marked *default pending user
-confirmation*.
+| Area | Item | What and why | Owner |
+|------|------|--------------|-------|
+| Pages | **Collections** | A grouping level between space and pages with its own icon, colour and permissions; useful for very large spaces, but the tree and per-page permissions may cover it. | W |
+| Pages | **Page analytics** | Views, viewers (opt-in), popular and stale pages; feeds review dates. Aggregates only by default (privacy). | W + H |
+| Pages | **Translations of a page** | Links between the same page in several locales; multilingual wikis. | W |
+| Pages | **Related-pages graph** | An accessible graph with a list fallback of links around a page. | W |
+| Comments | **Suggested edits** | A suggesting mode that produces a proposed revision reviewed block by block; no character-level tracking in a live Yjs document. | W + E |
+| Mentions | **Dates and reminders** | `:date[…]` chips in the editor and reminders delivered by the host; due dates for tasks in pages. | E + H |
+| API | **Agent tool surface** | Search, read and write pages as tools for the host's AI agents (beyond the one Symfony AI search tool), under the viewer's rights and with write provenance. | W + H |
+| Layout | **Offline reading** | A service-worker cache of recently viewed pages, purged on logout, per viewer. | W |
+| AI | **Summaries** | Host-provided summaries of long pages; no keys or prompts in the browser. | W + H |
+| Databases | **Host data sources** | Expose host records (for example TaskBoard tasks or issues) as read-only database sources with the host's permissions. | W + H |
 
-- [x] 1.13.1 audit residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9 (CV-I5 stays in 1.14) and the Beacon adoption fixes
-  (Tiptap script only for `editor.type: tiptap`, no collaboration tables without co-editing, opaque co-editor names
-  by default) — PR #82
-- [x] 1.14 page tree (T062) and moves (T049): UiKit 2.24 tree in the sidebar, fold state, drag / Alt+arrows / Move
-  form, server validation and `nowo_wiki.page.moved` (opt-in `tree.enabled`). Defaults confirmed by the user on
-  2026-11-03 (see [Decided](#decided)): D-W1 same space only, D-W2 depth 10, D-W27 integer positions, D-W28 fold state
-  in the session (`tree.state_store` for a per-user store).
-  Lazy children, starred / recents, the per-node "+" / "⋯" menus and live updates stay open for the next 1.14 PRs.
-  — PR #83
-- [x] 1.14 trash (T065, pulled forward on the owner's request): Delete with the sub-tree behind a confirm, the trash
-  with Restore and a twice-confirmed Purge, retention (`trash.retention_days`, D-W4: 30 days) and `wiki:trash:purge`,
-  `WikiAction::Delete` / `Purge` (D-W5: purge by the manage roles in the 1.x mapping), trashed pages invisible on
-  every read path (opt-in `trash.enabled`). Version history and the full trash UX stay in 1.15. Decided by the user
-  on 2026-11-03 (D-W29, D-W30, D-W31). — PR #85
-- [x] 1.15 "Copy as Markdown" page action for editors (`editor.milkdown.copy_markdown`, opt-in; Milkdown 1.5,
-  audit DN-I2)
-- [x] 1.15 version history, first part: the timeline (sessions, author labels, named versions with *Save version*
-  for every editor, D-W7), *Copy to new page* and the retention `wiki:history:thin` (D-W6: one revision per session
-  and day after `history.retention_days`; named, current and newest revisions kept), opt-in `history.timeline`. The
-  server-rendered diff and co-authors from the collab session follow once Milkdown 1.6 lands; there is no "published"
-  revision yet (drafts are 1.17), so the retention has no such floor for now.
-- [x] Page files (Beacon request 2026-11-06, ME-3): opt-in *Files* card of the page view (`page_files.enabled`) and
-  `nowo_wiki.page.files_purged` on trash purge (`page_files.purge_event`) for host-owned storage — 1.20.0
-- [x] Host hooks (Beacon request 2026-11-06, WK-1 to WK-5): quota event, navigation scope, page slots and asset switch,
-  moderation panel and error notices, tree tokens; all opt-in — unreleased
+## Deliberate gaps
 
-## Plans
+- **Moves across spaces** (D-W1): pages move within one space; a cross-space move is an export and import.
+- **Synced editing of one block in many pages:** Markdown has no shared nodes and permissions differ per page; the
+  read-only reusable section covers the need.
+- **Character-level tracked changes** inside a live Yjs document: proposals are reviewed per block instead.
+- **Data outside the Markdown body:** comments, anchors, rows and permissions never go into the page Markdown.
 
-Each plan gives **value**, **owners**, **effort**, **dependencies**, **security / privacy** and the **version**.
+## Design notes
 
-### Page tree sidebar (T062, T049)
+Short constraints for the large items. Each still gets a full spec before it is built.
 
-**Value.** The most visible Outline trait: a sidebar to navigate, create and reorganise. Today the sidebar is a
-fully expanded, server-rendered `<ul>` capped at `max_tree_pages`.
+### Databases
 
-- **Sidebar.**
-  - Spaces → collections (when T048 is enabled) → nested pages to any depth, each parent with a disclosure button.
-  - The current page's branch unfolded and the page marked `aria-current="page"`.
-  - Fold state per user and space applied **server-side** before rendering, so there is no flash (D-W28: the session
-    by default; `tree.state_store` for a per-user store such as Beacon's UI preferences).
-  - **Lazy children**: the first render ships the expanded branches; collapsed parents load their children from
-    `GET …/tree/children?parent=<id>` (JSON of value-free nodes, paged at 200).
-  - Indicators where useful: draft badge, unresolved comment count (only counts the viewer may see), *private*
-    lock; never for nodes the viewer cannot read.
-  - **Starred** and **Recents** sections at the top (D-W3).
-- **Actions per node.**
-  - A hover / focus **"+"**: *New sub-page* (with the template picker from 1.17).
-  - A **"⋯" menu**: rename, icon / emoji, duplicate, move, copy link, archive, delete (→ trash), star / pin,
-    export.
-  - **Drag and drop** to reorder or re-parent: drop-indicator line, *inside* vs *between* zones, auto-expand after
-    hovering a collapsed parent, Escape cancels; never across spaces (D-W1).
-  - **Keyboard alternative** (WCAG 2.5.7): Alt+↑ / ↓ reorders among siblings, Alt+← / → un-nests / nests, and the
-    *Move to…* dialog (searchable tree, same data) for any target.
-- **Accessibility.** WAI-ARIA **treeview** pattern: one tab stop (roving `tabindex`), ↑ ↓ ← →, Home / End,
-  type-ahead, `*` expands all siblings, Enter opens, `aria-expanded`, `aria-level`, `aria-setsize`,
-  `aria-posinset`, the actions reachable with a shortcut (Shift+F10 / the "⋯" button); moves announced in a live
-  region ("*Runbooks* moved under *Operations*, position 3 of 5"); axe and keyboard-only e2e.
-- **Server.**
-  - **Ordering** (D-W27): sparse integers in the existing `position` column; a move writes one row while the
-    neighbours leave a gap, and renumbers the siblings only when they do not (or share a position).
-  - **Move validation:** no cycles (target not inside the moved subtree), edit right on source and target parents,
-    depth limit (D-W2), same space only (D-W1); one transaction; an audit entry (who, from, to, when) and a
-    `nowo_wiki.page.moved` event.
-  - **Per-viewer filtering:** subtrees the viewer cannot read are dropped with their counts; a readable child of an
-    unreadable parent is attached to the nearest readable ancestor or the root (no placeholder title).
-  - **Cache:** the space's ordered skeleton (ids, parents, ranks, icons) cached per space and invalidated on
-    page create / move / rename / archive / delete; titles and permissions applied per viewer on top.
-  - **Live updates** (optional): a Mercure topic per space publishes `{moved, created, renamed, deleted}` with ids
-    only; clients refetch the visible nodes (titles never travel in the update).
-- **UiKit.** UiKit 2.17 has lists, cards, tabs, a nested aside, pagination and a filter bar, but **no treeview**.
-  Propose a `tree` component in UiKit (Twig partial + IIFE: treeview keys, lazy loading hook, drag with keyboard
-  alternative), reusable by DashboardMenu and others. Existing UiKit output must stay byte-identical, and Beacon's
-  OK is needed before releasing it (UiKit-change rule).
-- **Reuse.** Breadcrumbs and the *Move to…* picker read the same tree data.
-- **Owners** W + U. **Effort** L. **Dependencies** UiKit tree component, Milkdown 1.3 (*Copy link* to headings).
-  **Version 1.14.**
+Owner decision (2026-11-03): **in scope**.
 
-### Structure: collections, icons, covers, emoji titles, tags
+- **Model.** A database is a page with a schema (`WikiDatabase`: properties, views, settings). Full-page databases
+  are tree pages; inline ones belong to a host page and are shown by the editor's `::database{id view}` block. Each
+  **row is a page** with properties and an optional Markdown body, so rows get revisions, comments, links and
+  templates for free.
+- **Property types.** MVP: title, text, number, select, multi-select, status, date (range), person, checkbox, URL,
+  e-mail, created / edited time and by. Then files and phone. Then relation, rollup, formula.
+- **Storage (D-W18).** One JSON properties column per row plus a narrow typed index table
+  (`database_id, property_id, row_id, v_text, v_num, v_date, v_bool`) so filters and sorts use real B-tree indexes on
+  MySQL and PostgreSQL; multi-value types get one index row per value.
+- **Schema changes.** Add, rename, delete, reorder; type changes run a per-database migration job with a preview of
+  values that will not convert, a `_lost` shadow and schema versions for undo.
+- **Views.** Table and board first, then list, gallery and calendar, then timeline. Each view stores filters (AND /
+  OR groups), sorts, grouping, visible properties and widths, and has a shareable URL. Board, calendar, gallery and
+  timeline become UiKit components with keyboard alternatives for every drag.
+- **Formulas (D-W19).** A small, own expression grammar (arithmetic, comparisons, `if`, string, date and list
+  functions, `prop("…")`) parsed into an AST and interpreted with step, depth and output limits; no `eval`, no PHP
+  callables, no object access.
+- **Per viewer.** Relations to unreadable rows render *Content not visible*; rollups count readable rows only;
+  per-row visibility filters before counting.
+- **Render and export.** The server renders a view per viewer as an accessible table or list; exports write CSV plus a
+  link; search indexes rows as their own documents.
+- **Limits** (configurable): 200 properties, 100 000 rows, 50 views, 10 filters per view, 10 KB per cell, cursor
+  pagination.
 
-- **Collections (T048).** `WikiDocument` (space, name, slug, description, icon, colour, position, archived) as the
-  Outline collection level; pages belong to one. Opt-in. Effort M. **1.14.**
-- **Icons and emoji titles (T063, T057).** Page and collection icon (Unicode emoji or Tabler name), picked with the
-  Milkdown emoji picker API; slugs never contain emoji; shown in tree, breadcrumbs, search and exports. Effort S.
-  **1.14.**
-- **Covers.** Optional cover image per page through attachments / StorageKit (no remote URLs, alt text required or
-  decorative), positioned by a vertical offset. Effort M. **1.14** (or later if storage is not ready).
-- **Tags (T046).** Tag entity per space, editor field, filter in search, tag pages; included in import / export.
-  Effort M. **1.18.**
+### Per-page permissions and guests
 
-### Trash (T065)
-
-**Value.** Safe delete like Notion / Outline; today only archive exists.
-
-- **Delete** moves the page **and its subtree** to the space trash (`deleted_at`, `deleted_by`, `deleted_with` = the
-  root of the deletion batch, original parent and rank kept). Retention 30 days by default, configurable
-  (`nowo_wiki.trash.retention_days`, D-W4).
-- **Trash view** per space and *Deleted by me*, with search, restore, delete forever, **bulk restore** and *Empty
-  trash* (UiKit confirm dialog).
-- **Restore** puts pages back under the original parent at their rank. If the parent is gone (purged or itself in
-  the trash), the page goes to the space root or the user picks a target in the *Move to…* dialog. Restoring a
-  parent restores the children deleted **with** it (same batch), not ones deleted earlier on their own.
-- **Nightly purge** (`wiki:trash:purge`, scheduler-friendly): removes the page, its revisions, link-index rows,
-  comments, collab state and tree state; files go through **StorageKit**, deleted only when no other page or
-  revision still references them.
-- **While in the trash:** links to the page render *Deleted page* (per viewer, no title); search, tree, backlinks,
-  AI context and exports exclude it; editing is blocked.
-- **Permissions:** delete = edit right on the page; restore = edit right on the target; purge / empty trash =
-  `manage` (D-W5). Every delete / restore / purge is audit-logged.
-- **Privacy erasure:** an account erasure anonymises `deleted_by` and keeps content (the content belongs to the
-  space); purge also removes personal data in comments of purged pages.
-- **Owners** W + S. **Effort** M–L. **Version 1.15.**
-
-### Version history
-
-**Value.** Notion / Outline-style history: who changed what, named versions, a readable diff, a safe restore.
-Builds on the existing revisions table, line diff and restore.
-
-- **Timeline** per page: revisions grouped into **sessions** (consecutive saves by the same people within N minutes,
-  or one co-editing session), each with author or **co-authors** (collected from the collab session on save),
-  time and size of change. **Named versions**: *Save version* with a label (D-W7: all editors or only managers).
-- **Diff between any two versions:**
-  - a **rendered diff** — insertions and deletions highlighted in the rendered page, dialect-aware (page links,
-    mentions, colours, tables, callouts are compared as units, not as raw characters);
-  - a **raw Markdown diff** toggle;
-  - computed server-side (block-level LCS, then word-level inside changed blocks), every value escaped, with size
-    limits (documents over `max_input_length` fall back to the raw diff, at most N changed blocks shown).
-  - Milkdown 1.4 offers an optional client diff view (`plugin-diff`) and a read-only *view version* mode; the
-    server diff stays the reference (works without JavaScript).
-- **Restore** creates a new revision (history is never rewritten) and triggers the 1.13 collab **reset** so live
-  editors reload; *Copy to new page* creates a page from an old version.
-- **Retention** (D-W6): keep every named version and the latest revision forever; thin autosaves older than N days to
-  one per session / day; configurable; never thins below the last published revision.
-- **Per-viewer safety:** history requires read rights (and `history`); page links in diffs resolve **per viewer**
-  (an unreadable page shows *Content not visible* in both columns), so diffs never leak titles.
-- **Owners** W + E. **Effort** L. **Version 1.15.**
-
-### Inline and page comments (T064)
-
-**Value.** The main collaboration feature of Notion and Outline after co-editing.
-
-- **UX** (editor parts in the Milkdown roadmap):
-  - start a comment from the selection toolbar, the right-click menu, the block menu or **Ctrl / ⌘ + Alt + M**;
-  - the anchor is highlighted in the text, threads are listed in a margin / sidebar, with replies, @-mentions, emoji
-    reactions, resolve / reopen, edit / delete own comments and a *Show resolved* filter;
-  - **page-level comments** (no anchor) at the end of the page and in the sidebar;
-  - the thread list is a `complementary` landmark, anchors are focusable, next / previous comment shortcuts,
-    new replies announced politely.
-- **Anchoring.** Comments are **not** in the Markdown body. Each thread stores, server-side:
-  - Yjs relative positions (start, end) while the page is co-edited;
-  - a durable **TextQuoteSelector** (exact quote, prefix and suffix of ~32 characters) plus a block fallback (heading
-    slug or block index + offset) for reloads, non-collaborative edits, and the 1.13 log resets and compactions.
-  - On load the editor reconciles: relative positions first, then quote + context, then the block fallback; if the
-    quoted text is gone the thread becomes **orphaned** (shown in the sidebar as "Text was removed" with the
-    original quote) and is never silently attached elsewhere.
-- **WikiBundle.**
-  - Entities `WikiCommentThread` (page, anchor, status, resolved by / at), `WikiComment` (thread, author, Markdown
-    body, edited at, deleted at), `WikiCommentReaction` (comment, user, emoji).
-  - JSON endpoints with CSRF and a rate limiter: list, create, reply, edit, delete, react, resolve, reopen.
-  - A new `WikiAction::Comment` right (`wiki.comment` / `project.wiki.comment` in Beacon, D-W8: readers or editors).
-  - Bodies rendered by the safe Milkdown renderer (no raw HTML), size limit, mentions resolved per viewer.
-  - Notifications and subscriptions (below); live updates over the 1.13 Mercure infrastructure (one topic per
-    page, ids only, authorised like co-editing).
-  - Trash / purge: comments follow their page; resolved threads kept or purged after N days (D-W9).
-  - Excluded from exports (unless an explicit *with comments* option for admins), search for users without the
-    right, and AI context.
-  - Privacy erasure: **1.16** `WikiCommentService::exportAuthor()` / `eraseAuthor()` and `wiki:comments:erase-user`
-    (unlink the user, delete their reactions, blank their bodies by default); the host decides when to call them.
-    Quotes are page text and stay; re-anchoring or blanking quotes on page save is a 1.17 item (below).
-  - Counts per page in the tree (only for viewers who may read comments); an audit log of deletions and resolves.
-- **Comments panel** (owner request via Beacon, 2026-11-03; spec [`specs/002-comments`](../specs/002-comments/spec.md)):
-  - page tabs (Page / Edit / History) on the read and edit views, with a **Comments (n)** toggle at the end of the row
-    (n = open threads the viewer may read);
-  - a right-side panel (`<aside>`, UiKit side panel markup, so Beacon needs no override) holding page-level comments
-    and the Milkdown 1.6 inline threads, mounted into the panel with two-way highlight / thread focus and the count
-    for the badge;
-  - open / closed remembered per user (the session, or the host state store, like the tree's fold state);
-  - phones (≤ 767 px): a full-height drawer;
-  - focus moves into the panel on open and back to the toggle on close, Escape closes, open / close announced in a
-    live region;
-  - rights `WikiAction::ViewComments`, `Comment`, `ResolveComment`, `ModerateComments` (own comments: edit / delete
-    with `Comment`), default deny;
-  - the markup, tabs, panel, actions and endpoints are agreed with Beacon in a contract before the PR.
-- **Host (Beacon):** notification channels (in-app, e-mail, Web Push), the `wiki.comment` grant in roles.
-- **Next (1.17, after 1.16.0):**
-  - **Anchored server-rendered read view** (design from the 1.16 security audit, appendix EI). Readers keep the
-    server HTML (no Markdown sent, DN-I2), with inline highlights, new inline threads and the thread component:
-    1. *One canonical text model on both sides.* The anchor's canonical text is ProseMirror
-       `doc.textBetween(0, size, "\n", "U+FFFC")`. The Milkdown PHP renderer marks structure on the server body:
-       `data-nowo-block="<top-level index>"` on each top-level block and `data-nowo-atom` on every inline leaf
-       (mention, page link, icon, image, math, hard break), which counts as one U+FFFC whatever it renders (per-viewer
-       titles and hidden placeholders never shift offsets). A host directive renders as an atom or a block with a
-       fixed text weight. A shared fixture corpus (Milkdown TS: Markdown → canonical text; a PHP test: the DOM walker
-       over the server HTML yields the same string) fails CI on drift.
-    2. *Resolve in the browser over the DOM, read-only.* A Milkdown `DomQuoteResolver` walks the marked DOM, builds
-       the canonical string and an offset → (text node, offset) map, applies the anchor resolution of the contract
-       (§3 step 2: exact match ranked by prefix / suffix, then `position.start`, then `block.index`) and paints with
-       the CSS Custom Highlight API (no DOM mutation, CSP-clean), falling back to `<mark data-comment-id>` built with
-       DOM APIs (never `innerHTML`). Unresolved threads are orphaned, as today.
-    3. *New inline threads from the read view.* The DOM `Selection` maps back through the same map to `{exact,
-       prefix, suffix, position, block}`; selections that cross or sit inside an atom are refused; `yjs: null`.
-    4. *Never refresh anchors from the read view.* Only the editor (Yjs, the real document) PATCHes anchors.
-    5. *Stability across edits.* Yjs relative positions stay the primary key while co-editing. Store the revision the
-       anchor was last confirmed against (`anchorRevision`); on each save the editor flushes refreshed anchors
-       (`comment-anchors-changed` / `snapshot()`) with the save; optionally a server-side re-anchor on save (the same
-       quote search in PHP over the new canonical text) for threads the editor did not refresh, the rest orphaned.
-       With a server canonical text, POST / PATCH can also check that `quote.exact` occurs in the current revision
-       (closes the spoofed-quote note).
-    6. *Leak checks.* The server view is per viewer, so a quote inside content hidden from that viewer stays
-       orphaned for them; blank its `quote` in the thread JSON for threads that do not resolve in the viewer's text
-       (server-side resolution makes this possible; 1.16 already blanks quotes no longer in the page).
-       `nowo_milkdown_view()` gains a `source: false` mode that mounts only the thread UI over an existing element
-       (`target: '[data-nowo-wiki-server-body]'`); the thread component needs no other change.
-    7. *Fallback* until it ships: the 1.16 behaviour (editors get the mount; other readers the server list, no inline
-       highlights; `comments.read_view_source` opts in to the source).
-  - **Re-anchor or blank quotes on page save** (point 5) and drop `.nowo-md-ref--hidden` placeholders from
-    `WikiPlainText::fromHtml()` (searching "visible" hits every page with a link).
-  - **Live comments on the read view via a read-only topic, no co-editing needed:** a private
-    `<topic_prefix><page id>/comments` grant issued with the page view for viewers with `ViewComments` (today live
-    updates ride on the co-editing subscriber cookie of the edit view only).
-- **Later:** suggestions / track changes (Notion *Suggest edits*) as reviewable proposals (Milkdown 1.8 + drafts),
-  planned after 1.21.
-- **Owners** W + E + H (+ UiKit side panel). **Effort** L. **Dependencies** Milkdown 1.6 (comments, mountable thread component), UiKit ≥ 2.25 (side panel). **Version 1.16.**
-
-### Templates (T069)
-
-**Value.** "Start with a template" in Notion and Outline; postmortems and runbooks in Beacon.
-
-- **Model.** `WikiTemplate`: scope (space or global = instance level), title, icon / emoji, description, body in the
-  dialect (Markdown), default properties for database rows (1.21), created by, revisions (template history).
-- **Use.**
-  - *New page from template* in the tree "+", *New sub-page*, the command palette and the **empty-page state**
-    ("Start with a template" list, as in Outline / Notion).
-  - The new page **copies** the body at creation time: later template edits never change existing pages.
-- **Variables.**
-  - Filled at creation: `{{date}}`, `{{time}}`, `{{author}}`, `{{space}}`, `{{title}}`, plus host-provided ones
-    through `WikiTemplateVariableProviderInterface` (for example Beacon's issue fields for *Write postmortem*).
-  - The substitution engine is a fixed `{{name}}` token replacement over an allow-list (D-W12), with values
-    Markdown-escaped. **No Twig, no `eval`, no expressions** on user input. Unknown variables stay as text.
-- **Permissions:** create / edit templates = `manage` in the space (global templates: instance admins); using one =
-  create right. Readers see the gallery only if D-W11 says so.
-- **Interchange:** templates in import / export (a `templates/` folder with front matter).
-- **Seed templates** (D-W10): meeting notes, postmortem, runbook, RFC / decision record, onboarding, how-to;
-  translatable through the bundle's translation domain (seeded in the space's locale).
-- **Editor (Milkdown 1.5):** template picker component, a slash *Template* item and a "template button" block that
-  inserts content repeatedly at the cursor (like Notion's), and variables shown as chips while editing a template.
-- **Database row templates** (1.21): see [Databases](#notion-style-databases).
-- **Owners** W + E + H. **Effort** M–L. **Version 1.17.**
-
-### Search with filters and highlighting
-
-**Value.** Finding things is the core of a wiki; today search is a literal `LIKE` with excerpts from the
-viewer-neutral HTML cache.
-
-- **UX.**
-  - **Instant search** in the Ctrl / ⌘ + K palette through **SearchKitBundle** 1.3 (header field, keyboard-first,
-    grouped results, recents, `<mark>` built with DOM nodes): WikiBundle ships a `SearchProviderInterface`
-    implementation (group *Wiki*, scope chip = current space through `SearchScopeResolverInterface`).
-  - A **full search page** (UiKit list scaffold): results grouped by space, with title, breadcrumb, highlighted
-    excerpt and date; keyboard navigation; *Search in this space* from the tree; recent searches (D-W15) and
-    recently viewed pages.
-- **Filters:**
-  - space / collection, author, last editor, created / updated date ranges;
-  - status (published, draft, archived; trash for admins), tags;
-  - type (page, database row, comment, attachment — D-W14 for the first version);
-  - database property filters (1.21);
-  - sort by relevance / updated / created / title;
-  - filter state in the URL (shareable).
-- **Query features:** exact phrase `"…"`, exclusion `-word`, prefix matching (`deplo*` implicit on the last term),
-  accent and case folding, per-locale stemming where the engine supports it, title boost over body.
-- **Highlighting.**
-  - Built server-side from a **per-viewer-safe plain text** column (`search_text`): the Markdown with dialect tokens
-    reduced to neutral text (page links as their ids → no titles), never from a cache holding resolved titles.
-  - Escaped, with `<mark>` as the only markup.
-  - Opening a result highlights the terms in the page and scrolls to the first one, with find-next in the editor
-    (Milkdown 1.7 find / replace).
-- **Index** (D-W13).
-  - **Default:** the database's own full-text index — MySQL 8.0+ / 9 `FULLTEXT` (InnoDB, `ngram` parser optional
-    for CJK) or PostgreSQL `tsvector` + GIN with per-locale configurations. No extra service, transactional with
-    the page.
-  - **Optional adapter** `WikiSearchIndexInterface` for Meilisearch / OpenSearch (typo tolerance, better ranking)
-    for large instances.
-  - Incremental indexing on save, move, delete, restore and permission change; `wiki:search:reindex` in the
-    background; attachment text extraction later.
-  - Comments in a separate index, searchable only by users who may see them.
-- **Security and privacy:**
-  - results filtered per viewer **before** ranking, counting and pagination (with an external engine: the
-    readable space / page ids go into the query as a filter, never post-filtered);
-  - trash and archived only with rights;
-  - rate limit per user, query length cap (e.g. 200 characters, 10 terms);
-  - no stored query logs with personal data unless the host opts in.
-- **Performance:** pagination (25), snippet length cap (≈ 240 characters), target p95 < 300 ms for 100 k pages on
-  the default engine.
-- **Owners** W + SK + H (palette placement). **Effort** L. **Version 1.18.**
-
-### Discovery: recents, starred, backlinks, related pages
-
-- **Recents and starred** (T051): per user, in the tree and the palette; never list pages the viewer lost access to.
-  Effort S. **1.14.**
-- **Backlinks / *Linked from*** (T050): panel on the page from the `WikiPageLink` index, filtered per viewer (only
-  linking pages the viewer can read; no counts of hidden ones). Effort S. **1.18.**
-- **Related-pages graph:** a small, accessible graph (with a list fallback) of links and backlinks around a page;
-  beyond parity. Effort M. **1.22.**
-
-### Lifecycle: drafts, duplicate, archive, pins, review dates
-
-- **Duplicate** (T065) with or without children, attachments shared by reference. Effort S. **1.15.**
-- **Drafts** (T055): `draft` state, draft revisions on top of the published one, *Publish*; drafts visible to their
-  authors and editors only, excluded from search for others. Effort M. **1.17.**
-- **Archive** stays (read-only, out of the tree) and is distinct from trash. **Pins** (T065) on space / collection
-  homes. Effort S. **1.17.**
-- **Review dates** (T068): owner, interval, *May be out of date* banner, *Reviewed* action, *Due for review* list;
-  notifications are host work. Effort M. **1.17.**
-
-### Notifications, subscriptions, mentions, presence
-
-- **Subscriptions:** watch a page (automatic for authors and commenters), a collection or a space; unsubscribe.
-- **Notifications:** WikiBundle emits typed events (`comment.created`, `mention.created`, `page.updated` digest,
-  `review.due`); **Beacon** delivers them (in-app, e-mail, Web Push), per-user preferences (D-W16).
-- **Mentions per viewer (CV-I5):** `UserResolverInterface` today only receives handles. Add a viewer / document
-  context (`resolveUsers(handles, context)`) so a host can answer only people who may read the document, and notify
-  only mentioned users who can read it; mention extraction ignores unreadable contexts.
-- **Presence:** avatars of people viewing / editing a page (from the Mercure awareness of co-editing, read-only
-  viewers optional). Effort M.
-- **Owners** W + H. **Effort** M. **Version 1.16.**
-
-### Per-page permissions
-
-**Value.** Notion's *Share* dialog and Outline's collection permissions: restrict a subtree, invite people to one
-page. Today: `WikiSpaceAccessCheckerInterface::isGranted(user, WikiAction, space, ?page)`, `canEdit()`, roles per
-action (`security.roles`), `tenant_only` paths; Beacon maps `project.wiki.*` / `wiki.*` keys and is adopting
-**RbacKit 1.0** (typed contexts `<type>:<id>`, permission sets, D-1 / D-3 / D-4).
-
-- **Levels:** *Full access* (edit + share + delete), *Can edit*, *Can comment*, *Can view*, *No access*.
-- **Grantees:** users, groups / teams and roles (RbacKit permission sets).
-- **Inheritance** down the tree. *Restrict this page* breaks inheritance and copies the inherited grants as a
-  starting point. The share dialog shows "Inherited from *Parent*" with a link. Moving a page that changes who can
-  see it shows a warning with the delta ("3 people will lose access") before confirming.
-- **Guests:** external users with grants on specific pages only (no space membership); they see only those pages in
-  tree, search and palette (D-W21).
-- **Model — recommended: a WikiBundle-native ACL gated by RbacKit** (D-W22).
-  - RbacKit owns the **vocabulary and the space level**: permission keys (`wiki.view`, `wiki.comment`, `wiki.edit`,
-    `wiki.share`, `wiki.manage`), system sets matching the five levels, and space / project grants through its
-    typed contexts (`project:<id>` in Beacon, `wiki_space:<id>` standalone).
-  - WikiBundle owns **page grants**: a `wiki_page_grant` table (page, grantee type + id, level, granted by / at) and
-    a `restricted` flag on pages.
-  - A resolver computes the effective level as: the nearest restricted ancestor's grants (or the page's own),
-    otherwise the space level from RbacKit; *No access* overrides; `wiki.manage` holders can always manage.
-  - **Why not one RbacKit context per page:** RbacKit has no inheritance between contexts, its `GrantProviderInterface`
-    lists every context a user holds once per request (thousands of pages), and tree moves would rewrite grants.
-    Tree inheritance and *restrict* are wiki semantics; RbacKit stays the source of the keys and the space grants,
-    so Beacon has one permission model.
-- **Speed:** effective levels resolved in batches (all pages of a tree / result page at once from the ancestor
-  chains and grant rows), memoised per viewer per request (`ResetInterface`, keyed by user object), with a per-space
-  "has any restriction" short-cut so unrestricted spaces cost one RbacKit check.
-- **Consistency everywhere** (one resolver, tests per surface with marker strings): page view, tree, search (filter
-  before ranking), backlinks, mentions, exports, history and diffs, comments, database rows and relations, collab
-  endpoints, the Mercure topic authorisation and the AI context.
-- **Admin:** a *Who has access* view per page and space (effective list with the source of each grant), and an
-  **audit log** of every permission change (`WikiPermissionChangedEvent`, stored by the host).
-- **Owners** W + H (RbacKit adoption in Beacon). **Effort** L. **Version 1.20.**
+- **Levels:** full access, can edit, can comment, can view, no access. **Grantees:** users, groups and roles.
+- **Model (D-W22):** a WikiBundle page ACL (`wiki_page_grant`, a `restricted` flag) gated by RbacKit keys and space
+  contexts; the nearest restricted ancestor decides, otherwise the space level; *no access* wins.
+- **Speed:** effective levels resolved in batches per tree or result page, memoised per viewer per request (reset at
+  every request, Messenger and console boundary), a per-space "has restrictions" shortcut.
+- **Everywhere:** page view, tree, search (before ranking), backlinks, mentions, exports, history and diffs, comments,
+  rows and relations, collaboration topics and the AI context, each with marker-string tests.
+- **Moves** that change who can see a page show the delta before confirming. Guests follow members (D-W21).
 
 ### Public links
 
-**Value.** Notion *Publish to web* / Outline *Share link*: share a page with people without accounts.
+- Per page, optionally with sub-pages; on / off, expiry, optional password (rate limited), no-index by default,
+  comments and export off; tokens of 128+ random bits stored hashed, revocable; an access log per the host's privacy
+  policy.
+- Read-only render through the same safe renderer: links to non-shared pages as plain text, mentions anonymised
+  (D-W25), files through short-lived signed URLs, strict CSP, no session cookie, `Referrer-Policy: no-referrer`.
+- Off instance-wide until an admin enables it per space (D-W23); an admin list of every link with bulk revoke.
 
-- **Per page**, optionally including sub-pages. Settings:
-  - on / off and an expiry date;
-  - an optional password (hashed with the host's password hasher, rate limited, lockout after N failures);
-  - *Allow search engines* **off** by default (`noindex`, `X-Robots-Tag`, robots), *Allow comments* off,
-    *Allow duplicate / export* off.
-- **Token:** at least 128 random bits (base64url), stored hashed; revocable and regenerable; an access log (time,
-  coarse client data per the host's privacy policy).
-- **Public view:** a read-only render through the same safe Milkdown renderer.
-  - Page links to non-shared pages render as plain text (no titles).
-  - Mentions anonymised or kept as handles (D-W25).
-  - Embedded database views show only shared rows.
-  - Images and files are served through **StorageKit signed, short-lived URLs**.
-  - Mermaid and KaTeX are rendered as on internal pages.
-  - Strict CSP, no app chrome, no session cookie, no CSRF-bearing forms; `Referrer-Policy: no-referrer` so the
-    token never leaks to outbound links.
-  - `Cache-Control: private, no-store` with a password (public caching only for password-less links, short TTL).
-- **Later:** a custom domain or path prefix per space.
-- **Admin settings:** disable public sharing instance-wide or per space; list every public link (page, creator,
-  expiry, last access) with bulk revoke.
-- **Security tests:** token brute-force limits; no IDOR by switching the page id under a valid token (the token
-  names the page; sub-pages are checked against the shared root); expiry enforced server-side; caching headers;
-  Referrer-Policy; no leaks of non-shared titles through links, mentions, embeds, breadcrumbs or the tree.
-- **Embed a page elsewhere:** the public link with an `embed` mode (no header) and `frame-ancestors` from a host
-  allow-list.
-- **Owners** W + S + H. **Effort** M–L. **Version 1.20.**
+### Search
 
-### Import and export
+- **Index (D-W13):** the database's own full-text index by default; an adapter interface for an external engine on
+  large instances, with the readable ids passed into the query, never post-filtered.
+- **Query:** phrases, exclusion, prefix on the last term, accent and case folding, title boost; length and term caps,
+  a per-user rate limit, no stored query log unless the host opts in (D-W15).
+- **Highlighting** from the per-viewer-safe plain text (`content_text`), escaped, `<mark>` only; terms highlighted on
+  open with the editor's find bar.
+- **Filters** in the URL: space, author, last editor, date ranges, status, tags and database properties later.
 
-- **Import:** Notion export (Markdown + CSV for databases, attachments folders), Outline export (JSON and Markdown),
-  Confluence space export (optional, HTML → Markdown converter of 1.13 with a fidelity report). Collections and link
-  rewriting (T052).
-- **Export:** Markdown (with attachments ZIP), HTML (rendered, per viewer), PDF (host renderer, D-W17), per page,
-  subtree or space (T044, T045); comments excluded; databases as CSV + Markdown index.
-- **Security:** archive size / file count / path traversal limits (existing), no remote fetches during import,
-  attachments sniffed and stored through StorageKit.
-- **Owners** W + H. **Effort** L. **Version 1.22.**
+### Templates
 
-### API, webhooks, command palette
+- `WikiTemplate`: space or instance scope, title, icon, description, Markdown body, default properties for database
+  rows later, its own revisions.
+- A new page **copies** the body at creation; later template edits never change existing pages.
+- Variables (D-W12): fixed `{{name}}` replacement over an allow-list (`date`, `time`, `author`, `space`, `title`) plus
+  host providers, values Markdown-escaped; no Twig, no `eval`, no expressions; unknown variables stay as text.
+- Create / edit templates needs `manage` (instance templates: admins); using one needs create (D-W11).
+- Seeds (D-W10): meeting notes, postmortem, runbook, decision record, onboarding, how-to, in the 7 locales.
+- Editor part: the template picker, a *Template* slash group, a repeatable insert block and variable chips (Milkdown).
 
-- **REST API** — **shipped in 1.24** (spec 218, [API.md](API.md)): wikis, pages (Markdown in / out), revisions,
-  search, comments and files with the host's tokens; same per-viewer rules. Databases wait for their own feature.
-  **Webhooks**: signed (HMAC) deliveries of the events above with
-  retries; host-configured endpoints, SSRF protections (no private ranges). Effort L. **1.22.**
-- **Command palette (T066):** SearchKit's Ctrl / ⌘ + K with WikiBundle actions (new page, new from template, move,
-  go to space) as quick actions; keyboard-only e2e. Effort S. **1.18.**
+### Inline and page comments (T064)
 
-### Accessibility, performance and audit residuals
+Shipped in 1.16 (spec [`specs/002-comments`](../specs/002-comments/spec.md), contract
+[COMMENTS-CONTRACT](COMMENTS-CONTRACT.md)). Still open:
 
-- **Accessibility:** every new view on the UiKit contract, axe in e2e (light / dark), keyboard-only journeys for tree,
-  comments, trash, history and databases, live-region announcements for moves and saves; WCAG 2.2 *Dragging
-  movements* and *Target size*.
-- **Performance:**
-  - large trees: lazy children, ranks, a cached skeleton;
-  - per-viewer rendering: today the per-viewer body is never cached (contract decision 3); later, a **cache per role
-    / permission fingerprint** for pages whose references are all role-visible (opt-in);
-  - batched permission checks (the CV-L1 fix pattern) for every list.
-- **Audit residuals (Info)** — planned for **1.13.1** unless noted:
+- **Anchored server-rendered read view.** One canonical text model on both sides (`data-nowo-block` /
+  `data-nowo-atom` markers from the PHP renderer, a shared fixture corpus), a read-only DOM quote resolver painting
+  with the CSS Custom Highlight API, new threads from a DOM selection, anchors refreshed only by the editor, quotes
+  blanked for threads that do not resolve in the viewer's text.
+- **Re-anchor or blank quotes on page save** and drop hidden-reference placeholders from the plain text.
+- **Live comments on the read view** through a read-only topic.
+- **Comments on blocks and images**, then **suggested edits** (Considering).
 
-| Id | Residual | Plan |
-|----|----------|------|
-| CV-I9 | Membership memo keyed by `getUserIdentifier()` for the whole request; stale in long-running loops | Key by user object id + identifier, implement `ResetInterface`, invalidate on membership events |
-| CV-I5 | Mention resolver gets handles only; directory enumeration through `title` | Viewer / document context in the resolver contract (1.14) |
-| CW-I7 | One editor can use up the shared reset cap; the manual reset then fails silently | Flash message on a capped manual reset; per-user share of the cap |
-| CW-I9 | No per-user global limiter across pages | Add a per-user limiter on collab endpoints |
-| CW-I10 | Purge can delete an active log (`--older-than 0`), no reset broadcast, no lock | Minimum of 1 day, broadcast `{t:"r"}` on purge, delete under a lock |
-| CW-I12 | Default Mercure claims merged into the wiki cookie can widen `subscribe` | UPGRADING / CONFIGURATION line: never put `mercure` keys in default claims; optional guard that refuses them |
+## Done since the 2026-11-03 roadmap
 
-## Notion-style databases
+Moved out of the plan because they shipped (version in brackets):
 
-User decision (2026-11-03): **in scope**. A dedicated track: MVP in **1.19**, then **1.21** and **1.23**.
-
-### Data model
-
-- **A database is a page with a schema** (`WikiDatabase`: page id, properties, views, settings); full-page databases
-  are pages in the tree; **inline** databases belong to a host page and are shown by the `::database` block.
-- **Each row is a page** (`WikiPage` with `database_id`) with **properties** and an optional body (Markdown), so rows
-  get revisions, comments, links and templates for free.
-- **Property types:**
-
-| Track | Types |
-|-------|-------|
-| MVP (1.19) | title, text, number, select, multi-select, status, date (range), person, checkbox, URL, e-mail, created / edited time, created / edited by |
-| 1.21 | files (StorageKit), phone |
-| 1.23 | relation, rollup, formula |
-
-- **Schema changes:** add / rename / delete / reorder properties; **type changes** run a migration job per database
-  (text → number parses, invalid values kept in a `_lost` shadow for undo, select ← text creates options) with a
-  preview count of values that will not convert; schema versions kept for undo.
-- **Storage (D-W18) — recommended: JSON properties + a typed index table.**
-  - Each row stores its properties as one JSON column (MySQL 9 `JSON` / PostgreSQL `jsonb`): one read per row,
-    atomic updates, no DDL when a user adds a property.
-  - A narrow **index table** `wiki_db_value(database_id, property_id, row_id, v_text, v_num, v_date, v_bool)` with
-    composite indexes serves filters and sorts on any property with real B-tree indexes on both engines.
-  - Why not pure **EAV**: N joins per row to read, slow wide tables. Why not **JSON only**: MySQL cannot index
-    arbitrary JSON paths without a generated column per property (DDL per user action); PostgreSQL GIN helps
-    equality and containment but not range sorts. The hybrid keeps reads simple and filters indexed on both engines.
-  - Multi-value types (multi-select, person, relation) get one index row per value.
-- **Limits** (configurable): 200 properties per database, 100 000 rows, 50 views, 10 filters per view, cell text 10 KB;
-  pagination of 100 rows (table) / 50 cards (board), cursor-based.
-
-### Views
-
-- **Types:** table and board (kanban) in the MVP; list, gallery and calendar in 1.21; timeline in 1.23.
-- Each view stores filters (AND / OR groups), sorts, grouping (board: group by select / status / person),
-  visible properties and widths.
-- Every view has a shareable URL (filter state included) and can be pinned in the tree.
-- **UiKit:** UiKit has data tables, filter bars, pagination and cards, but **no board, calendar, gallery or
-  timeline**; TaskBoardBundle has a kanban board. Propose UiKit components `board` (with keyboard move: grab with
-  Space, arrows, drop with Space, as in the APG drag-and-drop guidance), `calendar` (grid with arrow keys) and
-  `gallery`, extracted where possible from TaskBoard (beacon OK required, byte-identical existing output).
-
-### Inline vs full-page and linked views
-
-- **Full-page** databases are tree pages; **inline** ones are created from the editor and owned by the host page.
-- **Linked views** of the same database in other pages: the Milkdown block `::database{id=<uuid> view=<uuid>}`
-  (leaf directive). The editor shows the view inline (fetching rows from the Wiki API, editing cells in place); the
-  PHP renderer (WikiBundle's `DirectiveRendererInterface`) renders the view **server-side per viewer**, paged, as an
-  accessible table or list. Exports render a CSV + a link; search indexes rows as their own documents, not inside
-  the host page.
-
-### Rows
-
-- **Row templates** (with default properties, 1.21), **bulk edit** (select rows → set property / delete / move,
-  1.21), **CSV import / export** (MVP: column mapping, type detection, preview, errors report), **Notion database
-  import** (the CSV in Notion's export, 1.21) with relation columns resolved in 1.23.
-
-### Permissions
-
-- Inherited from the database page and space; **per-row visibility** (1.23, optional): a row-level restriction like
-  per-page permissions, filtered before counting.
-- **Formulas** (1.23) evaluated **server-side** in a restricted expression language (D-W19): own small grammar
-  (Notion-formula-like subset: arithmetic, comparisons, `if`, string / date / list functions, `prop("…")`), parsed
-  into an AST and interpreted with step, depth and output-size limits; **no `eval`, no PHP callables, no object
-  access**. Symfony ExpressionLanguage is the alternative (evaluate only, never compile), but its method-call syntax
-  and providers make the sandbox harder to prove.
-- **Relations and rollups** query per viewer: a rollup over rows the viewer cannot read counts only readable rows,
-  and a relation to an unreadable row renders *Content not visible*.
-
-### Collaboration
-
-- **Live cell updates** over Mercure (reuse the 1.13 publisher / authoriser: a topic per database, ids and changed
-  cells only, edit right checked on each write, optimistic concurrency with a row version). No Yjs for cells (last
-  writer wins per cell, conflicts shown).
-- **Comments on rows** reuse the 1.16 comment model (rows are pages).
-
-### Beacon integration (optional)
-
-- A `WikiDatabaseSourceInterface` could expose **TaskBoard tasks or Beacon issues** as read-only (later read-write)
-  database sources, so a wiki page shows a board of issues with Beacon's own permissions. Optional, after 1.23.
-
-### Split of the work
-
-| Part | Owner |
-|------|-------|
-| Model, schema migrations, API, CSV, server rendering, permissions, formula engine, index | W |
-| `::database` block, inline view, cell editing in a page, view switcher | E (Milkdown 1.6, then 1.8+) |
-| Table, board, calendar, gallery, timeline components | U (TaskBoard as a source for the board) |
-| Navigation, notifications, Beacon data sources | H |
-
-### Milestones and risks
-
-| Version | Databases content | Effort |
-|---------|-------------------|--------|
-| 1.19 (MVP) | Database pages, rows as pages, MVP property types, table + board views, filters / sorts / grouping, CSV import / export, `::database` block (read + cell edit) | L |
-| 1.21 | List, gallery, calendar; files property; row templates; bulk edit; Notion CSV import; live cells; row comments | L |
-| 1.23 | Timeline; relations, rollups, formulas; per-row visibility; complex type migrations | L |
-
-**Risks:** scope creep (Notion's databases are a product of their own: ship the MVP and measure); performance of
-filters on large databases (index table + limits); formula sandbox correctness (fuzz tests, limits); permission leaks
-through rollups and relations (per-viewer tests with marker strings); UI complexity for keyboard and screen-reader
-users (APG patterns, axe, keyboard-only e2e).
-
-## Proposed (not yet requested)
-
-Further features found while writing this roadmap. They are **proposals**: accept or drop each one.
-
-| Proposal | Value | Effort | Milestone |
-|----------|-------|--------|-----------|
-| Related-pages graph | Shows neighbourhoods of linked pages; beyond Notion / Outline parity | M | 1.22 |
-| Page analytics (views, viewers, popular pages, stale pages) | Outline-style insights; feeds review dates. Per-viewer and privacy-aware (aggregate counts, opt-in viewer lists) | M | 1.22 |
-| Reminders on `:date[…]` and task digests | Notion `@remind`; notifications through the host | M | 1.21 |
-| Read-only transclusion (`::include`) as "synced block" light | Reuse a section in many pages without copies; resolved per viewer | M | 1.22 |
-| Offline reading (service worker cache of recently viewed pages) | Read on the move; must respect per-viewer data and logout purge | L | after 1.23 |
-| Mobile layout of tree, comments and databases | Notion / Outline mobile web parity; drawer tree, bottom sheets | M | spread over 1.14–1.21 |
-| Print / PDF styles of pages and exports | Clean print of pages (expanded details, URLs, no chrome) | S | 1.15 |
-| Space home pages and collection overviews (cards, descriptions, pinned) | Outline collection home; better landing | S | 1.17 |
-| Document translation links (same page in several locales) | Multilingual wikis (7 locales in the bundle) | M | after 1.23 |
-| Webhook-driven integrations (Slack / Teams unfurls of wiki links) | Outline-like chat unfurls, per-viewer safe (title only for authorised workspaces) | M | 1.22 |
-| AI: summaries of long pages and Q&A citations to headings | Builds on the optional Symfony AI integration; host-provided models only | M | 1.22 |
+- Audit residuals CW-I7, CW-I9, CW-I10, CW-I12, CV-I9 (1.13.1).
+- Page tree with fold state, drag, keyboard moves, *Move to…*, depth limit, `nowo_wiki.page.moved` (1.14); tree
+  context menu (1.39, 1.41); new page as a dialog placed in the tree (1.35); collapsible tree on the space home and
+  tree rail (1.29, 1.38).
+- Trash with sub-tree delete, batch restore, purge and retention (1.14); files purge event (1.20); duplicate (tree).
+- Version history: timeline, named versions, *Copy to new page*, retention thinning (1.15); "former person" (1.26);
+  write provenance and member badges (1.34).
+- Comments: inline and page threads, side panel, reactions, moderation, limits, erasure (1.16–1.17, 1.21, 1.29, 1.31).
+- *Copy as Markdown* (1.15); page tab icons (1.18); host hooks: quota event, navigation scope, slots, moderation
+  panel, tree tokens (1.21); page files card (1.20).
+- REST API with OpenAPI (1.24), create at a place (1.35), framework-free host ports and DDD host support (1.36),
+  transaction runner and conflict answers (1.37, 1.42).
+- Space icons (1.32), page icons (1.38), icon picker and emoji icons (1.39); previous / next page (1.39).
+- Link picker, stable and explicit heading ids, section links and labels (1.40).
+- Focus mode with the page drawer (1.41, 1.44); page-card tokens (1.43); SearchKit palette provider (1.44).
 
 ## Decided
 
@@ -706,45 +346,51 @@ Further features found while writing this roadmap. They are **proposals**: accep
 |---|----------|----------------|
 | D-W1 | Allow moves **across spaces**? | No: moves stay within one space (2026-11-03) |
 | D-W2 | Maximum tree **depth** | 10 levels, `tree.max_depth` (2026-11-03) |
-| D-W27 | Sibling **ordering** storage | Sparse integers in the existing `position` column, no string rank column (2026-11-03) |
+| D-W4 | **Trash retention** period | 30 days, configurable (shipped 1.14) |
+| D-W5 | Who can **purge** the trash | The manage roles in the 1.x mapping (shipped 1.14) |
+| D-W6 | **Revision retention** | Keep named, current and newest revisions; thin older autosaves to one per session and day (shipped 1.15) |
+| D-W7 | **Named versions** for all editors? | Yes (shipped 1.15) |
+| D-W27 | Sibling **ordering** storage | Sparse integers in the existing `position` column (2026-11-03) |
 | D-W28 | Where the **fold state** lives | The session by default; `tree.state_store` for a per-user store (2026-11-03) |
 | D-W29 | What a **delete** takes | The page and its whole sub-tree, restored together (2026-11-03) |
 | D-W30 | Pages **archived before** a delete | Stay archived after a restore (2026-11-03) |
 | D-W31 | A restored page whose **parent is gone** | Comes back at the top level (2026-11-03) |
+| — | Databases with schema pages, views, relations, rollups and formulas | In scope (owner, 2026-11-03) |
 
 ## Open decisions
 
+Recommended answers are the defaults until the owner decides.
+
 | # | Decision | Recommendation |
 |---|----------|----------------|
-| D-W3 | Show **Starred** / **Recents** sections in the sidebar | Yes, both collapsible |
-| D-W4 | **Trash retention** period | 30 days, configurable |
-| D-W5 | Who can **purge** / empty the trash | Space managers (`manage`) |
-| D-W6 | **Revision retention** policy | Keep named versions and the last revision forever; thin autosaves after 30 days to one per session / day |
-| D-W7 | **Named versions** for all editors? | Yes |
-| D-W8 | Who can **comment**: readers or editors only? | Readers with a `wiki.comment` right granted by default to members |
+| D-W3 | Show **favourites** and **recent** sections in the sidebar | Yes, both collapsible |
+| D-W8 | Who can **comment**: readers or editors only? | Readers with the comment right, granted to members by default |
 | D-W9 | Keep **resolved threads** forever? | Keep; purge only with the page |
-| D-W10 | Which **seed templates** ship | Meeting notes, postmortem, runbook, RFC / decision record, onboarding, how-to |
+| D-W10 | Which **seed templates** ship | Meeting notes, postmortem, runbook, decision record, onboarding, how-to |
 | D-W11 | Can **readers** see the template gallery? | No (create right only) |
-| D-W12 | **Template variables** available | `date`, `time`, `author`, `space`, `title` + host providers |
-| D-W13 | **Search engine**: built-in DB full-text or external | Built-in (MySQL FULLTEXT / PostgreSQL tsvector) with an adapter interface |
-| D-W14 | Comments and attachments **searchable** in the first version? | Comments yes (per viewer), attachments later |
-| D-W15 | Keep **search history**? | Browser-only recents (SearchKit), no server log |
+| D-W12 | **Template variables** | `date`, `time`, `author`, `space`, `title` + host providers |
+| D-W13 | **Search engine** | Built-in database full-text with an adapter interface |
+| D-W14 | Comments and attachments **searchable** first? | Comments yes (per viewer), attachments later |
+| D-W15 | Keep **search history**? | Browser-only recents, no server log |
 | D-W16 | **Notification defaults** | Mentions and replies on; page edits as a daily digest for watchers |
-| D-W17 | **PDF export** renderer | Host-provided (headless Chromium service), optional |
+| D-W17 | **PDF export** renderer | Host-provided, optional |
 | D-W18 | Database **storage model** | JSON properties + typed index table |
-| D-W19 | **Formula language** | Own restricted grammar (Notion-like subset) |
+| D-W19 | **Formula language** | Own restricted grammar |
 | D-W20 | **Views first** | Table + board in the MVP; calendar next |
-| D-W21 | **Guests** in the first permissions release? | No; page grants for members first, guests in a follow-up |
-| D-W22 | Page permissions model | WikiBundle-native page ACL gated by RbacKit keys and space contexts |
-| D-W23 | **Public links allowed by default**? | No: off instance-wide until an admin enables them (per space) |
+| D-W21 | **Guests** in the first permissions release? | No; member page grants first, guests in a follow-up |
+| D-W22 | Page permissions model | WikiBundle page ACL gated by RbacKit keys and space contexts |
+| D-W23 | **Public links allowed by default**? | No: off until an admin enables them per space |
 | D-W24 | **Password required** on public links? | Optional; required when the space says so |
-| D-W25 | **Mentions** in public pages | Anonymised ("a team member") |
-| D-W26 | **Search-engine indexing** of public pages ever allowed? | Allowed per link by an admin only; off by default |
+| D-W25 | **Mentions** on public pages | Anonymised ("a team member") |
+| D-W26 | **Search-engine indexing** of public pages | Per link by an admin only; off by default |
+| D-W32 | **Order of the Next items** | Favourites + backlinks + rendered diff first (small), then templates and notifications, then search, then the databases MVP and per-page permissions in parallel |
+| D-W33 | **Collections**: build them or rely on the tree and per-page permissions? | Rely on the tree; revisit after per-page permissions |
 
 ## Links
 
 - [MilkdownEditorBundle roadmap](https://github.com/nowo-tech/MilkdownEditorBundle/blob/main/docs/ROADMAP.md)
-- [Usage](USAGE.md) · [Configuration](CONFIGURATION.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
+- [Usage](USAGE.md) · [Configuration](CONFIGURATION.md) · [API](API.md) · [Security](SECURITY.md) ·
+  [Changelog](CHANGELOG.md)
 - symfony-beacon `specs/178-wiki/tasks.md` (T044–T069), `specs/183-images-object-storage/spec.md`
 - [SearchKitBundle](https://github.com/nowo-tech/SearchKitBundle) · [UiKitBundle](https://github.com/nowo-tech/UiKitBundle)
   · [StorageKitBundle](https://github.com/nowo-tech/StorageKitBundle)
