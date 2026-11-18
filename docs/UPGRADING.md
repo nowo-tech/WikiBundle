@@ -105,6 +105,8 @@
 
 ## Unreleased
 
+From **1.42.0**, nothing to change: the new `--nowo-wiki-page-card-*`, `--nowo-wiki-read-max-width` and `--nowo-wiki-read-h{1,2,3}-weight` tokens default to the 1.42 values. A host that styled `.nowo-wiki-page-card`, `.nowo-wiki-page-title` or `.nowo-wiki-page-head` itself keeps working; it can replace those rules with the tokens (see [USAGE › Theming the page card](USAGE.md#theming-the-page-card-143)). One detail: `.nowo-wiki-page-card` is now `display: flex; flex-direction: column` (its children are block-level, so nothing moves); a host rule that relied on it being `display: block` should set `display: block` back.
+
 ## To 1.42.0
 
 From **1.41.0**:

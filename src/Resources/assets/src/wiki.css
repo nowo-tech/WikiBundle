@@ -65,7 +65,7 @@
 .nowo-wiki-reading {
   box-sizing: border-box;
   inline-size: 100%;
-  max-inline-size: var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch));
+  max-inline-size: var(--nowo-wiki-read-max-width, var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch)));
   margin-inline: auto;
 }
 
@@ -154,7 +154,7 @@
    centred or, with reading_align: start, against the card's start edge. */
 .nowo-wiki-reading-text :is(.nowo-wiki-content, .nowo-wiki-comments-view__body, .nowo-wiki-edit-body, .nowo-wiki-page-head, .nowo-wiki-page-title, .nowo-wiki-page-icon-line, .nowo-wiki-page-meta) {
   box-sizing: border-box;
-  max-inline-size: var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch));
+  max-inline-size: var(--nowo-wiki-read-max-width, var(--nowo-wiki-reading-width, var(--nowo-ui-reading-width, 75ch)));
   margin-inline: auto;
 }
 
@@ -342,14 +342,17 @@
 
 :is(.nowo-wiki-read-swap, .nowo-wiki-edit-body) :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h1 {
   font-size: var(--nowo-wiki-read-h1-size, 2em);
+  font-weight: var(--nowo-wiki-read-h1-weight, var(--nowo-wiki-read-heading-weight, 600));
 }
 
 :is(.nowo-wiki-read-swap, .nowo-wiki-edit-body) :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h2 {
   font-size: var(--nowo-wiki-read-h2-size, 1.5em);
+  font-weight: var(--nowo-wiki-read-h2-weight, var(--nowo-wiki-read-heading-weight, 600));
 }
 
 :is(.nowo-wiki-read-swap, .nowo-wiki-edit-body) :is(.nowo-wiki-content, .nowo-milkdown .milkdown .ProseMirror) h3 {
   font-size: var(--nowo-wiki-read-h3-size, 1.25em);
+  font-weight: var(--nowo-wiki-read-h3-weight, var(--nowo-wiki-read-heading-weight, 600));
 }
 
 /* 1.31: h4–h6 from tokens too (default: the text size, then slightly smaller), so both bodies match. */
@@ -490,21 +493,22 @@
    read view's h1 tokens (--nowo-wiki-read-h1-size, heading weight, line height and font). It keeps clear of the card
    toolbar like the body's first block. */
 .nowo-wiki-page-title {
-  margin: 0 0 var(--nowo-wiki-page-title-gap, 0.75rem);
+  margin: 0 0 var(--nowo-wiki-page-card-title-gap, var(--nowo-wiki-page-title-gap, 0.75rem));
+  padding: var(--nowo-wiki-page-card-title-padding, 0);
   font-family: var(--nowo-wiki-read-heading-font-family, inherit);
-  font-size: var(--nowo-wiki-read-h1-size, 2em);
-  font-weight: var(--nowo-wiki-read-heading-weight, 600);
-  line-height: var(--nowo-wiki-read-heading-line-height, 1.25);
+  font-size: var(--nowo-wiki-page-card-title-size, var(--nowo-wiki-read-h1-size, 2em));
+  font-weight: var(--nowo-wiki-page-card-title-weight, var(--nowo-wiki-read-heading-weight, 600));
+  line-height: var(--nowo-wiki-page-card-title-line-height, var(--nowo-wiki-read-heading-line-height, 1.25));
   overflow-wrap: anywhere;
 }
 
 .nowo-wiki-card-frame > .nowo-wiki-page-title {
-  padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
+  padding-inline-end: var(--nowo-wiki-page-card-title-padding-end, calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem)));
 }
 
 @media (max-width: 39.99rem) {
   .nowo-wiki-card-frame > .nowo-wiki-page-title {
-    padding-inline-end: 0;
+    padding-inline-end: var(--nowo-wiki-page-card-title-padding-end-narrow, 0);
   }
 }
 
@@ -533,9 +537,23 @@
    one UiKit card (.nowo-wiki-page-card) and the line sits in its footer slot (card_footer: the theme's padding), no
    longer flush against the card's edges. The body's own card (and the read-only editor's) is drawn flat inside it. */
 .nowo-wiki-page-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nowo-wiki-page-card-gap, 0);
   min-width: 0;
+  padding: var(--nowo-wiki-page-card-padding, 0);
+  border: var(--nowo-wiki-page-card-border, 1px solid var(--nowo-ui-card-border, var(--nowo-ui-border)));
+  border-radius: var(--nowo-wiki-page-card-radius, var(--nowo-ui-card-radius, var(--nowo-ui-radius)));
+  background: var(--nowo-wiki-page-card-bg, var(--nowo-ui-card-bg, var(--nowo-ui-surface)));
+  box-shadow: var(--nowo-wiki-page-card-shadow, none);
   /* The read-only editor's popovers (comment threads, menus) must not be clipped by the card. */
   overflow: visible;
+}
+
+/* The nowo-ui theme's card keeps its 1rem bottom margin (Bootstrap's does not); hosts that draw the card flat in their
+   own frame set --nowo-wiki-page-card-margin-end. */
+.nowo-ui-card.nowo-wiki-page-card {
+  margin-block-end: var(--nowo-wiki-page-card-margin-end, 1rem);
 }
 
 .nowo-wiki-page-card > .nowo-wiki-page-card__footer {
@@ -589,19 +607,20 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem 0.75rem;
+  gap: var(--nowo-wiki-page-card-head-gap, 0.25rem 0.75rem);
   min-width: 0;
+  padding: var(--nowo-wiki-page-card-head-padding, 0);
   font-size: var(--nowo-wiki-path-font-size, 0.875rem);
 }
 
 .nowo-wiki-card-frame > .nowo-wiki-page-head {
-  padding-inline-end: calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem));
-  min-block-size: 2.5rem;
+  padding-inline-end: var(--nowo-wiki-page-card-head-padding-end, calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem)));
+  min-block-size: var(--nowo-wiki-page-card-head-min-height, 2.5rem);
 }
 
 @media (max-width: 39.99rem) {
   .nowo-wiki-card-frame > .nowo-wiki-page-head {
-    min-block-size: 0;
+    min-block-size: var(--nowo-wiki-page-card-head-min-height-narrow, 0);
   }
 }
 

@@ -257,6 +257,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Page-card design tokens** (Beacon re-audit ask C8, ARCH-1117-06). A host themes the page card without targeting `nowo-wiki-*` classes: `--nowo-wiki-page-card-{padding,gap,bg,border,radius,shadow,margin-end}`, the card title `--nowo-wiki-page-card-title-{size,weight,line-height,padding,padding-end,padding-end-narrow,gap}`, the page head `--nowo-wiki-page-card-head-{gap,padding,padding-end,min-height,min-height-narrow}`, and for the reading text `--nowo-wiki-read-max-width` and `--nowo-wiki-read-h1-weight` / `-h2-weight` / `-h3-weight` (the other `--nowo-wiki-read-*` tokens already existed). Every default reproduces the 1.42 computed styles; a Vitest test compares the rules with the 1.42 declarations. The `.nowo-wiki-page-card` is now a flex column (as Bootstrap's card is) so its gap token works. See [USAGE](USAGE.md#theming-the-page-card-143) and [UPGRADING](UPGRADING.md#unreleased).
+
 ## [1.42.0] - 2026-11-17
 
 ### Changed

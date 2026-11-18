@@ -18,6 +18,7 @@
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
   - [Page layout (1.29)](#page-layout-129)
+  - [Theming the page card (1.43)](#theming-the-page-card-143)
 - [Demo smoke (REQ-TEST-011)](#demo-smoke-req-test-011)
 - [Translations (REQ-I18N-001)](#translations-req-i18n-001)
 - [Events](#events)
@@ -813,6 +814,78 @@ nowo_wiki:
                 current_tab: hidden
                 back: view
 ```
+
+### Theming the page card (1.43)
+
+The page card (the content card of the read view), its title, its path row and the reading text take their look from
+CSS custom properties, so a host themes them from its own stylesheet without targeting `nowo-wiki-*` classes. Set them
+on any ancestor (the page, `.beacon-wiki`, `:root`). **Without any of them set, the computed styles are those of 1.42**:
+every default below is the value the rule had before (a test compares the rules with the 1.42 declarations).
+
+| Token | Part | Default |
+|-------|------|---------|
+| `--nowo-wiki-page-card-padding` | card (`.nowo-wiki-page-card`, with `page_meta: card`) | `0` (the body and the footer pad themselves) |
+| `--nowo-wiki-page-card-gap` | card, between the body and the footer line (the card is a flex column) | `0` |
+| `--nowo-wiki-page-card-bg` | card | `var(--nowo-ui-card-bg, var(--nowo-ui-surface))` |
+| `--nowo-wiki-page-card-border` | card (full `border` shorthand) | `1px solid var(--nowo-ui-card-border, var(--nowo-ui-border))` |
+| `--nowo-wiki-page-card-radius` | card | `var(--nowo-ui-card-radius, var(--nowo-ui-radius))` |
+| `--nowo-wiki-page-card-shadow` | card | `none` |
+| `--nowo-wiki-page-card-margin-end` | card, bottom margin (only the nowo-ui theme's card has one; Bootstrap's does not) | `1rem` |
+| `--nowo-wiki-page-card-title-size` | the card title (`.nowo-wiki-page-title`, the h1 shown when the body has no own h1) | `var(--nowo-wiki-read-h1-size, 2em)` |
+| `--nowo-wiki-page-card-title-weight` | title | `var(--nowo-wiki-read-heading-weight, 600)` |
+| `--nowo-wiki-page-card-title-line-height` | title | `var(--nowo-wiki-read-heading-line-height, 1.25)` |
+| `--nowo-wiki-page-card-title-padding` | title (all sides) | `0` |
+| `--nowo-wiki-page-card-title-padding-end` | title, inline end inside the card frame: keeps clear of the floating toolbar | `calc(var(--nowo-wiki-card-toolbar-width, 12rem) + var(--nowo-wiki-card-toolbar-inset, 0.75rem))` |
+| `--nowo-wiki-page-card-title-padding-end-narrow` | same, under 40rem (the toolbar is its own row) | `0` |
+| `--nowo-wiki-page-card-title-gap` | title, bottom margin (alias of the older `--nowo-wiki-page-title-gap`, which keeps working) | `var(--nowo-wiki-page-title-gap, 0.75rem)` |
+| `--nowo-wiki-page-card-head-gap` | page head (path and sub-pages chip row), `gap` | `0.25rem 0.75rem` |
+| `--nowo-wiki-page-card-head-padding` | page head | `0` |
+| `--nowo-wiki-page-card-head-padding-end` | page head, inline end inside the card frame (toolbar clearance) | as the title's |
+| `--nowo-wiki-page-card-head-min-height` | page head inside the card frame, so the path lines up with the toolbar | `2.5rem` |
+| `--nowo-wiki-page-card-head-min-height-narrow` | same, under 40rem | `0` |
+| `--nowo-wiki-read-max-width` (new) | reading text measure (`web_ui.reading_width: text`); falls back to `--nowo-wiki-reading-width`, then `--nowo-ui-reading-width`, then `75ch` | `75ch` |
+| `--nowo-wiki-read-h1-weight`, `--nowo-wiki-read-h2-weight`, `--nowo-wiki-read-h3-weight` (new) | one heading's weight in the read / edit body | `var(--nowo-wiki-read-heading-weight, 600)` |
+
+The reading text already had tokens, unchanged: `--nowo-wiki-read-font-size`, `--nowo-wiki-read-line-height`,
+`--nowo-wiki-read-h1-size` … `-h6-size`, `--nowo-wiki-read-heading-weight`, `--nowo-wiki-read-heading-line-height`,
+`--nowo-wiki-read-heading-margin`, `--nowo-wiki-read-block-margin` and the rest listed at the top of `wiki.css`; the
+toolbar clearance reads `--nowo-wiki-card-toolbar-width` / `--nowo-wiki-card-toolbar-inset`.
+
+Beacon-like example. It replaces the host rules that targeted `.nowo-wiki-page-card`, `.nowo-wiki-page-head` and the
+title (the card frame itself, `.nowo-wiki-card-frame`, stays the host's own box):
+
+```scss
+.beacon-wiki {
+  // The page card sits flat inside Beacon's content card: no frame of its own.
+  --nowo-wiki-page-card-border: 0;
+  --nowo-wiki-page-card-radius: inherit;
+  --nowo-wiki-page-card-bg: transparent;
+  --nowo-wiki-page-card-shadow: none;
+  --nowo-wiki-page-card-margin-end: 0;
+
+  // The card title: the body's h1 look, padded like the path above it.
+  --nowo-wiki-page-card-title-padding: 0.5rem 1.25rem 0;
+  --nowo-wiki-page-card-title-size: 1.5em;
+  --nowo-wiki-page-card-title-weight: 600;
+  --nowo-wiki-page-card-title-line-height: 1.3;
+  --nowo-wiki-page-card-title-gap: 0;
+
+  // The path row.
+  --nowo-wiki-page-card-head-padding: 0.75rem 0 0 1.25rem;
+
+  // Reading text.
+  --nowo-wiki-read-font-size: 0.9375rem;
+  --nowo-wiki-read-line-height: 1.65;
+  --nowo-wiki-read-h1-size: 1.5em;
+  --nowo-wiki-read-h2-size: 1.3em;
+  --nowo-wiki-read-h3-size: 1.125em;
+  --nowo-wiki-read-heading-weight: 600;
+  --nowo-wiki-read-max-width: 80ch;
+}
+```
+
+Two Beacon rules stay outside the tokens because they depend on a sibling: the extra top padding of the body under a
+page head, and the footer line's own padding and dashed rule (`.nowo-wiki-page-card__footer`, a UiKit `card_footer`).
 
 ## Demo smoke (REQ-TEST-011)
 
