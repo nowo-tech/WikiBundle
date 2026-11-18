@@ -6,6 +6,8 @@
 - [Import / export](#import--export)
 - [Symfony AI](#symfony-ai)
 - [Search](#search)
+- [SearchKit provider (1.44)](#searchkit-provider-144)
+  - [Beacon: replacing WikiPageSearchProvider](#beacon-replacing-wikipagesearchprovider)
 - [Application integration](#application-integration)
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
@@ -88,6 +90,83 @@ Example: `/tools/wiki/search?q=deploy&space=engineering`
 
 With `search.scope: space` (1.21) the search is always inside one space: a request without a valid `?space=` is 404
 and the form has no space choice ([CONFIGURATION › Host hooks](CONFIGURATION.md#host-hooks-121)).
+
+## SearchKit provider (1.44)
+
+Optional (Beacon KIT-85, SearchKit spec 240 / CONTRACT-240): the wiki's pages in SearchKitBundle's "search everywhere" —
+the header search, the palette, the results page and the recents — **through the wiki's own read rules**. Needs
+`nowo-tech/search-kit-bundle` >= 1.8 (a suggested package, PHP >= 8.3); without it, or with an older one, nothing is
+registered. Off by default:
+
+```yaml
+nowo_wiki:
+    search_kit_provider: true          # literal boolean (shortcut for enabled: true)
+    # or, with every option:
+    search_kit_provider:
+        enabled: true
+        priority: 40                   # tag priority: SearchKit lists its groups highest first
+        candidates: 200                # matching rows read at most per search (10–1000)
+        scope: owner                   # a SearchKit scope id = a space owner id (owner) or a space slug (slug)
+        viewer_resolver: ~             # service id of Search\WikiSearchViewerResolverInterface
+        user_provider: security.user_providers   # without viewer_resolver: loads the viewer by identifier
+        icon: ~                        # UX Icons name of the rows; null: nowo_search_kit.icons.wiki
+```
+
+What it does, for a viewer (SearchKit's `SearchQuery::$userIdentifier`):
+
+| Step | Rule |
+|---|---|
+| Viewer | `viewer_resolver`, else the Symfony user provider; the user must carry exactly the identifier. None: no group |
+| Role gate | `security.access_checker` `canList()` (the search page's `list` feature) |
+| Spaces | The viewer's spaces from the tenant / team resolver, each with `View` from the space checker; narrowed by the SearchKit scope and the `space:` filter. Only these reach the SQL |
+| Rows | Live pages only (archived and trashed pages are left out), matched on the title and the plain text of the current revision — never the Markdown source (`WikiSearchService::searchPlainText()`, as the REST API) |
+| Pages | `View` on the page **and every ancestor** (`WikiPageVisibility`, the page view's rule) |
+| Group | Key and row kind `wiki`, label `wiki.search_kit.group`. Rows: page title; the page view URL (`routes.page_view` through the router, so `tenant_paths` copies apply); subtitle = space name · readable ancestors · the wiki search's plain-text excerpt when the title does not match. `score` (title before body) and `date` (last change) for SearchKit's ranking |
+| Total | The readable hits; `exactTotal: true` only when the scan read every match (fewer than `candidates`), otherwise SearchKit caps it to the rows |
+| See all | With more readable hits than rows: the wiki search page of their one space, or (with `search.scope: all`) across spaces |
+| Results page | `PaginatedSearchProviderInterface`: pages of the same ranked, readable list (no gap) |
+| Recents | `SearchReferenceResolverInterface`: a `wiki` reference whose `spaceSlug` / `pageSlug` name a page the viewer may read **now** and whose URL is that page's view URL; anything else is null |
+| Filters | `space:<slug>` and `-space:<slug>`; a forbidden and an unknown space answer the same. Any other filter key: no group (it would widen the rows) |
+
+Excerpts are the plain text the wiki's own search shows (`content_text`, or the text of the viewer-neutral HTML cache):
+raw HTML of the source is text there too, and SearchKit prints it as text (DOM text nodes, Twig autoescape) and marks the
+match itself. Hosts that wrap the rules in their own provider use the framework-free port
+`Nowo\WikiBundle\Search\WikiReadablePageFinder` (`spaces()`, `find()`, `page()`), registered with the option.
+
+The scan is bounded: at most `candidates` matching rows, read in page-id order before the page / ancestor rule, so with
+many hidden matches a viewer may see fewer hits than exist (never more, never a hidden one). Synonym alternatives of
+SearchKit (`SearchQuery::terms()`) are used for ranking only; the SQL matches the typed text.
+
+### Beacon: replacing WikiPageSearchProvider
+
+Beacon's `App\Search\Provider\WikiPageSearchProvider` re-implements these rules. With WikiBundle 1.44 and SearchKit
+1.8.1 already installed, `config/packages/nowo_wiki.yaml`:
+
+```yaml
+nowo_wiki:
+    # Spec 240 / KIT-85: the wiki's own SearchKit provider (group "wiki", the slot of WikiPageSearchProvider).
+    search_kit_provider:
+        enabled: true
+        priority: 74                   # WikiPageSearchProvider's #[AsTaggedItem(priority: 74)]
+        scope: owner                   # the project scope chip = the project UUID = its wikis' owner id
+        # viewer_resolver: ~           # default: security.user_providers (app_user_provider, by e-mail = getUserIdentifier())
+```
+
+Then delete `src/Search/Provider/WikiPageSearchProvider.php` (and its `search.matched_page_text` / `search.see_all_wiki`
+messages if nothing else uses them) and point `tests/Functional/Search/TaskWikiSearchTest.php` at
+`Nowo\WikiBundle\Search\SearchKit\WikiPageSearchKitProvider`. What the wiki now decides, and what to keep in Beacon:
+
+- **Spaces** come from `ProjectWikiMembershipResolver` (the projects with `project.wiki.view`, the organizations with
+  `organization.wiki.view`, the person's own wikis) and `BeaconWikiAccessChecker`'s `View` (a restricted wiki only with a
+  grant). One difference: the checker lets the owner's managers read an **archived wiki**, which the old provider left out
+  of the search (`WikiCatalog::listedOnly()`); keep that with a `space_access_resolver` (or `space_reach` port) that leaves
+  archived wikis out of the listed spaces, or accept that managers find them. The **general wiki** (`general`, `product.wiki`) is not among those owner ids today: add `general` to
+  `getTeamIdsForUser()` for a user with `product.wiki` if it must stay searchable (the old provider searched it outside a
+  project scope).
+- **Scoped to a project**, the provider searches only the wikis owned by that project UUID, as before.
+- The subtitle names the wiki's space name, not the project or organization name the old provider looked up.
+- The MySQL FULLTEXT path of the old provider is not used: the wiki matches with `LIKE` on the bounded candidate scan
+  (`candidates`).
 
 ## Application integration
 

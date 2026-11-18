@@ -8,6 +8,8 @@ parameters:
     scanFiles:
         - tests/Stub/BreadcrumbKit/BreadcrumbCurrentLabelInterface.php
         - tests/Stub/BreadcrumbKit/BreadcrumbTrail.php
+        # 1.44: the optional SearchKit (>= 1.8) ports and value objects of search_kit_provider (not a dependency)
+        - tests/Stub/SearchKit/SearchKit.php
     excludePaths:
         - src/Resources/assets/*
     treatPhpDocTypesAsCertain: false

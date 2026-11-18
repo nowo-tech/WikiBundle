@@ -14,6 +14,7 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchKitProvider;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -181,6 +182,12 @@ final class ApiKernel extends Kernel
         ]]);
         $services->set('app.pages', ApiPageRepository::class)->args([service(WikiEntityManagerProvider::class)]);
         $services->alias(WikiPageRepositoryInterface::class, 'app.pages');
+        // 1.44: the tenants of the test people (search_kit_provider tests set team_membership_resolver: app.teams), and
+        // the SearchKit provider reachable from the tests (nothing else uses it without SearchKit installed).
+        $services->set('app.teams', ApiTeamMembership::class);
+        if (isset($this->wiki['search_kit_provider'])) {
+            $services->alias('test.wiki_search_kit_provider', WikiPageSearchKitProvider::class)->public();
+        }
         $services->set('app.quota', RecordingQuotaListener::class)->public()
             ->tag('kernel.event_listener', ['event' => WikiEvents::QUOTA_CHECK, 'method' => 'onCheck']);
         $container->extension('nowo_wiki', array_replace([

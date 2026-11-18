@@ -106,6 +106,37 @@
 
 ## Unreleased
 
+From **1.43.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+Nothing to change: the new SearchKit provider is off by default and registers nothing until you turn it on.
+
+**Optional — wiki pages in SearchKit's "search everywhere"** (Beacon KIT-85). With SearchKitBundle >= 1.8
+(`composer require nowo-tech/search-kit-bundle:^1.8`, PHP >= 8.3):
+
+```yaml
+nowo_wiki:
+    search_kit_provider: true
+```
+
+Then remove any host provider that searched the wiki tables itself (Beacon: `App\Search\Provider\WikiPageSearchProvider`;
+see [USAGE › SearchKit provider › Beacon](USAGE.md#beacon-replacing-wikipagesearchprovider)). Check, before you do:
+
+- **Who is the viewer.** SearchKit hands providers a user identifier only. By default the bundle loads it through
+  `security.user_providers`; the loaded user must carry exactly that identifier. Set `search_kit_provider.viewer_resolver`
+  when your identifiers need another lookup.
+- **Which spaces.** The provider searches the spaces your `team_membership_resolver` (or `space_access_resolver` /
+  `space_reach` port) lists for the viewer and your space checker opens. A space they do not list is never searched.
+- **The role gate.** The provider asks `security.access_checker` `canList()`. The default
+  `ConfigurableWikiAccessChecker` evaluates the current security token: inside SearchKit's endpoint that is the viewer;
+  outside a request (a console `searchFor()`) it denies, so nothing is found. Configure a checker that honours its user
+  argument if you search for other people outside a request.
+- **The scope.** A SearchKit scope id selects the spaces whose owner id it is (`scope: owner`, e.g. a project UUID) or
+  the space with that slug (`scope: slug`).
+
 ## To 1.43.0
 
 From **1.42.0**:

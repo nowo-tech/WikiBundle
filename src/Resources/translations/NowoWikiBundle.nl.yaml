@@ -197,6 +197,10 @@ wiki:
     empty: "Beide revisies hebben dezelfde inhoud."
     added: "Toegevoegd:"
     removed: "Verwijderd:"
+  # 1.44: the optional SearchKit provider (search_kit_provider): group heading and the "see all" link.
+  search_kit:
+    group: Wiki
+    see_all: 'Alle wikiresultaten bekijken'
   search:
     title: Zoeken
     intro: Volledige tekstzoekopdracht binnen een ruimte.

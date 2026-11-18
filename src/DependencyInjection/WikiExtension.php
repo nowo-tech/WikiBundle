@@ -123,7 +123,12 @@ use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
+use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchKitProvider;
+use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
+use Nowo\WikiBundle\Search\UserProviderWikiSearchViewerResolver;
+use Nowo\WikiBundle\Search\WikiReadablePageFinder;
 use Nowo\WikiBundle\Search\WikiSearchScopeListener;
+use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
@@ -517,8 +522,58 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
         $this->registerAiServices($container, $config['ai']);
         $this->registerApi($container, $loader, $config);
+        $this->registerSearchKitProvider($container, $config);
         $this->registerRequestBoundary($container);
         $this->registerMemberBadgesAndProvenance($container, $emProviderRef, $config);
+    }
+
+    /**
+     * 1.44 (Beacon KIT-85): the optional SearchKit provider (`search_kit_provider`), registered only when it is on and
+     * SearchKitBundle >= 1.8 is installed: the read-rule port {@see WikiReadablePageFinder} (always, it is framework-free),
+     * the viewer resolver and {@see WikiPageSearchKitProvider}, tagged as a SearchKit provider and reference resolver.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerSearchKitProvider(ContainerBuilder $container, array $config): void
+    {
+        $options = $config['search_kit_provider'];
+        if (!$this->literalBool($options['enabled'], 'search_kit_provider.enabled') || !WikiSearchKitAvailability::isAvailable()) {
+            return;
+        }
+
+        $container->setDefinition(WikiReadablePageFinder::class, (new Definition(WikiReadablePageFinder::class))
+            ->setArguments([
+                '$roles'      => new Reference(WikiAccessCheckerInterface::class),
+                '$spaces'     => new Reference(WikiSpaceAccessResolverInterface::class),
+                '$checker'    => new Reference(WikiSpaceAccessCheckerInterface::class),
+                '$search'     => new Reference(WikiSearchService::class),
+                '$pages'      => new Reference(WikiPageRepositoryInterface::class),
+                '$renderer'   => new Reference(WikiMarkdownRendererInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                '$candidates' => $options['candidates'],
+                '$scopeMode'  => $options['scope'],
+            ]));
+
+        $viewerResolver = $options['viewer_resolver'];
+        if (!is_string($viewerResolver) || $viewerResolver === '') {
+            $viewerResolver = UserProviderWikiSearchViewerResolver::class;
+            $container->setDefinition($viewerResolver, (new Definition(UserProviderWikiSearchViewerResolver::class))
+                ->setArgument('$users', new Reference((string) $options['user_provider'], ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+        }
+        $container->setAlias(WikiSearchViewerResolverInterface::class, $viewerResolver);
+
+        $container->setDefinition(WikiPageSearchKitProvider::class, (new Definition(WikiPageSearchKitProvider::class))
+            ->setArguments([
+                '$finder'           => new Reference(WikiReadablePageFinder::class),
+                '$viewers'          => new Reference(WikiSearchViewerResolverInterface::class),
+                '$urls'             => new Reference('router'),
+                '$translator'       => new Reference('translator'),
+                '$pageViewRoute'    => $config['routes']['page_view']['name'],
+                '$searchRoute'      => $config['routes']['search']['name'] ?? null,
+                '$globalSearchPage' => $config['search']['scope'] === 'all',
+                '$icon'             => $options['icon'],
+            ])
+            ->addTag('nowo_search_kit.provider', ['priority' => $options['priority']])
+            ->addTag('nowo_search_kit.reference_resolver', ['priority' => $options['priority']]));
     }
 
     /**

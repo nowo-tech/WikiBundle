@@ -10,6 +10,7 @@
 - [Comments threat model (1.16)](#comments-threat-model-116)
 - [Page layout (1.29)](#page-layout-129)
 - [REST API (1.24, spec 218)](#rest-api-124-spec-218)
+- [SearchKit provider (1.44)](#searchkit-provider-144)
 - [Secrets and cryptography](#secrets-and-cryptography)
 - [Logging](#logging)
 - [Limits and DoS](#limits-and-dos)
@@ -290,6 +291,26 @@ Off unless `api.enabled`. The host keeps the tokens; the bundle checks, on every
 | Events | In an API write, page events fire after the commit; a listener that fails is logged by class and does not refuse the write (IF-L3) |
 | Creating a wiki (IF-L7, IF-L8) | The owner key the management hook names (`ownerKey()`) must be within the token's *where* before anything is created (404 otherwise). The new wiki is judged by its owner, so a restricted wiki the token just created is answered once; later requests follow the usual reach (a restricted wiki must be named). A hook that files the wiki under another owner is a host bug: the write is audited, an error names the hook class, the idempotent claim is kept so a retry does not create it again, and the answer is 500 `SERVER_001` |
 | Managing a wiki (IF-L7) | When its space exists, the person must be able to open it (404 otherwise) and hold `Manage`; only a wiki nobody opened is decided on the level, the rest being the hook's |
+
+## SearchKit provider (1.44)
+
+Off unless `search_kit_provider` is on and SearchKitBundle >= 1.8 is installed. It follows SearchKit's CONTRACT-240
+anti-leak rule (deny by default; nothing leaks through titles, excerpts, counts, filters or recents):
+
+| Item | Behaviour |
+|---|---|
+| Viewer | Only SearchKit's user identifier is read (`IdentifierAwareSearchProviderInterface`), never the session user. The viewer comes from `viewer_resolver` or the user provider and must return exactly that identifier (`===`); a look-alike (case, padding) or unknown identifier finds nothing |
+| Role gate | `canList()` of `security.access_checker`. The default checker reads the security token: in SearchKit's endpoint that is the viewer; with no token (console) it denies. A host that searches for other people outside a request needs a checker that decides for its user argument |
+| Tenant / space | The viewer's listed spaces with `View` are the only spaces in the SQL: another tenant's or space's rows are never read. An unknown and a forbidden scope id or `space:` value give the same answer (no group) |
+| Page ACL | `View` on the page and every ancestor (a parent cycle is hidden), before ranking, counting and excerpting; archived and trashed pages are never read (`archivedAt IS NULL`) |
+| Totals and paging | Counted on the readable hits only; `exactTotal` only when every match was read. The results page slices the same readable list, so a page has no gap. Tests compare the JSON with and without hidden pages byte for byte |
+| Timing | The page ACL is a PHP checker, so the scan reads up to `candidates` matching rows whatever the viewer may read; hidden matches cost one permission check each. The time therefore depends on how many rows match in the viewer's spaces, not on what is hidden in other tenants (they are not in the SQL) |
+| Excerpts | The plain text of the wiki's own search (no markup, never the Markdown source); titles as stored. SearchKit prints both as text (DOM text nodes, Twig autoescape): a hostile title or body is inert (test with `<img onerror>` / `<script>`) |
+| Links | Built by the router from `routes.page_view` (and `routes.search`): same-site paths only, never from stored data |
+| Recents | Re-checked on every call for the viewer (no cache); a reference must be a `wiki` row whose URL is exactly the page view URL; unknown, archived, trashed and forbidden all answer null |
+| Filters | Only `space:` is applied; a query with any other filter key gets no wiki group (it would otherwise widen the rows) |
+| Logging | None: no query text, no record data |
+| Worker mode | Stateless readonly services; tests reuse one container across viewers and right changes with no `kernel.reset` |
 
 ## Secrets and cryptography
 
