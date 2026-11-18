@@ -106,6 +106,46 @@
 
 ## Unreleased
 
+From **1.43.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+Nothing to change: the new SearchKit provider is off by default and registers nothing until you turn it on.
+
+**Optional — wiki pages in SearchKit's "search everywhere"** (Beacon KIT-85). With SearchKitBundle >= 1.8
+(`composer require nowo-tech/search-kit-bundle:^1.8`, PHP >= 8.3):
+
+```yaml
+nowo_wiki:
+    search_kit_provider: true
+```
+
+Then remove any host provider that searched the wiki tables itself (Beacon: `App\Search\Provider\WikiPageSearchProvider`;
+see [USAGE › SearchKit provider › Beacon](USAGE.md#beacon-replacing-wikipagesearchprovider)). Check, before you do:
+
+- **Who is the viewer.** SearchKit hands providers a user identifier only. By default the bundle loads it through
+  `security.user_providers`; the loaded user must carry exactly that identifier. Set `search_kit_provider.viewer_resolver`
+  when your identifiers need another lookup.
+- **Which spaces.** The provider searches the spaces your `team_membership_resolver` (or `space_access_resolver` /
+  `space_reach` port) lists for the viewer and your space checker opens. A space they do not list is never searched.
+- **The role gate.** The provider asks `security.access_checker` `canList()` for the viewer. 1.44: the default
+  `ConfigurableWikiAccessChecker` decides a user other than the session's user on that user's own roles
+  (`Security::isGrantedForUser()`) — this also applies to every other wiki call made for another user than the session's
+  (it used to read the session's token). The session's own user is decided on the token as before; outside a request
+  (a console `searchFor()`) it still denies. A host checker should likewise decide for its user argument.
+- **The user provider.** With several Symfony user providers, set `search_kit_provider.user_provider` to the firewall's
+  own provider (`security.user.provider.concrete.<name>`), not the chain.
+- **The scope.** A SearchKit scope id selects the spaces whose owner id it is (`scope: owner`, e.g. a project UUID) or
+  the space with that slug (`scope: slug`).
+
+**Focus mode Pages drawer.** It now starts below the top bar and UiKit's focus bar, has a close button and a backdrop,
+and one Escape closes only the drawer. Remove a host workaround that moved the drawer (Beacon:
+`assets/styles/_focus_mode.scss`); with a UiKit older than 2.57, or a top bar UiKit does not measure, set
+`--nowo-wiki-focus-drawer-top` on the shell. A host template that overrides `manage/_sidebar.html.twig` should add the
+close button (see the bundle's template).
+
 ## To 1.43.0
 
 From **1.42.0**:

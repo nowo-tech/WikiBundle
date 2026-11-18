@@ -9,7 +9,8 @@ import { test, expect, type Page } from '@playwright/test';
 const roadmap = '/tools/wiki/spaces/product/pages/roadmap';
 
 async function seriousViolations(page: Page, include: string): Promise<string[]> {
-  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
+  // Finite animations only: an endless one (a spinner, a pulsing hint) never finishes.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity));
   const { violations } = await new AxeBuilder({ page }).include(include).exclude('.nowo-ui-btn--secondary').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
   return violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
 }

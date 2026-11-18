@@ -25,7 +25,7 @@
         "nowo-tech/icon-selector-bundle": "^1.8",
         "nowo-tech/milkdown-editor-bundle": "^1.18",
         "nowo-tech/tiptap-editor-bundle": "^1.0",
-        "nowo-tech/ui-kit-bundle": "^2.54",
+        "nowo-tech/ui-kit-bundle": "^2.57",
         "nowo-tech/wiki-bundle": "^1.0",
         "php": ">=8.4,<8.6",
         "symfony/ai-agent": "^0.1",

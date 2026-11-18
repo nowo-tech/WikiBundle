@@ -154,6 +154,60 @@ final readonly class WikiSearchService
     }
 
     /**
+     * 1.44 (audit TI-L2): the live pages of the spaces whose **title** contains the text (literally, case-insensitive on
+     * every platform), in id order after `$afterPageId`, at most `$limit` rows (at most {@see self::MAX_ROWS}). Only the
+     * page and its space are read (no revision); the excerpt is empty. The SearchKit provider reads these first, so a
+     * title match is never crowded out of its bounded scan by body matches.
+     *
+     * @param list<WikiSpace> $spaces spaces to search (empty yields no results)
+     * @param string $query search text (empty yields no results)
+     * @param int $limit maximum number of rows read
+     * @param string|null $afterPageId read pages after this id (keyset)
+     *
+     * @param-out string|null $lastPageId
+     * @param-out int $rowsRead
+     *
+     * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>
+     */
+    public function searchTitles(array $spaces, string $query, int $limit, ?string $afterPageId = null, ?string &$lastPageId = null, ?int &$rowsRead = null): array
+    {
+        $lastPageId = null;
+        $rowsRead   = 0;
+        $limit      = min($limit, self::MAX_ROWS);
+        $query      = trim($query);
+        if ($query === '' || $spaces === [] || $limit < 1) {
+            return [];
+        }
+
+        $entityManager = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
+        $builder       = $entityManager->createQueryBuilder()
+            ->select('p', 's')
+            ->from(WikiPage::class, 'p')
+            ->innerJoin('p.space', 's')
+            ->where('p.space IN (:spaces)')
+            ->andWhere('p.archivedAt IS NULL')
+            ->andWhere("LOWER(p.title) LIKE :q ESCAPE '!'")
+            ->setParameter('spaces', $spaces)
+            ->setParameter('q', '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($query)) . '%')
+            ->orderBy('p.id', 'ASC')
+            ->setMaxResults($limit);
+        if ($afterPageId !== null) {
+            $builder->andWhere('p.id > :after')->setParameter('after', $afterPageId);
+        }
+
+        /** @var list<WikiPage> $pages */
+        $pages = $builder->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
+        $hits  = [];
+        foreach ($pages as $page) {
+            $lastPageId = $page->getId();
+            ++$rowsRead;
+            $hits[] = ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => ''];
+        }
+
+        return $hits;
+    }
+
+    /**
      * @param list<WikiSpace> $spaces
      *
      * @return list<array{page: WikiPage, space: WikiSpace, excerpt: string}>

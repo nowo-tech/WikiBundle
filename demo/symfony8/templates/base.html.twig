@@ -9,12 +9,30 @@
 
 {% block nowo_ui_styles %}
     {{ parent() }}
+    {#- 1.44: in focus mode the focus bar is the page's first row; the body's default margin would put it 8px below the
+        viewport top, where the wiki's Pages drawer (fixed, below --nowo-ui-top-offset) starts. A host shell has no
+        margin there (or sets --nowo-ui-host-top-height). -#}
+    <style>body:has(> .demo-shell[data-focus-mode]) { margin: 0; }</style>
     {% block stylesheets %}{% endblock %}
+{% endblock %}
+
+{#- 1.44: with UiKit's focus mode on (config/packages/nowo_ui_kit.yaml), the page is a focus-mode shell (the root
+    attributes UiKit's app shell prints, and its focus bar), so the wiki's toggle and the Pages drawer can be shown. -#}
+{% block nowo_ui_body %}
+    {%- set _focus = nowo_ui_kit_focus_mode|default({}) -%}
+    {%- if (_focus.enabled ?? false) is same as(true) -%}
+        <div class="demo-shell" data-nowo-ui-shell data-nowo-ui-focus-regions="{{ (_focus.regions ?? [])|join(' ') }}"{% if (_focus.keep ?? []) is not empty %} data-nowo-ui-focus-keep-list="{{ _focus.keep|join(' ') }}"{% endif %} data-nowo-ui-focus-shortcut="{{ _focus.shortcut ?? 'none' }}" data-nowo-ui-focus-area="wiki">
+            {{ include(nowo_ui_partial('focus_mode_bar'), {crumbs: null, header: null, home_href: null, bundle: null}, false) }}
+            {{ parent() }}
+        </div>
+    {%- else -%}
+        {{ parent() }}
+    {%- endif -%}
 {% endblock %}
 
 {% block nowo_ui_navigation %}
     {% set _route = app.request.attributes.get('_route') %}
-    <header class="nowo-ui-header" data-testid="demo-masthead">
+    <header class="nowo-ui-header" data-testid="demo-masthead" data-nowo-ui-focus-region="header">
         <a class="nowo-ui-brand" href="{{ path('nowo_wiki_index') }}">Wiki Bundle Demo</a>
         <nav class="nowo-ui-menu" aria-label="Wiki Bundle Demo">
             <a class="nowo-ui-link" href="{{ path('nowo_wiki_index') }}"{% if _route == 'nowo_wiki_index' %} aria-current="page"{% endif %}>Spaces</a>

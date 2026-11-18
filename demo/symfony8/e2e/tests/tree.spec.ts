@@ -9,7 +9,7 @@ const item = (page: Page, name: string) => tree(page).getByRole('treeitem', { na
 
 async function seriousViolations(page: Page, include?: string, exclude?: string): Promise<string[]> {
   // Page transitions fade the content in: measure contrast once every animation has finished.
-  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity));
   let builder = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).exclude('.sf-toolbar');
   if (include) builder = builder.include(include);
   if (exclude) builder = builder.exclude(exclude);

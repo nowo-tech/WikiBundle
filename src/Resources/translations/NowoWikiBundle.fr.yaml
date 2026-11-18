@@ -197,6 +197,10 @@ wiki:
     empty: "Les deux révisions ont le même contenu."
     added: "Ajouté :"
     removed: "Supprimé :"
+  # 1.44: the optional SearchKit provider (search_kit_provider): group heading and the "see all" link.
+  search_kit:
+    group: Wiki
+    see_all: 'Voir tous les résultats du wiki'
   search:
     title: Rechercher
     intro: Recherche plein texte dans un espace.
@@ -294,6 +298,7 @@ wiki:
   # 1.41: focus mode (UiKit shell): the button that opens the page tree as a drawer.
   focus:
     tree: "Pages"
+    close_tree: "Fermer Pages"
   tree_menu:
     menu: "Actions de la page"
     more: "Actions pour « %title% »"

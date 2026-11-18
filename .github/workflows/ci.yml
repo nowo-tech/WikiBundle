@@ -481,6 +481,71 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- --testsuite api
 
+  searchkit-bridge:
+    # 1.44 (Beacon KIT-85): the optional SearchKit provider against the real SearchKitBundle 1.8 (PHP >= 8.3; the other
+    # jobs run it against tests/Stub/SearchKit), on SQLite, MySQL and PostgreSQL.
+    name: SearchKit bridge (SearchKit ${{ matrix.searchkit }}, ${{ matrix.database }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        searchkit: ['^1.8']
+        database: ['SQLite', 'MySQL 8.4', 'PostgreSQL 16']
+    env:
+      COMPOSER_IGNORE_PLATFORM_REQ: ext-pdo
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: wiki_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: wiki_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d wiki_test"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: json, pdo_sqlite, pdo_mysql, pdo_pgsql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies with SearchKit ${{ matrix.searchkit }}
+        run: |
+          composer config platform.php 8.4.99
+          composer require --dev "nowo-tech/search-kit-bundle:${{ matrix.searchkit }}" --no-update --no-interaction
+          composer update --with-all-dependencies --prefer-dist --no-progress --no-interaction
+          composer show nowo-tech/search-kit-bundle | grep -E '^versions'
+
+      - name: Run the SearchKit provider tests
+        env:
+          WIKI_TEST_DATABASE_URL: ${{ matrix.database == 'MySQL 8.4' && 'mysql://root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4' || (matrix.database == 'PostgreSQL 16' && 'postgresql://postgres@127.0.0.1:5432/wiki_test?serverVersion=16&charset=utf8' || '') }}
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: |
+          # The real SearchKit is installed and autoloaded (the stub file is only required by the tests when it is missing).
+          php -r 'require "vendor/autoload.php"; exit(class_exists(Nowo\SearchKitBundle\Model\SearchQuery::class) ? 0 : 1);'
+          vendor/bin/phpunit --fail-on-skipped tests/Unit/Search tests/Unit/DependencyInjection/WikiExtensionSearchKitTest.php tests/Database/WikiReadablePageFinderTest.php tests/Api/SearchKitProviderTest.php tests/Api/SearchKitProviderSessionTest.php tests/Unit/Security/ConfigurableWikiAccessCheckerTest.php
+
   private-entity-manager:
     name: API and database suites through the private entity manager
     runs-on: ubuntu-latest
