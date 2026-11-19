@@ -72,6 +72,9 @@ jobs:
       - name: Override Composer platform PHP (composer.json pins the minimum PHP for the lock)
         run: composer config platform.php "${{ matrix.php }}.99"
 
+      - name: SearchKit >= 1.9 on PHP >= 8.3 (the wiki's SearchKit group; nothing on 8.2)
+        run: .github/ci/search-kit.sh
+
       - name: Install dependencies with Symfony ${{ matrix.symfony }}
         run: |
           SYMFONY="${{ matrix.symfony }}"
@@ -111,8 +114,9 @@ jobs:
           fi
           echo "✅ All tests passed successfully"
 
-      - name: Run tests with coverage (PHP 8.2 + Symfony 7.4 only)
-        if: matrix.php == '8.2' && matrix.symfony == '7.4'
+      # 1.46: on 8.4, where SearchKit (PHP >= 8.3) is installed and the SearchKit group counts.
+      - name: Run tests with coverage (PHP 8.4 + Symfony 7.4 only)
+        if: matrix.php == '8.4' && matrix.symfony == '7.4'
         env:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: |
@@ -415,15 +419,20 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          # 1.46: 8.4, so SearchKit (PHP >= 8.3) is installed and the SearchKit group counts (.github/ci/search-kit.sh);
+          # the 8.2 test cell and the floor job still check the 8.2 floor.
+          php-version: '8.4'
           extensions: json, pdo, pdo
           coverage: pcov
           tools: composer:v2
 
+      - name: SearchKit >= 1.9 (the wiki's SearchKit group)
+        run: .github/ci/search-kit.sh
+
       - name: Install dependencies (Symfony 7.4)
         run: |
           composer require symfony/config:^7.4 symfony/dependency-injection:^7.4 symfony/form:^7.4 symfony/framework-bundle:^7.4 symfony/http-foundation:^7.4 symfony/http-kernel:^7.4 symfony/routing:^7.4 symfony/twig-bundle:^7.4 symfony/web-profiler-bundle:^7.4 symfony/var-exporter:^7.4 doctrine/doctrine-bundle:^2.10 --no-interaction --no-update
-          composer update symfony/* doctrine/* --with-all-dependencies --no-interaction --prefer-dist --no-progress
+          composer update --with-all-dependencies --no-interaction --prefer-dist --no-progress
 
       - name: Run tests with coverage
         run: |
@@ -461,11 +470,13 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          # 1.46: 8.4, so the SearchKit group is analysed (the floor job still runs PHPStan on 8.2 without it).
+          php-version: '8.4'
           extensions: json, pdo, pdo
           tools: composer:v2
 
-      - run: composer install --prefer-dist --no-progress --no-interaction
+      - run: .github/ci/search-kit.sh
+      - run: composer update --with-all-dependencies --prefer-dist --no-progress --no-interaction
       - run: composer phpstan
 
   twin-ports:
@@ -492,15 +503,16 @@ jobs:
         run: composer test -- --testsuite api
 
   searchkit-bridge:
-    # 1.44 (Beacon KIT-85): the optional SearchKit provider against the real SearchKitBundle 1.8 (PHP >= 8.3; the other
-    # jobs run it against tests/Stub/SearchKit), on SQLite, MySQL and PostgreSQL.
+    # 1.44 (Beacon KIT-85), 1.46 (provider base): the optional SearchKit group against the real SearchKitBundle (^1.10, the provider base of 1.9 with the 1.10 kit)
+    # (PHP >= 8.3), with SearchKit's provider contract kit and the wiki's own tests, on SQLite, MySQL, MariaDB and
+    # PostgreSQL. No stub: without SearchKit these tests are skipped (the PHP 8.2 jobs).
     name: SearchKit bridge (SearchKit ${{ matrix.searchkit }}, ${{ matrix.database }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        searchkit: ['^1.8']
-        database: ['SQLite', 'MySQL 8.4', 'PostgreSQL 16']
+        searchkit: ['^1.10']
+        database: ['SQLite', 'MySQL 8.4', 'MariaDB 11.4', 'PostgreSQL 16']
     env:
       COMPOSER_IGNORE_PLATFORM_REQ: ext-pdo
 
@@ -514,6 +526,18 @@ jobs:
           - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+          MARIADB_DATABASE: wiki_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
           --health-interval=5s
           --health-timeout=3s
           --health-retries=20
@@ -541,20 +565,21 @@ jobs:
           tools: composer:v2
 
       - name: Install dependencies with SearchKit ${{ matrix.searchkit }}
+        env:
+          SEARCH_KIT_CONSTRAINT: ${{ matrix.searchkit }}
         run: |
-          composer config platform.php 8.4.99
-          composer require --dev "nowo-tech/search-kit-bundle:${{ matrix.searchkit }}" --no-update --no-interaction
+          .github/ci/search-kit.sh
           composer update --with-all-dependencies --prefer-dist --no-progress --no-interaction
           composer show nowo-tech/search-kit-bundle | grep -E '^versions'
 
-      - name: Run the SearchKit provider tests
+      - name: Run the SearchKit group tests
         env:
-          WIKI_TEST_DATABASE_URL: ${{ matrix.database == 'MySQL 8.4' && 'mysql://root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4' || (matrix.database == 'PostgreSQL 16' && 'postgresql://postgres@127.0.0.1:5432/wiki_test?serverVersion=16&charset=utf8' || '') }}
+          WIKI_TEST_DATABASE_URL: ${{ matrix.database == 'MySQL 8.4' && 'mysql://root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4' || (matrix.database == 'MariaDB 11.4' && 'mysql://root@127.0.0.1:3307/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4' || (matrix.database == 'PostgreSQL 16' && 'postgresql://postgres@127.0.0.1:5432/wiki_test?serverVersion=16&charset=utf8' || '')) }}
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: |
-          # The real SearchKit is installed and autoloaded (the stub file is only required by the tests when it is missing).
-          php -r 'require "vendor/autoload.php"; exit(class_exists(Nowo\SearchKitBundle\Model\SearchQuery::class) ? 0 : 1);'
-          vendor/bin/phpunit --fail-on-skipped tests/Unit/Search tests/Unit/DependencyInjection/WikiExtensionSearchKitTest.php tests/Database/WikiReadablePageFinderTest.php tests/Api/SearchKitProviderTest.php tests/Api/SearchKitProviderSessionTest.php tests/Unit/Security/ConfigurableWikiAccessCheckerTest.php
+          # The real SearchKit (provider base, contract kit) is installed and autoloaded.
+          php -r 'require "vendor/autoload.php"; exit(class_exists(Nowo\SearchKitBundle\Test\EntitySearchProviderTestCase::class) ? 0 : 1);'
+          vendor/bin/phpunit --fail-on-skipped tests/Unit/Search tests/Unit/Event/WikiSearchSpacesEventTest.php tests/Unit/DependencyInjection/WikiExtensionSearchKitTest.php tests/Unit/DependencyInjection/Compiler/WikiSearchKitPassTest.php tests/Database/WikiReadablePageFinderTest.php tests/Database/WikiSearchPlainTextApiTest.php tests/Api/SearchKit tests/Api/SearchKitProviderTest.php tests/Api/SearchKitProviderSessionTest.php tests/Unit/Security/ConfigurableWikiAccessCheckerTest.php
 
   private-entity-manager:
     name: API and database suites through the private entity manager

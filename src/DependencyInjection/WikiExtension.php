@@ -67,6 +67,7 @@ use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\Controller\WikiLinkPickerController;
 use Nowo\WikiBundle\DependencyInjection\Compiler\MilkdownBridgePass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\PrivateEntityManagerPass;
+use Nowo\WikiBundle\DependencyInjection\Compiler\WikiSearchKitPass;
 use Nowo\WikiBundle\Doctrine\PrivateEntityManagerMiddleware;
 use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
@@ -135,6 +136,7 @@ use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
+use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchDefinition;
 use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchKitProvider;
 use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Search\UserProviderWikiSearchViewerResolver;
@@ -559,9 +561,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
-     * 1.44 (Beacon KIT-85): the optional SearchKit provider (`search_kit_provider`), registered only when it is on and
-     * SearchKitBundle >= 1.8 is installed: the read-rule port {@see WikiReadablePageFinder} (always, it is framework-free),
-     * the viewer resolver and {@see WikiPageSearchKitProvider}, tagged as a SearchKit provider and reference resolver.
+     * 1.44 (Beacon KIT-85), 1.46 (SearchKit provider base): the optional SearchKit group (`search_kit_provider`),
+     * registered only when it is on and SearchKitBundle >= 1.9 is installed: the read-rule port
+     * {@see WikiReadablePageFinder} (framework-free), the viewer resolver, {@see WikiPageSearchDefinition} (tagged for
+     * SearchKit's EntitySearchPass, which builds its provider) and {@see WikiPageSearchKitProvider}, tagged as a SearchKit
+     * provider and reference resolver ({@see WikiSearchKitPass} hands it SearchKit's provider).
      *
      * @param array<string, mixed> $config processed configuration
      */
@@ -571,6 +575,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if (!$this->literalBool($options['enabled'], 'search_kit_provider.enabled') || !WikiSearchKitAvailability::isAvailable()) {
             return;
         }
+        $sensitive = $this->literalBool($options['sensitive'], 'search_kit_provider.sensitive');
 
         $container->setDefinition(WikiReadablePageFinder::class, (new Definition(WikiReadablePageFinder::class))
             ->setArguments([
@@ -592,19 +597,46 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
         $container->setAlias(WikiSearchViewerResolverInterface::class, $viewerResolver);
 
+        // The tenant key of each space in the spaces event: the link picker's port (`tenant_paths` by default).
+        if (!$container->hasAlias(WikiLinkTenantResolverInterface::class) && !$container->hasDefinition(WikiLinkTenantResolverInterface::class)) {
+            $container->setDefinition(WikiTenantPathsLinkTenantResolver::class, (new Definition(WikiTenantPathsLinkTenantResolver::class))
+                ->setArgument('$tenantPaths', new Reference(WikiTenantPaths::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            $container->setAlias(WikiLinkTenantResolverInterface::class, WikiTenantPathsLinkTenantResolver::class);
+        }
+
+        $pageView = $config['routes']['page_view']['name'];
+        $container->setDefinition(WikiPageSearchDefinition::class, (new Definition(WikiPageSearchDefinition::class))
+            ->setArguments([
+                '$finder'               => new Reference(WikiReadablePageFinder::class),
+                '$viewers'              => new Reference(WikiSearchViewerResolverInterface::class),
+                '$checker'              => new Reference(WikiSpaceAccessCheckerInterface::class),
+                '$search'               => new Reference(WikiSearchService::class),
+                '$entityManager'        => new Reference(WikiEntityManagerProvider::class),
+                '$urls'                 => new Reference('router'),
+                '$translator'           => new Reference('translator'),
+                '$pageViewRoute'        => $pageView,
+                '$pageViewRoutes'       => array_values(array_map(static fn (array $tenant): string => $tenant['name_prefix'] . $pageView, $config['tenant_paths'])),
+                '$searchRoute'          => $config['routes']['search']['name'] ?? null,
+                '$globalSearchPage'     => $config['search']['scope'] === 'all',
+                '$excludedSearchSpaces' => array_values($config['search']['excluded_spaces']),
+                '$scopeMode'            => $options['scope'],
+                '$candidates'           => $options['candidates'],
+                '$icon'                 => $options['icon'],
+                '$sensitive'            => $sensitive,
+                '$renderer'             => new Reference(WikiMarkdownRendererInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                '$dispatcher'           => new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                '$tenants'              => new Reference(WikiLinkTenantResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ])
+            ->addTag(WikiSearchKitAvailability::DEFINITION_TAG, ['priority' => $options['priority']]));
+
         $container->setDefinition(WikiPageSearchKitProvider::class, (new Definition(WikiPageSearchKitProvider::class))
             ->setArguments([
-                '$finder'           => new Reference(WikiReadablePageFinder::class),
-                '$viewers'          => new Reference(WikiSearchViewerResolverInterface::class),
-                '$urls'             => new Reference('router'),
-                '$translator'       => new Reference('translator'),
-                '$pageViewRoute'    => $config['routes']['page_view']['name'],
-                '$searchRoute'      => $config['routes']['search']['name'] ?? null,
-                '$globalSearchPage' => $config['search']['scope'] === 'all',
-                '$icon'             => $options['icon'],
+                // Set by WikiSearchKitPass to the provider SearchKit builds for the definition.
+                '$provider'   => null,
+                '$definition' => new Reference(WikiPageSearchDefinition::class),
             ])
-            ->addTag('nowo_search_kit.provider', ['priority' => $options['priority']])
-            ->addTag('nowo_search_kit.reference_resolver', ['priority' => $options['priority']]));
+            ->addTag(WikiSearchKitPass::PROVIDER_TAG, ['priority' => $options['priority']])
+            ->addTag(WikiSearchKitPass::REFERENCE_RESOLVER_TAG, ['priority' => $options['priority']]));
     }
 
     /**

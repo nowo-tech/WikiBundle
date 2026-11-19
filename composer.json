@@ -120,7 +120,7 @@
         "nowo-tech/icon-selector-bundle": "<1.6.0"
     },
     "suggest": {
-        "nowo-tech/search-kit-bundle": "^1.8: wiki pages in SearchKit's search everywhere (nowo_wiki.search_kit_provider: true), through the wiki's own read rules; optional, older versions are ignored.",
+        "nowo-tech/search-kit-bundle": "^1.9 (needs PHP >= 8.3; 1.10.1 or later recommended): wiki pages in SearchKit's search everywhere (nowo_wiki.search_kit_provider: true) on its provider base, through the wiki's own read rules; optional, older versions (1.8 included) are ignored.",
         "nowo-tech/breadcrumb-kit-bundle": "^2.17: the current crumb named after the wiki page (nowo_wiki.web_ui.breadcrumb_current_label); optional, older versions are ignored.",
         "symfony/mercure-bundle": "Co-editing of Milkdown pages (nowo_wiki.collaboration): private Mercure updates and the subscriber cookie.",
         "symfony/rate-limiter": "Rate limits of the co-editing endpoints (nowo_wiki.collaboration.rate_limiter).",

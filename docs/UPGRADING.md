@@ -108,6 +108,38 @@
 
 ## Unreleased
 
+From **1.45.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+Nothing changes unless `search_kit_provider` is on.
+
+**With `search_kit_provider` on** — the SearchKit group now runs on SearchKit's provider base:
+
+- **Update SearchKit to 1.9** (`composer require nowo-tech/search-kit-bundle:^1.9`, PHP >= 8.3) and keep its bundle
+  registered. With SearchKit 1.8 installed nothing is registered any more (the `wiki` group disappears) until you update.
+- **Same rows.** The viewer, the role gate, the spaces, the page rules and the literal one-phrase match are unchanged, so
+  without a listener your users find the same pages. Differences you may notice:
+  - the order: title matches first, then the latest change (before: SearchKit's score over two scans);
+  - one window of `candidates` rows per search (before: up to twice that); the total is exact unless the visible rows fill
+    the window;
+  - "see all" appears with every group, labelled by SearchKit (`search.see_all`), and only links where the wiki's search
+    page answers the same question (across spaces with `search.scope: all`, or the one space a `space:` filter or a
+    `scope: slug` scope names). With an owner scope there is no link (SearchKit's own results page still pages through
+    every row). If you overrode `wiki.search_kit.see_all`, that message is no longer used;
+  - a scope id outside SearchKit's scope shape (`[A-Za-z0-9._:-]{1,128}`) finds nothing.
+- **Host rules (optional).** To hide spaces (per tenant, owner or feature), listen to `nowo_wiki.search_kit.spaces`
+  (`WikiSearchSpacesEvent::exclude()`); to hide single pages, SearchKit's `nowo_search_kit.item_visibility` (subject
+  type `wiki`, the page id). Both only narrow, and a deny wins. See
+  [USAGE › SearchKit provider › Host rules](USAGE.md#host-rules-146).
+- **Recents kept in the browser.** If SearchKit keeps recents without revalidation (`recent.enabled: true`,
+  `recent.revalidate: false`) and page titles must not be stored there, set `search_kit_provider.sensitive: true`: the
+  group is then off in that mode.
+- Hosts that call the provider directly: `WikiPageSearchKitProvider` keeps its class, service id, tags and interfaces,
+  but its constructor now takes SearchKit's provider and the new `WikiPageSearchDefinition` (wired by the bundle).
+
 ## To 1.45.0
 
 From **1.44.0**:

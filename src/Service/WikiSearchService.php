@@ -129,28 +129,52 @@ final readonly class WikiSearchService
         }
 
         /** @var list<array{0: WikiPage, contentHtml: string|null, contentText: string|null, contentMarkdown: string|null}> $rows */
-        $rows   = $builder->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
-        $needle = mb_strtolower($query);
-        $kept   = [];
+        $rows = $builder->getQuery()->setHint(Query::HINT_REFRESH, true)->getResult();
+        $kept = [];
         foreach ($rows as $row) {
             $page       = $row[0];
             $lastPageId = $page->getId();
             ++$rowsRead;
-            $inTitle  = str_contains(mb_strtolower($page->getTitle()), $needle);
-            $markdown = $row['contentMarkdown'];
-            if ($markdown !== null && $limits instanceof WikiMarkdownLimitsInterface && $limits->exceedsLimits($markdown)) {
-                if ($inTitle) {
-                    $kept[] = ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => $page->getTitle()];
-                }
-                continue;
-            }
-            $text = $row['contentText'] ?? WikiPlainText::fromHtml($row['contentHtml'] ?? '');
-            if ($inTitle || str_contains(mb_strtolower($text), $needle)) {
-                $kept[] = ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => $this->excerpt($page->getTitle(), $text, $query, $row['contentHtml'])];
+            $hit = $this->plainTextHit($page, $row['contentHtml'], $row['contentText'], $row['contentMarkdown'], $query, $limits);
+            if ($hit !== null) {
+                $kept[] = $hit;
             }
         }
 
         return $kept;
+    }
+
+    /**
+     * 1.46: the {@see self::searchPlainText()} decision for one page read with its current revision's columns — whether
+     * it matches `$query` on its title or its plain text (never on markup only, never on the source of a page over the
+     * renderer's limits) and its viewer-neutral excerpt — or null. No query; the SearchKit group re-checks the rows of its
+     * own SQL with it, so both answer the same.
+     *
+     * @param string|null $contentHtml the revision's `content_html`
+     * @param string|null $contentText the revision's `content_text` (null: not backfilled yet, the HTML's text is used)
+     * @param string|null $contentMarkdown the revision's source (only its size against the limits is read)
+     * @param string $query search text (trimmed; empty: no hit)
+     * @param WikiMarkdownLimitsInterface|null $limits the renderer's limits
+     *
+     * @return array{page: WikiPage, space: WikiSpace, excerpt: string}|null
+     */
+    public function plainTextHit(WikiPage $page, ?string $contentHtml, ?string $contentText, ?string $contentMarkdown, string $query, ?WikiMarkdownLimitsInterface $limits = null): ?array
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return null;
+        }
+        $needle  = mb_strtolower($query);
+        $inTitle = str_contains(mb_strtolower($page->getTitle()), $needle);
+        if ($contentMarkdown !== null && $limits instanceof WikiMarkdownLimitsInterface && $limits->exceedsLimits($contentMarkdown)) {
+            return $inTitle ? ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => $page->getTitle()] : null;
+        }
+        $text = $contentText ?? WikiPlainText::fromHtml($contentHtml ?? '');
+        if (!$inTitle && !str_contains(mb_strtolower($text), $needle)) {
+            return null;
+        }
+
+        return ['page' => $page, 'space' => $page->getSpace(), 'excerpt' => $this->excerpt($page->getTitle(), $text, $query, $contentHtml)];
     }
 
     /**

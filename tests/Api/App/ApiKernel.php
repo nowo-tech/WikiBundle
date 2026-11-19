@@ -8,13 +8,18 @@ use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use Nowo\FormKitBundle\NowoFormKitBundle;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\HostFileResolverInterface;
 use Nowo\MilkdownEditorBundle\NowoMilkdownEditorBundle;
+use Nowo\SearchKitBundle\NowoSearchKitBundle;
+use Nowo\SearchKitBundle\Test\QueryCounter;
+use Nowo\SearchKitBundle\Test\QueryCountingMiddleware;
 use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchDefinition;
 use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchKitProvider;
+use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -32,6 +37,7 @@ use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 use Twig\Extra\TwigExtraBundle\TwigExtraBundle;
 
 use function array_replace;
+use function class_exists;
 use function dirname;
 use function md5;
 use function serialize;
@@ -79,7 +85,16 @@ final class ApiKernel extends Kernel
         yield new NowoFormKitBundle();
         yield new NowoTiptapEditorBundle();
         yield new NowoMilkdownEditorBundle();
+        if ($this->searchKit()) {
+            yield new NowoSearchKitBundle();
+        }
         yield new WikiBundle();
+    }
+
+    /** 1.46: whether this kernel runs the wiki's SearchKit group (configured, and SearchKit >= 1.9 installed). */
+    public function searchKit(): bool
+    {
+        return isset($this->wiki['search_kit_provider']) && class_exists(NowoSearchKitBundle::class) && WikiSearchKitAvailability::isAvailable();
     }
 
     public function getProjectDir(): string
@@ -183,10 +198,14 @@ final class ApiKernel extends Kernel
         $services->set('app.pages', ApiPageRepository::class)->args([service(WikiEntityManagerProvider::class)]);
         $services->alias(WikiPageRepositoryInterface::class, 'app.pages');
         // 1.44: the tenants of the test people (search_kit_provider tests set team_membership_resolver: app.teams), and
-        // the SearchKit provider reachable from the tests (nothing else uses it without SearchKit installed).
+        // the SearchKit group reachable from the tests (1.46: only with SearchKit >= 1.9 installed), with every SQL
+        // statement counted (the query budget of SearchKit's contract kit).
         $services->set('app.teams', ApiTeamMembership::class);
-        if (isset($this->wiki['search_kit_provider'])) {
+        if ($this->searchKit()) {
             $services->alias('test.wiki_search_kit_provider', WikiPageSearchKitProvider::class)->public();
+            $services->alias('test.wiki_search_definition', WikiPageSearchDefinition::class)->public();
+            $services->set('app.search_kit_counter', QueryCounter::class)->public();
+            $services->set('app.search_kit_counting', QueryCountingMiddleware::class)->args([service('app.search_kit_counter')])->tag('doctrine.middleware');
         }
         $services->set('app.quota', RecordingQuotaListener::class)->public()
             ->tag('kernel.event_listener', ['event' => WikiEvents::QUOTA_CHECK, 'method' => 'onCheck']);

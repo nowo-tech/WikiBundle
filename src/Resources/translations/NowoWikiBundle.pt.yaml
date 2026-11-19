@@ -197,10 +197,9 @@ wiki:
     empty: "As duas revisões têm o mesmo conteúdo."
     added: "Adicionado:"
     removed: "Removido:"
-  # 1.44: the optional SearchKit provider (search_kit_provider): group heading and the "see all" link.
+  # 1.44: the optional SearchKit provider (search_kit_provider): group heading (1.46: "see all" is SearchKit's own label).
   search_kit:
     group: Wiki
-    see_all: 'Ver todos os resultados da wiki'
   search:
     title: Pesquisar
     intro: Pesquisa de texto completo num espaço.

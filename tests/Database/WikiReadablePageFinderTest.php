@@ -6,7 +6,6 @@ namespace Nowo\WikiBundle\Tests\Database;
 
 use Closure;
 use Doctrine\ORM\EntityManager;
-use Nowo\SearchKitBundle\Model\SearchQuery;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -17,10 +16,8 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
-use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchKitProvider;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
 use Nowo\WikiBundle\Search\WikiReadablePageHits;
-use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
@@ -34,12 +31,7 @@ use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Symfony\Component\Routing\Generator\UrlGenerator;
-use Symfony\Component\Routing\RequestContext;
-use Symfony\Component\Routing\Route;
-use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Security\Core\User\UserInterface;
-use Symfony\Component\Translation\IdentityTranslator;
 
 use function array_map;
 use function array_unique;
@@ -49,8 +41,6 @@ use function in_array;
 use function sort;
 use function sprintf;
 use function str_starts_with;
-
-require_once __DIR__ . '/../Stub/SearchKit/SearchKit.php';
 
 /**
  * 1.44 (Beacon KIT-85): {@see WikiReadablePageFinder}, the read-rule port of the SearchKit provider, on SQLite and —
@@ -218,28 +208,6 @@ final class WikiReadablePageFinderTest extends TestCase
         self::assertNull($finder->page($this->user, 'eng', 'missing'));
         self::assertNull($finder->page($this->user, 'ops', $page->getSlug()));
         self::assertNull($finder->page($this->user, 'other', $page->getSlug()));
-    }
-
-    public function testWithASpaceScopedSearchPageHitsAcrossSpacesGetNoSeeAllLink(): void
-    {
-        foreach (['eng' => $this->eng, 'ops' => $this->ops] as $slug => $space) {
-            $this->page($space, 'Ion ' . $slug, 'ion');
-        }
-        $this->em->clear();
-        $routes = new RouteCollection();
-        $routes->add('nowo_wiki_page_view', new Route('/wiki/{spaceSlug}/{pageSlug}'));
-        $routes->add('nowo_wiki_search', new Route('/wiki/search'));
-        $viewers = $this->createMock(WikiSearchViewerResolverInterface::class);
-        $viewers->method('viewer')->willReturn($this->user);
-        $urls  = new UrlGenerator($routes, new RequestContext());
-        $query = new SearchQuery('ion', null, 1, userIdentifier: 'u-1');
-
-        $scoped = new WikiPageSearchKitProvider($this->finder(), $viewers, $urls, new IdentityTranslator(), 'nowo_wiki_page_view', 'nowo_wiki_search', false);
-        self::assertNull($scoped->search($query)?->moreUrl);
-        $global = new WikiPageSearchKitProvider($this->finder(), $viewers, $urls, new IdentityTranslator(), 'nowo_wiki_page_view', 'nowo_wiki_search', true);
-        self::assertSame('/wiki/search?q=ion', $global->search($query)?->moreUrl);
-        $noRoute = new WikiPageSearchKitProvider($this->finder(), $viewers, $urls, new IdentityTranslator(), 'nowo_wiki_page_view');
-        self::assertNull($noRoute->search($query)?->moreUrl);
     }
 
     /**

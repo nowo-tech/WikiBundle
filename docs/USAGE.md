@@ -7,6 +7,7 @@
 - [Symfony AI](#symfony-ai)
 - [Search](#search)
 - [SearchKit provider (1.44)](#searchkit-provider-144)
+  - [Host rules (1.46)](#host-rules-146)
   - [Beacon: replacing WikiPageSearchProvider](#beacon-replacing-wikipagesearchprovider)
 - [Application integration](#application-integration)
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
@@ -95,10 +96,10 @@ and the form has no space choice ([CONFIGURATION › Host hooks](CONFIGURATION.m
 
 ## SearchKit provider (1.44)
 
-Optional (Beacon KIT-85, SearchKit spec 240 / CONTRACT-240): the wiki's pages in SearchKitBundle's "search everywhere" —
-the header search, the palette, the results page and the recents — **through the wiki's own read rules**. Needs
-`nowo-tech/search-kit-bundle` >= 1.8 (a suggested package, PHP >= 8.3); without it, or with an older one, nothing is
-registered. Off by default:
+Optional: the wiki's pages in SearchKitBundle's "search everywhere" — the header search, the palette, the results page
+and the recents — **through the wiki's own read rules**. 1.46: built on SearchKit's provider base, so it needs
+`nowo-tech/search-kit-bundle` **>= 1.9** (a suggested package, PHP >= 8.3) with its bundle registered; without it, or
+with an older one (1.8 included), nothing is registered. Off by default:
 
 ```yaml
 nowo_wiki:
@@ -107,12 +108,15 @@ nowo_wiki:
     search_kit_provider:
         enabled: true
         priority: 40                   # tag priority: SearchKit lists its groups highest first
-        candidates: 200                # matching rows read at most per search (10–1000)
+        candidates: 200                # rows read and checked per search, title matches first (10–1000)
         scope: owner                   # a SearchKit scope id = a space owner id (owner) or a space slug (slug)
         viewer_resolver: ~             # service id of Search\WikiSearchViewerResolverInterface
         user_provider: security.user_providers   # without viewer_resolver: loads the viewer by identifier
         icon: ~                        # UX Icons name of the rows; null: nowo_search_kit.icons.wiki
+        sensitive: false               # 1.46: true = page titles are sensitive (see below)
 ```
+
+The group can also be switched with SearchKit's own `nowo_search_kit.groups.wiki.enabled` (1.9).
 
 What it does, for a viewer (SearchKit's `SearchQuery::$userIdentifier`):
 
@@ -120,32 +124,78 @@ What it does, for a viewer (SearchKit's `SearchQuery::$userIdentifier`):
 |---|---|
 | Viewer | `viewer_resolver`, else the Symfony user provider; the user must carry exactly the identifier. None: no group |
 | Role gate | `security.access_checker` `canList()` for the viewer (the search page's `list` feature; 1.44: the default checker decides another user than the session's on that user's roles) |
-| Spaces | The viewer's spaces from the tenant / team resolver, each with `View` from the space checker; narrowed by the SearchKit scope and the `space:` filter. Only these reach the SQL |
-| Rows | Live pages only (archived and trashed pages are left out), matched on the title and the plain text of the current revision — never the Markdown source (`WikiSearchService::searchPlainText()`, as the REST API) |
-| Pages | `View` on the page **and every ancestor** (`WikiPageVisibility`, the page view's rule) |
-| Group | Key and row kind `wiki`, label `wiki.search_kit.group`. Rows: page title; the page view URL (`routes.page_view` through the router, so `tenant_paths` copies apply); subtitle = space name · readable ancestors · the wiki search's plain-text excerpt when the title does not match. `score` (title before body) and `date` (last change) for SearchKit's ranking |
-| Total | The readable hits; `exactTotal: true` only when the scan read every match, otherwise SearchKit caps it to the rows |
-| See all | With more readable hits than rows: the wiki search page of their one space, or (with `search.scope: all`) across spaces |
-| Results page | `PaginatedSearchProviderInterface`: pages of the same ranked, readable list (no gap) |
-| Recents | `SearchReferenceResolverInterface`: a `wiki` reference whose `spaceSlug` / `pageSlug` name a page the viewer may read **now** and whose URL is that page's view URL; anything else is null |
+| Spaces | The viewer's spaces from the tenant / team resolver, each with `View` from the space checker; narrowed by the SearchKit scope and the `space:` filter; then the host's `nowo_wiki.search_kit.spaces` listeners (1.46, below). Only these reach the SQL. These are the spaces of the wiki's own search page: header search has no page being viewed, so the favourites / recents rule "spaces of the current tenant" (1.45) does not apply; narrow with the scope or the spaces event |
+| Rows | Live pages only (archived and trashed pages are left out; the wiki has no draft state), the typed text matched literally as one phrase (escaped `LIKE … ESCAPE '!'`, case-insensitive) on the title or the plain text of the current revision — never the Markdown source, never markup alone (`WikiSearchService::plainTextHit()`, the rule of the REST API's search) |
+| Pages | `View` on the page's space and on the page **and every ancestor** (`WikiPageVisibility`, the page view's rule), on a fresh read of the candidates and their ancestors |
+| Host rules | SearchKit's `nowo_search_kit.item_visibility` event (subjects of type `wiki`, the page id), after the wiki's checks; deny wins |
+| Group | Key and row kind `wiki`, label `wiki.search_kit.group`. Rows: page title; the page view URL (`routes.page_view` through the router); subtitle = space name · readable ancestors · the wiki search's plain-text excerpt when the title does not match. `score` (title before body) and `date` (last change) |
+| Order and window | Title matches first, then the latest change: at most `candidates` rows are read and checked per search (results pages included) |
+| Total | The visible rows within that window; exact (`exactTotal`) unless the visible rows fill it |
+| See all | The wiki's search page with the query, only where it answers the same question: the one space a `space:` filter (or a `scope: slug` scope) names, or — with `search.scope: all` and neither scope nor filter — the page across spaces. An owner scope, a negated or a second space: no link |
+| Results page | `PaginatedSearchProviderInterface`: pages of the same visible list |
+| Recents | `SearchReferenceResolverInterface`: a `wiki` reference on the page view route (or a `tenant_paths` copy) whose `spaceSlug` / `pageSlug` name a live page in a space the viewer may read **now**; that page is read again through every rule above and kept only with the same URL. Anything else is null |
 | Filters | `space:<slug>` and `-space:<slug>`; a forbidden and an unknown space answer the same. Any other filter key: no group (it would widen the rows) |
+| By identifier | `IdentifierAwareSearchProviderInterface`: `searchFor()` runs it, decided for that identifier only |
 
 Excerpts are the plain text the wiki's own search shows (`content_text`, or the text of the viewer-neutral HTML cache):
-raw HTML of the source is text there too, and SearchKit prints it as text (DOM text nodes, Twig autoescape) and marks the
-match itself. Hosts that wrap the rules in their own provider use the framework-free port
-`Nowo\WikiBundle\Search\WikiReadablePageFinder` (`spaces()`, `find()`, `page()`), registered with the option.
+raw HTML of the source is text there too, and SearchKit prints it as text and marks the match itself. Hosts that wrap
+the rules in their own provider use the framework-free port `Nowo\WikiBundle\Search\WikiReadablePageFinder`
+(`spaces()`, `find()`, `page()`), registered with the option.
 
-The scan is bounded: the title matches first, then every match, each at most `candidates` rows read in page-id order
-before the page / ancestor rule, so a title hit is never crowded out by body matches; with many hidden matches a viewer
-may still see fewer body hits than exist (never more, never a hidden one; [SECURITY](SECURITY.md#searchkit-provider-144)).
-Each search reads at most 2 × `candidates` rows (each with its revision's text), on every keystroke: keep the default
-of 200. With several Symfony user providers, set `user_provider` to the firewall's own provider rather than the chain. Synonym alternatives of
-SearchKit (`SearchQuery::terms()`) are used for ranking only; the SQL matches the typed text.
+**Sensitive titles.** With `sensitive: true` the group is off while SearchKit keeps recents in the browser without
+revalidating them (`nowo_search_kit.recent.enabled: true` and `recent.revalidate: false`): titles of restricted pages
+then never reach the browser's storage. Default `false`, as before 1.46.
+
+**Cost.** One query reads at most `candidates` rows (each with its revision's text) on every keystroke SearchKit sends,
+and again for each results page; keep the default of 200. With several Symfony user providers, set `user_provider` to the
+firewall's own provider rather than the chain. Synonym alternatives of SearchKit (`SearchQuery::terms()`) are used for
+ranking only; the SQL matches the typed text.
+
+### Host rules (1.46)
+
+Two hooks, both narrowing only (they can hide rows, never add one), both applied before the window and the total, so a
+hidden row is never shown, counted or hinted at (the totals and the "see all" link are those of the remaining rows):
+
+- **Per space, before the SQL:** `Nowo\WikiBundle\Event\WikiEvents::SEARCH_KIT_SPACES` (`nowo_wiki.search_kit.spaces`),
+  a `WikiSearchSpacesEvent` with the viewer's identifier, the scope, the locale and the spaces the wiki would read
+  (`spaces()`: each a `WikiSearchSpace` with a `WikiSpaceSnapshot` and its tenant key — the link picker's
+  `WikiLinkTenantResolverInterface`). Call `exclude($spaceId)` or `excludeAll()`. An exclusion wins whatever the listener
+  order; the event cannot be stopped. Dispatched for searches, results pages and recents of the SearchKit group only (not
+  by the wiki's own search page). Use it for rules per space or tenant, e.g. leaving out the wikis of a project whose
+  wiki feature is off.
+- **Per page, after the wiki's checks:** SearchKit's `nowo_search_kit.item_visibility` (`SearchItemVisibilityEvent`,
+  group `wiki`, subject type `wiki`, subject id = the page id, tenant `*`), once per search page with every candidate;
+  `deny()` wins over any `allow()`.
+
+```php
+use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiSearchSpacesEvent;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+
+#[AsEventListener(event: WikiEvents::SEARCH_KIT_SPACES)]
+final readonly class HideWikisOfDisabledProjects
+{
+    public function __construct(private ProjectFeatures $features)
+    {
+    }
+
+    public function __invoke(WikiSearchSpacesEvent $event): void
+    {
+        foreach ($event->spaces() as $space) {
+            if (!$this->features->wikiEnabled($space->space->ownerScopeId)) {
+                $event->exclude($space->space->id);
+            }
+        }
+    }
+}
+```
+
+Without a listener the results are the wiki's own. Listeners must keep no state between calls (FrankenPHP worker mode).
 
 ### Beacon: replacing WikiPageSearchProvider
 
-Beacon's `App\Search\Provider\WikiPageSearchProvider` re-implements these rules. With WikiBundle 1.44 and SearchKit
-1.8.1 already installed, `config/packages/nowo_wiki.yaml`:
+Beacon's `App\Search\Provider\WikiPageSearchProvider` re-implements these rules. With WikiBundle 1.46 and SearchKit
+1.9 installed, `config/packages/nowo_wiki.yaml`:
 
 ```yaml
 nowo_wiki:
@@ -170,7 +220,7 @@ messages if nothing else uses them) and point `tests/Functional/Search/TaskWikiS
   project scope).
 - **Scoped to a project**, the provider searches only the wikis owned by that project UUID, as before.
 - The subtitle names the wiki's space name, not the project or organization name the old provider looked up.
-- The MySQL FULLTEXT path of the old provider is not used: the wiki matches with `LIKE` on the bounded candidate scan
+- The MySQL FULLTEXT path of the old provider is not used: the wiki matches with `LIKE` on the bounded candidate window
   (`candidates`).
 
 ## Application integration
@@ -1024,8 +1074,9 @@ To add a locale the bundle does not ship (e.g. `ca`), create `translations/NowoW
 
 ## Events
 
-Dispatched after the change is flushed, except `nowo_wiki.quota.check`.
+Dispatched after the change is flushed, except `nowo_wiki.quota.check` and the read-only `nowo_wiki.search_kit.spaces`.
 
+- `nowo_wiki.search_kit.spaces` — `WikiSearchSpacesEvent` (`userIdentifier`, `scope`, `locale`, `spaces()`, `exclude(spaceId)`, `excludeAll()`; 1.46, `search_kit_provider`): before the SQL of the SearchKit group; a listener may leave spaces out ([Host rules](#host-rules-146))
 - `nowo_wiki.quota.check` — `WikiQuotaCheckEvent` (`action`, `space`, `user`, `count`, `bytes`, `page`, `deny(reason)`; 1.21): **before** a new page, unarchive, trash restore, import or attachment upload; a listener may refuse the write ([CONFIGURATION › Quota event](CONFIGURATION.md#quota-event))
 - `nowo_wiki.page.saved` — `WikiPageSavedEvent` (`page`, `revision`, `previousRevision`, `actor`; also after create and restore)
 - `nowo_wiki.page.archived` — `WikiPageArchivedEvent` (`page`, `actor`)

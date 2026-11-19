@@ -266,6 +266,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **SearchKit group on SearchKit's provider base** (SearchKit >= 1.9): `search_kit_provider` now runs SearchKit's own `EntitySearchProvider` flow over the new `Search\SearchKit\WikiPageSearchDefinition` (the wiki's rules); `WikiPageSearchKitProvider` stays the registered provider and only adds what the base does not declare: the `space:` / `-space:` filter, searches by user identifier (`searchFor()`) and the recents' slug lookup for the viewer. Same rows for existing hosts: the viewer, the role gate, the tenant / team resolver and `View` on the space before the SQL, live pages only, the typed text matched literally as one phrase on the title or the revision's plain text (never markup alone, never the source of a page over the renderer's limits), `View` on the page and every ancestor. The spaces are those of the wiki's own search page (no "current tenant" narrowing: header search has no viewed space).
+- One bounded query per search (`candidates` rows, title matches first, then the latest change) instead of two scans in page-id order (audit TI-L2 kept); the candidates and their ancestors are read again once (`HINT_REFRESH`, one query per two tree levels), so a constant number of queries per search whatever the number of rows. The total is the visible count within the window, exact unless the visible rows fill it (hidden rows never change it nor the exact flag).
+- "See all" now comes with every group (SearchKit's label `search.see_all`), only where the wiki's search page answers the same question: the page across spaces (`search.scope: all`, no scope or filter) or the one space a `space:` filter or a `scope: slug` scope names. An owner scope, a negated or a second space: no link (before: the one space of the hits, when there were more hits than rows). The wiki's `wiki.search_kit.see_all` message is no longer used.
+- SearchKit scope ids must match SearchKit's scope shape (`[A-Za-z0-9._:-]{1,128}`); any other scope answers no group (it found nothing before either unless an owner id held other characters).
+- Requires SearchKitBundle **>= 1.9** (was >= 1.8); with 1.8 installed nothing is registered. `suggest` names `^1.9` and recommends 1.10.1 or later (a full candidate window is never marked exact). The page rule stays the host's PHP checker: a page it refuses is never shown or counted but takes a place in the candidate window (documented residual, SECURITY.md); everything the wiki decides itself is in the SQL.
+
+### Added
+
+- **Host rules for the SearchKit group**: the new `nowo_wiki.search_kit.spaces` event (`WikiEvents::SEARCH_KIT_SPACES`, `Event\WikiSearchSpacesEvent` with `Event\WikiSearchSpace`: snapshot and tenant key of each space) before the SQL, to leave spaces out (`exclude()`, `excludeAll()`), and SearchKit's `nowo_search_kit.item_visibility` per page (subject type `wiki`, the page id). Narrowing only, a deny wins whatever the listener order, neither can be stopped, both before the window and the total (no count oracle). Recents follow both.
+- `search_kit_provider.sensitive` (literal boolean, default `false`): page titles are sensitive, so the group is off while SearchKit keeps recents in the browser without revalidation.
+- `WikiSearchService::plainTextHit()`: the per-page match and excerpt rule of `searchPlainText()`, shared with the SearchKit group.
+- Tests: SearchKit's provider contract kit (`EntitySearchProviderTestCase`) and the wiki's own group tests (host denies, spaces event, literal match, title-first window, label / excerpt rules, recents, see all, query budget with nested pages) on SQLite, MySQL 8.4, MariaDB 11.4 and PostgreSQL 16.
+- CI: `.github/ci/search-kit.sh` adds SearchKit (`^1.10`) to `require-dev` on PHP >= 8.3 only (the bundle keeps PHP 8.2; SearchKit is never in composer.json nor the lock); the Code Coverage, PHPStan and matrix coverage steps run on PHP 8.4 with it; `phpstan-search-kit.php` leaves the group out of the 8.2 analysis. The SearchKit stub of the tests is gone: without SearchKit its tests are skipped.
+
 ## [1.45.0] - 2026-11-19
 
 ### Added
