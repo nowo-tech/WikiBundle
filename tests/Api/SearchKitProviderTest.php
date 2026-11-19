@@ -30,17 +30,17 @@ use function sprintf;
 
 use const JSON_THROW_ON_ERROR;
 
-require_once __DIR__ . '/../Stub/SearchKit/SearchKit.php';
-
 /**
- * 1.44 (Beacon KIT-85, SearchKit CONTRACT-240): the optional SearchKit provider through a host kernel (security user
- * provider, the wiki's tenant resolver and space checker, the router, the translator), on SQLite and — through
- * WIKI_TEST_DATABASE_URL — MySQL and PostgreSQL. Ana reads `eng` (tenant owner-1) and `ops` (owner-2); Bob only `eng`.
- * Every provider call runs outside any request, on one kept-alive container: no `kernel.reset`, no services resetter
- * (FrankenPHP worker mode with kernel reset false).
+ * 1.44 (Beacon KIT-85, SearchKit CONTRACT-240), 1.46 (SearchKit >= 1.10.1 provider base): the optional SearchKit group
+ * through a host kernel (SearchKit's bundle, the security user provider, the wiki's tenant resolver and space checker,
+ * the router, the translator), on SQLite and — through WIKI_TEST_DATABASE_URL — MySQL, MariaDB and PostgreSQL. Ana reads
+ * `eng` (tenant owner-1) and `ops` (owner-2); Bob only `eng`. Every provider call runs outside any request, on one
+ * kept-alive container: no `kernel.reset`, no services resetter (FrankenPHP worker mode with kernel reset false).
  */
 final class SearchKitProviderTest extends ApiTestCase
 {
+    use SearchKitTestRequirement;
+
     /** @var array<string, mixed> */
     protected static array $wikiConfig = [
         'search_kit_provider'      => ['enabled' => true, 'candidates' => 50],
@@ -50,6 +50,7 @@ final class SearchKitProviderTest extends ApiTestCase
 
     protected function setUp(): void
     {
+        self::requireSearchKit();
         parent::setUp();
         ApiTeamMembership::$teams              = ['u-ana' => ['owner-1', 'owner-2'], 'u-bob' => ['owner-1']];
         ApiTestHost::$grants['u-ana']['ops'][] = WikiAction::View;
@@ -67,7 +68,8 @@ final class SearchKitProviderTest extends ApiTestCase
         self::assertSame('Wiki', $group->label);
         self::assertSame(1, $group->total);
         self::assertTrue($group->exactTotal);
-        self::assertNull($group->moreUrl);
+        // 1.46: SearchKit's provider base always offers the group's "see all" link: here the search page across spaces.
+        self::assertSame($this->url('nowo_wiki_search', ['q' => 'deploy']), $group->moreUrl);
         $item = $group->items[0];
         self::assertSame('Rollout guide', $item->title);
         self::assertSame($this->url('nowo_wiki_page_view', ['spaceSlug' => 'eng', 'pageSlug' => $guide->getSlug()]), $item->url);
@@ -193,9 +195,9 @@ final class SearchKitProviderTest extends ApiTestCase
         self::assertSame(3, $withHidden->total);
         self::assertTrue($withHidden->exactTotal);
         self::assertCount(2, $withHidden->items);
-        // More readable hits than rows, all in one space: that space's search page.
-        self::assertSame($this->url('nowo_wiki_search', ['space' => 'eng', 'q' => 'orbit']), $withHidden->moreUrl);
-        self::assertSame('See all wiki results', $withHidden->moreLabel);
+        // 1.46: the search page across spaces (search.scope: all), labelled by SearchKit.
+        self::assertSame($this->url('nowo_wiki_search', ['q' => 'orbit']), $withHidden->moreUrl);
+        self::assertSame('See all', $withHidden->moreLabel);
 
         // The results page: no gap, no hidden row, an empty page past the end.
         $provider = $this->provider();
@@ -221,8 +223,9 @@ final class SearchKitProviderTest extends ApiTestCase
         ApiTestHost::$hiddenPages = [];
         self::assertSame($before, json_encode($this->search('u-bob', 'orbit', limit: 2)?->toArray(), JSON_THROW_ON_ERROR));
 
-        // Across spaces with search.scope: all, the search page across spaces.
+        // Across spaces with search.scope: all, the search page across spaces; one `space:` filter: that space's page.
         self::assertSame($this->url('nowo_wiki_search', ['q' => 'orbit']), $this->search('u-ana', 'orbit', limit: 2)?->moreUrl);
+        self::assertSame($this->url('nowo_wiki_search', ['space' => 'eng', 'q' => 'orbit']), $this->search('u-ana', 'orbit', limit: 2, filters: [new SearchFilter('space', 'eng')])?->moreUrl);
     }
 
     public function testRecentsAreReCheckedForTheViewerNow(): void

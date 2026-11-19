@@ -13,8 +13,6 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 
-require_once __DIR__ . '/../Stub/SearchKit/SearchKit.php';
-
 /**
  * 1.44 (audit TI-M1): a search made for another identifier inside someone's session (SearchKit's `searchFor()`) passes
  * the wiki's `list` role gate on the viewer's own roles, not on the session's. The wiki lists only for ROLE_WIKI_LIST
@@ -22,6 +20,8 @@ require_once __DIR__ . '/../Stub/SearchKit/SearchKit.php';
  */
 final class SearchKitProviderSessionTest extends ApiTestCase
 {
+    use SearchKitTestRequirement;
+
     /** @var array<string, mixed> */
     protected static array $wikiConfig = [
         'search_kit_provider'      => true,
@@ -31,6 +31,7 @@ final class SearchKitProviderSessionTest extends ApiTestCase
 
     protected function setUp(): void
     {
+        self::requireSearchKit();
         parent::setUp();
         ApiTeamMembership::$teams              = ['u-ana' => ['owner-1'], 'u-bob' => ['owner-1'], 'u-carol' => ['owner-1']];
         ApiTestHost::$grants['u-carol']['eng'] = [WikiAction::View];

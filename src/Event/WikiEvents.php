@@ -9,7 +9,7 @@ use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 
 /**
  * Wiki bundle event names. Every event is dispatched after the change is flushed, except {@see self::QUOTA_CHECK}
- * (1.21), dispatched before the write so a listener can refuse it.
+ * (1.21), dispatched before the write so a listener can refuse it, and {@see self::SEARCH_KIT_SPACES} (1.46), a read.
  */
 final class WikiEvents
 {
@@ -106,4 +106,10 @@ final class WikiEvents
      * run under the log's lock. Hosts listen to {@see self::PAGE_SAVED}. Same {@see WikiPageSavedEvent}.
      */
     public const PAGE_WRITTEN = 'nowo_wiki.page.written';
+
+    /**
+     * 1.46: {@see WikiSearchSpacesEvent}, before the SQL of the wiki's SearchKit group (search, results page, recents): a
+     * listener may leave spaces out (narrowing only; an exclusion wins). Not dispatched by the wiki's own search page.
+     */
+    public const SEARCH_KIT_SPACES = 'nowo_wiki.search_kit.spaces';
 }

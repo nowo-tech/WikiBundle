@@ -11,6 +11,7 @@ use Nowo\WikiBundle\DependencyInjection\Compiler\TwigPathsPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiApiSafetyPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiMappingManagerPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiPortsPass;
+use Nowo\WikiBundle\DependencyInjection\Compiler\WikiSearchKitPass;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -42,6 +43,8 @@ final class WikiBundle extends Bundle
         // 1.36.0: the private entity manager's rollback middleware on the source manager's connection only (before
         // DoctrineBundle's MiddlewaresPass).
         $container->addCompilerPass(new PrivateEntityManagerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 10);
+        // 1.46: the SearchKit group on SearchKit's provider base (after its EntitySearchPass).
+        $container->addCompilerPass(new WikiSearchKitPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, WikiSearchKitPass::PRIORITY);
     }
 
     /**
