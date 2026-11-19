@@ -19,6 +19,7 @@ use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchDefinition;
 use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
+use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Tests\Api\App\ApiKernel;
 use Nowo\WikiBundle\Tests\Api\App\ApiTeamMembership;
@@ -130,7 +131,7 @@ final class WikiSearchContractTest extends EntitySearchProviderTestCase
     /**
      * SearchKit 1.10.1: the wiki filters in SQL everything it can decide itself — the tenant / team resolver, `View` on
      * the space, the host's spaces event, archived and trashed pages — but the page rule (`View` on the page and every
-     * ancestor) is the host's PHP checker ({@see \Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface}), so a page
+     * ancestor) is the host's PHP checker ({@see WikiSpaceAccessCheckerInterface}), so a page
      * it refuses still takes a place in the candidate window: documented residual (SECURITY.md, audit TI-L2).
      */
     protected function hiddenRowsFilteredInSql(): bool

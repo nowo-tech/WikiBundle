@@ -4,21 +4,12 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Search\SearchKit;
 
-use Nowo\SearchKitBundle\Contract\FilterableSearchProviderInterface;
-use Nowo\SearchKitBundle\Contract\IdentifierAwareSearchProviderInterface;
-use Nowo\SearchKitBundle\Contract\PaginatedSearchProviderInterface;
-use Nowo\SearchKitBundle\Contract\SearchReferenceResolverInterface;
-use Nowo\SearchKitBundle\Event\SearchItemVisibilityEvent;
-use Nowo\SearchKitBundle\Provider\Entity\EntitySearchDefinition;
-use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
-use Nowo\SearchKitBundle\Search\Group\SensitiveGroupNotice;
-
 use function class_exists;
 use function interface_exists;
 
 /**
- * 1.44, 1.46: whether SearchKitBundle >= 1.9 is installed — its provider base ({@see EntitySearchDefinition},
- * {@see EntitySearchProvider}, the item visibility event and the group settings of 1.9.0) and the ports
+ * 1.44, 1.46: whether SearchKitBundle >= 1.9 is installed — its provider base (EntitySearchDefinition,
+ * EntitySearchProvider, the item visibility event and the group settings of 1.9.0) and the ports
  * {@see WikiPageSearchKitProvider} implements. SearchKit is optional (`suggest`, PHP >= 8.3): without it, or with an
  * older one (1.8 included), `search_kit_provider` registers nothing.
  */
@@ -28,6 +19,25 @@ final class WikiSearchKitAvailability
     public const DEFINITION_TAG = 'nowo_search_kit.entity_definition';
 
     /**
+     * SearchKit's ports {@see WikiPageSearchKitProvider} implements (names, not `::class`: SearchKit is optional and the
+     * PHP 8.2 analysis runs without it).
+     */
+    public const INTERFACES = [
+        'Nowo\\SearchKitBundle\\Contract\\PaginatedSearchProviderInterface',
+        'Nowo\\SearchKitBundle\\Contract\\IdentifierAwareSearchProviderInterface',
+        'Nowo\\SearchKitBundle\\Contract\\FilterableSearchProviderInterface',
+        'Nowo\\SearchKitBundle\\Contract\\SearchReferenceResolverInterface',
+    ];
+
+    /** SearchKit 1.9.0 provider base; SensitiveGroupNotice is the post-audit (VF) constructor of EntitySearchProvider. */
+    public const CLASSES = [
+        'Nowo\\SearchKitBundle\\Provider\\Entity\\EntitySearchDefinition',
+        'Nowo\\SearchKitBundle\\Provider\\Entity\\EntitySearchProvider',
+        'Nowo\\SearchKitBundle\\Event\\SearchItemVisibilityEvent',
+        'Nowo\\SearchKitBundle\\Search\\Group\\SensitiveGroupNotice',
+    ];
+
+    /**
      * @param (callable(string): bool)|null $interfaceExists the interface check (null: interface_exists(); tests pass their own)
      * @param (callable(string): bool)|null $classExists the class check (null: class_exists(); tests pass their own)
      */
@@ -35,13 +45,12 @@ final class WikiSearchKitAvailability
     {
         $interfaceExists ??= interface_exists(...);
         $classExists ??= class_exists(...);
-        foreach ([PaginatedSearchProviderInterface::class, IdentifierAwareSearchProviderInterface::class, FilterableSearchProviderInterface::class, SearchReferenceResolverInterface::class] as $interface) {
+        foreach (self::INTERFACES as $interface) {
             if (!$interfaceExists($interface)) {
                 return false;
             }
         }
-        // 1.9.0: the provider base; SensitiveGroupNotice is the post-audit (VF) constructor of EntitySearchProvider.
-        foreach ([EntitySearchDefinition::class, EntitySearchProvider::class, SearchItemVisibilityEvent::class, SensitiveGroupNotice::class] as $class) {
+        foreach (self::CLASSES as $class) {
             if (!$classExists($class)) {
                 return false;
             }
