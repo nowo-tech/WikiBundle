@@ -14,12 +14,11 @@ use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageFavourite;
 use Nowo\WikiBundle\Entity\WikiPageVisit;
-use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\ValueObject\Uuid;
 
-use function array_filter;
-use function array_map;
+use function array_chunk;
+use function array_keys;
 use function array_values;
 use function count;
 
@@ -32,34 +31,36 @@ use function count;
  * person: it is answered with the domain result (already a favourite, visit already recorded), never as a conflict.
  * Lock conflicts surface as the runner's {@see TransientStorageFailure}.
  *
- * Reads are ORM queries already narrowed in SQL to the person, the given spaces and live pages (archived and trashed
- * pages never come back); the user id is compared again with `===` (a case-folding collation could match a look-alike).
+ * Exact ids (audit VC-2, REQ-SEC-006): every row a write or read acts on is selected by the person's id, compared again
+ * with `===` in PHP, and then written or deleted **by its primary key**. A case-folding or PAD SPACE collation (the
+ * `utf8mb4_bin` fallback of old MySQL, where `alice` and `alice ` are equal) therefore never lets one person's write
+ * touch another person's row. Reads are ORM queries narrowed in SQL to the person, the given spaces and live pages.
  * Stateless: nothing is kept between calls (worker mode).
  */
 final readonly class WikiQuickAccessStore
 {
-    /** Visits beyond `keep` deleted per recorded visit (each visit adds at most one row). */
+    /** Stale visits deleted per recorded visit (beyond `keep`, and older than the retention). */
     public const PRUNE_BATCH = 50;
+
+    /** Rows deleted per statement (erasure, purge). */
+    public const DELETE_CHUNK = 500;
 
     public function __construct(private WikiTransactionRunner $runner)
     {
     }
 
     /**
-     * Stars a page for the person, unless they already keep `$max` favourites.
+     * Stars a page for the person (the caller checked the person's limit).
      */
-    public function addFavourite(WikiPage $page, string $userId, int $max, ?DateTimeImmutable $now = null): WikiFavouriteResult
+    public function addFavourite(WikiPage $page, string $userId, ?DateTimeImmutable $now = null): WikiFavouriteResult
     {
         $table = $this->table(WikiPageFavourite::class);
         try {
             // @igor-ignore - the closure is one unit of work, run and released by the runner within this call; nothing is kept on the service.
-            return $this->runner->runOnConnection(function () use ($page, $userId, $max, $now, $table): WikiFavouriteResult {
+            return $this->runner->runOnConnection(function () use ($page, $userId, $now, $table): WikiFavouriteResult {
                 $connection = $this->connection();
-                if ($this->hasRow($connection, $table, $userId, $page->getId())) {
+                if ($this->rowIds($connection, $table, $userId, $page->getId()) !== []) {
                     return WikiFavouriteResult::Unchanged;
-                }
-                if ($this->count($connection, $table, $userId) >= $max) {
-                    return WikiFavouriteResult::LimitReached;
                 }
                 $connection->insert($table, [
                     'id'         => Uuid::generate()->toString(),
@@ -83,43 +84,83 @@ final readonly class WikiQuickAccessStore
     {
         $table = $this->table(WikiPageFavourite::class);
 
-        return $this->runner->runOnConnection(fn (): WikiFavouriteResult => $this->connection()->delete($table, ['user_id' => $userId, 'page_id' => $page->getId()]) > 0
-            ? WikiFavouriteResult::Removed
-            : WikiFavouriteResult::Unchanged);
+        // @igor-ignore - the closure is one unit of work, run and released by the runner within this call; nothing is kept on the service.
+        return $this->runner->runOnConnection(function () use ($page, $userId, $table): WikiFavouriteResult {
+            $connection = $this->connection();
+
+            return $this->deleteIds($connection, $table, $this->rowIds($connection, $table, $userId, $page->getId())) > 0
+                ? WikiFavouriteResult::Removed
+                : WikiFavouriteResult::Unchanged;
+        });
+    }
+
+    /**
+     * Removes one of the person's favourites by its id, whatever its page (gone, archived, no longer readable): audit
+     * VC-1. Another person's row and an unknown id are left alone, and the caller answers the same either way.
+     *
+     * @return bool whether a row was deleted
+     */
+    public function removeFavouriteById(string $favouriteId, string $userId): bool
+    {
+        $table = $this->table(WikiPageFavourite::class);
+
+        // @igor-ignore - the closure is one unit of work, run and released by the runner within this call; nothing is kept on the service.
+        return $this->runner->runOnConnection(function () use ($favouriteId, $userId, $table): bool {
+            $connection = $this->connection();
+            /** @var list<array{id: string, user_id: string}> $rows */
+            $rows = $connection->createQueryBuilder()
+                ->select('id', 'user_id')
+                ->from($table)
+                ->where('id = :id')
+                ->setParameter('id', $favouriteId)
+                ->executeQuery()
+                ->fetchAllAssociative();
+            $ids = [];
+            foreach ($rows as $row) {
+                if ($row['id'] === $favouriteId && $row['user_id'] === $userId) {
+                    $ids[] = $row['id'];
+                }
+            }
+
+            return $this->deleteIds($connection, $table, $ids) > 0;
+        });
     }
 
     /** Whether the page is one of the person's favourites. */
     public function isFavourite(WikiPage $page, string $userId): bool
     {
-        return $this->hasRow($this->connection(), $this->table(WikiPageFavourite::class), $userId, $page->getId());
+        return $this->rowIds($this->connection(), $this->table(WikiPageFavourite::class), $userId, $page->getId()) !== [];
     }
 
     /**
-     * The person's favourite pages in the given spaces, live pages only, the newest first, at most `$limit` rows read.
+     * The person's favourites in the given spaces, live pages only, the newest first, at most `$limit` rows read.
      *
-     * @param list<WikiSpace> $spaces the spaces the person may read
+     * @param list<string> $spaceIds the ids of the spaces the person may read
      *
-     * @return list<WikiPage>
+     * @return list<WikiPageFavourite>
      */
-    public function favouritePages(string $userId, array $spaces, int $limit): array
+    public function favourites(string $userId, array $spaceIds, int $limit): array
     {
-        return $this->pages(WikiPageFavourite::class, 'createdAt', $userId, $spaces, $limit);
+        /** @var list<WikiPageFavourite> $rows */
+        $rows = $this->rows(WikiPageFavourite::class, 'createdAt', $userId, $spaceIds, $limit, null);
+
+        return $rows;
     }
 
     /**
-     * Records that the person opened the page now, then deletes their visits beyond `$keep` (at most
-     * {@see self::PRUNE_BATCH} per call). A unique violation (two tabs opening the same page at once) only updates the
-     * time of the row the other request wrote.
+     * Records that the person opened the page now, then deletes their visits beyond `$keep` and those older than
+     * `$retentionDays` (at most {@see self::PRUNE_BATCH} per call). A unique violation (two tabs opening the same page
+     * at once) only updates the time of the row the other request wrote.
      */
-    public function recordVisit(WikiPage $page, string $userId, int $keep, ?DateTimeImmutable $now = null): void
+    public function recordVisit(WikiPage $page, string $userId, int $keep, int $retentionDays, ?DateTimeImmutable $now = null): void
     {
         $table = $this->table(WikiPageVisit::class);
         $now ??= new DateTimeImmutable();
         try {
             // @igor-ignore - the closure is one unit of work, run and released by the runner within this call; nothing is kept on the service.
-            $this->runner->runOnConnection(function () use ($page, $userId, $keep, $now, $table): void {
+            $this->runner->runOnConnection(function () use ($page, $userId, $keep, $retentionDays, $now, $table): void {
                 $connection = $this->connection();
-                if ($this->touch($connection, $table, $userId, $page->getId(), $now) === 0 && !$this->hasRow($connection, $table, $userId, $page->getId())) {
+                if ($this->touch($connection, $table, $userId, $page->getId(), $now) === 0) {
                     $connection->insert($table, [
                         'id'         => Uuid::generate()->toString(),
                         'page_id'    => $page->getId(),
@@ -127,53 +168,119 @@ final readonly class WikiQuickAccessStore
                         'visited_at' => $now,
                     ], ['visited_at' => Types::DATETIME_IMMUTABLE]);
                 }
-                $this->prune($connection, $table, $userId, $keep);
+                $this->prune($connection, $table, $userId, $keep, $now->modify('-' . $retentionDays . ' days'));
             });
         } catch (UniqueConstraintViolationException) {
+            // @igor-ignore - the closure is one unit of work, run and released by the runner within this call; nothing is kept on the service.
             $this->runner->runOnConnection(fn (): int => $this->touch($this->connection(), $table, $userId, $page->getId(), $now));
         }
     }
 
     /**
-     * The person's recently opened pages in the given spaces, live pages only, the last opened first, at most `$limit`
-     * rows read.
+     * The person's recently opened pages in the given spaces, live pages only, opened after `$since`, the last first,
+     * at most `$limit` rows read.
      *
-     * @param list<WikiSpace> $spaces the spaces the person may read
+     * @param list<string> $spaceIds the ids of the spaces the person may read
      *
-     * @return list<WikiPage>
+     * @return list<WikiPageVisit>
      */
-    public function recentPages(string $userId, array $spaces, int $limit): array
+    public function visits(string $userId, array $spaceIds, int $limit, DateTimeImmutable $since): array
     {
-        return $this->pages(WikiPageVisit::class, 'visitedAt', $userId, $spaces, $limit);
+        /** @var list<WikiPageVisit> $rows */
+        $rows = $this->rows(WikiPageVisit::class, 'visitedAt', $userId, $spaceIds, $limit, $since);
+
+        return $rows;
     }
 
     /**
-     * Erases every favourite and visit of a person (their right to erasure).
-     *
-     * @param bool $favourites erase the favourites table (`favourites.enabled`)
-     * @param bool $visits erase the visits table (`recents.enabled`)
+     * Deletes the visits of everyone older than `$before`, at most `$batch` rows (bounded; call again for more).
      *
      * @return int rows deleted
      */
-    public function eraseUser(string $userId, bool $favourites, bool $visits): int
+    public function purgeVisitsBefore(DateTimeImmutable $before, int $batch): int
+    {
+        if (!$this->tableExists(WikiPageVisit::class)) {
+            return 0;
+        }
+        $table = $this->table(WikiPageVisit::class);
+
+        // @igor-ignore - the closure is one unit of work, run and released by the runner within this call; nothing is kept on the service.
+        return $this->runner->runOnConnection(function () use ($table, $before, $batch): int {
+            $connection = $this->connection();
+            /** @var list<string> $ids */
+            $ids = $connection->createQueryBuilder()
+                ->select('id')
+                ->from($table)
+                ->where('visited_at < :before')
+                ->orderBy('visited_at', 'ASC')
+                ->setParameter('before', $before, Types::DATETIME_IMMUTABLE)
+                ->setMaxResults($batch)
+                ->executeQuery()
+                ->fetchFirstColumn();
+
+            return $this->deleteIds($connection, $table, $ids);
+        });
+    }
+
+    /**
+     * Erases every favourite and visit of a person (their right to erasure), from each of the two tables that exists,
+     * whether or not its feature is on now (audit VC-3).
+     *
+     * @return int rows deleted
+     */
+    public function eraseUser(string $userId): int
     {
         $tables = [];
-        if ($favourites) {
-            $tables[] = $this->table(WikiPageFavourite::class);
+        foreach ([WikiPageFavourite::class, WikiPageVisit::class] as $class) {
+            if ($this->tableExists($class)) {
+                $tables[] = $this->table($class);
+            }
         }
-        if ($visits) {
-            $tables[] = $this->table(WikiPageVisit::class);
+        if ($tables === []) {
+            return 0;
         }
 
         // @igor-ignore - the closure is one unit of work, run and released by the runner within this call; nothing is kept on the service.
         return $this->runner->runOnConnection(function () use ($tables, $userId): int {
-            $deleted = 0;
+            $connection = $this->connection();
+            $deleted    = 0;
             foreach ($tables as $table) {
-                $deleted += (int) $this->connection()->delete($table, ['user_id' => $userId]);
+                $deleted += $this->deleteIds($connection, $table, $this->rowIds($connection, $table, $userId));
             }
 
             return $deleted;
         });
+    }
+
+    /**
+     * Every favourite and visit of a person, for a privacy export (page ids and times only).
+     *
+     * @return array{favourites: list<array<string, string>>, visits: list<array<string, string>>}
+     */
+    public function exportUser(string $userId): array
+    {
+        $export = ['favourites' => [], 'visits' => []];
+        foreach ([WikiPageFavourite::class => ['favourites', 'created_at'], WikiPageVisit::class => ['visits', 'visited_at']] as $class => [$key, $time]) {
+            if (!$this->tableExists($class)) {
+                continue;
+            }
+            /** @var list<array{user_id: string, page_id: string, at: string}> $rows */
+            $rows = $this->connection()->createQueryBuilder()
+                ->select('user_id', 'page_id', $time . ' AS at')
+                ->from($this->table($class))
+                ->where('user_id = :user')
+                ->orderBy($time, 'ASC')
+                ->setParameter('user', $userId)
+                ->executeQuery()
+                ->fetchAllAssociative();
+            foreach ($rows as $row) {
+                if ($row['user_id'] === $userId) {
+                    $export[$key][] = ['page_id' => $row['page_id'], $time => (string) $row['at']];
+                }
+            }
+        }
+
+        return $export;
     }
 
     /** Whether a transaction is open on the wiki's connection (a caller's unit). */
@@ -184,101 +291,136 @@ final readonly class WikiQuickAccessStore
 
     /**
      * @param class-string<WikiPageFavourite|WikiPageVisit> $class
-     * @param list<WikiSpace> $spaces
+     * @param list<string> $spaceIds
      *
-     * @return list<WikiPage>
+     * @return list<WikiPageFavourite|WikiPageVisit>
      */
-    private function pages(string $class, string $order, string $userId, array $spaces, int $limit): array
+    private function rows(string $class, string $order, string $userId, array $spaceIds, int $limit, ?DateTimeImmutable $since): array
     {
-        if ($spaces === [] || $limit < 1 || $userId === '') {
+        if ($spaceIds === [] || $limit < 1 || $userId === '') {
             return [];
         }
 
-        /** @var list<WikiPageFavourite|WikiPageVisit> $rows */
-        $rows = $this->manager()->createQueryBuilder()
+        $query = $this->manager()->createQueryBuilder()
             ->select('x', 'p')
             ->from($class, 'x')
             ->join('x.page', 'p')
             ->where('x.userId = :user')
-            ->andWhere('p.space IN (:spaces)')
+            ->andWhere('IDENTITY(p.space) IN (:spaces)')
             ->andWhere('p.archivedAt IS NULL')
             ->orderBy('x.' . $order, 'DESC')
             ->addOrderBy('x.id', 'DESC')
             ->setParameter('user', $userId)
-            ->setParameter('spaces', array_map(static fn (WikiSpace $space): string => $space->getId(), $spaces))
-            ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+            ->setParameter('spaces', $spaceIds)
+            ->setMaxResults($limit);
+        if ($since instanceof DateTimeImmutable) {
+            $query->andWhere('x.' . $order . ' >= :since')->setParameter('since', $since, Types::DATETIME_IMMUTABLE);
+        }
+        /** @var list<WikiPageFavourite|WikiPageVisit> $rows */
+        $rows = $query->getQuery()->getResult();
 
-        $pages = [];
+        $exact = [];
         foreach ($rows as $row) {
             if ($row->getUserId() === $userId) {
-                $pages[] = $row->getPage();
+                $exact[] = $row;
             }
         }
 
-        return $pages;
+        return $exact;
     }
 
+    /** Sets the time of the person's own visit row (by primary key); the rows written. */
     private function touch(Connection $connection, string $table, string $userId, string $pageId, DateTimeImmutable $now): int
     {
-        return (int) $connection->update($table, ['visited_at' => $now], ['user_id' => $userId, 'page_id' => $pageId], ['visited_at' => Types::DATETIME_IMMUTABLE]);
+        $written = 0;
+        foreach ($this->rowIds($connection, $table, $userId, $pageId) as $id) {
+            $written += (int) $connection->update($table, ['visited_at' => $now], ['id' => $id], ['visited_at' => Types::DATETIME_IMMUTABLE]);
+        }
+
+        // A row found counts as recorded even when its time did not change (MySQL reports changed rows only).
+        return $written > 0 ? $written : count($this->rowIds($connection, $table, $userId, $pageId));
     }
 
-    private function prune(Connection $connection, string $table, string $userId, int $keep): void
+    private function prune(Connection $connection, string $table, string $userId, int $keep, DateTimeImmutable $before): void
     {
-        /** @var list<string> $stale */
-        $stale = $connection->createQueryBuilder()
-            ->select('id')
+        /** @var list<array{id: string, user_id: string, visited_at: string}> $rows */
+        $rows = $connection->createQueryBuilder()
+            ->select('id', 'user_id', 'visited_at')
             ->from($table)
             ->where('user_id = :user')
             ->orderBy('visited_at', 'DESC')
             ->addOrderBy('id', 'DESC')
             ->setParameter('user', $userId)
-            ->setFirstResult($keep)
-            ->setMaxResults(self::PRUNE_BATCH)
             ->executeQuery()
-            ->fetchFirstColumn();
-        if ($stale === []) {
-            return;
-        }
+            ->fetchAllAssociative();
+        $kept  = 0;
+        $stale = [];
+        foreach ($rows as $row) {
+            if ($row['user_id'] !== $userId) {
+                continue;
+            }
+            $at = new DateTimeImmutable((string) $row['visited_at']);
+            if ($kept >= $keep || $at < $before) {
+                $stale[] = $row['id'];
+                if (count($stale) >= self::PRUNE_BATCH) {
+                    break;
+                }
 
-        $connection->executeStatement('DELETE FROM ' . $table . ' WHERE id IN (?)', [array_values($stale)], [ArrayParameterType::STRING]);
+                continue;
+            }
+            ++$kept;
+        }
+        $this->deleteIds($connection, $table, $stale);
     }
 
-    private function hasRow(Connection $connection, string $table, string $userId, string $pageId): bool
+    /**
+     * The ids of the person's rows (of one page, or all), compared exactly.
+     *
+     * @return list<string>
+     */
+    private function rowIds(Connection $connection, string $table, string $userId, ?string $pageId = null): array
     {
-        /** @var list<string> $users */
-        $users = $connection->createQueryBuilder()
-            ->select('user_id')
+        $query = $connection->createQueryBuilder()
+            ->select('id', 'user_id', 'page_id')
             ->from($table)
             ->where('user_id = :user')
-            ->andWhere('page_id = :page')
-            ->setParameter('user', $userId)
-            ->setParameter('page', $pageId)
-            ->executeQuery()
-            ->fetchFirstColumn();
-        foreach ($users as $user) {
-            if ($user === $userId) {
-                return true;
+            ->setParameter('user', $userId);
+        if ($pageId !== null) {
+            $query->andWhere('page_id = :page')->setParameter('page', $pageId);
+        }
+        /** @var list<array{id: string, user_id: string, page_id: string}> $rows */
+        $rows = $query->executeQuery()->fetchAllAssociative();
+        $ids  = [];
+        foreach ($rows as $row) {
+            if ($row['user_id'] === $userId && ($pageId === null || $row['page_id'] === $pageId)) {
+                $ids[$row['id']] = true;
             }
         }
 
-        return false;
+        return array_keys($ids);
     }
 
-    private function count(Connection $connection, string $table, string $userId): int
+    /**
+     * Deletes rows by primary key, in chunks.
+     *
+     * @param list<string> $ids
+     */
+    private function deleteIds(Connection $connection, string $table, array $ids): int
     {
-        /** @var list<string> $users */
-        $users = $connection->createQueryBuilder()
-            ->select('user_id')
-            ->from($table)
-            ->where('user_id = :user')
-            ->setParameter('user', $userId)
-            ->executeQuery()
-            ->fetchFirstColumn();
+        $deleted = 0;
+        foreach (array_chunk(array_values($ids), self::DELETE_CHUNK) as $chunk) {
+            $deleted += (int) $connection->executeStatement('DELETE FROM ' . $table . ' WHERE id IN (?)', [$chunk], [ArrayParameterType::STRING]);
+        }
 
-        return count(array_filter($users, static fn (string $user): bool => $user === $userId));
+        return $deleted;
+    }
+
+    /**
+     * @param class-string $class
+     */
+    private function tableExists(string $class): bool
+    {
+        return $this->connection()->createSchemaManager()->tablesExist([$this->table($class)]);
     }
 
     /**

@@ -1250,18 +1250,28 @@ table, so run your migrations after turning one on (DDL in [UPGRADING](UPGRADING
   form with its CSRF token; no JavaScript needed), and the sidebar a **Favourites** section above the page tree, newest
   first. Adding a page that is already a favourite (another tab) changes nothing; past `favourites.max` the add is
   refused with a message. JSON clients (`Accept: application/json`) get `{"favourite": true, "result": "added"}`
-  (`removed`, `unchanged`) or `422 {"error": "limit_reached"}`.
-- **Recently viewed** (`recents.enabled`): every page view records the visit; the sidebar lists the pages opened last
-  (the current page left out). At most `recents.keep` visits are kept per person.
+  (`removed`, `unchanged`) or `422 {"error": "limit_reached"}`. Only the favourites the person can still read in this
+  tenant count toward the limit. `POST {favourite_remove}` (`/tools/wiki/favourites/{favouriteId}/remove`, CSRF token id
+  `wiki_favourite_remove`) removes one by its id whatever its page (`{"result": "done"}` either way); the sidebar
+  rows carry the id in `data-wiki-favourite-id`.
+- **Recently viewed** (`recents.enabled`): every page view records the visit (never a `HEAD` request or a browser
+  prefetch); the sidebar lists the pages opened last (the current page left out). At most `recents.keep` visits are kept
+  per person, none older than `recents.retention_days` (90); schedule `bin/console wiki:recents:purge` (daily) for
+  people who stopped visiting.
 - **Linked from** (`backlinks.enabled`): after the page body (Twig block `wiki_page_backlinks`, after
   `wiki_page_after_body`), the pages whose **current** revision links this one with `[[wiki:<id>]]` or
   `[[wiki:<id>#anchor]]` (never inside code), by title, with the space name for another space. The index is written
   after every save (create, edit, restore, import, conversion); fill it once with `bin/console wiki:backlinks:rebuild`
-  (safe to run beside live saves, and again at any time).
+  (safe to run beside live saves, and again at any time; a page that keeps meeting lock conflicts is retried, then
+  skipped and listed, and the command exits with FAILURE: run it again, or resume with `--after=<page id>`). HTML
+  (Tiptap) revisions hold no `[[wiki:…]]` references, so such pages are never sources. A Markdown revision over the
+  renderer's `max_input_length` / `max_inline_markers` is read as text, so the index keeps the links it had until a
+  smaller revision is saved.
 
-Each list is built for the viewer on every request and only shows pages the viewer may read now, filtered before it is
-cut: the viewer's readable spaces and live pages in SQL, then `View` on the page and every ancestor. Nothing is kept in
-memory between requests (FrankenPHP worker mode).
+Each list is built once per view (`QuickAccess\WikiViewerScope`) and only shows pages of the **current tenant** the
+viewer may read now, filtered before it is cut: the tenant's readable spaces and live pages in SQL, then `View` on the
+page and every ancestor (see [CONFIGURATION](CONFIGURATION.md#favourites-recents-and-backlinks-145)). Nothing is kept
+in memory between requests (FrankenPHP worker mode).
 
 The sidebar sections are native disclosures (`<details open>`, `_quick_access.html.twig`), so they fold without
 JavaScript. Classes for theming: `.nowo-wiki-quick`, `.nowo-wiki-quick__summary`, `.nowo-wiki-quick__link` (the
@@ -1285,7 +1295,8 @@ changed paragraph word by word; inserted text is in `<ins>`, deleted text in `<d
 viewer may not read shows as hidden content, as on the page view) and sanitized with the page's allow-list; the whole
 diff is then sanitized again with the page allow-list plus only the diff markup (`ins`, `div[data-change]`), so no
 revision content can inject script. Versions over the renderer's `max_input_length`, with more than 2000 blocks or
-more than 500 changed blocks get the editor's escaped line diff. A comparison that involves an HTML revision keeps
+more than 500 changed blocks get the editor's escaped line diff; versions with more than 300 top-level blocks
+(each block is rendered for the viewer on its own) keep the wiki's line diff. A comparison that involves an HTML revision keeps
 the line diff. The page loads the editor's read-side styles (`nowo_wiki_rich_content_assets()`).
 
 ## Comments (1.16)

@@ -93,7 +93,7 @@ final class WikiQuickAccessRaceTest extends TestCase
         $this->shortLockTimeout($this->em->getConnection());
 
         try {
-            (new WikiQuickAccessStore($this->runner))->addFavourite($this->page, 'u-1', 10);
+            (new WikiQuickAccessStore($this->runner))->addFavourite($this->page, 'u-1');
             self::fail('Expected the lock conflict.');
         } catch (TransientStorageFailure $failure) {
         } finally {
@@ -123,7 +123,7 @@ final class WikiQuickAccessRaceTest extends TestCase
     {
         $worker = $this->worker('wiki_page_favourites', 1.5);
 
-        $result = (new WikiQuickAccessStore($this->runner))->addFavourite($this->page, 'u-1', 10);
+        $result = (new WikiQuickAccessStore($this->runner))->addFavourite($this->page, 'u-1');
 
         self::assertSame('committed', $this->finish($worker));
         self::assertSame(WikiFavouriteResult::Unchanged, $result);
@@ -135,7 +135,7 @@ final class WikiQuickAccessRaceTest extends TestCase
     {
         $worker = $this->worker('wiki_page_visits', 1.5);
 
-        (new WikiQuickAccessStore($this->runner))->recordVisit($this->page, 'u-1', 10, new DateTimeImmutable('2026-11-19 12:00:00'));
+        (new WikiQuickAccessStore($this->runner))->recordVisit($this->page, 'u-1', 10, 3650, new DateTimeImmutable('2026-11-19 12:00:00'));
 
         self::assertSame('committed', $this->finish($worker));
         self::assertSame(1, $this->rowCount('wiki_page_visits'));

@@ -167,7 +167,10 @@ and your Doctrine listeners still run. Adapted from TaskBoardBundle 2.15.0 / Aut
 With the id mode the bundle never joins your user table: DQL compares the id column, lookups go through the directory
 (each answer re-checked with `===` on `getId()`), every user-keyed result is re-checked with `===` in PHP before any
 limit, erasures select the exact rows first and write by primary key, and the columns compare in binary NO PAD on MySQL
-(`utf8mb4_0900_bin`) and MariaDB (`utf8mb4_nopad_bin`). Rows outlive their user.
+(`utf8mb4_0900_bin`) and MariaDB (`utf8mb4_nopad_bin`). Rows outlive their user. The same holds in both modes for the
+1.45 favourites and recent visits (`user_id`, always a string column): every write selects the person's rows, keeps
+those whose id is `===` the person's, and writes or deletes them by primary key, so a PAD SPACE fallback (`utf8mb4_bin`,
+`alice` = `alice `) never lets one person touch another person's row.
 
 ## Both host kinds, tested
 

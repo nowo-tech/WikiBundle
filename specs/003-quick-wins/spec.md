@@ -100,6 +100,16 @@ the editor's escaped line fallback; HTML revisions keep the line diff.
   the generated schema.
 - **FR-010** Erasure: `wiki:quick-access:erase-user <id>` deletes a person's favourites and visits.
 
+## Review VC and owner decisions (2026-11-19)
+
+- **A.** Lists show only pages of the current tenant (the link picker's tenant port), computed once per view.
+- **B.** `recents.retention_days` (90) on top of `recents.keep`; pruned on write and by `wiki:recents:purge`; visits are
+  personal data, exported and erased with the person.
+- VC-1 hidden favourites never count toward `max` and are removable by id; VC-2 exact ids, writes by primary key, a
+  visit never fails the page; VC-3 erasure always available and part of `wiki:comments:erase-user`; VC-4 resilient,
+  resumable rebuild; VC-5 FK collation in the DDL docs; VC-6 300-block cap of the rendered diff; VC-7 diff navigation
+  attributes; VC-8 limits keep the index; no visit on `HEAD` / prefetch.
+
 ## Out of scope (follow-ups)
 
 - Favourites and recents in the host's Ctrl / ⌘ + K palette (SearchKit provider) — next.

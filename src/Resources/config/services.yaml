@@ -164,6 +164,7 @@ services:
         exclude:
             - '../../Command/WikiBacklinksRebuildCommand.php'
             - '../../Command/WikiQuickAccessEraseUserCommand.php'
+            - '../../Command/WikiRecentsPurgeCommand.php'
         tags: ['console.command']
         bind:
             $enabled: '%nowo_wiki.import_export.enabled%'
@@ -229,6 +230,7 @@ services:
             $quickAccess: '@?Nowo\WikiBundle\QuickAccess\WikiQuickAccess'
             $backlinks: '@?Nowo\WikiBundle\Backlink\WikiBacklinks'
             $renderedDiff: '@?Nowo\WikiBundle\History\WikiRenderedRevisionDiff'
+            $readableSpaces: '@?Nowo\WikiBundle\QuickAccess\WikiReadableSpaces'
 
     Nowo\WikiBundle\Controller\WikiHistoryController:
         public: true
@@ -295,6 +297,7 @@ services:
         arguments:
             $routes: '%nowo_wiki.routes%'
             $quickAccess: '@?Nowo\WikiBundle\QuickAccess\WikiQuickAccess'
+            $readableSpaces: '@?Nowo\WikiBundle\QuickAccess\WikiReadableSpaces'
             $conflicts: '@Nowo\WikiBundle\Transaction\WikiConflictAnswer'
             $translator: '@?translator'
 

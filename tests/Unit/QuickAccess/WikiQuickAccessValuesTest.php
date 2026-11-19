@@ -6,15 +6,19 @@ namespace Nowo\WikiBundle\Tests\Unit\QuickAccess;
 
 use DateTimeImmutable;
 use Nowo\WikiBundle\Command\WikiQuickAccessEraseUserCommand;
+use Nowo\WikiBundle\Command\WikiRecentsPurgeCommand;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageFavourite;
 use Nowo\WikiBundle\Entity\WikiPageReference;
 use Nowo\WikiBundle\Entity\WikiPageVisit;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiCommentAuthorErasedEvent;
 use Nowo\WikiBundle\Form\WikiFavouriteType;
 use Nowo\WikiBundle\QuickAccess\WikiFavouriteResult;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccessErasureListener;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
+use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use PHPUnit\Framework\TestCase;
@@ -82,13 +86,34 @@ final class WikiQuickAccessValuesTest extends TestCase
         $em->persist($page);
         $em->flush();
         $store = new WikiQuickAccessStore(new WikiTransactionRunner($em, backoffBaseMilliseconds: 0));
-        $store->addFavourite($page, 'u-1', 10);
-        $store->recordVisit($page, 'u-1', 10);
+        $store->addFavourite($page, 'u-1');
+        $store->recordVisit($page, 'u-1', 10, 90, new DateTimeImmutable('2020-01-01 10:00:00'));
 
-        $tester = new CommandTester(new WikiQuickAccessEraseUserCommand($store, true, true));
+        $tester = new CommandTester(new WikiQuickAccessEraseUserCommand($store));
+        self::assertSame(Command::SUCCESS, $tester->execute(['user-id' => 'u-1', '--export' => true]));
+        self::assertStringContainsString('"page_id": "' . $page->getId() . '"', $tester->getDisplay());
         self::assertSame(Command::SUCCESS, $tester->execute(['user-id' => 'u-1']));
         self::assertStringContainsString('2 row(s) erased', $tester->getDisplay());
         self::assertSame(Command::INVALID, $tester->execute(['user-id' => '']));
         self::assertSame(Command::INVALID, $tester->execute(['user-id' => str_repeat('x', 129)]));
+
+        // wiki:recents:purge: bounded batches of visits older than the retention.
+        foreach (['u-2', 'u-3', 'u-4'] as $user) {
+            $store->recordVisit($page, $user, 10, 3650, new DateTimeImmutable('2020-01-01 10:00:00'));
+        }
+        $purge = new CommandTester(new WikiRecentsPurgeCommand($store, 90));
+        self::assertSame(Command::SUCCESS, $purge->execute(['--batch-size' => '2', '--max-batches' => '1']));
+        self::assertStringContainsString('2 visit(s) older than 90 day(s) deleted', $purge->getDisplay());
+        self::assertSame(Command::SUCCESS, $purge->execute([]));
+        self::assertStringContainsString('1 visit(s)', $purge->getDisplay());
+        self::assertSame(Command::INVALID, $purge->execute(['--batch-size' => '0']));
+        self::assertSame(Command::INVALID, $purge->execute(['--max-batches' => 'x']));
+
+        // The erasure listener of wiki:comments:erase-user / WikiCommentService::eraseAuthor().
+        $store->addFavourite($page, 'u-5');
+        $listener = new WikiQuickAccessErasureListener($store);
+        $listener->onAuthorErased(new WikiCommentAuthorErasedEvent(new TestUser('u-5'), 0, true));
+        $listener->onAuthorErased(new WikiCommentAuthorErasedEvent(new TestUser(''), 0, true));
+        self::assertFalse($store->isFavourite($page, 'u-5'));
     }
 }

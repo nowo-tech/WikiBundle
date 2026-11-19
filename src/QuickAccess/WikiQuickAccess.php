@@ -4,38 +4,40 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\QuickAccess;
 
+use DateTimeImmutable;
 use Doctrine\DBAL\Exception\RetryableException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Entity\WikiPage;
-use Nowo\WikiBundle\Security\WikiPageVisibility;
-use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\Entity\WikiPageFavourite;
+use Nowo\WikiBundle\Entity\WikiPageVisit;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Throwable;
 
 use function count;
 
 /**
  * 1.45: favourites (`favourites.enabled`) and recently viewed pages (`recents.enabled`) of the person viewing the wiki.
  *
- * Every list is built again for the viewer on every call, in this order, before anything is cut to the shown size:
- *
- * 1. the person: rows of their own id ({@see WikiUserId}: the user's `getId()`; a user without one has no lists);
- * 2. the tenant and spaces: only the spaces the viewer may read now ({@see WikiReadableSpaces}) reach the SQL, and only
- *    live pages (archived and trashed pages are left out by the query);
- * 3. the page: {@see WikiPageVisibility} (View on the page and every ancestor), the page view's own rule.
- *
- * A page the viewer lost access to is therefore never listed, and its row is kept (it shows again if access comes
- * back). Rows read per list are bounded (`favourites.max`, `recents.keep`). Stateless (worker mode).
+ * Every list is built for one view ({@see WikiViewerScope}, computed once per view) before anything is cut to the shown
+ * size: the person's own rows (exact id), only the spaces of the current tenant the viewer may read now (in the SQL),
+ * only live pages (archived and trashed pages are left out by the query), then View on the page and every ancestor.
+ * A page the viewer lost access to is never listed; its row is kept (it shows again if access comes back), never counts
+ * toward `favourites.max` (audit VC-1) and can be removed by its id ({@see self::removeFavouriteById()}). Visits older
+ * than `recents.retention_days` are never listed and are deleted on the next visit and by `wiki:recents:purge`.
+ * Stateless (worker mode).
  */
 final readonly class WikiQuickAccess
 {
+    /** Favourite rows read at most to count the readable ones against `favourites.max`. */
+    public const MAX_FAVOURITE_SCAN = 1000;
+
     /**
      * @param array{enabled: bool, max: int, shown: int} $favourites `favourites` options
-     * @param array{enabled: bool, keep: int, shown: int} $recents `recents` options
+     * @param array{enabled: bool, keep: int, shown: int, retention_days: int} $recents `recents` options
      */
     public function __construct(
         private WikiQuickAccessStore $store,
-        private WikiReadableSpaces $spaces,
         private array $favourites,
         private array $recents,
         private ?LoggerInterface $logger = null,
@@ -53,112 +55,142 @@ final readonly class WikiQuickAccess
     }
 
     /**
-     * The viewer's favourites they may still read, the newest first, at most `favourites.shown`.
+     * The viewer's favourites they may still read in this view's tenant, the newest first, at most `favourites.shown`.
      *
-     * @return list<WikiPage>
+     * @return list<WikiPageFavourite>
      */
-    public function favourites(UserInterface $viewer): array
+    public function favourites(WikiViewerScope $scope): array
     {
-        $userId = WikiUserId::of($viewer);
+        $userId = $scope->userId();
         if (!$this->favourites['enabled'] || $userId === null) {
             return [];
         }
 
-        return $this->readable($viewer, $this->store->favouritePages($userId, $this->spaces->of($viewer), $this->favourites['max']), $this->favourites['shown']);
+        /** @var list<WikiPageFavourite> $rows */
+        $rows = $this->readable($scope, $this->store->favourites($userId, $scope->spaceIds(), self::MAX_FAVOURITE_SCAN), $this->favourites['shown']);
+
+        return $rows;
     }
 
     /**
-     * The pages the viewer opened last and may still read, the last first, without `$current`, at most `recents.shown`.
+     * The pages the viewer opened last and may still read in this view's tenant, the last first, without `$current`,
+     * at most `recents.shown`.
      *
-     * @return list<WikiPage>
+     * @return list<WikiPageVisit>
      */
-    public function recents(UserInterface $viewer, ?WikiPage $current = null): array
+    public function recents(WikiViewerScope $scope, ?WikiPage $current = null, ?DateTimeImmutable $now = null): array
     {
-        $userId = WikiUserId::of($viewer);
+        $userId = $scope->userId();
         if (!$this->recents['enabled'] || $userId === null) {
             return [];
         }
+        $since = ($now ?? new DateTimeImmutable())->modify('-' . $this->recents['retention_days'] . ' days');
 
-        return $this->readable($viewer, $this->store->recentPages($userId, $this->spaces->of($viewer), $this->recents['keep']), $this->recents['shown'], $current);
+        /** @var list<WikiPageVisit> $rows */
+        $rows = $this->readable($scope, $this->store->visits($userId, $scope->spaceIds(), $this->recents['keep'], $since), $this->recents['shown'], $current);
+
+        return $rows;
     }
 
     /** Whether the page is one of the viewer's favourites (false when favourites are off). */
     public function isFavourite(UserInterface $viewer, WikiPage $page): bool
     {
-        $userId = WikiUserId::of($viewer);
+        $userId = WikiViewerScope::idOf($viewer);
 
         return $this->favourites['enabled'] && $userId !== null && $this->store->isFavourite($page, $userId);
     }
 
-    /** Whether the viewer can keep favourites at all (favourites on, a user with an id). */
+    /** Whether the viewer can keep favourites at all (favourites on, a user with a valid id). */
     public function canKeepFavourites(UserInterface $viewer): bool
     {
-        return $this->favourites['enabled'] && WikiUserId::of($viewer) !== null;
+        return $this->favourites['enabled'] && WikiViewerScope::idOf($viewer) !== null;
     }
 
     /**
      * Adds the page to, or removes it from, the viewer's favourites. The caller has checked that the viewer may read
-     * the page. Lock conflicts propagate (the route answers 409 + CONFLICT_001 / CONFLICT_002).
+     * the page. Only the favourites the viewer can still read in this tenant count toward `favourites.max` (audit
+     * VC-1): hidden ones never block an add, and the refusal says nothing about them. Lock conflicts propagate (the route
+     * answers 409 + CONFLICT_001 / CONFLICT_002).
      */
-    public function setFavourite(UserInterface $viewer, WikiPage $page, bool $favourite): WikiFavouriteResult
+    public function setFavourite(WikiViewerScope $scope, WikiPage $page, bool $favourite): WikiFavouriteResult
     {
-        $userId = WikiUserId::of($viewer);
+        $userId = $scope->userId();
         if (!$this->favourites['enabled'] || $userId === null) {
             return WikiFavouriteResult::Unchanged;
         }
-
-        if ($favourite) {
+        if (!$favourite) {
             // @igor-ignore - a write to the database through a stateless service (rows, not service state); nothing is kept between requests.
-            return $this->store->addFavourite($page, $userId, $this->favourites['max']);
+            return $this->store->removeFavourite($page, $userId);
+        }
+        if ($this->store->isFavourite($page, $userId)) {
+            return WikiFavouriteResult::Unchanged;
+        }
+        $visible = $this->readable($scope, $this->store->favourites($userId, $scope->spaceIds(), self::MAX_FAVOURITE_SCAN), $this->favourites['max']);
+        if (count($visible) >= $this->favourites['max']) {
+            return WikiFavouriteResult::LimitReached;
         }
 
         // @igor-ignore - a write to the database through a stateless service (rows, not service state); nothing is kept between requests.
-        return $this->store->removeFavourite($page, $userId);
+        return $this->store->addFavourite($page, $userId);
     }
 
     /**
-     * Records that the viewer opened the page (recents on). Best effort: the page view is a read, so a lock conflict
-     * of this bookkeeping is logged and the page is shown anyway (the visit is recorded on the next one), unless the
-     * caller had a transaction open (then it propagates).
+     * Removes one of the viewer's favourites by its id, whatever its page (audit VC-1). The same outcome whether the
+     * row existed, belonged to someone else or never existed, so the call reveals nothing.
+     */
+    public function removeFavouriteById(UserInterface $viewer, string $favouriteId): void
+    {
+        $userId = WikiViewerScope::idOf($viewer);
+        if ($this->favourites['enabled'] && $userId !== null) {
+            // @igor-ignore - a write to the database through a stateless service (rows, not service state); nothing is kept between requests.
+            $this->store->removeFavouriteById($favouriteId, $userId);
+        }
+    }
+
+    /**
+     * Records that the viewer opened the page (recents on). Best effort, never a 500 (audit VC-2): the page view is a
+     * read, so any failure of this bookkeeping is logged and the page is shown anyway (the visit is recorded on the next
+     * one), except a lock conflict inside a transaction the caller had open: it may have rolled back the caller's work
+     * too, so it propagates.
      */
     public function recordVisit(UserInterface $viewer, WikiPage $page): void
     {
-        $userId = WikiUserId::of($viewer);
+        $userId = WikiViewerScope::idOf($viewer);
         if (!$this->recents['enabled'] || $userId === null) {
             return;
         }
 
-        // Inside a transaction the caller opened, a lock conflict may have rolled back the caller's work too: it is not
-        // ours to hide, so it propagates.
         $nested = $this->store->inTransaction();
         try {
-            $this->store->recordVisit($page, $userId, $this->recents['keep']);
+            // @igor-ignore - a write to the database through a stateless service (rows, not service state); nothing is kept between requests.
+            $this->store->recordVisit($page, $userId, $this->recents['keep'], $this->recents['retention_days']);
         } catch (TransientStorageFailure|RetryableException $failure) {
             if ($nested) {
                 throw $failure;
             }
             $this->logger?->warning('Wiki: a page visit was not recorded (lock conflict); the recents list catches up on the next visit.', ['bundle' => 'nowo_wiki', 'exception_class' => $failure::class]);
+        } catch (Throwable $failure) {
+            $this->logger?->error('Wiki: a page visit was not recorded.', ['bundle' => 'nowo_wiki', 'exception_class' => $failure::class]);
         }
     }
 
     /**
-     * @param list<WikiPage> $pages
+     * @param list<WikiPageFavourite|WikiPageVisit> $rows
      *
-     * @return list<WikiPage>
+     * @return list<WikiPageFavourite|WikiPageVisit>
      */
-    private function readable(UserInterface $viewer, array $pages, int $shown, ?WikiPage $current = null): array
+    private function readable(WikiViewerScope $scope, array $rows, int $shown, ?WikiPage $current = null): array
     {
-        $readable  = [];
-        $decisions = [];
-        foreach ($pages as $page) {
+        $readable = [];
+        foreach ($rows as $row) {
             if (count($readable) >= $shown) {
                 break;
             }
-            if (($current instanceof WikiPage && $page->getId() === $current->getId())
-                || !WikiPageVisibility::isReadable($this->spaces->checker(), $viewer, $page->getSpace(), $page, $decisions)) {
+            $page = $row->getPage();
+            if (($current instanceof WikiPage && $page->getId() === $current->getId()) || !$scope->canRead($page)) {
                 continue;
             }
-            $readable[] = $page;
+            $readable[] = $row;
         }
 
         return $readable;

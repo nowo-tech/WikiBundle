@@ -421,6 +421,7 @@ nowo_wiki:
         enabled: true     # literal boolean; off = nothing recorded, no section, no table
         keep: 20          # visits kept per person (1–200); each visit deletes the older ones
         shown: 8          # listed in the sidebar section (1–100), last opened first, current page left out
+        retention_days: 90  # visits older than this are never listed and are deleted (1–3650)
     backlinks:
         enabled: true     # literal boolean; off = no section, no index, no table
         limit: 20         # linking pages listed at most (1–200)
@@ -435,22 +436,41 @@ nowo_wiki:
 | `recents.enabled` | `false` | A **Recently viewed** section above the page tree; every page view records the visit. Table `<prefix>_page_visits` |
 | `recents.keep` | 20 | Visits kept per person (the bound of the table) |
 | `recents.shown` | 8 | Rows of the sidebar section |
+| `recents.retention_days` | 90 | Visits older than this are never listed, are deleted on the person's next visit and by `bin/console wiki:recents:purge` (bounded batches; run it daily). Owner decision B |
 | `backlinks.enabled` | `false` | **Linked from** after the page body (block `wiki_page_backlinks`); the reference index `<prefix>_page_references` is written after every save. Run `bin/console wiki:backlinks:rebuild` once after turning it on |
 | `backlinks.limit` | 20 | Linking pages listed |
 | `backlinks.candidates` | 200 | Index rows read per page view to find them (the bound of the per-viewer scan) |
 | `routes.page_favourite` | `…/pages/{pageSlug}/favourite` | The favourite toggle (POST; registered only with `favourites.enabled`) |
+| `routes.favourite_remove` | `/tools/wiki/favourites/{favouriteId}/remove` | Removes one of the person's favourites by its id, whatever its page (POST + CSRF token id `wiki_favourite_remove`; the same answer whether the row exists or not; registered only with `favourites.enabled`) |
 
-**Who sees what.** Favourites and visits belong to one person: the user's `getId()` as a string (a user without an
-id gets no button and no list). Every list is filtered for the viewer on every request, before it is cut: only the
-spaces the viewer may read now reach the SQL (the role gate `list`, the tenant / team resolver, `View` on the space),
-only live pages (archived and trashed pages are left out), then `View` on the page and every ancestor (the page view's
-rule). A page the viewer lost access to is never listed; its row stays, and the page shows again if access comes back.
-The same rules decide *Linked from*: a source page the viewer may not read is never listed or counted. Pages that list
-them are sent with `Cache-Control: private, no-store`.
+**Who sees what.** Favourites and visits belong to one person: the user's `getId()` as a string, when it is a valid
+stored id (`WikiStoredUserRef::isValid()`: 1 to 128 printable characters; any other user gets no button and no list).
+Every list is built once per view and filtered before it is cut:
 
-**Personal data.** The rows keep the user id without a foreign key (they outlive an account). Erase a person's
-favourites and visits with `bin/console wiki:quick-access:erase-user <id>` (or `QuickAccess\WikiQuickAccessStore::eraseUser()`
-from your own erasure flow). The backlink index holds no personal data.
+- **the current tenant only** (owner decision A): the spaces with the same tenant key as the space being viewed, from
+  the link picker's tenant port `LinkPicker\WikiLinkTenantResolverInterface` (`tenant_paths` rows by default; alias it
+  to your organisation resolver, as for the link picker). A space without a tenant key keeps the lists to itself;
+- of those, only the spaces the viewer may read now reach the SQL (the role gate `list`, the tenant / team resolver,
+  `View` on the space), and only live pages (archived and trashed pages are left out);
+- then `View` on the page and every ancestor (the page view's rule).
+
+A page the viewer lost access to is never listed; its row stays, and the page shows again if access comes back. Only
+the favourites the viewer can still read in this tenant count toward `favourites.max`; a hidden one never blocks an add,
+and the refusal says nothing about it. The same scope decides *Linked from*. The links are the router's, so with
+`tenant_paths` they are each tenant's own routes. Pages that list them are sent with `Cache-Control: private, no-store`.
+
+**Visits.** A visit is recorded server-side by the page view (`GET`), never for a `HEAD` request or a browser prefetch
+or prerender (`Sec-Purpose: prefetch`, `Purpose: prefetch`, `X-Moz: prefetch`, `X-Purpose: preview`). Remaining
+limits: a link checker or a bot signed in as a person, and a reload, count as visits; the edit form and the history do
+not record one. A failure of this bookkeeping never fails the page (it is logged).
+
+**Personal data.** Favourites and recent visits are personal data (which pages a person reads, and when). The rows keep
+the user id without a foreign key (they outlive an account); visits are kept at most `recents.retention_days`.
+`bin/console wiki:comments:erase-user <user>` (the wiki's person erasure) exports (`--export`, key `quick_access`) and
+erases them with the person's comments and actor labels, and so does `WikiCommentService::eraseAuthor()` (through
+`nowo_wiki.comment.author_erased`); `bin/console wiki:quick-access:erase-user <id> [--export]` does only these rows.
+Both are always available and act on every table of the two that exists, whatever the switches say now. The backlink
+index holds no personal data.
 
 ## Comments (1.16)
 

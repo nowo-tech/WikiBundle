@@ -15,7 +15,9 @@ use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\DependencyInjection\Configuration;
 use Nowo\WikiBundle\Dto\WikiPageFormData;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageFavourite;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Entity\WikiPageVisit;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
@@ -44,6 +46,8 @@ use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
+use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
+use Nowo\WikiBundle\QuickAccess\WikiViewerScope;
 use Nowo\WikiBundle\Repository\WikiPageChildrenFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -119,8 +123,10 @@ use function in_array;
 use function is_string;
 use function max;
 use function min;
+use function str_contains;
 use function str_repeat;
 use function strlen;
+use function strtolower;
 use function substr;
 
 use const PHP_INT_MAX;
@@ -192,6 +198,7 @@ final class WikiManageController extends AbstractController
      * @param bool $treeContextMenu 1.39 `tree.context_menu`: the page tree's context menu
      * @param WikiQuickAccess|null $quickAccess 1.45: favourites and recents (`favourites.enabled` / `recents.enabled`; null = off)
      * @param WikiBacklinks|null $backlinks 1.45: the "Linked from" list (`backlinks.enabled`; null = off)
+     * @param WikiReadableSpaces|null $readableSpaces 1.45: the per-view scope of those lists (null = all three off)
      * @param WikiRenderedRevisionDiff|null $renderedDiff 1.45: the rendered Compare (`history.rendered_diff`; null = the line diff)
      */
     public function __construct(
@@ -244,6 +251,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiQuickAccess $quickAccess = null,
         private readonly ?WikiBacklinks $backlinks = null,
         private readonly ?WikiRenderedRevisionDiff $renderedDiff = null,
+        private readonly ?WikiReadableSpaces $readableSpaces = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -342,7 +350,7 @@ final class WikiManageController extends AbstractController
             $vars['tree_rail'] = $this->treeRail->rail($this->currentRequest(), $user, $space);
         }
         // 1.45: the viewer's favourites and recently viewed pages above the tree.
-        $quick = $this->quickAccessVars($user, null);
+        $quick = $this->quickAccessVars($this->viewerScope($user, $space), null);
         if ($quick !== null) {
             $vars['quick_access'] = $quick;
         }
@@ -411,8 +419,13 @@ final class WikiManageController extends AbstractController
                 WikiTrashController::deleteTokenId($item),
             ])[0]
             : null;
-        // 1.45 (recents.enabled): the visit, before the lists are read (best effort, see WikiQuickAccess::recordVisit()).
-        $this->quickAccess?->recordVisit($user, $page);
+        // 1.45 (recents.enabled): the visit, before the lists are read (best effort, see WikiQuickAccess::recordVisit()),
+        // never for a HEAD request or a browser prefetch (the person did not open the page).
+        if (!self::isPrefetch($this->currentRequest())) {
+            $this->quickAccess?->recordVisit($user, $page);
+        }
+        // 1.45 (audit VC-9): one scope (the current tenant's readable spaces) for every per-viewer list of this view.
+        $scope = $this->viewerScope($user, $space);
         // 1.45 (favourites.enabled): Add to / Remove from favourites in the page actions.
         $favourite = $this->favouriteAction($user, $space, $page);
         $pages     = $this->pages();
@@ -425,7 +438,7 @@ final class WikiManageController extends AbstractController
         // The sidebar tree, its rail and the in-wiki path (shared with the edit form's read layout, 1.33).
         // 1.35 (web_ui.new_page_dialog): "New page" in the page actions opens the dialog; the tree gets its menu.
         $dialog = $this->newPageDialog($user, $space);
-        $vars   = $this->readLayoutVars($user, $space, $page, $dialog !== null, true);
+        $vars   = $this->readLayoutVars($user, $space, $page, $dialog !== null, true, $scope);
         if ($dialog !== null) {
             $vars['new_page_dialog'] = $dialog;
             $can['new_page_dialog']  = true;
@@ -499,13 +512,13 @@ final class WikiManageController extends AbstractController
         }
 
         // 1.45 (backlinks.enabled): "Linked from", the readable pages whose current revision links this one.
-        if ($this->backlinks instanceof WikiBacklinks) {
+        if ($this->backlinks instanceof WikiBacklinks && $scope instanceof WikiViewerScope) {
             $vars['backlinks'] = array_map(fn (WikiPage $source): array => [
                 'title' => $source->getTitle(),
                 'icon'  => $source->getIcon(),
                 'space' => $source->getSpace()->getId() === $space->getId() ? null : $source->getSpace()->getName(),
                 'href'  => $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $source->getSpace()->getSlug(), 'pageSlug' => $source->getSlug()]),
-            ], $this->backlinks->sources($user, $page));
+            ], $this->backlinks->sources($scope, $page));
         }
 
         return $this->renderPage('page_view', $vars + [
@@ -2195,7 +2208,7 @@ final class WikiManageController extends AbstractController
      *
      * @return array<string, mixed>
      */
-    private function readLayoutVars(UserInterface $user, WikiSpace $space, WikiPage $page, bool $newPageMenu = false, bool $pageView = false): array
+    private function readLayoutVars(UserInterface $user, WikiSpace $space, WikiPage $page, bool $newPageMenu = false, bool $pageView = false, ?WikiViewerScope $scope = null): array
     {
         [$tree, $truncated] = $this->buildTree($user, $space);
         $nodes              = $this->pages()->tree($space, $tree, $page->getSlug());
@@ -2226,7 +2239,7 @@ final class WikiManageController extends AbstractController
             $vars['page_path'] = $this->pagePath($user, $space, $page);
         }
         // 1.45: the viewer's favourites and recently viewed pages above the tree (the current page is not a "recent").
-        $quick = $this->quickAccessVars($user, $page);
+        $quick = $this->quickAccessVars($scope ?? $this->viewerScope($user, $space), $page);
         if ($quick !== null) {
             $vars['quick_access'] = $quick;
         }
@@ -2240,28 +2253,59 @@ final class WikiManageController extends AbstractController
     }
 
     /**
-     * 1.45: the sidebar's Favourites and Recently viewed sections of the viewer ({@see WikiQuickAccess}: filtered for the
-     * viewer before they are cut), each item `{title, icon, href, space, current}`; null when both features are off.
-     *
-     * @return array{favourites: list<array{title: string, icon: string|null, href: string, space: string, current: bool}>|null, recents: list<array{title: string, icon: string|null, href: string, space: string, current: bool}>|null}|null
+     * 1.45 (audit VC-9): the scope of the per-viewer lists of one view (the current tenant's readable spaces), or null
+     * when favourites, recents and backlinks are all off.
      */
-    private function quickAccessVars(UserInterface $user, ?WikiPage $current): ?array
+    private function viewerScope(UserInterface $user, WikiSpace $space): ?WikiViewerScope
+    {
+        return $this->readableSpaces?->forView($user, $space);
+    }
+
+    /**
+     * 1.45: a HEAD request or a browser prefetch / prerender (`Sec-Purpose: prefetch`, `Purpose: prefetch`,
+     * `X-Moz: prefetch`, `X-Purpose: preview`) is not a visit.
+     */
+    private static function isPrefetch(?Request $request): bool
+    {
+        if (!$request instanceof Request || $request->isMethod('HEAD')) {
+            return $request instanceof Request;
+        }
+        foreach (['Sec-Purpose', 'Purpose', 'X-Moz', 'X-Purpose'] as $header) {
+            $value = strtolower((string) $request->headers->get($header, ''));
+            if (str_contains($value, 'prefetch') || str_contains($value, 'preview')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 1.45: the sidebar's Favourites and Recently viewed sections of the viewer ({@see WikiQuickAccess}: filtered for the
+     * view's scope before they are cut), each item `{id, title, icon, href, space, current}` (`id`: the favourite's id,
+     * for its removal; null for a recent); null when both features are off. The links are the router's: with
+     * `tenant_paths` they are each tenant's own routes.
+     *
+     * @return array{favourites: list<array{id: string|null, title: string, icon: string|null, href: string, space: string, current: bool}>|null, recents: list<array{id: string|null, title: string, icon: string|null, href: string, space: string, current: bool}>|null}|null
+     */
+    private function quickAccessVars(?WikiViewerScope $scope, ?WikiPage $current): ?array
     {
         $quick = $this->quickAccess;
-        if (!$quick instanceof WikiQuickAccess || !isset($this->routes['page_view'])) {
+        if (!$quick instanceof WikiQuickAccess || !$scope instanceof WikiViewerScope || !isset($this->routes['page_view'])) {
             return null;
         }
-        $items = fn (array $list): array => array_values(array_map(fn (WikiPage $item): array => [
-            'title'   => $item->getTitle(),
-            'icon'    => $item->getIcon(),
-            'href'    => $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $item->getSpace()->getSlug(), 'pageSlug' => $item->getSlug()]),
-            'space'   => $item->getSpace()->getName(),
-            'current' => $current instanceof WikiPage && $item->getId() === $current->getId(),
-        ], $list));
+        $items = fn (array $rows, bool $favourites): array => array_values(array_map(fn (WikiPageFavourite|WikiPageVisit $row): array => [
+            'id'      => $favourites ? $row->getId() : null,
+            'title'   => $row->getPage()->getTitle(),
+            'icon'    => $row->getPage()->getIcon(),
+            'href'    => $this->generateUrl($this->routes['page_view']['name'], ['spaceSlug' => $row->getPage()->getSpace()->getSlug(), 'pageSlug' => $row->getPage()->getSlug()]),
+            'space'   => $row->getPage()->getSpace()->getName(),
+            'current' => $current instanceof WikiPage && $row->getPage()->getId() === $current->getId(),
+        ], $rows));
 
         return [
-            'favourites' => $quick->favouritesEnabled() ? $items($quick->favourites($user)) : null,
-            'recents'    => $quick->recentsEnabled() ? $items($quick->recents($user, $current)) : null,
+            'favourites' => $quick->favouritesEnabled() ? $items($quick->favourites($scope), true) : null,
+            'recents'    => $quick->recentsEnabled() ? $items($quick->recents($scope, $current), false) : null,
         ];
     }
 

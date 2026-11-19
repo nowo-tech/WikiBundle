@@ -16,8 +16,12 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\LinkPicker\WikiLinkTenantResolverInterface;
+use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownReferenceExtractor;
+use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
+use Nowo\WikiBundle\QuickAccess\WikiViewerScope;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Service\WikiPageService;
@@ -28,6 +32,7 @@ use Nowo\WikiBundle\Tests\Support\LoadReadinessFactory;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
+use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -36,9 +41,11 @@ use Symfony\Component\EventDispatcher\EventDispatcher;
 use function array_map;
 use function count;
 use function in_array;
+use function preg_replace;
 use function range;
 use function sort;
 use function sprintf;
+use function str_contains;
 
 /**
  * 1.45 (`backlinks.enabled`): the backlink index ({@see WikiPageReferenceIndex}, written after every save by
@@ -129,13 +136,13 @@ final class WikiBacklinksTest extends TestCase
         $this->em->flush();
         $this->hidden = ['hidden-parent'];
 
-        self::assertSame(['alpha', 'Ops source', 'Zulu'], $this->titles($this->backlinks()->sources($this->author, $target)));
+        self::assertSame(['alpha', 'Ops source', 'Zulu'], $this->titles($this->backlinks()->sources($this->scope(), $target)));
         // The limit counts readable sources only.
-        self::assertCount(2, $this->backlinks(limit: 2)->sources($this->author, $target));
+        self::assertCount(2, $this->backlinks(limit: 2)->sources($this->scope(), $target));
         // The candidate bound: only so many index rows are read.
-        self::assertLessThanOrEqual(1, count($this->backlinks(candidates: 1)->sources($this->author, $target)));
+        self::assertLessThanOrEqual(1, count($this->backlinks(candidates: 1)->sources($this->scope(), $target)));
         // No readable space: nothing.
-        self::assertSame([], $this->backlinks(canList: false)->sources($this->author, $target));
+        self::assertSame([], $this->backlinks()->sources($this->scope(canList: false), $target));
     }
 
     public function testTheScanReadsSeveralBatches(): void
@@ -149,7 +156,7 @@ final class WikiBacklinksTest extends TestCase
         $this->hidden = array_map(static fn (int $i): string => 'hidden-' . $i, range(0, 104));
 
         // 106 rows: a full batch of 100, then the rest; the hidden ones are read but never listed.
-        self::assertSame(['Visible'], $this->titles($this->backlinks(candidates: 500)->sources($this->author, $target)));
+        self::assertSame(['Visible'], $this->titles($this->backlinks(candidates: 500)->sources($this->scope(), $target)));
     }
 
     public function testTheRebuildCommandIndexesEveryPage(): void
@@ -166,6 +173,60 @@ final class WikiBacklinksTest extends TestCase
 
         self::assertSame(Command::INVALID, $tester->execute(['--batch-size' => '0']));
         self::assertSame(Command::INVALID, $tester->execute(['--batch-size' => 'x']));
+    }
+
+    /** Audit VC-8: a revision over the renderer's limits keeps the links the index had. */
+    public function testARevisionOverTheLimitsKeepsItsLinks(): void
+    {
+        $target  = $this->page($this->eng, 'Target', 'nothing');
+        $source  = $this->page($this->eng, 'Source', sprintf('[[wiki:%s]]', $target->getId()));
+        $limited = new class implements WikiMarkdownRendererInterface, WikiMarkdownLimitsInterface {
+            public function render(string $markdown): string
+            {
+                return '';
+            }
+
+            public function exceedsLimits(string $markdown): bool
+            {
+                return str_contains($markdown, 'HUGE');
+            }
+        };
+        $index = new WikiPageReferenceIndex($this->runner, new WikiMarkdownReferenceExtractor(), $limited);
+        // Written behind the listener's back, so only this index (with the limits) reads it.
+        $huge = new WikiPageRevision($source, 9, '', $this->author, 'HUGE without links');
+        $this->em->persist($huge);
+        $source->setCurrentRevision($huge);
+        $this->em->flush();
+        self::assertTrue($index->reindex($source->getId()));
+        self::assertSame([$target->getId()], $this->targets($source));
+        $this->pages->saveRevision($source, 'Source', 'small without links', $this->author, WikiPageRevision::FORMAT_MARKDOWN);
+        self::assertTrue($index->reindex($source->getId()));
+        self::assertSame([], $this->targets($source));
+    }
+
+    /** Audit VC-4 (simulated on SQLite): a page that keeps meeting a lock conflict is retried, logged, skipped; FAILURE. */
+    public function testTheRebuildRetriesSkipsAndResumes(): void
+    {
+        if (WikiTestDatabase::isServer()) {
+            self::markTestSkipped('SQLite simulation.');
+        }
+        $target = $this->page($this->eng, 'Target', 'nothing');
+        $source = $this->page($this->eng, 'Source', sprintf('[[wiki:%s]]', $target->getId()));
+        $this->em->getConnection()->executeStatement('DELETE FROM wiki_page_references');
+        $this->em->getConnection()->executeStatement("CREATE TRIGGER wk_ref_locked BEFORE INSERT ON wiki_page_references BEGIN SELECT RAISE(ABORT, 'database is locked'); END");
+        $logger = new RecordingLogger();
+
+        $tester = new CommandTester(new WikiBacklinksRebuildCommand($this->index, $logger, 0));
+        self::assertSame(Command::FAILURE, $tester->execute([]));
+        self::assertStringContainsString('1 skipped after lock conflicts: ' . $source->getId(), (string) preg_replace('/\s+/', ' ', $tester->getDisplay()));
+        self::assertStringContainsString('skipped a page after lock conflicts', $logger->lines()[0] ?? '');
+
+        $this->em->getConnection()->executeStatement('DROP TRIGGER wk_ref_locked');
+        $ids = [$target->getId(), $source->getId()];
+        sort($ids);
+        self::assertSame(Command::SUCCESS, $tester->execute(['--after' => '0']));
+        self::assertStringContainsString('2 page(s) indexed (last page id ' . $ids[1] . ')', (string) preg_replace('/\s+/', ' ', $tester->getDisplay()));
+        self::assertSame([$target->getId()], $this->targets($source));
     }
 
     /** A lock conflict of the index write (simulated on SQLite): logged; inside a caller's transaction it propagates. */
@@ -199,15 +260,27 @@ final class WikiBacklinksTest extends TestCase
         }
     }
 
-    private function backlinks(int $limit = 20, int $candidates = 200, bool $canList = true): WikiBacklinks
+    private function backlinks(int $limit = 20, int $candidates = 200): WikiBacklinks
+    {
+        return new WikiBacklinks($this->runner, $limit, $candidates);
+    }
+
+    /** The view's scope: Engineering and Operations (one tenant), never the other tenant's space. */
+    private function scope(bool $canList = true): WikiViewerScope
     {
         $roles = $this->createStub(WikiAccessCheckerInterface::class);
         $roles->method('canList')->willReturn($canList);
         $resolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
-        $resolver->method('listSpacesForUser')->willReturn([$this->eng, $this->ops]);
+        $resolver->method('listSpacesForUser')->willReturn([$this->eng, $this->ops, $this->other]);
         $checker = new CallbackSpaceAccessChecker(fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => $action === WikiAction::View && (!$page instanceof WikiPage || !in_array($page->getSlug(), $this->hidden, true)));
+        $tenants = new class implements WikiLinkTenantResolverInterface {
+            public function tenantOf(WikiSpaceSnapshot $space): string
+            {
+                return $space->slug === 'other' ? 'tenant-9' : 'tenant-1';
+            }
+        };
 
-        return new WikiBacklinks($this->runner, new WikiReadableSpaces($roles, $resolver, $checker), $limit, $candidates);
+        return (new WikiReadableSpaces($roles, $resolver, $checker, $tenants))->forView($this->author, $this->eng);
     }
 
     private function page(WikiSpace $space, string $title, string $markdown, ?WikiPage $parent = null): WikiPage

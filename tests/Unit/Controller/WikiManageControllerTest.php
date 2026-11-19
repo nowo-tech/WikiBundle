@@ -49,6 +49,7 @@ use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
 use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\LinkPicker\WikiTenantPathsLinkTenantResolver;
 use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
@@ -973,7 +974,7 @@ final class WikiManageControllerTest extends TestCase
         foreach ([$space, $ops, $page, $other, $linker, $nearby] as $entity) {
             $em->persist($entity);
         }
-        foreach ([$page, $other] as $item) {
+        foreach ([$page, $other, $nearby] as $item) {
             $revision = new WikiPageRevision($item, 1, '<p>Hi</p>', null);
             $em->persist($revision);
             $item->setCurrentRevision($revision);
@@ -986,14 +987,28 @@ final class WikiManageControllerTest extends TestCase
         $runner  = new WikiTransactionRunner($em, backoffBaseMilliseconds: 0);
         $checker = CallbackSpaceAccessChecker::allowing(...WikiAction::cases());
         $roles   = $this->createConfiguredStub(WikiAccessCheckerInterface::class, ['canAccess' => true, 'canList' => true, 'canEdit' => true, 'canViewHistory' => true, 'canArchive' => false, 'canCreate' => false]);
-        $spaces  = new WikiReadableSpaces($roles, $resolver, $checker);
-        $quick   = new WikiQuickAccess(new WikiQuickAccessStore($runner), $spaces, ['enabled' => true, 'max' => 10, 'shown' => 5], ['enabled' => true, 'keep' => 10, 'shown' => 5]);
-        $quick->setFavourite($user, $other, true);
+        $spaces  = new WikiReadableSpaces($roles, $resolver, $checker, new WikiTenantPathsLinkTenantResolver());
+        $quick   = new WikiQuickAccess(new WikiQuickAccessStore($runner), ['enabled' => true, 'max' => 10, 'shown' => 5], ['enabled' => true, 'keep' => 10, 'shown' => 5, 'retention_days' => 90]);
+        $quick->setFavourite($spaces->forView($user, $space), $other, true);
         $this->routes['page_favourite'] = ['path' => '/fav', 'name' => 'nowo_wiki_page_favourite'];
         $twig                           = $this->capturingTwig();
-        $controller                     = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick, backlinks: new WikiBacklinks($runner, $spaces));
-        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller                     = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick, backlinks: new WikiBacklinks($runner), readableSpaces: $spaces);
+        $container                      = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
 
+        // A HEAD request and a prefetch are not visits.
+        $stack = $container->get('request_stack');
+        $head  = Request::create('/x', 'HEAD');
+        $head->setSession($stack->getMainRequest()->getSession());
+        $stack->push($head);
+        $controller->viewPage('eng', 'nearby');
+        $stack->pop();
+        $prefetch = Request::create('/x');
+        $prefetch->headers->set('Sec-Purpose', 'prefetch;prerender');
+        $prefetch->setSession($stack->getMainRequest()->getSession());
+        $stack->push($prefetch);
+        $controller->viewPage('eng', 'nearby');
+        $stack->pop();
+        self::assertSame(0, (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM wiki_page_visits'));
         $controller->viewPage('eng', 'other');
         $response = $controller->viewPage('eng', 'welcome');
 
@@ -1024,14 +1039,16 @@ final class WikiManageControllerTest extends TestCase
 
         // Without the favourite route, or for a user without an id, no toggle.
         unset($this->routes['page_favourite']);
-        $controller = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick);
+        $controller = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick, readableSpaces: $spaces);
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $controller->viewPage('eng', 'welcome');
         self::assertSame([], array_filter($twig->context['page']->header->actions, static fn (Action $action): bool => ($action->attributes['data-testid'] ?? null) === 'wiki-favourite'));
         self::assertArrayNotHasKey('backlinks', $twig->context);
         unset($this->routes['page_view']);
-        $controller = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick);
-        self::assertNull((fn (): ?array => $this->quickAccessVars($user, null))->call($controller));
+        $controller = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick, readableSpaces: $spaces);
+        self::assertNull((fn (): ?array => $this->quickAccessVars($spaces->forView($user, $space), null))->call($controller));
+        self::assertNull((fn (): ?array => $this->quickAccessVars(null, null))->call($controller));
+        self::assertFalse((fn (): bool => self::isPrefetch(null))->call($controller));
     }
 
     /** 1.45 (history.rendered_diff): two Markdown revisions get the rendered diff; an HTML one keeps the line diff. */
@@ -2861,6 +2878,7 @@ MD);
         ?WikiQuickAccess $quickAccess = null,
         ?WikiBacklinks $backlinks = null,
         ?WikiRenderedRevisionDiff $renderedDiff = null,
+        ?WikiReadableSpaces $readableSpaces = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -2916,6 +2934,7 @@ MD);
             quickAccess: $quickAccess,
             backlinks: $backlinks,
             renderedDiff: $renderedDiff,
+            readableSpaces: $readableSpaces,
         );
     }
 

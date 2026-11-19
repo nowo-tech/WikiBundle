@@ -348,6 +348,7 @@ wiki:
     remove: "Aus Favoriten entfernen"
     added: "„%title%“ wurde zu deinen Favoriten hinzugefügt."
     removed: "„%title%“ wurde aus deinen Favoriten entfernt."
+    removed_one: "Der Favorit wurde entfernt."
     limit_reached: "Du hast bereits die maximale Anzahl an Favoriten. Entferne zuerst einen."
   recents:
     title: "Zuletzt angesehen"

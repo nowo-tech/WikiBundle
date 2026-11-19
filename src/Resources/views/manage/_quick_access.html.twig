@@ -17,7 +17,7 @@
                 <summary class="nowo-wiki-quick__summary nowo-wiki-region-title">{{ ('wiki.' ~ _key ~ '.title')|trans }}</summary>
                 <ul class="nowo-wiki-quick__list">
                     {% for _item in _items %}
-                        <li class="nowo-wiki-quick__item">
+                        <li class="nowo-wiki-quick__item"{% if _item.id|default(null) %} data-wiki-favourite-id="{{ _item.id }}"{% endif %}>
                             <a class="nowo-wiki-quick__link" href="{{ _item.href }}" title="{{ _item.space }}"{% if _item.current %} aria-current="page"{% endif %}>{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: _item.icon, fallback: 'book'}, false) }}<span class="nowo-wiki-quick__label">{{ _item.title }}</span></a>
                         </li>
                     {% endfor %}

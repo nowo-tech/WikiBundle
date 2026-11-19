@@ -10,11 +10,15 @@ use Nowo\WikiBundle\Backlink\WikiPageReferenceIndex;
 use Nowo\WikiBundle\Backlink\WikiPageReferenceListener;
 use Nowo\WikiBundle\Command\WikiBacklinksRebuildCommand;
 use Nowo\WikiBundle\Command\WikiQuickAccessEraseUserCommand;
+use Nowo\WikiBundle\Command\WikiRecentsPurgeCommand;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\History\WikiRenderedRevisionDiff;
+use Nowo\WikiBundle\LinkPicker\WikiLinkTenantResolverInterface;
+use Nowo\WikiBundle\LinkPicker\WikiTenantPathsLinkTenantResolver;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccessErasureListener;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
 use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
 use Nowo\WikiBundle\Transaction\WikiConflictAnswer;
@@ -35,11 +39,18 @@ final class WikiExtensionQuickAccessTest extends TestCase
         /** @var array<string, mixed> $routes */
         $routes = $container->getParameter('nowo_wiki.routes');
         self::assertArrayNotHasKey('page_favourite', $routes);
-        foreach ([WikiQuickAccess::class, WikiQuickAccessStore::class, WikiReadableSpaces::class, WikiBacklinks::class, WikiPageReferenceIndex::class, WikiPageReferenceListener::class, WikiRenderedRevisionDiff::class, WikiQuickAccessEraseUserCommand::class, WikiBacklinksRebuildCommand::class] as $id) {
+        foreach ([WikiQuickAccess::class, WikiReadableSpaces::class, WikiBacklinks::class, WikiPageReferenceIndex::class, WikiPageReferenceListener::class, WikiRenderedRevisionDiff::class, WikiBacklinksRebuildCommand::class] as $id) {
             // An excluded class may stay as an abstract `container.excluded` definition (never a service).
             self::assertTrue(!$container->hasDefinition($id) || $container->getDefinition($id)->hasTag('container.excluded'), $id);
         }
         self::assertTrue($container->hasDefinition(WikiConflictAnswer::class));
+        // Audit VC-3: the erasure (command and listener), the store and the purge are always there.
+        self::assertTrue($container->getDefinition(WikiQuickAccessEraseUserCommand::class)->hasTag('console.command'));
+        self::assertTrue($container->getDefinition(WikiRecentsPurgeCommand::class)->hasTag('console.command'));
+        self::assertSame(90, $container->getDefinition(WikiRecentsPurgeCommand::class)->getArgument('$retentionDays'));
+        self::assertSame([['event' => WikiEvents::COMMENT_AUTHOR_ERASED, 'method' => 'onAuthorErased']], $container->getDefinition(WikiQuickAccessErasureListener::class)->getTag('kernel.event_listener'));
+        self::assertTrue($container->hasDefinition(WikiQuickAccessStore::class));
+        self::assertArrayNotHasKey('favourite_remove', (array) $container->getParameter('nowo_wiki.routes'));
         $listener = $container->getDefinition(WikiMetadataListener::class);
         self::assertFalse($listener->getArgument('$favouritesEnabled'));
         self::assertFalse($listener->getArgument('$recentsEnabled'));
@@ -57,11 +68,9 @@ final class WikiExtensionQuickAccessTest extends TestCase
         self::assertSame('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/favourite', $routes['page_favourite']['path']);
         $quick = $container->getDefinition(WikiQuickAccess::class);
         self::assertSame(['enabled' => true, 'max' => 5, 'shown' => 3], $quick->getArgument('$favourites'));
-        self::assertSame(['enabled' => true, 'keep' => 7, 'shown' => 8], $quick->getArgument('$recents'));
-        $command = $container->getDefinition(WikiQuickAccessEraseUserCommand::class);
-        self::assertTrue($command->hasTag('console.command'));
-        self::assertTrue($command->getArgument('$favourites'));
-        self::assertTrue($command->getArgument('$recents'));
+        self::assertSame(['enabled' => true, 'keep' => 7, 'shown' => 8, 'retention_days' => 90], $quick->getArgument('$recents'));
+        self::assertSame('/tools/wiki/favourites/{favouriteId}/remove', $routes['favourite_remove']['path']);
+        self::assertSame(WikiTenantPathsLinkTenantResolver::class, (string) $container->getAlias(WikiLinkTenantResolverInterface::class));
         self::assertTrue($container->getDefinition(WikiMetadataListener::class)->getArgument('$favouritesEnabled'));
         self::assertFalse($container->hasDefinition(WikiBacklinks::class));
 
@@ -85,9 +94,10 @@ final class WikiExtensionQuickAccessTest extends TestCase
         self::assertTrue($listener->getArgument('$backlinksEnabled'));
         self::assertSame('kb', $listener->getArgument('$quickAccessTablePrefix'));
 
-        // With favourites too, one readable-spaces service is shared.
-        $both = $this->load(['favourites' => ['enabled' => true], 'backlinks' => ['enabled' => true]]);
+        // With favourites too, one readable-spaces service is shared; the link picker's tenant port is kept.
+        $both = $this->load(['favourites' => ['enabled' => true], 'backlinks' => ['enabled' => true], 'editor' => ['type' => 'milkdown', 'milkdown' => ['link_picker' => ['enabled' => true, 'rate_limiter' => 'limiter.x']]]]);
         self::assertTrue($both->hasDefinition(WikiReadableSpaces::class));
+        self::assertSame(WikiTenantPathsLinkTenantResolver::class, (string) $both->getAlias(WikiLinkTenantResolverInterface::class));
     }
 
     public function testTheRenderedDiffNeedsMilkdown(): void

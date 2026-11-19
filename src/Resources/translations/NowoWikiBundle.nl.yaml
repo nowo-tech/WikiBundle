@@ -348,6 +348,7 @@ wiki:
     remove: "Verwijderen uit favorieten"
     added: "‘%title%’ is aan je favorieten toegevoegd."
     removed: "‘%title%’ is uit je favorieten verwijderd."
+    removed_one: "De favoriet is verwijderd."
     limit_reached: "Je hebt al het maximale aantal favorieten. Verwijder er eerst een."
   recents:
     title: "Recent bekeken"

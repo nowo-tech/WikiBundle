@@ -86,6 +86,13 @@ final class WikiRenderedRevisionDiffTest extends TestCase
 
     public function testHtmlRevisionsAndNeutralRenderersKeepTheLineDiff(): void
     {
+        // Audit VC-6: more top-level blocks than the cap on either side keep the line diff.
+        $capped = new WikiRenderedRevisionDiff(new MilkdownWikiMarkdownRenderer([], new NullPageResolver(), new NullUserResolver(), new AllowlistIconResolver()), new WikiHtmlSanitizer(), maxBlocks: 2);
+        self::assertNull($capped->diff($this->revision(1, "a\n\nb\n\nc"), $this->revision(2, 'a')));
+        self::assertNull($capped->diff($this->revision(1, 'a'), $this->revision(2, "a\r\n\r\nb\r\n\r\nc")));
+        self::assertNotNull($capped->diff($this->revision(1, 'a'), $this->revision(2, "a\n\nb")));
+        self::assertContains('data-position', WikiRenderedRevisionDiff::DIFF_ELEMENTS['div']);
+
         $html = new WikiPageRevision($this->page, 1, '<p>old</p>', new TestUser('u-1'));
         self::assertNull($this->diff()->diff($html, $this->revision(2, 'new')));
         self::assertNull($this->diff()->diff($this->revision(2, 'new'), $html));

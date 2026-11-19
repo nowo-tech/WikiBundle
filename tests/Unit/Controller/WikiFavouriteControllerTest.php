@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\LinkPicker\WikiTenantPathsLinkTenantResolver;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
 use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
@@ -133,8 +134,52 @@ final class WikiFavouriteControllerTest extends TestCase
         $controller->toggle($this->post($container, '1'), 'eng', 'welcome');
     }
 
+    /** Audit VC-1: a favourite is removed by its id whatever its page; the same answer for any id. */
+    public function testRemoveByIdAnswersTheSameWhetherTheRowExists(): void
+    {
+        [$controller, $container] = $this->bound();
+        $controller->toggle($this->post($container, '1'), 'eng', 'welcome');
+        $this->flashes($container, 'success');
+        $id = (string) $this->em->getConnection()->fetchOne('SELECT id FROM wiki_page_favourites');
+        $this->page->archive();
+        $this->em->flush();
+
+        $missing = $controller->remove($this->removal($container, json: true), '00000000-0000-4000-8000-000000000000');
+        $found   = $controller->remove($this->removal($container, json: true), $id);
+        self::assertSame((string) $missing->getContent(), (string) $found->getContent());
+        self::assertSame(['result' => 'done'], json_decode((string) $found->getContent(), true));
+        self::assertSame(0, $this->rows());
+
+        $response = $controller->remove($this->removal($container), $id);
+        self::assertInstanceOf(RedirectResponse::class, $response);
+        self::assertSame(['wiki.favourites.removed_one'], $this->flashes($container, 'success'));
+        [$controller, $container] = $this->bound(routes: []);
+        self::assertSame(204, $controller->remove($this->removal($container), $id)->getStatusCode());
+
+        // A lock conflict answers 409 with the code; any other failure propagates.
+        [$controller, $container] = $this->bound();
+        $this->em->getConnection()->executeStatement("CREATE TRIGGER wk_fav_del_locked BEFORE DELETE ON wiki_page_favourites BEGIN SELECT RAISE(ABORT, 'database is locked'); END");
+        $this->em->getConnection()->executeStatement("INSERT INTO wiki_page_favourites (id, page_id, user_id, created_at) VALUES ('11111111-1111-4111-8111-111111111111', '" . $this->page->getId() . "', 'u-1', '2026-11-19 10:00:00')");
+        self::assertSame(409, $controller->remove($this->removal($container, json: true), '11111111-1111-4111-8111-111111111111')->getStatusCode());
+        $this->em->getConnection()->executeStatement('DROP TABLE wiki_page_favourites');
+        $this->expectException(TableNotFoundException::class);
+        $controller->remove($this->removal($container), '11111111-1111-4111-8111-111111111111');
+    }
+
+    public function testRemoveRefusals(): void
+    {
+        [$controller, $container] = $this->bound(enabled: false);
+        $this->assertRefused(NotFoundHttpException::class, fn () => $controller->remove($this->removal($container), '00000000-0000-4000-8000-000000000000'));
+        [$controller, $container] = $this->bound(user: null);
+        $this->assertRefused(AccessDeniedHttpException::class, fn () => $controller->remove($this->removal($container), '00000000-0000-4000-8000-000000000000'));
+        [$controller] = $this->bound();
+        $this->assertRefused(AccessDeniedHttpException::class, static fn () => $controller->remove(Request::create('/r', 'POST', ['_token' => 'bad']), '00000000-0000-4000-8000-000000000000'));
+    }
+
     public function testRefusals(): void
     {
+        [$controller, $container] = $this->bound(readable: false);
+        $this->assertRefused(NotFoundHttpException::class, fn () => $controller->toggle($this->post($container, '1'), 'eng', 'welcome'));
         // Favourites off (no service, or the switch off): 404.
         foreach ([null, false] as $enabled) {
             [$controller, $container] = $this->bound(enabled: $enabled);
@@ -184,7 +229,7 @@ final class WikiFavouriteControllerTest extends TestCase
     /**
      * @return array{0: WikiFavouriteController, 1: Container}
      */
-    private function bound(?bool $enabled = true, int $max = 10, ?UserInterface $user = new TestUser('u-1'), bool $canList = true, ?WikiTokenGuard $tokenGuard = null, bool $conflicts = true): array
+    private function bound(?bool $enabled = true, int $max = 10, ?UserInterface $user = new TestUser('u-1'), bool $canList = true, ?WikiTokenGuard $tokenGuard = null, bool $conflicts = true, bool $readable = true, array $routes = ['page_view' => ['name' => 'nowo_wiki_page_view', 'path' => '/p'], 'index' => ['name' => 'nowo_wiki_index', 'path' => '/w']]): array
     {
         $roles = $this->createStub(WikiAccessCheckerInterface::class);
         $roles->method('canList')->willReturn($canList);
@@ -193,16 +238,16 @@ final class WikiFavouriteControllerTest extends TestCase
         $checker = new CallbackSpaceAccessChecker(fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !$page instanceof WikiPage || !in_array($page->getSlug(), $this->hidden, true));
         $quick   = $enabled === null ? null : new WikiQuickAccess(
             new WikiQuickAccessStore(new WikiTransactionRunner($this->em, backoffBaseMilliseconds: 0)),
-            new WikiReadableSpaces($roles, $resolver, $checker),
             ['enabled' => $enabled, 'max' => $max, 'shown' => 10],
-            ['enabled' => false, 'keep' => 20, 'shown' => 8],
+            ['enabled' => false, 'keep' => 20, 'shown' => 8, 'retention_days' => 90],
         );
         $controller = new WikiFavouriteController(
             new WikiSpaceGuard(new FixedSpaceLocator($this->space), $checker),
             new DoctrineOrmWikiPageRepository($this->em),
             $roles,
-            ['page_view' => ['name' => 'nowo_wiki_page_view', 'path' => '/p']],
+            $routes,
             $quick,
+            $readable ? new WikiReadableSpaces($roles, $resolver, $checker, new WikiTenantPathsLinkTenantResolver()) : null,
             $conflicts ? new WikiConflictAnswer() : null,
             $tokenGuard,
         );
@@ -217,6 +262,16 @@ final class WikiFavouriteControllerTest extends TestCase
             '_token'    => WikiControllerContainerBuilder::csrfToken($container, WikiFavouriteController::tokenId($page ?? $this->page)),
             'favourite' => $favourite,
         ]);
+        if ($json) {
+            $request->headers->set('Accept', 'application/json');
+        }
+
+        return $request;
+    }
+
+    private function removal(Container $container, bool $json = false): Request
+    {
+        $request = Request::create('/remove', 'POST', ['_token' => WikiControllerContainerBuilder::csrfToken($container, WikiFavouriteController::REMOVE_TOKEN_ID)]);
         if ($json) {
             $request->headers->set('Accept', 'application/json');
         }

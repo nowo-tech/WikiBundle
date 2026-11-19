@@ -60,6 +60,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Command\WikiBacklinksRebuildCommand;
 use Nowo\WikiBundle\Command\WikiQuickAccessEraseUserCommand;
+use Nowo\WikiBundle\Command\WikiRecentsPurgeCommand;
 use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
@@ -111,6 +112,7 @@ use Nowo\WikiBundle\Provenance\WikiProvenanceAuthorErasedListener;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccessErasureListener;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
 use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
@@ -273,7 +275,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $config['backlinks']['enabled']     = $this->literalBool($config['backlinks']['enabled'], 'backlinks.enabled');
         $config['history']['rendered_diff'] = $this->literalBool($config['history']['rendered_diff'], 'history.rendered_diff');
         if (!$config['favourites']['enabled']) {
-            unset($config['routes']['page_favourite']);
+            unset($config['routes']['page_favourite'], $config['routes']['favourite_remove']);
         }
         // 1.14 (T065): the trash; its table and routes exist only when it is on.
         $config['trash']['enabled'] = $this->literalBool($config['trash']['enabled'], 'trash.enabled');
@@ -859,8 +861,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
     /**
      * 1.45: favourites (`favourites.enabled`) and recently viewed pages (`recents.enabled`): the store, the per-viewer
-     * service the page view and the favourite route use, and `wiki:quick-access:erase-user`. Nothing is registered when
-     * both are off (the controllers then get null).
+     * service the page view and the favourite routes use, the erasure and purge commands.
      *
      * @param array<string, mixed> $config processed configuration
      */
@@ -868,35 +869,55 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     {
         /** @var array{enabled: bool, max: int, shown: int} $favourites */
         $favourites = $config['favourites'];
-        /** @var array{enabled: bool, keep: int, shown: int} $recents */
+        /** @var array{enabled: bool, keep: int, shown: int, retention_days: int} $recents */
         $recents = $config['recents'];
+        $runner  = new Reference(WikiTransactionRunner::class);
+        // Always (audit VC-3): the store, the erasure command and listener, the purge command; they act on the tables
+        // that exist, whether or not their feature is on now.
+        $container->setDefinition(WikiQuickAccessStore::class, (new Definition(WikiQuickAccessStore::class))->setArgument('$runner', $runner));
+        $container->setDefinition(WikiQuickAccessEraseUserCommand::class, (new Definition(WikiQuickAccessEraseUserCommand::class))
+            ->setArgument('$store', new Reference(WikiQuickAccessStore::class))
+            ->addTag('console.command'));
+        $container->setDefinition(WikiRecentsPurgeCommand::class, (new Definition(WikiRecentsPurgeCommand::class))
+            ->setArguments(['$store' => new Reference(WikiQuickAccessStore::class), '$retentionDays' => $recents['retention_days']])
+            ->addTag('console.command'));
+        $container->setDefinition(WikiQuickAccessErasureListener::class, (new Definition(WikiQuickAccessErasureListener::class))
+            ->setArgument('$store', new Reference(WikiQuickAccessStore::class))
+            ->addTag('kernel.event_listener', ['event' => WikiEvents::COMMENT_AUTHOR_ERASED, 'method' => 'onAuthorErased']));
+        if ($favourites['enabled'] || $recents['enabled'] || $config['backlinks']['enabled']) {
+            $this->registerReadableSpaces($container);
+        }
         if (!$favourites['enabled'] && !$recents['enabled']) {
             return;
         }
-        $runner = new Reference(WikiTransactionRunner::class);
-        $container->setDefinition(WikiReadableSpaces::class, (new Definition(WikiReadableSpaces::class))
-            ->setArguments([
-                '$roles'   => new Reference(WikiAccessCheckerInterface::class),
-                '$spaces'  => new Reference(WikiSpaceAccessResolverInterface::class),
-                '$checker' => new Reference(WikiSpaceAccessCheckerInterface::class),
-            ]));
-        $container->setDefinition(WikiQuickAccessStore::class, (new Definition(WikiQuickAccessStore::class))->setArgument('$runner', $runner));
         $container->setDefinition(WikiQuickAccess::class, (new Definition(WikiQuickAccess::class))
             ->setArguments([
                 '$store'      => new Reference(WikiQuickAccessStore::class),
-                '$spaces'     => new Reference(WikiReadableSpaces::class),
                 '$favourites' => $favourites,
                 '$recents'    => $recents,
                 '$logger'     => new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE),
             ])
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
-        $container->setDefinition(WikiQuickAccessEraseUserCommand::class, (new Definition(WikiQuickAccessEraseUserCommand::class))
+    }
+
+    /**
+     * 1.45 (owner decision A, audit VC-9): the per-view scope of the lists, tenant-aware through the link picker's
+     * tenant port ({@see WikiLinkTenantResolverInterface}; `tenant_paths` by default, a host alias wins).
+     */
+    private function registerReadableSpaces(ContainerBuilder $container): void
+    {
+        if (!$container->hasAlias(WikiLinkTenantResolverInterface::class) && !$container->hasDefinition(WikiLinkTenantResolverInterface::class)) {
+            $container->setDefinition(WikiTenantPathsLinkTenantResolver::class, (new Definition(WikiTenantPathsLinkTenantResolver::class))
+                ->setArgument('$tenantPaths', new Reference(WikiTenantPaths::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            $container->setAlias(WikiLinkTenantResolverInterface::class, WikiTenantPathsLinkTenantResolver::class);
+        }
+        $container->setDefinition(WikiReadableSpaces::class, (new Definition(WikiReadableSpaces::class))
             ->setArguments([
-                '$store'      => new Reference(WikiQuickAccessStore::class),
-                '$favourites' => $favourites['enabled'],
-                '$recents'    => $recents['enabled'],
-            ])
-            ->addTag('console.command'));
+                '$roles'   => new Reference(WikiAccessCheckerInterface::class),
+                '$spaces'  => new Reference(WikiSpaceAccessResolverInterface::class),
+                '$checker' => new Reference(WikiSpaceAccessCheckerInterface::class),
+                '$tenants' => new Reference(WikiLinkTenantResolverInterface::class),
+            ]));
     }
 
     /**
@@ -913,16 +934,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             return;
         }
         $runner = new Reference(WikiTransactionRunner::class);
-        if (!$container->hasDefinition(WikiReadableSpaces::class)) {
-            $container->setDefinition(WikiReadableSpaces::class, (new Definition(WikiReadableSpaces::class))
-                ->setArguments([
-                    '$roles'   => new Reference(WikiAccessCheckerInterface::class),
-                    '$spaces'  => new Reference(WikiSpaceAccessResolverInterface::class),
-                    '$checker' => new Reference(WikiSpaceAccessCheckerInterface::class),
-                ]));
-        }
         $container->setDefinition(WikiPageReferenceIndex::class, (new Definition(WikiPageReferenceIndex::class))
-            ->setArguments(['$runner' => $runner, '$references' => new Reference(WikiMarkdownReferenceExtractor::class)]));
+            ->setArguments([
+                '$runner'     => $runner,
+                '$references' => new Reference(WikiMarkdownReferenceExtractor::class),
+                '$renderer'   => new Reference(WikiMarkdownRendererInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ]));
         $container->setDefinition(WikiPageReferenceListener::class, (new Definition(WikiPageReferenceListener::class))
             ->setArguments([
                 '$index'  => new Reference(WikiPageReferenceIndex::class),
@@ -933,13 +950,16 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(WikiBacklinks::class, (new Definition(WikiBacklinks::class))
             ->setArguments([
                 '$runner'     => $runner,
-                '$spaces'     => new Reference(WikiReadableSpaces::class),
                 '$limit'      => $backlinks['limit'],
                 '$candidates' => $backlinks['candidates'],
             ]));
         $container->setDefinition(WikiBacklinksRebuildCommand::class, (new Definition(WikiBacklinksRebuildCommand::class))
-            ->setArgument('$index', new Reference(WikiPageReferenceIndex::class))
-            ->addTag('console.command'));
+            ->setArguments([
+                '$index'  => new Reference(WikiPageReferenceIndex::class),
+                '$logger' => new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ])
+            ->addTag('console.command')
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
     }
 
     /**

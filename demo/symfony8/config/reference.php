@@ -1454,6 +1454,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // Default: false
  *         keep?: int|Param, // Visits kept per person; each visit deletes the older ones beyond this. // Default: 20
  *         shown?: int|Param, // Pages listed in the sidebar section (the last opened first; the current page is left out). // Default: 8
+ *         retention_days?: int|Param, // Visits older than this are never listed, are deleted on the person's next visit and by wiki:recents:purge (owner decision B: personal data, 90 days by default). // Default: 90
  *     },
  *     backlinks?: array{ // 1.45: a "Linked from" section under the page body: the pages whose current revision links this one ([[wiki:<id>]]), only those the viewer may read. Keeps a reference index (<prefix>_page_references) up to date on every save; fill it once with wiki:backlinks:rebuild. Off: no section, no index, no table in the schema.
  *         enabled?: bool|Param, // Default: false
@@ -1665,6 +1666,10 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         page_favourite?: array{
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/favourite"
  *             name?: scalar|Param|null, // Default: "nowo_wiki_page_favourite"
+ *         },
+ *         favourite_remove?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/favourites/{favouriteId}/remove"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_favourite_remove"
  *         },
  *         page_version_save?: array{
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/versions/new"

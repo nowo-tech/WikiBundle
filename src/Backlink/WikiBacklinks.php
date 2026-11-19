@@ -6,12 +6,9 @@ namespace Nowo\WikiBundle\Backlink;
 
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageReference;
-use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
-use Nowo\WikiBundle\Security\WikiPageVisibility;
+use Nowo\WikiBundle\QuickAccess\WikiViewerScope;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
-use Symfony\Component\Security\Core\User\UserInterface;
 
-use function array_map;
 use function count;
 use function min;
 use function strcmp;
@@ -23,9 +20,9 @@ use function usort;
  * backlink index ({@see WikiPageReferenceIndex}), **only those the viewer may read**:
  *
  * 1. in SQL, before anything is counted or cut: the index rows of the target, joined to their source pages, narrowed to
- *    the spaces the viewer may read now ({@see WikiReadableSpaces}: role gate, tenant / team resolver, View on the
- *    space) and to live pages (archived and trashed sources are never read);
- * 2. then the page rule ({@see WikiPageVisibility}: View on the source and every ancestor), which is the host's PHP
+ *    the spaces of this view's {@see WikiViewerScope} (the current tenant's spaces the viewer may read now: role gate,
+ *    tenant / team resolver, View on the space) and to live pages (archived and trashed sources are never read);
+ * 2. then the page rule (View on the source and every ancestor, {@see WikiViewerScope::canRead()}), which is the host's PHP
  *    checker, on a keyset scan of those rows in id order, at most `backlinks.candidates` rows, until `backlinks.limit`
  *    readable sources were found.
  *
@@ -40,7 +37,6 @@ final readonly class WikiBacklinks
 
     public function __construct(
         private WikiTransactionRunner $runner,
-        private WikiReadableSpaces $spaces,
         private int $limit = 20,
         private int $candidates = 200,
     ) {
@@ -49,17 +45,15 @@ final readonly class WikiBacklinks
     /**
      * @return list<WikiPage> the readable sources, by title
      */
-    public function sources(UserInterface $viewer, WikiPage $target): array
+    public function sources(WikiViewerScope $scope, WikiPage $target): array
     {
-        $spaces = $this->spaces->of($viewer);
-        if ($spaces === []) {
+        $spaceIds = $scope->spaceIds();
+        if ($spaceIds === []) {
             return [];
         }
-        $spaceIds  = array_map(static fn ($space): string => $space->getId(), $spaces);
-        $readable  = [];
-        $decisions = [];
-        $after     = '';
-        $read      = 0;
+        $readable = [];
+        $after    = '';
+        $read     = 0;
         while ($read < $this->candidates && count($readable) < $this->limit) {
             $batch = min(self::BATCH, $this->candidates - $read);
             /** @var list<WikiPage> $rows */
@@ -68,7 +62,7 @@ final readonly class WikiBacklinks
                 ->from(WikiPage::class, 'p')
                 ->join(WikiPageReference::class, 'r', 'WITH', 'r.source = p')
                 ->where('r.targetPageId = :target')
-                ->andWhere('p.space IN (:spaces)')
+                ->andWhere('IDENTITY(p.space) IN (:spaces)')
                 ->andWhere('p.archivedAt IS NULL')
                 ->andWhere('p.id <> :target')
                 ->andWhere('p.id > :after')
@@ -82,7 +76,7 @@ final readonly class WikiBacklinks
             $read += count($rows);
             foreach ($rows as $page) {
                 $after = $page->getId();
-                if (count($readable) < $this->limit && WikiPageVisibility::isReadable($this->spaces->checker(), $viewer, $page->getSpace(), $page, $decisions)) {
+                if (count($readable) < $this->limit && $scope->canRead($page)) {
                     $readable[] = $page;
                 }
             }

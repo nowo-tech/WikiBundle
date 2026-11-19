@@ -348,6 +348,7 @@ wiki:
     remove: "Remove from favourites"
     added: "\"%title%\" was added to your favourites."
     removed: "\"%title%\" was removed from your favourites."
+    removed_one: "The favourite was removed."
     limit_reached: "You already have the most favourites allowed. Remove one first."
   recents:
     title: "Recently viewed"

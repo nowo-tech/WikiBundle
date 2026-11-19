@@ -8,6 +8,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\QuickAccess\WikiFavouriteResult;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
+use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
@@ -37,7 +38,9 @@ use Throwable;
  * expected unique-key race, answered as done). A full list (`favourites.max`) is refused with a message (HTML) or
  * `422 {"error": "limit_reached"}` (JSON). A lock conflict answers 409 + `X-Conflict-Code` (CONFLICT_001 with
  * `Retry-After`, CONFLICT_002 without; {@see WikiConflictAnswer}). HTML forms are redirected back to the page; JSON
- * requests get `{"favourite": bool, "result": "added" | "removed" | "unchanged"}`. Without favourites every call is 404.
+ * requests get `{"favourite": bool, "result": "added" | "removed" | "unchanged"}`. Only the favourites the person can
+ * still read in this tenant count toward the limit (audit VC-1). {@see self::remove()} removes one by its id, whatever its
+ * page. Without favourites every call is 404.
  */
 final class WikiFavouriteController extends AbstractController
 {
@@ -52,6 +55,7 @@ final class WikiFavouriteController extends AbstractController
         private readonly WikiAccessCheckerInterface $accessChecker,
         private readonly array $routes = [],
         private readonly ?WikiQuickAccess $quickAccess = null,
+        private readonly ?WikiReadableSpaces $readableSpaces = null,
         private readonly ?WikiConflictAnswer $conflicts = null,
         private readonly ?WikiTokenGuard $tokenGuard = null,
         private readonly ?TranslatorInterface $translator = null,
@@ -72,7 +76,7 @@ final class WikiFavouriteController extends AbstractController
     public function toggle(Request $request, string $spaceSlug, string $pageSlug): Response
     {
         $quickAccess = $this->quickAccess;
-        if (!$quickAccess instanceof WikiQuickAccess || !$quickAccess->favouritesEnabled()) {
+        if (!$quickAccess instanceof WikiQuickAccess || !$quickAccess->favouritesEnabled() || !$this->readableSpaces instanceof WikiReadableSpaces) {
             throw new NotFoundHttpException('Not found.');
         }
         $user = $this->requireUser();
@@ -92,7 +96,7 @@ final class WikiFavouriteController extends AbstractController
         $asked = $request->request->getString('favourite', '1') !== '0';
         try {
             // @igor-ignore - a write to the database through a stateless service (rows, not service state); nothing is kept between requests.
-            $result = $quickAccess->setFavourite($user, $page, $asked);
+            $result = $quickAccess->setFavourite($this->readableSpaces->forView($user, $space), $page, $asked);
         } catch (Throwable $failure) {
             $answer = ($this->conflicts ?? new WikiConflictAnswer())->answer($request, $failure);
             if ($answer instanceof Response) {
@@ -114,6 +118,52 @@ final class WikiFavouriteController extends AbstractController
         $this->addFlash($result === WikiFavouriteResult::LimitReached ? 'warning' : 'success', $this->translator instanceof TranslatorInterface ? $message->trans($this->translator) : $message);
 
         return $this->redirectToRoute($this->routes['page_view']['name'] ?? 'nowo_wiki_page_view', ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()]);
+    }
+
+    /** CSRF token id of the remove-by-id form (one id for every favourite, so the token says nothing about a row). */
+    public const REMOVE_TOKEN_ID = 'wiki_favourite_remove';
+
+    /**
+     * Removes one of the person's favourites by its id, whatever its page: gone, archived, trashed, moved under a hidden
+     * page or in another tenant (audit VC-1). The answer is the same whether the row existed, belonged to someone else or
+     * never existed: JSON `{"result": "done"}`, otherwise a redirect to the wiki index (204 without one).
+     *
+     * @throws NotFoundHttpException without favourites
+     * @throws AccessDeniedHttpException without a user or with an invalid CSRF token
+     */
+    #[Route(path: '/tools/wiki/favourites/{favouriteId}/remove', name: 'nowo_wiki_favourite_remove', requirements: ['favouriteId' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'favourite_remove'], methods: ['POST'])]
+    public function remove(Request $request, string $favouriteId): Response
+    {
+        $quickAccess = $this->quickAccess;
+        if (!$quickAccess instanceof WikiQuickAccess || !$quickAccess->favouritesEnabled()) {
+            throw new NotFoundHttpException('Not found.');
+        }
+        $user = $this->requireUser();
+        if (!$this->isValidCsrf($request, self::REMOVE_TOKEN_ID)) {
+            throw new AccessDeniedHttpException('Invalid CSRF token.');
+        }
+        try {
+            // @igor-ignore - a write to the database through a stateless service (rows, not service state); nothing is kept between requests.
+            $quickAccess->removeFavouriteById($user, $favouriteId);
+        } catch (Throwable $failure) {
+            $answer = ($this->conflicts ?? new WikiConflictAnswer())->answer($request, $failure);
+            if ($answer instanceof Response) {
+                return $answer;
+            }
+
+            throw $failure;
+        }
+
+        if (WikiStorageFailureSubscriber::wantsJson($request)) {
+            return new JsonResponse(['result' => 'done'], Response::HTTP_OK, ['Cache-Control' => 'no-store']);
+        }
+        if (!isset($this->routes['index'])) {
+            return new Response('', Response::HTTP_NO_CONTENT);
+        }
+        $message = new TranslatableMessage('wiki.favourites.removed_one', [], WikiPages::DOMAIN);
+        $this->addFlash('success', $this->translator instanceof TranslatorInterface ? $message->trans($this->translator) : $message);
+
+        return $this->redirectToRoute($this->routes['index']['name']);
     }
 
     private function requireUser(): UserInterface
