@@ -54,7 +54,7 @@ use function trim;
 
 /**
  * 1.46: the wiki's pages in SearchKit's "search everywhere" (header search, palette, results page, recents) on
- * SearchKit's provider base (>= 1.9): this definition holds the wiki's rules, SearchKit's EntitySearchProvider runs the
+ * SearchKit's provider base (>= 1.10.1): this definition holds the wiki's rules, SearchKit's EntitySearchProvider runs the
  * one flow every bundle shares (group switch, scope shape, one bounded candidate query, the per-row check, the host's
  * item visibility event, the visible total, `null` on any refusal). {@see WikiPageSearchKitProvider} adds the `space:`
  * filter, searches by user identifier and the recents' slug lookup on top, delegating every search to that flow.
@@ -195,7 +195,8 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
         }
         $tenant = $this->currentTenants?->currentTenant($query->userIdentifier);
 
-        return $tenant === null || $tenant === '' ? null : $tenant;
+        // Audit VN-1: in `current` mode the all-tenants marker is never a tenant key (it would widen the search).
+        return $tenant === null || $tenant === '' || $tenant === self::TENANT_ALL ? null : $tenant;
     }
 
     /** On with a viewer resolver; the role gate (`list`) is decided for the viewer before the SQL ({@see self::baseQuery()}). */
@@ -504,7 +505,8 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
             $snapshot = WikiSnapshots::space($space);
             $key      = $this->tenants?->tenantOf($snapshot);
             // The current tenant only (default): a space of another tenant, or of none, is not searched.
-            if ($tenant === self::TENANT_ALL || ($key !== null && $key === $tenant)) {
+            // Audit VN-1: every tenant only by configuration (`tenant: all`), never because of a key's value.
+            if ($this->tenantMode === self::TENANT_ALL_MODE || ($key !== null && $key === $tenant)) {
                 $candidates[] = [$space, new WikiSearchSpace($snapshot, $key)];
             }
         }

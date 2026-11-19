@@ -70,7 +70,7 @@ final class WikiSearchContractTest extends EntitySearchProviderTestCase
     protected function setUp(): void
     {
         if (!class_exists(QueryCounter::class) || !WikiSearchKitAvailability::isAvailable()) {
-            self::markTestSkipped('nowo-tech/search-kit-bundle >= 1.9 is not installed (PHP >= 8.3).');
+            self::markTestSkipped('nowo-tech/search-kit-bundle >= 1.10.1 is not installed (PHP >= 8.3).');
         }
         ApiTestHost::reset();
         ApiSearchTenants::reset();

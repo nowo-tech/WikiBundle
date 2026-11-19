@@ -23,7 +23,7 @@ use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBa
 
 /**
  * 1.44 (Beacon KIT-85), 1.46: `nowo_wiki.search_kit_provider` registers the SearchKit group only when it is on (a literal
- * boolean) and SearchKit >= 1.9 is installed (otherwise nothing, as without the option).
+ * boolean) and SearchKit >= 1.10.1 is installed (otherwise nothing, as without the option).
  */
 final class WikiExtensionSearchKitTest extends TestCase
 {
@@ -40,7 +40,7 @@ final class WikiExtensionSearchKitTest extends TestCase
     {
         $container = $this->load(['search_kit_provider' => true]);
         if (!WikiSearchKitAvailability::isAvailable()) {
-            self::assertFalse($container->hasDefinition(WikiPageSearchKitProvider::class), 'Without SearchKit >= 1.9 nothing is registered.');
+            self::assertFalse($container->hasDefinition(WikiPageSearchKitProvider::class), 'Without SearchKit >= 1.10.1 nothing is registered.');
             self::assertFalse($container->hasDefinition(WikiPageSearchDefinition::class));
 
             return;
@@ -116,7 +116,7 @@ final class WikiExtensionSearchKitTest extends TestCase
     public function testSensitiveIsALiteralBoolean(): void
     {
         if (!WikiSearchKitAvailability::isAvailable()) {
-            self::markTestSkipped('nowo-tech/search-kit-bundle >= 1.9 is not installed (PHP >= 8.3).');
+            self::markTestSkipped('nowo-tech/search-kit-bundle >= 1.10.1 is not installed (PHP >= 8.3).');
         }
         $container = new ContainerBuilder(new EnvPlaceholderParameterBag());
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);

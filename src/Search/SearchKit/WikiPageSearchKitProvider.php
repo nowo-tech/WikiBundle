@@ -16,7 +16,7 @@ use Nowo\SearchKitBundle\Provider\Entity\EntitySearchProvider;
 
 /**
  * 1.44 (Beacon KIT-85), 1.46 on SearchKit's provider base: the wiki's SearchKit group — the header search, the palette,
- * the results page and the recents. Registered only with `nowo_wiki.search_kit_provider` on and SearchKitBundle >= 1.9
+ * the results page and the recents. Registered only with `nowo_wiki.search_kit_provider` on and SearchKitBundle >= 1.10.1
  * installed and registered ({@see WikiSearchKitAvailability}); off by default.
  *
  * Every search runs SearchKit's own EntitySearchProvider flow over {@see WikiPageSearchDefinition} (the wiki's rules).

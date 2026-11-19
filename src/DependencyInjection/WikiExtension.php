@@ -564,7 +564,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
     /**
      * 1.44 (Beacon KIT-85), 1.46 (SearchKit provider base): the optional SearchKit group (`search_kit_provider`),
-     * registered only when it is on and SearchKitBundle >= 1.9 is installed: the read-rule port
+     * registered only when it is on and SearchKitBundle >= 1.10.1 is installed: the read-rule port
      * {@see WikiReadablePageFinder} (framework-free), the viewer resolver, {@see WikiPageSearchDefinition} (tagged for
      * SearchKit's EntitySearchPass, which builds its provider) and {@see WikiPageSearchKitProvider}, tagged as a SearchKit
      * provider and reference resolver ({@see WikiSearchKitPass} hands it SearchKit's provider).

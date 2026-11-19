@@ -92,7 +92,7 @@ final class ApiKernel extends Kernel
         yield new WikiBundle();
     }
 
-    /** 1.46: whether this kernel runs the wiki's SearchKit group (configured, and SearchKit >= 1.9 installed). */
+    /** 1.46: whether this kernel runs the wiki's SearchKit group (configured, and SearchKit >= 1.10.1 installed). */
     public function searchKit(): bool
     {
         return isset($this->wiki['search_kit_provider']) && class_exists(NowoSearchKitBundle::class) && WikiSearchKitAvailability::isAvailable();
@@ -199,7 +199,7 @@ final class ApiKernel extends Kernel
         $services->set('app.pages', ApiPageRepository::class)->args([service(WikiEntityManagerProvider::class)]);
         $services->alias(WikiPageRepositoryInterface::class, 'app.pages');
         // 1.44: the tenants of the test people (search_kit_provider tests set team_membership_resolver: app.teams), and
-        // the SearchKit group reachable from the tests (1.46: only with SearchKit >= 1.9 installed), with every SQL
+        // the SearchKit group reachable from the tests (1.46: only with SearchKit >= 1.10.1 installed), with every SQL
         // statement counted (the query budget of SearchKit's contract kit).
         $services->set('app.teams', ApiTeamMembership::class);
         if ($this->searchKit()) {

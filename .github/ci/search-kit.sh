@@ -7,7 +7,7 @@
 # Run it before `composer update` / `composer install` (an install then resolves again: the lock no longer matches).
 set -euo pipefail
 
-CONSTRAINT="${SEARCH_KIT_CONSTRAINT:-^1.10}"
+CONSTRAINT="${SEARCH_KIT_CONSTRAINT:-^1.10.1}"
 
 if php -r 'exit(PHP_VERSION_ID >= 80300 ? 0 : 1);'; then
   echo "Adding nowo-tech/search-kit-bundle ${CONSTRAINT} to require-dev (PHP $(php -r 'echo PHP_VERSION;'))"

@@ -118,8 +118,14 @@ Nothing changes unless `search_kit_provider` is on.
 
 **With `search_kit_provider` on** — the SearchKit group now runs on SearchKit's provider base:
 
-- **Update SearchKit to 1.9** (`composer require nowo-tech/search-kit-bundle:^1.9`, PHP >= 8.3) and keep its bundle
-  registered. With SearchKit 1.8 installed nothing is registered any more (the `wiki` group disappears) until you update.
+- **Update SearchKit to 1.10.1 or later** (`composer require nowo-tech/search-kit-bundle:^1.10.1`, PHP >= 8.3; a
+  security requirement: older versions can mark a full candidate window as an exact total) and keep its bundle
+  registered. With an older SearchKit (1.8 to 1.10.0) nothing is registered any more (the `wiki` group disappears) until
+  you update, and `composer.json` now declares `conflict: nowo-tech/search-kit-bundle <1.10.1`.
+- **`search.excluded_spaces`** does not hide spaces from the SearchKit group: exclude them with a
+  `nowo_wiki.search_kit.spaces` listener.
+- **Shared entity manager:** with the wiki on the host's own entity manager, a search re-reads its pages (`HINT_REFRESH`)
+  and overwrites unflushed changes to a `WikiPage` made earlier in the same request; flush first (SECURITY.md).
 - **Current tenant only (BC: narrows the results of multi-tenant hosts).** As the favourites / recents lists of 1.45
   (owner decision of 2026-11-19), the palette now searches only the spaces of the **current tenant**:
   `search_kit_provider.tenant: current` (default). A space is searched when its `WikiLinkTenantResolverInterface` key

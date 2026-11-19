@@ -34,7 +34,7 @@ final class WikiPageSearchDefinitionTest extends TestCase
     protected function setUp(): void
     {
         if (!WikiSearchKitAvailability::isAvailable()) {
-            self::markTestSkipped('nowo-tech/search-kit-bundle >= 1.9 is not installed (PHP >= 8.3).');
+            self::markTestSkipped('nowo-tech/search-kit-bundle >= 1.10.1 is not installed (PHP >= 8.3).');
         }
     }
 
@@ -48,9 +48,11 @@ final class WikiPageSearchDefinitionTest extends TestCase
         self::assertNull($definition->tenant(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         self::assertSame(WikiPageSearchDefinition::TENANT_ALL, $this->definition(tenantMode: WikiPageSearchDefinition::TENANT_ALL_MODE)->tenant(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         $current = $this->createStub(WikiSearchTenantResolverInterface::class);
-        $current->method('currentTenant')->willReturnMap([['u-1', 'org-1'], ['u-2', '']]);
+        $current->method('currentTenant')->willReturnMap([['u-1', 'org-1'], ['u-2', ''], ['u-3', WikiPageSearchDefinition::TENANT_ALL]]);
         self::assertSame('org-1', $this->definition(currentTenants: $current)->tenant(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         self::assertNull($this->definition(currentTenants: $current)->tenant(SearchQuery::forUserIdentifier('u-2', 'x', 5)));
+        // Audit VN-1: a resolver answering the all-tenants marker in `current` mode searches nothing.
+        self::assertNull($this->definition(currentTenants: $current)->tenant(SearchQuery::forUserIdentifier('u-3', 'x', 5)));
         self::assertTrue($definition->featureEnabled('*', SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         self::assertFalse($this->definition(viewers: false)->featureEnabled('*', SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         self::assertSame(['p.title', 'r.contentText'], $definition->searchableFields());

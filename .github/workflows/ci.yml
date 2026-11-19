@@ -72,7 +72,7 @@ jobs:
       - name: Override Composer platform PHP (composer.json pins the minimum PHP for the lock)
         run: composer config platform.php "${{ matrix.php }}.99"
 
-      - name: SearchKit >= 1.9 on PHP >= 8.3 (the wiki's SearchKit group; nothing on 8.2)
+      - name: SearchKit >= 1.10.1 on PHP >= 8.3 (the wiki's SearchKit group; nothing on 8.2)
         run: .github/ci/search-kit.sh
 
       - name: Install dependencies with Symfony ${{ matrix.symfony }}
@@ -426,7 +426,7 @@ jobs:
           coverage: pcov
           tools: composer:v2
 
-      - name: SearchKit >= 1.9 (the wiki's SearchKit group)
+      - name: SearchKit >= 1.10.1 (the wiki's SearchKit group)
         run: .github/ci/search-kit.sh
 
       - name: Install dependencies (Symfony 7.4)
@@ -503,7 +503,7 @@ jobs:
         run: composer test -- --testsuite api
 
   searchkit-bridge:
-    # 1.44 (Beacon KIT-85), 1.46 (provider base): the optional SearchKit group against the real SearchKitBundle (^1.10, the provider base of 1.9 with the 1.10 kit)
+    # 1.44 (Beacon KIT-85), 1.46 (provider base): the optional SearchKit group against the real SearchKitBundle (^1.10.1, the provider base with the 1.10.1 kit)
     # (PHP >= 8.3), with SearchKit's provider contract kit and the wiki's own tests, on SQLite, MySQL, MariaDB and
     # PostgreSQL. No stub: without SearchKit these tests are skipped (the PHP 8.2 jobs).
     name: SearchKit bridge (SearchKit ${{ matrix.searchkit }}, ${{ matrix.database }})
@@ -511,7 +511,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        searchkit: ['^1.10']
+        searchkit: ['^1.10.1']
         database: ['SQLite', 'MySQL 8.4', 'MariaDB 11.4', 'PostgreSQL 16']
     env:
       COMPOSER_IGNORE_PLATFORM_REQ: ext-pdo

@@ -599,7 +599,7 @@ final class Configuration implements ConfigurationInterface
                     ->end()
                 ->end()
                 ->arrayNode('search_kit_provider')
-                    ->info('1.44 (SearchKit spec 240), 1.46 (SearchKit provider base): wiki pages in SearchKit\'s "search everywhere" (header search, palette, results page, recents) through the wiki\'s own read rules. Off by default; `true` turns it on (literal boolean). Needs nowo-tech/search-kit-bundle >= 1.9 (optional, PHP >= 8.3): without it, or with an older one, nothing is registered. See docs/USAGE.md "SearchKit provider".')
+                    ->info('1.44 (SearchKit spec 240), 1.46 (SearchKit provider base): wiki pages in SearchKit\'s "search everywhere" (header search, palette, results page, recents) through the wiki\'s own read rules. Off by default; `true` turns it on (literal boolean). Needs nowo-tech/search-kit-bundle >= 1.10.1 (optional, PHP >= 8.3; a security requirement): without it, or with an older one, nothing is registered. See docs/USAGE.md "SearchKit provider".')
                     ->canBeEnabled()
                     ->children()
                         ->integerNode('priority')->defaultValue(40)->info('Tag priority of the provider: SearchKit lists its groups highest first.')->end()

@@ -31,7 +31,7 @@ use function sprintf;
 use const JSON_THROW_ON_ERROR;
 
 /**
- * 1.44 (Beacon KIT-85, SearchKit CONTRACT-240), 1.46 (SearchKit >= 1.9 provider base): the optional SearchKit group
+ * 1.44 (Beacon KIT-85, SearchKit CONTRACT-240), 1.46 (SearchKit >= 1.10.1 provider base): the optional SearchKit group
  * through a host kernel (SearchKit's bundle, the security user provider, the wiki's tenant resolver and space checker,
  * the router, the translator), on SQLite and — through WIKI_TEST_DATABASE_URL — MySQL, MariaDB and PostgreSQL. Ana reads
  * `eng` (tenant owner-1) and `ops` (owner-2); Bob only `eng`. Every provider call runs outside any request, on one

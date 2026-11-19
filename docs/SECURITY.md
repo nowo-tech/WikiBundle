@@ -294,7 +294,7 @@ Off unless `api.enabled`. The host keeps the tokens; the bundle checks, on every
 
 ## SearchKit provider (1.44)
 
-Off unless `search_kit_provider` is on and SearchKitBundle >= 1.9 is installed (1.46: SearchKit's provider base runs the
+Off unless `search_kit_provider` is on and SearchKitBundle >= 1.10.1 is installed (a security requirement, below) (1.46: SearchKit's provider base runs the
 flow; the wiki's rules are `WikiPageSearchDefinition`). It follows SearchKit's anti-leak rule (deny by default; nothing
 leaks through titles, excerpts, counts, filters or recents):
 
@@ -313,6 +313,9 @@ leaks through titles, excerpts, counts, filters or recents):
 | Links | Built by the router from `routes.page_view` (and `routes.search`): same-site paths only, never from stored data |
 | Recents | Re-checked on every call for the viewer (no cache): the reference must be a `wiki` row on the page view route (or a `tenant_paths` copy); its slugs are looked up in the spaces the viewer may read now (after the spaces event), then the page is read again through every search rule and the item event and kept only when its URL is exactly the reference's. Unknown, archived, trashed, excluded and forbidden all answer null. Titles kept in the browser: with `sensitive: true` the group is off while SearchKit keeps recents without revalidation |
 | Filters | Only `space:` is applied; a query with any other filter key gets no wiki group (it would otherwise widen the rows) |
+| SearchKit version (audit VN-2) | **Security requirement: SearchKitBundle >= 1.10.1.** 1.9.x and 1.10.0 can mark a candidate window full of rows hidden in PHP as an exact total (a count side channel). The group registers nothing with an older or unknown version (Composer's installed version), and `composer.json` declares `conflict: nowo-tech/search-kit-bundle <1.10.1` |
+| Excluded spaces (audit VN-4) | `search.excluded_spaces` only removes the wiki's own search page from those spaces; it does not hide them from the SearchKit group. Leave them out with a `nowo_wiki.search_kit.spaces` listener (`exclude()`) |
+| Host entity manager (audit VN-3) | The group re-reads its candidates and their ancestors with `HINT_REFRESH`. When the wiki's entity manager is the host's own (no `database.private_entity_manager`), a search in the same request as an unflushed change the host made to a `WikiPage` overwrites that change in memory (the page and its parent chain get the database state back); flush before searching, or use the private entity manager. Nothing is written either way |
 | Logging | None: no query text, no record data |
 | Worker mode | Stateless services (nothing memoised; every hook resolves the viewer, the spaces and the rows again); tests reuse one container across viewers and right changes with no `kernel.reset`. Read-only: no write, flush, clear, transaction or reset of any entity manager, no route of its own |
 

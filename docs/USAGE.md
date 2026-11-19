@@ -99,8 +99,9 @@ and the form has no space choice ([CONFIGURATION › Host hooks](CONFIGURATION.m
 
 Optional: the wiki's pages in SearchKitBundle's "search everywhere" — the header search, the palette, the results page
 and the recents — **through the wiki's own read rules**. 1.46: built on SearchKit's provider base, so it needs
-`nowo-tech/search-kit-bundle` **>= 1.9** (a suggested package, PHP >= 8.3) with its bundle registered; without it, or
-with an older one (1.8 included), nothing is registered. Off by default:
+`nowo-tech/search-kit-bundle` **>= 1.10.1** (a suggested package, PHP >= 8.3; a security requirement, see
+[SECURITY](SECURITY.md#searchkit-provider-144)) with its bundle registered; without it, or with an older one (1.8 to
+1.10.0 included), nothing is registered. Off by default:
 
 ```yaml
 nowo_wiki:
@@ -196,7 +197,8 @@ hidden row is never shown, counted or hinted at (the totals and the "see all" li
   (`spaces()`: each a `WikiSearchSpace` with a `WikiSpaceSnapshot` and its tenant key — the link picker's
   `WikiLinkTenantResolverInterface`). Call `exclude($spaceId)` or `excludeAll()`. An exclusion wins whatever the listener
   order; the event cannot be stopped. Dispatched for searches, results pages and recents of the SearchKit group only (not
-  by the wiki's own search page). Use it for rules per space or tenant, e.g. leaving out the wikis of a project whose
+  by the wiki's own search page). `search.excluded_spaces` does **not** apply to the SearchKit group (it only removes the
+  wiki's search page there): exclude those spaces here. Use it for rules per space or tenant, e.g. leaving out the wikis of a project whose
   wiki feature is off.
 - **Per page, after the wiki's checks:** SearchKit's `nowo_search_kit.item_visibility` (`SearchItemVisibilityEvent`,
   group `wiki`, subject type `wiki`, subject id = the page id, tenant = the current tenant key or `*`), once per search page with every candidate;
