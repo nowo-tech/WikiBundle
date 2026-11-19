@@ -1244,7 +1244,7 @@ Your own endpoints (e.g. Beacon routes) can call `WikiCollabService` directly â€
 ## Favourites, recents and backlinks (1.45)
 
 Three opt-in switches (see [CONFIGURATION](CONFIGURATION.md#favourites-recents-and-backlinks-145)); each adds its own
-table, so run your migrations after turning one on (DDL in [UPGRADING](UPGRADING.md#unreleased)).
+table, so run your migrations after turning one on (DDL in [UPGRADING](UPGRADING.md#to-1450)).
 
 - **Favourites** (`favourites.enabled`): the page actions get *Add to favourites* / *Remove from favourites* (a POST
   form with its CSRF token; no JavaScript needed), and the sidebar a **Favourites** section above the page tree, newest
