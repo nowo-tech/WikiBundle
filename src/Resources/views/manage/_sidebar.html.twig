@@ -13,6 +13,7 @@
   data-nowo-ui-rail-body (display: none in the rail, so out of the tab order); the rail shows "Pages" vertically.
   1.44: with UiKit's focus mode enabled, a close button in the header (`data-wiki-focus-drawer-close`, shown by wiki.css
   only in focus mode, aria-controls the card: `nowo-wiki-pages` without a rail) closes the focus drawer.
+  1.45: quick_access ({favourites, recents} from the controller, optional) prints _quick_access.html.twig above the tree.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
 {% set _rail = tree_rail|default(null) %}
@@ -40,6 +41,8 @@
         {% endif %}
     </header>
     <nav class="{{ nowo_ui_class('card_body', bundle) }} nowo-wiki-sidebar__body"{% if _rail %} id="{{ _rail.body_id }}" data-nowo-ui-rail-body{% endif %} aria-label="{{ 'wiki.space.pages'|trans }}">
+        {#- 1.45: Favourites and Recently viewed above the tree (quick_access; null = both off) -#}
+        {{ include('@NowoWikiBundle/manage/_quick_access.html.twig', {quick_access: quick_access|default(null), bundle: bundle}, false) }}
         {% if tree is empty %}
             <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.space.no_pages'|trans }}</p>
         {% elseif tree_ui|default(null) %}

@@ -10,7 +10,7 @@ Root key: `nowo_wiki`.
 | `space_scope` | `team` | `team` or `user` |
 | `team_membership_resolver` | null | Service id implementing `WikiTeamMembershipResolverInterface` |
 | `database.entity_manager` | `default` | Doctrine entity manager used by the wiki repositories and search |
-| `database.mapping_type` | `attribute` | 1.36: `xml` maps the 13 wiki entities from `Resources/config/doctrine-xml` (same schema) on `database.entity_manager`. Literal value only (read before the configuration is processed). See [ARCHITECTURE](ARCHITECTURE.md#mapping-and-user-references) |
+| `database.mapping_type` | `attribute` | 1.36: `xml` maps the 16 wiki entities (13 before 1.45) from `Resources/config/doctrine-xml` (same schema) on `database.entity_manager`. Literal value only (read before the configuration is processed). See [ARCHITECTURE](ARCHITECTURE.md#mapping-and-user-references) |
 | `database.user_reference` | `entity` | 1.36: `id` stores revision authors, link creators, uploaders, comment authors, resolvers and reactions as the user's id (`VARCHAR(128)`, binary collation on MySQL / MariaDB, no foreign key); `user_class` need not be a Doctrine entity. Schema migration: [UPGRADING](UPGRADING.md#to-1340) |
 | `database.private_entity_manager` | `false` | 1.36: `true` reads and writes the wiki rows through a private entity manager on the connection and mapping of `database.entity_manager`: a wiki write never flushes, clears or closes your manager. The only mode in 2.0 |
 | `user_directory` | `null` | 1.36: service id of a `User\WikiUserDirectoryInterface` (`find(string $id): ?object`, exact id) for names and avatars of users stored by id |
@@ -56,6 +56,8 @@ Root key: `nowo_wiki`.
 | `pagination.spaces_per_page` | `24` | Space cards per wiki index page (`?page=N`, 1–500) |
 | `pagination.revisions_per_page` | `25` | Revisions per page history page (`?page=N`, 1–500) |
 | `pagination.max_tree_pages` | `500` | Pages loaded into the sidebar tree (10–10000); a notice links to search when more exist |
+| `favourites.*`, `recents.*`, `backlinks.*` | off | 1.45: see [Favourites, recents and backlinks](#favourites-recents-and-backlinks-145) |
+| `history.rendered_diff` | `false` | 1.45: see [History timeline](#history-timeline-115) |
 
 ## Table of contents
 
@@ -65,6 +67,7 @@ Root key: `nowo_wiki`.
 - [Trash (1.14)](#trash-114)
 - [Page files (1.20)](#page-files-120)
 - [History timeline (1.15)](#history-timeline-115)
+- [Favourites, recents and backlinks (1.45)](#favourites-recents-and-backlinks-145)
 - [Comments (1.16)](#comments-116)
 - [Avatars (1.16)](#avatars-116)
 - [Search text (1.16)](#search-text-116)
@@ -383,6 +386,7 @@ nowo_wiki:
 | `history.show_names` | `false` | Show safe display names (`getDisplayName()` / `getName()`, the co-editing rule) instead of opaque labels |
 | `history.show_actor_labels` | `null` (= `show_names`) | Spec 234 (audit PQ-M1): show a write's actor label (token name) in the history and the API `token_name`, only beside an author shown under a real name and only when it passes the same safe-name rule; never beside an opaque "Editor xxxx". The author always sees their own labels |
 | `history.retention_days` | 30 | Age at which `wiki:history:thin` thins revisions |
+| `history.rendered_diff` | `false` | 1.45, needs `editor.type: milkdown`: *Compare* shows the editor's rendered diff of two Markdown revisions (blocks matched, a changed paragraph diffed word by word), rendered for the viewer and sanitized; HTML revisions keep the line diff. Literal boolean |
 | `routes.page_version_save` | `…/pages/{pageSlug}/versions/new` | *Save version* (GET form, POST + CSRF) |
 | `routes.page_version_copy` | `…/pages/{pageSlug}/revisions/{revisionNumber}/copy` | *Copy to new page* (POST + CSRF) |
 | `web_ui.templates.page_version` | null | Template of the *Save version* form |
@@ -404,6 +408,72 @@ label on one page and unrelated labels on other pages, and a label cannot be mat
 versions, the current revision and the newest revision are always kept. Revision numbers are never reused, so a thinned
 history has gaps. Run it from a single scheduler, e.g. `30 3 * * * bin/console wiki:history:thin`. Without the
 timeline the command does nothing.
+
+## Favourites, recents and backlinks (1.45)
+
+```yaml
+nowo_wiki:
+    favourites:
+        enabled: true     # literal boolean; off = no action, no section, no route, no table
+        max: 100          # favourites one person may keep (1–500); one more is refused with a message
+        shown: 10         # listed in the sidebar section (1–100), newest first
+    recents:
+        enabled: true     # literal boolean; off = nothing recorded, no section, no table
+        keep: 20          # visits kept per person (1–200); each visit deletes the older ones
+        shown: 8          # listed in the sidebar section (1–100), last opened first, current page left out
+        retention_days: 90  # visits older than this are never listed and are deleted (1–3650)
+    backlinks:
+        enabled: true     # literal boolean; off = no section, no index, no table
+        limit: 20         # linking pages listed at most (1–200)
+        candidates: 200   # index rows read at most per page view (1–5000)
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `favourites.enabled` | `false` | *Add to favourites* / *Remove from favourites* in the page actions (POST + CSRF) and a **Favourites** section above the page tree (page view, edit form, space home). Table `<prefix>_page_favourites` |
+| `favourites.max` | 100 | Favourites per person |
+| `favourites.shown` | 10 | Rows of the sidebar section |
+| `recents.enabled` | `false` | A **Recently viewed** section above the page tree; every page view records the visit. Table `<prefix>_page_visits` |
+| `recents.keep` | 20 | Visits kept per person (the bound of the table) |
+| `recents.shown` | 8 | Rows of the sidebar section |
+| `recents.retention_days` | 90 | Visits older than this are never listed, are deleted on the person's next visit and by `bin/console wiki:recents:purge` (bounded batches on the `visited_at` index; a visit refreshed meanwhile is kept; run it daily). Owner decision B |
+| `backlinks.enabled` | `false` | **Linked from** after the page body (block `wiki_page_backlinks`); the reference index `<prefix>_page_references` is written after every save. Run `bin/console wiki:backlinks:rebuild` once after turning it on |
+| `backlinks.limit` | 20 | Linking pages listed |
+| `backlinks.candidates` | 200 | Index rows read per page view to find them (the bound of the per-viewer scan) |
+| `routes.page_favourite` | `…/pages/{pageSlug}/favourite` | The favourite toggle (POST; registered only with `favourites.enabled`) |
+| `routes.favourite_remove` | `/tools/wiki/favourites/{favouriteId}/remove` | Removes one of the person's favourites by its id, whatever its page (POST + CSRF token id `wiki_favourite_remove`; the same answer whether the row exists or not; registered only with `favourites.enabled`) |
+
+**Who sees what.** Favourites and visits belong to one person: the user's `getId()` as a string, when it is a valid
+stored id (`WikiStoredUserRef::isValid()`: 1 to 128 printable characters; any other user gets no button and no list).
+Every list is built once per view and filtered before it is cut:
+
+- **the current tenant only** (owner decision A): the spaces with the same tenant key as the space being viewed, from
+  the link picker's tenant port `LinkPicker\WikiLinkTenantResolverInterface` (`tenant_paths` rows by default; alias it
+  to your organisation resolver, as for the link picker). A space without a tenant key keeps the lists to itself.
+  With any of the three lists on, your resolver is called on **every view**, once for the space being viewed and once
+  for each space the viewer may list, also when the link picker is off: it must be stateless (no state kept between
+  calls or requests, FrankenPHP worker mode) and cheap (no query per call, or a request-free lookup);
+- of those, only the spaces the viewer may read now reach the SQL (the role gate `list`, the tenant / team resolver,
+  `View` on the space), and only live pages (archived and trashed pages are left out);
+- then `View` on the page and every ancestor (the page view's rule).
+
+A page the viewer lost access to is never listed; its row stays, and the page shows again if access comes back. Only
+the favourites the viewer can still read in this tenant count toward `favourites.max`; a hidden one never blocks an add,
+and the refusal says nothing about it. The same scope decides *Linked from*. The links are the router's, so with
+`tenant_paths` they are each tenant's own routes. Pages that list them are sent with `Cache-Control: private, no-store`.
+
+**Visits.** A visit is recorded server-side by the page view (`GET`), never for a `HEAD` request or a browser prefetch
+or prerender (`Sec-Purpose: prefetch`, `Purpose: prefetch`, `X-Moz: prefetch`, `X-Purpose: preview`). Remaining
+limits: a link checker or a bot signed in as a person, and a reload, count as visits; the edit form and the history do
+not record one. A failure of this bookkeeping never fails the page (it is logged).
+
+**Personal data.** Favourites and recent visits are personal data (which pages a person reads, and when). The rows keep
+the user id without a foreign key (they outlive an account); visits are kept at most `recents.retention_days`.
+`bin/console wiki:comments:erase-user <user>` (the wiki's person erasure) exports (`--export`, key `quick_access`) and
+erases them with the person's comments and actor labels; `WikiCommentService::exportAuthorData()` carries them as
+`quick_access` too, and `WikiCommentService::eraseAuthor()` erases them (through `nowo_wiki.comment.author_erased`); `bin/console wiki:quick-access:erase-user <id> [--export]` does only these rows.
+Both are always available and act on every table of the two that exists, whatever the switches say now. The backlink
+index holds no personal data.
 
 ## Comments (1.16)
 

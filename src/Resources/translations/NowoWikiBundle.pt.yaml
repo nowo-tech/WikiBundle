@@ -341,6 +341,19 @@ wiki:
       conflict: "A página mudou entretanto: recarregue e tente de novo."
       page_gone: "Esta página foi arquivada ou eliminada entretanto: recarregue a página."
       denied: "Não pode fazer isto nesta página."
+  # 1.45: favourites, recently viewed pages and backlinks.
+  favourites:
+    title: "Favoritos"
+    add: "Adicionar aos favoritos"
+    remove: "Remover dos favoritos"
+    added: "«%title%» foi adicionada aos favoritos."
+    removed: "«%title%» foi removida dos favoritos."
+    removed_one: "O favorito foi removido."
+    limit_reached: "Já tem o número máximo de favoritos. Remova um primeiro."
+  recents:
+    title: "Vistas recentemente"
+  backlinks:
+    title: "Ligada a partir de"
 wiki_page_form:
   title:
     placeholder: "Título da página"

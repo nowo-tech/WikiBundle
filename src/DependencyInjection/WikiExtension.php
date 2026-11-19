@@ -40,11 +40,15 @@ use Nowo\WikiBundle\Attachment\ConfiguredWikiAttachmentLimitsProvider;
 use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
 use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
+use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
 use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Avatar\NullWikiUserAvatarResolver;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
+use Nowo\WikiBundle\Backlink\WikiBacklinks;
+use Nowo\WikiBundle\Backlink\WikiPageReferenceIndex;
+use Nowo\WikiBundle\Backlink\WikiPageReferenceListener;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
@@ -54,6 +58,9 @@ use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Command\WikiBacklinksRebuildCommand;
+use Nowo\WikiBundle\Command\WikiQuickAccessEraseUserCommand;
+use Nowo\WikiBundle\Command\WikiRecentsPurgeCommand;
 use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
@@ -71,6 +78,7 @@ use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\History\WikiHistoryThinner;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
+use Nowo\WikiBundle\History\WikiRenderedRevisionDiff;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiObjectLinkSourceInterface;
@@ -103,6 +111,10 @@ use Nowo\WikiBundle\Provenance\NullWikiWriteProvenanceProvider;
 use Nowo\WikiBundle\Provenance\WikiProvenanceAuthorErasedListener;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceProviderInterface;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccessErasureListener;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
+use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
@@ -151,6 +163,7 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Transaction\WikiConflictAnswer;
 use Nowo\WikiBundle\Transaction\WikiStorageFailureConflictFormatter;
 use Nowo\WikiBundle\Transaction\WikiStorageFailureSubscriber;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
@@ -255,6 +268,14 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $config['history']['timeline'] = $this->literalBool($config['history']['timeline'], 'history.timeline');
         if (!$config['history']['timeline']) {
             unset($config['routes']['page_version_save'], $config['routes']['page_version_copy']);
+        }
+        // 1.45: favourites, recents and backlinks; their tables (and the favourite route) exist only when they are on.
+        $config['favourites']['enabled']    = $this->literalBool($config['favourites']['enabled'], 'favourites.enabled');
+        $config['recents']['enabled']       = $this->literalBool($config['recents']['enabled'], 'recents.enabled');
+        $config['backlinks']['enabled']     = $this->literalBool($config['backlinks']['enabled'], 'backlinks.enabled');
+        $config['history']['rendered_diff'] = $this->literalBool($config['history']['rendered_diff'], 'history.rendered_diff');
+        if (!$config['favourites']['enabled']) {
+            unset($config['routes']['page_favourite'], $config['routes']['favourite_remove']);
         }
         // 1.14 (T065): the trash; its table and routes exist only when it is on.
         $config['trash']['enabled'] = $this->literalBool($config['trash']['enabled'], 'trash.enabled');
@@ -454,6 +475,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             // The shared policy (409 by default); absent when the host did not register nowo-tech/transaction-doctrine's bundle (the subscriber then uses 409 + 1 s).
             ->setArguments(['$policy' => new Reference('nowo_transaction_doctrine.conflict_response_policy', ContainerInterface::NULL_ON_INVALID_REFERENCE)])
             ->addTag('kernel.event_subscriber'));
+        // 1.45: the rule 6 answer (CONFLICT_001 / CONFLICT_002) of the routes added in 1.45.
+        $container->setDefinition(WikiConflictAnswer::class, (new Definition(WikiConflictAnswer::class))
+            ->setArguments(['$policy' => new Reference('nowo_transaction_doctrine.conflict_response_policy', ContainerInterface::NULL_ON_INVALID_REFERENCE)]));
         if (interface_exists(ConflictResponseFormatterInterface::class)) {
             $container->setDefinition(WikiStorageFailureConflictFormatter::class, (new Definition(WikiStorageFailureConflictFormatter::class))
                 ->addTag(ConflictResponseFormatterInterface::TAG));
@@ -489,6 +513,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$commentTablePrefix', $prefix)
             ->setArgument('$commentsEnabled', $config['comments']['enabled'])
             ->setArgument('$userReference', $database['user_reference'])
+            ->setArgument('$quickAccessTablePrefix', $prefix)
+            ->setArgument('$favouritesEnabled', $config['favourites']['enabled'])
+            ->setArgument('$recentsEnabled', $config['recents']['enabled'])
+            ->setArgument('$backlinksEnabled', $config['backlinks']['enabled'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
@@ -515,6 +543,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerPanelState($container, $config);
         $this->registerComments($container, $config, $emProviderRef);
         $this->registerLinkPicker($container, $config);
+        $this->registerQuickAccess($container, $config);
+        $this->registerBacklinks($container, $config);
+        $this->registerRenderedDiff($container, $config);
 
         $container->getDefinition(WikiSearchService::class)->setArgument('$entityManager', $emProviderRef);
         // 1.16: wiki:search:backfill-text fills the revisions' plain-text column.
@@ -826,6 +857,140 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$icons', new Reference(IconResolverInterface::class)));
         $container->setDefinition(WikiMilkdownRichContent::class, (new Definition(WikiMilkdownRichContent::class))
             ->setArgument('$twig', new Reference(MilkdownEditorTwig::class)));
+    }
+
+    /**
+     * 1.45: favourites (`favourites.enabled`) and recently viewed pages (`recents.enabled`): the store, the per-viewer
+     * service the page view and the favourite routes use, the erasure and purge commands.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerQuickAccess(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool, max: int, shown: int} $favourites */
+        $favourites = $config['favourites'];
+        /** @var array{enabled: bool, keep: int, shown: int, retention_days: int} $recents */
+        $recents = $config['recents'];
+        $runner  = new Reference(WikiTransactionRunner::class);
+        // Always (audit VC-3): the store, the erasure command and listener, the purge command; they act on the tables
+        // that exist, whether or not their feature is on now.
+        $container->setDefinition(WikiQuickAccessStore::class, (new Definition(WikiQuickAccessStore::class))->setArgument('$runner', $runner));
+        $container->setDefinition(WikiQuickAccessEraseUserCommand::class, (new Definition(WikiQuickAccessEraseUserCommand::class))
+            ->setArgument('$store', new Reference(WikiQuickAccessStore::class))
+            ->addTag('console.command'));
+        $container->setDefinition(WikiRecentsPurgeCommand::class, (new Definition(WikiRecentsPurgeCommand::class))
+            ->setArguments(['$store' => new Reference(WikiQuickAccessStore::class), '$retentionDays' => $recents['retention_days']])
+            ->addTag('console.command'));
+        // Audit VC2-1: the comment service's privacy export carries the favourites and visits too.
+        if ($container->hasDefinition(WikiCommentService::class)) {
+            $container->getDefinition(WikiCommentService::class)->setArgument('$quickAccess', new Reference(WikiQuickAccessStore::class));
+        }
+        $container->setDefinition(WikiQuickAccessErasureListener::class, (new Definition(WikiQuickAccessErasureListener::class))
+            ->setArgument('$store', new Reference(WikiQuickAccessStore::class))
+            ->addTag('kernel.event_listener', ['event' => WikiEvents::COMMENT_AUTHOR_ERASED, 'method' => 'onAuthorErased']));
+        if ($favourites['enabled'] || $recents['enabled'] || $config['backlinks']['enabled']) {
+            $this->registerReadableSpaces($container);
+        }
+        if (!$favourites['enabled'] && !$recents['enabled']) {
+            return;
+        }
+        $container->setDefinition(WikiQuickAccess::class, (new Definition(WikiQuickAccess::class))
+            ->setArguments([
+                '$store'      => new Reference(WikiQuickAccessStore::class),
+                '$favourites' => $favourites,
+                '$recents'    => $recents,
+                '$logger'     => new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ])
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+    }
+
+    /**
+     * 1.45 (owner decision A, audit VC-9): the per-view scope of the lists, tenant-aware through the link picker's
+     * tenant port ({@see WikiLinkTenantResolverInterface}; `tenant_paths` by default, a host alias wins).
+     */
+    private function registerReadableSpaces(ContainerBuilder $container): void
+    {
+        if (!$container->hasAlias(WikiLinkTenantResolverInterface::class) && !$container->hasDefinition(WikiLinkTenantResolverInterface::class)) {
+            $container->setDefinition(WikiTenantPathsLinkTenantResolver::class, (new Definition(WikiTenantPathsLinkTenantResolver::class))
+                ->setArgument('$tenantPaths', new Reference(WikiTenantPaths::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            $container->setAlias(WikiLinkTenantResolverInterface::class, WikiTenantPathsLinkTenantResolver::class);
+        }
+        $container->setDefinition(WikiReadableSpaces::class, (new Definition(WikiReadableSpaces::class))
+            ->setArguments([
+                '$roles'   => new Reference(WikiAccessCheckerInterface::class),
+                '$spaces'  => new Reference(WikiSpaceAccessResolverInterface::class),
+                '$checker' => new Reference(WikiSpaceAccessCheckerInterface::class),
+                '$tenants' => new Reference(WikiLinkTenantResolverInterface::class),
+            ]));
+    }
+
+    /**
+     * 1.45 (`backlinks.enabled`): the backlink index, its PAGE_SAVED listener, the "Linked from" finder and
+     * `wiki:backlinks:rebuild`. Nothing is registered when it is off.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerBacklinks(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool, limit: int, candidates: int} $backlinks */
+        $backlinks = $config['backlinks'];
+        if (!$backlinks['enabled']) {
+            return;
+        }
+        $runner = new Reference(WikiTransactionRunner::class);
+        $container->setDefinition(WikiPageReferenceIndex::class, (new Definition(WikiPageReferenceIndex::class))
+            ->setArguments([
+                '$runner'     => $runner,
+                '$references' => new Reference(WikiMarkdownReferenceExtractor::class),
+                '$renderer'   => new Reference(WikiMarkdownRendererInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ]));
+        $container->setDefinition(WikiPageReferenceListener::class, (new Definition(WikiPageReferenceListener::class))
+            ->setArguments([
+                '$index'  => new Reference(WikiPageReferenceIndex::class),
+                '$logger' => new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ])
+            ->addTag('kernel.event_listener', ['event' => WikiEvents::PAGE_SAVED, 'method' => 'onPageSaved'])
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+        $container->setDefinition(WikiBacklinks::class, (new Definition(WikiBacklinks::class))
+            ->setArguments([
+                '$runner'     => $runner,
+                '$limit'      => $backlinks['limit'],
+                '$candidates' => $backlinks['candidates'],
+            ]));
+        $container->setDefinition(WikiBacklinksRebuildCommand::class, (new Definition(WikiBacklinksRebuildCommand::class))
+            ->setArguments([
+                '$index'  => new Reference(WikiPageReferenceIndex::class),
+                '$logger' => new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ])
+            ->addTag('console.command')
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+    }
+
+    /**
+     * 1.45 (`history.rendered_diff`): the editor's rendered diff on the Compare page. Needs `editor.type: milkdown`.
+     *
+     * @param array<string, mixed> $config processed configuration
+     *
+     * @throws LogicException with rendered_diff on and another editor
+     */
+    private function registerRenderedDiff(ContainerBuilder $container, array $config): void
+    {
+        if (!$config['history']['rendered_diff']) {
+            return;
+        }
+        if ($config['editor']['type'] !== Configuration::EDITOR_MILKDOWN) {
+            throw new LogicException('nowo_wiki.history.rendered_diff needs nowo_wiki.editor.type: milkdown (the diff is the Milkdown editor\'s).');
+        }
+        $container->setDefinition(WikiRenderedRevisionDiff::class, (new Definition(WikiRenderedRevisionDiff::class))
+            ->setArguments([
+                '$renderer'               => new Reference(WikiMarkdownRendererInterface::class),
+                '$sanitizer'              => new Reference(WikiHtmlSanitizerInterface::class),
+                '$extraAllowedElements'   => $config['sanitizer']['extra_allowed_elements'],
+                '$extraAllowedAttributes' => array_values($config['sanitizer']['extra_allowed_attributes']),
+                '$renderContext'          => new Reference(WikiRenderContext::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                '$attachmentFilter'       => new Reference(WikiAttachmentReferenceFilter::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                '$translator'             => new Reference('translator', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ]));
     }
 
     /**

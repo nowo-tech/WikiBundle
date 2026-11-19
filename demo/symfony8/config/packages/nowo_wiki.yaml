@@ -38,8 +38,17 @@ nowo_wiki:
         enabled: true
         purge_event: true
     # 1.15: the history timeline (sessions, author labels, Save version, Copy to new page; wiki:history:thin).
+    # 1.45: Compare shows the editor's rendered diff of two Markdown revisions.
     history:
         timeline: true
+        rendered_diff: true
+    # 1.45: favourites and recently viewed pages above the tree; "Linked from" after the page body.
+    favourites:
+        enabled: true
+    recents:
+        enabled: true
+    backlinks:
+        enabled: true
     # 1.16: comments in a right-side panel toggled from the page tabs (Milkdown >= 1.6 thread component). The demo
     # checker (App\Security\DemoWikiSpaceAccessChecker) grants ViewComments with View, Comment with Edit, and
     # ResolveComment / ModerateComments with Archive (Beacon: View, Edit, manage, manage).

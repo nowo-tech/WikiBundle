@@ -14,7 +14,10 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Tools\Event\GenerateSchemaTableEventArgs;
 use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
+use Nowo\WikiBundle\Entity\WikiPageFavourite;
 use Nowo\WikiBundle\Entity\WikiPageLink;
+use Nowo\WikiBundle\Entity\WikiPageReference;
+use Nowo\WikiBundle\Entity\WikiPageVisit;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Psr\Log\LoggerInterface;
 
@@ -38,6 +41,12 @@ final readonly class WikiSpaceCollationListener
 
     /** 1.37: the fields of a page link that hold a host object's type and id. */
     public const LINK_FIELDS = ['objectType', 'objectId'];
+
+    /** 1.45: the person of a favourite or a visit (`Alice` is not `alice`). */
+    public const QUICK_ACCESS_FIELDS = ['userId'];
+
+    /** 1.45: the linked page of a backlink index row. */
+    public const REFERENCE_FIELDS = ['targetPageId'];
 
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki's entity manager (its platform decides the collation)
@@ -100,7 +109,8 @@ final readonly class WikiSpaceCollationListener
 
     /**
      * The fields of a wiki class that hold an owner or user id: `owner_scope_id` of the spaces, 1.37 the linked host
-     * object of a page link (`object_type`, `object_id`) and, with
+     * object of a page link (`object_type`, `object_id`), 1.45 the person of a favourite or a visit (`user_id`) and the
+     * target of a backlink index row (`target_page_id`) and, with
      * `database.user_reference: id` (1.36), every {@see WikiUserRefType} column (REQ-SEC-006 item 3).
      *
      * @param ClassMetadata<object> $metadata the class metadata
@@ -113,7 +123,10 @@ final readonly class WikiSpaceCollationListener
             WikiSpace::class => self::FIELDS,
             // 1.37: the host object a page is linked to (a task `ABC` is not the task `abc`).
             WikiPageLink::class => self::LINK_FIELDS,
-            default             => [],
+            // 1.45: favourites and visits of one person; the index row's target page.
+            WikiPageFavourite::class, WikiPageVisit::class => self::QUICK_ACCESS_FIELDS,
+            WikiPageReference::class                       => self::REFERENCE_FIELDS,
+            default                                        => [],
         };
         foreach ($metadata->fieldMappings as $field => $mapping) {
             if ($mapping->type === WikiUserRefType::NAME) {

@@ -341,6 +341,19 @@ wiki:
       conflict: "The page changed meanwhile: reload and try again."
       page_gone: "This page was archived or deleted meanwhile: reload the page."
       denied: "You may not do this on this page."
+  # 1.45: favourites, recently viewed pages and backlinks.
+  favourites:
+    title: "Favourites"
+    add: "Add to favourites"
+    remove: "Remove from favourites"
+    added: "\"%title%\" was added to your favourites."
+    removed: "\"%title%\" was removed from your favourites."
+    removed_one: "The favourite was removed."
+    limit_reached: "You already have the most favourites allowed. Remove one first."
+  recents:
+    title: "Recently viewed"
+  backlinks:
+    title: "Linked from"
 wiki_page_form:
   title:
     placeholder: "Page title"

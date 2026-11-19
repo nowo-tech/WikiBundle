@@ -25,7 +25,7 @@ or matches is compared byte for byte (REQ-SEC-006, see [SECURITY](SECURITY.md)).
 | Host ports | the 1.x interfaces (Symfony `UserInterface`, `Request`, wiki entities) | their framework-free twins (`WikiUserRef`, snapshots, request-context VOs) |
 | Calling the wiki | `WikiPageServiceInterface`, `WikiSpaceServiceInterface`, `WikiPageLinkServiceInterface` (entities) | `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface`, `WikiPageLinkOperationsInterface` (ids, snapshots) |
 | Events | entity payloads, `actorId()` | `spaceId()`, `pageId()`, `pageSnapshot()`, `actorRef()`, ... |
-| Mapping of the 13 wiki entities | ORM attributes | `database.mapping_type: xml` |
+| Mapping of the 16 wiki entities | ORM attributes | `database.mapping_type: xml` |
 | Host users on wiki rows | `ManyToOne` to `user_class` (a Doctrine entity) | `database.user_reference: id` + `user_directory` |
 | Entity manager | `database.entity_manager` (flushed by wiki writes) | `database.private_entity_manager: true` |
 | Bundle base classes / traits for host entities | none | none |
@@ -160,14 +160,17 @@ and your Doctrine listeners still run. Adapted from TaskBoardBundle 2.15.0 / Aut
 
 | | Standard host (default) | DDD host (opt-in) |
 |---|---|---|
-| Mapping of the 13 wiki entities | ORM attributes | `database.mapping_type: xml` (`Resources/config/doctrine-xml`, generated from the attributes by `scripts/generate-xml-mapping.php`, identical metadata; `XmlMappingParityTest`) |
+| Mapping of the 16 wiki entities | ORM attributes | `database.mapping_type: xml` (`Resources/config/doctrine-xml`, generated from the attributes by `scripts/generate-xml-mapping.php`, identical metadata; `XmlMappingParityTest`) |
 | Other entity managers | wiki entities transient unless mapped there explicitly (`WikiMappingManagerPass`, DoctrineBundle 3.4 `auto_discover_entities`) | wiki entities transient (`WikiExcludedEntityNamespaceDriver`) |
 | Host users on wiki rows | `ManyToOne` to `user_class` (a Doctrine entity in the wiki's manager) | `database.user_reference: id`: the id in a string column (`WikiStoredUserRef`, type `wiki_user_ref`, 128 characters, indexed, no foreign key), found again through `user_directory` |
 
 With the id mode the bundle never joins your user table: DQL compares the id column, lookups go through the directory
 (each answer re-checked with `===` on `getId()`), every user-keyed result is re-checked with `===` in PHP before any
 limit, erasures select the exact rows first and write by primary key, and the columns compare in binary NO PAD on MySQL
-(`utf8mb4_0900_bin`) and MariaDB (`utf8mb4_nopad_bin`). Rows outlive their user.
+(`utf8mb4_0900_bin`) and MariaDB (`utf8mb4_nopad_bin`). Rows outlive their user. The same holds in both modes for the
+1.45 favourites and recent visits (`user_id`, always a string column): every write selects the person's rows, keeps
+those whose id is `===` the person's, and writes or deletes them by primary key, so a PAD SPACE fallback (`utf8mb4_bin`,
+`alice` = `alice `) never lets one person touch another person's row.
 
 ## Both host kinds, tested
 

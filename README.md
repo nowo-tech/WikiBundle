@@ -26,7 +26,8 @@ This bundle is **FrankenPHP worker mode friendly**, including kernel reset false
 - **Pages** with slug, parent/child tree, archive (revisions kept)
 - **Page tree menu, icon / emoji picker, previous / next** (1.39, opt-in) — right click / Shift+F10 / «…» on a tree row: Rename, Change icon / emoji, Add child / sibling page, Copy link (permission-aware); optional visual picker and emoji icons with **[IconSelectorBundle](https://github.com/nowo-tech/IconSelectorBundle)** ^1.6; `web_ui.page_nav` links in reading order ([Usage](docs/USAGE.md#icon-picker-emoji-icons-and-the-tree-menu-139))
 - **Immutable revisions** on every save
-- **Revision diff** between any two versions
+- **Revision diff** between any two versions; 1.45 (`history.rendered_diff`, Milkdown): the rendered block and word diff, rendered for the viewer and sanitized
+- **Favourites, recently viewed and backlinks (1.45, opt-in)** — star pages and find them above the tree with the pages opened last; "Linked from" after the page body from the bundle's own reference index; every list filtered for the viewer before it is cut ([Usage](docs/USAGE.md#favourites-recents-and-backlinks-145))
 - Full-text **search** in title and current revision body (per space or all accessible spaces), with contextual excerpts
 - **Import / export** — Outline and Notion Markdown trees (UI + `wiki:import` / `wiki:export` commands)
 - **Symfony AI (optional)** — ask questions about wiki content with RAG context (`symfony/ai-bundle`)

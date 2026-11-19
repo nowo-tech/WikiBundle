@@ -59,7 +59,7 @@ use const PHP_VERSION_ID;
 final class XmlMappingParityTest extends TestCase
 {
     /** The wiki entities. */
-    private const ENTITIES = 13;
+    private const ENTITIES = 16;
 
     /**
      * @return iterable<string, array{0: NamingStrategy}>

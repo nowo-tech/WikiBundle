@@ -30,6 +30,8 @@
 - [Milkdown editor (1.13)](#milkdown-editor-113)
   - [Co-editing (1.13)](#co-editing-113)
   - [Conversion report (1.13)](#conversion-report-113)
+- [Favourites, recents and backlinks (1.45)](#favourites-recents-and-backlinks-145)
+  - [Rendered diff (1.45)](#rendered-diff-145)
 - [Comments (1.16)](#comments-116)
   - [Endpoints](#endpoints)
   - [Notifications](#notifications)
@@ -632,10 +634,12 @@ Paths are relative to `src/Resources/views` (`@NowoWikiBundle/<subpath>`):
 | `manage/page_view.html.twig` | Page view (UiKit show scaffold): sanitized body (`nowo_wiki_safe_html`), tree, "Used in" |
 | `manage/page_edit.html.twig` | Create / edit (UiKit form scaffold, `WikiPageFormType`, Tiptap editor script) |
 | `manage/page_history.html.twig` | Paginated revisions (UiKit list scaffold) with Compare / Restore |
-| `manage/page_diff.html.twig` | Diff of two revisions (UiKit show scaffold) |
+| `manage/page_diff.html.twig` | Diff of two revisions (UiKit show scaffold); 1.45: the rendered diff (`rendered_diff`) with `history.rendered_diff` |
 | `manage/search.html.twig` | Search (UiKit list scaffold: filters + results) |
 | `manage/ai_ask.html.twig` | AI question (UiKit form scaffold) with the answer and sources |
 | `manage/_sidebar.html.twig` | Sidebar card with the page tree and the "tree truncated" notice |
+| `manage/_quick_access.html.twig` | 1.45: the Favourites and Recently viewed disclosures above the tree (`quick_access`) |
+| `manage/_backlinks.html.twig` | 1.45: "Linked from" after the page body (`backlinks`, block `wiki_page_backlinks`) |
 | `manage/_page_tree.html.twig` | One level of the tree (`<ul class="nowo-wiki-tree">`) |
 | `manage/_page_tree_item.html.twig` | One page of the tree: link, depth class, `aria-current`, its children |
 | `manage/_ai_dialog.html.twig` | AI question `<dialog>` of the index (UiKit `_dialog`) |
@@ -1108,7 +1112,7 @@ if ($event->conversion) {
 }
 ```
 
-**Page references and backlinks:** the bundle's `<prefix>_page_links` table holds host objects linked by hand, so page-to-page references are not written there. A host keeping a backlink index reads them on save:
+**Page references and backlinks:** since 1.45 the bundle keeps its own backlink index (`backlinks.enabled`, see [Favourites, recents and backlinks](#favourites-recents-and-backlinks-145)). The `<prefix>_page_links` table still holds only host objects linked by hand. A host that keeps an index of its own reads the references on save:
 
 ```php
 #[AsEventListener(WikiEvents::PAGE_SAVED)]
@@ -1236,6 +1240,64 @@ Your own endpoints (e.g. Beacon routes) can call `WikiCollabService` directly â€
 | `nested_table` | A table inside a table |
 | `table_caption`, `figure_caption` | The caption becomes text |
 | `embed_as_link` | An embedded video becomes a link to it (dialect) |
+
+## Favourites, recents and backlinks (1.45)
+
+Three opt-in switches (see [CONFIGURATION](CONFIGURATION.md#favourites-recents-and-backlinks-145)); each adds its own
+table, so run your migrations after turning one on (DDL in [UPGRADING](UPGRADING.md#unreleased)).
+
+- **Favourites** (`favourites.enabled`): the page actions get *Add to favourites* / *Remove from favourites* (a POST
+  form with its CSRF token; no JavaScript needed), and the sidebar a **Favourites** section above the page tree, newest
+  first. Adding a page that is already a favourite (another tab) changes nothing; past `favourites.max` the add is
+  refused with a message. JSON clients (`Accept: application/json`) get `{"favourite": true, "result": "added"}`
+  (`removed`, `unchanged`) or `422 {"error": "limit_reached"}`. Only the favourites the person can still read in this
+  tenant count toward the limit. `POST {favourite_remove}` (`/tools/wiki/favourites/{favouriteId}/remove`, CSRF token id
+  `wiki_favourite_remove`) removes one by its id whatever its page (`{"result": "done"}` either way); the sidebar
+  rows carry the id in `data-wiki-favourite-id`.
+- **Recently viewed** (`recents.enabled`): every page view records the visit (never a `HEAD` request or a browser
+  prefetch); the sidebar lists the pages opened last (the current page left out). At most `recents.keep` visits are kept
+  per person, none older than `recents.retention_days` (90); schedule `bin/console wiki:recents:purge` (daily) for
+  people who stopped visiting.
+- **Linked from** (`backlinks.enabled`): after the page body (Twig block `wiki_page_backlinks`, after
+  `wiki_page_after_body`), the pages whose **current** revision links this one with `[[wiki:<id>]]` or
+  `[[wiki:<id>#anchor]]` (never inside code), by title, with the space name for another space. The index is written
+  after every save (create, edit, restore, import, conversion); fill it once with `bin/console wiki:backlinks:rebuild`
+  (safe to run beside live saves, and again at any time; a page that keeps meeting lock conflicts is retried, then
+  skipped and listed, and the command exits with FAILURE: run it again, or resume with `--after=<page id>`). HTML
+  (Tiptap) revisions hold no `[[wiki:â€¦]]` references, so such pages are never sources. A Markdown revision over the
+  renderer's `max_input_length` / `max_inline_markers` is read as text, so the index keeps the links it had until a
+  smaller revision is saved.
+
+Each list is built once per view (`QuickAccess\WikiViewerScope`) and only shows pages of the **current tenant** the
+viewer may read now, filtered before it is cut: the tenant's readable spaces and live pages in SQL, then `View` on the
+page and every ancestor (see [CONFIGURATION](CONFIGURATION.md#favourites-recents-and-backlinks-145)). Nothing is kept
+in memory between requests (FrankenPHP worker mode).
+
+The sidebar sections are native disclosures (`<details open>`, `_quick_access.html.twig`), so they fold without
+JavaScript. Classes for theming: `.nowo-wiki-quick`, `.nowo-wiki-quick__summary`, `.nowo-wiki-quick__link` (the
+current page has `aria-current="page"`), `.nowo-wiki-backlinks`, `.nowo-wiki-backlinks__link`. A host that showed its own
+backlinks in `wiki_page_after_body` (Beacon: `wiki_backlinks()`) removes them when it turns `backlinks.enabled` on, or
+overrides `wiki_page_backlinks` with an empty block to keep its own.
+
+**Concurrency.** The favourite toggle, the visit and the index are written through the wiki's runner on the connection
+(nothing is flushed; your entity manager is never flushed, cleared or reset). A lock conflict on the favourite route
+answers `409` with `X-Conflict-Code: CONFLICT_001` and `Retry-After` (nothing was saved; JSON body
+`{"error": "conflict", "code": "CONFLICT_001"}`), or `CONFLICT_002` without `Retry-After` when an earlier write of the
+same request was already committed. A visit or an index write that meets a lock conflict is logged and skipped: the
+page is shown, and the index catches up on the page's next save or a rebuild. See [HIGH-LOAD](HIGH-LOAD.md).
+
+### Rendered diff (1.45)
+
+With `history.rendered_diff: true` and `editor.type: milkdown`, *Compare* in the history shows the two versions as
+rendered content: the editor's `MarkdownDiffRenderer` (MilkdownEditorBundle) matches top-level blocks and diffs a
+changed paragraph word by word; inserted text is in `<ins>`, deleted text in `<del>`, each with a visually hidden
+"Inserted:" / "Deleted:" label for screen readers. Every block is rendered **for the viewer** (a link to a page the
+viewer may not read shows as hidden content, as on the page view) and sanitized with the page's allow-list; the whole
+diff is then sanitized again with the page allow-list plus only the diff markup (`ins`, `div[data-change]`), so no
+revision content can inject script. Versions over the renderer's `max_input_length`, with more than 2000 blocks or
+more than 500 changed blocks get the editor's escaped line diff; versions with more than 300 top-level blocks
+(each block is rendered for the viewer on its own) keep the wiki's line diff. A comparison that involves an HTML revision keeps
+the line diff. The page loads the editor's read-side styles (`nowo_wiki_rich_content_assets()`).
 
 ## Comments (1.16)
 

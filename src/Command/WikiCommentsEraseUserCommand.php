@@ -10,6 +10,8 @@ use LogicException;
 use Nowo\WikiBundle\Comment\WikiCommentMentionErasure;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
+use Nowo\WikiBundle\QuickAccess\WikiViewerScope;
 use Nowo\WikiBundle\Service\WikiAuthorResolver;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -63,6 +65,7 @@ final class WikiCommentsEraseUserCommand extends Command
         private readonly WikiAuthorResolver $authorResolver,
         private readonly ?WikiCommentService $comments = null,
         private readonly ?WikiWriteProvenanceErasure $provenance = null,
+        private readonly ?WikiQuickAccessStore $quickAccess = null,
     ) {
         parent::__construct();
     }
@@ -84,7 +87,7 @@ final class WikiCommentsEraseUserCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        if (!$this->comments instanceof WikiCommentService && !$this->provenance instanceof WikiWriteProvenanceErasure) {
+        if (!$this->comments instanceof WikiCommentService && !$this->provenance instanceof WikiWriteProvenanceErasure && !$this->quickAccess instanceof WikiQuickAccessStore) {
             $io->note('Comments are disabled (nowo_wiki.comments.enabled: false): nothing to export or erase.');
 
             return Command::SUCCESS;
@@ -115,15 +118,21 @@ final class WikiCommentsEraseUserCommand extends Command
             if ($this->provenance instanceof WikiWriteProvenanceErasure && !isset($data['revision_actor_labels'])) {
                 $data['revision_actor_labels'] = $this->provenance->exportActor($user);
             }
+            // 1.45 (audit VC-3): favourites and recent visits are personal data too.
+            $userId = WikiViewerScope::idOf($user);
+            if ($this->quickAccess instanceof WikiQuickAccessStore && $userId !== null && !isset($data['quick_access'])) {
+                $data['quick_access'] = $this->quickAccess->exportUser($userId);
+            }
             $output->writeln(json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
             return Command::SUCCESS;
         }
         if (!$this->comments instanceof WikiCommentService) {
-            /** @var WikiWriteProvenanceErasure $erasure checked above: one of the two is set */
-            $erasure = $this->provenance;
+            if (!$this->provenance instanceof WikiWriteProvenanceErasure) {
+                return $this->eraseQuickAccess($io, $input, $user);
+            }
 
-            return $this->eraseActorLabels($io, $input, $user, $erasure);
+            return $this->eraseActorLabels($io, $input, $user, $this->provenance);
         }
 
         $keep    = $input->getOption('keep-bodies') === true;
@@ -157,6 +166,8 @@ final class WikiCommentsEraseUserCommand extends Command
         }
         // Spec 234 (audit PQ-L1): the actor labels first (counted here; the erasure event finds nothing left).
         $labels = $this->provenance?->eraseActor($user) ?? 0;
+        // 1.45: favourites and visits first too (counted here; the erasure event finds nothing left).
+        $this->reportQuickAccess($io, $user);
         $io->success(sprintf('%d comment(s) %s; reactions deleted, threads and resolutions unlinked.', $this->comments->eraseAuthor($user, !$keep), $keep ? 'unlinked' : 'erased'));
         if ($this->provenance instanceof WikiWriteProvenanceErasure) {
             $io->success(sprintf('%d revision actor label(s) erased (%d of deleted authors).', $labels, $this->provenance->eraseOrphaned()));
@@ -177,7 +188,8 @@ final class WikiCommentsEraseUserCommand extends Command
     }
 
     /**
-     * Spec 234: with comments disabled, only the actor labels of the user's revisions (and the orphaned ones).
+     * Spec 234: with comments disabled, only the actor labels of the user's revisions (and the orphaned ones); 1.45: and
+     * the person's favourites and recent visits.
      */
     private function eraseActorLabels(SymfonyStyle $io, InputInterface $input, object $user, WikiWriteProvenanceErasure $erasure): int
     {
@@ -188,8 +200,36 @@ final class WikiCommentsEraseUserCommand extends Command
             return Command::SUCCESS;
         }
         $io->success(sprintf('%d revision actor label(s) erased (%d of deleted authors).', $erasure->eraseActor($user), $erasure->eraseOrphaned()));
+        $this->reportQuickAccess($io, $user);
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * 1.45: with comments and provenance disabled, only the favourites and recent visits.
+     */
+    private function eraseQuickAccess(SymfonyStyle $io, InputInterface $input, object $user): int
+    {
+        if ($input->getOption('force') !== true && $input->isInteractive()
+            && !$io->confirm(sprintf('Erase the wiki favourites and recent visits of "%s"? This cannot be undone.', $user instanceof UserInterface ? $user->getUserIdentifier() : (string) $input->getArgument('user')), false)) {
+            $io->note('Nothing was changed.');
+
+            return Command::SUCCESS;
+        }
+        $this->reportQuickAccess($io, $user);
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * 1.45 (audit VC-3): erases the person's favourites and recent visits (every table that exists) and says how many.
+     */
+    private function reportQuickAccess(SymfonyStyle $io, object $user): void
+    {
+        $userId = WikiViewerScope::idOf($user);
+        if ($this->quickAccess instanceof WikiQuickAccessStore && $userId !== null) {
+            $io->success(sprintf('%d favourite(s) and recent visit(s) erased.', $this->quickAccess->eraseUser($userId)));
+        }
     }
 
     /**

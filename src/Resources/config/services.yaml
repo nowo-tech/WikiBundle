@@ -58,6 +58,9 @@ services:
             - '../../Search/'
             # 1.36: port gates and helpers, wired by WikiPortsPass / WikiExtension only.
             - '../../Port/'
+            # 1.45: favourites, recents and backlinks, registered by WikiExtension only when they are on.
+            - '../../QuickAccess/'
+            - '../../Backlink/'
             # 1.40: the link picker and the editor options of section anchors, registered by WikiExtension (milkdown only).
             - '../../LinkPicker/'
 
@@ -157,6 +160,11 @@ services:
 
     Nowo\WikiBundle\Command\:
         resource: '../../Command/'
+        # 1.45: registered by WikiExtension with backlinks / favourites / recents.
+        exclude:
+            - '../../Command/WikiBacklinksRebuildCommand.php'
+            - '../../Command/WikiQuickAccessEraseUserCommand.php'
+            - '../../Command/WikiRecentsPurgeCommand.php'
         tags: ['console.command']
         bind:
             $enabled: '%nowo_wiki.import_export.enabled%'
@@ -218,6 +226,11 @@ services:
             $breadcrumbCurrentLabel: '@?Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface'
             # 1.40: stable heading ids and the link picker in the Milkdown page editor (null with another editor)
             $linkPickerOptions: '@?Nowo\WikiBundle\LinkPicker\WikiLinkPickerEditorOptions'
+            # 1.45: favourites / recents, backlinks and the rendered diff (null when off)
+            $quickAccess: '@?Nowo\WikiBundle\QuickAccess\WikiQuickAccess'
+            $backlinks: '@?Nowo\WikiBundle\Backlink\WikiBacklinks'
+            $renderedDiff: '@?Nowo\WikiBundle\History\WikiRenderedRevisionDiff'
+            $readableSpaces: '@?Nowo\WikiBundle\QuickAccess\WikiReadableSpaces'
 
     Nowo\WikiBundle\Controller\WikiHistoryController:
         public: true
@@ -275,6 +288,18 @@ services:
         arguments:
             $picker: null
             $rateLimiter: null
+
+    # 1.45: the favourite toggle (404 without favourites.enabled: the service is then null).
+    Nowo\WikiBundle\Controller\WikiFavouriteController:
+        public: true
+        autoconfigure: false
+        tags: ['controller.service_arguments', 'container.service_subscriber']
+        arguments:
+            $routes: '%nowo_wiki.routes%'
+            $quickAccess: '@?Nowo\WikiBundle\QuickAccess\WikiQuickAccess'
+            $readableSpaces: '@?Nowo\WikiBundle\QuickAccess\WikiReadableSpaces'
+            $conflicts: '@Nowo\WikiBundle\Transaction\WikiConflictAnswer'
+            $translator: '@?translator'
 
     Nowo\WikiBundle\Controller\WikiAttachmentController:
         public: true

@@ -8,6 +8,7 @@ worker mode with the kernel **not** reset between requests, RoadRunner, Messenge
 - [One unit of work per write](#one-unit-of-work-per-write)
 - [Your entity manager is yours](#your-entity-manager-is-yours)
 - [Transient failures and conflicts: 409](#transient-failures-and-conflicts-409)
+- [Favourites, recents and backlinks (1.45)](#favourites-recents-and-backlinks-145)
 - [Races that no longer happen](#races-that-no-longer-happen)
 - [One lock order](#one-lock-order)
 - [Exact ids](#exact-ids)
@@ -80,6 +81,24 @@ in the API). An idempotent API write whose store failed answers `503 IDEMP_004` 
 
 The subscriber looks down the exception chain, so a decorator of a wiki service that wraps the failure keeps the
 answer. Your own controllers that call the wiki services map `TransientStorageFailure` themselves.
+
+## Favourites, recents and backlinks (1.45)
+
+The write paths added in 1.45 follow REQ-RUNTIME-003 rule 6 with the conflict codes of transaction-doctrine 1.6:
+
+| Write path | Transaction | Control | Conflict answer |
+|------------|-------------|---------|-----------------|
+| Favourite toggle (`POST …/favourite`) | One runner unit on the connection (DBAL; nothing flushed) | Unique key `(user_id, page_id)`: a concurrent add of the same person is answered as done (`unchanged`), never a conflict; the `favourites.max` count is read in the unit | Lock conflict: `409` + `X-Conflict-Code: CONFLICT_001` + `Retry-After` (nothing committed), or `409` + `CONFLICT_002` without `Retry-After` (an earlier unit of the same request committed: request watermark). JSON `{"error": "conflict", "code": …}`, else plain text |
+| Favourite removal by id (`POST …/favourites/{id}/remove`) | One runner unit on the connection | The person's exact row, deleted by primary key | As the toggle |
+| Page visit (page view, `recents.enabled`; never `HEAD` or a prefetch) | One runner unit on the connection; at most 50 stale visits (beyond `keep` or older than `retention_days`) deleted per visit, by primary key | Unique key `(user_id, page_id)`: a concurrent first visit becomes an update | None: the page view is a read. Any failure is logged and the page is shown; only a lock conflict inside a transaction of yours propagates |
+| Backlink index (after a save, `backlinks.enabled`) | One runner unit on the connection per page | The source page row is locked (`SELECT … FOR UPDATE`) and its current revision read under the lock: the last writer indexes the latest revision | None for the save (already committed): a lock conflict is logged; the next save or a rebuild fixes the index (inside a transaction of yours it propagates) |
+| `wiki:backlinks:rebuild` | One unit per page | As the index | A page with lock conflicts is tried 3 times, then logged and skipped; exit FAILURE with the skipped ids (`--after=<id>` resumes) |
+| `wiki:recents:purge`, erasure | One unit per batch (`--batch-size`, at most `--max-batches`) / per person | Rows by primary key | The command fails; run it again |
+
+Unique violations and lost connections are never mapped to a conflict code. Lock order: the index unit takes only the
+page row; favourite and visit units take only their own rows. Residual: two concurrent adds of one person can pass
+`favourites.max` by one (the readable favourites are counted outside the unit); the count reads at most 1000 rows of
+the tenant's live pages; two concurrent visits can leave one visit more than `recents.keep` until the next visit.
 
 ## Races that no longer happen
 

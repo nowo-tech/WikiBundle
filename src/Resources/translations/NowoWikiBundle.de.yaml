@@ -341,6 +341,19 @@ wiki:
       conflict: "Die Seite wurde inzwischen geändert: Laden Sie neu und versuchen Sie es erneut."
       page_gone: "Diese Seite wurde inzwischen archiviert oder gelöscht: Laden Sie die Seite neu."
       denied: "Sie dürfen dies auf dieser Seite nicht tun."
+  # 1.45: favourites, recently viewed pages and backlinks.
+  favourites:
+    title: "Favoriten"
+    add: "Zu Favoriten hinzufügen"
+    remove: "Aus Favoriten entfernen"
+    added: "„%title%“ wurde zu deinen Favoriten hinzugefügt."
+    removed: "„%title%“ wurde aus deinen Favoriten entfernt."
+    removed_one: "Der Favorit wurde entfernt."
+    limit_reached: "Du hast bereits die maximale Anzahl an Favoriten. Entferne zuerst einen."
+  recents:
+    title: "Zuletzt angesehen"
+  backlinks:
+    title: "Verlinkt von"
 wiki_page_form:
   title:
     placeholder: "Seitentitel"

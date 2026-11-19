@@ -43,6 +43,8 @@
   (page_header.path: card, _page_path.html.twig) and the page_children chip (web_ui.children,
   _page_children_chip.html.twig) above the body (.nowo-wiki-page-head); "Pages in this section"
   (_page_children.html.twig) after wiki_page_after_body.
+  1.45: block wiki_page_backlinks after wiki_page_after_body (backlinks, _backlinks.html.twig: "Linked from", empty
+  without backlinks.enabled); quick_access is passed to the sidebar (_quick_access.html.twig).
   1.31 (every option off by default): page_header.title: card with title_in_card (the body does not start with the
   title) prints the title in the content card, after the page head and before the body (.nowo-wiki-page-title: the
   page's <h1> when the header is not printed, else a visual line hidden from assistive technology, the header keeping
@@ -146,7 +148,7 @@
                 {%- if nowo_wiki_web_ui.slots.sidebar ?? null -%}
                     {{ include(nowo_wiki_web_ui.slots.sidebar) }}
                 {%- else -%}
-                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), tree_rail: tree_rail|default(null), space_icon: space_icon|default(null), bundle: _b}, false) }}
+                    {{ include('@NowoWikiBundle/manage/_sidebar.html.twig', {tree: tree, tree_truncated: tree_truncated|default(false), max_tree_pages: max_tree_pages|default(0), tree_search_href: tree_search_href|default(null), tree_ui: tree_ui|default(null), tree_rail: tree_rail|default(null), space_icon: space_icon|default(null), quick_access: quick_access|default(null), bundle: _b}, false) }}
                 {%- endif -%}
             {% endblock %}
     {% endset %}
@@ -205,6 +207,8 @@
     {% set _after %}
             {#- 1.29: after the body, before "Used in" (empty; e.g. a host's backlinks) -#}
             {% block wiki_page_after_body %}{% endblock %}
+            {#- 1.45 (backlinks.enabled): "Linked from"; override this block to place or drop it -#}
+            {% block wiki_page_backlinks %}{{ include('@NowoWikiBundle/manage/_backlinks.html.twig', {backlinks: backlinks|default([]), bundle: _b}, false) }}{% endblock %}
             {#- 1.30 (web_ui.children): "Pages in this section" -#}
             {% if page_children|default(null) %}{{ include('@NowoWikiBundle/manage/_page_children.html.twig', {page_children: page_children, bundle: _b}, false) }}{% endif %}
             {% if used_in|default([]) is not empty %}

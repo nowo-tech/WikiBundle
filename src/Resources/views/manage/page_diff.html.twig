@@ -3,6 +3,9 @@
   wiki.diff.title / wiki.diff.range with a back link to the history, breadcrumbs). Also: diff (list of {kind: same |
   add | remove, line}). Each added / removed line starts with a +/- marker (aria-hidden) and its meaning for screen
   readers ("Added:" / "Removed:", class nowo-wiki-sr-only, hidden by wiki.css).
+  1.45: rendered_diff ({html, changes, fallback}, history.rendered_diff with two Markdown revisions; null otherwise):
+  the editor's rendered diff (blocks, word-level <ins> / <del>, visually hidden "Inserted:" / "Deleted:" labels),
+  already rendered for the viewer and sanitized by WikiRenderedRevisionDiff; printed instead of the lines.
   Blocks filled: nowo_ui_styles, nowo_ui_show_sections (one card with the diff lines).
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
@@ -20,14 +23,19 @@
     {#- 1.21 web_ui.assets.scripts: false = the host bundles the assets (nothing printed here) -#}
     {% if nowo_wiki_web_ui.assets.scripts ?? true %}
         {{ parent() }}
+        {#- 1.45: the editor's read-side styles of the rendered diff (.nowo-md-diff-*) -#}
+        {% if rendered_diff|default(null) %}{{ nowo_wiki_rich_content_assets() }}{% endif %}
     {% endif %}
 {% endblock %}
 
 {% block nowo_ui_show_sections %}
     {% set _b = page.bundle %}
-    <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-diff"{{ nowo_ui_attrs('card', _b) }}>
+    <section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-diff{{ rendered_diff|default(null) ? ' nowo-wiki-diff--rendered' }}"{{ nowo_ui_attrs('card', _b) }}>
         <div class="{{ nowo_ui_class('card_body', _b) }}">
-            {% if diff is empty %}
+            {% if rendered_diff|default(null) %}
+                {#- 1.45 (history.rendered_diff): the editor's diff, rendered for the viewer and sanitized (safe HTML) -#}
+                <div class="nowo-wiki-content nowo-wiki-diff__rendered" data-testid="wiki-rendered-diff" data-wiki-diff-changes="{{ rendered_diff.changes }}"{% if rendered_diff.fallback %} data-wiki-diff-fallback{% endif %}>{{ rendered_diff.html|raw }}</div>
+            {% elseif diff is empty %}
                 <p class="{{ nowo_ui_class('muted', _b) }}">{{ 'wiki.diff.empty'|trans }}</p>
             {% else %}
                 <pre class="{{ nowo_ui_class('code_block', _b) }} nowo-wiki-diff__lines">

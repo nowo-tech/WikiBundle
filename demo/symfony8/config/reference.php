@@ -1443,6 +1443,23 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         show_names?: bool|Param, // Show display names of authors (only names that say nothing about the login), else an opaque "Editor xxxx" per page, as co-editing. // Default: false
  *         show_actor_labels?: scalar|Param|null, // Spec 234 (audit PQ-M1): show the actor label of a write (a token name) beside an author shown under a real name, when it passes the same safe-name rule (null: follow show_names). Authors always see their own. Never beside an opaque "Editor xxxx". // Default: null
  *         retention_days?: int|Param, // Revisions older than this are thinned by wiki:history:thin to one per session and day; named versions and the current revision are kept (D-W6). // Default: 30
+ *         rendered_diff?: bool|Param, // 1.45: with editor.type milkdown, Compare shows the editor's rendered diff of two Markdown revisions (blocks, then words inside a changed paragraph; rendered for the viewer and sanitized) instead of the line diff. HTML revisions keep the line diff. Off (default): the line diff. // Default: false
+ *     },
+ *     favourites?: array{ // 1.45: people star pages ("Add to favourites" on the page view) and find them in a Favourites section above the page tree. Per person, filtered again for that person on every request (pages they can no longer read are never listed). Off: no action, no section, no table in the schema.
+ *         enabled?: bool|Param, // Default: false
+ *         max?: int|Param, // Favourites one person may keep; adding one more is refused with a message. // Default: 100
+ *         shown?: int|Param, // Favourites listed in the sidebar section (the most recent first). // Default: 10
+ *     },
+ *     recents?: array{ // 1.45: the pages a person opened last, in a "Recently viewed" section above the page tree. Per person, bounded (keep), filtered again for that person on every request. Off: no section, nothing recorded, no table in the schema.
+ *         enabled?: bool|Param, // Default: false
+ *         keep?: int|Param, // Visits kept per person; each visit deletes the older ones beyond this. // Default: 20
+ *         shown?: int|Param, // Pages listed in the sidebar section (the last opened first; the current page is left out). // Default: 8
+ *         retention_days?: int|Param, // Visits older than this are never listed, are deleted on the person's next visit and by wiki:recents:purge (owner decision B: personal data, 90 days by default). // Default: 90
+ *     },
+ *     backlinks?: array{ // 1.45: a "Linked from" section under the page body: the pages whose current revision links this one ([[wiki:<id>]]), only those the viewer may read. Keeps a reference index (<prefix>_page_references) up to date on every save; fill it once with wiki:backlinks:rebuild. Off: no section, no index, no table in the schema.
+ *         enabled?: bool|Param, // Default: false
+ *         limit?: int|Param, // Linking pages listed at most. // Default: 20
+ *         candidates?: int|Param, // Index rows read at most per page view to find them (the page read rule is the host's checker, so it runs on a bounded scan of the rows the SQL already narrowed to the viewer's spaces and live pages). // Default: 200
  *     },
  *     trash?: array{ // 1.14 (T065): Delete moves a page and its sub-pages to the trash of the space (restore together, purge for good, retention). Off: no Delete action, no trash table in the schema.
  *         enabled?: bool|Param, // Default: false
@@ -1525,6 +1542,15 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     search?: array{ // 1.21: the search page (routes.search).
  *         scope?: "all"|"space"|Param, // all (default): one space (?space=) or every space the user may read. space: always one space — a request without a valid ?space= is 404, and the space becomes the request attribute spaceSlug (as on the space pages, for host listeners, tabs and breadcrumbs). // Default: "all"
  *         excluded_spaces?: list<scalar|Param|null>,
+ *     },
+ *     search_kit_provider?: bool|array{ // 1.44 (SearchKit spec 240): wiki pages in SearchKit's "search everywhere" (header search, palette, results page, recents) through the wiki's own read rules. Off by default; `true` turns it on (literal boolean). Needs nowo-tech/search-kit-bundle >= 1.8 (optional): without it, or with an older one, nothing is registered. See docs/USAGE.md "SearchKit provider".
+ *         enabled?: bool|Param, // Default: false
+ *         priority?: int|Param, // Tag priority of the provider: SearchKit lists its groups highest first. // Default: 40
+ *         candidates?: int|Param, // Matching rows a search reads at most before the page / ancestor read rule (only the readable ones are shown and counted; totals are exact only when the scan read every match). // Default: 200
+ *         scope?: "owner"|"slug"|Param, // What a SearchKit scope id selects. owner (default): the spaces whose owner id it is (e.g. a project UUID). slug: the space with that slug. An unknown or forbidden scope finds nothing. // Default: "owner"
+ *         viewer_resolver?: scalar|Param|null, // Service id of a Search\WikiSearchViewerResolverInterface (the user of a SearchKit user identifier). null: user_provider. // Default: null
+ *         user_provider?: scalar|Param|null, // Without viewer_resolver: the Symfony user provider service that loads the viewer by identifier (default: every provider of the security configuration). Missing: no rows. // Default: "security.user_providers"
+ *         icon?: scalar|Param|null, // UX Icons name of the rows (e.g. tabler:notes). null: SearchKit's icon of the "wiki" kind (nowo_search_kit.icons.wiki). // Default: null
  *     },
  *     api?: array{ // 1.24 (spec 218): a REST API for scripts and agents with a host token. Off: no route, service, listener or table. See docs/API.md.
  *         enabled?: bool|Param, // Default: false
@@ -1636,6 +1662,14 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         attachment_download?: array{
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/attachments/{attachmentId}"
  *             name?: scalar|Param|null, // Default: "nowo_wiki_attachment_download"
+ *         },
+ *         page_favourite?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/favourite"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_page_favourite"
+ *         },
+ *         favourite_remove?: array{
+ *             path?: scalar|Param|null, // Default: "/tools/wiki/favourites/{favouriteId}/remove"
+ *             name?: scalar|Param|null, // Default: "nowo_wiki_favourite_remove"
  *         },
  *         page_version_save?: array{
  *             path?: scalar|Param|null, // Default: "/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/versions/new"
@@ -1881,10 +1915,18 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         tokens_dark?: array<string, mixed>,
  *         confirm_message_in_header?: bool|Param, // Confirm dialogs and the full-page confirm render the message inside the header, under the title (hosts whose dialog header is title + message). View\Confirm::messageInHeader wins when set. // Default: false
  *         popover_menus?: bool|Param, // 2.4: menu / kebab / row-action menus render their panel as a native [popover] (browser top layer: never clipped by table scrollers or cards; nowo-ui-popover.js places it). The partial option `popover` wins. // Default: false
+ *         context_menus?: bool|Param, // 2.54: kebab / row-action menus also open as the context menu of the row or card around them (right-click, the ContextMenu key, Shift+F10, long press on touch), with the same items. Loads the opt-in context-menu runtime through the scripts partial. The partial option `context_menu` wins; data-nowo-ui-context-menu="off" opts a row out. // Default: false
  *         form_errors_after_widget?: bool|Param, // 2.10: the UiKit form theme (form/nowo_ui_layout.html.twig) prints a field's errors after its widget (and before the help), instead of Symfony's order (label, errors, widget, help). // Default: false
  *         menu_semantics?: null|"menu"|"disclosure"|Param, // 2.28: ARIA of popover menus with items. null (default) = as 2.27; menu = APG menu button (role="menu" / menuitem, arrow keys in nowo-ui-popover.js); disclosure = no aria-haspopup. The menu partial option `menu_semantics` wins. // Default: null
  *         dialog?: array{ // 2.31: kit dialog options (docs/THEMING.md#dialog-sizes-229).
  *             height?: "content"|"size"|Param, // 2.31: content (default, dialog rule v2) = a dialog is as tall as its content, capped at min(the size's height token, 100dvh - 2rem), only the body scrolls; size = every dialog with a field, list, table or fold has the size's height (2.29 / 2.30), printed as --nowo-ui-dialog-fill: 1 by nowo_ui_theme_css(). // Default: "content"
+ *         },
+ *         focus_mode?: array{ // 2.55: shell focus mode — [data-nowo-ui-focus-mode] toggles hide the shell regions (level 1) and optionally enter the browser fullscreen (level 2); js/nowo-ui-focus-mode.js. See docs/USAGE.md#shell-focus-mode-255.
+ *             enabled?: bool|Param, // false (default): no shell attributes, no focus bar, the focus_mode_toggle partial renders nothing and the scripts partial does not load the runtime. // Default: false
+ *             regions?: list<scalar|Param|null>,
+ *             keep?: list<scalar|Param|null>,
+ *             shortcut?: scalar|Param|null, // Key that toggles level 1 on pages with a toggle (never while typing, with a modifier pressed or with a dialog / menu open); e.g. F or Alt+Shift+F. null or false: no shortcut. // Default: "F"
+ *             fullscreen?: bool|Param, // Offer level 2 (the browser fullscreen on the shell, from the focus bar or a fullscreen toggle). Unsupported or refused by the browser: level 1 stays. // Default: true
  *         },
  *         bundles?: array<string, array{ // Default: []
  *             framework_defaults?: bool|Param, // Override of theme.framework_defaults for this bundle (unset = inherit).
