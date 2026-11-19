@@ -19,6 +19,7 @@ use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 #[ORM\Table(name: 'wiki_page_visits')]
 #[ORM\UniqueConstraint(name: 'wiki_page_visit_unique', columns: ['user_id', 'page_id'])]
 #[ORM\Index(name: 'wiki_page_visit_user', columns: ['user_id', 'visited_at'])]
+#[ORM\Index(name: 'wiki_page_visit_time', columns: ['visited_at'])]
 class WikiPageVisit
 {
     #[ORM\Id]

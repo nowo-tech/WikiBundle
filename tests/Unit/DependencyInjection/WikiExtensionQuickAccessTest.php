@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Backlink\WikiPageReferenceListener;
 use Nowo\WikiBundle\Command\WikiBacklinksRebuildCommand;
 use Nowo\WikiBundle\Command\WikiQuickAccessEraseUserCommand;
 use Nowo\WikiBundle\Command\WikiRecentsPurgeCommand;
+use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -98,6 +99,14 @@ final class WikiExtensionQuickAccessTest extends TestCase
         $both = $this->load(['favourites' => ['enabled' => true], 'backlinks' => ['enabled' => true], 'editor' => ['type' => 'milkdown', 'milkdown' => ['link_picker' => ['enabled' => true, 'rate_limiter' => 'limiter.x']]]]);
         self::assertTrue($both->hasDefinition(WikiReadableSpaces::class));
         self::assertSame(WikiTenantPathsLinkTenantResolver::class, (string) $both->getAlias(WikiLinkTenantResolverInterface::class));
+    }
+
+    /** Audit VC2-1: with comments, the comment service's export gets the store. */
+    public function testTheCommentServiceExportGetsTheStore(): void
+    {
+        $container = $this->load(['editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c']]);
+
+        self::assertSame(WikiQuickAccessStore::class, (string) $container->getDefinition(WikiCommentService::class)->getArgument('$quickAccess'));
     }
 
     public function testTheRenderedDiffNeedsMilkdown(): void

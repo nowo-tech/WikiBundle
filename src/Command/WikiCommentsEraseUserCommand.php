@@ -120,7 +120,7 @@ final class WikiCommentsEraseUserCommand extends Command
             }
             // 1.45 (audit VC-3): favourites and recent visits are personal data too.
             $userId = WikiViewerScope::idOf($user);
-            if ($this->quickAccess instanceof WikiQuickAccessStore && $userId !== null) {
+            if ($this->quickAccess instanceof WikiQuickAccessStore && $userId !== null && !isset($data['quick_access'])) {
                 $data['quick_access'] = $this->quickAccess->exportUser($userId);
             }
             $output->writeln(json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));

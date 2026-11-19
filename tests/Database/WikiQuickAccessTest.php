@@ -234,6 +234,11 @@ final class WikiQuickAccessTest extends TestCase
 
         self::assertSame(1, $store->purgeVisitsBefore(new DateTimeImmutable('2025-01-01'), 10));
         self::assertSame(0, $this->rows('wiki_page_visits', 'u-3'));
+        // Audit VC2-2: a visit refreshed after it was selected is not deleted (the time is checked again).
+        $store->recordVisit($page, 'u-4', 10, 3650, new DateTimeImmutable('2026-11-19 10:00:00'));
+        $id = $this->idOf('wiki_page_visits', 'u-4', $page);
+        self::assertSame(0, (fn (): int => $this->deleteIds($this->connection(), 'wiki_page_visits', [$id], new DateTimeImmutable('2026-01-01')))->call($store));
+        self::assertSame(1, $this->rows('wiki_page_visits', 'u-4'));
 
         // Audit VC-3: the tables that exist are erased whatever the switches; a missing table is skipped.
         $this->em->getConnection()->executeStatement('DROP TABLE wiki_page_visits');

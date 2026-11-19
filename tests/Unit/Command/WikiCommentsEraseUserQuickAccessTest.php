@@ -24,6 +24,7 @@ use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -60,7 +61,7 @@ final class WikiCommentsEraseUserQuickAccessTest extends TestCase
 
     public function testWithCommentsTheFavouritesAndVisitsAreExportedAndErased(): void
     {
-        $tester = $this->tester(new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), new WikiSpaceGuard(new FixedSpaceLocator(), CallbackSpaceAccessChecker::allowing()), new WikiAuthorLabel('s'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer()));
+        $tester = $this->tester($this->service());
 
         self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--export' => true]));
         $export = json_decode($tester->getDisplay(), true, 512, JSON_THROW_ON_ERROR);
@@ -70,6 +71,21 @@ final class WikiCommentsEraseUserQuickAccessTest extends TestCase
         self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--force' => true]));
         self::assertStringContainsString('2 favourite(s) and recent visit(s) erased', $tester->getDisplay());
         self::assertSame(['favourites' => [], 'visits' => []], $this->store->exportUser('ana'));
+    }
+
+    /** Audit VC2-1: the comment service's own privacy export carries the favourites and visits. */
+    public function testTheServiceExportCarriesTheFavouritesAndVisits(): void
+    {
+        $service = $this->service($this->store);
+        $export  = $service->exportAuthorData($this->em->find(TestUserEntity::class, 'ana'));
+        self::assertSame($this->page->getId(), $export['quick_access']['favourites'][0]['page_id']);
+        self::assertArrayNotHasKey('quick_access', $this->service()->exportAuthorData($this->em->find(TestUserEntity::class, 'ana')));
+        self::assertSame([], (fn (object $user): array => $this->quickAccessExport($user))->call($service, new stdClass()));
+
+        // The command then keeps the service's export (one export, not two).
+        $tester = $this->tester($service);
+        self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--export' => true]));
+        self::assertCount(1, json_decode($tester->getDisplay(), true, 512, JSON_THROW_ON_ERROR)['quick_access']['visits']);
     }
 
     public function testWithOnlyTheActorLabels(): void
@@ -95,6 +111,11 @@ final class WikiCommentsEraseUserQuickAccessTest extends TestCase
         self::assertCount(1, $this->store->exportUser('ana')['visits']);
         self::assertSame(Command::SUCCESS, $tester->execute(['user' => 'ana', '--force' => true]));
         self::assertStringContainsString('2 favourite(s) and recent visit(s) erased', $tester->getDisplay());
+    }
+
+    private function service(?WikiQuickAccessStore $store = null): WikiCommentService
+    {
+        return new WikiCommentService(new DoctrineOrmWikiCommentRepository($this->em), new WikiSpaceGuard(new FixedSpaceLocator(), CallbackSpaceAccessChecker::allowing()), new WikiAuthorLabel('s'), new WikiMarkdownRenderer(), new WikiHtmlSanitizer(), quickAccess: $store);
     }
 
     private function tester(?WikiCommentService $comments = null, ?WikiWriteProvenanceErasure $provenance = null): CommandTester

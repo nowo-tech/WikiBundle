@@ -881,6 +881,10 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(WikiRecentsPurgeCommand::class, (new Definition(WikiRecentsPurgeCommand::class))
             ->setArguments(['$store' => new Reference(WikiQuickAccessStore::class), '$retentionDays' => $recents['retention_days']])
             ->addTag('console.command'));
+        // Audit VC2-1: the comment service's privacy export carries the favourites and visits too.
+        if ($container->hasDefinition(WikiCommentService::class)) {
+            $container->getDefinition(WikiCommentService::class)->setArgument('$quickAccess', new Reference(WikiQuickAccessStore::class));
+        }
         $container->setDefinition(WikiQuickAccessErasureListener::class, (new Definition(WikiQuickAccessErasureListener::class))
             ->setArgument('$store', new Reference(WikiQuickAccessStore::class))
             ->addTag('kernel.event_listener', ['event' => WikiEvents::COMMENT_AUTHOR_ERASED, 'method' => 'onAuthorErased']));

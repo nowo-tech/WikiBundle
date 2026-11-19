@@ -6,6 +6,7 @@
     <entity name="Nowo\WikiBundle\Entity\WikiPageVisit" table="wiki_page_visits">
         <indexes>
             <index name="wiki_page_visit_user" columns="user_id,visited_at"/>
+            <index name="wiki_page_visit_time" columns="visited_at"/>
         </indexes>
         <unique-constraints>
             <unique-constraint name="wiki_page_visit_unique" columns="user_id,page_id"/>

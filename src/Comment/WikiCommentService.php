@@ -31,6 +31,8 @@ use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Member\WikiMemberBadge;
 use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
+use Nowo\WikiBundle\QuickAccess\WikiViewerScope;
 use Nowo\WikiBundle\Repository\WikiCommentAuthorRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiCommentMentionBatch;
 use Nowo\WikiBundle\Repository\WikiCommentMentionRepositoryInterface;
@@ -173,6 +175,8 @@ final readonly class WikiCommentService
      * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored user relation for a security user that is
      *                                                       no `user_class` entity
      * @param WikiUserClassPolicy|null $userClasses 1.27 (JX-W1): which users comment ownership may match by id
+     * @param WikiQuickAccessStore|null $quickAccess 1.45 (audit VC2-1): the person's favourites and recent visits in the
+     *                                               privacy export (`quick_access`)
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -198,6 +202,7 @@ final readonly class WikiCommentService
         private ?WikiMemberBadges $badges = null,
         private ?WikiWriteProvenanceErasure $provenance = null,
         private ?WikiTransactionRunner $runner = null,
+        private ?WikiQuickAccessStore $quickAccess = null,
     ) {
     }
 
@@ -693,8 +698,9 @@ final readonly class WikiCommentService
      * and the threads they started or resolved (ids, page, dates; never the quote of others' text). Mentions of the user
      * in other people's comments are those people's data and are not included (nor erased). Spec 234 (audit PQ-D1-I2):
      * with the provenance erasure service, `revision_actor_labels` too ({@see WikiWriteProvenanceErasure::exportActor()}).
+     * 1.45 (audit VC2-1): with the quick-access store, `quick_access` (favourites and recent visits) too.
      *
-     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>, revision_actor_labels?: list<array{revision_id: string, page_id: string, revision: int, channel: string|null, actor_label: string, created_at: string}>}
+     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>, revision_actor_labels?: list<array{revision_id: string, page_id: string, revision: int, channel: string|null, actor_label: string, created_at: string}>, quick_access?: array{favourites: list<array<string, string>>, visits: list<array<string, string>>}}
      */
     public function exportAuthorData(object $user): array
     {
@@ -720,7 +726,20 @@ final readonly class WikiCommentService
                 'page_id'     => $t->getPage()->getId(),
                 'resolved_at' => $t->getResolvedAt()?->format(self::DATE),
             ], $authors?->threadsBy($user, 'resolvedBy') ?? []),
-        ] + ($this->provenance instanceof WikiWriteProvenanceErasure ? ['revision_actor_labels' => $this->provenance->exportActor($user)] : []);
+        ] + ($this->provenance instanceof WikiWriteProvenanceErasure ? ['revision_actor_labels' => $this->provenance->exportActor($user)] : [])
+            + $this->quickAccessExport($user);
+    }
+
+    /**
+     * 1.45 (audit VC2-1): the person's favourites and recent visits, when the store is wired and the user has a valid id.
+     *
+     * @return array{quick_access?: array{favourites: list<array<string, string>>, visits: list<array<string, string>>}}
+     */
+    private function quickAccessExport(object $user): array
+    {
+        $userId = WikiViewerScope::idOf($user);
+
+        return $this->quickAccess instanceof WikiQuickAccessStore && $userId !== null ? ['quick_access' => $this->quickAccess->exportUser($userId)] : [];
     }
 
     /**

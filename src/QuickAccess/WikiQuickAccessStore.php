@@ -218,7 +218,8 @@ final readonly class WikiQuickAccessStore
                 ->executeQuery()
                 ->fetchFirstColumn();
 
-            return $this->deleteIds($connection, $table, $ids);
+            // Audit VC2-2: the time is checked again, so a visit refreshed meanwhile survives.
+            return $this->deleteIds($connection, $table, $ids, $before);
         });
     }
 
@@ -353,24 +354,29 @@ final readonly class WikiQuickAccessStore
             ->setParameter('user', $userId)
             ->executeQuery()
             ->fetchAllAssociative();
-        $kept  = 0;
-        $stale = [];
+        $kept    = 0;
+        $capped  = [];
+        $expired = [];
         foreach ($rows as $row) {
             if ($row['user_id'] !== $userId) {
                 continue;
             }
-            $at = new DateTimeImmutable((string) $row['visited_at']);
-            if ($kept >= $keep || $at < $before) {
-                $stale[] = $row['id'];
-                if (count($stale) >= self::PRUNE_BATCH) {
-                    break;
-                }
+            if (new DateTimeImmutable((string) $row['visited_at']) < $before) {
+                $expired[] = $row['id'];
+            } elseif ($kept >= $keep) {
+                $capped[] = $row['id'];
+            } else {
+                ++$kept;
 
                 continue;
             }
-            ++$kept;
+            if (count($capped) + count($expired) >= self::PRUNE_BATCH) {
+                break;
+            }
         }
-        $this->deleteIds($connection, $table, $stale);
+        $this->deleteIds($connection, $table, $capped);
+        // Audit VC2-2: an expired visit is deleted only while it is still older than the retention.
+        $this->deleteIds($connection, $table, $expired, $before);
     }
 
     /**
@@ -401,15 +407,17 @@ final readonly class WikiQuickAccessStore
     }
 
     /**
-     * Deletes rows by primary key, in chunks.
+     * Deletes rows by primary key, in chunks; with `$visitedBefore`, only those still visited before it.
      *
      * @param list<string> $ids
      */
-    private function deleteIds(Connection $connection, string $table, array $ids): int
+    private function deleteIds(Connection $connection, string $table, array $ids, ?DateTimeImmutable $visitedBefore = null): int
     {
         $deleted = 0;
         foreach (array_chunk(array_values($ids), self::DELETE_CHUNK) as $chunk) {
-            $deleted += (int) $connection->executeStatement('DELETE FROM ' . $table . ' WHERE id IN (?)', [$chunk], [ArrayParameterType::STRING]);
+            $deleted += (int) ($visitedBefore instanceof DateTimeImmutable
+                ? $connection->executeStatement('DELETE FROM ' . $table . ' WHERE id IN (?) AND visited_at < ?', [$chunk, $visitedBefore], [ArrayParameterType::STRING, Types::DATETIME_IMMUTABLE])
+                : $connection->executeStatement('DELETE FROM ' . $table . ' WHERE id IN (?)', [$chunk], [ArrayParameterType::STRING]));
         }
 
         return $deleted;

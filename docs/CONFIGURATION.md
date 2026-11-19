@@ -436,7 +436,7 @@ nowo_wiki:
 | `recents.enabled` | `false` | A **Recently viewed** section above the page tree; every page view records the visit. Table `<prefix>_page_visits` |
 | `recents.keep` | 20 | Visits kept per person (the bound of the table) |
 | `recents.shown` | 8 | Rows of the sidebar section |
-| `recents.retention_days` | 90 | Visits older than this are never listed, are deleted on the person's next visit and by `bin/console wiki:recents:purge` (bounded batches; run it daily). Owner decision B |
+| `recents.retention_days` | 90 | Visits older than this are never listed, are deleted on the person's next visit and by `bin/console wiki:recents:purge` (bounded batches on the `visited_at` index; a visit refreshed meanwhile is kept; run it daily). Owner decision B |
 | `backlinks.enabled` | `false` | **Linked from** after the page body (block `wiki_page_backlinks`); the reference index `<prefix>_page_references` is written after every save. Run `bin/console wiki:backlinks:rebuild` once after turning it on |
 | `backlinks.limit` | 20 | Linking pages listed |
 | `backlinks.candidates` | 200 | Index rows read per page view to find them (the bound of the per-viewer scan) |
@@ -449,7 +449,10 @@ Every list is built once per view and filtered before it is cut:
 
 - **the current tenant only** (owner decision A): the spaces with the same tenant key as the space being viewed, from
   the link picker's tenant port `LinkPicker\WikiLinkTenantResolverInterface` (`tenant_paths` rows by default; alias it
-  to your organisation resolver, as for the link picker). A space without a tenant key keeps the lists to itself;
+  to your organisation resolver, as for the link picker). A space without a tenant key keeps the lists to itself.
+  With any of the three lists on, your resolver is called on **every view**, once for the space being viewed and once
+  for each space the viewer may list, also when the link picker is off: it must be stateless (no state kept between
+  calls or requests, FrankenPHP worker mode) and cheap (no query per call, or a request-free lookup);
 - of those, only the spaces the viewer may read now reach the SQL (the role gate `list`, the tenant / team resolver,
   `View` on the space), and only live pages (archived and trashed pages are left out);
 - then `View` on the page and every ancestor (the page view's rule).
@@ -467,8 +470,8 @@ not record one. A failure of this bookkeeping never fails the page (it is logged
 **Personal data.** Favourites and recent visits are personal data (which pages a person reads, and when). The rows keep
 the user id without a foreign key (they outlive an account); visits are kept at most `recents.retention_days`.
 `bin/console wiki:comments:erase-user <user>` (the wiki's person erasure) exports (`--export`, key `quick_access`) and
-erases them with the person's comments and actor labels, and so does `WikiCommentService::eraseAuthor()` (through
-`nowo_wiki.comment.author_erased`); `bin/console wiki:quick-access:erase-user <id> [--export]` does only these rows.
+erases them with the person's comments and actor labels; `WikiCommentService::exportAuthorData()` carries them as
+`quick_access` too, and `WikiCommentService::eraseAuthor()` erases them (through `nowo_wiki.comment.author_erased`); `bin/console wiki:quick-access:erase-user <id> [--export]` does only these rows.
 Both are always available and act on every table of the two that exists, whatever the switches say now. The backlink
 index holds no personal data.
 
