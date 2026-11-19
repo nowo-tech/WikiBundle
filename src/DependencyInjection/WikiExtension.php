@@ -142,7 +142,9 @@ use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Search\UserProviderWikiSearchViewerResolver;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
 use Nowo\WikiBundle\Search\WikiSearchScopeListener;
+use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
+use Nowo\WikiBundle\Search\WikiTenantPathsSearchTenantResolver;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
@@ -604,6 +606,14 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             $container->setAlias(WikiLinkTenantResolverInterface::class, WikiTenantPathsLinkTenantResolver::class);
         }
 
+        $tenantResolver = $options['tenant_resolver'];
+        if (!is_string($tenantResolver) || $tenantResolver === '') {
+            $tenantResolver = WikiTenantPathsSearchTenantResolver::class;
+            $container->setDefinition($tenantResolver, (new Definition(WikiTenantPathsSearchTenantResolver::class))
+                ->setArgument('$tenantPaths', new Reference(WikiTenantPaths::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+        }
+        $container->setAlias(WikiSearchTenantResolverInterface::class, $tenantResolver);
+
         $pageView = $config['routes']['page_view']['name'];
         $container->setDefinition(WikiPageSearchDefinition::class, (new Definition(WikiPageSearchDefinition::class))
             ->setArguments([
@@ -626,6 +636,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 '$renderer'             => new Reference(WikiMarkdownRendererInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 '$dispatcher'           => new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 '$tenants'              => new Reference(WikiLinkTenantResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                '$tenantMode'           => $options['tenant'],
+                '$currentTenants'       => new Reference(WikiSearchTenantResolverInterface::class),
             ])
             ->addTag(WikiSearchKitAvailability::DEFINITION_TAG, ['priority' => $options['priority']]));
 

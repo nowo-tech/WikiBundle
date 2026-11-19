@@ -120,8 +120,16 @@ Nothing changes unless `search_kit_provider` is on.
 
 - **Update SearchKit to 1.9** (`composer require nowo-tech/search-kit-bundle:^1.9`, PHP >= 8.3) and keep its bundle
   registered. With SearchKit 1.8 installed nothing is registered any more (the `wiki` group disappears) until you update.
-- **Same rows.** The viewer, the role gate, the spaces, the page rules and the literal one-phrase match are unchanged, so
-  without a listener your users find the same pages. Differences you may notice:
+- **Current tenant only (BC: narrows the results of multi-tenant hosts).** As the favourites / recents lists of 1.45
+  (owner decision of 2026-11-19), the palette now searches only the spaces of the **current tenant**:
+  `search_kit_provider.tenant: current` (default). A space is searched when its `WikiLinkTenantResolverInterface` key
+  equals `Search\WikiSearchTenantResolverInterface::currentTenant()`.
+  - Without `tenant_paths` and without your own `WikiLinkTenantResolverInterface`: nothing changes (one tenant).
+  - With `tenant_paths`, or with your own tenant resolver: alias your current-tenant resolver
+    (`search_kit_provider.tenant_resolver`, same keys) — until you do, the wiki group finds nothing — or set
+    `tenant: all` to keep the 1.45 rows (every space the viewer may read).
+- **Otherwise the same rows.** The viewer, the role gate, the page rules and the literal one-phrase match are
+  unchanged. Differences you may notice:
   - the order: title matches first, then the latest change (before: SearchKit's score over two scans);
   - one window of `candidates` rows per search (before: up to twice that); the total is exact unless the visible rows fill
     the window;

@@ -100,7 +100,7 @@ final class WikiSearchKitGroupTest extends ApiTestCase
 
         self::assertSame(['Helium kept'], $this->titles($group));
         self::assertSame(1, $group?->total);
-        self::assertSame(['wiki|' . WikiPageSearchDefinition::TENANT . '|u-bob|2'], $seen);
+        self::assertSame(['wiki|' . WikiTenantPathsLinkTenantResolver::NO_TENANT_ROW . '|u-bob|2'], $seen);
         // The recent of the denied page is dropped too; the kept one still resolves.
         self::assertNull($this->provider()->resolve($this->reference('eng', $denied->getSlug()), 'u-bob', null));
         self::assertInstanceOf(SearchItem::class, $this->provider()->resolve($this->reference('eng', $this->slugOf('Helium kept')), 'u-bob', null));

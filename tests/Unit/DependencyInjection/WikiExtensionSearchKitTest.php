@@ -11,7 +11,9 @@ use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchKitProvider;
 use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Search\UserProviderWikiSearchViewerResolver;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
+use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
+use Nowo\WikiBundle\Search\WikiTenantPathsSearchTenantResolver;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -63,6 +65,9 @@ final class WikiExtensionSearchKitTest extends TestCase
         self::assertFalse($definition->getArgument('$sensitive'));
         self::assertSame('router', (string) $definition->getArgument('$urls'));
         self::assertSame('event_dispatcher', (string) $definition->getArgument('$dispatcher'));
+        self::assertSame(WikiPageSearchDefinition::TENANT_CURRENT, $definition->getArgument('$tenantMode'));
+        self::assertSame(WikiSearchTenantResolverInterface::class, (string) $definition->getArgument('$currentTenants'));
+        self::assertSame(WikiTenantPathsSearchTenantResolver::class, (string) $container->getAlias(WikiSearchTenantResolverInterface::class));
 
         $finder = $container->getDefinition(WikiReadablePageFinder::class);
         self::assertSame(200, $finder->getArgument('$candidates'));
@@ -81,6 +86,8 @@ final class WikiExtensionSearchKitTest extends TestCase
             'viewer_resolver' => 'app.wiki_viewers',
             'icon'            => 'tabler:notes',
             'sensitive'       => true,
+            'tenant'          => 'all',
+            'tenant_resolver' => 'app.wiki_tenants',
         ]]);
         if (!WikiSearchKitAvailability::isAvailable()) {
             self::assertFalse($container->hasDefinition(WikiPageSearchKitProvider::class));
@@ -96,6 +103,9 @@ final class WikiExtensionSearchKitTest extends TestCase
         self::assertSame(['project_nowo_wiki_page_view'], $definition->getArgument('$pageViewRoutes'));
         self::assertSame('tabler:notes', $definition->getArgument('$icon'));
         self::assertTrue($definition->getArgument('$sensitive'));
+        self::assertSame(WikiPageSearchDefinition::TENANT_ALL_MODE, $definition->getArgument('$tenantMode'));
+        self::assertSame('app.wiki_tenants', (string) $container->getAlias(WikiSearchTenantResolverInterface::class));
+        self::assertFalse($container->hasDefinition(WikiTenantPathsSearchTenantResolver::class));
         self::assertSame(500, $definition->getArgument('$candidates'));
         self::assertSame('slug', $definition->getArgument('$scopeMode'));
         self::assertSame(500, $container->getDefinition(WikiReadablePageFinder::class)->getArgument('$candidates'));

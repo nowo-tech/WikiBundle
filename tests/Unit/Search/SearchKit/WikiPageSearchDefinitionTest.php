@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchDefinition;
 use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
+use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
@@ -43,7 +44,13 @@ final class WikiPageSearchDefinitionTest extends TestCase
 
         self::assertSame('wiki', $definition->group());
         self::assertSame('wiki.search_kit.group', $definition->label(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
-        self::assertSame(WikiPageSearchDefinition::TENANT, $definition->tenant(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
+        // The current tenant (no resolver: none, so no results), or every tenant with `tenant: all`.
+        self::assertNull($definition->tenant(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
+        self::assertSame(WikiPageSearchDefinition::TENANT_ALL, $this->definition(tenantMode: WikiPageSearchDefinition::TENANT_ALL_MODE)->tenant(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
+        $current = $this->createStub(WikiSearchTenantResolverInterface::class);
+        $current->method('currentTenant')->willReturnMap([['u-1', 'org-1'], ['u-2', '']]);
+        self::assertSame('org-1', $this->definition(currentTenants: $current)->tenant(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
+        self::assertNull($this->definition(currentTenants: $current)->tenant(SearchQuery::forUserIdentifier('u-2', 'x', 5)));
         self::assertTrue($definition->featureEnabled('*', SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         self::assertFalse($this->definition(viewers: false)->featureEnabled('*', SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         self::assertSame(['p.title', 'r.contentText'], $definition->searchableFields());
@@ -101,7 +108,7 @@ final class WikiPageSearchDefinitionTest extends TestCase
     /**
      * @param list<string> $excluded
      */
-    private function definition(bool $viewers = true, bool $searchRoute = true, bool $global = true, array $excluded = [], string $scopeMode = WikiReadablePageFinder::SCOPE_OWNER, bool $sensitive = false): WikiPageSearchDefinition
+    private function definition(bool $viewers = true, bool $searchRoute = true, bool $global = true, array $excluded = [], string $scopeMode = WikiReadablePageFinder::SCOPE_OWNER, bool $sensitive = false, string $tenantMode = WikiPageSearchDefinition::TENANT_CURRENT, ?WikiSearchTenantResolverInterface $currentTenants = null): WikiPageSearchDefinition
     {
         $routes = new RouteCollection();
         $routes->add('nowo_wiki_page_view', new Route('/wiki/{spaceSlug}/{pageSlug}'));
@@ -133,6 +140,11 @@ final class WikiPageSearchDefinitionTest extends TestCase
             200,
             null,
             $sensitive,
+            null,
+            null,
+            null,
+            $tenantMode,
+            $currentTenants,
         );
     }
 }

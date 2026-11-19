@@ -7,6 +7,7 @@
 - [Symfony AI](#symfony-ai)
 - [Search](#search)
 - [SearchKit provider (1.44)](#searchkit-provider-144)
+  - [Current tenant (1.46)](#current-tenant-146)
   - [Host rules (1.46)](#host-rules-146)
   - [Beacon: replacing WikiPageSearchProvider](#beacon-replacing-wikipagesearchprovider)
 - [Application integration](#application-integration)
@@ -113,6 +114,8 @@ nowo_wiki:
         viewer_resolver: ~             # service id of Search\WikiSearchViewerResolverInterface
         user_provider: security.user_providers   # without viewer_resolver: loads the viewer by identifier
         icon: ~                        # UX Icons name of the rows; null: nowo_search_kit.icons.wiki
+        tenant: current                # 1.46: current (only the current tenant's spaces) | all
+        tenant_resolver: ~             # 1.46: service id of Search\WikiSearchTenantResolverInterface (the current tenant)
         sensitive: false               # 1.46: true = page titles are sensitive (see below)
 ```
 
@@ -124,7 +127,8 @@ What it does, for a viewer (SearchKit's `SearchQuery::$userIdentifier`):
 |---|---|
 | Viewer | `viewer_resolver`, else the Symfony user provider; the user must carry exactly the identifier. None: no group |
 | Role gate | `security.access_checker` `canList()` for the viewer (the search page's `list` feature; 1.44: the default checker decides another user than the session's on that user's roles) |
-| Spaces | The viewer's spaces from the tenant / team resolver, each with `View` from the space checker; narrowed by the SearchKit scope and the `space:` filter; then the host's `nowo_wiki.search_kit.spaces` listeners (1.46, below). Only these reach the SQL. These are the spaces of the wiki's own search page: header search has no page being viewed, so the favourites / recents rule "spaces of the current tenant" (1.45) does not apply; narrow with the scope or the spaces event |
+| Spaces | The viewer's spaces from the tenant / team resolver, each with `View` from the space checker; narrowed by the SearchKit scope and the `space:` filter; 1.46: **the current tenant only** (below); then the host's `nowo_wiki.search_kit.spaces` listeners (below). Only these reach the SQL |
+| Current tenant (1.46) | As for every quick-access list (favourites, recents, backlinks; owner decision of 2026-11-19), the palette shows the current tenant only: a space is searched when its `LinkPicker\WikiLinkTenantResolverInterface` key equals the current tenant of `Search\WikiSearchTenantResolverInterface` (`tenant_resolver`). No current tenant: no group. `tenant: all` searches every readable space instead (the 1.44 / 1.45 behaviour). SearchKit's tenant is the current tenant key (`*` with `all`) |
 | Rows | Live pages only (archived and trashed pages are left out; the wiki has no draft state), the typed text matched literally as one phrase (escaped `LIKE … ESCAPE '!'`, case-insensitive) on the title or the plain text of the current revision — never the Markdown source, never markup alone (`WikiSearchService::plainTextHit()`, the rule of the REST API's search) |
 | Pages | `View` on the page's space and on the page **and every ancestor** (`WikiPageVisibility`, the page view's rule), on a fresh read of the candidates and their ancestors |
 | Host rules | SearchKit's `nowo_search_kit.item_visibility` event (subjects of type `wiki`, the page id), after the wiki's checks; deny wins |
@@ -151,6 +155,37 @@ and again for each results page; keep the default of 200. With several Symfony u
 firewall's own provider rather than the chain. Synonym alternatives of SearchKit (`SearchQuery::terms()`) are used for
 ranking only; the SQL matches the typed text.
 
+### Current tenant (1.46)
+
+Default resolver (`Search\WikiTenantPathsSearchTenantResolver`): without `tenant_paths` every space is one tenant, so
+nothing changes. With `tenant_paths` the wiki cannot tell which tenant a SearchKit request belongs to (SearchKit's
+endpoint is not a tenant route), so the group finds nothing until you alias your own resolver — use the keys of your
+`WikiLinkTenantResolverInterface` — or set `tenant: all`. A host that aliased its own `WikiLinkTenantResolverInterface`
+must alias this port too:
+
+```php
+use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
+
+final readonly class CurrentOrganisationTenant implements WikiSearchTenantResolverInterface
+{
+    public function __construct(private CurrentOrganisation $organisations)   // your request-scoped service
+    {
+    }
+
+    public function currentTenant(string $userIdentifier): ?string
+    {
+        return $this->organisations->current()?->id();   // the same key as your WikiLinkTenantResolverInterface
+    }
+}
+```
+
+```yaml
+nowo_wiki:
+    search_kit_provider:
+        enabled: true
+        tenant_resolver: App\Wiki\CurrentOrganisationTenant
+```
+
 ### Host rules (1.46)
 
 Two hooks, both narrowing only (they can hide rows, never add one), both applied before the window and the total, so a
@@ -164,7 +199,7 @@ hidden row is never shown, counted or hinted at (the totals and the "see all" li
   by the wiki's own search page). Use it for rules per space or tenant, e.g. leaving out the wikis of a project whose
   wiki feature is off.
 - **Per page, after the wiki's checks:** SearchKit's `nowo_search_kit.item_visibility` (`SearchItemVisibilityEvent`,
-  group `wiki`, subject type `wiki`, subject id = the page id, tenant `*`), once per search page with every candidate;
+  group `wiki`, subject type `wiki`, subject id = the page id, tenant = the current tenant key or `*`), once per search page with every candidate;
   `deny()` wins over any `allow()`.
 
 ```php

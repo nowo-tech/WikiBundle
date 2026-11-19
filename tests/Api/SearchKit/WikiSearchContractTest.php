@@ -22,6 +22,7 @@ use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiPageService;
 use Nowo\WikiBundle\Tests\Api\App\ApiKernel;
+use Nowo\WikiBundle\Tests\Api\App\ApiSearchTenants;
 use Nowo\WikiBundle\Tests\Api\App\ApiTeamMembership;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -42,8 +43,8 @@ if (!class_exists(EntitySearchProviderTestCase::class)) {
  * on the API host kernel's database (SQLite, or WIKI_TEST_DATABASE_URL: MySQL, MariaDB, PostgreSQL in CI), outside any
  * request, on one kept-alive container (no kernel reset).
  *
- * A contract tenant is a team: each tenant owns one space, and the viewer acting for a tenant is a member of that team
- * only (the wiki's tenant / team resolver), so the wiki's own space rule is what separates the tenants. Hidden rows are
+ * A contract tenant is a host tenant (`search_kit_provider.tenant_resolver`): each tenant owns one space, and the viewer is
+ * a member of both teams, so the current-tenant rule (default `tenant: current`) is what separates the tenants. Hidden rows are
  * pages the space checker refuses to the viewer (per page); archived rows are archived pages. SearchKit's generic
  * provider alone does not revalidate wiki recents (a recent names a page by its slugs, looked up for the viewer by
  * WikiPageSearchKitProvider first): {@see supportsRecents()} is false here, and the recents are covered through the
@@ -72,8 +73,9 @@ final class WikiSearchContractTest extends EntitySearchProviderTestCase
             self::markTestSkipped('nowo-tech/search-kit-bundle >= 1.9 is not installed (PHP >= 8.3).');
         }
         ApiTestHost::reset();
+        ApiSearchTenants::reset();
         ApiTeamMembership::$teams = [];
-        $this->kernel             = new ApiKernel([], ['search_kit_provider' => ['enabled' => true, 'candidates' => 50], 'team_membership_resolver' => 'app.teams']);
+        $this->kernel             = new ApiKernel([], ['search_kit_provider' => ['enabled' => true, 'candidates' => 50, 'tenant_resolver' => 'app.search_tenants'], 'team_membership_resolver' => 'app.teams']);
         $this->kernel->boot();
         $em   = $this->em();
         $tool = new SchemaTool($em);
@@ -86,6 +88,7 @@ final class WikiSearchContractTest extends EntitySearchProviderTestCase
         foreach ([self::TENANT_A => 'kit-a', self::TENANT_B => 'kit-b'] as $tenant => $slug) {
             $this->spaces[$tenant] = new WikiSpace($slug, 'Kit ' . $slug, WikiSpaceOwnerScope::Team, $tenant);
             $em->persist($this->spaces[$tenant]);
+            ApiSearchTenants::$spaces[$slug] = $tenant;
             foreach ([self::VIEWER_A, self::VIEWER_B] as $identifier) {
                 ApiTestHost::$grants[$identifier][$slug] = [WikiAction::View];
             }
@@ -96,6 +99,7 @@ final class WikiSearchContractTest extends EntitySearchProviderTestCase
     protected function tearDown(): void
     {
         ApiTestHost::reset();
+        ApiSearchTenants::reset();
         ApiTeamMembership::$teams = [];
         if (isset($this->kernel)) {
             $this->kernel->shutdown();
@@ -183,7 +187,9 @@ final class WikiSearchContractTest extends EntitySearchProviderTestCase
 
     protected function actAs(int|string|null $tenant, string $userIdentifier): void
     {
-        ApiTeamMembership::$teams[$userIdentifier] = $tenant === null ? [] : [(string) $tenant];
+        // The viewer is a member of both teams: only the current tenant (the request's) separates the tenants' rows.
+        ApiTeamMembership::$teams[$userIdentifier]  = [self::TENANT_A, self::TENANT_B];
+        ApiSearchTenants::$current[$userIdentifier] = $tenant === null ? null : (string) $tenant;
         $this->signIn($userIdentifier, ['ROLE_USER']);
     }
 

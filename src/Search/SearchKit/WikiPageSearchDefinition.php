@@ -27,6 +27,7 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
+use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
@@ -62,7 +63,9 @@ use function trim;
  *
  * 1. the viewer: exactly SearchKit's user identifier ({@see WikiSearchViewerResolverInterface}; none: nothing);
  * 2. the spaces, before the SQL: the role gate (`list`), the tenant / team resolver, `View` on the space, the SearchKit
- *    scope and the `space:` filters ({@see WikiReadablePageFinder::spaces()}), then the host's
+ *    scope and the `space:` filters ({@see WikiReadablePageFinder::spaces()}), the **current tenant** only (the space's
+ *    {@see WikiLinkTenantResolverInterface} key equals {@see WikiSearchTenantResolverInterface::currentTenant()}; owner
+ *    decision of 2026-11-19 for every quick-access list, `search_kit_provider.tenant: all` widens it), then the host's
  *    {@see WikiEvents::SEARCH_KIT_SPACES} (narrowing only) — only these space ids reach the SQL;
  * 3. the rows, in SQL: live pages only (archived and trashed pages are left out), the typed text matched literally
  *    (escaped LIKE, `ESCAPE '!'`, case-insensitive) on the title or the current revision's plain text, title matches
@@ -83,8 +86,14 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
     /** Typed filter `space:<slug>` (and `-space:<slug>`), applied by {@see WikiPageSearchKitProvider}. */
     public const FILTER_SPACE = 'space';
 
-    /** SearchKit tenant of every wiki search: the viewer's readable spaces (the wiki has no single tenant here). */
-    public const TENANT = '*';
+    /** `search_kit_provider.tenant: current` (default): only the spaces of the current tenant. */
+    public const TENANT_CURRENT = 'current';
+
+    /** `search_kit_provider.tenant: all`: every space the viewer may read; the SearchKit tenant is {@see self::TENANT_ALL}. */
+    public const TENANT_ALL_MODE = 'all';
+
+    /** SearchKit tenant of a search across every tenant (`tenant: all`). */
+    public const TENANT_ALL = '*';
 
     /**
      * Route parameter the recents check of {@see WikiPageSearchKitProvider} adds to a reference: the page id it found for
@@ -129,7 +138,9 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
      * @param bool $sensitive `search_kit_provider.sensitive`: titles are sensitive (off while recents are not revalidated)
      * @param WikiMarkdownRendererInterface|null $renderer the page renderer: with limits, a page over them matches on its title only
      * @param EventDispatcherInterface|null $dispatcher dispatches {@see WikiEvents::SEARCH_KIT_SPACES} (null: none)
-     * @param WikiLinkTenantResolverInterface|null $tenants the tenant key of each space in that event (null: none)
+     * @param WikiLinkTenantResolverInterface|null $tenants the tenant key of each space (the current-tenant rule, that event; null: none)
+     * @param string $tenantMode `search_kit_provider.tenant`: {@see self::TENANT_CURRENT} or {@see self::TENANT_ALL_MODE}
+     * @param WikiSearchTenantResolverInterface|null $currentTenants the current tenant (null: none, so nothing with `current`)
      */
     public function __construct(
         private readonly WikiReadablePageFinder $finder,
@@ -151,6 +162,8 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
         private readonly ?WikiMarkdownRendererInterface $renderer = null,
         private readonly ?EventDispatcherInterface $dispatcher = null,
         private readonly ?WikiLinkTenantResolverInterface $tenants = null,
+        private readonly string $tenantMode = self::TENANT_CURRENT,
+        private readonly ?WikiSearchTenantResolverInterface $currentTenants = null,
     ) {
     }
 
@@ -169,10 +182,20 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
         return $this->icon;
     }
 
-    /** {@see self::TENANT} for a non-empty identifier: who the viewer is, and what it reads, is decided per space. */
+    /**
+     * The current tenant key ({@see WikiSearchTenantResolverInterface}; owner decision of 2026-11-19: the palette, like
+     * every quick-access list, shows the current tenant only), or {@see self::TENANT_ALL} with `tenant: all`. Null (no
+     * tenant context, an empty key): no results.
+     */
     public function tenant(SearchQuery $query): ?string
     {
-        return $query->userIdentifier !== '' ? self::TENANT : null;
+        // SearchKit's queries always carry a non-empty identifier; whose spaces they are is decided per space.
+        if ($this->tenantMode === self::TENANT_ALL_MODE) {
+            return self::TENANT_ALL;
+        }
+        $tenant = $this->currentTenants?->currentTenant($query->userIdentifier);
+
+        return $tenant === null || $tenant === '' ? null : $tenant;
     }
 
     /** On with a viewer resolver; the role gate (`list`) is decided for the viewer before the SQL ({@see self::baseQuery()}). */
@@ -197,7 +220,7 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
             ->where('p.archivedAt IS NULL')
             ->orderBy('p.updatedAt', 'DESC')
             ->addOrderBy('p.id', 'ASC');
-        $spaces = $this->spaceIds($query, $query->scope);
+        $spaces = $this->spaceIds($query, (string) $tenant, $query->scope);
         if ($spaces === []) {
             // Nothing the viewer may read: the same answer as no match (no count, no hint).
             return $builder->andWhere('1 = 0');
@@ -425,7 +448,9 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
         if ($userIdentifier === '' || $reference->kind !== self::GROUP || !$this->isPageViewReference($reference) || !$this->isSlug($spaceSlug) || !$this->isSlug($pageSlug)) {
             return [];
         }
-        $spaces = $this->spaceIds(new SearchQuery('', null, 1, null, false, $userIdentifier, [], $locale), null, [$spaceSlug]);
+        $query  = new SearchQuery('', null, 1, null, false, $userIdentifier, [], $locale);
+        $tenant = $this->tenant($query);
+        $spaces = $tenant === null ? [] : $this->spaceIds($query, $tenant, null, [$spaceSlug]);
         if ($spaces === []) {
             return [];
         }
@@ -456,7 +481,7 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
      *
      * @return list<string>
      */
-    private function spaceIds(SearchQuery $query, ?string $scope, array $only = []): array
+    private function spaceIds(SearchQuery $query, string $tenant, ?string $scope, array $only = []): array
     {
         $viewer = $this->viewer($query->userIdentifier);
         if (!$viewer instanceof UserInterface) {
@@ -474,16 +499,21 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
                 $only[] = $filter->value;
             }
         }
-        $spaces = $this->finder->spaces($viewer, $scope, $only, $except);
+        $candidates = [];
+        foreach ($this->finder->spaces($viewer, $scope, $only, $except) as $space) {
+            $snapshot = WikiSnapshots::space($space);
+            $key      = $this->tenants?->tenantOf($snapshot);
+            // The current tenant only (default): a space of another tenant, or of none, is not searched.
+            if ($tenant === self::TENANT_ALL || ($key !== null && $key === $tenant)) {
+                $candidates[] = [$space, new WikiSearchSpace($snapshot, $key)];
+            }
+        }
+        $spaces = array_map(static fn (array $candidate): WikiSpace => $candidate[0], $candidates);
         if ($spaces === [] || !$this->dispatcher instanceof EventDispatcherInterface) {
             return array_map(static fn (WikiSpace $space): string => $space->getId(), $spaces);
         }
 
-        $event = new WikiSearchSpacesEvent($query->userIdentifier, $scope, $query->locale, array_map(function (WikiSpace $space): WikiSearchSpace {
-            $snapshot = WikiSnapshots::space($space);
-
-            return new WikiSearchSpace($snapshot, $this->tenants?->tenantOf($snapshot));
-        }, $spaces));
+        $event = new WikiSearchSpacesEvent($query->userIdentifier, $scope, $query->locale, array_map(static fn (array $candidate): WikiSearchSpace => $candidate[1], $candidates));
         $this->dispatcher->dispatch($event, WikiEvents::SEARCH_KIT_SPACES);
         $kept = [];
         foreach ($spaces as $space) {

@@ -15,6 +15,7 @@ use Nowo\TiptapEditorBundle\NowoTiptapEditorBundle;
 use Nowo\UiKitBundle\NowoUiKitBundle;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\LinkPicker\WikiLinkTenantResolverInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchDefinition;
@@ -206,6 +207,11 @@ final class ApiKernel extends Kernel
             $services->alias('test.wiki_search_definition', WikiPageSearchDefinition::class)->public();
             $services->set('app.search_kit_counter', QueryCounter::class)->public();
             $services->set('app.search_kit_counting', QueryCountingMiddleware::class)->args([service('app.search_kit_counter')])->tag('doctrine.middleware');
+            // A host with its own tenants: the same keys for the spaces and the current tenant.
+            $services->set('app.search_tenants', ApiSearchTenants::class);
+            if (($this->wiki['search_kit_provider']['tenant_resolver'] ?? null) === 'app.search_tenants') {
+                $services->alias(WikiLinkTenantResolverInterface::class, 'app.search_tenants');
+            }
         }
         $services->set('app.quota', RecordingQuotaListener::class)->public()
             ->tag('kernel.event_listener', ['event' => WikiEvents::QUOTA_CHECK, 'method' => 'onCheck']);
