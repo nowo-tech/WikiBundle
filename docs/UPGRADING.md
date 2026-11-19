@@ -107,6 +107,80 @@
 
 ## Unreleased
 
+From **1.44.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/transaction-doctrine
+```
+
+`nowo-tech/transaction-doctrine` is now required at `^1.6` (was `^1.3`): the new favourite route answers lock
+conflicts with its request-level code (`X-Conflict-Code: CONFLICT_001` / `CONFLICT_002`). Nothing else changes for
+existing routes, and nothing changes at all until you turn one of the new switches on (all `false` by default; with
+them off the generated schema has no new table, so `doctrine:migrations:diff` stays empty).
+
+**Optional — favourites, recently viewed, backlinks and the rendered diff** (see
+[CONFIGURATION](CONFIGURATION.md#favourites-recents-and-backlinks-145) and
+[USAGE](USAGE.md#favourites-recents-and-backlinks-145)):
+
+```yaml
+nowo_wiki:
+    favourites: { enabled: true }   # table <prefix>_page_favourites
+    recents: { enabled: true }      # table <prefix>_page_visits
+    backlinks: { enabled: true }    # table <prefix>_page_references
+    history:
+        rendered_diff: true         # editor.type: milkdown only; no table
+```
+
+1. Turn the switches on (literal booleans), then generate the migration (`bin/console doctrine:migrations:diff`; it
+   lists only the tables of the switches you turned on) or apply the DDL below (default prefix `wiki_`).
+2. With `backlinks.enabled`, fill the index once: `bin/console wiki:backlinks:rebuild` (pages saved before have no
+   rows; it is safe to run beside live saves, and again at any time).
+3. If your page view showed backlinks of its own in `wiki_page_after_body` (Beacon: `wiki_backlinks()` in
+   `templates/wiki/manage/page_view.html.twig`), remove them, or override the new block `wiki_page_backlinks` with an
+   empty block to keep yours.
+4. Add `bin/console wiki:quick-access:erase-user <id>` to your account-erasure flow (favourites and visits keep the
+   user id without a foreign key, so they outlive an account).
+5. A host template that overrides `manage/_sidebar.html.twig` should include `manage/_quick_access.html.twig`
+   (variable `quick_access`) above the tree, as the bundle's template does.
+
+The user id columns get the exact binary collation on MySQL / MariaDB (as `owner_scope_id`), so `Alice` is not
+`alice`; PostgreSQL compares exactly by default.
+
+MySQL 8.4:
+
+```sql
+CREATE TABLE wiki_page_favourites (id VARCHAR(36) NOT NULL, created_at DATETIME NOT NULL, user_id VARCHAR(128) CHARACTER SET utf8mb4 NOT NULL COLLATE `utf8mb4_0900_bin`, page_id VARCHAR(36) NOT NULL, INDEX wiki_page_favourite_user (user_id, created_at), UNIQUE INDEX wiki_page_favourite_unique (user_id, page_id), INDEX IDX_7954510CC4663E4 (page_id), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4;
+CREATE TABLE wiki_page_visits (id VARCHAR(36) NOT NULL, user_id VARCHAR(128) CHARACTER SET utf8mb4 NOT NULL COLLATE `utf8mb4_0900_bin`, visited_at DATETIME NOT NULL, page_id VARCHAR(36) NOT NULL, INDEX wiki_page_visit_user (user_id, visited_at), UNIQUE INDEX wiki_page_visit_unique (user_id, page_id), INDEX IDX_BE1D8DA2C4663E4 (page_id), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4;
+CREATE TABLE wiki_page_references (id VARCHAR(36) NOT NULL, target_page_id VARCHAR(36) CHARACTER SET utf8mb4 NOT NULL COLLATE `utf8mb4_0900_bin`, source_page_id VARCHAR(36) NOT NULL, INDEX wiki_page_reference_target (target_page_id, source_page_id), UNIQUE INDEX wiki_page_reference_unique (source_page_id, target_page_id), INDEX IDX_994DB9914599DB8C (source_page_id), PRIMARY KEY (id)) DEFAULT CHARACTER SET utf8mb4;
+ALTER TABLE wiki_page_favourites ADD CONSTRAINT FK_7954510CC4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+ALTER TABLE wiki_page_visits ADD CONSTRAINT FK_BE1D8DA2C4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+ALTER TABLE wiki_page_references ADD CONSTRAINT FK_994DB9914599DB8C FOREIGN KEY (source_page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+```
+
+MariaDB 11.4: the same statements with `COLLATE utf8mb4_nopad_bin` instead of `utf8mb4_0900_bin`.
+
+PostgreSQL 16:
+
+```sql
+CREATE TABLE wiki_page_favourites (id VARCHAR(36) NOT NULL, created_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, user_id VARCHAR(128) NOT NULL, page_id VARCHAR(36) NOT NULL, PRIMARY KEY (id));
+CREATE INDEX wiki_page_favourite_user ON wiki_page_favourites (user_id, created_at);
+CREATE UNIQUE INDEX wiki_page_favourite_unique ON wiki_page_favourites (user_id, page_id);
+CREATE INDEX IDX_7954510CC4663E4 ON wiki_page_favourites (page_id);
+CREATE TABLE wiki_page_visits (id VARCHAR(36) NOT NULL, user_id VARCHAR(128) NOT NULL, visited_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL, page_id VARCHAR(36) NOT NULL, PRIMARY KEY (id));
+CREATE INDEX wiki_page_visit_user ON wiki_page_visits (user_id, visited_at);
+CREATE UNIQUE INDEX wiki_page_visit_unique ON wiki_page_visits (user_id, page_id);
+CREATE INDEX IDX_BE1D8DA2C4663E4 ON wiki_page_visits (page_id);
+CREATE TABLE wiki_page_references (id VARCHAR(36) NOT NULL, target_page_id VARCHAR(36) NOT NULL, source_page_id VARCHAR(36) NOT NULL, PRIMARY KEY (id));
+CREATE INDEX wiki_page_reference_target ON wiki_page_references (target_page_id, source_page_id);
+CREATE UNIQUE INDEX wiki_page_reference_unique ON wiki_page_references (source_page_id, target_page_id);
+CREATE INDEX IDX_994DB9914599DB8C ON wiki_page_references (source_page_id);
+ALTER TABLE wiki_page_favourites ADD CONSTRAINT FK_7954510CC4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE wiki_page_visits ADD CONSTRAINT FK_BE1D8DA2C4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE NOT DEFERRABLE;
+ALTER TABLE wiki_page_references ADD CONSTRAINT FK_994DB9914599DB8C FOREIGN KEY (source_page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE NOT DEFERRABLE;
+```
+
+With another `table_prefix` the table names change; the generated migration names the indexes and keys for you.
+
 ## To 1.44.0
 
 From **1.43.0**:

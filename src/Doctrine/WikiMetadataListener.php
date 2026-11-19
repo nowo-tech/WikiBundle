@@ -18,8 +18,11 @@ use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentReaction;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageFavourite;
 use Nowo\WikiBundle\Entity\WikiPageLink;
+use Nowo\WikiBundle\Entity\WikiPageReference;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Entity\WikiPageVisit;
 use Nowo\WikiBundle\Entity\WikiRevisionLabel;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
@@ -66,6 +69,10 @@ final readonly class WikiMetadataListener
      * @param bool $apiIdempotencyEnabled true only with `api.enabled` and the bundle's own store (1.24)
      * @param string $userReference `database.user_reference` (1.36): `entity` maps the user fields as relations to
      *                              `$userClass`, `id` as string id columns ({@see WikiUserRefType})
+     * @param string $quickAccessTablePrefix 1.45: prefix of `<prefix>_page_favourites`, `_page_visits` and `_page_references`
+     * @param bool $favouritesEnabled 1.45: false leaves the favourites table out of the generated schema
+     * @param bool $recentsEnabled 1.45: false leaves the visits table out of the generated schema
+     * @param bool $backlinksEnabled 1.45: false leaves the reference index table out of the generated schema
      */
     public function __construct(
         private string $spacesTableName,
@@ -86,6 +93,10 @@ final readonly class WikiMetadataListener
         private string $apiIdempotencyTableName = 'wiki_api_idempotency',
         private bool $apiIdempotencyEnabled = false,
         private string $userReference = self::USER_REFERENCE_ENTITY,
+        private string $quickAccessTablePrefix = 'wiki',
+        private bool $favouritesEnabled = false,
+        private bool $recentsEnabled = false,
+        private bool $backlinksEnabled = false,
     ) {
     }
 
@@ -111,6 +122,16 @@ final readonly class WikiMetadataListener
         // 1.24 (spec 218): only with api.enabled and the bundle's own idempotency store.
         if (!$this->apiIdempotencyEnabled) {
             $tables[] = $this->apiIdempotencyTableName;
+        }
+        // 1.45: favourites, recents and the backlink index, each only when it is on.
+        foreach ($this->quickAccessTables() as $class => $table) {
+            if (!match ($class) {
+                WikiPageFavourite::class => $this->favouritesEnabled,
+                WikiPageVisit::class     => $this->recentsEnabled,
+                default                  => $this->backlinksEnabled,
+            }) {
+                $tables[] = $table;
+            }
         }
         if (!$this->commentsEnabled) {
             // Children first: a platform that drops foreign keys with the table never sees a dangling one.
@@ -187,6 +208,12 @@ final readonly class WikiMetadataListener
             return;
         }
 
+        if (isset($this->quickAccessTables()[$class])) {
+            $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->quickAccessTables()[$class]]));
+
+            return;
+        }
+
         if ($class === WikiTrashEntry::class) {
             $metadata->setPrimaryTable(array_merge($metadata->table, ['name' => $this->trashTableName]));
 
@@ -210,6 +237,20 @@ final readonly class WikiMetadataListener
             WikiCommentThread::class   => $this->commentTablePrefix . '_comment_threads',
             WikiComment::class         => $this->commentTablePrefix . '_comments',
             WikiCommentReaction::class => $this->commentTablePrefix . '_comment_reactions',
+        ];
+    }
+
+    /**
+     * The 1.45 tables by entity class.
+     *
+     * @return array<class-string, string>
+     */
+    private function quickAccessTables(): array
+    {
+        return [
+            WikiPageFavourite::class => $this->quickAccessTablePrefix . '_page_favourites',
+            WikiPageVisit::class     => $this->quickAccessTablePrefix . '_page_visits',
+            WikiPageReference::class => $this->quickAccessTablePrefix . '_page_references',
         ];
     }
 

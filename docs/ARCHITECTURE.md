@@ -25,7 +25,7 @@ or matches is compared byte for byte (REQ-SEC-006, see [SECURITY](SECURITY.md)).
 | Host ports | the 1.x interfaces (Symfony `UserInterface`, `Request`, wiki entities) | their framework-free twins (`WikiUserRef`, snapshots, request-context VOs) |
 | Calling the wiki | `WikiPageServiceInterface`, `WikiSpaceServiceInterface`, `WikiPageLinkServiceInterface` (entities) | `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface`, `WikiPageLinkOperationsInterface` (ids, snapshots) |
 | Events | entity payloads, `actorId()` | `spaceId()`, `pageId()`, `pageSnapshot()`, `actorRef()`, ... |
-| Mapping of the 13 wiki entities | ORM attributes | `database.mapping_type: xml` |
+| Mapping of the 16 wiki entities | ORM attributes | `database.mapping_type: xml` |
 | Host users on wiki rows | `ManyToOne` to `user_class` (a Doctrine entity) | `database.user_reference: id` + `user_directory` |
 | Entity manager | `database.entity_manager` (flushed by wiki writes) | `database.private_entity_manager: true` |
 | Bundle base classes / traits for host entities | none | none |
@@ -160,7 +160,7 @@ and your Doctrine listeners still run. Adapted from TaskBoardBundle 2.15.0 / Aut
 
 | | Standard host (default) | DDD host (opt-in) |
 |---|---|---|
-| Mapping of the 13 wiki entities | ORM attributes | `database.mapping_type: xml` (`Resources/config/doctrine-xml`, generated from the attributes by `scripts/generate-xml-mapping.php`, identical metadata; `XmlMappingParityTest`) |
+| Mapping of the 16 wiki entities | ORM attributes | `database.mapping_type: xml` (`Resources/config/doctrine-xml`, generated from the attributes by `scripts/generate-xml-mapping.php`, identical metadata; `XmlMappingParityTest`) |
 | Other entity managers | wiki entities transient unless mapped there explicitly (`WikiMappingManagerPass`, DoctrineBundle 3.4 `auto_discover_entities`) | wiki entities transient (`WikiExcludedEntityNamespaceDriver`) |
 | Host users on wiki rows | `ManyToOne` to `user_class` (a Doctrine entity in the wiki's manager) | `database.user_reference: id`: the id in a string column (`WikiStoredUserRef`, type `wiki_user_ref`, 128 characters, indexed, no foreign key), found again through `user_directory` |
 

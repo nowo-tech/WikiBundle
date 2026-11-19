@@ -1,0 +1,28 @@
+{#
+  1.45: the viewer's Favourites (favourites.enabled) and Recently viewed (recents.enabled) sections at the top of the
+  sidebar, each a native disclosure (<details open>: collapsible without JavaScript, keyboard and screen-reader
+  friendly), above the page tree. Lists are built for the viewer on every request (pages they can no longer read are
+  never listed) and are never cached (Cache-Control: private, no-store).
+  Variables: quick_access ({favourites: list|null, recents: list|null}; null = both off), bundle. Each item: title,
+  icon (stored `<prefix>:<name>` or null), href, space (space name), current (the page being viewed:
+  aria-current="page"). A list that is on but empty prints nothing (the tree keeps its place).
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _b = bundle|default(null) %}
+{% set _quick = quick_access|default(null) %}
+{% if _quick %}
+    {% for _key, _items in {favourites: _quick.favourites, recents: _quick.recents} %}
+        {% if _items is not empty %}
+            <details class="nowo-wiki-quick" open data-testid="wiki-{{ _key }}">
+                <summary class="nowo-wiki-quick__summary nowo-wiki-region-title">{{ ('wiki.' ~ _key ~ '.title')|trans }}</summary>
+                <ul class="nowo-wiki-quick__list">
+                    {% for _item in _items %}
+                        <li class="nowo-wiki-quick__item">
+                            <a class="nowo-wiki-quick__link" href="{{ _item.href }}" title="{{ _item.space }}"{% if _item.current %} aria-current="page"{% endif %}>{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: _item.icon, fallback: 'book'}, false) }}<span class="nowo-wiki-quick__label">{{ _item.title }}</span></a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </details>
+        {% endif %}
+    {% endfor %}
+{% endif %}

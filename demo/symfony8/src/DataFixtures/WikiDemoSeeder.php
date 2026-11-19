@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageService;
 
 use function sprintf;
+use function str_replace;
 
 use const ENT_QUOTES;
 use const ENT_SUBSTITUTE;
@@ -57,13 +58,15 @@ final class WikiDemoSeeder
         $this->pageService->archive($legacy, $user);
 
         // 1.13: a Markdown page in the Milkdown dialect (page links by id, mention, icons, callout, math, Mermaid).
-        $this->pageService->create($space, 'Milkdown showcase', $this->milkdownShowcase($welcome, $deploy), $user, null, 'milkdown-showcase', WikiPageRevision::FORMAT_MARKDOWN);
+        $showcase = $this->pageService->create($space, 'Milkdown showcase', $this->milkdownShowcase($welcome, $deploy), $user, null, 'milkdown-showcase', WikiPageRevision::FORMAT_MARKDOWN);
+        // 1.45 (history.rendered_diff): a second revision, so Compare shows the rendered diff (one word changed).
+        $this->pageService->saveRevision($showcase, 'Milkdown showcase', str_replace('Questions go to @demo.', 'Questions and ideas go to @demo.', $this->milkdownShowcase($welcome, $deploy)), $user, WikiPageRevision::FORMAT_MARKDOWN);
 
         // 1.39 (page_icon.emoji, page_icon.picker): a few emoji page icons in the tree, the titles and the previous / next links.
         foreach ([[$welcome, 'emoji:👋'], [$gettingStarted, 'emoji:🚀'], [$architecture, 'emoji:🧩'], [$runbooks, 'emoji:📘'], [$deploy, 'emoji:🚢']] as [$page, $icon]) {
             $this->pageIcons?->setIcon($page, $icon);
         }
-        unset($legacy, $welcome, $gettingStarted, $installation, $configuration, $architecture, $frontend, $tiptap, $backend, $runbooks, $deploy, $rollback);
+        unset($showcase, $legacy, $welcome, $gettingStarted, $installation, $configuration, $architecture, $frontend, $tiptap, $backend, $runbooks, $deploy, $rollback);
     }
 
     public function seedProductSpace(WikiSpace $space, User $user): void

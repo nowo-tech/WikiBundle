@@ -341,6 +341,18 @@ wiki:
       conflict: "De pagina is intussen gewijzigd: laad opnieuw en probeer het nog eens."
       page_gone: "Deze pagina is intussen gearchiveerd of verwijderd: laad de pagina opnieuw."
       denied: "Je mag dit niet doen op deze pagina."
+  # 1.45: favourites, recently viewed pages and backlinks.
+  favourites:
+    title: "Favorieten"
+    add: "Toevoegen aan favorieten"
+    remove: "Verwijderen uit favorieten"
+    added: "‘%title%’ is aan je favorieten toegevoegd."
+    removed: "‘%title%’ is uit je favorieten verwijderd."
+    limit_reached: "Je hebt al het maximale aantal favorieten. Verwijder er eerst een."
+  recents:
+    title: "Recent bekeken"
+  backlinks:
+    title: "Gelinkt vanaf"
 wiki_page_form:
   title:
     placeholder: "Paginatitel"

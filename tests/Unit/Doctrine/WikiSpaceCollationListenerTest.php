@@ -24,7 +24,10 @@ use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageFavourite;
+use Nowo\WikiBundle\Entity\WikiPageReference;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\Entity\WikiPageVisit;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
@@ -118,6 +121,10 @@ final class WikiSpaceCollationListenerTest extends TestCase
         self::assertSame(['ownerScopeId'], WikiSpaceCollationListener::fieldsOf($em->getClassMetadata(WikiSpace::class)));
         self::assertSame(['author'], WikiSpaceCollationListener::fieldsOf($em->getClassMetadata(WikiPageRevision::class)));
         self::assertSame([], WikiSpaceCollationListener::fieldsOf(WikiTestDatabase::connect()->getClassMetadata(WikiPageRevision::class)));
+        // 1.45: the person of a favourite or a visit, the target of a backlink index row.
+        self::assertSame(['userId'], WikiSpaceCollationListener::fieldsOf($em->getClassMetadata(WikiPageFavourite::class)));
+        self::assertSame(['userId'], WikiSpaceCollationListener::fieldsOf($em->getClassMetadata(WikiPageVisit::class)));
+        self::assertSame(['targetPageId'], WikiSpaceCollationListener::fieldsOf($em->getClassMetadata(WikiPageReference::class)));
         $em->getConnection()->close();
     }
 

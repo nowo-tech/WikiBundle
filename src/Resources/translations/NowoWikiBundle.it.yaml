@@ -341,6 +341,18 @@ wiki:
       conflict: "La pagina è cambiata nel frattempo: ricarica e riprova."
       page_gone: "Questa pagina è stata archiviata o eliminata nel frattempo: ricarica la pagina."
       denied: "Non puoi farlo su questa pagina."
+  # 1.45: favourites, recently viewed pages and backlinks.
+  favourites:
+    title: "Preferiti"
+    add: "Aggiungi ai preferiti"
+    remove: "Rimuovi dai preferiti"
+    added: "«%title%» è stata aggiunta ai preferiti."
+    removed: "«%title%» è stata rimossa dai preferiti."
+    limit_reached: "Hai già il numero massimo di preferiti. Rimuovine prima uno."
+  recents:
+    title: "Viste di recente"
+  backlinks:
+    title: "Collegata da"
 wiki_page_form:
   title:
     placeholder: "Titolo della pagina"

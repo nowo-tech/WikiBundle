@@ -1,0 +1,23 @@
+{#
+  1.45 (backlinks.enabled): "Linked from" after the page body — the pages whose current revision links this one, only
+  those the viewer may read (filtered before they are cut to backlinks.limit), by title. Nothing is printed when there
+  are none. Variables: backlinks (list of {title, icon, href, space: the space name when another space, else null}),
+  bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _b = bundle|default(null) %}
+{% if backlinks|default([]) is not empty %}
+<section class="{{ nowo_ui_class('card', _b) }} nowo-wiki-backlinks" aria-labelledby="nowo-wiki-backlinks-title" data-testid="wiki-backlinks"{{ nowo_ui_attrs('card', _b) }}>
+    <header class="{{ nowo_ui_class('card_header', _b) }}">
+        <h2 class="{{ nowo_ui_class('card_title', _b) }} nowo-wiki-region-title" id="nowo-wiki-backlinks-title">{{ 'wiki.backlinks.title'|trans }}</h2>
+    </header>
+    <ul class="{{ nowo_ui_class('card_body', _b) }} nowo-wiki-used-in__list nowo-wiki-backlinks__list">
+        {% for _source in backlinks %}
+            <li class="nowo-wiki-used-in__item nowo-wiki-backlinks__item">
+                <a class="nowo-wiki-backlinks__link" href="{{ _source.href }}">{{ include('@NowoWikiBundle/manage/_page_icon.html.twig', {icon: _source.icon, fallback: 'book'}, false) }}<span class="nowo-wiki-backlinks__label">{{ _source.title }}</span></a>
+                {% if _source.space %}<span class="{{ nowo_ui_class('badge_neutral', _b) }}">{{ _source.space }}</span>{% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}

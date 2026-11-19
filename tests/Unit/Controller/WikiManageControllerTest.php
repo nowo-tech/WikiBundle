@@ -12,6 +12,9 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
 use InvalidArgumentException;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\AllowlistIconResolver;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullPageResolver;
+use Nowo\MilkdownEditorBundle\Markdown\Resolver\NullUserResolver;
 use Nowo\UiKitBundle\View\Action;
 use Nowo\UiKitBundle\View\AreaNav;
 use Nowo\UiKitBundle\View\AreaNavItem;
@@ -20,6 +23,7 @@ use Nowo\UiKitBundle\View\ListPage;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\WikiAiAnswer;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Backlink\WikiBacklinks;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
@@ -27,6 +31,7 @@ use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
 use Nowo\WikiBundle\Controller\WikiManageController;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiPageReference;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
@@ -36,6 +41,7 @@ use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
+use Nowo\WikiBundle\History\WikiRenderedRevisionDiff;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Interchange\WikiDocumentExporter;
 use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
@@ -43,12 +49,17 @@ use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
 use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
+use Nowo\WikiBundle\Markdown\Milkdown\MilkdownWikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\Markdown\WikiRevisionBodyRenderer;
 use Nowo\WikiBundle\Markdown\WikiViewerMarkdownRendererInterface;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
+use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
+use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
@@ -71,7 +82,9 @@ use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\EpochInMemoryCollabStateStore;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
 use Nowo\WikiBundle\Tests\Support\InMemoryCollabStateStore;
+use Nowo\WikiBundle\Tests\Support\SqliteWikiEntityManager;
 use Nowo\WikiBundle\Tests\Support\WikiControllerContainerBuilder;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -99,10 +112,12 @@ use ZipArchive;
 
 use function array_column;
 use function array_diff;
+use function array_filter;
 use function array_keys;
 use function array_slice;
 use function array_values;
 use function iterator_to_array;
+use function sort;
 
 final class WikiManageControllerTest extends TestCase
 {
@@ -942,6 +957,112 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('page_diff', (string) $response->getContent());
+    }
+
+    /** 1.45: favourites, recents and backlinks on the page view and the space home, for the viewer only. */
+    public function testViewPageCarriesTheViewersQuickAccessAndBacklinks(): void
+    {
+        $em     = SqliteWikiEntityManager::create();
+        $user   = new TestUser('user-1');
+        $space  = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $ops    = new WikiSpace('ops', 'Operations', WikiSpaceOwnerScope::User, 'user-1');
+        $page   = new WikiPage($space, 'welcome', 'Welcome');
+        $other  = new WikiPage($space, 'other', 'Other');
+        $linker = new WikiPage($ops, 'linker', 'Linker');
+        $nearby = new WikiPage($space, 'nearby', 'Nearby');
+        foreach ([$space, $ops, $page, $other, $linker, $nearby] as $entity) {
+            $em->persist($entity);
+        }
+        foreach ([$page, $other] as $item) {
+            $revision = new WikiPageRevision($item, 1, '<p>Hi</p>', null);
+            $em->persist($revision);
+            $item->setCurrentRevision($revision);
+        }
+        $em->persist(new WikiPageReference($linker, $page->getId()));
+        $em->persist(new WikiPageReference($nearby, $page->getId()));
+        $em->flush();
+        $resolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space, $ops]);
+        $runner  = new WikiTransactionRunner($em, backoffBaseMilliseconds: 0);
+        $checker = CallbackSpaceAccessChecker::allowing(...WikiAction::cases());
+        $roles   = $this->createConfiguredStub(WikiAccessCheckerInterface::class, ['canAccess' => true, 'canList' => true, 'canEdit' => true, 'canViewHistory' => true, 'canArchive' => false, 'canCreate' => false]);
+        $spaces  = new WikiReadableSpaces($roles, $resolver, $checker);
+        $quick   = new WikiQuickAccess(new WikiQuickAccessStore($runner), $spaces, ['enabled' => true, 'max' => 10, 'shown' => 5], ['enabled' => true, 'keep' => 10, 'shown' => 5]);
+        $quick->setFavourite($user, $other, true);
+        $this->routes['page_favourite'] = ['path' => '/fav', 'name' => 'nowo_wiki_page_favourite'];
+        $twig                           = $this->capturingTwig();
+        $controller                     = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick, backlinks: new WikiBacklinks($runner, $spaces));
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+
+        $controller->viewPage('eng', 'other');
+        $response = $controller->viewPage('eng', 'welcome');
+
+        self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        $quickVars = $twig->context['quick_access'];
+        self::assertSame(['Other'], array_column($quickVars['favourites'], 'title'));
+        self::assertSame(['Other'], array_column($quickVars['recents'], 'title'), 'the current page is not a recent');
+        self::assertFalse($quickVars['favourites'][0]['current']);
+        self::assertSame('/generated/nowo_wiki_page_view', $quickVars['favourites'][0]['href']);
+        self::assertSame(['Linker', 'Nearby'], array_column($twig->context['backlinks'], 'title'));
+        self::assertSame(['Operations', null], array_column($twig->context['backlinks'], 'space'));
+        $favourite = array_values(array_filter($twig->context['page']->header->actions, static fn (Action $action): bool => ($action->attributes['data-testid'] ?? null) === 'wiki-favourite'));
+        self::assertCount(1, $favourite);
+        self::assertSame('off', $favourite[0]->attributes['data-wiki-favourite']);
+        self::assertSame('1', $favourite[0]->form?->children['favourite']->vars['value']);
+
+        $controller->viewPage('eng', 'other');
+        $favourite = array_values(array_filter($twig->context['page']->header->actions, static fn (Action $action): bool => ($action->attributes['data-testid'] ?? null) === 'wiki-favourite'));
+        self::assertSame('on', $favourite[0]->attributes['data-wiki-favourite']);
+        self::assertTrue($twig->context['quick_access']['favourites'][0]['current']);
+
+        // The space home lists both sections too (no current page).
+        $response = $controller->space('eng');
+        self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        $recents = array_column($twig->context['quick_access']['recents'], 'title');
+        sort($recents);
+        self::assertSame(['Other', 'Welcome'], $recents, 'both visits (same second: any order)');
+
+        // Without the favourite route, or for a user without an id, no toggle.
+        unset($this->routes['page_favourite']);
+        $controller = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick);
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->viewPage('eng', 'welcome');
+        self::assertSame([], array_filter($twig->context['page']->header->actions, static fn (Action $action): bool => ($action->attributes['data-testid'] ?? null) === 'wiki-favourite'));
+        self::assertArrayNotHasKey('backlinks', $twig->context);
+        unset($this->routes['page_view']);
+        $controller = $this->controller(accessChecker: $roles, spaceAccessResolver: $resolver, pageRepository: new DoctrineOrmWikiPageRepository($em), quickAccess: $quick);
+        self::assertNull((fn (): ?array => $this->quickAccessVars($user, null))->call($controller));
+    }
+
+    /** 1.45 (history.rendered_diff): two Markdown revisions get the rendered diff; an HTML one keeps the line diff. */
+    public function testPageDiffUsesTheRenderedDiffForMarkdownRevisions(): void
+    {
+        $user     = new TestUser('user-1');
+        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+        $page     = new WikiPage($space, 'welcome', 'Welcome');
+        $html     = new WikiPageRevision($page, 1, '<p>old</p>', $user);
+        $from     = new WikiPageRevision($page, 2, '', $user, 'The quick fox.');
+        $to       = new WikiPageRevision($page, 3, '', $user, 'The slow fox.');
+        $resolver = $this->createStub(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+        $pageRepo = $this->createStub(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findBySlug')->willReturn($page);
+        $revisionRepo = $this->createStub(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepo->method('findByPageAndNumber')->willReturnMap([[$page, 1, $html], [$page, 2, $from], [$page, 3, $to]]);
+        $rendered = new WikiRenderedRevisionDiff(new MilkdownWikiMarkdownRenderer([], new NullPageResolver(), new NullUserResolver(), new AllowlistIconResolver()), new WikiHtmlSanitizer());
+        $twig     = $this->capturingTwig();
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisionRepo, renderedDiff: $rendered);
+        WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+        $controller->pageDiff(Request::create('/diff?from=2&to=3'), 'eng', 'welcome');
+        self::assertSame([], $twig->context['diff']);
+        self::assertSame(1, $twig->context['rendered_diff']['changes']);
+        self::assertFalse($twig->context['rendered_diff']['fallback']);
+        self::assertStringContainsString('<ins class="nowo-md-diff-ins"><span class="nowo-md-diff-sr">Inserted: </span>slow</ins>', $twig->context['rendered_diff']['html']);
+
+        $controller->pageDiff(Request::create('/diff?from=1&to=3'), 'eng', 'welcome');
+        self::assertNull($twig->context['rendered_diff']);
+        self::assertNotSame([], $twig->context['diff']);
     }
 
     public function testEditPageGetRendersForm(): void
@@ -2737,6 +2858,9 @@ MD);
         ?WikiQuotaGate $quota = null,
         ?WikiTreeRail $treeRail = null,
         array $layout = [],
+        ?WikiQuickAccess $quickAccess = null,
+        ?WikiBacklinks $backlinks = null,
+        ?WikiRenderedRevisionDiff $renderedDiff = null,
     ): WikiManageController {
         $accessChecker ??= $this->createConfiguredMock(WikiAccessCheckerInterface::class, [
             'canAccess'      => true,
@@ -2789,6 +2913,9 @@ MD);
             quota: $quota,
             treeRail: $treeRail,
             layout: $layout,
+            quickAccess: $quickAccess,
+            backlinks: $backlinks,
+            renderedDiff: $renderedDiff,
         );
     }
 

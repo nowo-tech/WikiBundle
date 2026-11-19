@@ -105,7 +105,7 @@ Shipped and in use, by area (each with its opt-in switch; see [CONFIGURATION](CO
 | Pages | Page icons (icon or emoji) | Yes | Yes (picker) | — | — |
 | Pages | Cover images | No | — | W + S | Later |
 | Pages | Collections (grouping between space and pages) | No | — | — | Not planned (D-W33) |
-| Pages | Favourites and recently viewed | No | — | W | **Next** |
+| Pages | Favourites and recently viewed | Yes (1.45, sidebar) | — | W | In the palette: **Next** |
 | Pages | Drafts and publish | No | — | W | Later |
 | Pages | Review dates (owner, interval, "may be out of date") | No | — | W + H | Later |
 | Editor | Block handle, block menu, drag | — | Yes | — | — |
@@ -122,7 +122,7 @@ Shipped and in use, by area (each with its opt-in switch; see [CONFIGURATION](CO
 | Embeds | External embeds from an allow-list, link previews | No | No | E + H | **Next** |
 | Embeds | Embed a wiki page elsewhere | No | — | W | Later |
 | Links | Page links by id, per-viewer titles, section links | Yes | Yes | — | — |
-| Links | Backlinks panel ("Linked from") | No | — | W | **Next** |
+| Links | Backlinks panel ("Linked from") | Yes (1.45) | — | — | — |
 | Links | Broken-link and broken-anchor report | No | — | W | Later |
 | Mentions | People mentions rendered per viewer | Partial | Yes | W + H | Mention notifications: **Next** |
 | Comments | Inline and page comments, reactions, resolve | Yes | Yes | — | — |
@@ -130,7 +130,7 @@ Shipped and in use, by area (each with its opt-in switch; see [CONFIGURATION](CO
 | Comments | Comments on a whole block or image | No | No | E + W | Later |
 | Comments | Suggested edits (reviewable proposals) | No | No | W + E | Considering |
 | History | Timeline, named versions, restore, copy to new page | Yes | — | — | — |
-| History | Rendered (block / word) diff | Partial (line diff) | Yes (`nowo_milkdown_diff`) | W | **Next** |
+| History | Rendered (block / word) diff | Yes (1.45, `history.rendered_diff`) | Yes (`nowo_milkdown_diff`) | — | — |
 | History | Read-only view of an old version in the editor | No | Yes (`version_view`) | W | **Next** |
 | Collaboration | Co-editing with cursors and names | Yes | Yes | — | — |
 | Collaboration | Presence avatars on pages, follow a collaborator | No | No | W + E | **Next** |
@@ -170,9 +170,9 @@ each: what it is and why it helps.
 
 | Wave | Area | Item | What and why | Owner |
 |------|------|------|--------------|-------|
-| 1 | Pages | **Favourites and recently viewed** | Per-user starred pages and recent pages at the top of the tree and in the palette; the fastest way back to the pages people use daily. Never lists pages the viewer lost access to. | W |
-| 1 | Links | **Backlinks panel** | "Linked from" under the page body from the stored page references, per viewer; shows context and keeps the knowledge base connected. The `wiki_page_after_body` slot is already there. | W |
-| 1 | History | **Rendered diff and version view** | Use the editor's `nowo_milkdown_diff()` (block then word level, escaped, per viewer) instead of the line diff, and its read-only `version_view` for old versions; history becomes readable for non-technical users. | W (+ E shipped) |
+| 1 | Pages | **Favourites and recently viewed** | Per-user starred pages and recent pages at the top of the tree and in the palette; the fastest way back to the pages people use daily. Never lists pages the viewer lost access to. **Sidebar shipped in 1.45**; the palette (SearchKit provider) is next. | W |
+| 1 | Links | **Backlinks panel** | "Linked from" under the page body from the stored page references, per viewer; shows context and keeps the knowledge base connected. **Shipped in 1.45** (own reference index, block `wiki_page_backlinks`). | W |
+| 1 | History | **Rendered diff and version view** | Use the editor's `nowo_milkdown_diff()` (block then word level, escaped, per viewer) instead of the line diff, and its read-only `version_view` for old versions; history becomes readable for non-technical users. **Rendered diff shipped in 1.45** (`history.rendered_diff`); the version view is next. | W (+ E shipped) |
 | 2 | Templates | **Page templates** | Space and instance templates with fixed `{{variable}}` substitution, seed templates and "start from a template" in the empty page and the tree; consistent pages for meeting notes, runbooks, postmortems. See [Templates](#templates). | W + E |
 | 2 | Notifications | **Watching pages and spaces** | Automatic for authors and commenters, manual for anyone; events for replies, edits (daily digest) and moves, delivered by the host. Without this, comments and mentions go unseen. | W + H |
 | 2 | Mentions | **Mention notifications** | Typed events when someone is mentioned in a page or comment, only for people who can read it; the host delivers them. Viewer-aware user resolver (CV-I5) first. | W + H |
@@ -342,6 +342,8 @@ Moved out of the plan because they shipped (version in brackets):
 - Space icons (1.32), page icons (1.38), icon picker and emoji icons (1.39); previous / next page (1.39).
 - Link picker, stable and explicit heading ids, section links and labels (1.40).
 - Focus mode with the page drawer (1.41, 1.44); page-card tokens (1.43); SearchKit palette provider (1.44).
+- Wave 1 (D-W32): favourites and recently viewed in the sidebar, backlinks panel with the bundle's own reference
+  index, rendered revision diff (1.45).
 
 ## Decided
 
@@ -369,7 +371,7 @@ format names. Recommended answers are the defaults until the owner decides.
 
 | # | Decision | Recommendation |
 |---|----------|----------------|
-| D-W3 | Show **favourites** and **recent** sections in the sidebar | Yes, both collapsible |
+| D-W3 | Show **favourites** and **recent** sections in the sidebar | Yes, both collapsible (1.45 is built this way) |
 | D-W8 | Who can **comment**: readers or editors only? | Readers with the comment right, granted to members by default |
 | D-W9 | Keep **resolved threads** forever? | Keep; purge only with the page |
 | D-W10 | Which **seed templates** ship | Meeting notes, postmortem, runbook, decision record, onboarding, how-to |

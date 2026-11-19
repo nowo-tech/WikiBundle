@@ -60,13 +60,22 @@ test.describe('Tree context menu', () => {
 
   test('touch: the «…» button opens the same menu without moving the row', async ({ page }) => {
     await page.goto(deploy);
-    const before = await item(page, 'Rollback').boundingBox();
+    // 1.45: the sidebar may list favourites and recents above the tree, so the menu can scroll the page: the row is
+    // measured within the tree, not the viewport.
+    const inTree = async (): Promise<{ x: number; y: number; width: number; height: number }> => {
+      const [box, frame] = await Promise.all([item(page, 'Rollback').boundingBox(), tree(page).boundingBox()]);
+      expect(box).not.toBeNull();
+      expect(frame).not.toBeNull();
+
+      return { x: box!.x - frame!.x, y: box!.y - frame!.y, width: box!.width, height: box!.height };
+    };
+    const before = await inTree();
     const more = row(page, 'Rollback').getByTestId('wiki-tree-menu-more');
     await expect(more).toHaveAttribute('aria-haspopup', 'menu');
     await item(page, 'Rollback').hover();
     await more.click();
     await expect(menu(page)).toBeVisible();
-    expect(await item(page, 'Rollback').boundingBox()).toEqual(before);
+    expect(await inTree()).toEqual(before);
     await more.click();
     await expect(menu(page)).toBeHidden();
   });

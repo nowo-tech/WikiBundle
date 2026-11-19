@@ -238,13 +238,27 @@ final readonly class WikiPageFactory
      *                                                                                   new_page_dialog = "New page" in the actions, opening the dialog)
      * @param FormView|null $archiveForm CSRF form of the archive action (null = no archive action)
      * @param FormView|null $deleteForm CSRF form of the Delete action (1.14 trash; null = no Delete action)
+     * @param array{active: bool, form: FormView}|null $favourite 1.45 (`favourites.enabled`): whether the page is a
+     *                                                            favourite and the form that toggles it (null = no action)
      */
-    public function pageView(WikiSpace $space, WikiPage $page, array $can, ?FormView $archiveForm = null, ?FormView $deleteForm = null): ShowPage
+    public function pageView(WikiSpace $space, WikiPage $page, array $can, ?FormView $archiveForm = null, ?FormView $deleteForm = null, ?array $favourite = null): ShowPage
     {
         $params = ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()];
         $tabs   = $this->pageTabs($space, $page, $can, 'page');
         // 1.25 (WK-6): Edit and History are tabs of the tab row (1.16, same rights), never header actions as well.
         $actions = [];
+        // 1.45: Add to / Remove from favourites (POST + CSRF, no confirm: it is undone with one click), first.
+        if ($favourite !== null && $this->has('page_favourite')) {
+            $actions[] = new Action(
+                'custom',
+                WikiPages::label($favourite['active'] ? 'wiki.favourites.remove' : 'wiki.favourites.add'),
+                $this->url('page_favourite', $params),
+                method: 'POST',
+                variant: 'secondary',
+                attributes: ['data-testid' => 'wiki-favourite', 'data-wiki-favourite' => $favourite['active'] ? 'on' : 'off'],
+                form: $favourite['form'],
+            );
+        }
         // 1.35 (web_ui.new_page_dialog): "New page" opens the new-page dialog (UiKit dialog script; a button, no URL: a
         // URL would be fetched into the dialog body).
         if ($can['new_page_dialog'] ?? false) {

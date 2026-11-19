@@ -216,6 +216,16 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- tests/Database/WikiUserReferenceByIdTest.php
 
+      # 1.45: favourites, recents and backlinks, with the two-connection races (lock conflict, unique-key race).
+      - name: Run the favourites, recents and backlinks tests against MariaDB
+        env:
+          WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: |
+          composer test -- tests/Database/WikiQuickAccessTest.php
+          composer test -- tests/Database/WikiBacklinksTest.php
+          composer test -- tests/Database/WikiQuickAccessRaceTest.php
+
   pgsql:
     name: Database tests on PostgreSQL
     runs-on: ubuntu-latest

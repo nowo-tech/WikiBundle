@@ -20,6 +20,9 @@ use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentReaction;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
+use Nowo\WikiBundle\Entity\WikiPageFavourite;
+use Nowo\WikiBundle\Entity\WikiPageReference;
+use Nowo\WikiBundle\Entity\WikiPageVisit;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -107,6 +110,40 @@ final class CollabTablesSchemaTest extends TestCase
         self::assertSame(TestUserEntity::class, $em->getClassMetadata(WikiComment::class)->getAssociationTargetClass('author'));
         self::assertSame(TestUserEntity::class, $em->getClassMetadata(WikiCommentThread::class)->getAssociationTargetClass('resolvedBy'));
         self::assertSame(TestUserEntity::class, $em->getClassMetadata(WikiCommentReaction::class)->getAssociationTargetClass('user'));
+    }
+
+    /**
+     * @return iterable<string, array{bool, bool, bool}>
+     */
+    public static function quickAccessModes(): iterable
+    {
+        yield 'all off' => [false, false, false];
+        yield 'favourites only' => [true, false, false];
+        yield 'recents only' => [false, true, false];
+        yield 'backlinks only' => [false, false, true];
+        yield 'all on' => [true, true, true];
+    }
+
+    /** 1.45: `<prefix>_page_favourites`, `_page_visits` and `_page_references` only with their switch, under the prefix. */
+    #[DataProvider('quickAccessModes')]
+    public function testTheQuickAccessTablesFollowTheirSwitches(bool $favourites, bool $recents, bool $backlinks): void
+    {
+        $config = ORMSetup::createAttributeMetadataConfiguration([dirname(__DIR__, 2) . '/src/Entity', __DIR__ . '/../Stub'], true, sys_get_temp_dir() . '/wiki_sqlite_proxies');
+        if (PHP_VERSION_ID >= 80400 && method_exists($config, 'enableNativeLazyObjects')) {
+            $config->enableNativeLazyObjects(true);
+        }
+        $listener = new WikiMetadataListener('w_spaces', 'w_pages', 'w_page_revisions', TestUserEntity::class, quickAccessTablePrefix: 'w', favouritesEnabled: $favourites, recentsEnabled: $recents, backlinksEnabled: $backlinks);
+        $events   = new EventManager();
+        $events->addEventListener([Events::loadClassMetadata, ToolEvents::postGenerateSchema], $listener);
+        $em = new EntityManager(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true], $config), $config, $events);
+
+        $schema = (new SchemaTool($em))->getSchemaFromMetadata($em->getMetadataFactory()->getAllMetadata());
+        self::assertSame($favourites, $schema->hasTable('w_page_favourites'));
+        self::assertSame($recents, $schema->hasTable('w_page_visits'));
+        self::assertSame($backlinks, $schema->hasTable('w_page_references'));
+        self::assertSame('w_page_favourites', $em->getClassMetadata(WikiPageFavourite::class)->getTableName());
+        self::assertSame('w_page_visits', $em->getClassMetadata(WikiPageVisit::class)->getTableName());
+        self::assertSame('w_page_references', $em->getClassMetadata(WikiPageReference::class)->getTableName());
     }
 
     public function testOtherEntityManagersAreLeftAlone(): void
