@@ -20,5 +20,8 @@ final class WikiTenantPathsSearchTenantResolverTest extends TestCase
         self::assertSame(WikiTenantPathsLinkTenantResolver::NO_TENANT_ROW, (new WikiTenantPathsSearchTenantResolver(new WikiTenantPaths([], [])))->currentTenant('u-1'));
         $paths = new WikiTenantPaths([['path' => '/p/{spaceSlug}/wiki', 'name_prefix' => 'p_', 'slug_requirement' => 'p-[a-z0-9]+']], []);
         self::assertNull((new WikiTenantPathsSearchTenantResolver($paths))->currentTenant('u-1'));
+        // 1.47: the same as a list.
+        self::assertSame([WikiTenantPathsLinkTenantResolver::NO_TENANT_ROW], (new WikiTenantPathsSearchTenantResolver())->currentTenants('u-1'));
+        self::assertSame([], (new WikiTenantPathsSearchTenantResolver($paths))->currentTenants('u-1'));
     }
 }

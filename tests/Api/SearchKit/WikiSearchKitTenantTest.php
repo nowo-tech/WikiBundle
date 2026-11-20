@@ -179,7 +179,7 @@ class WikiSearchKitTenantTest extends ApiTestCase
         return new SearchReference($router->generate('nowo_wiki_page_view', $parameters), 'wiki', 'nowo_wiki_page_view', $parameters);
     }
 
-    private function listen(string $name, callable $listener): void
+    protected function listen(string $name, callable $listener): void
     {
         $this->dispatcher()->addListener($name, $listener);
         $this->listeners[] = [$name, $listener];

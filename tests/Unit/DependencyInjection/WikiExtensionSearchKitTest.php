@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Search\UserProviderWikiSearchViewerResolver;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
 use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
+use Nowo\WikiBundle\Search\WikiSearchTenantsResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Search\WikiTenantPathsSearchTenantResolver;
 use PHPUnit\Framework\TestCase;
@@ -66,8 +67,9 @@ final class WikiExtensionSearchKitTest extends TestCase
         self::assertSame('router', (string) $definition->getArgument('$urls'));
         self::assertSame('event_dispatcher', (string) $definition->getArgument('$dispatcher'));
         self::assertSame(WikiPageSearchDefinition::TENANT_CURRENT, $definition->getArgument('$tenantMode'));
-        self::assertSame(WikiSearchTenantResolverInterface::class, (string) $definition->getArgument('$currentTenants'));
+        self::assertSame(WikiTenantPathsSearchTenantResolver::class, (string) $definition->getArgument('$currentTenants'));
         self::assertSame(WikiTenantPathsSearchTenantResolver::class, (string) $container->getAlias(WikiSearchTenantResolverInterface::class));
+        self::assertSame(WikiTenantPathsSearchTenantResolver::class, (string) $container->getAlias(WikiSearchTenantsResolverInterface::class));
 
         $finder = $container->getDefinition(WikiReadablePageFinder::class);
         self::assertSame(200, $finder->getArgument('$candidates'));
@@ -105,6 +107,7 @@ final class WikiExtensionSearchKitTest extends TestCase
         self::assertTrue($definition->getArgument('$sensitive'));
         self::assertSame(WikiPageSearchDefinition::TENANT_ALL_MODE, $definition->getArgument('$tenantMode'));
         self::assertSame('app.wiki_tenants', (string) $container->getAlias(WikiSearchTenantResolverInterface::class));
+        self::assertSame('app.wiki_tenants', (string) $definition->getArgument('$currentTenants'));
         self::assertFalse($container->hasDefinition(WikiTenantPathsSearchTenantResolver::class));
         self::assertSame(500, $definition->getArgument('$candidates'));
         self::assertSame('slug', $definition->getArgument('$scopeMode'));
