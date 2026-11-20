@@ -49,6 +49,9 @@ use function str_replace;
  */
 final readonly class WikiPageService implements WikiPageServiceInterface
 {
+    /** 1.50: the refusal of a write in an archived space (read-only until it is brought back). */
+    public const ARCHIVED_SPACE = 'The space is archived: its pages cannot be changed.';
+
     /**
      * Wires the repositories, slugger, sanitizer, event dispatcher and optional logger.
      *
@@ -127,6 +130,11 @@ final readonly class WikiPageService implements WikiPageServiceInterface
             throw new WikiInvalidSlugException('Invalid page slug.');
         }
 
+        if ($space->isArchived()) {
+            // 1.50: an archived space is read-only.
+            throw new WikiPageArchivedException(self::ARCHIVED_SPACE);
+        }
+
         if ($this->pageRepository->countBySpaceAndSlug($space, $slug) > 0) {
             throw new WikiSlugTakenException('Page slug already exists in this space.');
         }
@@ -202,6 +210,9 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         if ($page->isArchived()) {
             throw new WikiPageArchivedException('Archived pages cannot be edited.');
         }
+        if ($page->getSpace()->isArchived()) {
+            throw new WikiPageArchivedException(self::ARCHIVED_SPACE);
+        }
 
         $previous = $page->getCurrentRevision();
         $page->setTitle($title);
@@ -234,6 +245,9 @@ final readonly class WikiPageService implements WikiPageServiceInterface
     {
         if ($expectedRevision === null && $page->isArchived()) {
             throw new WikiPageArchivedException('Archived pages cannot be restored.');
+        }
+        if ($page->getSpace()->isArchived()) {
+            throw new WikiPageArchivedException(self::ARCHIVED_SPACE);
         }
 
         if ($from->getPage()->getId() !== $page->getId()) {
@@ -466,6 +480,9 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         try {
             if ($archivedMessage !== null && $page->isArchived()) {
                 throw new WikiPageArchivedException($archivedMessage);
+            }
+            if ($archivedMessage !== null && $page->getSpace()->isArchived()) {
+                throw new WikiPageArchivedException(self::ARCHIVED_SPACE);
             }
             $current = $page->getCurrentRevision();
             $number  = $current?->getRevisionNumber() ?? 0;

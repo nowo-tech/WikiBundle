@@ -34,7 +34,7 @@ final readonly class WikiApiSerializer
             'description' => $wiki->description,
             'owner_type'  => $wiki->ownerType,
             'owner_id'    => $wiki->ownerId,
-            'archived'    => $wiki->archived,
+            'archived'    => $wiki->archived || $wiki->space?->isArchived() === true, // 1.50: the space's own state too
             'restricted'  => $wiki->restricted,
             'can_open'    => $wiki->canOpen,
             'created_at'  => self::ms($wiki->createdAt ?? $wiki->space?->getCreatedAt()),

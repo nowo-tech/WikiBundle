@@ -34,6 +34,8 @@ final class WikiSnapshots
             $space->getCreatedAt(),
             $space->getUpdatedAt(),
             $space->getIcon(),
+            $space->getArchivedAt(),
+            $space->getVersion(),
         );
     }
 

@@ -100,6 +100,7 @@ final readonly class WikiReadablePageFinder
             if (($scope !== null && !$this->inScope($space, $scope))
                 || ($only !== [] && !in_array($space->getSlug(), $only, true))
                 || in_array($space->getSlug(), $except, true)
+                || $space->isArchived() // 1.50: an archived space is never searched
                 || !$this->checker->isGranted($viewer, WikiAction::View, $space)) {
                 continue;
             }
