@@ -31,12 +31,24 @@ final readonly class WikiEntityManagerProvider
      * @param string $managerName name of the wiki entity manager
      * @param WikiEntityManager|null $private 1.36.0 (`database.private_entity_manager: true`): the wiki's private
      *                                        manager on the connection and mapping of `$managerName`
+     * @param WikiHostFlushProbe|null $hostFlushProbe 1.49: the probe of the shared manager's wiki flushes (registered
+     *                                                only without the private manager)
      */
     public function __construct(
         private ManagerRegistry $registry,
         private string $managerName = 'default',
         private ?WikiEntityManager $private = null,
+        private ?WikiHostFlushProbe $hostFlushProbe = null,
     ) {
+    }
+
+    /**
+     * 1.49: the probe that flushes the shared manager for the wiki ({@see WikiFlusher::flush()}); null with the private
+     * manager (it never flushes the application's manager).
+     */
+    public function hostFlushProbe(): ?WikiHostFlushProbe
+    {
+        return $this->private instanceof WikiEntityManager ? null : $this->hostFlushProbe;
     }
 
     /**

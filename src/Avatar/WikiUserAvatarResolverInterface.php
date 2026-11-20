@@ -19,6 +19,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * it): `https://` without userinfo, or a same-origin path starting with one `/`. Anything else is dropped by the
  * UiKit avatar URL policy (\Nowo\UiKitBundle\Avatar\AvatarUrlPolicy) and the initials are shown. The default
  * ({@see NullWikiUserAvatarResolver}) returns no URL; alias this interface to the host's service.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiUserAvatarSourceInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiUserAvatarResolverInterface
 {

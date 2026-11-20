@@ -25,6 +25,7 @@ use Throwable;
 use function is_string;
 use function max;
 use function str_starts_with;
+use function trigger_deprecation;
 
 /**
  * 1.37 (Beacon spec 239): a storage failure of a wiki route answers 409 or 503 instead of 500.
@@ -147,6 +148,9 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
      */
     public static function committed(Throwable $failure): bool
     {
+        // 1.49: the runtime notice of a member 2.0 removes (the bundle no longer calls it).
+        trigger_deprecation('nowo-tech/wiki-bundle', '1.49', '%s::committed() is deprecated, 2.0 removes it: read the answer\'s code with Nowo\\TransactionDoctrine\\ConflictCode::forRequest() instead.', self::class);
+
         for ($current = $failure; $current instanceof Throwable; $current = $current->getPrevious()) {
             if ($current instanceof ConcurrencyConflict && $current->committed) {
                 return true;

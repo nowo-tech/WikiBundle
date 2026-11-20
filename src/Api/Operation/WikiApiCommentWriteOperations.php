@@ -49,7 +49,7 @@ final readonly class WikiApiCommentWriteOperations
         $body          = $input->string('body', true) ?? '';
         $input->ignore('anchor');
         $this->audit->requireAudit();
-        $created = $this->comments->call(fn (): array => $this->deferral->run(fn (): array => $this->comments->service()->create($principal->user, $page->getSpace(), $page, null, $body)));
+        $created = $this->comments->call(fn (): array => $this->deferral->run(fn (): array => $this->comments->service()->create($principal->securityUser(), $page->getSpace(), $page, null, $body)));
         $id      = (string) $created['id'];
         $this->audit->written($principal, 'thread.create', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['thread' => $id], ['body']);
 
@@ -68,7 +68,7 @@ final readonly class WikiApiCommentWriteOperations
         [$wiki, $page] = $this->target($principal, $slug, $pageId, WikiAction::Comment);
         $body          = $input->string('body', true) ?? '';
         $this->audit->requireAudit();
-        $this->comments->call(fn (): array => $this->deferral->run(fn (): array => $this->comments->service()->reply($principal->user, $page->getSpace(), $page, $threadId, $body)));
+        $this->comments->call(fn (): array => $this->deferral->run(fn (): array => $this->comments->service()->reply($principal->securityUser(), $page->getSpace(), $page, $threadId, $body)));
         $this->audit->written($principal, 'comment.create', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['thread' => $threadId], ['body']);
 
         return [$this->thread($principal, $page, $threadId), $wiki, $page];
@@ -87,7 +87,7 @@ final readonly class WikiApiCommentWriteOperations
         $resolved      = $input->bool('resolved') ?? throw WikiApiRefusal::invalid('resolved');
         $input->ignore('anchor');
         $this->audit->requireAudit();
-        $this->comments->call(fn (): array => $this->deferral->run(fn (): array => $this->comments->service()->patchThread($principal->user, $page->getSpace(), $page, $threadId, ['resolved' => $resolved])));
+        $this->comments->call(fn (): array => $this->deferral->run(fn (): array => $this->comments->service()->patchThread($principal->securityUser(), $page->getSpace(), $page, $threadId, ['resolved' => $resolved])));
         $this->audit->written($principal, $resolved ? 'thread.resolve' : 'thread.reopen', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['thread' => $threadId], ['resolved']);
 
         return [$this->thread($principal, $page, $threadId), $wiki, $page];
@@ -109,7 +109,7 @@ final readonly class WikiApiCommentWriteOperations
         }
         $body = $input->string('body', true) ?? '';
         $this->audit->requireAudit();
-        $this->comments->call(fn (): array => $this->deferral->run(fn (): array => $this->comments->service()->editComment($principal->user, $page->getSpace(), $page, $commentId, $body)));
+        $this->comments->call(fn (): array => $this->deferral->run(fn (): array => $this->comments->service()->editComment($principal->securityUser(), $page->getSpace(), $page, $commentId, $body)));
         $threadId = $comment->getThread()->getId();
         $this->audit->written($principal, 'comment.edit', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['thread' => $threadId, 'comment' => $commentId], ['body']);
 
@@ -131,7 +131,7 @@ final readonly class WikiApiCommentWriteOperations
             $this->guard->require($principal, WikiAction::ModerateComments, $page->getSpace(), $page);
         }
         $this->audit->requireAudit();
-        $this->comments->call(fn (): ?array => $this->deferral->run(fn (): ?array => $this->comments->service()->deleteComment($principal->user, $page->getSpace(), $page, $commentId)));
+        $this->comments->call(fn (): ?array => $this->deferral->run(fn (): ?array => $this->comments->service()->deleteComment($principal->securityUser(), $page->getSpace(), $page, $commentId)));
         $this->audit->written($principal, 'comment.delete', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['thread' => $comment->getThread()->getId(), 'comment' => $commentId], []);
 
         return [$wiki, $page];
@@ -150,7 +150,7 @@ final readonly class WikiApiCommentWriteOperations
         $this->audit->requireAudit();
         // @igor-ignore - Closure runs synchronously inside call()/run() and is never stored.
         $this->comments->call(fn () => $this->deferral->run(function () use ($principal, $page, $threadId): void {
-            $this->comments->service()->deleteThread($principal->user, $page->getSpace(), $page, $threadId);
+            $this->comments->service()->deleteThread($principal->securityUser(), $page->getSpace(), $page, $threadId);
         }));
         $this->audit->written($principal, 'thread.delete', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['thread' => $threadId], []);
 
@@ -197,7 +197,7 @@ final readonly class WikiApiCommentWriteOperations
      */
     private function thread(WikiApiPrincipal $principal, WikiPage $page, string $threadId): array
     {
-        $one = $this->comments->call(fn (): array => $this->comments->service()->threadEntity($principal->user, $page->getSpace(), $page, $threadId));
+        $one = $this->comments->call(fn (): array => $this->comments->service()->threadEntity($principal->securityUser(), $page->getSpace(), $page, $threadId));
 
         return $this->comments->thread($principal, $page, $one['thread'], $one['comments'], $this->content->view($principal, $page));
     }

@@ -12,6 +12,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * Tag the service {@code nowo_wiki.object_link_resolver} (autoconfigured). {@see self::resolveVisible()} is asked once
  * per type with every id at hand, so a host answers in one query; objects the viewer may not open are left out of
  * the result and never shown.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiObjectLinkSourceInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiObjectLinkResolverInterface
 {

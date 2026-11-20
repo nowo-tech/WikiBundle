@@ -23,12 +23,27 @@ final class WikiFlusher
     /**
      * Flushes the wiki's manager, or refuses with a transient failure when it is closed.
      *
+     * 1.49: when `$source` is the bundle's {@see WikiEntityManagerProvider} and the manager is the shared one
+     * (`database.private_entity_manager: false`), the flush goes through {@see WikiHostFlushProbe}: the application's
+     * pending changes it writes are reported first (REQ-ARCH-001 rule 6 deprecation layer). Read-only; nothing else
+     * changes.
+     *
+     * @param EntityManagerInterface $entityManager the manager to flush
+     * @param EntityManagerInterface|WikiEntityManagerProvider|null $source what the caller resolved it from (a repository's
+     *                                                                      constructor argument)
+     *
      * @throws TransientStorageFailure when the manager was closed by an earlier failure
      */
-    public static function flush(EntityManagerInterface $entityManager): void
+    public static function flush(EntityManagerInterface $entityManager, EntityManagerInterface|WikiEntityManagerProvider|null $source = null): void
     {
         if (!$entityManager->isOpen()) {
             throw new TransientStorageFailure(1, 'The wiki\'s entity manager was closed by an earlier failure of this request; it is replaced at the next request.');
+        }
+        $probe = $source instanceof WikiEntityManagerProvider && !$entityManager instanceof WikiEntityManager ? $source->hostFlushProbe() : null;
+        if ($probe instanceof WikiHostFlushProbe) {
+            $probe->around($entityManager, static fn () => $entityManager->flush());
+
+            return;
         }
         $entityManager->flush();
     }

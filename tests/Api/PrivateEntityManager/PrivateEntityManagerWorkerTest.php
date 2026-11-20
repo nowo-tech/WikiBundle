@@ -21,7 +21,12 @@ use function gc_collect_cycles;
 use function json_decode;
 use function json_encode;
 use function memory_get_usage;
+use function restore_error_handler;
+use function set_error_handler;
 use function sprintf;
+use function str_contains;
+
+use const E_USER_DEPRECATED;
 
 /**
  * 1.36.0 (REQ-ARCH-001 rule 6 with REQ-RUNTIME-002): with `database.private_entity_manager: true`, one kept-alive kernel
@@ -56,7 +61,37 @@ final class PrivateEntityManagerWorkerTest extends ApiTestCase
         $logger = $container->get('logger');
         assert($logger instanceof RecordingLogger);
         $baseline = 0;
+        // 1.49: the private manager never flushes the application's manager, so the host-flush probe is not even there.
+        self::assertNull($provider->hostFlushProbe());
+        $probeNotices = 0;
+        set_error_handler(static function (int $level, string $message) use (&$probeNotices): bool {
+            if (str_contains($message, 'flushed by NowoWikiBundle') || str_contains($message, 'with its own entity manager')) {
+                ++$probeNotices;
+            }
 
+            return true;
+        }, E_USER_DEPRECATED);
+
+        try {
+            $this->rounds($private, $logger, $baseline);
+        } finally {
+            restore_error_handler();
+        }
+        self::assertSame(0, $probeNotices, 'no host-flush probe notice with the private manager');
+
+        gc_collect_cycles();
+        self::assertLessThan(self::MEMORY_MARGIN, memory_get_usage() - $baseline, 'flat memory over the run');
+        self::assertCount(1, $host->getUnitOfWork()->getScheduledEntityInsertions(), 'still pending in the application\'s manager');
+        $connection = $container->get('doctrine.dbal.default_connection');
+        assert($connection instanceof Connection);
+        self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM test_users WHERE id = ?', ['pending-host-user']), 'the application\'s pending change was never flushed by a wiki write');
+        self::assertSame(self::ROUNDS, (int) $connection->fetchOne('SELECT COUNT(*) FROM wiki_pages'));
+        $host->clear();
+    }
+
+    /** The rounds of the test: two people in turn, through one kept-alive kernel. */
+    private function rounds(WikiEntityManager $private, RecordingLogger $logger, int &$baseline): void
+    {
         for ($round = 0; $round < self::ROUNDS; ++$round) {
             $created = $this->raw('POST', '/wikis/eng/pages', self::ANA, ['title' => sprintf('Page %d', $round), 'content_markdown' => 'Ana ' . $round]);
             self::assertSame(201, $created->getStatusCode(), $round . ': ' . $created->getContent());
@@ -77,15 +112,6 @@ final class PrivateEntityManagerWorkerTest extends ApiTestCase
                 $baseline = memory_get_usage();
             }
         }
-
-        gc_collect_cycles();
-        self::assertLessThan(self::MEMORY_MARGIN, memory_get_usage() - $baseline, 'flat memory over the run');
-        self::assertCount(1, $host->getUnitOfWork()->getScheduledEntityInsertions(), 'still pending in the application\'s manager');
-        $connection = $container->get('doctrine.dbal.default_connection');
-        assert($connection instanceof Connection);
-        self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM test_users WHERE id = ?', ['pending-host-user']), 'the application\'s pending change was never flushed by a wiki write');
-        self::assertSame(self::ROUNDS, (int) $connection->fetchOne('SELECT COUNT(*) FROM wiki_pages'));
-        $host->clear();
     }
 
     /**

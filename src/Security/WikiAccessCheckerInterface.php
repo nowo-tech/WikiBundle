@@ -8,6 +8,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * Application-specific access rules for wiki manage routes.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiAccessPolicyInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiAccessCheckerInterface
 {

@@ -86,6 +86,7 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 | `Markdown\WikiRenderContext`, `Service\WikiEventDeferral` (1.24) | yes | render frames / held events, emptied by their own scope | ✅ | ✅ (also `WikiRequestBoundaryResetter` since 1.29.1) |
 | `Service\WikiRequestBoundaryResetter` (1.29.1) | yes | none (`final readonly`, the memos above) | ✅ | ✅ |
 | `Doctrine\WikiEntityManager` (1.36, `database.private_entity_manager: true`) | yes | the private manager, its stale flag and open transaction levels, repositories per manager | ✅ | ✅ dropped at every boundary (`WikiRequestBoundaryResetter`, last) and `kernel.reset`; recreated when closed, on another connection or after a rollback undid its rows |
+| `Doctrine\WikiHostFlushProbe` (1.49, shared manager only) | yes | the (class, write) pairs already reported, the depth of the wiki flush it wraps; its own `HostFlushProbe` without transaction-doctrine's bundle | ✅ | ✅ emptied at every boundary (`WikiRequestBoundaryResetter`) and `kernel.reset`; the shared probe is reset by transaction-doctrine's boundary listener |
 | `Doctrine\WikiEntityManagerProvider` with the private manager (1.36) | yes | none (`final readonly`) | ✅ | ✅ |
 | `User\WikiUsers` (1.36, `database.user_reference: id`) | yes | directory answers per id (bounded, 1,000; re-checked with `===`) | ✅ | ✅ `WikiRequestBoundaryResetter` and `kernel.reset` |
 | `Port\*Gate`, `Service\WikiPageOperations`, `WikiSpaceOperations`, `Link\WikiPageLinkOperations` (1.36) | yes | none (`final readonly`) | ✅ | ✅ |

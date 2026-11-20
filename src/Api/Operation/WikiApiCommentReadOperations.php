@@ -33,7 +33,7 @@ final readonly class WikiApiCommentReadOperations
     public function threads(WikiApiPrincipal $principal, string $slug, string $pageId): array
     {
         $page   = $this->page($principal, $slug, $pageId);
-        $all    = $this->comments->call(fn (): array => $this->comments->service()->threadEntities($principal->user, $page->getSpace(), $page));
+        $all    = $this->comments->call(fn (): array => $this->comments->service()->threadEntities($principal->securityUser(), $page->getSpace(), $page));
         $view   = $this->content->view($principal, $page);
         $answer = [];
         foreach ($all['threads'] as $thread) {
@@ -53,7 +53,7 @@ final readonly class WikiApiCommentReadOperations
     public function thread(WikiApiPrincipal $principal, string $slug, string $pageId, string $threadId): array
     {
         $page = $this->page($principal, $slug, $pageId);
-        $one  = $this->comments->call(fn (): array => $this->comments->service()->threadEntity($principal->user, $page->getSpace(), $page, $threadId));
+        $one  = $this->comments->call(fn (): array => $this->comments->service()->threadEntity($principal->securityUser(), $page->getSpace(), $page, $threadId));
 
         return $this->comments->thread($principal, $page, $one['thread'], $one['comments'], $this->content->view($principal, $page));
     }

@@ -235,7 +235,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
             $comment->unlinkAuthor();
         }
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
-        WikiFlusher::flush($em);
+        WikiFlusher::flush($em, $this->entityManager);
         if (WikiUserFields::byId($em, WikiCommentReaction::class, 'user')) {
             $id = WikiUserFields::exactId($user);
             WikiSavepoint::write($em, fn () => $this->eraseStoredId($em, $id));
@@ -497,7 +497,7 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
 
     public function flush(): void
     {
-        WikiFlusher::flush($this->entityManager());
+        WikiFlusher::flush($this->entityManager(), $this->entityManager);
     }
 
     /**

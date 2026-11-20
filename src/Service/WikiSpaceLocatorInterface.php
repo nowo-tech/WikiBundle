@@ -11,6 +11,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
 /**
  * Finds the space a route slug names (1.9). A host replaces the alias to resolve tenant slugs and to create a space
  * on its first visit; access is decided afterwards by {@see WikiSpaceAccessCheckerInterface}.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiSpaceIdLocatorInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiSpaceLocatorInterface
 {

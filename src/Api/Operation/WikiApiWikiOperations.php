@@ -43,12 +43,12 @@ final readonly class WikiApiWikiOperations
      */
     public function list(WikiApiPrincipal $principal, WikiApiWikiFilter $filter, int $page): array
     {
-        if (!$this->roles->canList($principal->user)) {
+        if (!$this->roles->canList($principal->securityUser())) {
             throw WikiApiRefusal::permissionRefused();
         }
         $visible = [];
         foreach ($this->directory->list($principal, $filter) as $wiki) {
-            if ($this->guard->isSlug($wiki->slug) && $this->guard->sees($principal, $wiki) && $this->planGate->allowsWiki($principal->user, $wiki)) {
+            if ($this->guard->isSlug($wiki->slug) && $this->guard->sees($principal, $wiki) && $this->planGate->allowsWiki($principal->securityUser(), $wiki)) {
                 $visible[] = $wiki;
             }
         }
@@ -69,7 +69,7 @@ final readonly class WikiApiWikiOperations
      */
     public function get(WikiApiPrincipal $principal, string $slug): array
     {
-        if (!$this->roles->canList($principal->user)) {
+        if (!$this->roles->canList($principal->securityUser())) {
             throw WikiApiRefusal::permissionRefused();
         }
 

@@ -35,7 +35,7 @@ final readonly class DoctrineOrmWikiAttachmentRepository implements WikiAttachme
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($attachment);
-        WikiFlusher::flush($entityManager);
+        WikiFlusher::flush($entityManager, $this->entityManager);
     }
 
     public function remove(WikiAttachment $attachment): void
@@ -43,7 +43,7 @@ final readonly class DoctrineOrmWikiAttachmentRepository implements WikiAttachme
         $entityManager = $this->entityManager();
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
         $entityManager->remove($attachment);
-        WikiFlusher::flush($entityManager);
+        WikiFlusher::flush($entityManager, $this->entityManager);
     }
 
     public function findById(string $id): ?WikiAttachment

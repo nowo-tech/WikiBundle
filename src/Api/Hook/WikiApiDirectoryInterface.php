@@ -15,6 +15,9 @@ use Nowo\WikiBundle\Entity\WikiSpace;
  * access; restricted wikis only when named and granted, archived ones only to their managers (FR-009, FR-011). A read
  * never writes: a wiki nobody opened is answered with a null space. The bundle checks *where* and the space checker
  * again on every answer.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiApiWikiDirectoryInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiApiDirectoryInterface
 {
