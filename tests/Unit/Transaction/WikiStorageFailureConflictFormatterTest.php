@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Transaction;
 
 use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
 use Doctrine\DBAL\Exception\DeadlockException;
+use Nowo\TransactionDoctrine\ConflictCode;
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponseContext;
 use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
 use Nowo\WikiBundle\Transaction\WikiStorageFailureConflictFormatter;
@@ -26,7 +27,21 @@ final class WikiStorageFailureConflictFormatterTest extends TestCase
         $response = (new WikiStorageFailureConflictFormatter())->format($request, $this->context(409));
 
         self::assertSame(409, $response?->getStatusCode());
-        self::assertSame(['err' => 'Retry later.', 'ECODE' => 'SERVER_002'], json_decode((string) $response->getContent(), true));
+        self::assertSame(['err' => 'Retry later.', 'ECODE' => 'CONFLICT_001'], json_decode((string) $response->getContent(), true));
+
+        $committed = (new WikiStorageFailureConflictFormatter())->format(new Request(attributes: [WikiApiRequestListener::ROUTE_FLAG => true]), $this->context(409, true));
+        self::assertSame('CONFLICT_002', json_decode((string) $committed?->getContent(), true)['ECODE']);
+    }
+
+    public function testTheRequestLevelCodeOfTheResponderWins(): void
+    {
+        // An earlier commit of the request: the responder passes CONFLICT_002 although the unit itself did not commit.
+        $request  = new Request(attributes: [WikiApiRequestListener::ROUTE_FLAG => true]);
+        $context  = new ConflictResponseContext(409, null, 'concurrency_conflict_partial', 'Reload.', null, new RuntimeException('x'), false, ConflictCode::Committed);
+        $response = (new WikiStorageFailureConflictFormatter())->format($request, $context);
+
+        self::assertSame('CONFLICT_002', json_decode((string) $response?->getContent(), true)['ECODE']);
+        self::assertTrue(WikiApiRequestListener::wroteAnyway($request));
     }
 
     public function testAnInternalJsonEndpointGetsTheErrorShapeWithThePolicyStatus(): void
@@ -36,7 +51,7 @@ final class WikiStorageFailureConflictFormatterTest extends TestCase
         $response = (new WikiStorageFailureConflictFormatter())->format($request, $this->context(503));
 
         self::assertSame(503, $response?->getStatusCode());
-        self::assertSame('{"error":"unavailable"}', $response->getContent());
+        self::assertSame('{"error":"unavailable","code":"CONFLICT_001"}', $response->getContent());
         self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
     }
 

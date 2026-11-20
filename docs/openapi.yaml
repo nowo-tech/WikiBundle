@@ -1392,6 +1392,18 @@ components:
   responses:
     Error:
       description: A refusal; see docs/API.md for the codes.
+      headers:
+        X-Conflict-Code:
+          description: On a lock conflict only (409, or 503 when the host sets the policy so), the same value as ECODE.
+          schema:
+            type: string
+            enum:
+            - CONFLICT_001
+            - CONFLICT_002
+        Retry-After:
+          description: Seconds before a retry (CONFLICT_001, IDEMP_001, IDEMP_004, WIKI_SAVE_COLLISION, rate limits).
+          schema:
+            type: integer
       content:
         application/json:
           schema:

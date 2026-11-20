@@ -6,6 +6,8 @@ namespace Nowo\WikiBundle\Api\Security;
 
 use DateTimeImmutable;
 use JsonException;
+use Nowo\TransactionDoctrine\ConflictCode;
+use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponsePolicy;
 use Nowo\WikiBundle\Api\Hook\WikiApiIdempotencyStoreInterface;
 use Nowo\WikiBundle\Api\Value\WikiApiIdempotencyOutcome;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
@@ -166,7 +168,24 @@ final readonly class WikiApiIdempotencyListener implements EventSubscriberInterf
         if ($pageId !== null) {
             $this->guard->page($principal, $wiki, $pageId, true);
         }
-        $event->setController(static fn (): Response => new Response($body, $status, ['Content-Type' => 'application/json', 'Idempotency-Replayed' => 'true']));
+        $headers = ['Content-Type' => 'application/json', 'Idempotency-Replayed' => 'true'] + $this->conflictHeader($body);
+        $event->setController(static fn (): Response => new Response($body, $status, $headers));
+    }
+
+    /**
+     * 1.48 (REQ-RUNTIME-003 rule 6): a replayed lock-conflict answer keeps its `X-Conflict-Code`. Only a committed
+     * conflict (`CONFLICT_002`) keeps its claim, so only that code is ever replayed; no `Retry-After` either way.
+     *
+     * @return array<string, string>
+     */
+    private function conflictHeader(string $body): array
+    {
+        // Not JSON (null): nothing to carry.
+        $decoded = json_decode($body, true);
+
+        return is_array($decoded) && ($decoded['ECODE'] ?? null) === ConflictCode::COMMITTED
+            ? [ConflictResponsePolicy::CODE_HEADER => ConflictCode::COMMITTED]
+            : [];
     }
 
     /** Method, path, query and the body with its keys sorted, so that the same JSON written another way is the same request. */

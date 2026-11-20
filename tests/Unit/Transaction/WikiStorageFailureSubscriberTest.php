@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Transaction;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
+use Doctrine\DBAL\Exception\ConnectionLost;
 use Doctrine\DBAL\Exception\LockWaitTimeoutException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -13,6 +14,8 @@ use LogicException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponsePolicy;
 use Nowo\TransactionDoctrine\TransientFailureKind;
+use Nowo\TransactionDoctrine\WriteUnit\CommitLedger;
+use Nowo\TransactionDoctrine\WriteUnit\CommitMark;
 use Nowo\TransactionDoctrine\WriteUnit\ConcurrencyConflict;
 use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
 use Nowo\WikiBundle\Doctrine\WikiFlusher;
@@ -48,7 +51,8 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         self::assertNotNull($response);
         self::assertSame(409, $response->getStatusCode());
         self::assertSame('3', $response->headers->get('Retry-After'));
-        self::assertSame(['err' => 'Service temporarily unavailable', 'ECODE' => 'SERVER_002'], json_decode((string) $response->getContent(), true));
+        self::assertSame('CONFLICT_001', $response->headers->get('X-Conflict-Code'));
+        self::assertSame(['err' => 'A concurrent request changed the same data. Retry later.', 'ECODE' => 'CONFLICT_001'], json_decode((string) $response->getContent(), true));
     }
 
     public function testTheApiAnswersAUniqueConflictWith409(): void
@@ -58,6 +62,7 @@ final class WikiStorageFailureSubscriberTest extends TestCase
 
         self::assertSame(409, $event->getResponse()?->getStatusCode());
         self::assertSame('WIKI_CONFLICT', json_decode((string) $event->getResponse()?->getContent(), true)['ECODE'] ?? null);
+        self::assertFalse($event->getResponse()->headers->has('X-Conflict-Code'), 'a unique violation is not a lock conflict');
     }
 
     public function testTheApiListenerLeavesOtherFailuresAndRoutesAlone(): void
@@ -91,7 +96,8 @@ final class WikiStorageFailureSubscriberTest extends TestCase
 
         self::assertSame(409, $event->getResponse()?->getStatusCode());
         self::assertSame($retryAfter, $event->getResponse()?->headers->get('Retry-After'));
-        self::assertSame('{"error":"unavailable"}', $event->getResponse()?->getContent());
+        self::assertSame('CONFLICT_001', $event->getResponse()?->headers->get('X-Conflict-Code'));
+        self::assertSame('{"error":"unavailable","code":"CONFLICT_001"}', $event->getResponse()?->getContent());
     }
 
     public function testAnInternalJsonEndpointAnswersAConflictWith409(): void
@@ -103,6 +109,7 @@ final class WikiStorageFailureSubscriberTest extends TestCase
 
         self::assertSame(409, $event->getResponse()?->getStatusCode());
         self::assertSame('{"error":"conflict"}', $event->getResponse()?->getContent());
+        self::assertFalse($event->getResponse()->headers->has('X-Conflict-Code'));
     }
 
     public function testAPageGetsAnHttpExceptionWithTheStorageErrorAsPrevious(): void
@@ -114,6 +121,7 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $mapped = $event->getThrowable();
         self::assertInstanceOf(HttpException::class, $mapped);
         self::assertSame('2', $mapped->getHeaders()['Retry-After'] ?? null);
+        self::assertSame('CONFLICT_001', $mapped->getHeaders()['X-Conflict-Code'] ?? null);
         self::assertSame($failure, $mapped->getPrevious());
 
         $conflict = new UniqueConstraintViolationException(self::driver(), null);
@@ -149,7 +157,7 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $subscriber->onApiException($api);
         self::assertSame(503, $api->getResponse()?->getStatusCode());
         self::assertSame('4', $api->getResponse()->headers->get('Retry-After'));
-        self::assertSame('SERVER_002', json_decode((string) $api->getResponse()->getContent(), true)['ECODE']);
+        self::assertSame('CONFLICT_001', json_decode((string) $api->getResponse()->getContent(), true)['ECODE']);
 
         $request = $this->wikiRequest();
         $request->headers->set('Accept', 'application/json');
@@ -179,8 +187,9 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $subscriber->onApiException($api);
         self::assertSame(409, $api->getResponse()?->getStatusCode());
         self::assertFalse($api->getResponse()->headers->has('Retry-After'));
+        self::assertSame('CONFLICT_002', $api->getResponse()->headers->get('X-Conflict-Code'));
         $body = json_decode((string) $api->getResponse()->getContent(), true);
-        self::assertSame('SERVER_002', $body['ECODE']);
+        self::assertSame('CONFLICT_002', $body['ECODE']);
         self::assertStringContainsString('Reload', $body['err']);
         self::assertTrue(WikiApiRequestListener::wroteAnyway($api->getRequest()), 'the idempotency claim is kept');
 
@@ -190,13 +199,16 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $subscriber->onException($json);
         self::assertSame(409, $json->getResponse()?->getStatusCode());
         self::assertFalse($json->getResponse()->headers->has('Retry-After'));
-        self::assertSame('{"error":"unavailable"}', $json->getResponse()->getContent());
+        self::assertSame('CONFLICT_002', $json->getResponse()->headers->get('X-Conflict-Code'));
+        self::assertSame('{"error":"unavailable","code":"CONFLICT_002"}', $json->getResponse()->getContent());
 
         $page = $this->event($this->wikiRequest(), $conflict);
         $subscriber->onException($page);
         self::assertInstanceOf(HttpException::class, $page->getThrowable());
         self::assertSame(409, $page->getThrowable()->getStatusCode());
         self::assertArrayNotHasKey('Retry-After', $page->getThrowable()->getHeaders());
+        self::assertSame('CONFLICT_002', $page->getThrowable()->getHeaders()['X-Conflict-Code'] ?? null);
+        self::assertStringContainsString('Reload', $page->getThrowable()->getMessage());
         self::assertSame($conflict, $page->getThrowable()->getPrevious());
 
         // Not committed: the retry is invited, with the policy's fallback.
@@ -205,6 +217,60 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         (new WikiStorageFailureSubscriber(new ConflictResponsePolicy(409, 7)))->onApiException($retry);
         self::assertFalse(WikiApiRequestListener::wroteAnyway($retry->getRequest()));
         self::assertSame('7', $retry->getResponse()?->headers->get('Retry-After'));
+        self::assertSame('CONFLICT_001', $retry->getResponse()?->headers->get('X-Conflict-Code'));
+
+        // The deprecated helper still reads the failure alone.
+        self::assertTrue(WikiStorageFailureSubscriber::committed(new RuntimeException('wrapped', 0, $conflict)));
+        self::assertFalse(WikiStorageFailureSubscriber::committed($open));
+    }
+
+    /**
+     * REQ-RUNTIME-003 rule 6, request level: a conflict after an earlier commit of the same request (the commit
+     * watermark taken at kernel.request) is CONFLICT_002 on every shape, even when the failed unit committed nothing.
+     */
+    public function testAnEarlierCommitOfTheRequestMakesTheConflictCommitted(): void
+    {
+        $subscriber = new WikiStorageFailureSubscriber();
+        $failure    = new TransientStorageFailure(2);
+
+        $api = $this->apiRequest();
+        $this->commitEarlier($api);
+        $apiEvent = $this->event($api, $failure);
+        $subscriber->onApiException($apiEvent);
+        self::assertSame('CONFLICT_002', $apiEvent->getResponse()?->headers->get('X-Conflict-Code'));
+        self::assertFalse($apiEvent->getResponse()->headers->has('Retry-After'));
+        self::assertSame('CONFLICT_002', json_decode((string) $apiEvent->getResponse()->getContent(), true)['ECODE']);
+        self::assertTrue(WikiApiRequestListener::wroteAnyway($api), 'the idempotency claim is kept');
+
+        $page = $this->wikiRequest();
+        $this->commitEarlier($page);
+        $pageEvent = $this->event($page, $failure);
+        $subscriber->onException($pageEvent);
+        self::assertInstanceOf(HttpException::class, $pageEvent->getThrowable());
+        self::assertSame('CONFLICT_002', $pageEvent->getThrowable()->getHeaders()['X-Conflict-Code'] ?? null);
+        self::assertArrayNotHasKey('Retry-After', $pageEvent->getThrowable()->getHeaders());
+    }
+
+    public function testIsLockConflictLooksDownTheChain(): void
+    {
+        self::assertTrue(WikiStorageFailureSubscriber::isLockConflict(new RuntimeException('wrapped', 0, new TransientStorageFailure())));
+        self::assertTrue(WikiStorageFailureSubscriber::isLockConflict(new RuntimeException('wrapped', 0, new LockWaitTimeoutException(self::driver(), null))));
+        self::assertFalse(WikiStorageFailureSubscriber::isLockConflict(new RuntimeException('wrapped', 0, new UniqueConstraintViolationException(self::driver(), null))));
+        self::assertFalse(WikiStorageFailureSubscriber::isLockConflict(new ConnectionLost(self::driver(), null)));
+    }
+
+    public function testALostConnectionIsNotAConflict(): void
+    {
+        $subscriber = new WikiStorageFailureSubscriber();
+        $lost       = new ConnectionLost(self::driver(), null);
+
+        $api = $this->event($this->apiRequest(), $lost);
+        $subscriber->onApiException($api);
+        self::assertNull($api->getResponse());
+
+        $page = $this->event($this->wikiRequest(), $lost);
+        $subscriber->onException($page);
+        self::assertSame($lost, $page->getThrowable());
     }
 
     public function testTheFlusherRefusesAClosedManagerAndAbandonsCleanly(): void
@@ -225,6 +291,13 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         $lost->method('rollback')->willThrowException(new RuntimeException('SAVEPOINT DOCTRINE_2 does not exist'));
         $lost->method('getConnection')->willReturn($connection);
         WikiFlusher::abandon($lost);
+    }
+
+    private function commitEarlier(Request $request): void
+    {
+        $ledger = new CommitLedger();
+        $request->attributes->set(CommitMark::REQUEST_ATTRIBUTE, new CommitMark($ledger));
+        $ledger->record();
     }
 
     private function apiRequest(): Request

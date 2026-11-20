@@ -71,12 +71,12 @@ On the wiki's routes (a controller of the bundle, or a route of the REST API), `
 
 | Failure | REST API | Internal JSON endpoints | Pages |
 |---------|----------|-------------------------|-------|
-| `TransientStorageFailure`, or a DBAL `RetryableException` (deadlock, lock wait timeout) | `409` `{"err", "ECODE": "SERVER_002"}` + `Retry-After` | `409` `{"error": "unavailable"}` + `Retry-After` | `HttpException` 409 (your error page) |
+| `TransientStorageFailure`, or a DBAL `RetryableException` (deadlock, lock wait timeout) | `409` `{"err", "ECODE": "CONFLICT_001"}` + `Retry-After` (`SERVER_002` before 1.48) | `409` `{"error": "unavailable", "code": "CONFLICT_001"}` + `Retry-After` | `HttpException` 409 (your error page) |
 | A unique key refused a concurrent write (a page or space slug taken meanwhile) | `409` `{"ECODE": "WIKI_CONFLICT"}` | `409` `{"error": "conflict"}` | `ConflictHttpException` |
 
-Since 1.42 the status is the shared transaction-doctrine policy's (409; `nowo_transaction_doctrine.conflict_response.status: 503` keeps 503), and a conflict that already committed (`ConcurrencyConflict`, `committed: true`) gets no `Retry-After`. The REST API and the pages then carry the reload text ("Part of your change may have been saved. Reload before trying again."); the internal JSON endpoints keep `{"error": "unavailable"}` byte for byte, so the missing `Retry-After` is their only signal. A REST write sent with an `Idempotency-Key` keeps its claim in that case: a retry replays the answer instead of writing again. The storage error stays the previous exception, for your logs: no SQL or parameter reaches the client. A page save
+Since 1.42 the status is the shared transaction-doctrine policy's (409; `nowo_transaction_doctrine.conflict_response.status: 503` keeps 503). Since 1.48 every lock-conflict answer carries the REQ-RUNTIME-003 rule 6 code of the whole request (`ConflictCode::forRequest()`) in its body and in `X-Conflict-Code`: `CONFLICT_001` with `Retry-After` when nothing was committed, `CONFLICT_002` without `Retry-After` when part of the request was (the failed unit, or an earlier commit of the same request). The REST API and the pages then carry the reload text ("Part of your change may have been saved. Reload before trying again."). The full table is in [CONCURRENCY.md](CONCURRENCY.md#conflict-answers). A REST write sent with an `Idempotency-Key` keeps its claim in that case: a retry replays the answer instead of writing again. The storage error stays the previous exception, for your logs: no SQL or parameter reaches the client. A page save
 that loses a race keeps its 1.22+ answer (the form again with the text, or `409 WIKI_SAVE_COLLISION` + `Retry-After`
-in the API). An idempotent API write whose store failed answers `503 IDEMP_004` with `Retry-After`; a 503 releases its
+in the API; since 1.48 a save that lost on a deadlock or lock wait answers the API's `CONFLICT_001` instead). An idempotent API write whose store failed answers `503 IDEMP_004` with `Retry-After`; a 503 releases its
 `Idempotency-Key` claim, so the retry runs.
 
 The subscriber looks down the exception chain, so a decorator of a wiki service that wraps the failure keeps the
@@ -175,7 +175,8 @@ and console command, and `kernel.reset`). The runner and the subscriber hold no 
   Skipped on SQLite.
 - `tests/Support/LoadReadinessFactory.php` builds the services by argument name, so both files also run against 1.36.0
   (no runner) and show the races there.
-- CI job `Load readiness`: MySQL 8.4 and PostgreSQL 16, DBAL 4 and DBAL 3.
+- CI job `Load readiness`: MySQL 8.4, MariaDB 11.4 (since 1.48) and PostgreSQL 16, DBAL 4 and DBAL 3. The write-path
+  table, the conflict codes and the accepted residual risks are in [CONCURRENCY.md](CONCURRENCY.md).
 
 ```bash
 WIKI_TEST_DATABASE_URL='mysql://root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4' \
