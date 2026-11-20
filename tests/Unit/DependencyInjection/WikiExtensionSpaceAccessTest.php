@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
+use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
 use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
@@ -60,7 +61,7 @@ final class WikiExtensionSpaceAccessTest extends TestCase
         $memos = $definition->getArgument('$memos');
         self::assertInstanceOf(IteratorArgument::class, $memos);
         $ids = array_map(static fn (mixed $reference): string => $reference instanceof Reference ? (string) $reference : '', $memos->getValues());
-        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class, WikiEntityManager::class, WikiTransactionRunner::class], $ids);
+        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class, WikiEntityManager::class, WikiTransactionRunner::class, WikiHostFlushProbe::class], $ids);
         foreach ($memos->getValues() as $reference) {
             self::assertInstanceOf(Reference::class, $reference);
             self::assertSame(ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE, $reference->getInvalidBehavior(), 'only built memos are reset; missing ones are skipped');

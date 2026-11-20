@@ -13,6 +13,7 @@ use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\TransactionDoctrine\DoctrineTransactionRunner;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Service\ResetInterface;
@@ -106,9 +107,16 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
 
         // The application's manager (shared): a connection-level transaction, and only the wiki rows the unit touched
         // are forgotten after a failure (audit QD-M1), unless the unit flushed the application's own changes (QN-M1).
-        return $this->sharedUnit($manager, static function () use ($operation, $manager): mixed {
+        // 1.49: the flush goes through the host-flush probe, which reports the application's pending changes it writes.
+        $probe = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->hostFlushProbe() : null;
+
+        return $this->sharedUnit($manager, static function () use ($operation, $manager, $probe): mixed {
             $result = $operation();
-            $manager->flush();
+            if ($probe instanceof WikiHostFlushProbe) {
+                $probe->around($manager, static fn () => $manager->flush());
+            } else {
+                $manager->flush();
+            }
 
             return $result;
         });

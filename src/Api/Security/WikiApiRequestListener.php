@@ -187,7 +187,7 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
             throw WikiApiRefusal::levelRefused();
         }
         $this->requireSecurityUser($principal);
-        if (!$this->accessChecker->canAccess($principal->user)) {
+        if (!$this->accessChecker->canAccess($principal->securityUser())) {
             // The same answer as a bad token, and counted as one.
             // @igor-ignore - Failed-token counter is meant to persist across requests (host rate limiter storage).
             $this->rateLimiter->registerFailedToken($clientIp);
@@ -214,18 +214,18 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
     private function requireSecurityUser(WikiApiPrincipal $principal): void
     {
         $securityUser = $this->tokenStorage->getToken()?->getUser();
-        $match        = $securityUser instanceof UserInterface ? $this->match($securityUser, $principal->user) : null;
+        $match        = $securityUser instanceof UserInterface ? $this->match($securityUser, $principal->securityUser()) : null;
         if ($match !== null && $match !== self::DIFFERENT && $this->tokenGuard->isTokenTrusted()) {
             if ($match !== self::SAME) {
                 // Audit OX-D1-L1 (1.36): a security adapter of another class with the same exact id is let through in
                 // 1.x. It only stands behind the token: ownership and the API id are judged on the token's user alone.
-                $this->logger->notice(sprintf('Wiki API: the firewall user (%s) and the token\'s user (%s) are matched by their id only: add %s to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $this->classOf($securityUser), $this->classOf($principal->user), $match), ['bundle' => 'nowo_wiki']);
+                $this->logger->notice(sprintf('Wiki API: the firewall user (%s) and the token\'s user (%s) are matched by their id only: add %s to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $this->classOf($securityUser), $this->classOf($principal->securityUser()), $match), ['bundle' => 'nowo_wiki']);
             }
 
             return;
         }
         if ($match === self::DIFFERENT && $securityUser instanceof UserInterface) {
-            $this->logger->error(sprintf('Wiki API: configuration error: the firewall user (%s) is not the token\'s user (%s): another id, or an id that cannot be matched exactly. The firewall must authenticate the same person as nowo_wiki.api.hooks.authenticator.', $this->classOf($securityUser), $this->classOf($principal->user)), ['bundle' => 'nowo_wiki']);
+            $this->logger->error(sprintf('Wiki API: configuration error: the firewall user (%s) is not the token\'s user (%s): another id, or an id that cannot be matched exactly. The firewall must authenticate the same person as nowo_wiki.api.hooks.authenticator.', $this->classOf($securityUser), $this->classOf($principal->securityUser())), ['bundle' => 'nowo_wiki']);
         } else {
             $this->logger->error('Wiki API: the security user is not the token\'s user. The API must sit behind a stateless, secured firewall that authenticates the token.', ['bundle' => 'nowo_wiki']);
         }

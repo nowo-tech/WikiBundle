@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added (1.49.0)](#added-1490)
+  - [Changed (1.49.0)](#changed-1490)
+  - [Deprecated (1.49.0)](#deprecated-1490)
 - [[1.48.0] - 2026-11-20](#1480---2026-11-20)
   - [Changed](#changed)
   - [Deprecated](#deprecated)
@@ -278,6 +281,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+### Added (1.49.0)
+
+- **Host-flush probe (REQ-ARCH-001 rule 6 deprecation layer).** With the shared manager
+  (`database.private_entity_manager` unset or `false`), every wiki flush of it (the repositories' `WikiFlusher` and
+  `WikiTransactionRunner::run()`) first asks nowo-tech/transaction-doctrine's `HostFlushProbe` which entity classes of
+  the application it is about to write, and triggers one `E_USER_DEPRECATED` per class per request, message or command:
+  "Your pending changes to App\X were flushed by NowoWikiBundle; 2.0 no longer does." A flush the application runs
+  itself that writes wiki rows triggers one notice per wiki class and kind of write, naming the id operation to use
+  instead where one exists (`WikiSpaceOperationsInterface::createSpace()`, `WikiPageOperationsInterface::createPage()`,
+  `saveRevision()`, ...). Read-only: nothing is flushed, cleared, closed, reset or detached by it, and host mode writes
+  exactly what it wrote in 1.48. Its state is emptied at every request, message and command boundary and at
+  `kernel.reset` (FrankenPHP worker mode with kernel reset off included). Not registered with the private manager.
+  See [UPGRADING](UPGRADING.md#to-1490).
+- `WikiApiPrincipal::securityUser()`, `WikiQuotaCheckEvent::securityUser()`, `WikiEditorOptionsEvent::securityUser()`
+  (`@internal`, bundle use only; removed in 2.0 with `$user`).
+
+### Changed (1.49.0)
+
+- Requires `nowo-tech/transaction-doctrine` `^1.9` (the shared host-flush probe).
+
+### Deprecated (1.49.0)
+
+- **`database.private_entity_manager: false` (unset included):** one notice per container build. 2.0 removes the
+  option and keeps only the private entity manager; opt in now with
+  `nowo_wiki: { database: { private_entity_manager: true } }`.
+- **The 16 port interfaces with a framework-free twin** (deprecated in documentation since 1.36) are now marked
+  `@deprecated`, and a host service that still implements one triggers a notice when the container is built (or when a
+  factory-built service is created). The bundle's own defaults are not reported.
+- **Reading `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user` and `WikiEditorOptionsEvent::$user`** now triggers a
+  notice (read `userRef()`); the members keep working, read-only, until 2.0.
+- **`WikiStorageFailureSubscriber::committed()`** (deprecated since 1.48) and **`WikiAlignedHeaderConverter`**
+  (deprecated since 1.40) trigger a notice when used.
 
 ## [1.48.0] - 2026-11-20
 

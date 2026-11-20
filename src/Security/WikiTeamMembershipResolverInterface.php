@@ -14,6 +14,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * collection loaded on the user entity: the host's EntityManager can keep the user managed across requests, and an
  * already-loaded collection then still lists a team the user has left. Do not memoise them in a property either,
  * unless it is emptied at every request boundary.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiTeamMembershipSourceInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiTeamMembershipResolverInterface
 {

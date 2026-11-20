@@ -11,6 +11,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * per page, like the tree's fold state, and applied by the server before rendering (no flash of the wrong state).
  * The default keeps it in the session ({@see SessionWikiPanelStateStore}); `comments.state_store` names a host
  * service (for example a user-preferences table); 1.29: the page tree rail ({@see self::TREE_RAIL}) uses the same store.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiPanelStatesInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiPanelStateStoreInterface
 {

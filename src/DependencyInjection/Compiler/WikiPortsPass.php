@@ -58,6 +58,9 @@ final class WikiPortsPass implements CompilerPassInterface
             if ($class !== null && !is_a($class, WikiObjectLinkResolverInterface::class, true) && !is_a($class, WikiObjectLinkSourceInterface::class, true)) {
                 throw new LogicException(sprintf('nowo_wiki: the service "%s" (%s) tagged "%s" must implement "%s" (or the deprecated "%s").', $id, $class, self::OBJECT_LINK_TAG, WikiObjectLinkSourceInterface::class, WikiObjectLinkResolverInterface::class));
             }
+            if ($class !== null && is_a($class, WikiObjectLinkResolverInterface::class, true)) {
+                WikiPorts::deprecateLegacy($id, $class, WikiObjectLinkResolverInterface::class, WikiObjectLinkSourceInterface::class, 'the "' . self::OBJECT_LINK_TAG . '" tag');
+            }
         }
     }
 
@@ -91,6 +94,8 @@ final class WikiPortsPass implements CompilerPassInterface
         $target = $this->resolve($container, $legacy);
         $class  = $this->classOf($container, $target);
         if ($class !== null && is_a($class, $legacy, true)) {
+            WikiPorts::deprecateLegacy($target, $class, $legacy, $twin, $option);
+
             return;
         }
         if ($class !== null && !is_a($class, $twin, true)) {

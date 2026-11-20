@@ -130,7 +130,11 @@ bookkeeping, inside the transaction); hosts listen to `PAGE_SAVED`.
 hosts rely on: a wiki write no longer flushes what the application left pending in its manager, wiki rows the host
 loaded through its own manager are not the wiki's instances (a host must load them through the wiki), and users read
 back from wiki rows are no longer `===` the host's objects. That would break hosts in a minor release, so 1.36 keeps
-the standard path as the default and makes the private manager opt-in; 2.0 makes it the only mode.
+the standard path as the default and makes the private manager opt-in; 2.0 makes it the only mode. Since 1.49 the shared
+manager triggers a deprecation notice and runs the host-flush probe (`Doctrine\WikiHostFlushProbe`): before every wiki
+flush of it, nowo-tech/transaction-doctrine's `HostFlushProbe` reports the application's entity classes that flush
+writes, and a flush the application runs itself that writes wiki rows is reported with the id operation to use instead
+([UPGRADING › To 1.49.0](UPGRADING.md#to-1490)). Read-only; reset at every boundary.
 
 **Private entity manager (opt-in, `database.private_entity_manager: true`; the only mode in 2.0).** Every wiki service
 reads and writes through `Doctrine\WikiEntityManager`, a private manager created on the connection, mapping, caches,

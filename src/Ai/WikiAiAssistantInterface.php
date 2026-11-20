@@ -9,6 +9,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * Answers questions about wiki documentation (Symfony AI when enabled).
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiAiAnswererInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiAiAssistantInterface
 {

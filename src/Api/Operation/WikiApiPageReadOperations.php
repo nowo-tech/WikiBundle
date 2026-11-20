@@ -79,7 +79,7 @@ final readonly class WikiApiPageReadOperations
         $decisions = [];
         $visible   = [];
         foreach ($rows as $row) {
-            if (WikiPageVisibility::isReadable($this->checker, $principal->user, $space, $row->page, $decisions)
+            if (WikiPageVisibility::isReadable($this->checker, $principal->securityUser(), $space, $row->page, $decisions)
                 && (!$row->page->isArchived() || $this->guard->maySeeArchived($principal, $space, $row->page))) {
                 $visible[] = $row;
             }
@@ -99,7 +99,7 @@ final readonly class WikiApiPageReadOperations
             $origin  = $provenance[$row->page->getId()] ?? null;
             $creator = $origin?->creatorId === null ? null : ($authors[$origin->creatorId] ?? null);
             $people  = $this->people->presentAll($principal, [$author, $creator], $row->page);
-            $pages[] = $this->serializer->pageHead($wiki, $row->page, $row->revisionNumber, $row->revisedAt, $people[0], $people[1], $origin?->channel, $origin?->currentAuthorId === $row->authorId ? $this->actorLabels?->visibleOnPage($origin?->actorLabel, $author, $row->page, $principal->user) : null);
+            $pages[] = $this->serializer->pageHead($wiki, $row->page, $row->revisionNumber, $row->revisedAt, $people[0], $people[1], $origin?->channel, $origin?->currentAuthorId === $row->authorId ? $this->actorLabels?->visibleOnPage($origin?->actorLabel, $author, $row->page, $principal->securityUser()) : null);
         }
 
         return ['pages' => $pages, 'last_page' => count($visible) <= ($page + 1) * WikiApiQuery::PAGE_SIZE];
@@ -137,7 +137,7 @@ final readonly class WikiApiPageReadOperations
             default                                                        => $this->users->byIds([$origin->creatorId])[$origin->creatorId] ?? null,
         };
         $people = $this->people->presentAll($principal, [$revision?->getAuthor(), $creator], $page);
-        $head   = $this->serializer->pageHead($wiki, $page, $revision?->getRevisionNumber(), $revision?->getCreatedAt(), $people[0], $people[1], $revision?->getChannel(), $this->actorLabels?->visibleOnPage($revision?->getActorLabel(), $revision?->getAuthor(), $page, $principal->user));
+        $head   = $this->serializer->pageHead($wiki, $page, $revision?->getRevisionNumber(), $revision?->getCreatedAt(), $people[0], $people[1], $revision?->getChannel(), $this->actorLabels?->visibleOnPage($revision?->getActorLabel(), $revision?->getAuthor(), $page, $principal->securityUser()));
         if (!$revision instanceof WikiPageRevision) {
             return $head + ['format' => WikiPageRevision::FORMAT_MARKDOWN, 'content_view' => $this->content->view($principal, $page), 'content_markdown' => '', 'sections' => []];
         }

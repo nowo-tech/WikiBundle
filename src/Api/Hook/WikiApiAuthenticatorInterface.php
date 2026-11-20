@@ -13,6 +13,9 @@ use Symfony\Component\HttpFoundation\Request;
  * 1.24 (spec 218): the host's token check, required with `api.enabled` (the bundle stores no tokens). Called once per
  * request; revoked, expired, disabled, erased and removed-member states answer {@see WikiApiAuthFailure::Invalid} at this
  * request. {@see WikiApiCredential::fromRequest()} reads the header.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiApiRequestAuthenticatorInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiApiAuthenticatorInterface
 {
