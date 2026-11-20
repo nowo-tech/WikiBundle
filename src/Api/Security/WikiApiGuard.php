@@ -70,7 +70,7 @@ final readonly class WikiApiGuard
         if (!$wiki instanceof WikiApiWiki || $wiki->slug !== $slug || !$this->sees($principal, $wiki)) {
             throw WikiApiRefusal::notFound();
         }
-        if (!$this->planGate->allowsWiki($principal->user, $wiki)) {
+        if (!$this->planGate->allowsWiki($principal->securityUser(), $wiki)) {
             throw WikiApiRefusal::planRefused();
         }
 
@@ -86,7 +86,7 @@ final readonly class WikiApiGuard
             return false;
         }
 
-        return !$wiki->space instanceof WikiSpace || !$wiki->canOpen || $this->checker->isGranted($principal->user, WikiAction::View, $wiki->space);
+        return !$wiki->space instanceof WikiSpace || !$wiki->canOpen || $this->checker->isGranted($principal->securityUser(), WikiAction::View, $wiki->space);
     }
 
     /**
@@ -114,7 +114,7 @@ final readonly class WikiApiGuard
         $space = $this->openSpace($wiki);
         $page  = $space instanceof WikiSpace && preg_match('/^' . self::UUID . '$/D', $pageId) === 1 ? $this->pages->findById($pageId) : null;
         if (!$page instanceof WikiPage || $page->getSpace()->getId() !== $space?->getId()
-            || !WikiPageVisibility::isReadable($this->checker, $principal->user, $space, $page)
+            || !WikiPageVisibility::isReadable($this->checker, $principal->securityUser(), $space, $page)
             || ($page->isArchived() && (!$archived || !$this->maySeeArchived($principal, $space, $page)))) {
             throw WikiApiRefusal::notFound();
         }
@@ -129,8 +129,8 @@ final readonly class WikiApiGuard
     public function maySeeArchived(WikiApiPrincipal $principal, WikiSpace $space, ?WikiPage $page = null): bool
     {
         return WikiApiCapability::allows($principal->level, WikiAction::Archive)
-            && $this->roles->canArchive($principal->user)
-            && $this->checker->isGranted($principal->user, WikiAction::Archive, $space, $page);
+            && $this->roles->canArchive($principal->securityUser())
+            && $this->checker->isGranted($principal->securityUser(), WikiAction::Archive, $space, $page);
     }
 
     /**
@@ -158,7 +158,7 @@ final readonly class WikiApiGuard
         if (!WikiApiCapability::allows($principal->level, $action)) {
             throw WikiApiRefusal::levelRefused();
         }
-        if (!$this->roleAllows($principal, $action) || !$this->checker->isGranted($principal->user, $action, $space, $page)) {
+        if (!$this->roleAllows($principal, $action) || !$this->checker->isGranted($principal->securityUser(), $action, $space, $page)) {
             throw WikiApiRefusal::permissionRefused();
         }
     }
@@ -204,15 +204,15 @@ final readonly class WikiApiGuard
         if ($user === null) {
             return false;
         }
-        if ($user === $principal->user) {
+        if ($user === $principal->securityUser()) {
             return true;
         }
         if ($this->classes instanceof WikiUserClassPolicy) {
-            $id = $this->classes->idOf($principal->user);
+            $id = $this->classes->idOf($principal->securityUser());
 
             return $id !== null && (string) $id === WikiUserId::of($user);
         }
-        $mine = $this->idOf($principal->user);
+        $mine = $this->idOf($principal->securityUser());
 
         return $mine !== null && $mine === $this->idOf($user);
     }
@@ -222,8 +222,8 @@ final readonly class WikiApiGuard
     {
         return WikiApiCapability::maySeeSource($principal->level)
             && !$page->isArchived()
-            && $this->roles->canEdit($principal->user)
-            && $this->checker->isGranted($principal->user, WikiAction::Edit, $space, $page);
+            && $this->roles->canEdit($principal->securityUser())
+            && $this->checker->isGranted($principal->securityUser(), WikiAction::Edit, $space, $page);
     }
 
     /** The token's reach for a render: a space shows only when its wiki is within *where* (contract F3). */
@@ -260,7 +260,7 @@ final readonly class WikiApiGuard
 
     private function roleAllows(WikiApiPrincipal $principal, WikiAction $action): bool
     {
-        $user = $principal->user;
+        $user = $principal->securityUser();
 
         return match ($action) {
             WikiAction::Create                    => $this->roles->canCreate($user),

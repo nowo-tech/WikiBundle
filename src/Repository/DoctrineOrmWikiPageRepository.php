@@ -49,7 +49,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($page);
-        WikiFlusher::flush($entityManager);
+        WikiFlusher::flush($entityManager, $this->entityManager);
     }
 
     /**
@@ -79,7 +79,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
     public function commitSpaceTransaction(): void
     {
         $entityManager = $this->entityManager();
-        WikiFlusher::flush($entityManager);
+        WikiFlusher::flush($entityManager, $this->entityManager);
         $entityManager->commit();
     }
 
@@ -122,7 +122,7 @@ final readonly class DoctrineOrmWikiPageRepository implements WikiPageRepository
     public function commitPageTransaction(): void
     {
         $entityManager = $this->entityManager();
-        WikiFlusher::flush($entityManager);
+        WikiFlusher::flush($entityManager, $this->entityManager);
         $entityManager->commit();
     }
 

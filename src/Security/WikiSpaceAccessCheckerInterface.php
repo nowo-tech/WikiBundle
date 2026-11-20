@@ -16,6 +16,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
  * {@see WikiAction::View} answers 404 (a forbidden space is indistinguishable from a missing one), any other denied
  * action on a readable space answers 403. Override the {@see WikiSpaceAccessCheckerInterface} alias with a host
  * service to decide per tenant; the default {@see LegacyWikiSpaceAccessChecker} keeps the 1.x user-only decision.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiSpaceAccessPolicyInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiSpaceAccessCheckerInterface
 {

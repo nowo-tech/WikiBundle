@@ -41,7 +41,7 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($space);
-        WikiFlusher::flush($entityManager);
+        WikiFlusher::flush($entityManager, $this->entityManager);
     }
 
     /**

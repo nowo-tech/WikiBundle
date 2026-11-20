@@ -42,6 +42,8 @@ use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use function array_values;
 use function get_debug_type;
 use function sprintf;
+use function str_starts_with;
+use function trigger_deprecation;
 
 /**
  * The host ports that have a framework-free twin (1.36.0, REQ-ARCH-001 rules 1 and 3) and their selection rule: a
@@ -96,6 +98,8 @@ final class WikiPorts
 
         [$legacy, $twin, , , $option] = self::PORTS[$name];
         if ($service instanceof $legacy) {
+            self::deprecateLegacy(null, $service::class, $legacy, $twin, $option);
+
             return $service;
         }
         $gate = self::gate($name, $service, array_values($dependencies));
@@ -104,6 +108,25 @@ final class WikiPorts
         }
 
         throw new LogicException(sprintf('The service "%s" of %s must implement "%s" (or the deprecated "%s").', get_debug_type($service), $option, $twin, $legacy));
+    }
+
+    /**
+     * 1.49 (REQ-BC-001): a host service that still implements one of the 16 deprecated port interfaces (removed in 2.0)
+     * triggers one notice when the container is built (or, for a service whose class the build cannot know, when it is
+     * created). The bundle's own default services are not reported.
+     *
+     * @param string|null $serviceId the service id, when known
+     * @param string $class the service's class
+     * @param string $legacy the deprecated interface it implements
+     * @param string $twin the framework-free interface to implement instead
+     * @param string $option the configuration that names the service
+     */
+    public static function deprecateLegacy(?string $serviceId, string $class, string $legacy, string $twin, string $option): void
+    {
+        if (str_starts_with($class, 'Nowo\\WikiBundle\\') && !str_starts_with($class, 'Nowo\\WikiBundle\\Tests\\')) {
+            return;
+        }
+        trigger_deprecation('nowo-tech/wiki-bundle', '1.49', 'The service %s implements the deprecated %s, which 2.0 removes: implement %s instead and keep it configured as %s (a service may implement both while you migrate; drop the deprecated one before 2.0). See UPGRADING "Host ports: move to the framework-free twins".', $serviceId !== null ? sprintf('"%s" (%s)', $serviceId, $class) : $class, $legacy, $twin, $option);
     }
 
     /**

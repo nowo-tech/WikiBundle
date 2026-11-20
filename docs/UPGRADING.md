@@ -2,8 +2,15 @@
 
 ## Table of contents
 
+- [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+- [To 1.49.1](#to-1491)
   - [Missing foreign keys on MySQL / MariaDB (1.36.0 to 1.49.0)](#missing-foreign-keys-on-mysql--mariadb-1360-to-1490)
+- [To 1.49.0](#to-1490)
+- [To 1.49.0](#to-1490-1)
+  - [The private entity manager notice](#the-private-entity-manager-notice)
+  - [Reading the host-flush probe as a migration list](#reading-the-host-flush-probe-as-a-migration-list)
+  - [Other notices of members 2.0 removes](#other-notices-of-members-20-removes)
 - [To 1.48.1](#to-1481)
 - [To 1.48.0](#to-1480)
 - [To 1.47.1](#to-1471)
@@ -112,13 +119,38 @@
   - [Breaking changes](#breaking-changes)
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
+## Preparing for 2.0
+
+2.0 contains only the breaks announced in 1.x as deprecations; nothing else changes without a notice first. From 1.49
+every one of them triggers a runtime deprecation notice when your application uses it, so an application whose
+deprecation log is free of `nowo-tech/wiki-bundle` notices on the last 1.x minor upgrades without code changes:
+
+| 1.x | 2.0 | Notice since |
+|---|---|---|
+| `database.private_entity_manager: false` (the 1.x default) | removed: the private entity manager is the only mode | 1.49 (container build) + the host-flush probe |
+| The 16 port interfaces with a framework-free twin ([table](ARCHITECTURE.md#host-ports)) | removed: implement the twin | 1.49 (container build) |
+| `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user`, `WikiEditorOptionsEvent::$user` | removed: `userRef()` | 1.49 (when read) |
+| `WikiStorageFailureSubscriber::committed()` | removed: `ConflictCode::forRequest()` | 1.49 (when called) |
+| `WikiAlignedHeaderConverter` | removed: `WikiHeadingIdConverter` | 1.49 (when built) |
+| The configuration keys deprecated in 1.6 and 1.10 | removed | when set |
+
+The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and higher are backported to the last 1.x
+minor; Low ones are fixed in 2.x only (upgrade to get them).
+
 ## Unreleased
+
+## To 1.49.1
+
+From **1.49.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ### Missing foreign keys on MySQL / MariaDB (1.36.0 to 1.49.0)
 
 Only MySQL / MariaDB databases whose wiki tables were created or migrated with doctrine/orm 3.7.0 to 3.8.0 and
-doctrine/dbal 4.5 or later are affected (PostgreSQL and SQLite are not). After `composer update
-nowo-tech/wiki-bundle`, check the schema:
+doctrine/dbal 4.5 or later are affected (PostgreSQL and SQLite are not). After the update, check the schema:
 
 ```bash
 php bin/console doctrine:schema:validate
@@ -188,6 +220,104 @@ ALTER TABLE wiki_attachments ADD CONSTRAINT FK_D247B88023575340 FOREIGN KEY (spa
 
 `wiki_attachments.space_id` keeps its `wiki_attachment_space` index, so it needs no new one. Run
 `php bin/console doctrine:schema:validate` again: the mapping and the database are in sync once it passes.
+
+## To 1.49.0
+
+From **1.48.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+## To 1.49.0
+
+From **1.48.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/transaction-doctrine
+```
+
+Requires `nowo-tech/transaction-doctrine` `^1.9.1`. No schema change and no behaviour change: every notice below is a
+`E_USER_DEPRECATED` (`trigger_deprecation()`), collected by your deprecation log or the profiler, and host mode writes
+exactly what it wrote in 1.48. Nothing is needed to keep working; the notices list what 2.0 changes for you.
+`$user` on `WikiApiPrincipal`, `WikiQuotaCheckEvent` and `WikiEditorOptionsEvent` is no longer a declared property:
+reflection, `get_object_vars()`, array casts and serializer normalisation no longer see it. `->user` still works (with
+a notice); use `securityUser()`.
+
+### The private entity manager notice
+
+With `nowo_wiki.database.private_entity_manager` unset or `false` every container build reports:
+
+> Since nowo-tech/wiki-bundle 1.49: nowo_wiki.database.private_entity_manager is false (the 1.x default): every wiki
+> write flushes your entity manager "default", including what your application left pending in it. 2.0 removes the
+> option: the private entity manager becomes the only mode, and wiki writes never flush, clear or close your manager.
+> Opt in now with "nowo_wiki: { database: { private_entity_manager: true } }" once the host-flush probe notices
+> ("flushed by NowoWikiBundle", "rows with its own entity manager") are gone; see UPGRADING "To 1.49.0".
+
+To opt in now (the 2.0 behaviour, available since 1.36):
+
+```yaml
+nowo_wiki:
+    database:
+        private_entity_manager: true
+```
+
+Read [Private entity manager](#private-entity-manager-databaseprivate_entity_manager-true-the-only-mode-in-20) first,
+and turn it on once the probe below reports nothing for a full deploy cycle of your test suite and production traffic.
+With it on, the notice and the probe are gone (the probe is not even registered).
+
+### Reading the host-flush probe as a migration list
+
+While the shared manager is on, the bundle reports two kinds of notices, each at most once per class (and kind of
+write) per request, Messenger message or console command; a FrankenPHP worker with kernel reset off reports every
+request afresh. The probe only reads Doctrine's unit of work: it never flushes, clears, closes, resets or detaches
+anything.
+
+1. **Your changes that a wiki write flushed** (nowo-tech/transaction-doctrine's shared probe, right before each wiki
+   flush of your manager):
+
+   > Your pending changes to App\Entity\Invoice were flushed by NowoWikiBundle; 2.0 no longer does.
+
+   Your code left `App\Entity\Invoice` changes pending and relied (knowingly or not) on a wiki save to write them. In
+   2.0 they stay pending and are lost at the end of the request unless you flush them. Fix: call
+   `$entityManager->flush()` yourself where you change them (before or after the wiki call).
+
+2. **Wiki rows your own manager wrote** (a flush the wiki did not run that inserts, updates or deletes wiki rows):
+
+   > Since nowo-tech/wiki-bundle 1.49: Your application inserted Nowo\WikiBundle\Entity\WikiSpace rows with its own
+   > entity manager, outside a wiki write. In 2.0 the wiki reads and writes its rows only through its private entity
+   > manager, whose instances are not yours: create spaces with
+   > Nowo\WikiBundle\Service\WikiSpaceOperationsInterface::createSpace() and keep their id (then set
+   > "nowo_wiki.database.private_entity_manager: true").
+
+   The notice names the class, the kind of write and, where the bundle has one, the operation to use instead:
+
+   | Class and write | Use instead |
+   |---|---|
+   | `WikiSpace` insert | `WikiSpaceOperationsInterface::createSpace()` |
+   | `WikiPage` insert | `WikiPageOperationsInterface::createPage()` / `createPageAt()` / `createPageNextTo()` |
+   | `WikiPage` update | `WikiPageOperationsInterface::saveRevision()` / `restoreRevision()` / `archivePage()` / `unarchivePage()` |
+   | `WikiPageRevision` insert | `WikiPageOperationsInterface::saveRevision()` / `restoreRevision()` |
+   | anything else | no id operation yet: load the rows through the wiki (its repositories or the id operations), write them through the wiki's services, and pass ids, not your instances |
+
+   The operations take and return ids and snapshots, so your code no longer holds wiki entities of your manager; compare
+   wiki rows by id, never with `===`.
+
+Collect the notices from your deprecation log (`var/log/*.log` with the `php` channel, the profiler's "Deprecations"
+tab, or your test suite's deprecation report) and treat each distinct message as one item to migrate. When none is
+left, turn the private manager on.
+
+### Other notices of members 2.0 removes
+
+- **Port interfaces:** a service of yours that implements one of the 16 deprecated port interfaces is reported once per
+  container build ("The service "app.x" (App\X) implements the deprecated ..., which 2.0 removes: implement ...
+  instead"); see [Host ports](#host-ports-move-to-the-framework-free-twins-optional-until-20). The interfaces are
+  marked `@deprecated`, so Symfony's debug class loader reports your classes that implement them too.
+- **`$user` members:** reading `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user` or `WikiEditorOptionsEvent::$user`
+  reports "Reading ...::$user (a Symfony user) is deprecated, 2.0 removes it: read userRef() (a framework-free
+  WikiUserRef) instead." The members keep working and stay read-only. Code that builds these objects is unchanged
+  (the constructor argument is still named `$user`).
+- **`WikiStorageFailureSubscriber::committed()`** and **`new WikiAlignedHeaderConverter()`** report a notice.
 
 ## To 1.48.1
 

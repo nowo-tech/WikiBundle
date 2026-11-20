@@ -66,7 +66,7 @@ final readonly class WikiApiSearchOperations
         if ($query === '' || mb_strlen($query) > 200) {
             throw WikiApiRefusal::invalid('q');
         }
-        if (!$this->roles->canList($principal->user)) {
+        if (!$this->roles->canList($principal->securityUser())) {
             throw WikiApiRefusal::permissionRefused();
         }
 
@@ -90,7 +90,7 @@ final readonly class WikiApiSearchOperations
             $read += $rows;
             $exhausted = $rows < $batch;
             foreach ($hits as $hit) {
-                if (WikiPageVisibility::isReadable($this->checker, $principal->user, $hit['space'], $hit['page'], $decisions)) {
+                if (WikiPageVisibility::isReadable($this->checker, $principal->securityUser(), $hit['space'], $hit['page'], $decisions)) {
                     $readable[] = $hit;
                 }
             }
@@ -137,7 +137,7 @@ final readonly class WikiApiSearchOperations
             return $wikis;
         }
         foreach ($this->directory->list($principal, new WikiApiWikiFilter()) as $wiki) {
-            if ($this->guard->isSlug($wiki->slug) && $this->guard->sees($principal, $wiki) && $this->planGate->allowsWiki($principal->user, $wiki)) {
+            if ($this->guard->isSlug($wiki->slug) && $this->guard->sees($principal, $wiki) && $this->planGate->allowsWiki($principal->securityUser(), $wiki)) {
                 $wikis[] = $wiki;
             }
         }

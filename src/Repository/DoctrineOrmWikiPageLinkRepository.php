@@ -33,7 +33,7 @@ final readonly class DoctrineOrmWikiPageLinkRepository implements WikiPageLinkRe
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($link);
-        WikiFlusher::flush($entityManager);
+        WikiFlusher::flush($entityManager, $this->entityManager);
     }
 
     public function remove(WikiPageLink $link): void
@@ -41,7 +41,7 @@ final readonly class DoctrineOrmWikiPageLinkRepository implements WikiPageLinkRe
         $entityManager = $this->entityManager();
         // @igor-ignore - Doctrine unit of work; the entity manager is reset by Doctrine between requests.
         $entityManager->remove($link);
-        WikiFlusher::flush($entityManager);
+        WikiFlusher::flush($entityManager, $this->entityManager);
     }
 
     public function findOne(WikiPage $page, string $objectType, string $objectId): ?WikiPageLink

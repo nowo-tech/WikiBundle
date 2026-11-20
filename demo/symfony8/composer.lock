@@ -2489,16 +2489,16 @@
         },
         {
             "name": "nowo-tech/transaction-doctrine",
-            "version": "v1.7.1",
+            "version": "v1.9.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/transaction-doctrine.git",
-                "reference": "2f14da7ce82b0399d463c2e1faf999f945104629"
+                "reference": "b38708cc394acf814ce0f96b0ad4f47208c40665"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/transaction-doctrine/zipball/2f14da7ce82b0399d463c2e1faf999f945104629",
-                "reference": "2f14da7ce82b0399d463c2e1faf999f945104629",
+                "url": "https://api.github.com/repos/nowo-tech/transaction-doctrine/zipball/b38708cc394acf814ce0f96b0ad4f47208c40665",
+                "reference": "b38708cc394acf814ce0f96b0ad4f47208c40665",
                 "shasum": ""
             },
             "require": {
@@ -2595,8 +2595,8 @@
                 "issues": "https://github.com/nowo-tech/transaction-doctrine/issues",
                 "source": "https://github.com/nowo-tech/transaction-doctrine"
             },
-            "time": "2026-11-19T10:12:34+00:00",
-            "published-time": "2026-11-19T10:15:50+00:00"
+            "time": "2026-11-20T17:53:15+00:00",
+            "published-time": "2026-11-20T17:57:11+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
@@ -2707,7 +2707,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "9580e2a5ec901898d0e8078f2b9f09a4ab78a69e"
+                "reference": "aa901167b4cb37a9e765c1020c9f7fbf30ba7dc1"
             },
             "require": {
                 "doctrine/dbal": "^3.8.2 || ^4.0",
@@ -2720,7 +2720,7 @@
                 "nowo-tech/form-kit-bundle": "^2.0",
                 "nowo-tech/tiptap-editor-bundle": "^1.6",
                 "nowo-tech/transaction-contract": "^1.0",
-                "nowo-tech/transaction-doctrine": "^1.6",
+                "nowo-tech/transaction-doctrine": "^1.9.1",
                 "nowo-tech/ui-kit-bundle": "^2.54",
                 "php": ">=8.2 <8.6",
                 "psr/log": "^1.1 || ^2.0 || ^3.0",
@@ -2743,7 +2743,8 @@
             },
             "conflict": {
                 "nowo-tech/icon-selector-bundle": "<1.6.0",
-                "nowo-tech/milkdown-editor-bundle": "<1.18.0"
+                "nowo-tech/milkdown-editor-bundle": "<1.18.0",
+                "nowo-tech/search-kit-bundle": "<1.10.1"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
@@ -2772,7 +2773,7 @@
                 "nowo-tech/html-to-word-bundle": "Export wiki pages to DOCX/PDF (phase 2).",
                 "nowo-tech/icon-selector-bundle": "^1.6: the visual icon picker (page_icon.picker / space_icon.picker: icon_selector; ^1.8 recommended: picker texts in its own domain, UiKit theme, no submit lost while it loads) and emoji icons (page_icon.emoji / space_icon.emoji).",
                 "nowo-tech/milkdown-editor-bundle": "Milkdown editor for wiki pages (nowo_wiki.editor.type: milkdown, ^1.18): page links, mentions, icons, math and Mermaid, stable heading ids, section anchors and the link picker (editor.milkdown.link_picker).",
-                "nowo-tech/search-kit-bundle": "^1.8: wiki pages in SearchKit's search everywhere (nowo_wiki.search_kit_provider: true), through the wiki's own read rules; optional, older versions are ignored.",
+                "nowo-tech/search-kit-bundle": "^1.10.1 (needs PHP >= 8.3; older versions are refused, see SECURITY.md): wiki pages in SearchKit's search everywhere (nowo_wiki.search_kit_provider: true) on its provider base, through the wiki's own read rules; optional.",
                 "nowo-tech/translation-yaml-tools-bundle": "Translate wiki content across locales.",
                 "symfony/ai-bundle": "Ask questions about wiki pages with configurable AI agents and RAG tools.",
                 "symfony/mercure-bundle": "Co-editing of Milkdown pages (nowo_wiki.collaboration): private Mercure updates and the subscriber cookie.",

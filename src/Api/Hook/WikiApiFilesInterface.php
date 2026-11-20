@@ -17,6 +17,9 @@ use Symfony\Component\HttpFoundation\Response;
  * 1.24 (spec 218 FR-037 – FR-040, Beacon Q-B1): the host's files (Beacon: `App\Files`). Every upload check is the
  * host's: the target, the sniffed type, Office macros, storage, plan, rate limit. The bundle has checked reach and the
  * level; it adds `nosniff`, `attachment` and a sandboxing CSP to every download.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiApiFileStoreInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiApiFilesInterface
 {

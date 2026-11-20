@@ -9,6 +9,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * Resolves wiki spaces visible to a user.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiSpaceReachInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiSpaceAccessResolverInterface
 {

@@ -16,6 +16,7 @@ use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
 use Nowo\MilkdownEditorBundle\ProfileRegistry;
 use Nowo\MilkdownEditorBundle\Twig\MilkdownEditorTwig;
+use Nowo\TransactionDoctrine\HostFlushProbe;
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponseFormatterInterface;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
@@ -72,6 +73,7 @@ use Nowo\WikiBundle\Doctrine\PrivateEntityManagerMiddleware;
 use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -231,6 +233,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 {
     /** 1.21: service id of the Twig global `nowo_wiki_web_ui` (an ArrayObject of %nowo_wiki.web_ui%). */
     public const WEB_UI_GLOBAL = 'nowo_wiki.web_ui_global';
+
+    /**
+     * 1.49 (REQ-ARCH-001 rule 6): the notice of `database.private_entity_manager` unset or false (`%s` = the manager).
+     */
+    public const PRIVATE_ENTITY_MANAGER_NOTICE = 'nowo_wiki.database.private_entity_manager is false (the 1.x default): every wiki write flushes your entity manager "%s", including what your application left pending in it. 2.0 removes the option: the private entity manager becomes the only mode, and wiki writes never flush, clear or close your manager. Opt in now with "nowo_wiki: { database: { private_entity_manager: true } }" once the host-flush probe notices ("flushed by NowoWikiBundle", "rows with its own entity manager") are gone; see UPGRADING "To 1.49.0".';
 
     /** 1.13: elements of the Milkdown dialect markup kept by the sanitizer with editor.type milkdown. */
     public const MILKDOWN_SANITIZER_ELEMENTS = ['details' => ['open'], 'summary' => []];
@@ -462,10 +469,22 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                     ->addTag('doctrine.middleware'));
             }
         }
+        if (!$private) {
+            // 1.49 (REQ-ARCH-001 rule 6 deprecation layer): 2.0 keeps only the private manager. The notice once per
+            // container build, and the host-flush probe on every wiki flush of the shared manager (its output is the
+            // host's migration list): the application's pending changes a wiki flush writes, and wiki rows the
+            // application writes with its own manager.
+            trigger_deprecation(Configuration::PACKAGE, '1.49', self::PRIVATE_ENTITY_MANAGER_NOTICE, $emName);
+            $container->setDefinition(WikiHostFlushProbe::class, (new Definition(WikiHostFlushProbe::class))
+                ->setArgument('$probe', new Reference(HostFlushProbe::SERVICE_ID, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+                ->addTag('kernel.reset', ['method' => 'reset'])
+                ->addTag('doctrine.event_listener', ['event' => 'onFlush', 'method' => 'onFlush', 'lazy' => true, 'entity_manager' => $emName]));
+        }
         $container->setDefinition(WikiEntityManagerProvider::class, (new Definition(WikiEntityManagerProvider::class))
             ->setArgument('$registry', new Reference('doctrine'))
             ->setArgument('$managerName', $emName)
-            ->setArgument('$private', $private ? new Reference(WikiEntityManager::class) : null));
+            ->setArgument('$private', $private ? new Reference(WikiEntityManager::class) : null)
+            ->setArgument('$hostFlushProbe', $private ? null : new Reference(WikiHostFlushProbe::class)));
         $emProviderRef = new Reference(WikiEntityManagerProvider::class);
         // 1.37 (Beacon spec 239): the runner of every wiki write, injected by its class (never a runner the application
         // binds to TransactionRunnerInterface), and the 503 / 409 answers of the wiki's routes.
@@ -725,7 +744,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class,
                 // 1.36.0: the private entity manager last, after the memos that may still hold its rows; 1.37: then a
                 // shared manager a failed wiki write closed.
-                WikiEntityManager::class, WikiTransactionRunner::class],
+                WikiEntityManager::class, WikiTransactionRunner::class,
+                // 1.49: what the host-flush probe already reported (shared manager only).
+                WikiHostFlushProbe::class],
         );
         $container->setDefinition(WikiRequestBoundaryResetter::class, (new Definition(WikiRequestBoundaryResetter::class))
             ->setArgument('$memos', new IteratorArgument($memos))

@@ -10,6 +10,9 @@ use Symfony\Component\HttpFoundation\Request;
  * Lets the current browser subscribe to the private topic of a page (1.13): the default
  * {@see MercureWikiCollabSubscriberAuthorizer} sets the `mercureAuthorization` cookie with a subscriber JWT limited to
  * that one topic (no publish right). Called only after the edit permission was checked.
+ *
+ * @deprecated since 1.36, removed in 2.0: implement {@see WikiCollabSubscriptionPolicyInterface} instead
+ *             (1.49: a host service that still implements it triggers a deprecation notice)
  */
 interface WikiCollabSubscriberAuthorizerInterface
 {

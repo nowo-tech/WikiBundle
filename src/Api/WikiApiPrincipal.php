@@ -4,30 +4,46 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api;
 
+use Error;
 use Nowo\WikiBundle\Api\Hook\WikiApiRequestAuthenticatorInterface;
 use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+use function property_exists;
+use function sprintf;
+use function trigger_deprecation;
+use function trigger_error;
+
+use const E_USER_WARNING;
+
 /**
  * 1.24 (spec 218): who a request is, as the host's authenticator answers it, for this request only. It holds no secret:
  * `$tokenId` is an opaque id.
+ *
+ * @property UserInterface $user the person behind the token
+ *                               (deprecated since 1.36, a runtime notice since 1.49, removed in 2.0): read
+ *                               {@see self::userRef()}
  */
 final readonly class WikiApiPrincipal
 {
+    /** The person behind the token ({@see self::securityUser()}; `$principal->user` is deprecated). */
+    private UserInterface $securityUser;
+
     /**
      * @param UserInterface $user the person behind the token; deprecated since 1.36 as a public member (a Symfony
      *                            type): read {@see self::userRef()}, and build principals with {@see self::of()}
      * @param string $channel `api`, or `mcp` for an in-process caller (spec 219), passed on to the audit event
      */
     public function __construct(
-        public UserInterface $user,
+        UserInterface $user,
         public WikiApiLevel $level,
         public WikiApiWhere $where,
         public string $tokenId,
         public string $tokenName,
         public string $channel = 'api',
     ) {
+        $this->securityUser = $user;
     }
 
     /**
@@ -57,6 +73,40 @@ final readonly class WikiApiPrincipal
      */
     public function userRef(): WikiUserRef
     {
-        return WikiUserRefs::fromUser($this->user);
+        return WikiUserRefs::fromUser($this->securityUser);
+    }
+
+    /**
+     * 1.49: `$principal->user` still works and triggers a deprecation notice; 2.0 removes it.
+     */
+    public function __get(string $name): mixed
+    {
+        if ($name === 'user') {
+            trigger_deprecation('nowo-tech/wiki-bundle', '1.49', 'Reading %s::$user (a Symfony user) is deprecated, 2.0 removes it: read userRef() (a framework-free WikiUserRef) instead.', self::class);
+
+            return $this->securityUser;
+        }
+        if (property_exists($this, $name)) {
+            // A private member, refused from outside as before.
+            throw new Error(sprintf('Cannot access private property %s::$%s', self::class, $name));
+        }
+        trigger_error(sprintf('Undefined property: %s::$%s', self::class, $name), E_USER_WARNING);
+
+        return null;
+    }
+
+    public function __isset(string $name): bool
+    {
+        return $name === 'user';
+    }
+
+    /**
+     * The user as the bundle works with it. Bundle use only: removed in 2.0 with {@see self::$user}.
+     *
+     * @internal
+     */
+    public function securityUser(): UserInterface
+    {
+        return $this->securityUser;
     }
 }

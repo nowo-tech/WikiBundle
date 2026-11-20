@@ -109,7 +109,7 @@ final readonly class WikiApiRevisionOperations
     /** Spec 234 (audit PQ-M1): the token name only beside a real name, or for the author themself. */
     private function tokenName(WikiApiPrincipal $principal, WikiPageRevision $revision, WikiPage $page): ?string
     {
-        return $this->actorLabels?->visibleOnPage($revision->getActorLabel(), $revision->getAuthor(), $page, $principal->user);
+        return $this->actorLabels?->visibleOnPage($revision->getActorLabel(), $revision->getAuthor(), $page, $principal->securityUser());
     }
 
     /** @throws WikiApiRefusal */
