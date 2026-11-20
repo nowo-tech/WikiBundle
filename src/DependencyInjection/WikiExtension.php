@@ -143,6 +143,7 @@ use Nowo\WikiBundle\Search\UserProviderWikiSearchViewerResolver;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
 use Nowo\WikiBundle\Search\WikiSearchScopeListener;
 use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
+use Nowo\WikiBundle\Search\WikiSearchTenantsResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Search\WikiTenantPathsSearchTenantResolver;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
@@ -612,7 +613,9 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             $container->setDefinition($tenantResolver, (new Definition(WikiTenantPathsSearchTenantResolver::class))
                 ->setArgument('$tenantPaths', new Reference(WikiTenantPaths::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
         }
+        // 1.47: the service may implement the single-key port (1.46) or the list port; the definition reads either.
         $container->setAlias(WikiSearchTenantResolverInterface::class, $tenantResolver);
+        $container->setAlias(WikiSearchTenantsResolverInterface::class, $tenantResolver);
 
         $pageView = $config['routes']['page_view']['name'];
         $container->setDefinition(WikiPageSearchDefinition::class, (new Definition(WikiPageSearchDefinition::class))
@@ -637,7 +640,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 '$dispatcher'           => new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 '$tenants'              => new Reference(WikiLinkTenantResolverInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 '$tenantMode'           => $options['tenant'],
-                '$currentTenants'       => new Reference(WikiSearchTenantResolverInterface::class),
+                '$currentTenants'       => new Reference($tenantResolver),
             ])
             ->addTag(WikiSearchKitAvailability::DEFINITION_TAG, ['priority' => $options['priority']]));
 

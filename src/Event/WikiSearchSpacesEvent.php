@@ -34,12 +34,14 @@ final class WikiSearchSpacesEvent extends Event
      * @param string|null $scope the SearchKit scope id, or null
      * @param string|null $locale the UI locale, or null
      * @param list<WikiSearchSpace> $spaces the spaces the wiki lets the viewer read for this search
+     * @param list<string> $tenants 1.47: the current tenant keys of the search (empty with `search_kit_provider.tenant: all`)
      */
     public function __construct(
         public readonly string $userIdentifier,
         public readonly ?string $scope,
         public readonly ?string $locale,
         array $spaces,
+        public readonly array $tenants = [],
     ) {
         $byId = [];
         foreach ($spaces as $space) {

@@ -8,6 +8,7 @@
 - [Search](#search)
 - [SearchKit provider (1.44)](#searchkit-provider-144)
   - [Current tenant (1.46)](#current-tenant-146)
+  - [Several current tenants (1.47)](#several-current-tenants-147)
   - [Host rules (1.46)](#host-rules-146)
   - [Beacon: replacing WikiPageSearchProvider](#beacon-replacing-wikipagesearchprovider)
 - [Application integration](#application-integration)
@@ -186,6 +187,61 @@ nowo_wiki:
         enabled: true
         tenant_resolver: App\Wiki\CurrentOrganisationTenant
 ```
+
+### Several current tenants (1.47)
+
+When people work in several wiki tenants at once — their organisation's wiki, one wiki per project, their personal
+wiki, a general wiki — one current key would hide most of them. Implement `Search\WikiSearchTenantsResolverInterface`
+instead and return every tenant key the person may search from this request; the group searches the **union** of
+those tenants:
+
+```php
+use Nowo\WikiBundle\Search\WikiSearchTenantsResolverInterface;
+
+final readonly class CurrentWikiTenants implements WikiSearchTenantsResolverInterface
+{
+    public function __construct(private CurrentOrganisation $organisations, private ProjectAccess $projects)
+    {
+    }
+
+    public function currentTenants(string $userIdentifier): array
+    {
+        $organisation = $this->organisations->current();   // the organisation chosen in the header
+        if ($organisation === null) {
+            return [];                                      // no tenant context: nothing is searched
+        }
+        $keys = ['organisation:' . $organisation->id(), 'user:' . $userIdentifier, 'general'];
+        foreach ($this->projects->visibleIn($organisation, $userIdentifier) as $project) {
+            $keys[] = 'project:' . $project->id();
+        }
+
+        return $keys;                                       // the keys your WikiLinkTenantResolverInterface gives the spaces
+    }
+}
+```
+
+```yaml
+nowo_wiki:
+    search_kit_provider:
+        enabled: true
+        tenant_resolver: App\Wiki\CurrentWikiTenants   # a list port or the single-key port, either works
+```
+
+Rules:
+
+- Keys are compared exactly (`===`): no case or whitespace folding. `*` and empty strings are never keys (dropped),
+  duplicates are ignored, and more than 500 keys (`WikiPageSearchDefinition::MAX_TENANTS`) find nothing. An empty list
+  finds nothing.
+- Nothing widens the list: a `space:` filter, a SearchKit scope or a recent naming a space outside these tenants finds
+  nothing.
+- The SearchKit tenant (SearchKit's item visibility event, the recents check) is the key itself for one key, and
+  `tenants:` followed by the SHA-256 of the sorted keys joined by a line feed for several
+  (`WikiPageSearchDefinition::tenantId()`): stable for the same keys in any order. The keys themselves are in the spaces
+  event (`WikiSearchSpacesEvent::$tenants`).
+- To narrow further per space (a project whose wiki feature is off), use the spaces event below; it can only exclude.
+
+The single-key port of 1.46 (`WikiSearchTenantResolverInterface::currentTenant()`) keeps working: it is one list of one
+key. The default resolver implements both.
 
 ### Host rules (1.46)
 

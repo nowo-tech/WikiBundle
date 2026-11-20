@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchDefinition;
 use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
 use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
+use Nowo\WikiBundle\Search\WikiSearchTenantsResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
@@ -25,6 +26,10 @@ use Symfony\Component\Routing\Route;
 use Symfony\Component\Routing\RouteCollection;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 use Symfony\Component\Translation\IdentityTranslator;
+
+use function array_map;
+use function hash;
+use function range;
 
 /**
  * 1.46: the hooks of {@see WikiPageSearchDefinition} that need no database — the gates, the "see all" rule, the shapes.
@@ -53,6 +58,34 @@ final class WikiPageSearchDefinitionTest extends TestCase
         self::assertNull($this->definition(currentTenants: $current)->tenant(SearchQuery::forUserIdentifier('u-2', 'x', 5)));
         // Audit VN-1: a resolver answering the all-tenants marker in `current` mode searches nothing.
         self::assertNull($this->definition(currentTenants: $current)->tenant(SearchQuery::forUserIdentifier('u-3', 'x', 5)));
+    }
+
+    public function testAListOfCurrentTenants(): void
+    {
+        $lists = $this->createStub(WikiSearchTenantsResolverInterface::class);
+        $lists->method('currentTenants')->willReturnMap([
+            ['u-1', ['org-1', 'project-7', 'user-u-1', 'general']],
+            ['u-2', ['general', 'user-u-1', 'project-7', 'org-1', 'org-1']],
+            ['u-3', ['*', '', 'org-1']],
+            ['u-4', ['*']],
+            ['u-5', []],
+            ['u-6', array_map(static fn (int $i): string => 'org-' . $i, range(0, WikiPageSearchDefinition::MAX_TENANTS))],
+        ]);
+        $definition = $this->definition(currentTenants: $lists);
+        $tenant     = static fn (string $user): ?string => $definition->tenant(SearchQuery::forUserIdentifier($user, 'x', 5));
+
+        // Several keys: one stable value whatever the order and duplicates; documented as the prefix + SHA-256.
+        self::assertSame(WikiPageSearchDefinition::TENANTS_PREFIX . hash('sha256', "general\norg-1\nproject-7\nuser-u-1"), $tenant('u-1'));
+        self::assertSame($tenant('u-1'), $tenant('u-2'));
+        self::assertSame(['general', 'user-u-1', 'project-7', 'org-1'], $definition->currentKeys('u-2'));
+        // `*` and empty keys are dropped: one key left, the key itself (as in 1.46).
+        self::assertSame('org-1', $tenant('u-3'));
+        self::assertNull($tenant('u-4'));
+        self::assertNull($tenant('u-5'));
+        // More than MAX_TENANTS keys: none (fail closed).
+        self::assertSame([], $definition->currentKeys('u-6'));
+        self::assertNull($tenant('u-6'));
+        self::assertNull(WikiPageSearchDefinition::tenantId([]));
         self::assertTrue($definition->featureEnabled('*', SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         self::assertFalse($this->definition(viewers: false)->featureEnabled('*', SearchQuery::forUserIdentifier('u-1', 'x', 5)));
         self::assertSame(['p.title', 'r.contentText'], $definition->searchableFields());
@@ -110,7 +143,7 @@ final class WikiPageSearchDefinitionTest extends TestCase
     /**
      * @param list<string> $excluded
      */
-    private function definition(bool $viewers = true, bool $searchRoute = true, bool $global = true, array $excluded = [], string $scopeMode = WikiReadablePageFinder::SCOPE_OWNER, bool $sensitive = false, string $tenantMode = WikiPageSearchDefinition::TENANT_CURRENT, ?WikiSearchTenantResolverInterface $currentTenants = null): WikiPageSearchDefinition
+    private function definition(bool $viewers = true, bool $searchRoute = true, bool $global = true, array $excluded = [], string $scopeMode = WikiReadablePageFinder::SCOPE_OWNER, bool $sensitive = false, string $tenantMode = WikiPageSearchDefinition::TENANT_CURRENT, WikiSearchTenantResolverInterface|WikiSearchTenantsResolverInterface|null $currentTenants = null): WikiPageSearchDefinition
     {
         $routes = new RouteCollection();
         $routes->add('nowo_wiki_page_view', new Route('/wiki/{spaceSlug}/{pageSlug}'));

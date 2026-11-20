@@ -109,6 +109,22 @@
 
 ## Unreleased
 
+From **1.46.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+Nothing to change: a `search_kit_provider.tenant_resolver` implementing the single-key
+`WikiSearchTenantResolverInterface` keeps working (one current tenant).
+
+**Optional — several current tenants.** If people search several wiki tenants at once (an organisation, its projects,
+personal wikis, a general wiki), implement `Search\WikiSearchTenantsResolverInterface::currentTenants()` and return
+every key (the same keys as your `WikiLinkTenantResolverInterface`); the palette then searches their union. See
+[USAGE › Several current tenants](USAGE.md#several-current-tenants-147). Listeners of SearchKit's item visibility event
+that read `$event->tenant` get `tenants:<sha256>` for several keys (the key itself for one); the keys are in
+`WikiSearchSpacesEvent::$tenants`.
+
 ## To 1.46.0
 
 From **1.45.0**:

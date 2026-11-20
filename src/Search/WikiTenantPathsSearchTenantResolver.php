@@ -16,7 +16,7 @@ use Nowo\WikiBundle\Routing\WikiTenantPaths;
  * `search_kit_provider.tenant: all`. A host that aliased its own WikiLinkTenantResolverInterface must alias this port too.
  * Stateless.
  */
-final readonly class WikiTenantPathsSearchTenantResolver implements WikiSearchTenantResolverInterface
+final readonly class WikiTenantPathsSearchTenantResolver implements WikiSearchTenantResolverInterface, WikiSearchTenantsResolverInterface
 {
     /**
      * @param WikiTenantPaths|null $tenantPaths the tenant paths (null: none)
@@ -29,5 +29,13 @@ final readonly class WikiTenantPathsSearchTenantResolver implements WikiSearchTe
     public function currentTenant(string $userIdentifier): ?string
     {
         return $this->tenantPaths instanceof WikiTenantPaths && $this->tenantPaths->tenants() !== [] ? null : WikiTenantPathsLinkTenantResolver::NO_TENANT_ROW;
+    }
+
+    /** 1.47: the same answer as a list (empty: none). */
+    public function currentTenants(string $userIdentifier): array
+    {
+        $tenant = $this->currentTenant($userIdentifier);
+
+        return $tenant === null ? [] : [$tenant];
     }
 }

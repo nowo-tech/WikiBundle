@@ -269,6 +269,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Several current tenants for the SearchKit group**: the new port `Search\WikiSearchTenantsResolverInterface::currentTenants(string $userIdentifier): list<string>` (set with `search_kit_provider.tenant_resolver`, like the single-key port) lets a host return every wiki tenant a person works in from the current request (an organisation, its projects, personal wikis, a general wiki). With `tenant: current` the group searches the union of the spaces whose `WikiLinkTenantResolverInterface` key is exactly one of them. `*` and empty keys are dropped, duplicates ignored, more than 500 keys (`WikiPageSearchDefinition::MAX_TENANTS`) or an empty list find nothing; a `space:` filter, a scope or a recent never reaches outside the list.
+- The SearchKit tenant of a search over several tenants is `tenants:` + the SHA-256 of the sorted keys joined by a line feed (`WikiPageSearchDefinition::tenantId()`; one key: the key itself, as in 1.46), re-derived on every call. `WikiSearchSpacesEvent::$tenants` carries the keys.
+- `WikiTenantPathsSearchTenantResolver` (the default) also implements the list port.
+
+### Changed
+
+- The single-key `WikiSearchTenantResolverInterface` keeps working as a list of one key. The definition now receives the configured `tenant_resolver` service itself (either port); both interfaces are aliased to it.
+
 ## [1.46.0] - 2026-11-19
 
 ### Changed
