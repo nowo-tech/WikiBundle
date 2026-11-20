@@ -5,6 +5,7 @@
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
 - [To 1.49.0](#to-1490)
+- [To 1.49.0](#to-1490-1)
   - [The private entity manager notice](#the-private-entity-manager-notice)
   - [Reading the host-flush probe as a migration list](#reading-the-host-flush-probe-as-a-migration-list)
   - [Other notices of members 2.0 removes](#other-notices-of-members-20-removes)
@@ -135,6 +136,14 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+## To 1.49.0
+
+From **1.48.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ## To 1.49.0
 
