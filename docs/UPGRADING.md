@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.48.0](#to-1480)
 - [To 1.47.1](#to-1471)
 - [To 1.47.0](#to-1470)
 - [To 1.46.0](#to-1460)
@@ -110,6 +111,14 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 1.48.0
+
+From **1.47.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 **REST API clients:** a lock conflict (deadlock, lock wait timeout, serialization failure) now answers
 `ECODE: CONFLICT_001` (nothing saved; retry after `Retry-After`) or `ECODE: CONFLICT_002` (part of the request may be
