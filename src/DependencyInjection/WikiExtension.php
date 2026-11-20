@@ -526,11 +526,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
-        // 1.31.1 (house rule LQ): binary NO PAD collation on wiki_spaces.owner_scope_id on MySQL / MariaDB.
+        // 1.31.1 (house rule LQ): binary NO PAD collation on wiki_spaces.owner_scope_id on MySQL / MariaDB; 1.49.1 (audit XI-2)
+        // on postGenerateSchema, once every foreign key exists.
         $container->setDefinition(WikiSpaceCollationListener::class, (new Definition(WikiSpaceCollationListener::class))
             ->setArgument('$entityManager', $emProviderRef)
             ->setArgument('$logger', new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE))
-            ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchemaTable']));
+            ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
 
         $container->setDefinition(WikiSpaceAccessResolver::class, (new Definition(WikiSpaceAccessResolver::class))
             ->setAutowired(true)
