@@ -110,6 +110,8 @@
 
 ## Unreleased
 
+**Search tenant id of several tenants (1.47.1).** Listeners of SearchKit's item visibility event that read `$event->tenant` for a list of several current tenants now get `tenants:` + the SHA-256 of the JSON array of the sorted keys (it was the keys joined by a line feed). Do not compare it with a stored value; use `WikiPageSearchDefinition::tenantId()` or `WikiSearchSpacesEvent::$tenants`. The id of one key is unchanged. Keys containing control characters or starting with `tenants:` are dropped.
+
 ## To 1.47.0
 
 From **1.46.0**:
