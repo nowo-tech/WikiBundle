@@ -43,6 +43,7 @@ use Nowo\WikiBundle\Service\WikiRevisionCollisionException;
 use Nowo\WikiBundle\Service\WikiRevisionConflictException;
 use Nowo\WikiBundle\Service\WikiRevisionMismatchException;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
+use Nowo\WikiBundle\Transaction\WikiStorageFailureSubscriber;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -353,7 +354,13 @@ final readonly class WikiApiPageWriteOperations
             }
         } catch (WikiRevisionConflictException $conflict) {
             throw new WikiApiRefusal(409, 'WIKI_REVISION_CONFLICT', 'The page changed since base_revision', ['current_revision' => $conflict->currentRevision, 'updated_by' => $this->people->present($principal, $conflict->updatedBy, $page), 'updated_at' => WikiApiSerializer::ms($conflict->updatedAt)]);
-        } catch (WikiRevisionCollisionException) {
+        } catch (WikiRevisionCollisionException $collision) {
+            if (WikiStorageFailureSubscriber::isLockConflict($collision)) {
+                // 1.48 (REQ-RUNTIME-003 rule 6): a deadlock or lock wait is a lock conflict, answered by the storage-failure
+                // subscriber with CONFLICT_001 / CONFLICT_002, X-Conflict-Code and the shared policy's status.
+                throw $collision;
+            }
+
             throw new WikiApiRefusal(409, 'WIKI_SAVE_COLLISION', 'Another save got there first; nothing was written', [], ['Retry-After' => '1']);
         } catch (WikiPageArchivedException|WikiRevisionMismatchException) {
             // 1.40.2 (audit SH-L1): not every InvalidArgumentException; an ORM error is a server error, not "archived".

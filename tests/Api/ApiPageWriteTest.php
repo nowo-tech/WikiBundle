@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Api;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\ORM\EntityNotFoundException;
 use Doctrine\ORM\ORMInvalidArgumentException;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Api\WikiApiLevel;
@@ -176,12 +177,23 @@ final class ApiPageWriteTest extends ApiTestCase
         };
         self::assertSame(3, $this->json($this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]))['revision']);
 
-        // A lock that cannot be taken: nothing written, retry later.
+        // A lock that cannot be taken: nothing written, retry later (1.48: the lock conflict code, REQ-RUNTIME-003 rule 6).
         ApiPageRepository::$lockFails = true;
         $collision                    = $this->call('PUT', $path, self::ANA, ['content_markdown' => 'three', 'base_revision' => 3]);
-        $this->assertRefusal($collision, 409, 'WIKI_SAVE_COLLISION');
+        $this->assertRefusal($collision, 409, 'CONFLICT_001');
+        self::assertSame('CONFLICT_001', $collision->headers->get('X-Conflict-Code'));
         self::assertSame('1', $collision->headers->get('Retry-After'));
         self::assertCount(1, ApiAuditRecorder::$events);
+
+        // A collision that is not a lock conflict (the page row gone under the save) keeps its own code, no conflict header.
+        ApiPageRepository::$lockFails  = false;
+        ApiPageRepository::$beforeSave = static function (): never {
+            throw EntityNotFoundException::fromClassNameAndIdentifier(WikiPage::class, ['gone']);
+        };
+        $gone = $this->call('PUT', $path, self::ANA, ['content_markdown' => 'four', 'base_revision' => 3]);
+        $this->assertRefusal($gone, 409, 'WIKI_SAVE_COLLISION');
+        self::assertFalse($gone->headers->has('X-Conflict-Code'));
+        self::assertSame('1', $gone->headers->get('Retry-After'));
     }
 
     /**

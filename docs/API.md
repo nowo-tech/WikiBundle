@@ -259,8 +259,10 @@ transaction and the revision is compared under that lock:
   row and the page's events are not lost. Icon changes made outside the API (page form, import) are not audited.
 - An empty body over a page that has content needs `"allow_empty": true`, otherwise 422 `WIKI_EMPTY_BODY`.
 - With co-editing on, if the live session holds updates no revision has, the answer is 409 `WIKI_LIVE_SESSION`.
-- A lock that cannot be taken (a deadlock or a lock wait timeout) answers 409 `WIKI_SAVE_COLLISION` with
-  `Retry-After: 1`. Nothing is written.
+- A lock that cannot be taken (a deadlock or a lock wait timeout) answers 409 `CONFLICT_001` with
+  `X-Conflict-Code: CONFLICT_001` and `Retry-After` (since 1.48; `WIKI_SAVE_COLLISION` before). Nothing is written.
+  Another save that got there first in a way that is not a lock conflict still answers 409 `WIKI_SAVE_COLLISION` with
+  `Retry-After: 1`.
 
 **Heading ids (1.40).** A heading whose id differs from the slug of its text carries it in the Markdown as a `{#id}`
 suffix (`## Install guide {#setup}`, written by the editor after a rename or for a repeated heading). Keep these suffixes
@@ -281,7 +283,9 @@ again, marked `Idempotency-Replayed: true`, and the write does not run twice. Ke
 | A key that is empty or longer than 255 characters | 400 `IDEMP_003` |
 | The store fails | 503 `IDEMP_004` |
 
-Refusals and errors are not kept, so a retry is decided afresh. A replay checks the token's reach again.
+Refusals and errors are not kept, so a retry is decided afresh. A replay checks the token's reach again. One exception:
+a `CONFLICT_002` answer (part of the write was saved) keeps the key, so a retry replays that 409, with its
+`X-Conflict-Code`, instead of writing twice.
 
 ## Errors
 
@@ -308,6 +312,7 @@ Refusals and errors are not kept, so a retry is decided afresh. A replay checks 
 | `RATE_001` / `RATE_002` / `RATE_003` | 429 | Token limit / failed tokens per IP / the comment limit shared with the UI |
 | `IDEMP_001` – `IDEMP_004` | 409 / 409 / 400 / 503 | See [Idempotency](#idempotency) |
 | `AUDIT_001` | 503 | No `API_WRITE` listener |
+| `CONFLICT_001` / `CONFLICT_002` | 409 (503 when the host sets the policy so) | A lock conflict (deadlock, lock wait timeout, serialization failure). `CONFLICT_001`: nothing was written, retry after `Retry-After`. `CONFLICT_002`: part of the request may be saved, read again before repeating; no `Retry-After`. The same value is in the `X-Conflict-Code` header. `SERVER_002` before 1.48. See [Concurrency](CONCURRENCY.md#conflict-answers) |
 | `SERVER_001` | 500 | Anything else. Only the exception class is logged |
 
 ## Events

@@ -111,6 +111,19 @@
 
 ## Unreleased
 
+**REST API clients:** a lock conflict (deadlock, lock wait timeout, serialization failure) now answers
+`ECODE: CONFLICT_001` (nothing saved; retry after `Retry-After`) or `ECODE: CONFLICT_002` (part of the request may be
+saved; read again before repeating, no `Retry-After`) instead of `SERVER_002`, and a page save that lost on a lock
+answers `CONFLICT_001` instead of `WIKI_SAVE_COLLISION`. The same value is in the `X-Conflict-Code` response header.
+Clients that retried on `SERVER_002` should retry on `CONFLICT_001` only. The status is unchanged (409, or 503 with
+`nowo_transaction_doctrine.conflict_response.status: 503`).
+
+**Internal JSON endpoints:** `{"error": "unavailable"}` gains `"code": "CONFLICT_001" | "CONFLICT_002"`. **Pages:** the
+`HttpException` carries `X-Conflict-Code`. A cross-origin client that reads the header needs it in your
+`Access-Control-Expose-Headers`.
+
+`WikiStorageFailureSubscriber::committed()` is deprecated (removed in 2.0). No configuration or schema change.
+
 ## To 1.47.1
 
 From **1.47.0**:

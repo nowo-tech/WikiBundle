@@ -101,19 +101,23 @@ final class ApiIdempotencyTest extends ApiTestCase
 
         $fail(true);
         $first = $this->call('PUT', $path, self::ANA, $body, ['Idempotency-Key' => 'k-c']);
-        $this->assertRefusal($first, 409, 'SERVER_002');
+        $this->assertRefusal($first, 409, 'CONFLICT_002');
+        self::assertSame('CONFLICT_002', $first->headers->get('X-Conflict-Code'));
         self::assertNull($first->headers->get('Retry-After'));
         self::assertStringContainsString('Reload', (string) $first->getContent());
 
         $retry = $this->call('PUT', $path, self::ANA, $body, ['Idempotency-Key' => 'k-c']);
         self::assertSame(409, $retry->getStatusCode());
         self::assertSame('true', $retry->headers->get('Idempotency-Replayed'));
+        self::assertSame('CONFLICT_002', $retry->headers->get('X-Conflict-Code'), 'the replay keeps the conflict code');
+        self::assertNull($retry->headers->get('Retry-After'));
         self::assertSame((string) $first->getContent(), (string) $retry->getContent());
 
         // Not committed: the claim is released and the same key runs again.
         $fail(false);
         $open = $this->call('PUT', $path, self::ANA, $body, ['Idempotency-Key' => 'k-u']);
-        self::assertSame(409, $open->getStatusCode());
+        $this->assertRefusal($open, 409, 'CONFLICT_001');
+        self::assertSame('CONFLICT_001', $open->headers->get('X-Conflict-Code'));
         self::assertSame('1', $open->headers->get('Retry-After'));
         self::assertSame(200, $this->call('PUT', $path, self::ANA, $body, ['Idempotency-Key' => 'k-u'])->getStatusCode());
     }

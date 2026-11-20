@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Transaction;
 use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Nowo\TransactionContract\TransientStorageFailure;
+use Nowo\TransactionDoctrine\ConflictCode;
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponsePolicy;
 use Nowo\TransactionDoctrine\WriteUnit\ConcurrencyConflict;
 use Nowo\WikiBundle\Api\Security\WikiApiIdempotencyListener;
@@ -18,7 +19,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Throwable;
 
@@ -29,18 +29,24 @@ use function str_starts_with;
 /**
  * 1.37 (Beacon spec 239): a storage failure of a wiki route answers 409 or 503 instead of 500.
  *
- * - transient ({@see TransientStorageFailure} of the wiki's runner, or a DBAL {@see RetryableException}: deadlock, lock
- *   wait timeout): the status of the shared {@see ConflictResponsePolicy} (since 1.42 `409 Conflict`, was 503;
- *   `nowo_transaction_doctrine.conflict_response.status: 503` keeps 503) with `Retry-After` (the runner's hint, else the
- *   policy's). A {@see ConcurrencyConflict} that already committed (`committed: true`) gets the same status but **no**
- *   `Retry-After` and a "reload" message: a blind retry could repeat the part that was saved;
- * - conflict (a unique key refused the write of a concurrent request: a page or space slug taken meanwhile): `409 Conflict`.
+ * - lock conflict ({@see TransientStorageFailure} of the wiki's runner, or a DBAL {@see RetryableException}: deadlock,
+ *   lock wait timeout, serialization failure): the status of the shared {@see ConflictResponsePolicy} (409 by default;
+ *   `nowo_transaction_doctrine.conflict_response.status: 503` keeps 503) and the REQ-RUNTIME-003 rule 6 code of the
+ *   whole request ({@see ConflictCode::forRequest()}, the commit watermark of nowo-tech/transaction-doctrine >= 1.6):
+ *   - `CONFLICT_001` (nothing committed): `Retry-After` (the runner's hint, else the policy's) + `X-Conflict-Code`;
+ *   - `CONFLICT_002` (part of the request committed: a {@see ConcurrencyConflict} with `committed: true`, a lost
+ *     savepoint with an unknown outcome, or an earlier commit of the same request): `X-Conflict-Code`, **no**
+ *     `Retry-After` and a "reload" message, since a blind retry could repeat the part that was saved;
+ * - domain conflict (a unique key refused the write of a concurrent request: a page or space slug taken meanwhile):
+ *   `409 Conflict` with the wiki's own code and no `X-Conflict-Code` (not a lock conflict).
  *
- * The REST API answers in its own format (`{"err", "ECODE": "SERVER_002" | "WIKI_CONFLICT"}`, before the API's own
- * exception listener turns any failure into a 500); the bundle's internal JSON endpoints answer
- * `{"error": "unavailable" | "conflict"}`; the HTML pages get an {@see HttpException} of the policy /
+ * The REST API answers in its own format (1.48: `{"err", "ECODE": "CONFLICT_001" | "CONFLICT_002" | "WIKI_CONFLICT"}`,
+ * was `SERVER_002`; before the API's own exception listener turns any failure into a 500); the bundle's internal JSON
+ * endpoints answer `{"error": "unavailable", "code": "CONFLICT_00x"}` or `{"error": "conflict"}`; the HTML pages get
+ * the policy's HTTP exception ({@see ConflictResponsePolicy::httpExceptionFor()}, with `X-Conflict-Code`) or a
  * {@see ConflictHttpException}, rendered by the application's error page. The storage error stays the previous
- * exception (for the logs): no SQL or parameter reaches the client.
+ * exception (for the logs): no SQL or parameter reaches the client. Lost connections and other database errors are
+ * not conflicts and are left alone.
  *
  * Only the wiki's routes: a controller of the bundle (route names are configurable) or a route of the REST API.
  */
@@ -83,14 +89,13 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
         $hint    = $this->retryAfter($failure);
         if ($hint !== null) {
             $policy = $this->policy ?? new ConflictResponsePolicy();
-            if (self::committed($failure)) {
+            $code   = ConflictCode::forRequest($request, $failure);
+            if (!$code->retrySafe()) {
                 // Audit SR-WK-I2: keep the idempotency claim, a retry of the same key replays this answer.
                 WikiApiIdempotencyListener::keepClaim($request);
-                $event->setResponse(WikiApiRequestListener::answer(new WikiApiRefusal($policy->status, 'SERVER_002', self::PARTIAL_MESSAGE)));
-
-                return;
             }
-            $event->setResponse(WikiApiRequestListener::answer(new WikiApiRefusal($policy->status, 'SERVER_002', 'Service temporarily unavailable', [], $policy->headers($hint))));
+            $message = $code->retrySafe() ? 'A concurrent request changed the same data. Retry later.' : self::PARTIAL_MESSAGE;
+            $event->setResponse(WikiApiRequestListener::answer(new WikiApiRefusal($policy->status, $code->value, $message, [], $policy->headersFor($code, $hint))));
 
             return;
         }
@@ -110,22 +115,23 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
         $failure = $event->getThrowable();
         $hint    = $this->retryAfter($failure);
         if ($hint !== null) {
-            $policy    = $this->policy ?? new ConflictResponsePolicy();
-            $committed = self::committed($failure);
+            $policy  = $this->policy ?? new ConflictResponsePolicy();
+            $code    = ConflictCode::forRequest($request, $failure);
+            $headers = $policy->headersFor($code, $hint);
             if (self::wantsJson($request)) {
-                $event->setResponse($this->json('unavailable', $policy->status, $committed ? [] : $policy->headers($hint)));
+                $event->setResponse($this->json(['error' => 'unavailable', 'code' => $code->value], $policy->status, $headers));
 
                 return;
             }
-            $message = $committed ? self::PARTIAL_MESSAGE : 'The service is temporarily unavailable. Retry later.';
-            $event->setThrowable($committed ? new HttpException($policy->status, $message, $failure) : $policy->httpException($message, $failure, $hint));
+            $message = $code->retrySafe() ? 'The service is temporarily unavailable. Retry later.' : self::PARTIAL_MESSAGE;
+            $event->setThrowable($policy->httpExceptionFor($code, $message, $failure, $hint));
 
             return;
         }
 
         if ($this->isConflict($failure)) {
             if (self::wantsJson($request)) {
-                $event->setResponse($this->json('conflict', Response::HTTP_CONFLICT));
+                $event->setResponse($this->json(['error' => 'conflict'], Response::HTTP_CONFLICT));
 
                 return;
             }
@@ -133,7 +139,12 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
         }
     }
 
-    /** Whether the chain holds a {@see ConcurrencyConflict} whose attempt already committed (no safe retry). */
+    /**
+     * Whether the chain holds a {@see ConcurrencyConflict} whose attempt already committed (no safe retry).
+     *
+     * @deprecated since 1.48, the answers use {@see ConflictCode::forRequest()}, which also sees earlier commits of the
+     *             same request and lost savepoints; removed in 2.0
+     */
     public static function committed(Throwable $failure): bool
     {
         for ($current = $failure; $current instanceof Throwable; $current = $current->getPrevious()) {
@@ -163,6 +174,22 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
         }
 
         return null;
+    }
+
+    /**
+     * 1.48: whether the chain holds a lock conflict (the runner's {@see TransientStorageFailure}, or a DBAL
+     * {@see RetryableException}): the failures this subscriber answers with `CONFLICT_001` / `CONFLICT_002`. A caller
+     * that wraps such a failure in a domain exception rethrows it so the answer stays the platform's.
+     */
+    public static function isLockConflict(Throwable $failure): bool
+    {
+        for ($current = $failure; $current instanceof Throwable; $current = $current->getPrevious()) {
+            if ($current instanceof TransientStorageFailure || $current instanceof RetryableException) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** The policy's own Retry-After, as the hint of a failure that carries none. */
@@ -198,10 +225,11 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
     }
 
     /**
+     * @param array<string, string> $body
      * @param array<string, string> $headers
      */
-    private function json(string $error, int $status, array $headers = []): JsonResponse
+    private function json(array $body, int $status, array $headers = []): JsonResponse
     {
-        return new JsonResponse(['error' => $error], $status, $headers + ['Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff']);
+        return new JsonResponse($body, $status, $headers + ['Cache-Control' => 'no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 }
