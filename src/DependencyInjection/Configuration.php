@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
+use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\BooleanNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\EnumNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\ScalarNodeDefinition;
@@ -112,7 +113,31 @@ final class Configuration implements ConfigurationInterface
         $treeBuilder = new TreeBuilder(self::ALIAS);
         $root        = $treeBuilder->getRootNode();
 
-        $root
+        $this->addUserClassToTenantOnlySections($root);
+        $this->addAttachmentsSection($root);
+        $this->addCollaborationSection($root);
+        $this->addTreeToFavouritesSections($root);
+        $this->addRecentsToPageFilesSections($root);
+        $this->addCommentsSection($root);
+        $this->addSanitizerToEditorSections($root);
+        $this->addSecuritySection($root);
+        $this->addSearchToSearchKitProviderSections($root);
+        $this->addApiToImportExportSections($root);
+        $this->addSpaceIconToAiSections($root);
+        $this->addRoutesSection($root);
+        $this->addTemplatesSection($root);
+        $this->addWebUiSection($root);
+        $this->addFirewallSection($root);
+
+        return $treeBuilder;
+    }
+
+    /**
+     * Adds the `user_class` to `tenant_only` settings.
+     */
+    private function addUserClassToTenantOnlySections(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
             ->children()
                 ->scalarNode('user_class')
                     ->info('FQCN of the application user entity.')
@@ -199,6 +224,16 @@ final class Configuration implements ConfigurationInterface
                     ->info('1.9: when tenant_paths is set, leave out the tenant-less copies of the space-scoped routes.')
                     ->defaultFalse()
                 ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `attachments` section.
+     */
+    private function addAttachmentsSection(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('attachments')
                     ->info('1.9: page attachments and image upload (private storage, authorized on the page).')
                     ->addDefaultsIfNotSet()
@@ -217,38 +252,65 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
-                ->arrayNode('collaboration')
-                    ->info('1.13: real-time co-editing of Milkdown pages over Mercure (FR-076). Needs editor.type milkdown, nowo-tech/milkdown-editor-bundle >= 1.2 and symfony/mercure-bundle (or your own publisher / subscriber_authorizer services).')
-                    ->addDefaultsIfNotSet()
-                    ->children()
-                        ->booleanNode('enabled')->defaultFalse()->end()
-                        ->scalarNode('hub_url')->info('Hub URL the browser subscribes to (same registrable domain as the app, for the cookie).')->defaultValue(WikiCollabService::DEFAULTS['hub_url'])->end()
-                        ->scalarNode('topic_prefix')->info('Topic IRI prefix; the topic of a page is this prefix + the page id.')->defaultValue(WikiCollabService::DEFAULTS['topic_prefix'])->end()
-                        ->integerNode('max_update_bytes')->info('Largest decoded update / awareness message.')->min(1024)->defaultValue(WikiCollabService::DEFAULTS['max_update_bytes'])->end()
-                        ->integerNode('max_snapshot_bytes')->info('Largest decoded compaction snapshot.')->min(1024)->defaultValue(WikiCollabService::DEFAULTS['max_snapshot_bytes'])->end()
-                        ->integerNode('max_log_bytes')->info('Byte budget of the stored log of a page (snapshot + updates, base64); over it the log is dropped and editors reload.')->min(65536)->defaultValue(WikiCollabService::DEFAULTS['max_log_bytes'])->end()
-                        ->integerNode('compact_after')->info('Ask clients to compact the log once it holds this many updates.')->min(10)->defaultValue(WikiCollabService::DEFAULTS['compact_after'])->end()
-                        ->integerNode('max_log_entries')->info('Refuse updates (429) above this many until a client compacts.')->min(20)->defaultValue(WikiCollabService::DEFAULTS['max_log_entries'])->end()
-                        ->integerNode('seed_timeout')->info('Seconds after which an unfulfilled seed claim may be taken again.')->min(5)->defaultValue(WikiCollabService::DEFAULTS['seed_timeout'])->end()
-                        ->integerNode('reset_after_idle')->info('Seconds of inactivity after which a log that does not match the current revision is dropped.')->min(0)->defaultValue(WikiCollabService::DEFAULTS['reset_after_idle'])->end()
-                        ->integerNode('corrupt_resets')->info('Resets a client may trigger by reporting a log it cannot apply, per page and corrupt_window.')->min(1)->defaultValue(WikiCollabService::DEFAULTS['corrupt_resets'])->end()
-                        ->integerNode('corrupt_window')->info('Window of corrupt_resets, in seconds.')->min(10)->defaultValue(WikiCollabService::DEFAULTS['corrupt_window'])->end()
-                        ->scalarNode('rate_limiter')->info('Service id of a Symfony RateLimiterFactory applied per user and page to every collaboration request (token, state, update, awareness, compact). Required when collaboration is enabled.')->defaultNull()->end()
-                        ->scalarNode('update_rate_limiter')->info('1.14.1: service id of a RateLimiterFactory applied per user and page to update requests instead of rate_limiter (e.g. limiter.wiki_collab_update; null: rate_limiter).')->defaultNull()->end()
-                        ->scalarNode('awareness_rate_limiter')->info('1.14.1: service id of a RateLimiterFactory applied per user and page to presence (awareness) requests instead of rate_limiter (e.g. limiter.wiki_collab_awareness; null: rate_limiter).')->defaultNull()->end()
-                        ->scalarNode('user_rate_limiter')->info('1.13.1 (CW-I9): service id of a Symfony RateLimiterFactory applied per user across all pages to every collaboration request (null: none).')->defaultNull()->end()
-                        ->booleanNode('show_names')->info('1.13.1 (CW-I2): co-editors see each other\'s display name (getDisplayName() / getName()) instead of an opaque "Editor xxxx". Values that equal the login identifier or look like an e-mail address are never shown.')->defaultFalse()->end()
-                        ->booleanNode('save_conflict')->info('A page form saved outside the live session (hub down, editor standalone or offline) while the shared log holds unsaved updates: true (default) asks first and keeps the text in the form; false saves and drops the log, so those updates are lost, as before this option.')->defaultValue(WikiCollabService::DEFAULTS['save_conflict'])->end()
-                        ->scalarNode('store')->info('Service id of a WikiCollabStateStoreInterface (null: the Doctrine store, tables <prefix>_page_collab_*).')->defaultNull()->end()
-                        ->scalarNode('publisher')->info('Service id of a WikiCollabPublisherInterface (null: symfony/mercure HubInterface).')->defaultNull()->end()
-                        ->scalarNode('subscriber_authorizer')->info('Service id of a WikiCollabSubscriberAuthorizerInterface (null: symfony/mercure Authorization cookie).')->defaultNull()->end()
-                        ->scalarNode('mercure_hub')->info('Mercure hub name for the default publisher / authorizer (null: the default hub).')->defaultNull()->end()
-                    ->end()
-                    ->validate()
-                        ->ifTrue(static fn (array $collab): bool => $collab['compact_after'] >= $collab['max_log_entries'])
-                        ->thenInvalid('nowo_wiki.collaboration.compact_after must be lower than max_log_entries, got %s.')
-                    ->end()
-                ->end()
+            ->end();
+    }
+
+    /**
+     * Adds a part of the tree.
+     */
+    private function addCollaborationPart(ArrayNodeDefinition $collaboration): void
+    {
+        $collaboration
+            ->children()
+                ->booleanNode('enabled')->defaultFalse()->end()
+                ->scalarNode('hub_url')->info('Hub URL the browser subscribes to (same registrable domain as the app, for the cookie).')->defaultValue(WikiCollabService::DEFAULTS['hub_url'])->end()
+                ->scalarNode('topic_prefix')->info('Topic IRI prefix; the topic of a page is this prefix + the page id.')->defaultValue(WikiCollabService::DEFAULTS['topic_prefix'])->end()
+                ->integerNode('max_update_bytes')->info('Largest decoded update / awareness message.')->min(1024)->defaultValue(WikiCollabService::DEFAULTS['max_update_bytes'])->end()
+                ->integerNode('max_snapshot_bytes')->info('Largest decoded compaction snapshot.')->min(1024)->defaultValue(WikiCollabService::DEFAULTS['max_snapshot_bytes'])->end()
+                ->integerNode('max_log_bytes')->info('Byte budget of the stored log of a page (snapshot + updates, base64); over it the log is dropped and editors reload.')->min(65536)->defaultValue(WikiCollabService::DEFAULTS['max_log_bytes'])->end()
+                ->integerNode('compact_after')->info('Ask clients to compact the log once it holds this many updates.')->min(10)->defaultValue(WikiCollabService::DEFAULTS['compact_after'])->end()
+                ->integerNode('max_log_entries')->info('Refuse updates (429) above this many until a client compacts.')->min(20)->defaultValue(WikiCollabService::DEFAULTS['max_log_entries'])->end()
+                ->integerNode('seed_timeout')->info('Seconds after which an unfulfilled seed claim may be taken again.')->min(5)->defaultValue(WikiCollabService::DEFAULTS['seed_timeout'])->end()
+                ->integerNode('reset_after_idle')->info('Seconds of inactivity after which a log that does not match the current revision is dropped.')->min(0)->defaultValue(WikiCollabService::DEFAULTS['reset_after_idle'])->end()
+                ->integerNode('corrupt_resets')->info('Resets a client may trigger by reporting a log it cannot apply, per page and corrupt_window.')->min(1)->defaultValue(WikiCollabService::DEFAULTS['corrupt_resets'])->end()
+                ->integerNode('corrupt_window')->info('Window of corrupt_resets, in seconds.')->min(10)->defaultValue(WikiCollabService::DEFAULTS['corrupt_window'])->end()
+                ->scalarNode('rate_limiter')->info('Service id of a Symfony RateLimiterFactory applied per user and page to every collaboration request (token, state, update, awareness, compact). Required when collaboration is enabled.')->defaultNull()->end()
+                ->scalarNode('update_rate_limiter')->info('1.14.1: service id of a RateLimiterFactory applied per user and page to update requests instead of rate_limiter (e.g. limiter.wiki_collab_update; null: rate_limiter).')->defaultNull()->end()
+                ->scalarNode('awareness_rate_limiter')->info('1.14.1: service id of a RateLimiterFactory applied per user and page to presence (awareness) requests instead of rate_limiter (e.g. limiter.wiki_collab_awareness; null: rate_limiter).')->defaultNull()->end()
+                ->scalarNode('user_rate_limiter')->info('1.13.1 (CW-I9): service id of a Symfony RateLimiterFactory applied per user across all pages to every collaboration request (null: none).')->defaultNull()->end()
+                ->booleanNode('show_names')->info('1.13.1 (CW-I2): co-editors see each other\'s display name (getDisplayName() / getName()) instead of an opaque "Editor xxxx". Values that equal the login identifier or look like an e-mail address are never shown.')->defaultFalse()->end()
+                ->booleanNode('save_conflict')->info('A page form saved outside the live session (hub down, editor standalone or offline) while the shared log holds unsaved updates: true (default) asks first and keeps the text in the form; false saves and drops the log, so those updates are lost, as before this option.')->defaultValue(WikiCollabService::DEFAULTS['save_conflict'])->end()
+                ->scalarNode('store')->info('Service id of a WikiCollabStateStoreInterface (null: the Doctrine store, tables <prefix>_page_collab_*).')->defaultNull()->end()
+                ->scalarNode('publisher')->info('Service id of a WikiCollabPublisherInterface (null: symfony/mercure HubInterface).')->defaultNull()->end()
+                ->scalarNode('subscriber_authorizer')->info('Service id of a WikiCollabSubscriberAuthorizerInterface (null: symfony/mercure Authorization cookie).')->defaultNull()->end()
+                ->scalarNode('mercure_hub')->info('Mercure hub name for the default publisher / authorizer (null: the default hub).')->defaultNull()->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `collaboration` section; its large children have their own methods.
+     */
+    private function addCollaborationSection(ArrayNodeDefinition $rootNode): void
+    {
+        $collaboration = $rootNode->children()->arrayNode('collaboration');
+        $collaboration
+            ->info('1.13: real-time co-editing of Milkdown pages over Mercure (FR-076). Needs editor.type milkdown, nowo-tech/milkdown-editor-bundle >= 1.2 and symfony/mercure-bundle (or your own publisher / subscriber_authorizer services).')
+            ->addDefaultsIfNotSet();
+        $this->addCollaborationPart($collaboration);
+        $collaboration
+            ->validate()
+                ->ifTrue(static fn (array $collab): bool => $collab['compact_after'] >= $collab['max_log_entries'])
+                ->thenInvalid('nowo_wiki.collaboration.compact_after must be lower than max_log_entries, got %s.')
+            ->end();
+    }
+
+    /**
+     * Adds the `tree` to `favourites` settings.
+     */
+    private function addTreeToFavouritesSections(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('tree')
                     ->info('1.14: Outline-style page tree in the sidebar (UiKit tree, nowo-tech/ui-kit-bundle >= 2.24): disclosures, current branch unfolded, fold state per user and space, moves by drag and drop, Alt+arrows and a "Move" form. Off: the 1.13 nested list.')
                     ->addDefaultsIfNotSet()
@@ -289,6 +351,16 @@ final class Configuration implements ConfigurationInterface
                         ->integerNode('shown')->info('Favourites listed in the sidebar section (the most recent first).')->min(1)->max(100)->defaultValue(10)->end()
                     ->end()
                 ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `recents` to `page_files` settings.
+     */
+    private function addRecentsToPageFilesSections(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('recents')
                     ->info('1.45: the pages a person opened last, in a "Recently viewed" section above the page tree. Per person, bounded (keep), filtered again for that person on every request. Off: no section, nothing recorded, no table in the schema.')
                     ->addDefaultsIfNotSet()
@@ -326,6 +398,16 @@ final class Configuration implements ConfigurationInterface
                         ->integerNode('max_purge_files')->info('Distinct files one purge event carries at most; beyond it the event is truncated (truncated: true) and a warning is logged.')->min(1)->max(100000)->defaultValue(5000)->end()
                     ->end()
                 ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `comments` section.
+     */
+    private function addCommentsSection(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('comments')
                     ->info('1.16: comments of a page (Milkdown 1.6 inline threads and page-level comments) in a right-side panel toggled from the page tabs. Needs editor.type milkdown and nowo-tech/milkdown-editor-bundle >= 1.6. Off: no toggle, no panel, no route, no comment table in the schema. Rights: WikiAction::ViewComments, Comment, ResolveComment, ModerateComments (granted only by a host access checker).')
                     ->addDefaultsIfNotSet()
@@ -374,6 +456,16 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `sanitizer` to `editor` settings.
+     */
+    private function addSanitizerToEditorSections(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('sanitizer')
                     ->info('1.11: extra HTML allowed in page bodies (e.g. the <details> / <summary> or data-* attributes of a Markdown dialect). script, style, iframe, forms, embeds, style= and on* handlers are always refused.')
                     ->addDefaultsIfNotSet()
@@ -463,126 +555,163 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
-                ->arrayNode('security')
+            ->end();
+    }
+
+    /**
+     * Adds a part of the tree.
+     */
+    private function addSecurityPart(ArrayNodeDefinition $security): void
+    {
+        $security
+            ->children()
+                ->scalarNode('access_checker')->defaultNull()->end()
+                ->arrayNode('access_roles')
+                    ->info('General gate of the wiki (REQ-UI-002). An empty list grants nothing through this gate.')
+                    ->scalarPrototype()->end()
+                    ->defaultValue(self::DEFAULT_ACCESS_ROLES)
+                ->end()
+                ->arrayNode('roles')
+                    ->info('Roles per action (REQ-UI-003 security.roles.<action>; replace the deprecated <action>_roles keys). null = the deprecated key, else the default. admin = every action; an empty list grants that action to nobody but the admin roles.')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->scalarNode('access_checker')->defaultNull()->end()
-                        ->arrayNode('access_roles')
-                            ->info('General gate of the wiki (REQ-UI-002). An empty list grants nothing through this gate.')
-                            ->scalarPrototype()->end()
-                            ->defaultValue(self::DEFAULT_ACCESS_ROLES)
-                        ->end()
-                        ->arrayNode('roles')
-                            ->info('Roles per action (REQ-UI-003 security.roles.<action>; replace the deprecated <action>_roles keys). null = the deprecated key, else the default. admin = every action; an empty list grants that action to nobody but the admin roles.')
-                            ->addDefaultsIfNotSet()
-                            ->children()
-                                ->append($this->rolesNode('admin'))
-                                ->append($this->rolesNode('list'))
-                                ->append($this->rolesNode('create'))
-                                ->append($this->rolesNode('edit'))
-                                ->append($this->rolesNode('history'))
-                                ->append($this->rolesNode('archive'))
-                                ->append($this->rolesNode('ai'))
-                                ->append($this->rolesNode('import'))
-                                ->append($this->rolesNode('export'))
-                            ->end()
-                        ->end()
-                        ->variableNode('admin_roles')
-                            ->info('Deprecated since 1.10: use security.roles.admin.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.admin" instead.')
-                        ->end()
-                        ->variableNode('list_roles')
-                            ->info('Deprecated since 1.10: use security.roles.list.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.list" instead.')
-                        ->end()
-                        ->variableNode('create_roles')
-                            ->info('Deprecated since 1.10: use security.roles.create.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.create" instead.')
-                        ->end()
-                        ->variableNode('edit_roles')
-                            ->info('Deprecated since 1.10: use security.roles.edit.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.edit" instead.')
-                        ->end()
-                        ->variableNode('history_roles')
-                            ->info('Deprecated since 1.10: use security.roles.history.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.history" instead.')
-                        ->end()
-                        ->variableNode('archive_roles')
-                            ->info('Deprecated since 1.10: use security.roles.archive.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.archive" instead.')
-                        ->end()
-                        ->variableNode('ai_roles')
-                            ->info('Deprecated since 1.10: use security.roles.ai.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.ai" instead.')
-                        ->end()
-                        ->variableNode('import_roles')
-                            ->info('Deprecated since 1.10: use security.roles.import.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.import" instead.')
-                        ->end()
-                        ->variableNode('export_roles')
-                            ->info('Deprecated since 1.10: use security.roles.export.')
-                            ->defaultNull()
-                            ->treatNullLike([])
-                            ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
-                                ->thenInvalid('Expected a list of role names, got %s.')
-                            ->end()
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.export" instead.')
-                        ->end()
-                        ->booleanNode('allow_unauthenticated')
-                            ->info('DEV / DEMO ONLY: allow every wiki action without a role check. Literal boolean; refused in the prod environment and in non-debug kernels (test* environments excepted).')
-                            ->defaultFalse()
-                        ->end()
+                        ->append($this->rolesNode('admin'))
+                        ->append($this->rolesNode('list'))
+                        ->append($this->rolesNode('create'))
+                        ->append($this->rolesNode('edit'))
+                        ->append($this->rolesNode('history'))
+                        ->append($this->rolesNode('archive'))
+                        ->append($this->rolesNode('ai'))
+                        ->append($this->rolesNode('import'))
+                        ->append($this->rolesNode('export'))
                     ->end()
                 ->end()
+                ->variableNode('admin_roles')
+                    ->info('Deprecated since 1.10: use security.roles.admin.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.admin" instead.')
+                ->end()
+                ->variableNode('list_roles')
+                    ->info('Deprecated since 1.10: use security.roles.list.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.list" instead.')
+                ->end()
+                ->variableNode('create_roles')
+                    ->info('Deprecated since 1.10: use security.roles.create.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.create" instead.')
+                ->end()
+                ->variableNode('edit_roles')
+                    ->info('Deprecated since 1.10: use security.roles.edit.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.edit" instead.')
+                ->end()
+                ->variableNode('history_roles')
+                    ->info('Deprecated since 1.10: use security.roles.history.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.history" instead.')
+                ->end()
+                ->variableNode('archive_roles')
+                    ->info('Deprecated since 1.10: use security.roles.archive.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.archive" instead.')
+                ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `ai_roles` to `allow_unauthenticated` settings.
+     */
+    private function addSecurityAiRolesToAllowUnauthenticatedSections(ArrayNodeDefinition $security): void
+    {
+        $security
+            ->children()
+                ->variableNode('ai_roles')
+                    ->info('Deprecated since 1.10: use security.roles.ai.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.ai" instead.')
+                ->end()
+                ->variableNode('import_roles')
+                    ->info('Deprecated since 1.10: use security.roles.import.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.import" instead.')
+                ->end()
+                ->variableNode('export_roles')
+                    ->info('Deprecated since 1.10: use security.roles.export.')
+                    ->defaultNull()
+                    ->treatNullLike([])
+                    ->validate()
+                        ->ifTrue(static fn (mixed $value): bool => $value !== null && !self::isRoleList($value))
+                        ->thenInvalid('Expected a list of role names, got %s.')
+                    ->end()
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated, use "nowo_wiki.security.roles.export" instead.')
+                ->end()
+                ->booleanNode('allow_unauthenticated')
+                    ->info('DEV / DEMO ONLY: allow every wiki action without a role check. Literal boolean; refused in the prod environment and in non-debug kernels (test* environments excepted).')
+                    ->defaultFalse()
+                ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `security` section; its large children have their own methods.
+     */
+    private function addSecuritySection(ArrayNodeDefinition $rootNode): void
+    {
+        $security = $rootNode->children()->arrayNode('security');
+        $security
+            ->addDefaultsIfNotSet();
+        $this->addSecurityPart($security);
+        $this->addSecurityAiRolesToAllowUnauthenticatedSections($security);
+    }
+
+    /**
+     * Adds the `search` to `search_kit_provider` settings.
+     */
+    private function addSearchToSearchKitProviderSections(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('search')
                     ->info('1.21: the search page (routes.search).')
                     ->addDefaultsIfNotSet()
@@ -621,6 +750,16 @@ final class Configuration implements ConfigurationInterface
                         ->booleanNode('sensitive')->defaultFalse()->info('1.46: page titles are sensitive: the group is then off while SearchKit keeps recents in the browser without revalidating them (recent.enabled true, recent.revalidate false). Literal boolean.')->end()
                     ->end()
                 ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `api` to `import_export` settings.
+     */
+    private function addApiToImportExportSections(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('api')
                     ->info('1.24 (spec 218): a REST API for scripts and agents with a host token. Off: no route, service, listener or table. See docs/API.md.')
                     ->addDefaultsIfNotSet()
@@ -663,6 +802,16 @@ final class Configuration implements ConfigurationInterface
                         ->integerNode('max_document_bytes')->defaultValue(WikiArchiveHelper::DEFAULT_MAX_DOCUMENT_BYTES)->min(1024)->max(WikiArchiveHelper::DEFAULT_MAX_UNCOMPRESSED_BYTES)->info('1.21.1: largest Markdown document an import accepts, in bytes. A ZIP entry over it is refused before anything is extracted (or as soon as a lying entry passes it), and a file over it in a directory source (wiki:import) before anything is written.')->end()
                     ->end()
                 ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `space_icon` to `ai` settings.
+     */
+    private function addSpaceIconToAiSections(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('space_icon')
                     ->info('1.32: the optional UX icon of a wiki space (WikiSpace::icon).')
                     ->addDefaultsIfNotSet()
@@ -707,135 +856,194 @@ final class Configuration implements ConfigurationInterface
                         ->integerNode('http_timeout')->defaultValue(30)->min(1)->max(600)->info('Idle timeout and max duration (seconds) of the nowo_wiki.ai.http_client service; set it as http_client of your AI platform.')->end()
                     ->end()
                 ->end()
-                ->arrayNode('routes')
-                    ->addDefaultsIfNotSet()
-                    ->children()
-                        ->arrayNode('index')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_index')->end()
-                        ->end()->end()
-                        ->arrayNode('space')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_space')->end()
-                        ->end()->end()
-                        ->arrayNode('page_view')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_view')->end()
-                        ->end()->end()
-                        ->arrayNode('page_edit')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/edit')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_edit')->end()
-                        ->end()->end()
-                        ->arrayNode('page_new')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/new')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_new')->end()
-                        ->end()->end()
-                        ->arrayNode('page_history')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/history')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_history')->end()
-                        ->end()->end()
-                        ->arrayNode('page_diff')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/diff')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_diff')->end()
-                        ->end()->end()
-                        ->arrayNode('page_archive')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/archive')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_archive')->end()
-                        ->end()->end()
-                        ->arrayNode('search')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/search')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_search')->end()
-                        ->end()->end()
-                        ->arrayNode('ai_ask')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/ask')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_ai_ask')->end()
-                        ->end()->end()
-                        ->arrayNode('space_export')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/export')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_space_export')->end()
-                        ->end()->end()
-                        ->arrayNode('space_import')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/import')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_space_import')->end()
-                        ->end()->end()
-                        ->arrayNode('page_unarchive')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/unarchive')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_unarchive')->end()
-                        ->end()->end()
-                        ->arrayNode('page_restore')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/restore')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_restore')->end()
-                        ->end()->end()
-                        ->arrayNode('attachment_upload')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/attachments')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_attachment_upload')->end()
-                        ->end()->end()
-                        ->arrayNode('attachment_download')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/attachments/{attachmentId}')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_attachment_download')->end()
-                        ->end()->end()
-                        ->arrayNode('page_favourite')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/favourite')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_favourite')->end()
-                        ->end()->end()
-                        ->arrayNode('favourite_remove')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/favourites/{favouriteId}/remove')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_favourite_remove')->end()
-                        ->end()->end()
-                        ->arrayNode('page_version_save')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/versions/new')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_version_save')->end()
-                        ->end()->end()
-                        ->arrayNode('page_version_copy')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/copy')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_version_copy')->end()
-                        ->end()->end()
-                        ->arrayNode('page_delete')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/delete')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_delete')->end()
-                        ->end()->end()
-                        ->arrayNode('space_trash')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/trash')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_space_trash')->end()
-                        ->end()->end()
-                        ->arrayNode('trash_restore')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/trash/{batchId}/restore')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_trash_restore')->end()
-                        ->end()->end()
-                        ->arrayNode('trash_purge')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/trash/{batchId}/purge')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_trash_purge')->end()
-                        ->end()->end()
-                        ->arrayNode('page_move')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/move')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_move')->end()
-                        ->end()->end()
-                        ->arrayNode('space_tree')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/tree/{action}')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_space_tree')->end()
-                        ->end()->end()
-                        ->arrayNode('page_comments')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_comments')->end()
-                        ->end()->end()
-                        ->arrayNode('space_panel_state')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/panel-state')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_space_panel_state')->end()
-                        ->end()->end()
-                        ->arrayNode('page_collab')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_page_collab')->end()
-                        ->end()->end()
-                        ->arrayNode('link_candidates')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/link-candidates')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_link_candidates')->end()
-                        ->end()->end()
-                        ->arrayNode('link_sections')->addDefaultsIfNotSet()->children()
-                            ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/link-candidates/{pageId}/sections')->end()
-                            ->scalarNode('name')->defaultValue('nowo_wiki_link_sections')->end()
-                        ->end()->end()
-                    ->end()
-                ->end()
+            ->end();
+    }
+
+    /**
+     * Adds a part of the tree.
+     */
+    private function addRoutesPart(ArrayNodeDefinition $routes): void
+    {
+        $routes
+            ->children()
+                ->arrayNode('index')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_index')->end()
+                ->end()->end()
+                ->arrayNode('space')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_space')->end()
+                ->end()->end()
+                ->arrayNode('page_view')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_view')->end()
+                ->end()->end()
+                ->arrayNode('page_edit')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/edit')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_edit')->end()
+                ->end()->end()
+                ->arrayNode('page_new')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/new')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_new')->end()
+                ->end()->end()
+                ->arrayNode('page_history')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/history')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_history')->end()
+                ->end()->end()
+                ->arrayNode('page_diff')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/diff')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_diff')->end()
+                ->end()->end()
+                ->arrayNode('page_archive')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/archive')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_archive')->end()
+                ->end()->end()
+                ->arrayNode('search')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/search')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_search')->end()
+                ->end()->end()
+            ->end();
+    }
+
+    /**
+     * Adds a part of the tree.
+     */
+    private function addRoutesPart2(ArrayNodeDefinition $routes): void
+    {
+        $routes
+            ->children()
+                ->arrayNode('ai_ask')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/ask')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_ai_ask')->end()
+                ->end()->end()
+                ->arrayNode('space_export')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/export')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_space_export')->end()
+                ->end()->end()
+                ->arrayNode('space_import')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/import')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_space_import')->end()
+                ->end()->end()
+                ->arrayNode('page_unarchive')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/unarchive')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_unarchive')->end()
+                ->end()->end()
+                ->arrayNode('page_restore')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/restore')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_restore')->end()
+                ->end()->end()
+                ->arrayNode('attachment_upload')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/attachments')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_attachment_upload')->end()
+                ->end()->end()
+                ->arrayNode('attachment_download')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/attachments/{attachmentId}')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_attachment_download')->end()
+                ->end()->end()
+                ->arrayNode('page_favourite')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/favourite')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_favourite')->end()
+                ->end()->end()
+                ->arrayNode('favourite_remove')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/favourites/{favouriteId}/remove')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_favourite_remove')->end()
+                ->end()->end()
+            ->end();
+    }
+
+    /**
+     * Adds a part of the tree.
+     */
+    private function addRoutesPart3(ArrayNodeDefinition $routes): void
+    {
+        $routes
+            ->children()
+                ->arrayNode('page_version_save')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/versions/new')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_version_save')->end()
+                ->end()->end()
+                ->arrayNode('page_version_copy')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/revisions/{revisionNumber}/copy')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_version_copy')->end()
+                ->end()->end()
+                ->arrayNode('page_delete')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/delete')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_delete')->end()
+                ->end()->end()
+                ->arrayNode('space_trash')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/trash')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_space_trash')->end()
+                ->end()->end()
+                ->arrayNode('trash_restore')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/trash/{batchId}/restore')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_trash_restore')->end()
+                ->end()->end()
+                ->arrayNode('trash_purge')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/trash/{batchId}/purge')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_trash_purge')->end()
+                ->end()->end()
+                ->arrayNode('page_move')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/move')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_move')->end()
+                ->end()->end()
+                ->arrayNode('space_tree')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/tree/{action}')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_space_tree')->end()
+                ->end()->end()
+                ->arrayNode('page_comments')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/comments/{path}')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_comments')->end()
+                ->end()->end()
+            ->end();
+    }
+
+    /**
+     * Adds a part of the tree.
+     */
+    private function addRoutesPart4(ArrayNodeDefinition $routes): void
+    {
+        $routes
+            ->children()
+                ->arrayNode('space_panel_state')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/panel-state')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_space_panel_state')->end()
+                ->end()->end()
+                ->arrayNode('page_collab')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/pages/{pageSlug}/collab/{action}')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_page_collab')->end()
+                ->end()->end()
+                ->arrayNode('link_candidates')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/link-candidates')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_link_candidates')->end()
+                ->end()->end()
+                ->arrayNode('link_sections')->addDefaultsIfNotSet()->children()
+                    ->scalarNode('path')->defaultValue('/tools/wiki/spaces/{spaceSlug}/link-candidates/{pageId}/sections')->end()
+                    ->scalarNode('name')->defaultValue('nowo_wiki_link_sections')->end()
+                ->end()->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `routes` section; its large children have their own methods.
+     */
+    private function addRoutesSection(ArrayNodeDefinition $rootNode): void
+    {
+        $routes = $rootNode->children()->arrayNode('routes');
+        $routes
+            ->addDefaultsIfNotSet();
+        $this->addRoutesPart($routes);
+        $this->addRoutesPart2($routes);
+        $this->addRoutesPart3($routes);
+        $this->addRoutesPart4($routes);
+    }
+
+    /**
+     * Adds the `templates` section.
+     */
+    private function addTemplatesSection(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->arrayNode('templates')
                     ->info('Deprecated since 1.10: use web_ui.layout_template and web_ui.templates.<page>.')
                     ->addDefaultsIfNotSet()
@@ -878,210 +1086,256 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
-                ->arrayNode('web_ui')
-                    ->info('Wiki Web UI (REQ-UI-001 / REQ-UI-003): the pages extend the UiKit page scaffolds; the CSS stack, icons and row actions come from nowo_ui_kit.')
+            ->end();
+    }
+
+    /**
+     * Adds the `enabled` to `reading_align` settings.
+     */
+    private function addWebUiEnabledToReadingAlignSections(ArrayNodeDefinition $webUi): void
+    {
+        $webUi
+            ->children()
+                ->booleanNode('enabled')
+                    ->info('false: the nowo_wiki route loader registers no route.')
+                    ->defaultTrue()
+                ->end()
+                ->booleanNode('space_index')
+                    ->info('1.21: false = the tenant-less space index (routes.index, /tools/wiki) is not registered (no route, so 404), for hosts whose spaces live under their own pages (tenant_paths). Its breadcrumb link disappears with it.')
+                    ->defaultTrue()
+                ->end()
+                ->enumNode('import_export')
+                    ->info('1.21: where the space home offers import and export. page (default) = the Outline / Notion exports in the header and the import card on the page; dialog = one "Import & export" header action that opens a dialog with both.')
+                    ->values(['page', 'dialog'])
+                    ->defaultValue('page')
+                ->end()
+                ->arrayNode('assets')
+                    ->info('1.21: the bundle\'s own wiki.css / wiki.js tags in nowo_ui_styles / nowo_ui_scripts. false (or styles: false / scripts: false) for hosts that bundle the sources themselves (Vite, AssetMapper): the block then prints nothing of the bundle (styles: false also leaves out the UiKit stylesheet the scaffold adds, scripts: false the UiKit / rich-content scripts the page adds).')
+                    ->addDefaultsIfNotSet()
+                    ->beforeNormalization()
+                        ->ifTrue(static fn (mixed $v): bool => is_bool($v))
+                        ->then(static fn (bool $v): array => ['styles' => $v, 'scripts' => $v])
+                    ->end()
+                    ->children()
+                        ->booleanNode('styles')->defaultTrue()->end()
+                        ->booleanNode('scripts')->defaultTrue()->end()
+                    ->end()
+                ->end()
+                ->booleanNode('tree_rail')
+                    ->info('1.29, literal boolean. true: the page tree card of the space home and the page view gets a collapse button (UiKit rail_toggle) that folds it to a thin rail; the state is kept per user in the panel state store (comments.state_store, default the session; localStorage without a session) and ?tree=rail|full overrides it. false (default): no button, as before.')
+                    ->defaultFalse()
+                ->end()
+                ->enumNode('tree_collapsed_mode')
+                    ->info('1.30, with tree_rail: what a collapsed tree leaves on the page view. rail (default, as in 1.29): a thin rail with the vertical "Pages" title. hidden: nothing (the main column takes the whole width); an expand button (UiKit rail_toggle) appears in the page header toolbar, before the comments toggle, and reopens it. The state is kept as with rail (panel state store, ?tree=rail|full). The space home (no tab row) keeps the rail.')
+                    ->values(['rail', 'hidden'])
+                    ->defaultValue('rail')
+                ->end()
+                ->arrayNode('read_view')
+                    ->info('1.30: the read-only editor of the page view (commenters with the page source, comments.read_view_source).')
                     ->addDefaultsIfNotSet()
                     ->children()
-                        ->booleanNode('enabled')
-                            ->info('false: the nowo_wiki route loader registers no route.')
-                            ->defaultTrue()
-                        ->end()
-                        ->booleanNode('space_index')
-                            ->info('1.21: false = the tenant-less space index (routes.index, /tools/wiki) is not registered (no route, so 404), for hosts whose spaces live under their own pages (tenant_paths). Its breadcrumb link disappears with it.')
-                            ->defaultTrue()
-                        ->end()
-                        ->enumNode('import_export')
-                            ->info('1.21: where the space home offers import and export. page (default) = the Outline / Notion exports in the header and the import card on the page; dialog = one "Import & export" header action that opens a dialog with both.')
-                            ->values(['page', 'dialog'])
-                            ->defaultValue('page')
-                        ->end()
-                        ->arrayNode('assets')
-                            ->info('1.21: the bundle\'s own wiki.css / wiki.js tags in nowo_ui_styles / nowo_ui_scripts. false (or styles: false / scripts: false) for hosts that bundle the sources themselves (Vite, AssetMapper): the block then prints nothing of the bundle (styles: false also leaves out the UiKit stylesheet the scaffold adds, scripts: false the UiKit / rich-content scripts the page adds).')
-                            ->addDefaultsIfNotSet()
-                            ->beforeNormalization()
-                                ->ifTrue(static fn (mixed $v): bool => is_bool($v))
-                                ->then(static fn (bool $v): array => ['styles' => $v, 'scripts' => $v])
-                            ->end()
-                            ->children()
-                                ->booleanNode('styles')->defaultTrue()->end()
-                                ->booleanNode('scripts')->defaultTrue()->end()
-                            ->end()
-                        ->end()
-                        ->booleanNode('tree_rail')
-                            ->info('1.29, literal boolean. true: the page tree card of the space home and the page view gets a collapse button (UiKit rail_toggle) that folds it to a thin rail; the state is kept per user in the panel state store (comments.state_store, default the session; localStorage without a session) and ?tree=rail|full overrides it. false (default): no button, as before.')
+                        ->booleanNode('seamless_swap')
+                            ->info('1.30, literal boolean. true: the read-only editor is mounted in the same box as the server-rendered body (one grid cell, the larger height reserved, no reflow), styled with the same typography (--nowo-wiki-read-* tokens on both) and cross-faded in when ready (no fade with prefers-reduced-motion). false (default): as in 1.29, the editor replaces the hidden body when ready.')
                             ->defaultFalse()
                         ->end()
-                        ->enumNode('tree_collapsed_mode')
-                            ->info('1.30, with tree_rail: what a collapsed tree leaves on the page view. rail (default, as in 1.29): a thin rail with the vertical "Pages" title. hidden: nothing (the main column takes the whole width); an expand button (UiKit rail_toggle) appears in the page header toolbar, before the comments toggle, and reopens it. The state is kept as with rail (panel state store, ?tree=rail|full). The space home (no tab row) keeps the rail.')
-                            ->values(['rail', 'hidden'])
-                            ->defaultValue('rail')
+                    ->end()
+                ->end()
+                ->arrayNode('edit_view')
+                    ->info('1.33: the edit form of an existing page.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->enumNode('layout')
+                            ->info('1.33. form (default, as in 1.32): the UiKit form scaffold (header, tab row, the form). read: the read view\'s layout around the form: the page tree (with tree_rail, its fold state and its toolbar button), the reading column (reading_width / reading_align), the card toolbar (page_header.toolbar_position: card) and the in-wiki path (page_header.path: card); the form takes the place of the page body (block wiki_page_form_body, in .nowo-wiki-edit-body, which gives the editor the read view\'s typography). The new-page form keeps the form layout.')
+                            ->values(['form', 'read'])
+                            ->defaultValue('form')
                         ->end()
-                        ->arrayNode('read_view')
-                            ->info('1.30: the read-only editor of the page view (commenters with the page source, comments.read_view_source).')
+                    ->end()
+                ->end()
+                ->booleanNode('new_page_dialog')
+                    ->info('1.35, literal boolean. true: "New page" opens a dialog with the new-page form: from the page actions of the page view, and from a menu on each row of the page tree (tree.enabled; right click, the row\'s «…» button, or the ContextMenu key / Shift+F10) with "New page above", "New page below" and "New page as child", each opening the dialog with the place filled in. The menu shows only the choices the user may take (the create right on the space, Edit on the parent page); the server checks them again. The new-page form then takes the hidden parent / position fields (also as ?parent=&position= on its own page). false (default): no dialog, no menu, the new-page form as in 1.34.')
+                    ->defaultFalse()
+                ->end()
+                ->enumNode('page_nav')
+                    ->info('1.39: previous / next page links on the page view, in the tree\'s reading order (depth first: a page, its children, then its next sibling), with each neighbour\'s icon and title. Built from the sidebar tree the view already loaded (readable, active pages, at most pagination.max_tree_pages; no extra query); nothing at the ends. top: under the in-wiki path and the card toolbar; bottom: at the end of the content; both; none (default): no links.')
+                    ->values(['none', 'top', 'bottom', 'both'])
+                    ->defaultValue('none')
+                ->end()
+                ->enumNode('children')
+                    ->info('1.30: the direct sub-pages of the page view (readable, not archived, tree order, one query): a "N subpages" chip near the top of the page that opens the list, and a "Pages in this section" card after the body. never (default, as in 1.29): neither; always: both; auto: only while the tree is collapsed or on one column (under 62rem).')
+                    ->values(['never', 'auto', 'always'])
+                    ->defaultValue('never')
+                ->end()
+                ->booleanNode('breadcrumb_current_label')
+                    ->info('1.30, literal boolean, needs nowo-tech/breadcrumb-kit-bundle >= 2.17 (optional). true: the page view names the current BreadcrumbKit crumb after the page title (BreadcrumbCurrentLabelInterface). Without BreadcrumbKit, or with an older one, nothing happens.')
+                    ->defaultFalse()
+                ->end()
+                ->enumNode('narrow_tree_position')
+                    ->info('1.29: where the page tree goes on the page view below 62rem (one column): before (default, as before) or after the page.')
+                    ->values(['before', 'after'])
+                    ->defaultValue('before')
+                ->end()
+                ->enumNode('reading_width')
+                    ->info('1.29: width of the page view\'s main column. full (default, as before): the whole column; readable: centred, at most --nowo-wiki-reading-width (default the UiKit --nowo-ui-reading-width, 75ch). 1.38 text: the content card takes the whole main column (no empty band beside it on a wide screen) and the text inside it (path, title, body, editor, revision line) keeps that measure, placed by reading_align.')
+                    ->values(['full', 'readable', 'text'])
+                    ->defaultValue('full')
+                ->end()
+                ->enumNode('page_meta')
+                    ->info('1.31: where the page view shows the revision and its date. scaffold (default, as in 1.30): the UiKit show scaffold\'s meta list (Revision / Updated, Y-m-d H:i). card: one muted footer line of the content card ("v3 · Updated …"), the date in the reader\'s locale (medium date, short time; Y-m-d H:i without the intl extension).')
+                    ->values(['scaffold', 'card'])
+                    ->defaultValue('scaffold')
+                ->end()
+                ->enumNode('reading_align')
+                    ->info('1.30, with reading_width: readable: where the column sits in the main area. center (default, as in 1.29): centred; start: at the start, next to the tree, with the same maximum width. 1.38, with reading_width: text: where the text sits inside the full-width card (start: aligned to the card\'s start edge).')
+                    ->values(['center', 'start'])
+                    ->defaultValue('center')
+                ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `page_header` to `layout_template` settings.
+     */
+    private function addWebUiPageHeaderToLayoutTemplateSections(ArrayNodeDefinition $webUi): void
+    {
+        $webUi
+            ->children()
+                ->arrayNode('page_header')
+                    ->info('1.29: header of the page view and the edit form.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->enumNode('layout')
+                            ->info('stacked (default, as before): the UiKit header, then the tab row (Page / Edit / History + the comments toggle). compact: the tabs and the actions (icon buttons and a "more" menu, the comments toggle at the end) on one row under the title (UiKit tabs_inline).')
+                            ->values(['stacked', 'compact'])
+                            ->defaultValue('stacked')
+                        ->end()
+                        ->enumNode('title')
+                            ->info('both (default): the header title and the page body as written. dedupe: on the read view (server body and the read-only editor), a first body heading <h1> whose text equals the page title (trimmed, spaces collapsed, case-insensitive) is not shown; the stored revision, the editor, search, export and the API are unchanged. 1.30 body: the other way round: when the body starts with that <h1>, the page view header shows neither the title nor the space subtitle (UiKit compact presentation: the title stays as a visually hidden <h1>; the tabs, actions and toolbar stay) and the body keeps its heading; without such a heading the header is unchanged. 1.31 card: the page view header never shows the title (as with body); when the body does not start with that <h1>, the title is printed as the <h1> of the content card, after the path / sub-pages head and before the body (--nowo-wiki-read-h1-size).')
+                            ->values(['both', 'dedupe', 'body', 'card'])
+                            ->defaultValue('both')
+                        ->end()
+                        ->enumNode('tabs')
+                            ->info('1.30. row (default, as in 1.29): the Page / Edit / History tabs (tab row, or inline in the compact header). toolbar: no tabs; on the page view Edit (pencil) and History (clock) are icon buttons of the toolbar (tree toggle, Edit, History, host buttons, comments, then the actions and the "more" menu); on the edit form and the history "Back to page" replaces the Page tab; the current view keeps aria-current="page". Uses the one-row header whatever layout is.')
+                            ->values(['row', 'toolbar'])
+                            ->defaultValue('row')
+                        ->end()
+                        ->enumNode('toolbar_position')
+                            ->info('1.30. header (default, as in 1.29): the page view toolbar is in the page header. card: it moves to the top right of the content (server body and read-only editor), sticky while the page scrolls; the header keeps the title (or nothing with title: body) and the tabs (unless tabs: toolbar).')
+                            ->values(['header', 'card'])
+                            ->defaultValue('header')
+                        ->end()
+                        ->arrayNode('edit_toolbar')
+                            ->info('1.33: the tabs / toolbar of the edit form of a page.')
                             ->addDefaultsIfNotSet()
                             ->children()
-                                ->booleanNode('seamless_swap')
-                                    ->info('1.30, literal boolean. true: the read-only editor is mounted in the same box as the server-rendered body (one grid cell, the larger height reserved, no reflow), styled with the same typography (--nowo-wiki-read-* tokens on both) and cross-faded in when ready (no fade with prefers-reduced-motion). false (default): as in 1.29, the editor replaces the hidden body when ready.')
-                                    ->defaultFalse()
+                                ->enumNode('current_tab')
+                                    ->info('shown (default, as in 1.32): the Edit tab (or toolbar button) stays, marked current. hidden: the edit form leaves it out (Page / History only).')
+                                    ->values(['shown', 'hidden'])
+                                    ->defaultValue('shown')
                                 ->end()
-                            ->end()
-                        ->end()
-                        ->arrayNode('edit_view')
-                            ->info('1.33: the edit form of an existing page.')
-                            ->addDefaultsIfNotSet()
-                            ->children()
-                                ->enumNode('layout')
-                                    ->info('1.33. form (default, as in 1.32): the UiKit form scaffold (header, tab row, the form). read: the read view\'s layout around the form: the page tree (with tree_rail, its fold state and its toolbar button), the reading column (reading_width / reading_align), the card toolbar (page_header.toolbar_position: card) and the in-wiki path (page_header.path: card); the form takes the place of the page body (block wiki_page_form_body, in .nowo-wiki-edit-body, which gives the editor the read view\'s typography). The new-page form keeps the form layout.')
-                                    ->values(['form', 'read'])
-                                    ->defaultValue('form')
-                                ->end()
-                            ->end()
-                        ->end()
-                        ->booleanNode('new_page_dialog')
-                            ->info('1.35, literal boolean. true: "New page" opens a dialog with the new-page form: from the page actions of the page view, and from a menu on each row of the page tree (tree.enabled; right click, the row\'s «…» button, or the ContextMenu key / Shift+F10) with "New page above", "New page below" and "New page as child", each opening the dialog with the place filled in. The menu shows only the choices the user may take (the create right on the space, Edit on the parent page); the server checks them again. The new-page form then takes the hidden parent / position fields (also as ?parent=&position= on its own page). false (default): no dialog, no menu, the new-page form as in 1.34.')
-                            ->defaultFalse()
-                        ->end()
-                        ->enumNode('page_nav')
-                            ->info('1.39: previous / next page links on the page view, in the tree\'s reading order (depth first: a page, its children, then its next sibling), with each neighbour\'s icon and title. Built from the sidebar tree the view already loaded (readable, active pages, at most pagination.max_tree_pages; no extra query); nothing at the ends. top: under the in-wiki path and the card toolbar; bottom: at the end of the content; both; none (default): no links.')
-                            ->values(['none', 'top', 'bottom', 'both'])
-                            ->defaultValue('none')
-                        ->end()
-                        ->enumNode('children')
-                            ->info('1.30: the direct sub-pages of the page view (readable, not archived, tree order, one query): a "N subpages" chip near the top of the page that opens the list, and a "Pages in this section" card after the body. never (default, as in 1.29): neither; always: both; auto: only while the tree is collapsed or on one column (under 62rem).')
-                            ->values(['never', 'auto', 'always'])
-                            ->defaultValue('never')
-                        ->end()
-                        ->booleanNode('breadcrumb_current_label')
-                            ->info('1.30, literal boolean, needs nowo-tech/breadcrumb-kit-bundle >= 2.17 (optional). true: the page view names the current BreadcrumbKit crumb after the page title (BreadcrumbCurrentLabelInterface). Without BreadcrumbKit, or with an older one, nothing happens.')
-                            ->defaultFalse()
-                        ->end()
-                        ->enumNode('narrow_tree_position')
-                            ->info('1.29: where the page tree goes on the page view below 62rem (one column): before (default, as before) or after the page.')
-                            ->values(['before', 'after'])
-                            ->defaultValue('before')
-                        ->end()
-                        ->enumNode('reading_width')
-                            ->info('1.29: width of the page view\'s main column. full (default, as before): the whole column; readable: centred, at most --nowo-wiki-reading-width (default the UiKit --nowo-ui-reading-width, 75ch). 1.38 text: the content card takes the whole main column (no empty band beside it on a wide screen) and the text inside it (path, title, body, editor, revision line) keeps that measure, placed by reading_align.')
-                            ->values(['full', 'readable', 'text'])
-                            ->defaultValue('full')
-                        ->end()
-                        ->enumNode('page_meta')
-                            ->info('1.31: where the page view shows the revision and its date. scaffold (default, as in 1.30): the UiKit show scaffold\'s meta list (Revision / Updated, Y-m-d H:i). card: one muted footer line of the content card ("v3 · Updated …"), the date in the reader\'s locale (medium date, short time; Y-m-d H:i without the intl extension).')
-                            ->values(['scaffold', 'card'])
-                            ->defaultValue('scaffold')
-                        ->end()
-                        ->enumNode('reading_align')
-                            ->info('1.30, with reading_width: readable: where the column sits in the main area. center (default, as in 1.29): centred; start: at the start, next to the tree, with the same maximum width. 1.38, with reading_width: text: where the text sits inside the full-width card (start: aligned to the card\'s start edge).')
-                            ->values(['center', 'start'])
-                            ->defaultValue('center')
-                        ->end()
-                        ->arrayNode('page_header')
-                            ->info('1.29: header of the page view and the edit form.')
-                            ->addDefaultsIfNotSet()
-                            ->children()
-                                ->enumNode('layout')
-                                    ->info('stacked (default, as before): the UiKit header, then the tab row (Page / Edit / History + the comments toggle). compact: the tabs and the actions (icon buttons and a "more" menu, the comments toggle at the end) on one row under the title (UiKit tabs_inline).')
-                                    ->values(['stacked', 'compact'])
-                                    ->defaultValue('stacked')
-                                ->end()
-                                ->enumNode('title')
-                                    ->info('both (default): the header title and the page body as written. dedupe: on the read view (server body and the read-only editor), a first body heading <h1> whose text equals the page title (trimmed, spaces collapsed, case-insensitive) is not shown; the stored revision, the editor, search, export and the API are unchanged. 1.30 body: the other way round: when the body starts with that <h1>, the page view header shows neither the title nor the space subtitle (UiKit compact presentation: the title stays as a visually hidden <h1>; the tabs, actions and toolbar stay) and the body keeps its heading; without such a heading the header is unchanged. 1.31 card: the page view header never shows the title (as with body); when the body does not start with that <h1>, the title is printed as the <h1> of the content card, after the path / sub-pages head and before the body (--nowo-wiki-read-h1-size).')
-                                    ->values(['both', 'dedupe', 'body', 'card'])
-                                    ->defaultValue('both')
-                                ->end()
-                                ->enumNode('tabs')
-                                    ->info('1.30. row (default, as in 1.29): the Page / Edit / History tabs (tab row, or inline in the compact header). toolbar: no tabs; on the page view Edit (pencil) and History (clock) are icon buttons of the toolbar (tree toggle, Edit, History, host buttons, comments, then the actions and the "more" menu); on the edit form and the history "Back to page" replaces the Page tab; the current view keeps aria-current="page". Uses the one-row header whatever layout is.')
-                                    ->values(['row', 'toolbar'])
-                                    ->defaultValue('row')
-                                ->end()
-                                ->enumNode('toolbar_position')
-                                    ->info('1.30. header (default, as in 1.29): the page view toolbar is in the page header. card: it moves to the top right of the content (server body and read-only editor), sticky while the page scrolls; the header keeps the title (or nothing with title: body) and the tabs (unless tabs: toolbar).')
-                                    ->values(['header', 'card'])
-                                    ->defaultValue('header')
-                                ->end()
-                                ->arrayNode('edit_toolbar')
-                                    ->info('1.33: the tabs / toolbar of the edit form of a page.')
-                                    ->addDefaultsIfNotSet()
-                                    ->children()
-                                        ->enumNode('current_tab')
-                                            ->info('shown (default, as in 1.32): the Edit tab (or toolbar button) stays, marked current. hidden: the edit form leaves it out (Page / History only).')
-                                            ->values(['shown', 'hidden'])
-                                            ->defaultValue('shown')
-                                        ->end()
-                                        ->enumNode('back')
-                                            ->info('none (default, as in 1.32): no extra button. view: a "View page" icon button (UiKit `view` icon, an eye) among the header actions of the edit form; with tabs: toolbar it takes the place of "Back to page".')
-                                            ->values(['none', 'view'])
-                                            ->defaultValue('none')
-                                        ->end()
-                                    ->end()
-                                ->end()
-                                ->enumNode('path')
-                                    ->info('1.30. none (default, as in 1.29). card: the in-wiki path (space › ancestors) above the page body of the page view, each level a link; more than three levels fold the middle ones into a "…" menu; under 30rem only "‹ parent". An ancestor the viewer may not read is "…" without link, title or name.')
-                                    ->values(['none', 'card'])
+                                ->enumNode('back')
+                                    ->info('none (default, as in 1.32): no extra button. view: a "View page" icon button (UiKit `view` icon, an eye) among the header actions of the edit form; with tabs: toolbar it takes the place of "Back to page".')
+                                    ->values(['none', 'view'])
                                     ->defaultValue('none')
                                 ->end()
                             ->end()
                         ->end()
-                        ->arrayNode('slots')
-                            ->info('1.21: host templates drawn in place of a part of the pages (included with the page variables; null = the bundle part). sidebar: the page tree card of the space home and the page view; space_intro: the search card of the space home; page_header_extra: after the page header of the page view (before the tab row); 1.30 page_header_toolbar: host buttons in the page header toolbar of the page view and the edit form (compact header: before the tree and comments toggles; stacked header: at the end of the tab row).')
-                            ->addDefaultsIfNotSet()
-                            ->children()
-                                ->scalarNode('sidebar')->defaultNull()->end()
-                                ->scalarNode('space_intro')->defaultNull()->end()
-                                ->scalarNode('page_header_extra')->defaultNull()->end()
-                                ->scalarNode('page_header_toolbar')->defaultNull()->end()
-                            ->end()
-                        ->end()
-                        ->scalarNode('path_prefix')
-                            ->info('Prefix of every wiki route path (e.g. /admin). null = the deprecated route_prefix, else none.')
-                            ->defaultNull()
-                        ->end()
-                        ->scalarNode('layout_template')
-                            ->info('Layout the pages extend. null = nowo_ui_kit.layouts.admin. A pre-1.10 layout without the UiKit canonical blocks is wrapped in a deprecated bridge.')
-                            ->defaultNull()
-                        ->end()
-                        ->arrayNode('templates')
-                            ->info('Per-page template overrides (page id => template); null = the bundle template.')
-                            ->addDefaultsIfNotSet()
-                            ->children()
-                                ->scalarNode('index')->defaultNull()->end()
-                                ->scalarNode('space')->defaultNull()->end()
-                                ->scalarNode('page_view')->defaultNull()->end()
-                                ->scalarNode('page_edit')->defaultNull()->end()
-                                ->scalarNode('page_history')->defaultNull()->end()
-                                ->scalarNode('page_diff')->defaultNull()->end()
-                                ->scalarNode('search')->defaultNull()->end()
-                                ->scalarNode('ai_ask')->defaultNull()->end()
-                                ->scalarNode('page_move')->defaultNull()->end()
-                                ->scalarNode('trash')->defaultNull()->end()
-                                ->scalarNode('page_version')->defaultNull()->end()
-                                ->scalarNode('trash_purge')->defaultNull()->end()
-                            ->end()
-                        ->end()
-                        ->arrayNode('tab_icons')
-                            ->info('1.18: icon of each page tab (Page / Edit / History), so the tab row follows the host tab style (text, icon and text, icon only). A UiKit icon name, [prefix:]name in lowercase letters, digits and single hyphens (tabler:* renders with the ux_icon or tabler-icons set); null or "" = no icon on that tab.')
-                            ->addDefaultsIfNotSet()
-                            ->children()
-                                ->append($this->tabIconNode('page'))
-                                ->append($this->tabIconNode('edit'))
-                                ->append($this->tabIconNode('history'))
-                            ->end()
-                        ->end()
-                        ->enumNode('css_framework')
-                            ->values([null, 'bootstrap', 'bootstrap4', 'bootstrap5', 'tabler', 'tailwind', 'foundation', 'custom', 'none'])
-                            ->defaultNull()
-                            ->info('Deprecated since 1.10: set nowo_ui_kit.css_framework once for every bundle. Only seeds nowo_ui_kit.css_framework (and icon_set) when the host leaves them unset.')
-                            ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated: set nowo_ui_kit.css_framework once for every bundle. It only seeds nowo_ui_kit.css_framework when the host leaves it unset.')
+                        ->enumNode('path')
+                            ->info('1.30. none (default, as in 1.29). card: the in-wiki path (space › ancestors) above the page body of the page view, each level a link; more than three levels fold the middle ones into a "…" menu; under 30rem only "‹ parent". An ancestor the viewer may not read is "…" without link, title or name.')
+                            ->values(['none', 'card'])
+                            ->defaultValue('none')
                         ->end()
                     ->end()
                 ->end()
+                ->arrayNode('slots')
+                    ->info('1.21: host templates drawn in place of a part of the pages (included with the page variables; null = the bundle part). sidebar: the page tree card of the space home and the page view; space_intro: the search card of the space home; page_header_extra: after the page header of the page view (before the tab row); 1.30 page_header_toolbar: host buttons in the page header toolbar of the page view and the edit form (compact header: before the tree and comments toggles; stacked header: at the end of the tab row).')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->scalarNode('sidebar')->defaultNull()->end()
+                        ->scalarNode('space_intro')->defaultNull()->end()
+                        ->scalarNode('page_header_extra')->defaultNull()->end()
+                        ->scalarNode('page_header_toolbar')->defaultNull()->end()
+                    ->end()
+                ->end()
+                ->scalarNode('path_prefix')
+                    ->info('Prefix of every wiki route path (e.g. /admin). null = the deprecated route_prefix, else none.')
+                    ->defaultNull()
+                ->end()
+                ->scalarNode('layout_template')
+                    ->info('Layout the pages extend. null = nowo_ui_kit.layouts.admin. A pre-1.10 layout without the UiKit canonical blocks is wrapped in a deprecated bridge.')
+                    ->defaultNull()
+                ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `templates` to `css_framework` settings.
+     */
+    private function addWebUiTemplatesToCssFrameworkSections(ArrayNodeDefinition $webUi): void
+    {
+        $webUi
+            ->children()
+                ->arrayNode('templates')
+                    ->info('Per-page template overrides (page id => template); null = the bundle template.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->scalarNode('index')->defaultNull()->end()
+                        ->scalarNode('space')->defaultNull()->end()
+                        ->scalarNode('page_view')->defaultNull()->end()
+                        ->scalarNode('page_edit')->defaultNull()->end()
+                        ->scalarNode('page_history')->defaultNull()->end()
+                        ->scalarNode('page_diff')->defaultNull()->end()
+                        ->scalarNode('search')->defaultNull()->end()
+                        ->scalarNode('ai_ask')->defaultNull()->end()
+                        ->scalarNode('page_move')->defaultNull()->end()
+                        ->scalarNode('trash')->defaultNull()->end()
+                        ->scalarNode('page_version')->defaultNull()->end()
+                        ->scalarNode('trash_purge')->defaultNull()->end()
+                    ->end()
+                ->end()
+                ->arrayNode('tab_icons')
+                    ->info('1.18: icon of each page tab (Page / Edit / History), so the tab row follows the host tab style (text, icon and text, icon only). A UiKit icon name, [prefix:]name in lowercase letters, digits and single hyphens (tabler:* renders with the ux_icon or tabler-icons set); null or "" = no icon on that tab.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->append($this->tabIconNode('page'))
+                        ->append($this->tabIconNode('edit'))
+                        ->append($this->tabIconNode('history'))
+                    ->end()
+                ->end()
+                ->enumNode('css_framework')
+                    ->values([null, 'bootstrap', 'bootstrap4', 'bootstrap5', 'tabler', 'tailwind', 'foundation', 'custom', 'none'])
+                    ->defaultNull()
+                    ->info('Deprecated since 1.10: set nowo_ui_kit.css_framework once for every bundle. Only seeds nowo_ui_kit.css_framework (and icon_set) when the host leaves them unset.')
+                    ->setDeprecated(self::PACKAGE, '1.10', 'The "%path%.%node%" option is deprecated: set nowo_ui_kit.css_framework once for every bundle. It only seeds nowo_ui_kit.css_framework when the host leaves it unset.')
+                ->end()
+            ->end();
+    }
+
+    /**
+     * Adds the `web_ui` section; its large children have their own methods.
+     */
+    private function addWebUiSection(ArrayNodeDefinition $rootNode): void
+    {
+        $webUi = $rootNode->children()->arrayNode('web_ui');
+        $webUi
+            ->info('Wiki Web UI (REQ-UI-001 / REQ-UI-003): the pages extend the UiKit page scaffolds; the CSS stack, icons and row actions come from nowo_ui_kit.')
+            ->addDefaultsIfNotSet();
+        $this->addWebUiEnabledToReadingAlignSections($webUi);
+        $this->addWebUiPageHeaderToLayoutTemplateSections($webUi);
+        $this->addWebUiTemplatesToCssFrameworkSections($webUi);
+    }
+
+    /**
+     * Adds the `firewall` section.
+     */
+    private function addFirewallSection(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
                 ->scalarNode('firewall')
                     ->defaultValue('main')
                     ->setDeprecated('nowo-tech/wiki-bundle', '1.6', 'The "%path%.%node%" option is deprecated and has no effect: access uses whichever secured firewall handles the wiki routes (see WikiTokenGuard). It will be removed in 2.0.')
                 ->end()
             ->end();
-
-        return $treeBuilder;
     }
 
     /**
