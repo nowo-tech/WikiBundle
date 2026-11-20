@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
 use Nowo\WikiBundle\Search\UserProviderWikiSearchViewerResolver;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
 use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
+use Nowo\WikiBundle\Search\WikiSearchTenantsResolverAdapter;
 use Nowo\WikiBundle\Search\WikiSearchTenantsResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Search\WikiTenantPathsSearchTenantResolver;
@@ -69,7 +70,8 @@ final class WikiExtensionSearchKitTest extends TestCase
         self::assertSame(WikiPageSearchDefinition::TENANT_CURRENT, $definition->getArgument('$tenantMode'));
         self::assertSame(WikiTenantPathsSearchTenantResolver::class, (string) $definition->getArgument('$currentTenants'));
         self::assertSame(WikiTenantPathsSearchTenantResolver::class, (string) $container->getAlias(WikiSearchTenantResolverInterface::class));
-        self::assertSame(WikiTenantPathsSearchTenantResolver::class, (string) $container->getAlias(WikiSearchTenantsResolverInterface::class));
+        self::assertSame(WikiSearchTenantsResolverAdapter::class, (string) $container->getAlias(WikiSearchTenantsResolverInterface::class));
+        self::assertSame(WikiTenantPathsSearchTenantResolver::class, (string) $container->getDefinition(WikiSearchTenantsResolverAdapter::class)->getArgument('$inner'));
 
         $finder = $container->getDefinition(WikiReadablePageFinder::class);
         self::assertSame(200, $finder->getArgument('$candidates'));

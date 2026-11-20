@@ -49,12 +49,17 @@ use function implode;
 use function in_array;
 use function is_array;
 use function is_string;
+use function json_encode;
 use function mb_strtolower;
 use function preg_match;
 use function sort;
+use function str_starts_with;
 use function strlen;
 use function trim;
 
+use const JSON_THROW_ON_ERROR;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 use const SORT_STRING;
 
 /**
@@ -210,8 +215,10 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
 
     /**
      * 1.47: the stable SearchKit tenant of a list of current tenant keys (what SearchKit's item visibility event and the
-     * recents carry): the key itself for one key (as in 1.46), {@see self::TENANTS_PREFIX} plus the SHA-256 of the sorted
-     * keys joined by a line feed for several, null for none. The same keys always give the same value, whatever their order.
+     * recents carry): the key itself for one key (as in 1.46), {@see self::TENANTS_PREFIX} plus the SHA-256 of the JSON
+     * array of the sorted keys for several (1.47.1: unambiguous, no two lists share an id), null for none. The same keys
+     * always give the same value, whatever their order. Keys are never control characters and never start with the
+     * prefix ({@see self::currentKeys()}), so a key can never equal the id of a list.
      *
      * @param list<string> $keys valid current tenant keys ({@see self::currentKeys()})
      */
@@ -225,12 +232,13 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
         }
         sort($keys, SORT_STRING);
 
-        return self::TENANTS_PREFIX . hash('sha256', implode("\n", $keys));
+        return self::TENANTS_PREFIX . hash('sha256', json_encode($keys, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     /**
      * 1.47: the current tenant keys of the viewer, from either resolver port: strings only, never empty nor
-     * {@see self::TENANT_ALL} (audit VN-1), without duplicates, compared exactly; more than {@see self::MAX_TENANTS}: none.
+     * {@see self::TENANT_ALL} (audit VN-1), without control characters nor the {@see self::TENANTS_PREFIX} prefix (audit VN2-1;
+     * such a key is dropped), without duplicates, compared exactly; more than {@see self::MAX_TENANTS} distinct keys: none.
      *
      * @return list<string>
      */
@@ -241,14 +249,25 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
             $this->currentTenants instanceof WikiSearchTenantResolverInterface  => [$this->currentTenants->currentTenant($userIdentifier)],
             default                                                             => [],
         };
-        $keys = [];
+        $seen = [];
         foreach ($answer as $key) {
-            if (is_string($key) && $key !== '' && $key !== self::TENANT_ALL && !in_array($key, $keys, true)) {
-                $keys[] = $key;
+            if (!is_string($key) || $key === '' || $key === self::TENANT_ALL || str_starts_with($key, self::TENANTS_PREFIX) || preg_match('/\p{Cc}/u', $key) !== 0) {
+                continue;
+            }
+            $seen[$key] = true;
+            // Stop at the first key over the cap: a huge answer is never walked to the end (audit VN2-2).
+            if (count($seen) > self::MAX_TENANTS) {
+                return [];
             }
         }
 
-        return count($keys) > self::MAX_TENANTS ? [] : $keys;
+        // Numeric-looking keys become int array keys: back to the strings they were.
+        $keys = [];
+        foreach (array_keys($seen) as $key) {
+            $keys[] = (string) $key;
+        }
+
+        return $keys;
     }
 
     /** On with a viewer resolver; the role gate (`list`) is decided for the viewer before the SQL ({@see self::baseQuery()}). */

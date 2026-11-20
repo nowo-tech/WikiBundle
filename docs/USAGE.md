@@ -230,12 +230,12 @@ nowo_wiki:
 Rules:
 
 - Keys are compared exactly (`===`): no case or whitespace folding. `*` and empty strings are never keys (dropped),
-  duplicates are ignored, and more than 500 keys (`WikiPageSearchDefinition::MAX_TENANTS`) find nothing. An empty list
+  duplicates are ignored, keys containing control characters or starting with `tenants:` are dropped (1.47.1), and more than 500 distinct keys (`WikiPageSearchDefinition::MAX_TENANTS`) find nothing. An empty list
   finds nothing.
 - Nothing widens the list: a `space:` filter, a SearchKit scope or a recent naming a space outside these tenants finds
   nothing.
 - The SearchKit tenant (SearchKit's item visibility event, the recents check) is the key itself for one key, and
-  `tenants:` followed by the SHA-256 of the sorted keys joined by a line feed for several
+  `tenants:` followed by the SHA-256 of the JSON array of the sorted keys for several (1.47.1)
   (`WikiPageSearchDefinition::tenantId()`): stable for the same keys in any order. The keys themselves are in the spaces
   event (`WikiSearchSpacesEvent::$tenants`).
 - To narrow further per space (a project whose wiki feature is off), use the spaces event below; it can only exclude.

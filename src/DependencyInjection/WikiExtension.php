@@ -143,6 +143,7 @@ use Nowo\WikiBundle\Search\UserProviderWikiSearchViewerResolver;
 use Nowo\WikiBundle\Search\WikiReadablePageFinder;
 use Nowo\WikiBundle\Search\WikiSearchScopeListener;
 use Nowo\WikiBundle\Search\WikiSearchTenantResolverInterface;
+use Nowo\WikiBundle\Search\WikiSearchTenantsResolverAdapter;
 use Nowo\WikiBundle\Search\WikiSearchTenantsResolverInterface;
 use Nowo\WikiBundle\Search\WikiSearchViewerResolverInterface;
 use Nowo\WikiBundle\Search\WikiTenantPathsSearchTenantResolver;
@@ -615,7 +616,11 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
         // 1.47: the service may implement the single-key port (1.46) or the list port; the definition reads either.
         $container->setAlias(WikiSearchTenantResolverInterface::class, $tenantResolver);
-        $container->setAlias(WikiSearchTenantsResolverInterface::class, $tenantResolver);
+        // 1.47.1 (audit VN2-2): the list interface is the configured service only through an adapter, so that autowiring it
+        // never hands a single-key resolver where a list is declared.
+        $container->setDefinition(WikiSearchTenantsResolverAdapter::class, (new Definition(WikiSearchTenantsResolverAdapter::class))
+            ->setArgument('$inner', new Reference($tenantResolver)));
+        $container->setAlias(WikiSearchTenantsResolverInterface::class, WikiSearchTenantsResolverAdapter::class);
 
         $pageView = $config['routes']['page_view']['name'];
         $container->setDefinition(WikiPageSearchDefinition::class, (new Definition(WikiPageSearchDefinition::class))

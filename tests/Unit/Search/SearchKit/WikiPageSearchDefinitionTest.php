@@ -75,7 +75,7 @@ final class WikiPageSearchDefinitionTest extends TestCase
         $tenant     = static fn (string $user): ?string => $definition->tenant(SearchQuery::forUserIdentifier($user, 'x', 5));
 
         // Several keys: one stable value whatever the order and duplicates; documented as the prefix + SHA-256.
-        self::assertSame(WikiPageSearchDefinition::TENANTS_PREFIX . hash('sha256', "general\norg-1\nproject-7\nuser-u-1"), $tenant('u-1'));
+        self::assertSame(WikiPageSearchDefinition::TENANTS_PREFIX . hash('sha256', '["general","org-1","project-7","user-u-1"]'), $tenant('u-1'));
         self::assertSame($tenant('u-1'), $tenant('u-2'));
         self::assertSame(['general', 'user-u-1', 'project-7', 'org-1'], $definition->currentKeys('u-2'));
         // `*` and empty keys are dropped: one key left, the key itself (as in 1.46).
@@ -138,6 +138,35 @@ final class WikiPageSearchDefinitionTest extends TestCase
         self::assertNull($this->definition()->seeAllUrl($query('owner-1')));
         self::assertNull($this->definition()->seeAllUrl($query(null, [new SearchFilter('space', 'eng', true)])));
         self::assertNull($this->definition()->seeAllUrl($query(null, [new SearchFilter('is', 'open')])));
+    }
+
+    public function testTenantIdsNeverCollide(): void
+    {
+        // Audit VN2-1: separators inside keys cannot shift between keys.
+        self::assertNotSame(WikiPageSearchDefinition::tenantId(["a\nb", 'c']), WikiPageSearchDefinition::tenantId(['a', "b\nc"]));
+        self::assertSame(WikiPageSearchDefinition::tenantId(['a', 'b']), WikiPageSearchDefinition::tenantId(['b', 'a']));
+        self::assertSame('org-1', WikiPageSearchDefinition::tenantId(['org-1']));
+
+        $lists = $this->createStub(WikiSearchTenantsResolverInterface::class);
+        $lists->method('currentTenants')->willReturnMap([
+            ['u-1', ['org-1', 'org-2']],
+            ['u-2', ['tenants:' . hash('sha256', 'x'), 'tenants:']],
+            ['u-3', ["bad\nkey", "tab\tkey", "nul\0key", "bell\x07", "c1\u{85}", "\xff\xfe", 'ok', 12]],
+            ['u-4', ['10', '2', '10']],
+        ]);
+        $definition = $this->definition(currentTenants: $lists);
+        $forged     = (string) WikiPageSearchDefinition::tenantId(['org-1', 'org-2']);
+
+        // A single key shaped like a list id is dropped: it can never stand for that list.
+        self::assertSame([], $definition->currentKeys('u-2'));
+        self::assertNull($definition->tenant(SearchQuery::forUserIdentifier('u-2', 'x', 5)));
+        self::assertSame($forged, $definition->tenant(SearchQuery::forUserIdentifier('u-1', 'x', 5)));
+        // Control characters and invalid UTF-8: dropped.
+        self::assertSame(['ok'], $definition->currentKeys('u-3'));
+        self::assertSame('ok', $definition->tenant(SearchQuery::forUserIdentifier('u-3', 'x', 5)));
+        // Numeric-looking keys stay strings, first occurrence order.
+        self::assertSame(['10', '2'], $definition->currentKeys('u-4'));
+        self::assertSame(WikiPageSearchDefinition::tenantId(['2', '10']), $definition->tenant(SearchQuery::forUserIdentifier('u-4', 'x', 5)));
     }
 
     /**

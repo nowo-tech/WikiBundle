@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.47.1](#to-1471)
 - [To 1.47.0](#to-1470)
 - [To 1.46.0](#to-1460)
 - [To 1.45.0](#to-1450)
@@ -122,6 +123,16 @@ Clients that retried on `SERVER_002` should retry on `CONFLICT_001` only. The st
 `Access-Control-Expose-Headers`.
 
 `WikiStorageFailureSubscriber::committed()` is deprecated (removed in 2.0). No configuration or schema change.
+
+## To 1.47.1
+
+From **1.47.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+**Search tenant id of several tenants (1.47.1).** Listeners of SearchKit's item visibility event that read `$event->tenant` for a list of several current tenants now get `tenants:` + the SHA-256 of the JSON array of the sorted keys (it was the keys joined by a line feed). Do not compare it with a stored value; use `WikiPageSearchDefinition::tenantId()` or `WikiSearchSpacesEvent::$tenants`. The id of one key is unchanged. Keys containing control characters or starting with `tenants:` are dropped.
 
 ## To 1.47.0
 
