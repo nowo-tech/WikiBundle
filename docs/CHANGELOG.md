@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.49.1] - 2026-11-20](#1491---2026-11-20)
   - [Fixed (1.49.1)](#fixed-1491)
 - [[1.49.0] - 2026-11-20](#1490---2026-11-20)
   - [Added (1.49.0)](#added-1490)
@@ -286,6 +287,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.49.1] - 2026-11-20
+
 ### Fixed (1.49.1)
 
 - **Missing foreign keys on MySQL / MariaDB** (audit XI-2). With doctrine/orm 3.7.0 to 3.8.0 and doctrine/dbal 4.5 or
@@ -305,7 +308,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not map the wiki is left alone. The collations are unchanged. `WikiSpaceCollationListener::postGenerateSchemaTable()`
   is kept as a deprecated no-op and its constructor arguments are no longer used. A test checks that the generated schema has the same foreign keys and indexes with
   and without the listener, and the database suites check the foreign keys and their ON DELETE rules on MySQL 8.4,
-  MariaDB 11.4 and PostgreSQL 16. Existing databases: [UPGRADING](UPGRADING.md#unreleased).
+  MariaDB 11.4 and PostgreSQL 16. Existing databases: [UPGRADING](UPGRADING.md#to-1491).
 
 ## [1.49.0] - 2026-11-20
 
@@ -2760,7 +2763,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.49.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.49.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
