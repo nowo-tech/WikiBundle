@@ -205,8 +205,8 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction
 
       # 1.31.1 (house rule LQ): MariaDB's default collation is PAD SPACE, so the look-alike owner test runs here too.
-      # Only that test for now: the rest of the database suite is not yet green on MariaDB (savepoint handling in
-      # WikiPageSnapshotTest, tracked separately).
+      # Since 1.48 the whole suite also runs on MariaDB ("Database tests on MariaDB", "Load readiness"); this job keeps
+      # its focused steps under its required-check name.
       - name: Run the look-alike owner test against MariaDB
         env:
           WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4
@@ -229,6 +229,48 @@ jobs:
           composer test -- tests/Database/WikiQuickAccessTest.php
           composer test -- tests/Database/WikiBacklinksTest.php
           composer test -- tests/Database/WikiQuickAccessRaceTest.php
+
+  mariadb-database:
+    # 1.48 (REQ-RUNTIME-003): the whole database and REST API suites on MariaDB 11.4.
+    name: Database tests on MariaDB
+    runs-on: ubuntu-latest
+    env:
+      COMPOSER_IGNORE_PLATFORM_REQ: ext-pdo
+
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: wiki_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Run the database suite against MariaDB
+        env:
+          WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: composer test -- --testsuite database,api
 
   pgsql:
     name: Database tests on PostgreSQL
@@ -272,13 +314,14 @@ jobs:
         run: composer test -- --testsuite database,api
 
   load-readiness:
-    # 1.37 (Beacon spec 239): the races of the write paths on real servers, DBAL 4 and DBAL 3 (passwordless services).
+    # 1.37 (Beacon spec 239): the races of the write paths on real servers, DBAL 4 and DBAL 3 (passwordless services);
+    # MariaDB 11.4 since 1.48 (REQ-RUNTIME-003).
     name: Load readiness (${{ matrix.database }}, DBAL ${{ matrix.dbal }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        database: ['MySQL 8.4', 'PostgreSQL 16']
+        database: ['MySQL 8.4', 'MariaDB 11.4', 'PostgreSQL 16']
         dbal: ['4', '3']
     env:
       COMPOSER_IGNORE_PLATFORM_REQ: ext-pdo
@@ -293,6 +336,18 @@ jobs:
           - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+          MARIADB_DATABASE: wiki_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
           --health-interval=5s
           --health-timeout=3s
           --health-retries=20
@@ -330,7 +385,7 @@ jobs:
 
       - name: Run the load-readiness and database suites
         env:
-          WIKI_TEST_DATABASE_URL: ${{ matrix.database == 'MySQL 8.4' && 'mysql://root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4' || 'postgresql://postgres@127.0.0.1:5432/wiki_test?serverVersion=16&charset=utf8' }}
+          WIKI_TEST_DATABASE_URL: ${{ matrix.database == 'MySQL 8.4' && 'mysql://root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4' || matrix.database == 'MariaDB 11.4' && 'mysql://root@127.0.0.1:3307/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4' || 'postgresql://postgres@127.0.0.1:5432/wiki_test?serverVersion=16&charset=utf8' }}
         run: |
           composer show doctrine/dbal | grep -E '^versions'
           vendor/bin/phpunit --fail-on-skipped tests/Database/LoadReadinessTest.php
@@ -533,6 +588,18 @@ jobs:
         image: mariadb:11.4
         env:
           MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+          MARIADB_DATABASE: wiki_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
           MARIADB_DATABASE: wiki_test
         ports:
           - 3307:3306
