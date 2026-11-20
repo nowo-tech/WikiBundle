@@ -48,7 +48,7 @@ use const PHP_BINARY;
  * the FrankenPHP thread size.
  */
 #[CoversClass(Configuration::class)]
-#[RequiresPhp('>= 8.3')]
+#[RequiresPhp('>= 8.3.0')]
 final class ConfigurationThreadStackTest extends TestCase
 {
     /** The stack of a FrankenPHP thread on Alpine (dunglas/frankenphp:*-alpine). */
