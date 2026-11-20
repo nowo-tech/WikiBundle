@@ -117,12 +117,10 @@ final class WikiHostFlushProbe implements ResetInterface
      */
     public function around(EntityManagerInterface $entityManager, callable $flush): void
     {
-        try {
-            $this->probe->beforeHostFlush($entityManager, self::BUNDLE, [self::ENTITY_NAMESPACE]);
-        } catch (Throwable) {
-            // A notice never stops a write (a deprecation handler that throws, an unexpected unit of work): the flush
-            // below runs exactly as it did before 1.49.
-        }
+        // Since transaction-doctrine 1.9.1 the shared probe never throws (a deprecation handler that throws, an unexpected
+        // unit of work: logged, nothing reported), so a notice never stops a write: the flush below runs exactly as it
+        // did before 1.49.
+        $this->probe->beforeHostFlush($entityManager, self::BUNDLE, [self::ENTITY_NAMESPACE]);
         // @igor-ignore - per unit of work, back to its value when the flush ends; emptied by reset() at every boundary
         ++$this->wikiFlushes;
         try {

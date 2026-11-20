@@ -2489,16 +2489,16 @@
         },
         {
             "name": "nowo-tech/transaction-doctrine",
-            "version": "v1.9.0",
+            "version": "v1.9.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/transaction-doctrine.git",
-                "reference": "08a61ada85176c760acd223f1222a955d9a95eb1"
+                "reference": "b38708cc394acf814ce0f96b0ad4f47208c40665"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/transaction-doctrine/zipball/08a61ada85176c760acd223f1222a955d9a95eb1",
-                "reference": "08a61ada85176c760acd223f1222a955d9a95eb1",
+                "url": "https://api.github.com/repos/nowo-tech/transaction-doctrine/zipball/b38708cc394acf814ce0f96b0ad4f47208c40665",
+                "reference": "b38708cc394acf814ce0f96b0ad4f47208c40665",
                 "shasum": ""
             },
             "require": {
@@ -2595,8 +2595,8 @@
                 "issues": "https://github.com/nowo-tech/transaction-doctrine/issues",
                 "source": "https://github.com/nowo-tech/transaction-doctrine"
             },
-            "time": "2026-11-20T13:46:37+00:00",
-            "published-time": "2026-11-20T13:50:08+00:00"
+            "time": "2026-11-20T17:53:15+00:00",
+            "published-time": "2026-11-20T17:57:11+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
@@ -2707,7 +2707,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "24556454534ea985b36a54b89858e640c1f9a80b"
+                "reference": "aa901167b4cb37a9e765c1020c9f7fbf30ba7dc1"
             },
             "require": {
                 "doctrine/dbal": "^3.8.2 || ^4.0",
@@ -2720,7 +2720,7 @@
                 "nowo-tech/form-kit-bundle": "^2.0",
                 "nowo-tech/tiptap-editor-bundle": "^1.6",
                 "nowo-tech/transaction-contract": "^1.0",
-                "nowo-tech/transaction-doctrine": "^1.9",
+                "nowo-tech/transaction-doctrine": "^1.9.1",
                 "nowo-tech/ui-kit-bundle": "^2.54",
                 "php": ">=8.2 <8.6",
                 "psr/log": "^1.1 || ^2.0 || ^3.0",

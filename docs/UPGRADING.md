@@ -144,9 +144,12 @@ From **1.48.1**:
 composer update nowo-tech/wiki-bundle nowo-tech/transaction-doctrine
 ```
 
-Requires `nowo-tech/transaction-doctrine` `^1.9`. No schema change and no behaviour change: every notice below is a
+Requires `nowo-tech/transaction-doctrine` `^1.9.1`. No schema change and no behaviour change: every notice below is a
 `E_USER_DEPRECATED` (`trigger_deprecation()`), collected by your deprecation log or the profiler, and host mode writes
 exactly what it wrote in 1.48. Nothing is needed to keep working; the notices list what 2.0 changes for you.
+`$user` on `WikiApiPrincipal`, `WikiQuotaCheckEvent` and `WikiEditorOptionsEvent` is no longer a declared property:
+reflection, `get_object_vars()`, array casts and serializer normalisation no longer see it. `->user` still works (with
+a notice); use `securityUser()`.
 
 ### The private entity manager notice
 

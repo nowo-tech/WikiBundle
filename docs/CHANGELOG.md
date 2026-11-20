@@ -302,7 +302,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed (1.49.0)
 
-- Requires `nowo-tech/transaction-doctrine` `^1.9` (the shared host-flush probe).
+- Requires `nowo-tech/transaction-doctrine` `^1.9.1` (the shared host-flush probe); root and demo locks updated to v1.9.1.
 
 ### Deprecated (1.49.0)
 
