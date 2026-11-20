@@ -279,6 +279,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Configuration tree split so the bundle compiles on PHP 8.3+ thread stacks of 512 KiB (FrankenPHP Alpine images): `Configuration::getConfigTreeBuilder()` was one fluent chain that needed more than 512 KiB of stack to compile ("Maximum call stack size ... reached during compilation"). It is now built by one private method per section, with the same builder calls in the same order, so the tree, its defaults, validation and reference dumps are unchanged. A test compiles the sources and builds the tree under a 512 KiB stack.
+
 ## [1.48.0] - 2026-11-20
 
 ### Changed
