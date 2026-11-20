@@ -8,6 +8,7 @@
   - [The private entity manager notice](#the-private-entity-manager-notice)
   - [Reading the host-flush probe as a migration list](#reading-the-host-flush-probe-as-a-migration-list)
   - [Other notices of members 2.0 removes](#other-notices-of-members-20-removes)
+- [To 1.48.1](#to-1481)
 - [To 1.48.0](#to-1480)
 - [To 1.47.1](#to-1471)
 - [To 1.47.0](#to-1470)
@@ -137,7 +138,7 @@ minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## To 1.49.0
 
-From **1.48.0**:
+From **1.48.1**:
 
 ```bash
 composer update nowo-tech/wiki-bundle nowo-tech/transaction-doctrine
@@ -221,6 +222,14 @@ left, turn the private manager on.
   WikiUserRef) instead." The members keep working and stay read-only. Code that builds these objects is unchanged
   (the constructor argument is still named `$user`).
 - **`WikiStorageFailureSubscriber::committed()`** and **`new WikiAlignedHeaderConverter()`** report a notice.
+
+## To 1.48.1
+
+From **1.48.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ## To 1.48.0
 
