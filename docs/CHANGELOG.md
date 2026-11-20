@@ -277,7 +277,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **SearchKit tenant id of a list of tenants is unambiguous (audit VN2-1)**: the id of several current tenant keys was the SHA-256 of the sorted keys joined by a line feed, so `["a\nb","c"]` and `["a","b\nc"]` shared one id, and a single key equal to `tenants:<sha>` equalled a list's id. The id is now the SHA-256 of the JSON array of the sorted keys, and keys that contain control characters or start with `tenants:` are dropped. The id of one key is unchanged (the key itself). See UPGRADING.
 - **`WikiSearchTenantsResolverInterface` autowiring (audit VN2-2)**: the interface was aliased to the configured resolver even when it only implements the single-key port. It is now aliased to `Search\WikiSearchTenantsResolverAdapter`, which answers the service's own list, a list of one for a single-key resolver, or none.
-- **Dependencies**: `nowo-tech/transaction-doctrine` is now required at `^1.8` (was `^1.6`), which carries the fixes of GHSA-9wh3-m3m5-jffx and GHSA-65w2-9r4h-848g.
 - **Tenant key dedupe is linear (audit VN2-2)**: duplicates are found with a set, and a resolver answer with more than 500 distinct keys is abandoned at the first key over the cap.
 
 ## [1.47.0] - 2026-11-20
