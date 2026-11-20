@@ -59,7 +59,7 @@ final class WikiTestDatabase
     {
         $em = self::connect($sqlLogger, $userReference);
         // 1.31.1 (house rule LQ): the binary NO PAD collation of `owner_scope_id` on MySQL / MariaDB, as in a host.
-        $em->getEventManager()->addEventListener(ToolEvents::postGenerateSchemaTable, new WikiSpaceCollationListener($em));
+        $em->getEventManager()->addEventListener(ToolEvents::postGenerateSchema, new WikiSpaceCollationListener($em));
         $tool = new SchemaTool($em);
         $all  = $em->getMetadataFactory()->getAllMetadata();
         if (self::isServer()) {
@@ -70,8 +70,12 @@ final class WikiTestDatabase
         return $em;
     }
 
-    /** Another entity manager (and connection) on the same database, schema untouched: for concurrency tests. */
-    public static function connect(?LoggerInterface $sqlLogger = null, string $userReference = WikiMetadataListener::USER_REFERENCE_ENTITY): EntityManager
+    /**
+     * Another entity manager (and connection) on the same database, schema untouched: for concurrency tests. `$url`
+     * (1.49.1) names another database instead; with a `serverVersion` it gives the platform of a server that is never
+     * connected to, for schema generation tests.
+     */
+    public static function connect(?LoggerInterface $sqlLogger = null, string $userReference = WikiMetadataListener::USER_REFERENCE_ENTITY, ?string $url = null): EntityManager
     {
         // 1.36 (database.user_reference: id): the column type of the stored user ids, as the bundle's prepend registers it.
         if (!Type::hasType(WikiUserRefType::NAME)) {
@@ -103,12 +107,11 @@ final class WikiTestDatabase
             userReference: $userReference,
         ));
 
-        return new EntityManager(self::connection($config), $config, $events);
+        return new EntityManager(self::connection($config, $url ?? self::url()), $config, $events);
     }
 
-    private static function connection(Configuration $config): Connection
+    private static function connection(Configuration $config, ?string $url): Connection
     {
-        $url = self::url();
         if ($url === null) {
             return DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true], $config);
         }
