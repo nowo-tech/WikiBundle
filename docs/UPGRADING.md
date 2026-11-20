@@ -5,6 +5,9 @@
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
 - [To 1.50.0](#to-1500)
+- [To 1.49.1](#to-1491)
+- [To 1.49.1](#to-1491-1)
+  - [Missing foreign keys on MySQL / MariaDB (1.36.0 to 1.49.0)](#missing-foreign-keys-on-mysql--mariadb-1360-to-1490)
 - [To 1.49.0](#to-1490)
 - [To 1.49.0](#to-1490-1)
   - [The private entity manager notice](#the-private-entity-manager-notice)
@@ -140,7 +143,7 @@ minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## To 1.50.0
 
-From **1.49.0**:
+From **1.49.1**:
 
 ```bash
 composer update nowo-tech/wiki-bundle
@@ -175,6 +178,96 @@ service instead: [USAGE › Space lifecycle](USAGE.md#space-lifecycle-rename-arc
 plain `DELETE` relied on foreign-key cascades and left the tables without foreign keys (references, co-editing,
 idempotency records) behind; the purge clears them. An application that keeps its own "archived" flag can keep it, or
 archive the space as well so the wiki hides it from search, favourites and recents.
+
+## To 1.49.1
+
+From **1.49.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+## To 1.49.1
+
+From **1.49.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+### Missing foreign keys on MySQL / MariaDB (1.36.0 to 1.49.0)
+
+Only MySQL / MariaDB databases whose wiki tables were created or migrated with doctrine/orm 3.7.0 to 3.8.0 and
+doctrine/dbal 4.5 or later are affected (PostgreSQL and SQLite are not). After the update, check the schema:
+
+```bash
+php bin/console doctrine:schema:validate
+# or, with migrations: php bin/console doctrine:migrations:diff
+```
+
+If it reports missing foreign keys, first remove the rows they would reject, then add the indexes and foreign keys.
+The names below are those of the default `table_prefix: wiki_`; with another prefix the generated names differ, so
+take them from `php bin/console doctrine:schema:update --dump-sql` (run the statements it prints for these tables only,
+after the clean-up). Run the statements of the tables your database lacks the foreign key on.
+
+**Every mode** (`wiki_page_links` from 1.37.0; favourites, visits and references from 1.45.0):
+
+```sql
+-- Rows of deleted pages (ON DELETE CASCADE would have deleted them): check, then delete.
+SELECT COUNT(*) FROM wiki_page_links l LEFT JOIN wiki_pages p ON p.id = l.page_id WHERE p.id IS NULL;
+DELETE l FROM wiki_page_links l LEFT JOIN wiki_pages p ON p.id = l.page_id WHERE p.id IS NULL;
+DELETE f FROM wiki_page_favourites f LEFT JOIN wiki_pages p ON p.id = f.page_id WHERE p.id IS NULL;
+DELETE v FROM wiki_page_visits v LEFT JOIN wiki_pages p ON p.id = v.page_id WHERE p.id IS NULL;
+DELETE r FROM wiki_page_references r LEFT JOIN wiki_pages p ON p.id = r.source_page_id WHERE p.id IS NULL;
+
+CREATE INDEX IDX_8B0B8A06C4663E4 ON wiki_page_links (page_id);
+ALTER TABLE wiki_page_links ADD CONSTRAINT FK_8B0B8A06C4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+CREATE INDEX IDX_7954510CC4663E4 ON wiki_page_favourites (page_id);
+ALTER TABLE wiki_page_favourites ADD CONSTRAINT FK_7954510CC4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+CREATE INDEX IDX_BE1D8DA2C4663E4 ON wiki_page_visits (page_id);
+ALTER TABLE wiki_page_visits ADD CONSTRAINT FK_BE1D8DA2C4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+CREATE INDEX IDX_994DB9914599DB8C ON wiki_page_references (source_page_id);
+ALTER TABLE wiki_page_references ADD CONSTRAINT FK_994DB9914599DB8C FOREIGN KEY (source_page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+```
+
+**`database.user_reference: entity`** (the default; from 1.37.0): the creator of a link points at your user table.
+Replace `app_user` and `id` with your `user_class` table and its id column:
+
+```sql
+-- Links of deleted users keep the link, without its creator (ON DELETE SET NULL).
+UPDATE wiki_page_links l LEFT JOIN app_user u ON u.id = l.created_by_id SET l.created_by_id = NULL WHERE l.created_by_id IS NOT NULL AND u.id IS NULL;
+
+CREATE INDEX IDX_8B0B8A06B03A8386 ON wiki_page_links (created_by_id);
+ALTER TABLE wiki_page_links ADD CONSTRAINT FK_8B0B8A06B03A8386 FOREIGN KEY (created_by_id) REFERENCES app_user (id) ON DELETE SET NULL;
+```
+
+**`database.user_reference: id`** (from 1.36.0): every table with a user id column lost its other foreign keys too.
+Delete in this order (threads before comments before reactions):
+
+```sql
+DELETE r FROM wiki_page_revisions r LEFT JOIN wiki_pages p ON p.id = r.page_id WHERE p.id IS NULL;
+DELETE t FROM wiki_comment_threads t LEFT JOIN wiki_pages p ON p.id = t.page_id WHERE p.id IS NULL;
+DELETE c FROM wiki_comments c LEFT JOIN wiki_comment_threads t ON t.id = c.thread_id WHERE t.id IS NULL;
+DELETE x FROM wiki_comment_reactions x LEFT JOIN wiki_comments c ON c.id = x.comment_id WHERE c.id IS NULL;
+-- Attachment rows of deleted pages or spaces; their files stay in your attachment storage: list them first.
+SELECT a.id, a.storage_key FROM wiki_attachments a LEFT JOIN wiki_pages p ON p.id = a.page_id LEFT JOIN wiki_spaces s ON s.id = a.space_id WHERE p.id IS NULL OR s.id IS NULL;
+DELETE a FROM wiki_attachments a LEFT JOIN wiki_pages p ON p.id = a.page_id LEFT JOIN wiki_spaces s ON s.id = a.space_id WHERE p.id IS NULL OR s.id IS NULL;
+
+CREATE INDEX IDX_6C9030C0C4663E4 ON wiki_page_revisions (page_id);
+ALTER TABLE wiki_page_revisions ADD CONSTRAINT FK_6C9030C0C4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+CREATE INDEX IDX_914EFA5EC4663E4 ON wiki_comment_threads (page_id);
+ALTER TABLE wiki_comment_threads ADD CONSTRAINT FK_914EFA5EC4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+CREATE INDEX IDX_B45893E5E2904019 ON wiki_comments (thread_id);
+ALTER TABLE wiki_comments ADD CONSTRAINT FK_B45893E5E2904019 FOREIGN KEY (thread_id) REFERENCES wiki_comment_threads (id) ON DELETE CASCADE;
+CREATE INDEX IDX_2DDD1DE8F8697D13 ON wiki_comment_reactions (comment_id);
+ALTER TABLE wiki_comment_reactions ADD CONSTRAINT FK_2DDD1DE8F8697D13 FOREIGN KEY (comment_id) REFERENCES wiki_comments (id) ON DELETE CASCADE;
+CREATE INDEX IDX_D247B880C4663E4 ON wiki_attachments (page_id);
+ALTER TABLE wiki_attachments ADD CONSTRAINT FK_D247B880C4663E4 FOREIGN KEY (page_id) REFERENCES wiki_pages (id) ON DELETE CASCADE;
+ALTER TABLE wiki_attachments ADD CONSTRAINT FK_D247B88023575340 FOREIGN KEY (space_id) REFERENCES wiki_spaces (id) ON DELETE CASCADE;
+```
+
+`wiki_attachments.space_id` keeps its `wiki_attachment_space` index, so it needs no new one. Run
+`php bin/console doctrine:schema:validate` again: the mapping and the database are in sync once it passes.
 
 ## To 1.49.0
 

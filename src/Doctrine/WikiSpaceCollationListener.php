@@ -9,9 +9,11 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Platforms\MariaDBPlatform;
 use Doctrine\DBAL\Platforms\MySQL80Platform;
 use Doctrine\DBAL\Schema\ColumnEditor;
+use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
 use Doctrine\ORM\Tools\Event\GenerateSchemaTableEventArgs;
 use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Entity\WikiPageFavourite;
@@ -21,6 +23,7 @@ use Nowo\WikiBundle\Entity\WikiPageVisit;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Psr\Log\LoggerInterface;
 
+use function array_map;
 use function method_exists;
 
 /**
@@ -33,6 +36,15 @@ use function method_exists;
  * one it has; the re-check covers it). PostgreSQL and SQLite compare exactly and are untouched (they reject MySQL
  * collation names, so it cannot live in the mapping). Applied to the generated schema (schema tool,
  * `doctrine:migrations:diff`); existing tables need the `ALTER TABLE` of UPGRADING.
+ *
+ * 1.49.1 (audit XI-2): applied on `postGenerateSchema`, once the schema tool has added every foreign key, by table name.
+ * 1.31.1–1.49.0 replaced each table on `postGenerateSchemaTable` (`setClassTable()`, DBAL 4.5+), and the ORM schema tool
+ * (3.7.0 to 3.8.0) then added the table's foreign keys to the table it had replaced: on MySQL / MariaDB the generated
+ * schema lost every foreign key starting on a collated table, and its index. Now:
+ *
+ * - DBAL 4.5+ with `GenerateSchemaEventArgs::setSchema()`: each table is rebuilt with its table editor (foreign keys
+ *   and indexes included) and swapped into a new schema given back with `setSchema()`;
+ * - otherwise: the columns' platform options are set in place (the DBAL 4.5+ deprecation silenced).
  */
 final readonly class WikiSpaceCollationListener
 {
@@ -49,13 +61,15 @@ final readonly class WikiSpaceCollationListener
     public const REFERENCE_FIELDS = ['targetPageId'];
 
     /**
-     * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki's entity manager (its platform decides the collation)
+     * @param EntityManagerInterface|WikiEntityManagerProvider|null $entityManager unused since 1.49.1 (the platform comes
+     *                                                                             from the schema tool's entity manager); kept for BC
      * @param LoggerInterface|null $logger 1.36 (REQ-SEC-006 item 8): warned when only the PAD SPACE `utf8mb4_bin` is available
      */
     public function __construct(
-        private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
+        EntityManagerInterface|WikiEntityManagerProvider|null $entityManager = null,
         private ?LoggerInterface $logger = null,
     ) {
+        unset($entityManager);
     }
 
     /**
@@ -73,38 +87,73 @@ final readonly class WikiSpaceCollationListener
         };
     }
 
-    /** Gives the owner column of the spaces table its binary collation. */
-    public function postGenerateSchemaTable(GenerateSchemaTableEventArgs $args): void
+    /**
+     * Gives the owner and user id columns of the wiki tables their binary collation in the generated schema, keeping
+     * every foreign key and index of those tables.
+     */
+    public function postGenerateSchema(GenerateSchemaEventArgs $args): void
     {
-        $metadata = $args->getClassMetadata();
-        $fields   = self::fieldsOf($metadata);
-        if ($fields === []) {
+        $entityManager = $args->getEntityManager();
+        // Only the schema of a manager that maps the wiki (with a private manager, the host's is left alone).
+        if ($entityManager->getMetadataFactory()->isTransient(WikiSpace::class)) {
             return;
         }
-        $entityManager = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
-        $collation     = self::collationFor($entityManager->getConnection()->getDatabasePlatform());
+        $collation = self::collationFor($entityManager->getConnection()->getDatabasePlatform());
         if ($collation === null) {
             return;
         }
-        if ($collation === 'utf8mb4_bin') {
-            $this->logger?->warning('nowo_wiki: the id columns of {table} get the PAD SPACE collation utf8mb4_bin (no binary NO PAD collation detected: MySQL before 8.0, or a doctrine server_version without the full version such as "8.0.36"); ids with trailing spaces are refused and every match is re-checked in PHP.', [
-                'table' => $metadata->getTableName(),
-            ]);
-        }
 
-        $table = $args->getClassTable();
-        foreach ($fields as $field) {
-            /** @var non-empty-string $column mapped column names are never empty */
-            $column = $metadata->getColumnName($field);
-            // @phpstan-ignore function.alreadyNarrowedType (Table::edit() exists only from DBAL 4.5)
-            $edited = self::collate($table, $column, $collation, method_exists(Table::class, 'edit'));
-            if ($edited instanceof Table) {
-                $table = $edited;
+        $schema = $args->getSchema();
+        /** @var array<non-empty-string, list<non-empty-string>> $tables table name => the columns to collate */
+        $tables = [];
+        foreach ($entityManager->getMetadataFactory()->getAllMetadata() as $metadata) {
+            $fields    = self::fieldsOf($metadata);
+            $tableName = $metadata->getTableName();
+            if ($fields === [] || $tableName === '' || !$schema->hasTable($tableName)) {
+                continue;
+            }
+            /** @var list<non-empty-string> $columns mapped column names are never empty */
+            $columns            = array_map($metadata->getColumnName(...), $fields);
+            $tables[$tableName] = $columns;
+            if ($collation === 'utf8mb4_bin') {
+                $this->logger?->warning('nowo_wiki: the id columns of {table} get the PAD SPACE collation utf8mb4_bin (no binary NO PAD collation detected: MySQL before 8.0, or a doctrine server_version without the full version such as "8.0.36"); ids with trailing spaces are refused and every match is re-checked in PHP.', [
+                    'table' => $tableName,
+                ]);
             }
         }
-        if ($table !== $args->getClassTable()) {
-            $args->setClassTable($table);
+        if ($tables === []) {
+            return;
         }
+
+        // Table::edit() and Schema::edit() exist from DBAL 4.5, GenerateSchemaEventArgs::setSchema() from ORM 3.7.
+        // @phpstan-ignore function.alreadyNarrowedType, function.alreadyNarrowedType, function.alreadyNarrowedType
+        $editor = method_exists(Table::class, 'edit') && method_exists(Schema::class, 'edit') && method_exists($args, 'setSchema');
+        $edited = [];
+        foreach ($tables as $tableName => $columns) {
+            $table = $schema->getTable($tableName);
+            foreach ($columns as $column) {
+                $table = self::collate($table, $column, $collation, $editor) ?? $table;
+            }
+            $edited[$tableName] = $table;
+        }
+        if ($editor) {
+            $schemaEditor = $schema->edit();
+            foreach ($edited as $tableName => $table) {
+                $schemaEditor->dropTableByUnquotedName($tableName)->addTable($table);
+            }
+            $args->setSchema($schemaEditor->create());
+        }
+    }
+
+    /**
+     * No longer subscribed (1.49.1, audit XI-2): replacing the table there lost its foreign keys. Kept for BC; does
+     * nothing.
+     *
+     * @deprecated since 1.49.1, the collation is applied on postGenerateSchema ({@see self::postGenerateSchema()})
+     */
+    public function postGenerateSchemaTable(GenerateSchemaTableEventArgs $args): void
+    {
+        unset($args);
     }
 
     /**
@@ -139,7 +188,8 @@ final readonly class WikiSpaceCollationListener
 
     /**
      * Gives `$column` the utf8mb4 charset and `$collation`: through a table editor (DBAL 4.5+; returns the new table) or
-     * in place (older DBAL; returns null).
+     * in place (returns null; the deprecation DBAL 4.5+ raises for it is silenced, for ORM versions without
+     * `GenerateSchemaEventArgs::setSchema()`).
      *
      * @param non-empty-string $column
      * @param non-empty-string $collation
@@ -152,9 +202,9 @@ final readonly class WikiSpaceCollationListener
             })->create();
         }
 
-        $table->getColumn($column)
-            ->setPlatformOption('charset', 'utf8mb4')
-            ->setPlatformOption('collation', $collation);
+        $target = $table->getColumn($column);
+        @$target->setPlatformOption('charset', 'utf8mb4');
+        @$target->setPlatformOption('collation', $collation);
 
         return null;
     }

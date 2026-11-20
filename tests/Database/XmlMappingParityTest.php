@@ -164,7 +164,7 @@ final class XmlMappingParityTest extends TestCase
         $url    = WikiTestDatabase::url();
         $params = $url === null ? ['driver' => 'pdo_sqlite', 'memory' => true] : (new DsnParser(['mysql' => 'pdo_mysql', 'postgresql' => 'pdo_pgsql', 'postgres' => 'pdo_pgsql']))->parse($url);
         $em     = new EntityManager(DriverManager::getConnection($params, $config), $config, $events);
-        $events->addEventListener(ToolEvents::postGenerateSchemaTable, new WikiSpaceCollationListener($em));
+        $events->addEventListener(ToolEvents::postGenerateSchema, new WikiSpaceCollationListener($em));
 
         return $em;
     }

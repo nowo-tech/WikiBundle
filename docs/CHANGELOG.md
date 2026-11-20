@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [[Unreleased]](#unreleased)
   - [Added (1.50.0)](#added-1500)
+- [[1.49.1] - 2026-11-20](#1491---2026-11-20)
+  - [Fixed (1.49.1)](#fixed-1491)
 - [[1.49.0] - 2026-11-20](#1490---2026-11-20)
   - [Added (1.49.0)](#added-1490)
   - [Changed (1.49.0)](#changed-1490)
@@ -292,6 +294,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Archived spaces**: read-only for everyone and open only to the people who may manage them (`Security\WikiArchivedSpaceAccessChecker` decorates the configured `WikiSpaceAccessCheckerInterface`); left out of search, the SearchKit group, favourites and recents; page creates, saves and restores refused by the page service (`WikiPageArchivedException`, `WikiPageService::ARCHIVED_SPACE`); the REST API answers `403 WIKI_002` to writes and reports `archived: true`. Reversible.
 - **Space purge**: irreversible deletion of a space with its pages, revisions, named versions, comments and reactions, attachments (rows, then files after each commit), host-object links, references from and to its pages, favourites, visits, trash entries, co-editing state and API idempotency records — every table cleared explicitly (no reliance on foreign-key cascades). In batches of 100 pages, one transaction each; idempotent and resumable (the space stays archived and marked as being purged until it is gone; `maxBatches` for queue workers). Only from the archived state unless `force`. A lock conflict after part of the purge committed throws `ConcurrencyConflict` with `committed: true` (`CONFLICT_002`); before, the plain `TransientStorageFailure` (`CONFLICT_001`). With `page_files.purge_event`, each batch dispatches `WikiPageFilesPurgedEvent`.
 - `WikiSpace`: `archived_at`, `purge_started_at` and `lock_version` columns (see UPGRADING); `WikiSpaceSnapshot` gains `archivedAt`, `version` and `isArchived()`.
+
+## [1.49.1] - 2026-11-20
+
+### Fixed (1.49.1)
+
+- **Missing foreign keys on MySQL / MariaDB** (audit XI-2). With doctrine/orm 3.7.0 to 3.8.0 and doctrine/dbal 4.5 or
+  later, the schema generated for MySQL / MariaDB (`doctrine:schema:create` / `update`, `doctrine:migrations:diff`)
+  lacked every foreign key starting on a table whose id columns get the exact collation, and the index each one needs:
+  `WikiSpaceCollationListener` rebuilt the table and handed it back with `setClassTable()`, and the ORM added its
+  foreign keys to the table it had replaced. Deleting a page then left its rows behind (links, favourites, visits,
+  references, so per-user history too) and deleting a user did not clear `wiki_page_links.created_by_id`. Affected:
+  `wiki_page_links.page_id` (ON DELETE CASCADE) and `created_by_id` (SET NULL) from 1.37.0;
+  `wiki_page_favourites.page_id`, `wiki_page_visits.page_id` and `wiki_page_references.source_page_id` (CASCADE)
+  from 1.45.0; with `database.user_reference: id`, also `wiki_page_revisions.page_id`, `wiki_comment_threads.page_id`,
+  `wiki_comments.thread_id`, `wiki_comment_reactions.comment_id`, `wiki_attachments.page_id` and `space_id` (all
+  CASCADE) from 1.36.0. PostgreSQL and SQLite were not affected. The listener now runs on `postGenerateSchema`, once
+  every foreign key exists, and never calls `setClassTable()`: with doctrine/dbal 4.5+ it rebuilds each table with its
+  editor (foreign keys and indexes included) and hands back the schema with `setSchema()`; otherwise it sets the
+  column options in place. The platform is the one of the schema tool's own entity manager, and a manager that does
+  not map the wiki is left alone. The collations are unchanged. `WikiSpaceCollationListener::postGenerateSchemaTable()`
+  is kept as a deprecated no-op and its constructor arguments are no longer used. A test checks that the generated schema has the same foreign keys and indexes with
+  and without the listener, and the database suites check the foreign keys and their ON DELETE rules on MySQL 8.4,
+  MariaDB 11.4 and PostgreSQL 16. Existing databases: [UPGRADING](UPGRADING.md#to-1491).
 
 ## [1.49.0] - 2026-11-20
 
@@ -2746,7 +2771,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.49.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.49.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0
