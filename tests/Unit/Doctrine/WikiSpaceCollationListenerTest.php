@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Doctrine;
 
-use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Platforms\MariaDBPlatform;
 use Doctrine\DBAL\Platforms\MySQL80Platform;
@@ -12,10 +11,15 @@ use Doctrine\DBAL\Platforms\MySQL84Platform;
 use Doctrine\DBAL\Platforms\MySQLPlatform;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\DBAL\Platforms\SQLitePlatform;
+use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\ORM\Mapping\ClassMetadataFactory;
+use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
+use Doctrine\ORM\Tools\Event\GenerateSchemaTableEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\ORM\Tools\ToolEvents;
 use Doctrine\Persistence\ManagerRegistry;
@@ -37,10 +41,13 @@ use PHPUnit\Framework\TestCase;
 use function count;
 
 /**
- * 1.31.1 (house rule LQ): `wiki_spaces.owner_scope_id` gets a binary NO PAD collation on MySQL / MariaDB.
+ * 1.31.1 (house rule LQ): `wiki_spaces.owner_scope_id` gets a binary NO PAD collation on MySQL / MariaDB; 1.49.1 (audit
+ * XI-2) on `postGenerateSchema`, from the schema tool's own platform.
  */
 final class WikiSpaceCollationListenerTest extends TestCase
 {
+    private const MARIADB = 'mysql://u@127.0.0.1/wiki?serverVersion=11.4.0-MariaDB';
+
     /** @return iterable<string, array{AbstractPlatform, string|null}> */
     public static function platforms(): iterable
     {
@@ -58,39 +65,91 @@ final class WikiSpaceCollationListenerTest extends TestCase
         self::assertSame($expected, WikiSpaceCollationListener::collationFor($platform));
     }
 
-    #[DataProvider('platforms')]
-    public function testGeneratedSchemaCollatesTheOwnerColumnOnly(AbstractPlatform $platform, ?string $expected): void
+    /** @return iterable<string, array{string|null, string|null}> the schema tool's database (null: SQLite in memory; the PostgreSQL schema manager would connect), the collation */
+    public static function databases(): iterable
     {
-        $column = $this->generatedTable(new WikiSpaceCollationListener($this->entityManagerOn($platform)), WikiSpace::class)->getColumn('owner_scope_id');
+        yield 'MariaDB' => ['mysql://u@127.0.0.1/wiki?serverVersion=11.4.0-MariaDB', 'utf8mb4_nopad_bin'];
+        yield 'MySQL 8.0' => ['mysql://u@127.0.0.1/wiki?serverVersion=8.0.36', 'utf8mb4_0900_bin'];
+        yield 'MySQL 8.4' => ['mysql://u@127.0.0.1/wiki?serverVersion=8.4.0', 'utf8mb4_0900_bin'];
+        yield 'MySQL 5.7' => ['mysql://u@127.0.0.1/wiki?serverVersion=5.7.44', 'utf8mb4_bin'];
+        yield 'SQLite' => [null, null];
+    }
+
+    /** 1.49.1: the schema tool's own connection decides (the servers are never connected to). */
+    #[DataProvider('databases')]
+    public function testGeneratedSchemaCollatesTheOwnerColumnOnly(?string $url, ?string $expected): void
+    {
+        $table  = $this->generatedTable(new WikiSpaceCollationListener(), WikiSpace::class, $url);
+        $column = $table->getColumn('owner_scope_id');
 
         self::assertSame($expected, $column->getPlatformOptions()['collation'] ?? null);
         self::assertSame($expected === null ? null : 'utf8mb4', $column->getPlatformOptions()['charset'] ?? null);
+        self::assertArrayNotHasKey('collation', $table->getColumn('slug')->getPlatformOptions());
     }
 
-    public function testThroughTheEntityManagerProvider(): void
+    /** The constructor arguments of 1.31.1–1.49.0 are still accepted (unused). */
+    public function testTheFormerConstructorArgumentsAreAccepted(): void
     {
-        $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManager')->willReturn($this->entityManagerOn(new MariaDBPlatform()));
-        $listener = new WikiSpaceCollationListener(new WikiEntityManagerProvider($registry, 'wiki'));
+        $registry = $this->createStub(ManagerRegistry::class);
+        foreach ([new WikiEntityManagerProvider($registry, 'wiki'), $this->createStub(EntityManagerInterface::class)] as $entityManager) {
+            $column = $this->generatedTable(new WikiSpaceCollationListener($entityManager), WikiSpace::class, self::MARIADB)->getColumn('owner_scope_id');
 
-        $column = $this->generatedTable($listener, WikiSpace::class)->getColumn('owner_scope_id');
-
-        self::assertSame('utf8mb4_nopad_bin', $column->getPlatformOptions()['collation'] ?? null);
+            self::assertSame('utf8mb4_nopad_bin', $column->getPlatformOptions()['collation'] ?? null);
+        }
     }
 
     public function testOtherTablesAreUntouched(): void
     {
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->expects(self::never())->method('getConnection');
-
-        $table = $this->generatedTable(new WikiSpaceCollationListener($entityManager), WikiPage::class);
+        $table = $this->generatedTable(new WikiSpaceCollationListener(), WikiPage::class, self::MARIADB);
 
         foreach ($table->getColumns() as $column) {
             self::assertArrayNotHasKey('collation', $column->getPlatformOptions());
         }
     }
 
-    public function testCollatesInPlaceOnOlderDbal(): void
+    /** A manager that does not map the wiki (the host's, with a private wiki manager) is left alone. */
+    public function testAManagerWithoutTheWikiIsLeftAlone(): void
+    {
+        $metadataFactory = $this->createMock(ClassMetadataFactory::class);
+        $metadataFactory->method('isTransient')->willReturn(true);
+        $metadataFactory->expects(self::never())->method('getAllMetadata');
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->method('getMetadataFactory')->willReturn($metadataFactory);
+        $entityManager->expects(self::never())->method('getConnection');
+        $schema = new Schema();
+        $args   = new GenerateSchemaEventArgs($entityManager, $schema);
+
+        (new WikiSpaceCollationListener())->postGenerateSchema($args);
+
+        self::assertSame($schema, $args->getSchema());
+    }
+
+    /** A schema without the wiki tables (a subset of the classes) is left as it is. */
+    public function testASchemaWithoutTheWikiTablesIsLeftAsItIs(): void
+    {
+        $em     = WikiTestDatabase::connect(null, WikiMetadataListener::USER_REFERENCE_ENTITY, self::MARIADB);
+        $schema = new Schema();
+        $args   = new GenerateSchemaEventArgs($em, $schema);
+
+        (new WikiSpaceCollationListener())->postGenerateSchema($args);
+
+        self::assertSame($schema, $args->getSchema());
+    }
+
+    /** The former table event does nothing (1.49.1: replacing the table there lost its foreign keys). */
+    public function testTheFormerTableEventDoesNothing(): void
+    {
+        $table = new Table('wiki_spaces');
+        $table->addColumn('owner_scope_id', Types::STRING, ['length' => 64]);
+        $args = new GenerateSchemaTableEventArgs(new ClassMetadata(WikiSpace::class), new Schema(), $table);
+
+        (new WikiSpaceCollationListener())->postGenerateSchemaTable($args);
+
+        self::assertSame($table, $args->getClassTable());
+        self::assertSame([], $table->getColumn('owner_scope_id')->getPlatformOptions());
+    }
+
+    public function testCollatesInPlaceOrThroughTheEditor(): void
     {
         $table = new Table('wiki_spaces');
         $table->addColumn('owner_scope_id', Types::STRING, ['length' => 64]);
@@ -98,20 +157,25 @@ final class WikiSpaceCollationListenerTest extends TestCase
         self::assertNull(WikiSpaceCollationListener::collate($table, 'owner_scope_id', 'utf8mb4_0900_bin', false));
         self::assertSame('utf8mb4_0900_bin', $table->getColumn('owner_scope_id')->getPlatformOptions()['collation'] ?? null);
         self::assertSame('utf8mb4', $table->getColumn('owner_scope_id')->getPlatformOptions()['charset'] ?? null);
+
+        $edited = WikiSpaceCollationListener::collate($table, 'owner_scope_id', 'utf8mb4_nopad_bin', true);
+        self::assertInstanceOf(Table::class, $edited);
+        self::assertNotSame($table, $edited);
+        self::assertSame('utf8mb4_nopad_bin', $edited->getColumn('owner_scope_id')->getPlatformOptions()['collation'] ?? null);
     }
 
     /** 1.36 (`database.user_reference: id`, REQ-SEC-006 item 3): every stored user id column is collated too. */
-    #[DataProvider('platforms')]
-    public function testIdModeCollatesTheUserColumns(AbstractPlatform $platform, ?string $expected): void
+    #[DataProvider('databases')]
+    public function testIdModeCollatesTheUserColumns(?string $url, ?string $expected): void
     {
         $logger = new RecordingLogger();
-        $table  = $this->generatedTable(new WikiSpaceCollationListener($this->entityManagerOn($platform), $logger), WikiCommentThread::class, WikiMetadataListener::USER_REFERENCE_ID);
+        $table  = $this->generatedTable(new WikiSpaceCollationListener(null, $logger), WikiCommentThread::class, $url, WikiMetadataListener::USER_REFERENCE_ID);
 
         foreach (['created_by_id', 'resolved_by_id'] as $column) {
             self::assertSame($expected, $table->getColumn($column)->getPlatformOptions()['collation'] ?? null, $column);
         }
         self::assertArrayNotHasKey('collation', $table->getColumn('quote')->getPlatformOptions());
-        // REQ-SEC-006 item 8: the PAD SPACE fallback is reported.
+        // REQ-SEC-006 item 8: the PAD SPACE fallback is reported, once per collated table.
         self::assertSame($expected === 'utf8mb4_bin' ? 1 : 0, count($logger->records));
     }
 
@@ -128,25 +192,13 @@ final class WikiSpaceCollationListenerTest extends TestCase
         $em->getConnection()->close();
     }
 
-    private function entityManagerOn(AbstractPlatform $platform): EntityManagerInterface
-    {
-        $connection = $this->createMock(Connection::class);
-        $connection->method('getDatabasePlatform')->willReturn($platform);
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->method('getConnection')->willReturn($connection);
-        $entityManager->method('isOpen')->willReturn(true);
-
-        return $entityManager;
-    }
-
     /** @param class-string $class */
-    private function generatedTable(WikiSpaceCollationListener $listener, string $class, string $userReference = WikiMetadataListener::USER_REFERENCE_ENTITY): Table
+    private function generatedTable(WikiSpaceCollationListener $listener, string $class, ?string $url, string $userReference = WikiMetadataListener::USER_REFERENCE_ENTITY): Table
     {
-        // The schema is built from the wiki mapping on SQLite in memory; the listener reads the platform of its own
-        // entity manager, so a MySQL / MariaDB platform there decides the collation.
-        $em = WikiTestDatabase::connect(null, $userReference);
+        // The schema of one wiki class, generated for the platform of `$url` (never connected to; null: SQLite).
+        $em = WikiTestDatabase::connect(null, $userReference, $url);
         self::assertInstanceOf(EntityManager::class, $em);
-        $em->getEventManager()->addEventListener(ToolEvents::postGenerateSchemaTable, $listener);
+        $em->getEventManager()->addEventListener(ToolEvents::postGenerateSchema, $listener);
         $metadata = $em->getMetadataFactory()->getMetadataFor($class);
         $schema   = (new SchemaTool($em))->getSchemaFromMetadata([$metadata]);
         $em->getConnection()->close();
