@@ -7,13 +7,14 @@
     {{ parent() }}
     {% set _backlinks = demo_wiki_backlinks(app.request.attributes.get('spaceSlug'), app.request.attributes.get('pageSlug')) %}
     {% if _backlinks is not empty %}
-        <section class="{{ nowo_ui_class('card', page.bundle) }} demo-wiki-backlinks" aria-labelledby="demo-wiki-backlinks-title" data-testid="demo-wiki-backlinks">
-            <h2 class="{{ nowo_ui_class('card_title', page.bundle) }}" id="demo-wiki-backlinks-title">Linked from</h2>
-            <ul>
-                {% for link in _backlinks %}
-                    <li><a href="{{ link.href }}">{{ link.title }}</a></li>
-                {% endfor %}
-            </ul>
-        </section>
+        {% embed '@NowoUiKit/demo_platform/_section.html.twig' with {title: 'Linked from', kind: 'list', id: 'demo-wiki-backlinks', testid: 'demo-wiki-backlinks', backlinks: _backlinks} %}
+            {% block section_body %}
+                <ul>
+                    {% for link in backlinks %}
+                        <li><a href="{{ link.href }}">{{ link.title }}</a></li>
+                    {% endfor %}
+                </ul>
+            {% endblock %}
+        {% endembed %}
     {% endif %}
 {% endblock %}

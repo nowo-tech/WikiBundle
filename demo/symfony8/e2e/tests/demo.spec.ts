@@ -9,7 +9,7 @@ test.describe('Wiki demo', () => {
   test('wiki index lists the demo spaces inside the host layout', async ({ page }) => {
     const response = await page.goto('/tools/wiki');
     expect(response?.ok()).toBeTruthy();
-    await expect(page.getByTestId('demo-masthead')).toBeVisible();
+    await expect(page.getByTestId('demo-platform')).toBeVisible();
     const spaces = page.getByTestId('wiki-spaces');
     await expect(spaces.getByRole('link', { name: 'Engineering' }).first()).toBeVisible();
     await expect(spaces.getByRole('link', { name: 'Product' }).first()).toBeVisible();

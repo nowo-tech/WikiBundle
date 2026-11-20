@@ -1,12 +1,9 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
-/** Wait for the Symfony WebProfiler toolbar (dev) so it is part of the capture. */
+/** README screenshots never show the Symfony debug toolbar (it is not part of the demo platform): hide it. */
 export async function waitForToolbar(page: Page): Promise<void> {
-  const toolbar = page.locator('.sf-toolbar');
-  if (await toolbar.count()) {
-    await expect(toolbar.locator('.sf-toolbar-block').first()).toBeVisible({ timeout: 15_000 });
-    await page.waitForTimeout(400);
-  }
+  await page.addStyleTag({ content: '.sf-toolbar,.sf-minitoolbar,[id^="sfwdt"]{display:none!important}' });
+  await page.waitForTimeout(300);
 }
 
 /**

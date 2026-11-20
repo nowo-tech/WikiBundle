@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "a0285236def8b91ff5888a47dc9bb214",
+    "content-hash": "948249b8cddd900eb2c2bfd8ca8c3e61",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -2600,16 +2600,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.57.0",
+            "version": "v2.60.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "9138ca60c0fe6f9f63b5d37c0560eaf8e9c99368"
+                "reference": "cd142ddce9afc51681e85f64d5fc96ef0c14302e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/9138ca60c0fe6f9f63b5d37c0560eaf8e9c99368",
-                "reference": "9138ca60c0fe6f9f63b5d37c0560eaf8e9c99368",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/cd142ddce9afc51681e85f64d5fc96ef0c14302e",
+                "reference": "cd142ddce9afc51681e85f64d5fc96ef0c14302e",
                 "shasum": ""
             },
             "require": {
@@ -2656,7 +2656,8 @@
                 "symfony/validator": "Colour validation in the optional appearance forms"
             },
             "bin": [
-                "bin/nowo-ui-token-lint"
+                "bin/nowo-ui-token-lint",
+                "bin/nowo-ui-demo-style-lint"
             ],
             "type": "symfony-bundle",
             "autoload": {
@@ -2698,8 +2699,8 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-11-18T11:11:19+00:00",
-            "published-time": "2026-11-18T11:15:07+00:00"
+            "time": "2026-11-20T20:27:14+00:00",
+            "published-time": "2026-11-20T20:30:01+00:00"
         },
         {
             "name": "nowo-tech/wiki-bundle",
@@ -2707,7 +2708,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "aa901167b4cb37a9e765c1020c9f7fbf30ba7dc1"
+                "reference": "86db2c30895d4890718c3c6786c9d02b32d813b4"
             },
             "require": {
                 "doctrine/dbal": "^3.8.2 || ^4.0",

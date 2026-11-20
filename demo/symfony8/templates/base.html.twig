@@ -1,51 +1,19 @@
-{#- REQ-DEMO-014: the demo shell is UiKit's admin layout with UiKit's default theme (nowo-ui.css from the bundle's own
-    asset package; no CSS framework, no CDN, no global token override). Wiki pages extend it through
-    nowo_ui_kit.layouts.admin and fill the canonical blocks. -#}
-{% extends '@NowoUiKit/layout/admin.html.twig' %}
-
-{% set nowo_ui_document_title_suffix = 'Wiki Demo' %}
-
-{% block nowo_ui_document_title %}{% block title %}Wiki Bundle Demo{% endblock %}{% endblock %}
-
-{% block nowo_ui_styles %}
-    {{ parent() }}
-    {#- 1.44: in focus mode the focus bar is the page's first row; the body's default margin would put it 8px below the
-        viewport top, where the wiki's Pages drawer (fixed, below --nowo-ui-top-offset) starts. A host shell has no
-        margin there (or sets --nowo-ui-host-top-height). -#}
-    <style>body:has(> .demo-shell[data-focus-mode]) { margin: 0; }</style>
-    {% block stylesheets %}{% endblock %}
-{% endblock %}
-
-{#- 1.44: with UiKit's focus mode on (config/packages/nowo_ui_kit.yaml), the page is a focus-mode shell (the root
-    attributes UiKit's app shell prints, and its focus bar), so the wiki's toggle and the Pages drawer can be shown. -#}
-{% block nowo_ui_body %}
-    {%- set _focus = nowo_ui_kit_focus_mode|default({}) -%}
-    {%- if (_focus.enabled ?? false) is same as(true) -%}
-        <div class="demo-shell" data-nowo-ui-shell data-nowo-ui-focus-regions="{{ (_focus.regions ?? [])|join(' ') }}"{% if (_focus.keep ?? []) is not empty %} data-nowo-ui-focus-keep-list="{{ _focus.keep|join(' ') }}"{% endif %} data-nowo-ui-focus-shortcut="{{ _focus.shortcut ?? 'none' }}" data-nowo-ui-focus-area="wiki">
-            {{ include(nowo_ui_partial('focus_mode_bar'), {crumbs: null, header: null, home_href: null, bundle: null}, false) }}
-            {{ parent() }}
-        </div>
-    {%- else -%}
-        {{ parent() }}
-    {%- endif -%}
-{% endblock %}
-
-{% block nowo_ui_navigation %}
-    {% set _route = app.request.attributes.get('_route') %}
-    <header class="nowo-ui-header" data-testid="demo-masthead" data-nowo-ui-focus-region="header">
-        <a class="nowo-ui-brand" href="{{ path('nowo_wiki_index') }}">Wiki Bundle Demo</a>
-        <nav class="nowo-ui-menu" aria-label="Wiki Bundle Demo">
-            <a class="nowo-ui-link" href="{{ path('nowo_wiki_index') }}"{% if _route == 'nowo_wiki_index' %} aria-current="page"{% endif %}>Spaces</a>
-            <a class="nowo-ui-link" href="{{ path('nowo_wiki_search') }}"{% if _route == 'nowo_wiki_search' %} aria-current="page"{% endif %}>Search</a>
-            <a class="nowo-ui-link" href="{{ path('nowo_wiki_ai_ask') }}"{% if _route == 'nowo_wiki_ai_ask' %} aria-current="page"{% endif %}>Ask the wiki</a>
-        </nav>
-        <div class="nowo-ui-header__end">
-            {{ include('@NowoUiKitBundle/partials/_theme_toggle.html.twig', { compact: true }, false) }}
-        </div>
-    </header>
-{% endblock %}
-
-{% block nowo_ui_content %}{% block body %}{% endblock %}{% endblock %}
+{#- REQ-DEMO-014: the demo runs inside UiKit's shared demo platform shell (@NowoUiKit/demo_platform/layout.html.twig).
+    This file only declares the demo (nowo_ui_demo_platform); wiki pages extend it through nowo_ui_kit.layouts. UiKit's
+    shell focus mode (config/packages/nowo_ui_kit.yaml) is printed by the shell itself. -#}
+{% extends '@NowoUiKit/demo_platform/layout.html.twig' %}
+{% set nowo_ui_demo_platform = {
+    bundle: 'Wiki',
+    home_route: 'nowo_wiki_index',
+    repository: 'https://github.com/nowo-tech/WikiBundle',
+    translation_domain: false,
+    nav: [
+        {label: 'Spaces', route: 'nowo_wiki_index', active: ['nowo_wiki_index', 'nowo_wiki_space*', 'nowo_wiki_page_*'], section: 'Wiki'},
+        {label: 'Search', route: 'nowo_wiki_search', section: 'Wiki'},
+        {label: 'Ask the wiki', route: 'nowo_wiki_ai_ask', section: 'Wiki'},
+    ],
+} %}
+{% block nowo_ui_document_title %}{% block title %}Wiki Bundle Demo{% endblock %} — Symfony 8{% endblock %}
 
 {% block nowo_ui_scripts %}
     {{ parent() }}

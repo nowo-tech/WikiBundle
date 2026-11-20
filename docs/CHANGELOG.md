@@ -285,6 +285,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Demo: runs in UiKit's demo platform shell (`@NowoUiKit/demo_platform/layout.html.twig`, UiKit ^2.60): the demo declares itself in `templates/base.html.twig`, the page header, section cards and flashes come from UiKit, the demo's own masthead, nav markup and `<style>` are gone, and the e2e selectors use `demo-platform`. The README screenshots no longer show the Symfony toolbar.
+
 ## [1.49.0] - 2026-11-20
 
 ### Added (1.49.0)
