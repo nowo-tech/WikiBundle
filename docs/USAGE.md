@@ -14,6 +14,7 @@
 - [Application integration](#application-integration)
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
+- [Space lifecycle: rename, archive, purge (1.50)](#space-lifecycle-rename-archive-purge-150)
 - [Space icon (1.32)](#space-icon-132)
 - [Icon picker, emoji icons and the tree menu (1.39)](#icon-picker-emoji-icons-and-the-tree-menu-139)
   - [Tree menu entries (1.41)](#tree-menu-entries-141)
@@ -438,6 +439,118 @@ List pages of the manage UI are bounded by default (`nowo_wiki.pagination`, see 
 | Search results | 25 hits | — |
 
 Each list is one query (no N+1): spaces through `WikiSpaceRepositoryInterface::findAccessible()`, the tree through `findActiveBySpace($space, $max + 1)`, history through `findByPage($page, $limit, $offset)`. Exports (`/export`, `wiki:export`) are synchronous, write to a temp directory and stream the ZIP; they are bounded by PHP `max_execution_time` — use the `wiki:export` console command for very large spaces.
+
+## Space lifecycle: rename, archive, purge (1.50)
+
+`Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface` (public service) renames, archives, brings back and purges a
+space. Call it instead of writing the wiki's tables yourself: it keeps every wiki table consistent, runs on the wiki's
+own transaction runner (with `database.private_entity_manager: true` your entity manager is not involved at all) and
+never clears, resets or closes your entity manager.
+
+```php
+use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
+use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+
+final class WikiAdminController extends AbstractController
+{
+    public function __construct(private WikiSpaceLifecycleInterface $spaces)
+    {
+    }
+
+    public function rename(string $spaceId, string $name, ?string $slug, int $version): WikiSpaceSnapshot
+    {
+        // Name and/or slug (null keeps it); $version is the snapshot's `version` the form was built from.
+        return $this->spaces->renameSpace($spaceId, $name, $slug, $this->actor(), $version);
+    }
+
+    public function archive(string $spaceId, int $version): WikiSpaceSnapshot
+    {
+        return $this->spaces->archiveSpace($spaceId, $this->actor(), $version);
+    }
+
+    public function unarchive(string $spaceId, int $version): WikiSpaceSnapshot
+    {
+        return $this->spaces->unarchiveSpace($spaceId, $this->actor(), $version);
+    }
+
+    public function purge(string $spaceId): void
+    {
+        // Only an archived space; `force: true` (your administrator flag) purges an active one (it is archived first).
+        $this->spaces->purgeSpace($spaceId, $this->actor());
+    }
+
+    /** The person asking: the space checker and the access-check event receive it (`user()` is your user object). */
+    private function actor(): WikiUserRef
+    {
+        $user = $this->getUser();
+
+        return new WikiUserRef($user::class, (string) $user->getId(), $user->getUserIdentifier(), $user->getRoles(), $user);
+    }
+}
+```
+
+**Who may do it.** With an actor, the person must be able to open the space (otherwise
+`WikiSpaceNotFoundException`, exactly as for a space that does not exist: a space of another tenant cannot be told
+from a missing one) and hold `Manage` on it through your `WikiSpaceAccessCheckerInterface`; a listener of
+`WikiEvents::SPACE_ACCESS_CHECK` (`WikiSpaceAccessCheckEvent`: `action`, `space`, `actor`, `isDefaultGranted()`,
+`grant()`, `deny()`, a deny sticks) may narrow or widen that, for example to keep a default space from being archived.
+A refusal is `WikiSpaceAccessDeniedException`. A null actor is a trusted call that checks nothing (a console command,
+a message handler that already checked): pass the person whenever there is one.
+
+**Rename.** The slug stays unique per owner (`WikiSlugTakenException`; `WikiInvalidSlugException` for a slug that is
+not lowercase letters, digits and single dashes, at most 120 characters). Links between pages follow page ids and keep
+working; URLs built with the old slug stop resolving, because the bundle keeps no slug history.
+
+**Archive.** An archived space is read-only for everyone (the page service refuses creates, saves and restores with
+`WikiPageArchivedException`; the UI and the REST API refuse every write, the API with `403 WIKI_002`), and only the
+people who may manage it can open it: for everyone else it disappears from lists, the tree, search, the link picker,
+favourites and recents. It is reversible. The rule wraps whatever space checker you configured
+(`WikiArchivedSpaceAccessChecker` decorates `WikiSpaceAccessCheckerInterface`). The REST API's wiki body reports
+`archived: true` for it as well.
+
+**Purge.** Irreversible. It deletes the pages with their revisions, named versions, comments and reactions, attachment
+rows (their files are removed from the attachment storage after each commit), links to host objects, references from
+and to the pages, favourites, visits, trash entries, co-editing state and the REST API's idempotency records of the
+pages, then the space row. Search reads the live rows, so nothing of the space is found any more. It runs in batches of
+100 pages, one transaction each; with `page_files.purge_event` each batch dispatches `WikiPageFilesPurgedEvent` for the
+files its revisions referred to. The first call marks the space as being purged (it stays archived; rename and
+unarchive answer `WikiSpaceStateException`). A call that stops — a failure, or the `maxBatches` budget — leaves the
+space so, and calling again resumes where it stopped. From a queue:
+
+```php
+$result = $this->spaces->purgeSpace($spaceId, null, false, maxBatches: 20);
+if (!$result->finished) {
+    $this->bus->dispatch(new PurgeWikiSpace($spaceId)); // go on in another message
+}
+```
+
+**Optimistic locking.** `WikiSpaceSnapshot::$version` grows with every rename, archive and unarchive. Pass it back as
+`expectedVersion`: a change made meanwhile answers `WikiSpaceVersionConflictException` (nothing written; read again).
+Null means last write wins. Archiving an archived space (or bringing back an active one) writes nothing, whatever the
+version, so a retry after a lost answer is harmless.
+
+**Conflicts (REQ-RUNTIME-003 rule 6).** A lock conflict surfaces as `Nowo\TransactionContract\TransientStorageFailure`:
+nothing was written, answer `409` + `Retry-After` with `CONFLICT_001`. A purge that had already committed part of its
+work throws `Nowo\TransactionDoctrine\WriteUnit\ConcurrencyConflict` with `committed: true`: answer `CONFLICT_002`
+without `Retry-After`; the client reads again and calls the purge again. `ConflictCode::forFailure()` gives the code.
+
+| Exception | Answer |
+| --- | --- |
+| `WikiSpaceNotFoundException` | 404 |
+| `WikiSpaceAccessDeniedException` | 403 |
+| `WikiSpaceVersionConflictException`, `WikiSpaceStateException`, `WikiSlugTakenException` | 409 (no `Retry-After`) |
+| `WikiInvalidSlugException`, `InvalidArgumentException` (empty or too long name, nothing to rename) | 422 |
+| `TransientStorageFailure` | 409 + `Retry-After`, `CONFLICT_001` / `CONFLICT_002` |
+
+**Events**, after the change committed: `WikiEvents::SPACE_RENAMED`, `SPACE_ARCHIVED`, `SPACE_UNARCHIVED`
+(`WikiSpaceLifecycleEvent`: the space before and after, the actor) and `SPACE_PURGED` (`WikiSpacePurgedEvent`, once,
+when the space row is gone), plus `ATTACHMENT_DELETED` for each purged attachment.
+
+**REST API.** `PATCH /wikis/{wiki}`, `POST /wikis/{wiki}/archive` and `/unarchive` still go to your
+`api.hooks.wiki_management` hook; call the service from it for the wiki's space (`$wiki->space?->getId()`). The purge
+has no endpoint.
 
 ## Space icon (1.32)
 
