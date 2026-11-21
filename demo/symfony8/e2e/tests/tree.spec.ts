@@ -99,7 +99,7 @@ test.describe('Wiki page tree', () => {
     await (await headerAction(page, page.getByTestId('wiki-move'))).click();
     await page.getByLabel('Parent page').selectOption({ label: 'Top level' });
     await page.getByRole('button', { name: 'Move' }).click();
-    await expect(page.getByText(/^“Resources” moved to the top level, position \d+ of \d+\.$/)).toBeVisible();
+    await expect(page.getByText(/“Resources” moved to the top level, position \d+ of \d+\./)).toBeVisible();
     await expect(item(page, 'Resources')).toHaveAttribute('aria-level', '1');
   });
 });

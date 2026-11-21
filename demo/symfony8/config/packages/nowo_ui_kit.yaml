@@ -2,8 +2,10 @@
 # The demo shell (templates/base.html.twig) extends UiKit's admin layout and is the host layout of every wiki page.
 nowo_ui_kit:
     css_framework: custom
+    base_stylesheet: true
     layouts:
         admin: 'base.html.twig'
+        guest: 'base.html.twig'
     # 1.44 (WikiBundle focus drawer, UiKit >= 2.55): the shell's focus mode, so the demo and its e2e cover the wiki's
     # toggle and the "Pages" drawer (below the focus bar, close button, backdrop, Escape closes only the drawer).
     theme:
