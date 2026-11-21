@@ -170,7 +170,8 @@ final readonly class WikiApiGuard
      */
     public function requireWritable(WikiApiWiki $wiki): void
     {
-        if ($wiki->archived) {
+        // 1.50: the bundle's own archive state of the space counts as well as the directory's.
+        if ($wiki->archived || $wiki->space?->isArchived() === true) {
             throw WikiApiRefusal::archivedWiki();
         }
     }

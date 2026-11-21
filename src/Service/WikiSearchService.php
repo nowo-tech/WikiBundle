@@ -119,6 +119,7 @@ final readonly class WikiSearchService
             ->leftJoin('p.currentRevision', 'r')
             ->where('p.space IN (:spaces)')
             ->andWhere('p.archivedAt IS NULL')
+            ->andWhere('s.archivedAt IS NULL') // 1.50: nothing of an archived space
             ->andWhere("LOWER(p.title) LIKE :q ESCAPE '!' OR LOWER(r.contentText) LIKE :q ESCAPE '!' OR (r.contentText IS NULL AND LOWER(r.contentHtml) LIKE :q ESCAPE '!')")
             ->setParameter('spaces', $spaces)
             ->setParameter('q', $like)
@@ -210,6 +211,7 @@ final readonly class WikiSearchService
             ->innerJoin('p.space', 's')
             ->where('p.space IN (:spaces)')
             ->andWhere('p.archivedAt IS NULL')
+            ->andWhere('s.archivedAt IS NULL') // 1.50: nothing of an archived space
             ->andWhere("LOWER(p.title) LIKE :q ESCAPE '!'")
             ->setParameter('spaces', $spaces)
             ->setParameter('q', '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($query)) . '%')
@@ -256,6 +258,7 @@ final readonly class WikiSearchService
             ->leftJoin('p.currentRevision', 'r')
             ->where('p.space IN (:spaces)')
             ->andWhere('p.archivedAt IS NULL')
+            ->andWhere('s.archivedAt IS NULL') // 1.50: nothing of an archived space
             // 1.16: the plain text; a revision not backfilled yet: its source (Markdown) or HTML, as in 1.11.
             ->andWhere("p.title LIKE :q ESCAPE '!' OR r.contentText LIKE :q ESCAPE '!' OR (r.contentText IS NULL AND (r.contentMarkdown LIKE :q ESCAPE '!' OR (r.contentMarkdown IS NULL AND r.contentHtml LIKE :q ESCAPE '!')))")
             ->setParameter('spaces', $spaces)

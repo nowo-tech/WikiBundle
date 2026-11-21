@@ -33,6 +33,18 @@ class WikiSpace
     #[ORM\Column(type: 'string', length: WikiSpaceIcon::MAX_LENGTH, nullable: true)]
     private ?string $icon = null;
 
+    /** 1.50: when the space was archived (read-only, hidden from navigation and search); null while it is active. */
+    #[ORM\Column(name: 'archived_at', type: 'datetime_immutable', nullable: true)]
+    private ?DateTimeImmutable $archivedAt = null;
+
+    /** 1.50: when a purge of the space started (it stays archived until the purge deletes it); null otherwise. */
+    #[ORM\Column(name: 'purge_started_at', type: 'datetime_immutable', nullable: true)]
+    private ?DateTimeImmutable $purgeStartedAt = null;
+
+    /** 1.50: the optimistic lock of rename, archive and unarchive; raised by each of them. */
+    #[ORM\Column(name: 'lock_version', type: 'integer', options: ['default' => 1])]
+    private int $version = 1;
+
     /**
      * Creates a space with a generated UUID and both timestamps set to now.
      *
@@ -98,6 +110,84 @@ class WikiSpace
         $this->name = $name;
         // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
         $this->updatedAt = new DateTimeImmutable();
+    }
+
+    /**
+     * Changes the slug (1.50, rename). The caller validates it and checks it is free within the owner scope.
+     *
+     * @param string $slug new URL-safe slug
+     */
+    public function changeSlug(string $slug): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->slug = $slug;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->updatedAt = new DateTimeImmutable();
+    }
+
+    /**
+     * When the space was archived (1.50), or null while it is active.
+     */
+    public function getArchivedAt(): ?DateTimeImmutable
+    {
+        return $this->archivedAt;
+    }
+
+    /**
+     * Whether the space is archived (1.50): read-only, hidden from navigation and search.
+     */
+    public function isArchived(): bool
+    {
+        return $this->archivedAt instanceof DateTimeImmutable;
+    }
+
+    /**
+     * Archives (`true`) or brings back (`false`) the space (1.50) and refreshes the update timestamp.
+     */
+    public function changeArchived(bool $archived): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->archivedAt = $archived ? new DateTimeImmutable() : null;
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->updatedAt = new DateTimeImmutable();
+    }
+
+    /**
+     * When a purge of the space started (1.50), or null.
+     */
+    public function getPurgeStartedAt(): ?DateTimeImmutable
+    {
+        return $this->purgeStartedAt;
+    }
+
+    /**
+     * Records that a purge started (1.50): the space is archived and stays so until the purge deletes it.
+     */
+    public function startPurge(): void
+    {
+        if (!$this->isArchived()) {
+            // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+            $this->archivedAt = new DateTimeImmutable();
+        }
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        $this->purgeStartedAt ??= new DateTimeImmutable();
+    }
+
+    /**
+     * The optimistic lock version (1.50): raised by every rename, archive and unarchive.
+     */
+    public function getVersion(): int
+    {
+        return $this->version;
+    }
+
+    /**
+     * Raises the optimistic lock version (1.50).
+     */
+    public function bumpVersion(): void
+    {
+        // @igor-ignore - Doctrine entity field; instance-scoped, not a shared service.
+        ++$this->version;
     }
 
     /**

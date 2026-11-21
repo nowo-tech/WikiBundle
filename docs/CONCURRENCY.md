@@ -59,7 +59,7 @@ API suites and both race files pass on MariaDB 11.4 with no code change.
 
 | Write path | Transaction | Concurrency control (rule 4) | Loser |
 |---|---|---|---|
-| Page create (UI, REST API, import) | One unit: page, first revision, the page's revision pointer | Space row locked (tree position, sibling order); unique slug per space | Unique slug: 409 `WIKI_003` / `WIKI_CONFLICT`; lock conflict: [rule 6](#conflict-answers) |
+| Page create (UI, REST API, import) | One unit: page, first revision, the page's revision pointer | Space row locked (tree position, sibling order; 1.50: its archived state read by the locking statement); unique slug per space | Unique slug: 409 `WIKI_003` / `WIKI_CONFLICT`; lock conflict: [rule 6](#conflict-answers) |
 | Page save (edit form, REST API, live session, import) | One unit: revision + page pointer | Page row locked and read again: the next revision number follows the locked current one; `base_revision` compared on the locked row; archived / trashed refused | Stale base: 409 `WIKI_REVISION_CONFLICT` (form shown again with the text); REST API lock conflict: rule 6 (since 1.48; was `WIKI_SAVE_COLLISION`); another collision: 409 `WIKI_SAVE_COLLISION` + `Retry-After`; edit form: shown again with the text and a "try again" message |
 | Archive / unarchive, page icon | One unit | Page row re-read with `PESSIMISTIC_WRITE` (`lockEntity()`); judged on the locked row | Already in that state: answered as done, announced once; gone: 404 |
 | Tree move, reorder | One unit | Space row locked; parent, depth and cycle checked under the lock | 409 `WIKI_MOVE_001` (stale move or cycle) / 422 `WIKI_MOVE_002` |
@@ -73,6 +73,8 @@ API suites and both race files pass on MariaDB 11.4 with no code change.
 | Backlink index after a save (1.45) | One unit per page | Source page row locked, its current revision read under the lock: the last writer indexes the latest revision | None (the save is already committed): logged; the next save or `wiki:backlinks:rebuild` fixes it |
 | REST API idempotency claim | Single statements | Unique key `(scope, key_hash)`; an abandoned claim is taken over with a conditional `UPDATE … WHERE created_at = ?` | 409 `IDEMP_001` + `Retry-After`; mismatching body 409 `IDEMP_002` |
 | Space create / settings | One flush of one row | Unique slug | 409 `WIKI_003` |
+| Space rename, archive, unarchive (1.50) | One unit | Space row re-read with `PESSIMISTIC_WRITE`; optional `expectedVersion` compared on the locked row; the new slug written by statement (unique key per owner) before the flush | Stale version: `WikiSpaceVersionConflictException`; slug taken meanwhile: `WikiSlugTakenException` (no flush failed, the manager stays open); already in that state: answered as done; lock conflict: rule 6 `CONFLICT_001` |
+| Space purge (1.50) | One unit to mark the space, then one unit per batch of 100 pages, then one for the space row | Space row locked in each unit; every wiki table cleared by statement, the removed rows forgotten by the wiki's manager | Lock conflict before this call committed anything: `CONFLICT_001`; after: `ConcurrencyConflict` with `committed: true` (`CONFLICT_002`); any failure leaves complete batches only, and the next call resumes; refused inside an open transaction; only the call that deleted the space row dispatches `SPACE_PURGED` |
 | `wiki:trash:purge`, `wiki:recents:purge`, `wiki:collab:purge`, `wiki:history:thin`, erasure commands | One transaction per batch / per person | Rows by primary key | The command fails; run it again (each batch is complete or absent) |
 | `wiki:search:backfill-text`, `wiki:backlinks:rebuild` | One transaction per batch / per page; keyset batches | One `UPDATE` per changed text / the index lock above | A page with lock conflicts is tried 3 times, then skipped and reported (exit FAILURE, `--after=<id>` resumes) |
 
@@ -158,6 +160,11 @@ Accepted and documented:
   (the form again with the person's text and a "try again" message, a redirect with a flash, a `409 {"error":
   "conflict"}`), without `X-Conflict-Code`: nothing was written and the text is never lost, which matters more on these
   screens than the platform's generic "try again" page.
+- **Space archive vs. an in-flight page save:** a save that read the space before an archive committed may still land
+  (as if it had committed just before); every later write is refused. A purge clears what such a save wrote. Page
+  creates are not affected: they read the space state under its row lock.
+- **Space purge files:** attachment files are removed after each batch commits; a process that dies in between leaves
+  orphan files for the attachment maintenance.
 - **Commit detection** sees DBAL writes on DoctrineBundle connections only; a commit on another connection of the same
   request is not seen and its conflict answers `CONFLICT_001`.
 
@@ -169,6 +176,7 @@ Accepted and documented:
 | `tests/Database/LoadReadinessConcurrencyTest.php` (+ `Race/load-worker.php`) | Two processes saving one page, linking one object, replying to one thread, reacting twice, uploading into a full space | MySQL, MariaDB, PostgreSQL |
 | `tests/Database/WikiQuickAccessRaceTest.php` | Two connections: lock conflict on a favourite (`CONFLICT_001` / `CONFLICT_002`), unique-key races on favourites and visits | MySQL, MariaDB, PostgreSQL |
 | `tests/Database/LoadReadinessQnTest.php`, `WikiPageRevisionRaceTest.php`, `WikiPageExpectedRevisionTest.php` | The shared-manager failure paths (QN), two saves racing for one revision number, stale `base_revision` | SQLite, MySQL, MariaDB, PostgreSQL |
+| `tests/Database/WikiSpaceLifecycleTest.php` | Space rename / archive / purge: a locked space row (`CONFLICT_001`, nothing written), a slug taken between the check and the write, a failure and a lock conflict in the middle of a purge (`CONFLICT_002`, resumed by the next call) | SQLite, MySQL, MariaDB, PostgreSQL |
 | `tests/Unit/Transaction/WikiTransactionRunnerTest.php` | Nested units, lost savepoints, the closed-manager path, events after the unit | — |
 | `tests/Api/ApiIdempotencyTest.php` | A committed conflict keeps the claim and replays `CONFLICT_002`; an uncommitted one releases it | all |
 | `tests/Unit/Transaction/*` | The rule 6 mapping: deadlock, lock wait, serialization, committed and request-level `CONFLICT_002`, unique violations and lost connections not mapped | — |

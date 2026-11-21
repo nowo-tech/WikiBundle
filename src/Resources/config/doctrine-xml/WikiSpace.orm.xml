@@ -11,6 +11,13 @@
         <field name="createdAt" type="datetime_immutable" column="created_at"/>
         <field name="updatedAt" type="datetime_immutable" column="updated_at"/>
         <field name="icon" type="string" length="64" nullable="true"/>
+        <field name="archivedAt" type="datetime_immutable" column="archived_at" nullable="true"/>
+        <field name="purgeStartedAt" type="datetime_immutable" column="purge_started_at" nullable="true"/>
+        <field name="version" type="integer" column="lock_version">
+            <options>
+                <option name="default">1</option>
+            </options>
+        </field>
         <field name="slug" type="string" length="120"/>
         <field name="name" type="string" length="255"/>
         <field name="ownerScopeType" type="string" column="owner_scope_type" length="16" enum-type="Nowo\WikiBundle\Enum\WikiSpaceOwnerScope"/>

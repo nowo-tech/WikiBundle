@@ -154,6 +154,7 @@ use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Security\WikiArchivedSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
@@ -171,6 +172,9 @@ use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Space\WikiSpaceLifecycle;
+use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
+use Nowo\WikiBundle\Space\WikiSpacePurger;
 use Nowo\WikiBundle\Transaction\WikiConflictAnswer;
 use Nowo\WikiBundle\Transaction\WikiStorageFailureConflictFormatter;
 use Nowo\WikiBundle\Transaction\WikiStorageFailureSubscriber;
@@ -579,6 +583,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
         $this->registerAiServices($container, $config['ai']);
         $this->registerApi($container, $loader, $config);
+        $this->registerSpaceLifecycle($container, $config);
         $this->registerSearchKitProvider($container, $config);
         $this->registerRequestBoundary($container);
         $this->registerMemberBadgesAndProvenance($container, $emProviderRef, $config);
@@ -1300,6 +1305,71 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $store = $comments['state_store'] ?? null;
 
         return !is_string($store) || $store === '';
+    }
+
+    /**
+     * 1.50: rename, archive, unarchive and purge of a space ({@see WikiSpaceLifecycleInterface}, public), and the archived
+     * space's rule around whatever space checker the application configured. The purge clears only the tables of the
+     * features that are on (the others do not exist).
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerSpaceLifecycle(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool} $collaboration */
+        $collaboration = $config['collaboration'];
+        /** @var array{enabled: bool} $trash */
+        $trash = $config['trash'];
+        /** @var array{timeline: bool} $history */
+        $history = $config['history'];
+        /** @var array{enabled: bool} $comments */
+        $comments = $config['comments'];
+        /** @var array{enabled: bool} $favourites */
+        $favourites = $config['favourites'];
+        /** @var array{enabled: bool} $recents */
+        $recents = $config['recents'];
+        /** @var array{enabled: bool} $backlinks */
+        $backlinks = $config['backlinks'];
+        /** @var array{purge_event: bool, max_files: int, max_purge_files: int} $pageFiles */
+        $pageFiles = $config['page_files'];
+        $metadata  = $container->getDefinition(WikiMetadataListener::class)->getArguments();
+
+        $purger = (new Definition(WikiSpacePurger::class))
+            ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
+            ->setArgument('$tables', [
+                'comments'         => $comments['enabled'],
+                'trash'            => $trash['enabled'],
+                'history_timeline' => $history['timeline'],
+                'collaboration'    => $collaboration['enabled'],
+                'favourites'       => $favourites['enabled'],
+                'recents'          => $recents['enabled'],
+                'backlinks'        => $backlinks['enabled'],
+                'api_idempotency'  => ($metadata['$apiIdempotencyEnabled'] ?? false) === true,
+            ]);
+        if ($pageFiles['purge_event']) {
+            $purger
+                ->setArgument('$pageFiles', (new Definition(WikiPageFileExtractor::class))->setArgument('$maxFiles', $pageFiles['max_files']))
+                ->setArgument('$revisions', new Reference(WikiPageRevisionRepositoryInterface::class))
+                ->setArgument('$maxFiles', $pageFiles['max_purge_files']);
+        }
+        $container->setDefinition(WikiSpacePurger::class, $purger);
+        $container->setDefinition(WikiSpaceLifecycle::class, (new Definition(WikiSpaceLifecycle::class))
+            ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
+            ->setArgument('$spaces', new Reference(WikiSpaceRepositoryInterface::class))
+            ->setArgument('$purger', new Reference(WikiSpacePurger::class))
+            ->setArgument('$slugger', new Reference(WikiSlugger::class))
+            ->setArgument('$checker', new Reference(WikiSpaceAccessCheckerInterface::class))
+            ->setArgument('$dispatcher', new Reference('event_dispatcher'))
+            ->setArgument('$deferral', new Reference(WikiEventDeferral::class))
+            ->setArgument('$storage', new Reference(WikiAttachmentStorageInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$logger', new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE))
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+        $container->setAlias(WikiSpaceLifecycleInterface::class, WikiSpaceLifecycle::class)->setPublic(true);
+
+        // Around the alias the application may point at its own checker (DecoratorServicePass follows the alias).
+        $container->setDefinition(WikiArchivedSpaceAccessChecker::class, (new Definition(WikiArchivedSpaceAccessChecker::class))
+            ->setDecoratedService(WikiSpaceAccessCheckerInterface::class)
+            ->setArgument('$inner', new Reference('.inner')));
     }
 
     /**

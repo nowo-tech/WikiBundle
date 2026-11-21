@@ -306,9 +306,11 @@ final readonly class WikiQuickAccessStore
             ->select('x', 'p')
             ->from($class, 'x')
             ->join('x.page', 'p')
+            ->join('p.space', 'xs')
             ->where('x.userId = :user')
             ->andWhere('IDENTITY(p.space) IN (:spaces)')
             ->andWhere('p.archivedAt IS NULL')
+            ->andWhere('xs.archivedAt IS NULL') // 1.50: favourites and recents leave archived spaces out
             ->orderBy('x.' . $order, 'DESC')
             ->addOrderBy('x.id', 'DESC')
             ->setParameter('user', $userId)

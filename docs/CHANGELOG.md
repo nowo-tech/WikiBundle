@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.50.0] - 2026-11-21](#1500---2026-11-21)
+  - [Added (1.50.0)](#added-1500)
 - [[1.49.1] - 2026-11-20](#1491---2026-11-20)
   - [Fixed (1.49.1)](#fixed-1491)
 - [[1.49.0] - 2026-11-20](#1490---2026-11-20)
@@ -290,6 +292,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Demo: runs in UiKit's demo platform shell (`@NowoUiKit/demo_platform/layout.html.twig`, UiKit ^2.60): the demo declares itself in `templates/base.html.twig`, the page header, section cards and flashes come from UiKit, the demo's own masthead, nav markup and `<style>` are gone, and the e2e selectors use `demo-platform`. The README screenshots no longer show the Symfony toolbar.
+
+## [1.50.0] - 2026-11-21
+
+### Added (1.50.0)
+
+- **Space lifecycle** (`Space\WikiSpaceLifecycleInterface`, public service): rename (name and/or slug, unique per owner; active spaces only, as the REST API), archive, unarchive and purge a space through the bundle, so applications no longer write the wiki's tables themselves. Authorisation through the space checker (`Manage`; a space the person cannot open answers like a missing one, so another tenant's space reads as unknown) and the new `WikiEvents::SPACE_ACCESS_CHECK` event (`WikiSpaceAccessCheckEvent`, grant / deny, a deny sticks); a null actor is a trusted call. Optimistic locking on rename, archive and unarchive (`WikiSpaceSnapshot::$version`, `WikiSpaceVersionConflictException`). Each change is one transaction of the wiki's runner under the space row lock; events after commit (`SPACE_RENAMED`, `SPACE_ARCHIVED`, `SPACE_UNARCHIVED`, `SPACE_PURGED`).
+- **Archived spaces**: read-only for everyone and open only to the people who may manage them (`Security\WikiArchivedSpaceAccessChecker` decorates the configured `WikiSpaceAccessCheckerInterface`); left out of search, the SearchKit group, favourites, recents and the host-object link lists; page creates (the space row read under its lock), saves and restores refused by the page service (`WikiPageArchivedException`, `WikiPageService::ARCHIVED_SPACE`); the REST API answers `403 WIKI_002` to writes and reports `archived: true`. Reversible.
+- **Space purge**: irreversible deletion of a space with its pages, revisions, named versions, comments and reactions, attachments (rows, then files after each commit), host-object links, references from and to its pages, favourites, visits, trash entries, co-editing state and API idempotency records — every table cleared explicitly (no reliance on foreign-key cascades). In batches of 100 pages, one transaction each; idempotent and resumable (the space stays archived and marked as being purged until it is gone; `maxBatches` for queue workers). Only from the archived state unless `force`. A lock conflict after part of the purge committed throws `ConcurrencyConflict` with `committed: true` (`CONFLICT_002`); before, the plain `TransientStorageFailure` (`CONFLICT_001`). With `page_files.purge_event`, each batch dispatches `WikiPageFilesPurgedEvent`. Refused inside an open transaction (`WikiSpacePurgeInTransactionException`); `SPACE_PURGED` is dispatched only by the call that deleted the space row; stray files are left to `WikiAttachmentService::purgeStrayFiles()`.
+- `WikiSpace`: `archived_at`, `purge_started_at` and `lock_version` columns (see UPGRADING); `WikiSpaceSnapshot` gains `archivedAt`, `version` and `isArchived()`.
 
 ## [1.49.1] - 2026-11-20
 
@@ -2767,7 +2778,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.49.1...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.50.0...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

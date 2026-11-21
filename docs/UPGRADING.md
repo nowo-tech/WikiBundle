@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+- [To 1.50.0](#to-1500)
 - [To 1.49.1](#to-1491)
 - [To 1.49.1](#to-1491-1)
   - [Missing foreign keys on MySQL / MariaDB (1.36.0 to 1.49.0)](#missing-foreign-keys-on-mysql--mariadb-1360-to-1490)
@@ -139,6 +140,49 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+## To 1.50.0
+
+From **1.49.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
+
+**Schema.** `WikiSpace` gets three columns: `archived_at` and `purge_started_at` (nullable timestamps) and
+`lock_version` (integer, default 1). The bundle ships no migrations: generate one (`doctrine:migrations:diff`) or run
+the statements for your database (adjust the table name if you changed `table_prefix`):
+
+```sql
+-- MySQL / MariaDB
+ALTER TABLE wiki_spaces ADD archived_at DATETIME DEFAULT NULL, ADD purge_started_at DATETIME DEFAULT NULL, ADD lock_version INT DEFAULT 1 NOT NULL;
+-- PostgreSQL
+ALTER TABLE wiki_spaces ADD archived_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL, ADD purge_started_at TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT NULL, ADD lock_version INT DEFAULT 1 NOT NULL;
+-- SQLite
+ALTER TABLE wiki_spaces ADD COLUMN archived_at DATETIME DEFAULT NULL;
+ALTER TABLE wiki_spaces ADD COLUMN purge_started_at DATETIME DEFAULT NULL;
+ALTER TABLE wiki_spaces ADD COLUMN lock_version INTEGER DEFAULT 1 NOT NULL;
+```
+
+Existing spaces stay active (`archived_at` null, version 1). Without the columns every wiki query fails, so run the
+migration with the update.
+
+**Archived spaces.** Nothing changes until a space is archived through `Space\WikiSpaceLifecycleInterface`. An
+archived space is then read-only and open only to the people your space checker grants `Manage` on it: the bundle
+decorates `WikiSpaceAccessCheckerInterface` with `WikiArchivedSpaceAccessChecker`, around the service your alias names.
+Code that injects `WikiSpaceAccessCheckerInterface` gets the decorated checker; code that injects your checker by its
+own class does not.
+
+**Page creates** now lock the space row (as moves and uploads already did) and are refused in an archived space.
+**Host-object link lists** (`WikiPageLinkRepositoryInterface::findByHostObject(s)`) leave out the pages of archived
+spaces.
+
+**Applications that wrote the wiki's tables** (renaming a space, deleting a space with its pages) should call the
+service instead: [USAGE › Space lifecycle](USAGE.md#space-lifecycle-rename-archive-purge-150). A space deleted with a
+plain `DELETE` relied on foreign-key cascades and left the tables without foreign keys (references, co-editing,
+idempotency records) behind; the purge clears them. An application that keeps its own "archived" flag can keep it, or
+archive the space as well so the wiki hides it from search, favourites and recents. Call the purge outside any
+transaction, and keep (or add) a nightly `WikiAttachmentService::purgeStrayFiles()` for files a failed unlink left.
 
 ## To 1.49.1
 

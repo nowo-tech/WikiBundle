@@ -228,6 +228,31 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
     }
 
     /**
+     * 1.50: inside a unit, a write lock on the space row (as {@see self::lockSpace()}) that also answers whether the space
+     * is archived (or being purged, which archives it), read by the locking statement itself: the latest committed state,
+     * whatever the caller loaded. A space row that is gone answers false (the write then fails on its foreign key).
+     */
+    public function lockSpaceArchived(WikiSpace $space): bool
+    {
+        /** @var list<array{id: string, archivedAt: mixed}> $rows */
+        $rows = $this->manager()->createQueryBuilder()
+            ->select('x.id AS id', 'x.archivedAt AS archivedAt')
+            ->from(WikiSpace::class, 'x')
+            ->where('x.id = :id')
+            ->setParameter('id', $space->getId())
+            ->getQuery()
+            ->setLockMode(LockMode::PESSIMISTIC_WRITE)
+            ->getArrayResult();
+        foreach ($rows as $row) {
+            if ((string) $row['id'] === $space->getId()) {
+                return $row['archivedAt'] !== null;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Inside a unit: a write lock on the row of a wiki entity, then the entity read again under it with a locking read
      * (its state is the latest committed one, whatever the caller loaded before, also inside a host transaction). A row that is gone answers false; the entity is left as it was.
      *
