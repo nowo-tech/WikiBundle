@@ -65,9 +65,11 @@ final readonly class WikiSpaceGuard
 
     /**
      * Whether the user may read the page: {@see WikiAction::View} on it and on every ancestor (1.13.2,
-     * {@see WikiPageVisibility}).
-     */
-    /**
+     * {@see WikiPageVisibility}). It does not check that the page is live: an archived or trashed page of a readable
+     * space is readable; the bundle's pages check `WikiPage::isArchived()` themselves.
+     *
+     * 1.51: {@see WikiPageAccessInterface} answers the same by ids (a `WikiUserRef` and a page id).
+     *
      * @param array<string, bool> $decisions memo shared across calls (a list of hits walks each branch once)
      */
     public function isPageReadable(UserInterface $user, WikiSpace $space, WikiPage $page, array &$decisions = []): bool

@@ -78,6 +78,10 @@ API suites and both race files pass on MariaDB 11.4 with no code change.
 | `wiki:trash:purge`, `wiki:recents:purge`, `wiki:collab:purge`, `wiki:history:thin`, erasure commands | One transaction per batch / per person | Rows by primary key | The command fails; run it again (each batch is complete or absent) |
 | `wiki:search:backfill-text`, `wiki:backlinks:rebuild` | One transaction per batch / per page; keyset batches | One `UPDATE` per changed text / the index lock above | A page with lock conflicts is tried 3 times, then skipped and reported (exit FAILURE, `--after=<id>` resumes) |
 
+The 1.51 read ports (`WikiSpaceQueryInterface`, `WikiPageQueryInterface`) and `WikiPageAccessInterface` never write and
+take no lock: each statement reads committed rows; a list and its count are two statements, so a page of results and
+its total can disagree by the writes committed in between (as in any offset paging).
+
 Every `flush()` in `src/` is inside a runner unit (the repositories' `WikiFlusher::flush()` is called from the services'
 units) except the single-row space save, which Doctrine wraps in its own transaction.
 

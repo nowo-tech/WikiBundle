@@ -13,6 +13,7 @@ or matches is compared byte for byte (REQ-SEC-006, see [SECURITY](SECURITY.md)).
 - [At a glance](#at-a-glance)
 - [Host ports](#host-ports)
 - [Operations by id](#operations-by-id)
+- [Read ports and page access by id](#read-ports-and-page-access-by-id)
 - [Events](#events)
 - [Persistence](#persistence)
 - [Mapping and user references](#mapping-and-user-references)
@@ -24,6 +25,7 @@ or matches is compared byte for byte (REQ-SEC-006, see [SECURITY](SECURITY.md)).
 |---|---|---|
 | Host ports | the 1.x interfaces (Symfony `UserInterface`, `Request`, wiki entities) | their framework-free twins (`WikiUserRef`, snapshots, request-context VOs) |
 | Calling the wiki | `WikiPageServiceInterface`, `WikiSpaceServiceInterface`, `WikiPageLinkServiceInterface` (entities) | `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface`, `WikiPageLinkOperationsInterface` (ids, snapshots) |
+| Lists, counts, page access | the repositories (persistence adapters), `WikiSpaceGuard` (entities) | `WikiSpaceQueryInterface`, `WikiPageQueryInterface`, `WikiPageAccessInterface` (1.51: ids, snapshots) |
 | Events | entity payloads, `actorId()` | `spaceId()`, `pageId()`, `pageSnapshot()`, `actorRef()`, ... |
 | Mapping of the 16 wiki entities | ORM attributes | `database.mapping_type: xml` |
 | Host users on wiki rows | `ManyToOne` to `user_class` (a Doctrine entity) | `database.user_reference: id` + `user_directory` |
@@ -108,6 +110,26 @@ security user the member its `WikiUserRef` names), `Provenance\WikiWriteProvenan
 `WikiWriteProvenance` value. Their columns are in the XML mapping, and the provenance reads and the erasure of actor
 labels match users by exact id in the id mode.
 
+## Read ports and page access by id
+
+The repository interfaces are the persistence adapters of the wiki's entities, so an application that lists or counts
+wiki rows through them, or through its own queries, depends on the wiki's schema. Since 1.51 three public services
+answer those reads by id, framework-free ([USAGE](USAGE.md#read-ports-and-page-access-by-id-151)):
+
+| Service | Answers |
+|---|---|
+| `Query\WikiSpaceQueryInterface` | `findSpaces` / `countSpaces` (`WikiSpaceCriteria`: owner kind, owner ids, space ids, archived filter, sort; offset paging), `findSpacesByIds`, `usage` per owner (`WikiOwnerUsage`) |
+| `Query\WikiPageQueryInterface` | `findPages` / `countPages` (`WikiPageCriteria`), `findPagesByIds`, `pageStats`, `ancestors`, `pageContents`, `backlinks` and `searchPages` (optional viewer) |
+| `Security\WikiPageAccessInterface` | `isPageReadable(WikiUserRef, pageId)`, `readablePageIds(WikiUserRef, pageIds)`: the twin of `WikiSpaceGuard::isPageReadable()`, same rule and checker, same decisions |
+
+They read through the wiki's entity manager (the private one when it is on) and never write or lock. Lists, counts,
+trees, contents and usage read columns and build snapshots, so no entity enters any manager; ids and owner ids read
+back are compared byte for byte in PHP (REQ-SEC-006), owner ids are validated as `WikiOwnerScopeId`. Stateless
+(REQ-RUNTIME-002): the decisions of one `readablePageIds()` call are a local memo. The page rule asks the service behind
+`WikiSpaceAccessCheckerInterface`, which `WikiSpaceGuard` asks too (a twin policy through its gate, decorated by the
+archived-space rule), so the two answer alike by construction; `WikiPageAccessEquivalenceTest` proves it decision by
+decision.
+
 ## Events
 
 Every event that carries a wiki entity also answers with ids and snapshots, built on call: `spaceId()`, `pageId()`,
@@ -187,3 +209,7 @@ those whose id is `===` the person's, and writes or deletes them by primary key,
   operations; a two-person kept-alive kernel run through `http_kernel->handle()` / `terminate()`), plus
   `XmlMappingParityTest`, `WikiUserReferenceByIdTest` (also on MySQL and MariaDB) and the private entity manager tests
   (`tests/Api/PrivateEntityManager`).
+- **The 1.51 read ports and page access**, both legs: `ApiReadModelTest` (standard host kernel, the application's own
+  checker) and `DddHostKernelTest::testTheReadPortsAndThePageRuleWorkOnTheDddHost` (XML mapping, user ids, private
+  manager, twin policy, kept-alive kernel), plus `WikiReadModelTest` and `WikiPageAccessEquivalenceTest` on SQLite,
+  MySQL 8.4, MariaDB 11.4 and PostgreSQL 16.

@@ -25,6 +25,7 @@
   - [W-05 — `WikiRouteLoader` uses a one-shot `$loaded` flag (Info)](#w-05--wikirouteloader-uses-a-one-shot-loaded-flag-info)
   - [W-06 — Request memos cleared only by `kernel.reset`; revoked memberships kept granting (Medium, security)](#w-06--request-memos-cleared-only-by-kernelreset-revoked-memberships-kept-granting-medium-security)
   - [Igor findings (2026-11-11)](#igor-findings-2026-11-11)
+  - [1.51 additions (read ports, page access by id)](#151-additions-read-ports-page-access-by-id)
 - [Usage recommendations in worker mode](#usage-recommendations-in-worker-mode)
 - [Re-audit triggers](#re-audit-triggers)
 
@@ -200,6 +201,16 @@ the tree the page view already built (no memo of permissions across requests). T
 the icon through `WikiPageIconService` (stateless). The emoji catalogue is IconSelector's `EmojiCatalog`, immutable
 data read once in its constructor. The `icon_picker` configuration reaches `WikiHtmlTwigExtension` as a constructor
 array (read-only).
+
+### 1.51 additions (read ports, page access by id)
+
+No new state. `WikiSpaceQuery`, `WikiPageQuery` and `WikiPageAccess` are `final readonly` services whose only
+properties are their collaborators and configuration scalars; every call reads its rows and decides afresh (the
+`readablePageIds()` decision memo is a local variable of the call). Pages and spaces are read with `HINT_REFRESH` where
+entities are loaded (page access, search), so another worker's change is never hidden by a kept identity map; the
+other reads hydrate arrays and never touch an identity map. Covered by the kept-alive two-person run of
+`DddHostKernelTest::testTheReadPortsAndThePageRuleWorkOnTheDddHost` (three rounds, private manager cleared between
+them, the application's manager left empty).
 
 ## Usage recommendations in worker mode
 
