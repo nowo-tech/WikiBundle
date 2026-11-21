@@ -115,10 +115,10 @@ final class WikiSpaceLookalikeOwnerTest extends TestCase
         }
         $this->em->flush();
         $pages = LoadReadinessFactory::pages($this->em);
-        $page  = $pages->create($lower, 'one', 'body', $author, null, 'One', WikiPageRevision::FORMAT_MARKDOWN);
-        $pages->create($upper, 'two', 'body', $author, null, 'Two', WikiPageRevision::FORMAT_MARKDOWN);
-        $pages->create($upper, 'three', 'body', $author, null, 'Three', WikiPageRevision::FORMAT_MARKDOWN);
-        $pages->create($extra, 'four', 'body', $author, null, 'Four', WikiPageRevision::FORMAT_MARKDOWN);
+        $page  = $pages->create($lower, 'One', 'body', $author, null, 'one', WikiPageRevision::FORMAT_MARKDOWN);
+        $pages->create($upper, 'Two', 'body', $author, null, 'two', WikiPageRevision::FORMAT_MARKDOWN);
+        $pages->create($upper, 'Three', 'body', $author, null, 'three', WikiPageRevision::FORMAT_MARKDOWN);
+        $pages->create($extra, 'Four', 'body', $author, null, 'four', WikiPageRevision::FORMAT_MARKDOWN);
         $this->em->persist(new WikiAttachment($page, $lower, 'f.txt', 'key-lower', 'text/plain', 10, 'abc'));
         $this->em->flush();
         $this->em->clear();
