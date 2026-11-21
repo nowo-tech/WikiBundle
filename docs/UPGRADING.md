@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+- [To 1.51.0](#to-1510)
 - [To 1.50.0](#to-1500)
 - [To 1.49.1](#to-1491)
 - [To 1.49.1](#to-1491-1)
@@ -140,6 +141,14 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+## To 1.51.0
+
+From **1.50.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 Nothing to change: the release only adds services ([USAGE › Read ports and page access by id](USAGE.md#read-ports-and-page-access-by-id-151)).
 No schema change, no configuration key, no new dependency.
