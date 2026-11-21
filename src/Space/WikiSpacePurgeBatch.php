@@ -22,6 +22,7 @@ final readonly class WikiSpacePurgeBatch
      * @param bool $truncated whether `page_files.max_purge_files` cut `$files`
      * @param bool $finished whether the space row is gone (deleted by this batch, or already)
      * @param WikiSpace|null $space the space of the deleted pages (detached), null when no page was deleted
+     * @param bool $spaceDeleted whether this batch deleted the space row (false when another call already had)
      */
     public function __construct(
         public array $pageIds,
@@ -30,6 +31,7 @@ final readonly class WikiSpacePurgeBatch
         public bool $truncated,
         public bool $finished,
         public ?WikiSpace $space = null,
+        public bool $spaceDeleted = false,
     ) {
     }
 }

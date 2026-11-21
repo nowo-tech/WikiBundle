@@ -142,6 +142,11 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         // 1.37: the page, its first revision and the pointer to it in one transaction (a failure in between left a page
         // without a revision, whose slug stayed taken).
         [$page, $revision] = $this->unit(function () use ($space, $slug, $title, $parent, $contentHtml, $format, $author): array {
+            // 1.50 (audit XO-4): the space row locked and its state read under the lock, so a create never lands in a
+            // space archived (or being purged) since the caller loaded it.
+            if ($this->runner?->lockSpaceArchived($space) === true) {
+                throw new WikiPageArchivedException(self::ARCHIVED_SPACE);
+            }
             $page = new WikiPage($space, $slug, $title, $parent);
             $this->pageRepository->save($page);
 

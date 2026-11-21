@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Space;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityNotFoundException;
 use Nowo\WikiBundle\Entity\WikiApiIdempotencyRecord;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
@@ -86,6 +87,7 @@ final readonly class WikiSpacePurger
                 return new WikiSpacePurgeBatch([], [], [], false, true);
             }
             $manager = $this->runner->manager();
+            $this->initializeProxies($manager);
             /** @var list<WikiPage> $pages */
             $pages = $manager->createQueryBuilder()
                 ->select('p')
@@ -106,7 +108,7 @@ final readonly class WikiSpacePurger
             if ($ids === []) {
                 $this->deleteSpace($manager, $spaceId);
 
-                return new WikiSpacePurgeBatch([], [], [], false, true);
+                return new WikiSpacePurgeBatch([], [], [], false, true, null, true);
             }
             /** @var list<WikiAttachment> $attachments */
             $attachments = $manager->createQueryBuilder()
@@ -123,6 +125,32 @@ final readonly class WikiSpacePurger
 
             return new WikiSpacePurgeBatch($ids, $attachments, $files, $truncated, false, $space);
         });
+    }
+
+    /**
+     * Audit XO: the wiki rows the manager holds only as uninitialized proxies are loaded before the deletes, so
+     * {@see self::forget()} can follow their associations afterwards (a proxy of a deleted row could no longer be loaded).
+     * Bounded by what the manager already holds.
+     */
+    private function initializeProxies(EntityManagerInterface $manager): void
+    {
+        $unitOfWork = $manager->getUnitOfWork();
+        foreach ($unitOfWork->getIdentityMap() as $class => $entities) {
+            if (!WikiFlushObserver::isWikiEntity($class)) {
+                continue;
+            }
+            foreach ($entities as $entity) {
+                if (!$unitOfWork->isUninitializedObject($entity)) {
+                    continue;
+                }
+                try {
+                    $manager->initializeObject($entity);
+                } catch (EntityNotFoundException) {
+                    // A proxy of a row that does not exist (any more): nothing to follow, nothing to keep.
+                    $manager->detach($entity);
+                }
+            }
+        }
     }
 
     /**

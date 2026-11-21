@@ -104,6 +104,10 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
                 if ($space->getPurgeStartedAt() instanceof DateTimeImmutable) {
                     throw new WikiSpaceStateException(WikiSpaceStateException::PURGING);
                 }
+                if ($space->isArchived()) {
+                    // Aligned with the REST API, which refuses a wiki update while it is archived (WIKI_002).
+                    throw new WikiSpaceStateException(WikiSpaceStateException::ARCHIVED);
+                }
                 $this->assertVersion($space, $expectedVersion);
                 $before  = WikiSnapshots::space($space);
                 $changed = false;
@@ -153,6 +157,10 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
 
     public function purgeSpace(string $spaceId, ?WikiUserRef $actor = null, bool $force = false, ?int $maxBatches = null): WikiSpacePurgeResult
     {
+        // Audit XO-1: inside a transaction each batch would be a savepoint, yet its files go and its events fire at once.
+        if ($this->runner->manager()->getConnection()->isTransactionActive()) {
+            throw new WikiSpacePurgeInTransactionException();
+        }
         $this->authorize($spaceId, $actor, WikiSpaceLifecycleAction::Purge);
 
         // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
@@ -189,6 +197,10 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
             ++$batches;
             $pages += count($batch->pageIds);
             $this->afterBatch($batch, $actor);
+            if ($batch->finished && !$batch->spaceDeleted) {
+                // Audit XO-2: another call deleted the space row meanwhile; it announces the purge, not this one.
+                return new WikiSpacePurgeResult($spaceId, true, $pages, $batches);
+            }
             if ($batch->finished) {
                 $this->logger->info('Wiki space purged.', ['bundle' => 'nowo_wiki', 'action' => 'space_purge', 'space_id' => $spaceId, 'pages' => $pages]);
                 $this->dispatch(new WikiSpacePurgedEvent($space, $pages, $actor, new DateTimeImmutable()), WikiEvents::SPACE_PURGED);

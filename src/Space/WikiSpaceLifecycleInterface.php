@@ -40,7 +40,7 @@ interface WikiSpaceLifecycleInterface
      * Equal values write nothing and dispatch nothing.
      *
      * @throws WikiSpaceAccessDeniedException|WikiSpaceNotFoundException|WikiSpaceVersionConflictException
-     * @throws WikiSpaceStateException when the space is being purged
+     * @throws WikiSpaceStateException when the space is archived (bring it back first, as the REST API asks) or being purged
      * @throws InvalidArgumentException when nothing is asked or the name is empty or longer than 255 characters
      * @throws WikiInvalidSlugException when the slug is not lowercase letters, digits and single dashes (max 120)
      * @throws WikiSlugTakenException when another space of the owner has the slug
@@ -78,6 +78,12 @@ interface WikiSpaceLifecycleInterface
      * @param int|null $maxBatches batches this call commits at most (null: until done); a host running the purge from a
      *                             queue passes a budget and calls again while the result is not finished
      *
+     * Call it outside any transaction (audit XO-1): each batch commits on its own, then its files go and its events fire.
+     * A second call that finds the space already gone returns `finished: true` without dispatching `SPACE_PURGED`; only
+     * the call that deleted the space row announces it. Files whose unlink failed, or that a crash left behind, stay in
+     * the attachment storage: run `WikiAttachmentService::purgeStrayFiles()` from a nightly job.
+     *
+     * @throws WikiSpacePurgeInTransactionException when a transaction is open on the wiki's connection (nothing written)
      * @throws WikiSpaceNotFoundException when the space does not exist (an already finished purge included)
      * @throws WikiSpaceAccessDeniedException|WikiSpaceStateException
      * @throws TransientStorageFailure on a lock conflict: `ConcurrencyConflict::$committed` true when this call already

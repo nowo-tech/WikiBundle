@@ -88,6 +88,7 @@ final readonly class DoctrineOrmWikiPageLinkRepository implements WikiPageLinkRe
             ->where('l.objectType = :type')
             ->andWhere('l.objectId IN (:ids)')
             ->andWhere('p.archivedAt IS NULL')
+            ->andWhere('s.archivedAt IS NULL') // 1.50: no page of an archived space
             ->setParameter('type', $objectType)
             ->setParameter('ids', $objectIds)
             ->orderBy('l.createdAt', SortDirection::Descending)
