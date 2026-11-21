@@ -173,11 +173,16 @@ decorates `WikiSpaceAccessCheckerInterface` with `WikiArchivedSpaceAccessChecker
 Code that injects `WikiSpaceAccessCheckerInterface` gets the decorated checker; code that injects your checker by its
 own class does not.
 
+**Page creates** now lock the space row (as moves and uploads already did) and are refused in an archived space.
+**Host-object link lists** (`WikiPageLinkRepositoryInterface::findByHostObject(s)`) leave out the pages of archived
+spaces.
+
 **Applications that wrote the wiki's tables** (renaming a space, deleting a space with its pages) should call the
 service instead: [USAGE › Space lifecycle](USAGE.md#space-lifecycle-rename-archive-purge-150). A space deleted with a
 plain `DELETE` relied on foreign-key cascades and left the tables without foreign keys (references, co-editing,
 idempotency records) behind; the purge clears them. An application that keeps its own "archived" flag can keep it, or
-archive the space as well so the wiki hides it from search, favourites and recents.
+archive the space as well so the wiki hides it from search, favourites and recents. Call the purge outside any
+transaction, and keep (or add) a nightly `WikiAttachmentService::purgeStrayFiles()` for files a failed unlink left.
 
 ## To 1.49.1
 

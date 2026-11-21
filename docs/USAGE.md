@@ -444,8 +444,11 @@ Each list is one query (no N+1): spaces through `WikiSpaceRepositoryInterface::f
 
 `Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface` (public service) renames, archives, brings back and purges a
 space. Call it instead of writing the wiki's tables yourself: it keeps every wiki table consistent, runs on the wiki's
-own transaction runner (with `database.private_entity_manager: true` your entity manager is not involved at all) and
-never clears, resets or closes your entity manager.
+own transaction runner. With `database.private_entity_manager: true` your entity manager is not involved at all. With
+the shared manager (the default) the runner flushes it at the end of each unit (your pending changes are written with
+the wiki's) and, as for every wiki write, a unit that fails after such a flush wrote your entities closes it until the
+next request (it is replaced at the boundary); otherwise only the wiki rows of the failed unit are forgotten. It never
+clears or resets your manager.
 
 ```php
 use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
@@ -499,14 +502,18 @@ from a missing one) and hold `Manage` on it through your `WikiSpaceAccessChecker
 A refusal is `WikiSpaceAccessDeniedException`. A null actor is a trusted call that checks nothing (a console command,
 a message handler that already checked): pass the person whenever there is one.
 
-**Rename.** The slug stays unique per owner (`WikiSlugTakenException`; `WikiInvalidSlugException` for a slug that is
+**Rename.** Only an active space is renamed (`WikiSpaceStateException::ARCHIVED` otherwise, as the REST API answers
+`WIKI_002` to a wiki update while it is archived): bring it back first. The slug stays unique per owner (`WikiSlugTakenException`; `WikiInvalidSlugException` for a slug that is
 not lowercase letters, digits and single dashes, at most 120 characters). Links between pages follow page ids and keep
 working; URLs built with the old slug stop resolving, because the bundle keeps no slug history.
 
-**Archive.** An archived space is read-only for everyone (the page service refuses creates, saves and restores with
-`WikiPageArchivedException`; the UI and the REST API refuse every write, the API with `403 WIKI_002`), and only the
-people who may manage it can open it: for everyone else it disappears from lists, the tree, search, the link picker,
-favourites and recents. It is reversible. The rule wraps whatever space checker you configured
+**Archive.** An archived space is read-only on every path that goes through the space checker — the bundle's pages,
+tree, comments, attachments and the REST API (`403 WIKI_002`) — and the page service refuses creates (the space row is
+read under its lock), saves and restores with `WikiPageArchivedException`. Trusted calls your code makes directly are
+not refused: `convertToMarkdown()`, archiving or bringing back a page, the page mover, the trash, the comment service,
+attachment uploads and the icon services; check `WikiSpaceSnapshot::isArchived()` before calling them. Only the
+people who may manage the space can open it: for everyone else it disappears from lists, the tree, search, the link picker,
+favourites, recents and the host-object link lists (`findByHostObject(s)`). It is reversible. The rule wraps whatever space checker you configured
 (`WikiArchivedSpaceAccessChecker` decorates `WikiSpaceAccessCheckerInterface`). The REST API's wiki body reports
 `archived: true` for it as well.
 
@@ -515,9 +522,15 @@ rows (their files are removed from the attachment storage after each commit), li
 and to the pages, favourites, visits, trash entries, co-editing state and the REST API's idempotency records of the
 pages, then the space row. Search reads the live rows, so nothing of the space is found any more. It runs in batches of
 100 pages, one transaction each; with `page_files.purge_event` each batch dispatches `WikiPageFilesPurgedEvent` for the
-files its revisions referred to. The first call marks the space as being purged (it stays archived; rename and
+files its revisions referred to. Call it **outside any transaction**: inside one it throws `WikiSpacePurgeInTransactionException` (nothing written;
+answer 409 without `Retry-After`), because each batch commits on its own before its files go and its events fire. The
+first call marks the space as being purged (it stays archived; rename and
 unarchive answer `WikiSpaceStateException`). A call that stops — a failure, or the `maxBatches` budget — leaves the
-space so, and calling again resumes where it stopped. From a queue:
+space so, and calling again resumes where it stopped. Two workers may run it at once: the one that deletes the space
+row dispatches `SPACE_PURGED`; the other returns `finished: true` without it. Attachment files whose delete failed (it
+is logged) or that a crash between a commit and the unlink left behind stay in the storage: run
+`WikiAttachmentService::purgeStrayFiles()` from a nightly job (it lists the storage and removes the files no row
+points to). From a queue:
 
 ```php
 $result = $this->spaces->purgeSpace($spaceId, null, false, maxBatches: 20);
@@ -540,7 +553,7 @@ without `Retry-After`; the client reads again and calls the purge again. `Confli
 | --- | --- |
 | `WikiSpaceNotFoundException` | 404 |
 | `WikiSpaceAccessDeniedException` | 403 |
-| `WikiSpaceVersionConflictException`, `WikiSpaceStateException`, `WikiSlugTakenException` | 409 (no `Retry-After`) |
+| `WikiSpaceVersionConflictException`, `WikiSpaceStateException`, `WikiSlugTakenException`, `WikiSpacePurgeInTransactionException` | 409 (no `Retry-After`) |
 | `WikiInvalidSlugException`, `InvalidArgumentException` (empty or too long name, nothing to rename) | 422 |
 | `TransientStorageFailure` | 409 + `Retry-After`, `CONFLICT_001` / `CONFLICT_002` |
 
