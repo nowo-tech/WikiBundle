@@ -15,6 +15,7 @@
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Space lifecycle: rename, archive, purge (1.50)](#space-lifecycle-rename-archive-purge-150)
+- [Read ports and page access by id (1.51)](#read-ports-and-page-access-by-id-151)
 - [Space icon (1.32)](#space-icon-132)
 - [Icon picker, emoji icons and the tree menu (1.39)](#icon-picker-emoji-icons-and-the-tree-menu-139)
   - [Tree menu entries (1.41)](#tree-menu-entries-141)
@@ -403,6 +404,9 @@ own messages in one listener:
 - Call the wiki through `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface` and
   `WikiPageLinkOperationsInterface` (ids in, snapshots out); `createPageAt()` / `createPageNextTo()` place a new page in
   the tree (1.35 "create at a position", needs `tree.enabled`).
+- List, count, export, link back and search through `Query\WikiSpaceQueryInterface` and `Query\WikiPageQueryInterface`,
+  and decide whether a person may read a page with `Security\WikiPageAccessInterface` (1.51, ids in, snapshots out):
+  [Read ports and page access by id](#read-ports-and-page-access-by-id-151).
 - The 1.34 badge and provenance hooks (`WikiMemberBadgeProviderInterface`, `WikiWriteProvenanceProviderInterface`)
   already take and return value objects: a badge provider is asked about `WikiMemberRef(<user_class>, <id>)`.
 - Listen to the events through their id accessors: `$event->pageId()`, `$event->revisionSnapshot()->revisionNumber`,
@@ -564,6 +568,124 @@ when the space row is gone), plus `ATTACHMENT_DELETED` for each purged attachmen
 **REST API.** `PATCH /wikis/{wiki}`, `POST /wikis/{wiki}/archive` and `/unarchive` still go to your
 `api.hooks.wiki_management` hook; call the service from it for the wiki's space (`$wiki->space?->getId()`). The purge
 has no endpoint.
+
+## Read ports and page access by id (1.51)
+
+Three public services answer what an application lists, counts, exports and links to, so it never writes queries over
+the wiki's tables (they are the wiki's schema, not an API). All three take ids, criteria and `WikiUserRef`s and return
+snapshots and plain value objects, never an entity; they work the same with the attribute or the XML mapping, users
+stored by relation or by id, and the shared or the private entity manager.
+
+| Service | For |
+|---|---|
+| `Query\WikiSpaceQueryInterface` | spaces by owner (kind, owner ids, space ids, archived or not), sorted and paged; how many; spaces by id; usage per owner (spaces, pages, attachment bytes) |
+| `Query\WikiPageQueryInterface` | pages by space, owner or id (archived or not), sorted and paged; how many; pages by id; live pages and last change per space; ancestors; current revision bodies; backlinks; search |
+| `Security\WikiPageAccessInterface` | whether a person may read a page, and which pages of a list they may read |
+
+**Spaces of an owner, a page at a time.** A criteria narrows by every filter it is given; an empty list matches nothing
+and a filter takes at most 1,000 ids. "Tenant" is whatever owner ids your application maps a tenant to.
+
+```php
+use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Query\WikiArchiveFilter;
+use Nowo\WikiBundle\Query\WikiSpaceCriteria;
+use Nowo\WikiBundle\Query\WikiSpaceQueryInterface;
+use Nowo\WikiBundle\Query\WikiSpaceSort;
+
+$criteria = WikiSpaceCriteria::forOwners(WikiSpaceOwnerScope::Team, [$projectId, $organizationKey], WikiArchiveFilter::Active, WikiSpaceSort::NameAsc);
+$spaces   = $spaceQuery->findSpaces($criteria, offset: 0, limit: 50);   // list<WikiSpaceSnapshot>
+$total    = $spaceQuery->countSpaces($criteria);
+$byId     = $spaceQuery->findSpacesByIds($spaceIds);                     // array<id, WikiSpaceSnapshot>, order asked
+```
+
+**Usage per owner** (plan limits, billing): one entry per owner asked, zero when it holds nothing.
+
+```php
+use Nowo\WikiBundle\Query\WikiOwnerUsage;
+
+$usage = $spaceQuery->usage(WikiSpaceOwnerScope::Team, $ownerIds);       // array<owner id, WikiOwnerUsage>
+$payer = WikiOwnerUsage::total($usage);
+$payer->spaces;           // spaces not archived ($payer->archivedSpaces: archived ones)
+$payer->pages;            // pages not archived, in all of those spaces ($payer->archivedPages)
+$payer->attachmentBytes;  // every attachment of those spaces
+```
+
+**Pages.** A page criteria needs space ids, owner ids or page ids. `WikiPageSort::Position` is the sidebar order
+inside each space; `CreatedAsc` keeps the order pages were written in (an export).
+
+```php
+use Nowo\WikiBundle\Query\WikiPageCriteria;
+use Nowo\WikiBundle\Query\WikiPageSort;
+
+$criteria = WikiPageCriteria::inSpaces([$spaceId], WikiArchiveFilter::Any, WikiPageSort::CreatedAsc);
+$pages    = $pageQuery->findPages($criteria, 0, 100);       // list<WikiPageSnapshot>
+$empty    = $pageQuery->countPages(WikiPageCriteria::inSpaces([$spaceId])) === 0;
+$stats    = $pageQuery->pageStats($spaceIds);               // array<space id, WikiSpacePageStats>: live pages, last change
+$paths    = $pageQuery->ancestors($pageIds);                // array<page id, list<WikiPageSnapshot>>, root first
+$bodies   = $pageQuery->pageContents(array_map(fn ($page) => $page->id, $pages)); // array<page id, WikiPageContent>
+```
+
+`pageContents()` returns the stored source (Markdown, or HTML for an HTML revision) with the viewer-neutral HTML cache
+and the plain text: hand it only to people who may read the page.
+
+**Backlinks and search for a person.** Both take an optional viewer and then keep only the pages that person may read
+(the page view's rule, below), before the limit.
+
+```php
+$sources = $pageQuery->backlinks($pageId, $viewer, spaceIds: $tenantSpaceIds, limit: 50);  // by title
+$result  = $pageQuery->searchPages($searchableSpaceIds, 'deploy', $viewer, limit: 25);
+foreach ($result->hits as $hit) {
+    $hit->page;     // WikiPageSnapshot
+    $hit->space;    // WikiSpaceSnapshot
+    $hit->excerpt;  // plain text around a text match; '' for a page found by its title
+}
+$result->complete;  // false: more matches than the bounded scan read
+```
+
+With `backlinks.enabled` the backlink index answers (exactly the links a reader sees, never inside code) and at most
+`backlinks.candidates` linking rows are read per call; without it the current revisions' Markdown is scanned for
+`[[wiki:<id>` and each candidate is checked with the renderer's own reference parser. The search is the wiki's own
+(title and plain text of the current revision, never the Markdown source, title matches first, archived spaces never
+searched); pass the spaces your rules let the person search.
+
+**Who may read a page, by id.** `WikiPageAccessInterface` is the id twin of `WikiSpaceGuard::isPageReadable()`: `View`
+on the page and every ancestor through the same space checker (your `WikiSpaceAccessPolicyInterface` or
+`WikiSpaceAccessCheckerInterface`, with the 1.50 archived-space rule), a parent cycle reading as hidden. The decisions
+are the guard's. When you hold the security user, put it in the reference, so a policy that needs the user object
+decides as on the wiki's own pages; a person given only by ids (`WikiUserRef::ofId()`) is asked as the bundle's stand-in
+user, as the id operations do, and a policy that needs your user object then refuses (fail closed: nothing readable).
+
+```php
+use Nowo\WikiBundle\Security\WikiPageAccessInterface;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
+
+// You hold the user object (a request, a message handler that loaded it): pass it as the last argument.
+$viewer = new WikiUserRef(User::class, (string) $user->getId(), $user->getUserIdentifier(), $user->getRoles(), $user);
+// Only ids (a worker without the user): WikiUserRef::ofId(User::class, $id, $identifier, $roles).
+$access->isPageReadable($viewer, $pageId);
+$readable = $access->readablePageIds($viewer, $hitIds);   // the readable ones, in the order asked
+```
+
+`readablePageIds()` reads the pages and their ancestors in one query per tree level, so a list of hits costs a handful
+of queries whatever its size.
+
+**Readable is not live.** Like the guard, the rule does not check the page's archive state: an archived or trashed page
+(the trash archives a page and its sub-tree) of an active space is readable by anyone with `View`. The backlinks and the
+search above only return live pages; when you pass raw ids (stored references, AI sources from embeddings), drop the
+archived and trashed ones yourself: `findPagesByIds()` and keep `archivedAt === null`, or read the candidates with
+`WikiArchiveFilter::Active`.
+
+**Rules every read follows.**
+
+- No access decision in the list, count, tree and content reads: they answer what is stored. Show a person only what
+  `WikiPageAccessInterface` (or your own rules) lets them read.
+- Ids and owner ids are compared byte for byte in PHP after the SQL (a folding collation never answers for another id);
+  owner ids follow the 1.31.1 owner-id rule and an unusable one is refused (`InvalidArgumentException`).
+- Paging: `limit` 1 to 500, `offset` 0 or more; lookups by id take lists of any size (read 500 at a time).
+- Read-only and stateless: no row is locked or written, nothing is kept between calls (FrankenPHP worker mode with the
+  kernel kept alive). Lists, counts, trees, contents and usage read columns only, so no wiki entity enters your entity
+  manager; the search and the viewer checks load pages into the wiki's manager (the private one when it is on), as the
+  wiki's own pages do.
 
 ## Space icon (1.32)
 

@@ -7,14 +7,21 @@ namespace Nowo\WikiBundle\Tests\Database;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\ORM\EntityManager;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
+use Nowo\WikiBundle\Entity\WikiAttachment;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Query\WikiOwnerUsage;
+use Nowo\WikiBundle\Query\WikiSpaceQuery;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
 use Nowo\WikiBundle\Service\WikiSpaceService;
+use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Tests\Support\LoadReadinessFactory;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -89,6 +96,40 @@ final class WikiSpaceLookalikeOwnerTest extends TestCase
         foreach (['TEAM-A', 'team-a ', "te\u{e1}m-a"] as $lookalike) {
             self::assertSame([], $this->names($resolver, $lookalike), 'look-alike ' . json_encode($lookalike));
         }
+    }
+
+    /**
+     * 1.51 (audit YG-L2): `WikiSpaceQueryInterface::usage()` counts each owner exactly, also when a folding collation
+     * makes `team-a` and `Team-a` equal in SQL (the rows are grouped per space, summed per exact owner in PHP).
+     */
+    #[DataProvider('columnCollations')]
+    public function testUsageCountsLookalikeOwnersApart(?string $collation): void
+    {
+        $this->setUpSchema($collation);
+        $author = new TestUserEntity('u-1');
+        $lower  = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-a');
+        $upper  = new WikiSpace('ops', 'Operations', WikiSpaceOwnerScope::Team, 'Team-a');
+        $extra  = new WikiSpace('sales', 'Sales', WikiSpaceOwnerScope::Team, 'Team-a');
+        foreach ([$author, $lower, $upper, $extra] as $entity) {
+            $this->em->persist($entity);
+        }
+        $this->em->flush();
+        $pages = LoadReadinessFactory::pages($this->em);
+        $page  = $pages->create($lower, 'One', 'body', $author, null, 'one', WikiPageRevision::FORMAT_MARKDOWN);
+        $pages->create($upper, 'Two', 'body', $author, null, 'two', WikiPageRevision::FORMAT_MARKDOWN);
+        $pages->create($upper, 'Three', 'body', $author, null, 'three', WikiPageRevision::FORMAT_MARKDOWN);
+        $pages->create($extra, 'Four', 'body', $author, null, 'four', WikiPageRevision::FORMAT_MARKDOWN);
+        $this->em->persist(new WikiAttachment($page, $lower, 'f.txt', 'key-lower', 'text/plain', 10, 'abc'));
+        $this->em->flush();
+        $this->em->clear();
+        $query = new WikiSpaceQuery(new WikiTransactionRunner($this->em, backoffBaseMilliseconds: 0));
+
+        self::assertEquals(new WikiOwnerUsage('team-a', 1, 0, 1, 0, 10), $query->usage(WikiSpaceOwnerScope::Team, ['team-a'])['team-a']);
+        self::assertEquals(new WikiOwnerUsage('Team-a', 2, 0, 3, 0, 0), $query->usage(WikiSpaceOwnerScope::Team, ['Team-a'])['Team-a']);
+        $both = $query->usage(WikiSpaceOwnerScope::Team, ['Team-a', 'team-a', 'TEAM-A']);
+        self::assertEquals(new WikiOwnerUsage('Team-a', 2, 0, 3, 0, 0), $both['Team-a']);
+        self::assertEquals(new WikiOwnerUsage('team-a', 1, 0, 1, 0, 10), $both['team-a']);
+        self::assertEquals(new WikiOwnerUsage('TEAM-A'), $both['TEAM-A'], 'a look-alike owner holds nothing');
     }
 
     /** With the exact collation two owners that differ only in case each have their own `notes` space. */

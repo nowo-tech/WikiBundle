@@ -45,6 +45,9 @@ services:
             # 1.50: the space lifecycle, registered by WikiExtension (the purge knows which tables exist).
             - '../../Space/'
             - '../../Security/WikiArchivedSpaceAccessChecker.php'
+            # 1.51: the read ports and the page rule by ids, registered by WikiExtension.
+            - '../../Query/'
+            - '../../Security/WikiPageAccess.php'
             - '../../Controller/'
             # 1.14: registered by WikiExtension only with tree.enabled (controllers get null otherwise).
             - '../../Tree/'
