@@ -290,6 +290,7 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
             ->innerJoin('p.space', 's')
             ->leftJoin('p.currentRevision', 'r')
             ->where('p.archivedAt IS NULL')
+            ->andWhere('s.archivedAt IS NULL') // 1.50: nothing of an archived space
             ->orderBy('p.updatedAt', 'DESC')
             ->addOrderBy('p.id', 'ASC');
         $spaces = $this->spaceIds($query, (string) $tenant, $query->scope);
@@ -535,6 +536,7 @@ final class WikiPageSearchDefinition extends EntitySearchDefinition
             ->where('s.id IN (:wiki_search_spaces)')
             ->andWhere('p.slug = :wiki_search_page')
             ->andWhere('p.archivedAt IS NULL')
+            ->andWhere('s.archivedAt IS NULL') // 1.50: nothing of an archived space
             ->setParameter('wiki_search_spaces', $spaces)
             ->setParameter('wiki_search_page', $pageSlug)
             ->orderBy('p.id', 'ASC')

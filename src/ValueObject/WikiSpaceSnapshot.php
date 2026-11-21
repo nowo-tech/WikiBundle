@@ -23,6 +23,8 @@ final readonly class WikiSpaceSnapshot
      * @param DateTimeImmutable $createdAt creation time
      * @param DateTimeImmutable $updatedAt last change of the space row
      * @param string|null $icon UX icon name such as `tabler:book` (1.32); null for the default icon
+     * @param DateTimeImmutable|null $archivedAt when the space was archived (1.50); null while it is active
+     * @param int $version optimistic lock version of rename, archive and unarchive (1.50)
      */
     public function __construct(
         public string $id,
@@ -33,6 +35,14 @@ final readonly class WikiSpaceSnapshot
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
         public ?string $icon = null,
+        public ?DateTimeImmutable $archivedAt = null,
+        public int $version = 1,
     ) {
+    }
+
+    /** Whether the space is archived (1.50). */
+    public function isArchived(): bool
+    {
+        return $this->archivedAt instanceof DateTimeImmutable;
     }
 }

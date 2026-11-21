@@ -22,6 +22,10 @@ services:
             # 1.21: a per-request value object (it holds the refusal), never a shared service.
             - '../../Event/WikiQuotaCheckEvent.php'
             - '../../Event/WikiApiWriteEvent.php'
+            # 1.50: per-call values (the access check holds its decision), never shared services.
+            - '../../Event/WikiSpaceAccessCheckEvent.php'
+            - '../../Event/WikiSpaceLifecycleEvent.php'
+            - '../../Event/WikiSpacePurgedEvent.php'
             - '../../User/WikiUserId.php'
             - '../../User/WikiUserFields.php'
             - '../../Service/WikiSpaceAccessResolver.php'
@@ -38,6 +42,9 @@ services:
             - '../../Markdown/WikiRenderReachIntersection.php'
             - '../../Markdown/Milkdown/'
             - '../../Collaboration/'
+            # 1.50: the space lifecycle, registered by WikiExtension (the purge knows which tables exist).
+            - '../../Space/'
+            - '../../Security/WikiArchivedSpaceAccessChecker.php'
             - '../../Controller/'
             # 1.14: registered by WikiExtension only with tree.enabled (controllers get null otherwise).
             - '../../Tree/'
