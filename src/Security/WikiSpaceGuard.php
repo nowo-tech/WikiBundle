@@ -68,6 +68,8 @@ final readonly class WikiSpaceGuard
      * {@see WikiPageVisibility}).
      */
     /**
+     * 1.51: {@see WikiPageAccessInterface} answers the same by ids (a `WikiUserRef` and a page id).
+     *
      * @param array<string, bool> $decisions memo shared across calls (a list of hits walks each branch once)
      */
     public function isPageReadable(UserInterface $user, WikiSpace $space, WikiPage $page, array &$decisions = []): bool

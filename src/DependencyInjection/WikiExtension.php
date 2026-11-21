@@ -118,6 +118,10 @@ use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccessErasureListener;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccessStore;
 use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
+use Nowo\WikiBundle\Query\WikiPageQuery;
+use Nowo\WikiBundle\Query\WikiPageQueryInterface;
+use Nowo\WikiBundle\Query\WikiSpaceQuery;
+use Nowo\WikiBundle\Query\WikiSpaceQueryInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
@@ -157,6 +161,8 @@ use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiArchivedSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\Security\WikiPageAccess;
+use Nowo\WikiBundle\Security\WikiPageAccessInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
@@ -584,6 +590,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerAiServices($container, $config['ai']);
         $this->registerApi($container, $loader, $config);
         $this->registerSpaceLifecycle($container, $config);
+        $this->registerReadModel($container, $config);
         $this->registerSearchKitProvider($container, $config);
         $this->registerRequestBoundary($container);
         $this->registerMemberBadgesAndProvenance($container, $emProviderRef, $config);
@@ -1370,6 +1377,36 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(WikiArchivedSpaceAccessChecker::class, (new Definition(WikiArchivedSpaceAccessChecker::class))
             ->setDecoratedService(WikiSpaceAccessCheckerInterface::class)
             ->setArgument('$inner', new Reference('.inner')));
+    }
+
+    /**
+     * 1.51: the read ports ({@see WikiSpaceQueryInterface}, {@see WikiPageQueryInterface}) and the page rule by ids
+     * ({@see WikiPageAccessInterface}), public aliases. The page rule asks the same space checker as `WikiSpaceGuard`; the
+     * backlinks read the index only when `backlinks.enabled` keeps it.
+     *
+     * @param array<string, mixed> $config processed configuration
+     */
+    private function registerReadModel(ContainerBuilder $container, array $config): void
+    {
+        /** @var array{enabled: bool, candidates: int} $backlinks */
+        $backlinks = $config['backlinks'];
+        $runner    = new Reference(WikiTransactionRunner::class);
+        $container->setDefinition(WikiPageAccess::class, (new Definition(WikiPageAccess::class))
+            ->setArgument('$runner', $runner)
+            ->setArgument('$checker', new Reference(WikiSpaceAccessCheckerInterface::class)));
+        $container->setAlias(WikiPageAccessInterface::class, WikiPageAccess::class)->setPublic(true);
+        $container->setDefinition(WikiSpaceQuery::class, (new Definition(WikiSpaceQuery::class))
+            ->setArgument('$runner', $runner));
+        $container->setAlias(WikiSpaceQueryInterface::class, WikiSpaceQuery::class)->setPublic(true);
+        $container->setDefinition(WikiPageQuery::class, (new Definition(WikiPageQuery::class))
+            ->setArgument('$runner', $runner)
+            ->setArgument('$access', new Reference(WikiPageAccessInterface::class))
+            ->setArgument('$search', new Reference(WikiSearchService::class))
+            ->setArgument('$references', new Reference(WikiMarkdownReferenceExtractor::class))
+            ->setArgument('$backlinkIndex', $backlinks['enabled'])
+            ->setArgument('$candidates', $backlinks['candidates'])
+            ->setArgument('$renderer', new Reference(WikiMarkdownRendererInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+        $container->setAlias(WikiPageQueryInterface::class, WikiPageQuery::class)->setPublic(true);
     }
 
     /**

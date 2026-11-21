@@ -23,6 +23,17 @@ use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Service\WikiSpaceOperationsInterface;
 use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
+use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\Query\WikiOwnerUsage;
+use Nowo\WikiBundle\Query\WikiPageCriteria;
+use Nowo\WikiBundle\Query\WikiPageQueryInterface;
+use Nowo\WikiBundle\Query\WikiSpaceCriteria;
+use Nowo\WikiBundle\Query\WikiSpaceQueryInterface;
+use Nowo\WikiBundle\Security\WikiPageAccessInterface;
+use Nowo\WikiBundle\Security\WikiSpaceGuard;
+use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
@@ -257,6 +268,62 @@ final class DddHostKernelTest extends WebTestCase
         self::assertSame(0, $erasure->eraseActor($ana), 'nothing left');
         self::assertSame(1, $erasure->eraseActor(new WikiStoredUserRef('u-bob')));
         self::assertSame([['u-ana', 'api', null], ['u-bob', 'api', null], ['U-ana', 'api', 'Deploy token']], $stored());
+    }
+
+    /**
+     * 1.51 (DDD-host checklist B7, B8, B10 — DDD host leg): the read ports and the page rule by ids with XML mapping, user
+     * ids, the private entity manager and the twin space policy, in a kept-alive kernel: two people in turn get their own
+     * answers, the application's manager holds no wiki row, and the decisions are the guard's.
+     */
+    public function testTheReadPortsAndThePageRuleWorkOnTheDddHost(): void
+    {
+        $container = self::getContainer();
+        $spaces    = $container->get(WikiSpaceOperationsInterface::class);
+        $pages     = $container->get(WikiPageOperationsInterface::class);
+        $query     = $container->get(WikiSpaceQueryInterface::class);
+        $pageQuery = $container->get(WikiPageQueryInterface::class);
+        $access    = $container->get(WikiPageAccessInterface::class);
+        $guard     = $container->get(WikiSpaceGuard::class);
+        assert($spaces instanceof WikiSpaceOperationsInterface && $pages instanceof WikiPageOperationsInterface && $query instanceof WikiSpaceQueryInterface
+            && $pageQuery instanceof WikiPageQueryInterface && $access instanceof WikiPageAccessInterface && $guard instanceof WikiSpaceGuard);
+        $ana   = WikiUserRef::ofId(DddUser::class, 'u-ana');
+        $bob   = WikiUserRef::ofId(DddUser::class, 'u-bob');
+        $docs  = $spaces->createSpace('Docs', WikiSpaceOwnerScope::Team, 'team-a', 'docs');
+        $ops   = $spaces->createSpace('Ops', WikiSpaceOwnerScope::Team, 'team-b', 'ops');
+        $home  = $pages->createPage($docs->id, 'Home', '# Home', $ana, null, null, WikiPageRevision::FORMAT_MARKDOWN);
+        $guide = $pages->createPage($docs->id, 'Guide', sprintf('See [[wiki:%s]]', $home->id), $ana, $home->id, null, WikiPageRevision::FORMAT_MARKDOWN);
+        $run   = $pages->createPage($ops->id, 'Runbook', sprintf('Also [[wiki:%s]]', $home->id), $bob, null, null, WikiPageRevision::FORMAT_MARKDOWN);
+
+        self::assertSame(['Docs'], array_map(static fn (WikiSpaceSnapshot $space): string => $space->name, $query->findSpaces(WikiSpaceCriteria::forOwners(WikiSpaceOwnerScope::Team, ['team-a']))));
+        self::assertSame([], $query->findSpaces(WikiSpaceCriteria::forOwners(WikiSpaceOwnerScope::Team, ['Team-a'])), 'look-alike owner');
+        self::assertEquals(new WikiOwnerUsage('team-a', 1, 0, 2, 0, 0), $query->usage(WikiSpaceOwnerScope::Team, ['team-a'])['team-a']);
+        self::assertSame(2, $pageQuery->countPages(WikiPageCriteria::ofOwners(WikiSpaceOwnerScope::Team, ['team-a'])));
+        self::assertSame(['Home'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pageQuery->ancestors([$guide->id])[$guide->id]));
+
+        // Two people in turn, one kept-alive kernel: each gets their own answer (no memo between calls).
+        $private = $container->get(WikiEntityManagerProvider::class);
+        assert($private instanceof WikiEntityManagerProvider);
+        for ($round = 0; $round < 3; ++$round) {
+            self::assertSame(['Guide'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pageQuery->backlinks($home->id, $ana)));
+            self::assertSame(['Runbook'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pageQuery->backlinks($home->id, $bob)), 'Bob reads his team\'s page only');
+            self::assertSame(['Guide', 'Runbook'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pageQuery->backlinks($home->id)));
+            self::assertSame([$home->id, $guide->id], $access->readablePageIds($ana, [$home->id, $run->id, $guide->id]));
+            self::assertSame([$run->id], $access->readablePageIds($bob, [$home->id, $run->id, $guide->id]));
+            self::assertSame(['Runbook'], array_map(static fn ($hit): string => $hit->page->title, $pageQuery->searchPages([$docs->id, $ops->id], 'also', $bob)->hits));
+            // The guard, asked with the same person as the bundle's stand-in user, decides alike.
+            foreach ([$ana, $bob] as $person) {
+                foreach ([$home, $guide, $run] as $page) {
+                    $entity = $private->get()->find(WikiPage::class, $page->id);
+                    assert($entity instanceof WikiPage);
+                    self::assertSame($guard->isPageReadable(WikiUserRefs::securityUser($person), $entity->getSpace(), $entity), $access->isPageReadable($person, $page->id));
+                }
+            }
+            $private->get()->clear();
+        }
+
+        $host = $container->get('doctrine.orm.entity_manager');
+        assert($host instanceof EntityManagerInterface);
+        self::assertSame([], $host->getUnitOfWork()->getIdentityMap(), 'the application\'s manager holds no wiki row');
     }
 
     /**

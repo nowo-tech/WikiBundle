@@ -141,6 +141,25 @@ minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
 
+Nothing to change: the release only adds services ([USAGE › Read ports and page access by id](USAGE.md#read-ports-and-page-access-by-id-151)).
+No schema change, no configuration key, no new dependency.
+
+**Applications that query the wiki's tables** (spaces of an owner, page counts, attachment sizes, ancestors for
+breadcrumbs, pages for an export, backlinks by `LIKE`, search) can move those reads to `Query\WikiSpaceQueryInterface`
+and `Query\WikiPageQueryInterface`, and the entity-typed `WikiSpaceGuard::isPageReadable()` calls to
+`Security\WikiPageAccessInterface` (same decisions, by ids). Then they no longer depend on the wiki's schema or load
+its entities into their own entity manager, which also clears the way to `database.private_entity_manager: true`.
+Notes when moving:
+
+- The read ports make no access decision (the backlinks and the search do with a viewer): keep filtering for the person
+  as before, or pass the result through `WikiPageAccessInterface::readablePageIds()`.
+- Owner ids are refused when unusable (`InvalidArgumentException`): an empty string padding an `IN ()` list is no longer
+  needed, an empty list already matches nothing.
+- `WikiArchiveFilter` reads the wiki's own archive state (1.50 `WikiSpace::$archivedAt`, `WikiPage::$archivedAt`). An
+  application that keeps its own "archived" flag for spaces filters on it as before.
+- Without `backlinks.enabled`, `backlinks()` scans the current revisions (bounded by `backlinks.candidates`); turn the
+  index on (and run `wiki:backlinks:rebuild` once) for large wikis.
+
 ## To 1.50.0
 
 From **1.49.1**:
