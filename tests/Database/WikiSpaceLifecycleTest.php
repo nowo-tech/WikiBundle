@@ -38,6 +38,7 @@ use Nowo\WikiBundle\Event\WikiSpaceLifecycleEvent;
 use Nowo\WikiBundle\Event\WikiSpacePurgedEvent;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageLinkRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
@@ -54,6 +55,7 @@ use Nowo\WikiBundle\Space\WikiSpaceAccessDeniedException;
 use Nowo\WikiBundle\Space\WikiSpaceLifecycle;
 use Nowo\WikiBundle\Space\WikiSpaceLifecycleAction;
 use Nowo\WikiBundle\Space\WikiSpaceNotFoundException;
+use Nowo\WikiBundle\Space\WikiSpacePurgeInTransactionException;
 use Nowo\WikiBundle\Space\WikiSpacePurger;
 use Nowo\WikiBundle\Space\WikiSpacePurgeResult;
 use Nowo\WikiBundle\Space\WikiSpaceStateException;
@@ -585,6 +587,129 @@ final class WikiSpaceLifecycleTest extends TestCase
         });
 
         self::assertCount(1, $this->events[WikiEvents::SPACE_ARCHIVED]);
+    }
+
+    /** Audit XO: uninitialized proxies of purged rows in the identity map (a host that read around the wiki). */
+    public function testAuditXoUninitializedProxiesInTheIdentityMap(): void
+    {
+        $this->fixtures($this->doomed, 'd');
+        $this->fixtures($this->keep, 'k');
+        $this->em->clear();
+        $fav   = $this->em->getRepository(WikiPageFavourite::class)->findOneBy(['userId' => 'u-ana']);
+        $leaf  = $this->em->getRepository(WikiPage::class)->findOneBy(['slug' => 'd-leaf']);
+        $label = $this->em->getRepository(WikiRevisionLabel::class)->findOneBy(['label' => 'v1']);
+        self::assertNotNull($fav);
+        self::assertNotNull($leaf);
+        self::assertNotNull($label);
+
+        $result = $this->lifecycle(batchSize: 1)->purgeSpace($this->doomed->getId(), null, true);
+
+        self::assertTrue($result->finished);
+        $this->em->flush();
+        self::assertSame(3, (int) $this->em->createQuery('SELECT COUNT(p) FROM ' . WikiPage::class . ' p')->getSingleScalarResult());
+    }
+
+    /** Audit XO-1: a purge inside a transaction the host opened is refused before anything is written or announced. */
+    public function testAuditXoPurgeInsideAHostTransactionIsRefused(): void
+    {
+        $this->fixtures($this->doomed, 'd');
+        $lifecycle = $this->lifecycle();
+        $this->em->getConnection()->beginTransaction();
+        try {
+            $lifecycle->purgeSpace($this->doomed->getId(), null, true);
+            self::fail('Expected the transaction refusal.');
+        } catch (WikiSpacePurgeInTransactionException $refusal) {
+            self::assertStringContainsString('outside any transaction', $refusal->getMessage());
+        } finally {
+            $this->em->getConnection()->rollBack();
+        }
+        $this->em->clear();
+        self::assertSame(2, (int) $this->em->createQuery('SELECT COUNT(a) FROM ' . WikiAttachment::class . ' a')->getSingleScalarResult());
+        self::assertSame([], $this->deletedKeys, 'No file deleted.');
+        self::assertArrayNotHasKey(WikiEvents::SPACE_PURGED, $this->events);
+        self::assertNull($this->fresh($this->doomed)->getPurgeStartedAt());
+    }
+
+    /** Audit XO: a failure that is not a lock conflict after the mark committed reaches the caller as it is. */
+    public function testAuditXoNonTransientAfterMarkIsRaw(): void
+    {
+        $this->fixtures($this->doomed, 'd');
+        $lifecycle    = $this->lifecycle(batchSize: 1);
+        $this->failOn = 'DELETE FROM wiki_pages';
+        try {
+            $lifecycle->purgeSpace($this->doomed->getId(), null, true);
+            self::fail('Expected the simulated failure.');
+        } catch (RuntimeException $failure) {
+            self::assertNotInstanceOf(TransientStorageFailure::class, $failure);
+        }
+        self::assertNotNull($this->fresh($this->doomed)->getPurgeStartedAt(), 'The mark committed: the next call resumes.');
+    }
+
+    /** Audit XO-2: a second worker whose batch finds the space row gone returns finished without announcing a purge. */
+    public function testAuditXoConcurrentWorkerDoesNotAnnounceAPurgeItDidNotDo(): void
+    {
+        $empty = new WikiSpace('empty', 'Empty', WikiSpaceOwnerScope::Team, 'team-1');
+        $this->em->persist($empty);
+        $this->em->flush();
+        $connection = WikiTestDatabase::isServer() ? WikiTestDatabase::connect()->getConnection() : $this->em->getConnection();
+        $id         = $empty->getId();
+        $seen       = 0;
+        $pattern    = '/^SELECT \\S+ AS \\S+ FROM wiki_spaces \\S+ WHERE/';
+        $hook       = null;
+        $hook       = function () use (&$seen, &$hook, $pattern, $connection, $id): void {
+            ++$seen;
+            if ($seen === 1) {
+                $this->hooks[$pattern] = $hook; // the mark unit's lock; wait for the batch's lock
+
+                return;
+            }
+            $connection->executeStatement('DELETE FROM wiki_spaces WHERE id = ?', [$id]); // the other worker finished meanwhile
+        };
+        $this->hooks[$pattern] = $hook;
+
+        $result = $this->lifecycle()->purgeSpace($id, null, true);
+
+        self::assertTrue($result->finished);
+        self::assertArrayNotHasKey(WikiEvents::SPACE_PURGED, $this->events, 'Only the call that deleted the space row announces it.');
+    }
+
+    /** Audit XO-4: a page create re-reads the space state under its lock (the caller's entity may be stale). */
+    public function testAPageCreateInASpaceArchivedMeanwhileIsRefused(): void
+    {
+        $pages      = LoadReadinessFactory::pages($this->em);
+        $connection = WikiTestDatabase::isServer() ? WikiTestDatabase::connect()->getConnection() : $this->em->getConnection();
+        $connection->executeStatement('UPDATE wiki_spaces SET archived_at = ? WHERE id = ?', ['2026-11-21 10:00:00', $this->doomed->getId()]);
+        self::assertFalse($this->doomed->isArchived(), 'The caller still holds the active space.');
+
+        try {
+            $pages->create($this->doomed, 'Late', 'body', $this->author);
+            self::fail('Expected the archived space refusal.');
+        } catch (WikiPageArchivedException $refusal) {
+            self::assertSame(WikiPageService::ARCHIVED_SPACE, $refusal->getMessage());
+        }
+        self::assertSame(0, $this->pagesOf($this->fresh($this->doomed)));
+        self::assertFalse($this->runner->run(fn (): bool => $this->runner->lockSpaceArchived(new WikiSpace('ghost', 'Ghost', WikiSpaceOwnerScope::Team, 'team-1'))), 'A space row that is gone is not archived.');
+    }
+
+    /** An archived space is renamed only after it is brought back (as the REST API), and its links leave host lists. */
+    public function testAnArchivedSpaceIsNotRenamedAndLeavesHostObjectLinks(): void
+    {
+        $this->fixtures($this->doomed, 'd');
+        $links = new DoctrineOrmWikiPageLinkRepository($this->em);
+        self::assertCount(1, $links->findByHostObject('task', 'd-T1'));
+        $lifecycle = $this->lifecycle();
+        $lifecycle->archiveSpace($this->doomed->getId(), $this->ana);
+
+        self::assertSame([], $links->findByHostObject('task', 'd-T1'));
+        try {
+            $lifecycle->renameSpace($this->doomed->getId(), 'Renamed', null, $this->ana);
+            self::fail('Expected the archived refusal.');
+        } catch (WikiSpaceStateException $state) {
+            self::assertSame(WikiSpaceStateException::ARCHIVED, $state->reason);
+            self::assertSame('Bring the space back before renaming it.', $state->getMessage());
+        }
+        $lifecycle->unarchiveSpace($this->doomed->getId(), $this->ana);
+        self::assertSame('Renamed', $lifecycle->renameSpace($this->doomed->getId(), 'Renamed', null, $this->ana)->name);
     }
 
     private function lifecycle(int $batchSize = 100, ?WikiEventDeferral $deferral = null, int $maxFiles = 50): WikiSpaceLifecycle
