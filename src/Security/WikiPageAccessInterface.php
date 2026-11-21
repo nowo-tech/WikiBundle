@@ -15,6 +15,13 @@ use Nowo\WikiBundle\ValueObject\WikiUserRef;
  * asked as the bundle's own stand-in user (the id operations do the same). An unknown page id, or one that differs from
  * the stored id in any byte, is not readable. Pages and their ancestors are read fresh from the database in one query per
  * tree level (per 500 pages), never kept between calls (FrankenPHP worker mode with the kernel kept alive).
+ *
+ * **Readable is not live.** Like the guard, the rule does not look at the page's archive state: an archived or trashed
+ * page (the trash archives a page and its sub-tree) of an active space is readable by anyone with `View`. A caller that
+ * passes raw ids (stored references, embeddings) filters archived and trashed pages itself:
+ * {@see \Nowo\WikiBundle\Query\WikiPageQueryInterface::findPagesByIds()} (`archivedAt === null`) or
+ * {@see \Nowo\WikiBundle\Query\WikiArchiveFilter::Active}. The backlinks and the search of the read port only ever
+ * return live pages.
  */
 interface WikiPageAccessInterface
 {

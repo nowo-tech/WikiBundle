@@ -153,6 +153,9 @@ Notes when moving:
 
 - The read ports make no access decision (the backlinks and the search do with a viewer): keep filtering for the person
   as before, or pass the result through `WikiPageAccessInterface::readablePageIds()`.
+- `WikiPageAccessInterface` decides as the guard does, which does not check that a page is live: an archived or trashed
+  page of an active space is readable. Code that passes raw ids filters archived and trashed pages itself
+  (`findPagesByIds()` with `archivedAt === null`, or `WikiArchiveFilter::Active`), as the wiki's own pages do.
 - Owner ids are refused when unusable (`InvalidArgumentException`): an empty string padding an `IN ()` list is no longer
   needed, an empty list already matches nothing.
 - `WikiArchiveFilter` reads the wiki's own archive state (1.50 `WikiSpace::$archivedAt`, `WikiPage::$archivedAt`). An

@@ -17,7 +17,8 @@ use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
  * - **No access decision.** These reads answer what is stored: list for a person only what your own rules (or
  *   {@see WikiPageAccessInterface}, the space checker) let them see.
  * - **Exact ids.** Owner ids, space ids and the rows read back are compared byte for byte in PHP after the SQL (house
- *   rule LQ), whatever the column collation.
+ *   rule LQ), whatever the column collation; usage is grouped per space and summed per exact owner, so look-alike
+ *   owners (`team-a`, `Team-a`) never merge on a folding collation.
  * - **Stateless and read-only.** Nothing is kept between calls (FrankenPHP worker mode with the kernel kept alive), no
  *   row is locked or written, and rows are read as columns: no entity enters an entity manager.
  */

@@ -11,6 +11,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 
+use function array_flip;
 use function in_array;
 
 /**
@@ -111,6 +112,8 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
         }
         foreach (WikiQueryIds::chunks($owners) as $chunk) {
             $manager = $this->runner->manager();
+            // Only this chunk's owners: a look-alike row of another chunk's owner is counted by that chunk alone.
+            $asked = array_flip($chunk);
             /** @var list<array{owner: mixed, total: mixed, archived: mixed}> $spaces */
             $spaces = $this->owned($manager->createQueryBuilder()->from(WikiSpace::class, 's'), $ownerScopeType, $chunk)
                 ->select('s.ownerScopeId AS owner', 'COUNT(s.id) AS total', 'SUM(CASE WHEN s.archivedAt IS NULL THEN 0 ELSE 1 END) AS archived')
@@ -126,27 +129,28 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
                 ->select('s.ownerScopeId AS owner', 'SUM(a.size) AS bytes')
                 ->getQuery()
                 ->getArrayResult();
-            // Each group is kept only when its owner is exactly one asked (house rule LQ).
+            // One group per space (never per owner: a folding collation would merge look-alike owners into one group),
+            // summed here per owner read back byte for byte (house rule LQ).
             foreach ($spaces as $row) {
                 $owner = WikiQueryRows::string($row['owner']);
-                if (isset($totals[$owner])) {
-                    $archived                         = WikiQueryRows::int($row['archived']);
-                    $totals[$owner]['spaces']         = WikiQueryRows::int($row['total']) - $archived;
-                    $totals[$owner]['archivedSpaces'] = $archived;
+                if (isset($asked[$owner])) {
+                    $archived = WikiQueryRows::int($row['archived']);
+                    $totals[$owner]['spaces'] += WikiQueryRows::int($row['total']) - $archived;
+                    $totals[$owner]['archivedSpaces'] += $archived;
                 }
             }
             foreach ($pages as $row) {
                 $owner = WikiQueryRows::string($row['owner']);
-                if (isset($totals[$owner])) {
-                    $archived                        = WikiQueryRows::int($row['archived']);
-                    $totals[$owner]['pages']         = WikiQueryRows::int($row['total']) - $archived;
-                    $totals[$owner]['archivedPages'] = $archived;
+                if (isset($asked[$owner])) {
+                    $archived = WikiQueryRows::int($row['archived']);
+                    $totals[$owner]['pages'] += WikiQueryRows::int($row['total']) - $archived;
+                    $totals[$owner]['archivedPages'] += $archived;
                 }
             }
             foreach ($bytes as $row) {
                 $owner = WikiQueryRows::string($row['owner']);
-                if (isset($totals[$owner])) {
-                    $totals[$owner]['bytes'] = WikiQueryRows::int($row['bytes']);
+                if (isset($asked[$owner])) {
+                    $totals[$owner]['bytes'] += WikiQueryRows::int($row['bytes']);
                 }
             }
         }
@@ -202,7 +206,8 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
     }
 
     /**
-     * Narrows a query joined to its spaces (alias `s`) to the owners, grouped by owner.
+     * Narrows a query joined to its spaces (alias `s`) to the owners, grouped by space (and its owner id, read back):
+     * never by owner id alone, which a folding collation would merge with a look-alike owner's.
      *
      * @param list<string> $owners
      */
@@ -212,7 +217,8 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
             ->andWhere('s.ownerScopeId IN (:owners)')
             ->setParameter('type', $type)
             ->setParameter('owners', $owners)
-            ->groupBy('s.ownerScopeId');
+            ->groupBy('s.id')
+            ->addGroupBy('s.ownerScopeId');
     }
 
     /** Whether a row read back is exactly one the criteria asked for. */

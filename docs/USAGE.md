@@ -651,20 +651,29 @@ searched); pass the spaces your rules let the person search.
 **Who may read a page, by id.** `WikiPageAccessInterface` is the id twin of `WikiSpaceGuard::isPageReadable()`: `View`
 on the page and every ancestor through the same space checker (your `WikiSpaceAccessPolicyInterface` or
 `WikiSpaceAccessCheckerInterface`, with the 1.50 archived-space rule), a parent cycle reading as hidden. The decisions
-are the guard's, also for a person given only by ids (`WikiUserRef::ofId()`, asked as the bundle's stand-in user, as the
-id operations do).
+are the guard's. When you hold the security user, put it in the reference, so a policy that needs the user object
+decides as on the wiki's own pages; a person given only by ids (`WikiUserRef::ofId()`) is asked as the bundle's stand-in
+user, as the id operations do, and a policy that needs your user object then refuses (fail closed: nothing readable).
 
 ```php
 use Nowo\WikiBundle\Security\WikiPageAccessInterface;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
-$viewer = WikiUserRef::ofId(User::class, (string) $user->getId(), $user->getUserIdentifier(), $user->getRoles());
+// You hold the user object (a request, a message handler that loaded it): pass it as the last argument.
+$viewer = new WikiUserRef(User::class, (string) $user->getId(), $user->getUserIdentifier(), $user->getRoles(), $user);
+// Only ids (a worker without the user): WikiUserRef::ofId(User::class, $id, $identifier, $roles).
 $access->isPageReadable($viewer, $pageId);
 $readable = $access->readablePageIds($viewer, $hitIds);   // the readable ones, in the order asked
 ```
 
 `readablePageIds()` reads the pages and their ancestors in one query per tree level, so a list of hits costs a handful
 of queries whatever its size.
+
+**Readable is not live.** Like the guard, the rule does not check the page's archive state: an archived or trashed page
+(the trash archives a page and its sub-tree) of an active space is readable by anyone with `View`. The backlinks and the
+search above only return live pages; when you pass raw ids (stored references, AI sources from embeddings), drop the
+archived and trashed ones yourself: `findPagesByIds()` and keep `archivedAt === null`, or read the candidates with
+`WikiArchiveFilter::Active`.
 
 **Rules every read follows.**
 
