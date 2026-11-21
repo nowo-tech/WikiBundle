@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Security;
 
+use Nowo\WikiBundle\Query\WikiArchiveFilter;
+use Nowo\WikiBundle\Query\WikiPageQueryInterface;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
@@ -19,8 +21,8 @@ use Nowo\WikiBundle\ValueObject\WikiUserRef;
  * **Readable is not live.** Like the guard, the rule does not look at the page's archive state: an archived or trashed
  * page (the trash archives a page and its sub-tree) of an active space is readable by anyone with `View`. A caller that
  * passes raw ids (stored references, embeddings) filters archived and trashed pages itself:
- * {@see \Nowo\WikiBundle\Query\WikiPageQueryInterface::findPagesByIds()} (`archivedAt === null`) or
- * {@see \Nowo\WikiBundle\Query\WikiArchiveFilter::Active}. The backlinks and the search of the read port only ever
+ * {@see WikiPageQueryInterface::findPagesByIds()} (`archivedAt === null`) or
+ * {@see WikiArchiveFilter::Active}. The backlinks and the search of the read port only ever
  * return live pages.
  */
 interface WikiPageAccessInterface

@@ -105,11 +105,8 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
     public function usage(WikiSpaceOwnerScope $ownerScopeType, array $ownerScopeIds): array
     {
         $owners = WikiQueryIds::owners($ownerScopeIds);
-        /** @var array<string, array{spaces: int, archivedSpaces: int, pages: int, archivedPages: int, bytes: int}> $totals */
-        $totals = [];
-        foreach ($owners as $owner) {
-            $totals[$owner] = ['spaces' => 0, 'archivedSpaces' => 0, 'pages' => 0, 'archivedPages' => 0, 'bytes' => 0];
-        }
+        /** @var array<string, array<string, int>> $sums per counter, per exact owner */
+        $sums = ['spaces' => [], 'archivedSpaces' => [], 'pages' => [], 'archivedPages' => [], 'bytes' => []];
         foreach (WikiQueryIds::chunks($owners) as $chunk) {
             $manager = $this->runner->manager();
             // Only this chunk's owners: a look-alike row of another chunk's owner is counted by that chunk alone.
@@ -134,31 +131,37 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
             foreach ($spaces as $row) {
                 $owner = WikiQueryRows::string($row['owner']);
                 if (isset($asked[$owner])) {
-                    $archived = WikiQueryRows::int($row['archived']);
-                    $totals[$owner]['spaces'] += WikiQueryRows::int($row['total']) - $archived;
-                    $totals[$owner]['archivedSpaces'] += $archived;
+                    $archived                        = WikiQueryRows::int($row['archived']);
+                    $sums['spaces'][$owner]          = ($sums['spaces'][$owner] ?? 0) + WikiQueryRows::int($row['total']) - $archived;
+                    $sums['archivedSpaces'][$owner]  = ($sums['archivedSpaces'][$owner] ?? 0) + $archived;
                 }
             }
             foreach ($pages as $row) {
                 $owner = WikiQueryRows::string($row['owner']);
                 if (isset($asked[$owner])) {
-                    $archived = WikiQueryRows::int($row['archived']);
-                    $totals[$owner]['pages'] += WikiQueryRows::int($row['total']) - $archived;
-                    $totals[$owner]['archivedPages'] += $archived;
+                    $archived                       = WikiQueryRows::int($row['archived']);
+                    $sums['pages'][$owner]          = ($sums['pages'][$owner] ?? 0) + WikiQueryRows::int($row['total']) - $archived;
+                    $sums['archivedPages'][$owner]  = ($sums['archivedPages'][$owner] ?? 0) + $archived;
                 }
             }
             foreach ($bytes as $row) {
                 $owner = WikiQueryRows::string($row['owner']);
                 if (isset($asked[$owner])) {
-                    $totals[$owner]['bytes'] += WikiQueryRows::int($row['bytes']);
+                    $sums['bytes'][$owner] = ($sums['bytes'][$owner] ?? 0) + WikiQueryRows::int($row['bytes']);
                 }
             }
         }
 
         $usage = [];
         foreach ($owners as $owner) {
-            $total         = $totals[$owner];
-            $usage[$owner] = new WikiOwnerUsage($owner, $total['spaces'], $total['archivedSpaces'], $total['pages'], $total['archivedPages'], $total['bytes']);
+            $usage[$owner] = new WikiOwnerUsage(
+                $owner,
+                $sums['spaces'][$owner] ?? 0,
+                $sums['archivedSpaces'][$owner] ?? 0,
+                $sums['pages'][$owner] ?? 0,
+                $sums['archivedPages'][$owner] ?? 0,
+                $sums['bytes'][$owner] ?? 0,
+            );
         }
 
         return $usage;
