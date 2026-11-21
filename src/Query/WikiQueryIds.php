@@ -50,9 +50,9 @@ final class WikiQueryIds
     /**
      * @param array<mixed> $ids owner ids
      *
-     * @return list<string> the distinct owner ids
-     *
      * @throws InvalidArgumentException when one is not a usable owner id
+     *
+     * @return list<string> the distinct owner ids
      */
     public static function owners(array $ids): array
     {
@@ -72,9 +72,9 @@ final class WikiQueryIds
      *
      * @param list<string> $ids ids
      *
-     * @return list<string> the distinct ids
-     *
      * @throws InvalidArgumentException when there are more than {@see self::MAX_FILTER_IDS}
+     *
+     * @return list<string> the distinct ids
      */
     public static function filter(array $ids): array
     {
@@ -86,9 +86,9 @@ final class WikiQueryIds
      *
      * @param list<string> $ids owner ids
      *
-     * @return list<string> the distinct owner ids
-     *
      * @throws InvalidArgumentException when one is unusable or there are more than {@see self::MAX_FILTER_IDS}
+     *
+     * @return list<string> the distinct owner ids
      */
     public static function ownerFilter(array $ids): array
     {
@@ -104,7 +104,6 @@ final class WikiQueryIds
             throw new InvalidArgumentException(sprintf('Paging needs an offset of 0 or more and a limit of 1 to %d.', self::MAX_LIMIT));
         }
     }
-
 
     /**
      * @param list<string> $ids ids

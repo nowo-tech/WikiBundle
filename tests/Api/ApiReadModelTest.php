@@ -13,6 +13,8 @@ use Nowo\WikiBundle\Query\WikiOwnerUsage;
 use Nowo\WikiBundle\Query\WikiPageCriteria;
 use Nowo\WikiBundle\Query\WikiPageQuery;
 use Nowo\WikiBundle\Query\WikiPageQueryInterface;
+use Nowo\WikiBundle\Query\WikiPageSearchHit;
+use Nowo\WikiBundle\Query\WikiPageSort;
 use Nowo\WikiBundle\Query\WikiSpaceCriteria;
 use Nowo\WikiBundle\Query\WikiSpaceQuery;
 use Nowo\WikiBundle\Query\WikiSpaceQueryInterface;
@@ -47,11 +49,11 @@ final class ApiReadModelTest extends ApiTestCase
         self::assertSame(['Engineering'], array_map(static fn (WikiSpaceSnapshot $space): string => $space->name, $spaces->findSpaces(WikiSpaceCriteria::forOwners(WikiSpaceOwnerScope::Team, ['owner-1']))));
         self::assertSame(2, $spaces->countSpaces(new WikiSpaceCriteria(WikiSpaceOwnerScope::Team, ['owner-1', 'owner-2'], null, WikiArchiveFilter::Active)));
         self::assertEquals(new WikiOwnerUsage('owner-2', 1, 0, 1, 0, 0), $spaces->usage(WikiSpaceOwnerScope::Team, ['owner-2'])['owner-2']);
-        self::assertSame(['Plan', 'Steps'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pages->findPages(WikiPageCriteria::inSpaces([$this->eng->getId()]))));
+        self::assertSame(['Plan', 'Steps'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pages->findPages(WikiPageCriteria::inSpaces([$this->eng->getId()], WikiArchiveFilter::Any, WikiPageSort::TitleAsc))));
         self::assertSame(['Plan'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pages->ancestors([$steps->getId()])[$steps->getId()]));
         self::assertSame([$steps->getId()], array_keys($pages->pageContents([$steps->getId()])));
         self::assertSame(['Steps'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pages->backlinks($plan->getId(), WikiUserRefs::fromUser($this->bob))));
-        self::assertSame(['Plan'], array_map(static fn ($hit): string => $hit->page->title, $pages->searchPages([$this->eng->getId(), $this->ops->getId()], 'plan', WikiUserRefs::fromUser($this->bob))->hits));
+        self::assertSame(['Plan'], array_map(static fn (WikiPageSearchHit $hit): string => $hit->page->title, $pages->searchPages([$this->eng->getId(), $this->ops->getId()], 'plan', WikiUserRefs::fromUser($this->bob))->hits));
     }
 
     public function testThePageRuleByIdsDecidesAsTheGuard(): void

@@ -6,12 +6,13 @@ namespace Nowo\WikiBundle\Query;
 
 use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\ValueObject\WikiOwnerScopeId;
 
 /**
  * 1.51: which pages {@see WikiPageQueryInterface::findPages()} and {@see WikiPageQueryInterface::countPages()} read. At
  * least one of the space, owner and page filters is required (a read port never scans every page by accident); every
  * filter given narrows the result (AND) and an empty list matches nothing; a filter takes at most 1,000 ids. Owner ids follow the owner-id rule of
- * {@see \Nowo\WikiBundle\ValueObject\WikiOwnerScopeId} and are matched byte for byte.
+ * {@see WikiOwnerScopeId} and are matched byte for byte.
  */
 final readonly class WikiPageCriteria
 {

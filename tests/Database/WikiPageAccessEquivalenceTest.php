@@ -74,11 +74,9 @@ final class WikiPageAccessEquivalenceTest extends TestCase
         }
         $this->em->flush();
         $service = LoadReadinessFactory::pages($this->em);
-        $page    = function (WikiSpace $space, string $slug, ?WikiPage $parent = null) use ($service, $author): WikiPage {
-            return $this->pages[$slug] = $service->create($space, $slug, 'body', $author, $parent, $slug, WikiPageRevision::FORMAT_MARKDOWN);
-        };
-        $root = $page($eng, 'eng-root');
-        $mid  = $page($eng, 'mid', $root);
+        $page    = (fn (WikiSpace $space, string $slug, ?WikiPage $parent = null): WikiPage => $this->pages[$slug] = $service->create($space, $slug, 'body', $author, $parent, $slug, WikiPageRevision::FORMAT_MARKDOWN));
+        $root    = $page($eng, 'eng-root');
+        $mid     = $page($eng, 'mid', $root);
         $page($eng, 'leaf', $mid);
         $secret = $page($eng, 'secret', $root);
         $page($eng, 'below-secret', $secret);
@@ -116,7 +114,7 @@ final class WikiPageAccessEquivalenceTest extends TestCase
             $expected     = [];
             foreach ($this->pages as $slug => $page) {
                 $this->em->clear(); // each side reads its own rows: no decision rides on what the other loaded
-                $fresh    = $this->em->find(WikiPage::class, $page->getId());
+                $fresh = $this->em->find(WikiPage::class, $page->getId());
                 self::assertInstanceOf(WikiPage::class, $fresh);
                 $byEntity = $guard->isPageReadable($securityUser, $fresh->getSpace(), $fresh);
                 $this->em->clear();
@@ -186,7 +184,7 @@ final class WikiPageAccessEquivalenceTest extends TestCase
             return false;
         }
 
-        return $page === null || (!in_array($page->getSlug(), self::HIDDEN['*'], true) && !in_array($page->getSlug(), self::HIDDEN[$who] ?? [], true));
+        return !$page instanceof WikiPage || (!in_array($page->getSlug(), self::HIDDEN['*'], true) && !in_array($page->getSlug(), self::HIDDEN[$who] ?? [], true));
     }
 
     private function locator(): WikiSpaceLocatorInterface

@@ -32,17 +32,8 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
         if ($criteria->matchesNothing()) {
             return [];
         }
-        $builder = $this->filtered($criteria)->select(...WikiQueryRows::SPACE_FIELDS);
-        [$field, $direction] = match ($criteria->sort) {
-            WikiSpaceSort::NameAsc     => ['s.name', 'ASC'],
-            WikiSpaceSort::NameDesc    => ['s.name', 'DESC'],
-            WikiSpaceSort::SlugAsc     => ['s.slug', 'ASC'],
-            WikiSpaceSort::CreatedAsc  => ['s.createdAt', 'ASC'],
-            WikiSpaceSort::CreatedDesc => ['s.createdAt', 'DESC'],
-            WikiSpaceSort::UpdatedDesc => ['s.updatedAt', 'DESC'],
-        };
         /** @var list<array<string, mixed>> $rows */
-        $rows = $builder->orderBy($field, $direction)
+        $rows = $this->sorted($this->filtered($criteria)->select(...WikiQueryRows::SPACE_FIELDS), $criteria->sort)
             ->addOrderBy('s.id', 'ASC')
             ->setFirstResult($offset)
             ->setMaxResults($limit)
@@ -52,7 +43,7 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
         $spaces = [];
         foreach ($rows as $row) {
             $space = WikiQueryRows::space($row);
-            if (self::matches($criteria, $space->id, $space->ownerScopeId)) {
+            if ($this->matches($criteria, $space->id, $space->ownerScopeId)) {
                 $spaces[] = $space;
             }
         }
@@ -73,7 +64,7 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
             ->getArrayResult();
         $count = 0;
         foreach ($rows as $row) {
-            if (self::matches($criteria, WikiQueryRows::string($row['id']), WikiQueryRows::string($row['owner']))) {
+            if ($this->matches($criteria, WikiQueryRows::string($row['id']), WikiQueryRows::string($row['owner']))) {
                 ++$count;
             }
         }
@@ -95,8 +86,8 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
                 ->getQuery()
                 ->getArrayResult();
             foreach ($rows as $row) {
-                $space              = WikiQueryRows::space($row);
-                $found[$space->id]  = $space;
+                $space             = WikiQueryRows::space($row);
+                $found[$space->id] = $space;
             }
         }
 
@@ -194,6 +185,23 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
     }
 
     /**
+     * Orders the spaces query (alias `s`) by the sort asked.
+     */
+    private function sorted(QueryBuilder $builder, WikiSpaceSort $sort): QueryBuilder
+    {
+        [$field, $direction] = match ($sort) {
+            WikiSpaceSort::NameAsc     => ['s.name', 'ASC'],
+            WikiSpaceSort::NameDesc    => ['s.name', 'DESC'],
+            WikiSpaceSort::SlugAsc     => ['s.slug', 'ASC'],
+            WikiSpaceSort::CreatedAsc  => ['s.createdAt', 'ASC'],
+            WikiSpaceSort::CreatedDesc => ['s.createdAt', 'DESC'],
+            WikiSpaceSort::UpdatedDesc => ['s.updatedAt', 'DESC'],
+        };
+
+        return $builder->orderBy($field, $direction);
+    }
+
+    /**
      * Narrows a query joined to its spaces (alias `s`) to the owners, grouped by owner.
      *
      * @param list<string> $owners
@@ -208,7 +216,7 @@ final readonly class WikiSpaceQuery implements WikiSpaceQueryInterface
     }
 
     /** Whether a row read back is exactly one the criteria asked for. */
-    private static function matches(WikiSpaceCriteria $criteria, string $spaceId, string $ownerScopeId): bool
+    private function matches(WikiSpaceCriteria $criteria, string $spaceId, string $ownerScopeId): bool
     {
         return ($criteria->ownerScopeIds === null || in_array($ownerScopeId, $criteria->ownerScopeIds, true))
             && ($criteria->spaceIds === null || in_array($spaceId, $criteria->spaceIds, true));

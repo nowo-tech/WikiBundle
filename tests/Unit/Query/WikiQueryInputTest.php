@@ -142,7 +142,7 @@ final class WikiQueryInputTest extends TestCase
         self::assertSame(12, WikiQueryRows::int('12'));
 
         $space = WikiQueryRows::space([
-            'id' => 's', 'slug' => 'slug', 'name' => 'Name', 'ownerScopeType' => 'team', 'ownerScopeId' => 'o',
+            'id'        => 's', 'slug' => 'slug', 'name' => 'Name', 'ownerScopeType' => 'team', 'ownerScopeId' => 'o',
             'createdAt' => '2026-11-21 10:00:00', 'updatedAt' => $date, 'icon' => null, 'archivedAt' => '2026-11-21 11:00:00', 'version' => '3',
         ]);
         self::assertSame(WikiSpaceOwnerScope::Team, $space->ownerScopeType);
@@ -151,7 +151,7 @@ final class WikiQueryInputTest extends TestCase
         self::assertSame(3, $space->version);
 
         $page = WikiQueryRows::page([
-            'id' => 'p', 'spaceId' => 's', 'slug' => 'slug', 'title' => 'Title', 'parentId' => null, 'position' => 2,
+            'id'                => 'p', 'spaceId' => 's', 'slug' => 'slug', 'title' => 'Title', 'parentId' => null, 'position' => 2,
             'currentRevisionId' => 'r', 'archivedAt' => null, 'createdAt' => $date, 'updatedAt' => $date, 'icon' => 'tabler:book',
         ]);
         self::assertNull($page->parentId);

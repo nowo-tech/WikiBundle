@@ -73,15 +73,9 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
         if ($criteria->matchesNothing()) {
             return [];
         }
-        $builder = $this->filtered($criteria)->addSelect(...WikiQueryRows::PAGE_FIELDS);
-        match ($criteria->sort) {
-            WikiPageSort::TitleAsc    => $builder->orderBy('p.title', 'ASC'),
-            WikiPageSort::CreatedAsc  => $builder->orderBy('p.createdAt', 'ASC'),
-            WikiPageSort::UpdatedDesc => $builder->orderBy('p.updatedAt', 'DESC'),
-            WikiPageSort::Position    => $builder->orderBy('spaceId', 'ASC')->addOrderBy('p.position', 'ASC'),
-        };
         /** @var list<array<string, mixed>> $rows */
-        $rows = $builder->addOrderBy('p.id', 'ASC')
+        $rows = $this->sorted($this->filtered($criteria)->addSelect(...WikiQueryRows::PAGE_FIELDS), $criteria->sort)
+            ->addOrderBy('p.id', 'ASC')
             ->setFirstResult($offset)
             ->setMaxResults($limit)
             ->getQuery()
@@ -90,7 +84,7 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
         $pages = [];
         foreach ($rows as $row) {
             $page = WikiQueryRows::page($row);
-            if (self::matches($criteria, $page->id, $page->spaceId, WikiQueryRows::string($row['owner']))) {
+            if ($this->matches($criteria, $page->id, $page->spaceId, WikiQueryRows::string($row['owner']))) {
                 $pages[] = $page;
             }
         }
@@ -109,7 +103,7 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
             $rows  = $this->filtered($criteria)->addSelect('p.id AS id', 'IDENTITY(p.space) AS spaceId')->getQuery()->getArrayResult();
             $count = 0;
             foreach ($rows as $row) {
-                if (self::matches($criteria, WikiQueryRows::string($row['id']), WikiQueryRows::string($row['spaceId']), WikiQueryRows::string($row['owner']))) {
+                if ($this->matches($criteria, WikiQueryRows::string($row['id']), WikiQueryRows::string($row['spaceId']), WikiQueryRows::string($row['owner']))) {
                     ++$count;
                 }
             }
@@ -126,7 +120,7 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
             ->getArrayResult();
         $count = 0;
         foreach ($groups as $group) {
-            if (self::matches($criteria, null, WikiQueryRows::string($group['spaceId']), WikiQueryRows::string($group['owner']))) {
+            if ($this->matches($criteria, null, WikiQueryRows::string($group['spaceId']), WikiQueryRows::string($group['owner']))) {
                 $count += WikiQueryRows::int($group['total']);
             }
         }
@@ -144,7 +138,7 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
             }
         }
 
-        return self::ordered($pageIds, $found);
+        return $this->ordered($pageIds, $found);
     }
 
     public function pageStats(array $spaceIds): array
@@ -237,7 +231,7 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
             }
         }
 
-        return self::ordered($pageIds, $found);
+        return $this->ordered($pageIds, $found);
     }
 
     public function backlinks(string $pageId, ?WikiUserRef $viewer = null, ?array $spaceIds = null, int $limit = 50): array
@@ -311,13 +305,13 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
         $after    = null;
         $complete = false;
         while (!$complete && $done < $this->searchCandidates) {
-            $batch    = min(self::BATCH, $this->searchCandidates - $done);
-            $last     = null;
-            $rows     = 0;
-            $found    = $read($after, $batch, $last, $rows);
-            $after    = $last;
+            $batch = min(self::BATCH, $this->searchCandidates - $done);
+            $last  = null;
+            $rows  = 0;
+            $found = $read($after, $batch, $last, $rows);
+            $after = $last;
             $done += $rows;
-            $complete = $rows < $batch;
+            $complete  = $rows < $batch;
             $batchHits = [];
             foreach ($found as $hit) {
                 $id = $hit['page']->getId();
@@ -444,6 +438,19 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
     }
 
     /**
+     * Orders the page query (alias `p`, page columns selected) by the sort asked; the tree order is space, position.
+     */
+    private function sorted(QueryBuilder $builder, WikiPageSort $sort): QueryBuilder
+    {
+        return match ($sort) {
+            WikiPageSort::TitleAsc    => $builder->orderBy('p.title', 'ASC'),
+            WikiPageSort::CreatedAsc  => $builder->orderBy('p.createdAt', 'ASC'),
+            WikiPageSort::UpdatedDesc => $builder->orderBy('p.updatedAt', 'DESC'),
+            WikiPageSort::Position    => $builder->orderBy('spaceId', 'ASC')->addOrderBy('p.position', 'ASC'),
+        };
+    }
+
+    /**
      * The pages with these ids (one chunk), read as columns.
      *
      * @param list<string> $ids
@@ -465,7 +472,7 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
     }
 
     /** Whether a row read back is exactly one the criteria asked for (null id: a group, not a page). */
-    private static function matches(WikiPageCriteria $criteria, ?string $pageId, string $spaceId, string $ownerScopeId): bool
+    private function matches(WikiPageCriteria $criteria, ?string $pageId, string $spaceId, string $ownerScopeId): bool
     {
         return ($criteria->pageIds === null || in_array($pageId, $criteria->pageIds, true))
             && ($criteria->spaceIds === null || in_array($spaceId, $criteria->spaceIds, true))
@@ -482,7 +489,7 @@ final readonly class WikiPageQuery implements WikiPageQueryInterface
      *
      * @return array<string, T>
      */
-    private static function ordered(array $ids, array $found): array
+    private function ordered(array $ids, array $found): array
     {
         $ordered = [];
         foreach ($ids as $id) {

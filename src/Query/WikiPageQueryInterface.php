@@ -31,9 +31,9 @@ interface WikiPageQueryInterface
      * @param int $offset rows skipped
      * @param int $limit rows returned at most (1 to 500)
      *
-     * @return list<WikiPageSnapshot>
-     *
      * @throws InvalidArgumentException when the offset or limit is out of bounds
+     *
+     * @return list<WikiPageSnapshot>
      */
     public function findPages(WikiPageCriteria $criteria, int $offset = 0, int $limit = 100): array;
 
@@ -91,9 +91,9 @@ interface WikiPageQueryInterface
      * @param list<string>|null $spaceIds only pages of these spaces (the viewer's tenant); null for every space
      * @param int $limit pages returned at most (1 to 500)
      *
-     * @return list<WikiPageSnapshot>
-     *
      * @throws InvalidArgumentException when the limit is out of bounds or more than 1,000 space ids are given
+     *
+     * @return list<WikiPageSnapshot>
      */
     public function backlinks(string $pageId, ?WikiUserRef $viewer = null, ?array $spaceIds = null, int $limit = 50): array;
 

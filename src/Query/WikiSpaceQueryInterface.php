@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Query;
 
 use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Security\WikiPageAccessInterface;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 
 /**
@@ -14,7 +15,7 @@ use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
  * out, never an entity.
  *
  * - **No access decision.** These reads answer what is stored: list for a person only what your own rules (or
- *   {@see \Nowo\WikiBundle\Security\WikiPageAccessInterface}, the space checker) let them see.
+ *   {@see WikiPageAccessInterface}, the space checker) let them see.
  * - **Exact ids.** Owner ids, space ids and the rows read back are compared byte for byte in PHP after the SQL (house
  *   rule LQ), whatever the column collation.
  * - **Stateless and read-only.** Nothing is kept between calls (FrankenPHP worker mode with the kernel kept alive), no
@@ -28,9 +29,9 @@ interface WikiSpaceQueryInterface
      * @param int $offset rows skipped
      * @param int $limit rows returned at most (1 to 500)
      *
-     * @return list<WikiSpaceSnapshot>
-     *
      * @throws InvalidArgumentException when the offset or limit is out of bounds
+     *
+     * @return list<WikiSpaceSnapshot>
      */
     public function findSpaces(WikiSpaceCriteria $criteria, int $offset = 0, int $limit = 100): array;
 
@@ -54,9 +55,9 @@ interface WikiSpaceQueryInterface
      *
      * @param list<string> $ownerScopeIds
      *
-     * @return array<string, WikiOwnerUsage> by owner id, in the order asked
-     *
      * @throws InvalidArgumentException when an owner id is unusable
+     *
+     * @return array<string, WikiOwnerUsage> by owner id, in the order asked
      */
     public function usage(WikiSpaceOwnerScope $ownerScopeType, array $ownerScopeIds): array;
 }

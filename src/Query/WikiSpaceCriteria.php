@@ -6,11 +6,12 @@ namespace Nowo\WikiBundle\Query;
 
 use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\ValueObject\WikiOwnerScopeId;
 
 /**
  * 1.51: which spaces {@see WikiSpaceQueryInterface::findSpaces()} and {@see WikiSpaceQueryInterface::countSpaces()} read.
  * Every filter given narrows the result (AND); an empty list matches nothing. Owner ids follow the owner-id rule of
- * {@see \Nowo\WikiBundle\ValueObject\WikiOwnerScopeId} (refused here when unusable); a filter takes at most 1,000 ids and are matched byte for byte.
+ * {@see WikiOwnerScopeId} (refused here when unusable); a filter takes at most 1,000 ids and are matched byte for byte.
  */
 final readonly class WikiSpaceCriteria
 {

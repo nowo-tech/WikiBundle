@@ -347,6 +347,9 @@ final class WikiReadModelTest extends TestCase
         self::assertCount(1, $cut->hits);
 
         self::assertSame([], $query->searchPages([$this->alpha->getId()], '  ')->hits);
+        $none = $query->searchPages([], 'deploy');
+        self::assertSame([], $none->hits, 'no space, no search');
+        self::assertTrue($none->complete);
         self::assertSame([], $query->searchPages(['missing', strtoupper($this->alpha->getId())], 'deploy')->hits);
         self::assertFalse($this->query(false, 200, 1)->searchPages([$this->alpha->getId()], 'deploy')->complete, 'the budget bounds each scan');
     }
