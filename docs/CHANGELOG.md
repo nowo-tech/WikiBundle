@@ -292,6 +292,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A new `TranslationCatalogueTest` fails on missing keys and on non-en values identical to English of any length unless allow-listed per locale (brands, protocols, loanwords, true cognates), and on stale allow-list entries.
+
 ## [1.51.0] - 2026-11-21
 
 ### Added (1.51.0)
