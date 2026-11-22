@@ -300,6 +300,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A new `TranslationCatalogueTest` fails on missing keys and on non-en values identical to English of any length unless allow-listed per locale (brands, protocols, loanwords, true cognates), and on stale allow-list entries.
 
+- Translations: `wiki.export.outline` and `wiki.export.notion` read "Export (Outline-ZIP)" and "Export (Notion-ZIP)" in German (they were identical to English). `TranslationCatalogueTest` also fails now on a non-es value identical to the Spanish one (longer than 12 characters) unless allow-listed per locale as genuinely shared, and on stale entries of that allow-list. 
+
 ## [1.51.0] - 2026-11-21
 
 ### Added (1.51.0)

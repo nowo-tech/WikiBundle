@@ -251,8 +251,8 @@ wiki:
     failed: "Der Import ist fehlgeschlagen: %reason%"
     report: "%created% erstellt, %updated% aktualisiert, %skipped% übersprungen, %failed% fehlgeschlagen."
   export:
-    outline: Export (Outline ZIP)
-    notion: Export (Notion ZIP)
+    outline: Export (Outline-ZIP)
+    notion: Export (Notion-ZIP)
     readme:
       exported_on: "Exportiert am %date%."
       pages: "Seiten"
