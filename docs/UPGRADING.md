@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+  - [The bundle declares its own identity / access-key columns (REQ-SEC-006)](#the-bundle-declares-its-own-identity--access-key-columns-req-sec-006)
 - [To 1.51.1](#to-1511)
 - [To 1.51.0](#to-1510)
 - [To 1.50.0](#to-1500)
@@ -142,6 +143,40 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+### The bundle declares its own identity / access-key columns (REQ-SEC-006)
+
+Nothing to do: the declaration is discovered by autoconfiguration, and a host that does not install
+`nowo-tech/migrations-kit-bundle` is unaffected.
+
+What you can **remove**: if you excused this bundle's key columns by hand so the uniform collation gate would pass,
+those entries are now redundant — a declared exact-key column is exempt from the uniform gate by construction, and
+`nowo:migrations:check-key-collations` checks it under its real owner (`nowo-tech/wiki-bundle`) instead of yours.
+Delete them:
+
+```diff
+ nowo_migrations_kit:
+     collation_check:
+         ignore_columns:
+-            'wiki_spaces.owner_scope_id': 'Wiki space owner'
+-            'wiki_page_links.object_type': 'Wiki linked host object'
+-            'wiki_page_links.object_id': 'Wiki linked host object'
+```
+
+The quick-access columns (`wiki_page_favourites.user_id`, `wiki_page_visits.user_id`,
+`wiki_page_references.target_page_id`) and the stored user id columns of `database.user_reference: id` go the same
+way, and so do tables under your own `table_prefix`: the declaration builds every name from the configuration itself.
+Keeping an entry is not an error, but it outlives the declaration and goes on excusing a column nothing checks any
+more, so drop it.
+
+If the gate now *fails* on one of these columns, it is telling the truth: that table predates the collation listener
+(1.31.1 for the space owner, 1.36 for the user ids, 1.37 for the page links, 1.45 for the quick access), or it was
+restored from a dump, and it still carries the host's folding default. Run the `ALTER` the check prints (the space
+owner's is the one in [To 1.31.1](#to-1311)).
+
+With comments, favourites, recents or the backlink index off — or with `database.user_reference: entity`, where the
+user columns are foreign keys and not ids — the columns of that feature are reported as **skipped** with their
+setting, never as a failure.
 
 ## To 1.51.1
 

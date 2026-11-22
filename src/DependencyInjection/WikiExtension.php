@@ -73,6 +73,7 @@ use Nowo\WikiBundle\Doctrine\PrivateEntityManagerMiddleware;
 use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
+use Nowo\WikiBundle\Doctrine\WikiExactKeyColumns;
 use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
@@ -554,6 +555,25 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$backlinksEnabled', $config['backlinks']['enabled'])
             ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata'])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
+
+        // REQ-SEC-006: the bundle's own declaration of its identity / access-key columns, built from the same
+        // configuration the schema is. Autoconfigured, so MigrationsKit tags it
+        // (nowo:migrations:check-key-collations) with no registration by the host; the columns of a feature that is
+        // off, and the user id columns of the `entity` user reference, are declared inactive rather than omitted.
+        $container->setDefinition(WikiExactKeyColumns::class, (new Definition(WikiExactKeyColumns::class))
+            ->setAutowired(false)
+            ->setArgument('$spacesTableName', $spacesTable)
+            ->setArgument('$revisionsTableName', $revisionsTable)
+            ->setArgument('$linksTableName', $prefix . '_page_links')
+            ->setArgument('$attachmentsTableName', $prefix . '_attachments')
+            ->setArgument('$commentTablePrefix', $prefix)
+            ->setArgument('$quickAccessTablePrefix', $prefix)
+            ->setArgument('$userIds', $database['user_reference'] === WikiMetadataListener::USER_REFERENCE_ID)
+            ->setArgument('$comments', $config['comments']['enabled'])
+            ->setArgument('$favourites', $config['favourites']['enabled'])
+            ->setArgument('$recents', $config['recents']['enabled'])
+            ->setArgument('$backlinks', $config['backlinks']['enabled'])
+            ->setAutoconfigured(true));
 
         // 1.31.1 (house rule LQ): binary NO PAD collation on wiki_spaces.owner_scope_id on MySQL / MariaDB; 1.49.1 (audit XI-2)
         // on postGenerateSchema, once every foreign key exists.

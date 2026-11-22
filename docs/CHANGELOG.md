@@ -295,6 +295,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- REQ-SEC-006: the bundle now declares its own identity / access-key columns, so the knowledge of which columns are
+  exact keys lives in the bundle that owns the tables instead of in every host.
+  `Nowo\WikiBundle\Doctrine\WikiExactKeyColumns` implements
+  `Nowo\MigrationsKitContracts\Collation\ExactKeyColumnsInterface` (new runtime dependency
+  `nowo-tech/migrations-kit-contracts` ^1.0: interfaces and value objects only, no dependency beyond PHP) and declares
+  thirteen columns: the space owner (`owner_scope_id`), the host object a page is linked to
+  (`object_type`, `object_id`), the person of a favourite or a visit (`user_id`), the target of a backlink index row
+  (`target_page_id`) and, with `database.user_reference: id`, the seven stored user id columns
+  (`wiki_page_revisions.author_id`, `wiki_page_links.created_by_id`, `wiki_attachments.uploaded_by_id`,
+  `wiki_comment_threads.{created_by_id,resolved_by_id}`, `wiki_comments.author_id`,
+  `wiki_comment_reactions.user_id`). The bundle already gives them the server's binary NO PAD collation when the
+  schema is generated (1.31.1, 1.36, 1.37, 1.45); the declaration is what makes
+  `nowo:migrations:check-key-collations` *assert* it, so a table created before those releases, restored from a dump
+  or imported by hand is reported instead of trusted — on a folding collation `Alice`, `álice` and `alice ` are one
+  owner, and the `(owner_scope_type, owner_scope_id, slug)` unique key stops separating two owners
+  (GHSA-xpr3-grw5-6h9c). MigrationsKit discovers the declaration by autoconfiguration, so a host registers
+  **nothing** and can delete the `nowo_migrations_kit.collation_check.ignore_columns` entries it kept for these
+  columns (see UPGRADING). Every table name is built from the configuration (`table_prefix`, the comment and
+  quick-access prefixes): there is not one literal table name in the declaration. The columns of a feature that is
+  off — comments, favourites, recents, the backlink index — and the user id columns of
+  `database.user_reference: entity`, where those columns are foreign keys and not ids, are declared **inactive**, so
+  they are reported as skipped with the setting that gates them instead of as missing tables. Nothing is memoised
+  (REQ-RUNTIME-002).
+  `wiki_spaces.slug` and `wiki_pages.slug` are **not** declared (a slug is a human URL name, matched the way the
+  application wants to match names, not an identity compared byte for byte), nor is
+  `wiki_spaces.owner_scope_type` (the enum half of the owner, written by the bundle from a PHP enum), nor the titles,
+  bodies, labels, timestamps, state columns and uuid primary keys. A declaration is a claim about identity, and an
+  untrue one is worse than none.
+- Tests: the bundle's own REQ-SEC-006 gate (`tests/Collation`, testsuite `collation`, extending MigrationsKit's
+  `ExactKeyColumnsTestCase`), run against MySQL 8.4 and MariaDB 11.4 in CI with `database.user_reference: id` and
+  every feature on. The tables are created by the bundle's own metadata and collation listeners under a prefix that
+  is not the default, and the declared columns are read back from `information_schema`.
+
 ## [1.51.1] - 2026-11-22
 
 ### Changed
