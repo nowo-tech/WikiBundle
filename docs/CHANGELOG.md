@@ -292,6 +292,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Demo: `demo/symfony8/config/packages/doctrine.yaml` no longer sets the ORM mapping `alias` option, deprecated since DoctrineBundle 3.4 (`doctrine.orm.entity_managers.<em>.mappings.<name>.alias`); the demo does not use the `App:Entity` short syntax. Demo only, no bundle change.
+
 ### Fixed
 
 - A new `TranslationCatalogueTest` fails on missing keys and on non-en values identical to English of any length unless allow-listed per locale (brands, protocols, loanwords, true cognates), and on stale allow-list entries.
