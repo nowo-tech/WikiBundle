@@ -114,8 +114,23 @@ final class ExactKeyColumnsGateTest extends ExactKeyColumnsTestCase
         /** @var list<ClassMetadata<object>> $classes */
         $classes = $manager->getMetadataFactory()->getAllMetadata();
 
-        $tool = new SchemaTool($manager);
-        $tool->dropSchema($classes);
-        $tool->createSchema($classes);
+        // The earlier steps of the same CI job leave their own tables behind (the suites share one database), and a
+        // table of a mapped class that is still there fails createSchema. Drop exactly the tables of this metadata,
+        // foreign keys first: this test only ever runs on MySQL / MariaDB, so the pragma is safe.
+        $platform = $connection->getDatabasePlatform();
+        $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 0');
+
+        try {
+            foreach ($classes as $metadata) {
+                $table = $metadata->getTableName();
+                if ($table !== '') {
+                    $connection->executeStatement('DROP TABLE IF EXISTS ' . $platform->quoteIdentifier($table));
+                }
+            }
+
+            (new SchemaTool($manager))->createSchema($classes);
+        } finally {
+            $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 1');
+        }
     }
 }
