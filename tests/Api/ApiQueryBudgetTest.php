@@ -35,7 +35,7 @@ final class ApiQueryBudgetTest extends ApiTestCase
 
     private function queries(string $path): int
     {
-        $logger = static::getContainer()->get('logger');
+        $logger = self::getContainer()->get('logger');
         self::assertInstanceOf(RecordingLogger::class, $logger);
         $this->em()->clear();
         $logger->records = [];

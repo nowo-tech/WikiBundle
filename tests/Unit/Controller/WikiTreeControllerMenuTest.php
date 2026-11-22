@@ -260,7 +260,7 @@ final class WikiTreeControllerMenuTest extends TestCase
     private function controller(bool $roleEdit = true, ?WikiPage $deny = null, bool $menu = true, bool $service = true, bool $iconField = true, ?WikiPageServiceInterface $pageService = null, ?WikiCollabService $collab = null, ?WikiPageIconService $pageIcons = null): WikiTreeController
     {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
-        $checker    = new CallbackSpaceAccessChecker(static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !($deny !== null && $page === $deny && $action === WikiAction::Edit));
+        $checker    = new CallbackSpaceAccessChecker(static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !($deny instanceof WikiPage && $page === $deny && $action === WikiAction::Edit));
         $roles      = $this->createStub(WikiAccessCheckerInterface::class);
         $roles->method('canEdit')->willReturn($roleEdit);
         $request = Request::create('/');
@@ -274,8 +274,8 @@ final class WikiTreeControllerMenuTest extends TestCase
             new SessionWikiTreeStateStore(new RequestStack([$request])),
             pageService: $service ? ($pageService ?? $this->service) : null,
             pageIcons: $pageIcons ?? new WikiPageIconService($repository, ['tabler', 'emoji'], emojiCatalog: new EmojiCatalog()),
-            pageIconField: $iconField,
             collab: $collab,
+            pageIconField: $iconField,
             contextMenu: $menu,
         );
         $this->container = WikiControllerContainerBuilder::bind($controller, $this->user);

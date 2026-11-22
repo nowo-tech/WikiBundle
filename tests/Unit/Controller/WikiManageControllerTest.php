@@ -902,7 +902,7 @@ final class WikiManageControllerTest extends TestCase
         self::assertSame([false, false, true], array_map(static fn (AreaNavItem $item): bool => $item->active, $tabs->items));
 
         // A reader without Edit: no Edit button.
-        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisionRepo, layout: ['tabs' => 'toolbar'], accessChecker: $this->createConfiguredMock(WikiAccessCheckerInterface::class, ['canAccess' => true, 'canList' => true, 'canEdit' => false, 'canViewHistory' => true, 'canArchive' => false, 'canCreate' => false]));
+        $controller = $this->controller(accessChecker: $this->createConfiguredMock(WikiAccessCheckerInterface::class, ['canAccess' => true, 'canList' => true, 'canEdit' => false, 'canViewHistory' => true, 'canArchive' => false, 'canCreate' => false]), spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisionRepo, layout: ['tabs' => 'toolbar']);
         WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $controller->pageHistory('eng', 'welcome');
         self::assertSame(['wiki-tab-page', 'wiki-tab-history'], array_map(static fn (AreaNavItem $item): mixed => $item->attributes['data-testid'] ?? null, $twig->context['history_tabs']->items));
@@ -1272,7 +1272,7 @@ final class WikiManageControllerTest extends TestCase
             }
         };
         $dispatcher = new EventDispatcher();
-        $dispatcher->addListener(WikiEvents::PAGE_SAVED, static function () use ($driver): void {
+        $dispatcher->addListener(WikiEvents::PAGE_SAVED, static function () use ($driver): never {
             throw new UniqueConstraintViolationException($driver, null);
         });
         [$controller, $page, , , $post, , $collab, $container] = $this->collabEditPage(collaboration: $collaboration, dispatcher: $dispatcher);
@@ -1382,13 +1382,13 @@ final class WikiManageControllerTest extends TestCase
         $this->routes['page_restore'] = ['path' => '/restore', 'name' => 'nowo_wiki_page_restore'];
         $twig                         = $this->capturingTwig();
 
-        if ($revisions === null) {
+        if (!$revisions instanceof WikiPageRevisionRepositoryInterface) {
             $revisions = $this->createMock(WikiPageRevisionRepositoryInterface::class);
             $revisions->method('findByPageAndNumber')->willReturn($page->getCurrentRevision());
             $revisions->method('getNextRevisionNumber')->willReturn(2);
         }
 
-        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisions, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null, pageService: $dispatcher instanceof EventDispatcher ? new WikiPageService($pageRepo, $revisions, new WikiSlugger(), new WikiHtmlSanitizer(), $dispatcher) : null, layout: $layout);
+        $controller = $this->controller(spaceAccessResolver: $resolver, pageRepository: $pageRepo, revisionRepository: $revisions, pageService: $dispatcher instanceof EventDispatcher ? new WikiPageService($pageRepo, $revisions, new WikiSlugger(), new WikiHtmlSanitizer(), $dispatcher) : null, editor: ['type' => 'markdown', 'tiptap_config' => 'notion'], collab: $collaboration ? $collab : null, layout: $layout);
         $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
         $post       = static fn (array $fields): Request => Request::create('/edit', 'POST', [
             'wiki_page_form' => ['title' => 'Welcome', 'content' => 'Hi there', '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_edit_' . $page->getId())],

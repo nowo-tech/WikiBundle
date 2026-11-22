@@ -74,7 +74,7 @@ final class WikiTwoZeroNoticesTest extends TestCase
     {
         $container = new ContainerBuilder();
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
-        $notices = self::deprecations(static fn () => (new WikiExtension())->load([['user_class' => 'App\\Entity\\User'] + $config], $container));
+        $notices = $this->deprecations(static fn () => (new WikiExtension())->load([['user_class' => 'App\\Entity\\User'] + $config], $container));
 
         $mine = array_values(array_filter($notices, static fn (string $message): bool => str_contains($message, 'private_entity_manager')));
         if (!$shared) {
@@ -106,7 +106,7 @@ final class WikiTwoZeroNoticesTest extends TestCase
         $container->setAlias(WikiAccessCheckerInterface::class, 'app.both');
         $container->setDefinition('app.legacy_links', (new Definition(LegacyLinks::class))->addTag(WikiPortsPass::OBJECT_LINK_TAG));
 
-        $notices = self::deprecations(static fn () => (new WikiPortsPass())->process($container));
+        $notices = $this->deprecations(static fn () => (new WikiPortsPass())->process($container));
 
         self::assertCount(2, $notices);
         self::assertStringContainsString('The service "app.both" (' . HostAccessChecker::class . ') implements the deprecated ' . WikiAccessCheckerInterface::class . ', which 2.0 removes: implement ' . WikiAccessPolicyInterface::class . ' instead and keep it configured as nowo_wiki.security.access_checker', $notices[0]);
@@ -119,22 +119,22 @@ final class WikiTwoZeroNoticesTest extends TestCase
         $container = new ContainerBuilder();
         $container->setDefinition('nowo_wiki.access_checker.allow_all', new Definition(AllowAllWikiAccessChecker::class));
         $container->setAlias(WikiAccessCheckerInterface::class, 'nowo_wiki.access_checker.allow_all');
-        self::assertSame([], self::deprecations(static fn () => (new WikiPortsPass())->process($container)));
+        self::assertSame([], $this->deprecations(static fn () => (new WikiPortsPass())->process($container)));
 
         $twin = new ContainerBuilder();
         $twin->setDefinition('app.policy', new Definition(HostAccessPolicy::class));
         $twin->setAlias(WikiAccessCheckerInterface::class, 'app.policy');
-        self::assertSame([], self::deprecations(static fn () => (new WikiPortsPass())->process($twin)));
+        self::assertSame([], $this->deprecations(static fn () => (new WikiPortsPass())->process($twin)));
     }
 
     public function testAFactoryBuiltLegacyServiceIsReportedWhenCreated(): void
     {
-        $notices = self::deprecations(static fn () => WikiPorts::port('access_checker', new HostAccessChecker()));
+        $notices = $this->deprecations(static fn (): object => WikiPorts::port('access_checker', new HostAccessChecker()));
         self::assertCount(1, $notices);
         self::assertStringContainsString(HostAccessChecker::class . ' implements the deprecated ' . WikiAccessCheckerInterface::class, $notices[0]);
 
-        self::assertSame([], self::deprecations(static fn () => WikiPorts::port('access_checker', new HostAccessPolicy())));
-        self::assertSame([], self::deprecations(static fn () => WikiPorts::port('access_checker', new AllowAllWikiAccessChecker())));
+        self::assertSame([], $this->deprecations(static fn (): object => WikiPorts::port('access_checker', new HostAccessPolicy())));
+        self::assertSame([], $this->deprecations(static fn (): object => WikiPorts::port('access_checker', new AllowAllWikiAccessChecker())));
     }
 
     public function testReadingTheDeprecatedUserMembersIsReported(): void
@@ -147,7 +147,7 @@ final class WikiTwoZeroNoticesTest extends TestCase
 
         foreach ([$principal, $quota, $options] as $holder) {
             $read    = null;
-            $notices = self::deprecations(static function () use ($holder, &$read): void {
+            $notices = $this->deprecations(static function () use ($holder, &$read): void {
                 $read = $holder->user;
             });
             self::assertSame($user, $read, $holder::class);
@@ -155,7 +155,7 @@ final class WikiTwoZeroNoticesTest extends TestCase
             self::assertTrue(isset($holder->user));
 
             // The replacements are silent.
-            self::assertSame([], self::deprecations(static function () use ($holder, $user): void {
+            self::assertSame([], $this->deprecations(static function () use ($holder, $user): void {
                 self::assertSame('u-1', $holder->userRef()->id);
                 self::assertSame($user, $holder->securityUser());
             }));
@@ -170,7 +170,7 @@ final class WikiTwoZeroNoticesTest extends TestCase
 
         foreach ([new WikiApiPrincipal($user, WikiApiLevel::Full, WikiApiWhere::everything(), 't-1', 'Token'), ...$events] as $holder) {
             self::assertFalse(isset($holder->nope));
-            $warnings = self::errors(E_USER_WARNING, static function () use ($holder): void {
+            $warnings = $this->errors(E_USER_WARNING, static function () use ($holder): void {
                 // @phpstan-ignore-next-line - an undefined property, as before
                 self::assertNull($holder->nope);
             });
@@ -185,7 +185,7 @@ final class WikiTwoZeroNoticesTest extends TestCase
         }
 
         foreach ($events as $event) {
-            self::errors(E_DEPRECATED, static function () use ($event): void {
+            $this->errors(E_DEPRECATED, static function () use ($event): void {
                 // @phpstan-ignore-next-line - a dynamic property, as before (deprecated by PHP itself)
                 $event->extra = 'x';
             });
@@ -220,7 +220,7 @@ final class WikiTwoZeroNoticesTest extends TestCase
 
     public function testCommittedIsReported(): void
     {
-        $notices = self::deprecations(static function (): void {
+        $notices = $this->deprecations(static function (): void {
             self::assertFalse(WikiStorageFailureSubscriber::committed(new RuntimeException('x')));
         });
 
@@ -230,7 +230,7 @@ final class WikiTwoZeroNoticesTest extends TestCase
 
     public function testTheAlignedHeaderConverterIsReported(): void
     {
-        $notices = self::deprecations(static fn () => new WikiAlignedHeaderConverter());
+        $notices = $this->deprecations(static fn (): WikiAlignedHeaderConverter => new WikiAlignedHeaderConverter());
 
         self::assertCount(1, $notices);
         self::assertStringContainsString(WikiHeadingIdConverter::class, $notices[0]);
@@ -239,15 +239,15 @@ final class WikiTwoZeroNoticesTest extends TestCase
     /**
      * @return list<string> the E_USER_DEPRECATED messages `$work` triggered
      */
-    private static function deprecations(callable $work): array
+    private function deprecations(callable $work): array
     {
-        return self::errors(E_USER_DEPRECATED, $work);
+        return $this->errors(E_USER_DEPRECATED, $work);
     }
 
     /**
      * @return list<string> the messages of the `$levels` errors `$work` triggered
      */
-    private static function errors(int $levels, callable $work): array
+    private function errors(int $levels, callable $work): array
     {
         $seen = [];
         set_error_handler(static function (int $level, string $message) use (&$seen): bool {

@@ -8,6 +8,7 @@ use Doctrine\Persistence\Mapping\ClassMetadata;
 use Doctrine\Persistence\Mapping\MappingException;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiMappingManagerPass;
 use Nowo\WikiBundle\Doctrine\WikiExcludedEntityNamespaceDriver;
+use Nowo\WikiBundle\Entity\WikiPage;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -63,9 +64,9 @@ final class WikiMappingManagerPassTest extends TestCase
         $driver = new WikiExcludedEntityNamespaceDriver();
 
         self::assertSame([], $driver->getAllClassNames());
-        self::assertTrue($driver->isTransient('Nowo\\WikiBundle\\Entity\\WikiPage'));
+        self::assertTrue($driver->isTransient(WikiPage::class));
         $this->expectException(MappingException::class);
-        $driver->loadMetadataForClass('Nowo\\WikiBundle\\Entity\\WikiPage', $this->createMock(ClassMetadata::class));
+        $driver->loadMetadataForClass(WikiPage::class, $this->createMock(ClassMetadata::class));
     }
 
     private function container(string $type): ContainerBuilder

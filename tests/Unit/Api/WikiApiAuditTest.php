@@ -37,7 +37,7 @@ final class WikiApiAuditTest extends TestCase
             self::assertSame([503, 'AUDIT_001'], [$refusal->status, $refusal->ecode]);
         }
 
-        $dispatcher->addListener(WikiEvents::API_WRITE, static fn () => null);
+        $dispatcher->addListener(WikiEvents::API_WRITE, static fn (): null => null);
         $audit->requireAudit();
     }
 
@@ -60,7 +60,7 @@ final class WikiApiAuditTest extends TestCase
     public function testAFailingAuditListenerIsLoggedAndTheWriteStands(): void
     {
         $dispatcher = new EventDispatcher();
-        $dispatcher->addListener(WikiEvents::API_WRITE, static fn () => throw new RuntimeException('audit store down: page text'));
+        $dispatcher->addListener(WikiEvents::API_WRITE, static fn (): never => throw new RuntimeException('audit store down: page text'));
         $logger = new RecordingLogger();
 
         (new WikiApiAudit($dispatcher, new WikiQuotaGate($dispatcher), true, $logger))->written(new WikiApiPrincipal(new TestUser(), WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n'), 'page.update', 'eng', 's', 'p');

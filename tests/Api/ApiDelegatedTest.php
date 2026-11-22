@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Api;
 use Nowo\WikiBundle\Api\Operation\WikiApiDelegatedOperations;
 use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiWhere;
+use Nowo\WikiBundle\Event\WikiApiWriteEvent;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 use Nowo\WikiBundle\Tests\Api\App\ApiKernel;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
@@ -42,7 +43,7 @@ final class ApiDelegatedTest extends ApiTestCase
         // An unopened wiki: the level alone, the host decides.
         self::assertTrue($this->json($this->call('POST', '/wikis/handbook/archive', self::ANA))['archived']);
 
-        self::assertSame(['wiki.create', 'wiki.update', 'wiki.archive', 'wiki.unarchive', 'wiki.archive'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        self::assertSame(['wiki.create', 'wiki.update', 'wiki.archive', 'wiki.unarchive', 'wiki.archive'], array_map(static fn (WikiApiWriteEvent $e): string => $e->operation, ApiAuditRecorder::$events));
         self::assertSame(['name'], ApiAuditRecorder::$events[1]->changedFields);
     }
 
@@ -81,7 +82,7 @@ final class ApiDelegatedTest extends ApiTestCase
         self::assertTrue($this->json($restricted)['restricted']);
         // Later requests follow the usual reach: a restricted wiki must be named.
         $this->assertRefusal($this->call('GET', '/wikis/private', 'owner-1'), 404, 'ACCESS_001');
-        self::assertSame(['wiki.create', 'wiki.create'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        self::assertSame(['wiki.create', 'wiki.create'], array_map(static fn (WikiApiWriteEvent $e): string => $e->operation, ApiAuditRecorder::$events));
     }
 
     public function testAHostThatFilesAWikiUnderAnotherOwner(): void
@@ -91,8 +92,8 @@ final class ApiDelegatedTest extends ApiTestCase
 
         $this->assertRefusal($this->call('POST', '/wikis', 'owner-1', $body, ['Idempotency-Key' => 'k-misfiled']), 500, 'SERVER_001');
 
-        self::assertSame(['wiki.create'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
-        $logger = static::getContainer()->get('logger');
+        self::assertSame(['wiki.create'], array_map(static fn (WikiApiWriteEvent $e): string => $e->operation, ApiAuditRecorder::$events));
+        $logger = self::getContainer()->get('logger');
         self::assertInstanceOf(RecordingLogger::class, $logger);
         $errors = array_values(array_filter($logger->records, static fn (array $r): bool => $r['message'] === 'Wiki API: the wiki management hook created a wiki under another owner than the one asked.'));
         self::assertCount(1, $errors);

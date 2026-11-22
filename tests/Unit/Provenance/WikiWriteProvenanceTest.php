@@ -68,7 +68,7 @@ final class WikiWriteProvenanceTest extends TestCase
 
         $long = (new WikiWriteProvenance('app', str_repeat('é', 130)))->actorLabel;
         self::assertSame(str_repeat('é', WikiWriteProvenance::MAX_LABEL), $long);
-        self::assertSame(120, mb_strlen((string) $long));
+        self::assertSame(120, mb_strlen($long));
         // Invalid UTF-8 is dropped, never stored.
         self::assertNull((new WikiWriteProvenance('app', "bad \xC3\x28"))->actorLabel);
     }

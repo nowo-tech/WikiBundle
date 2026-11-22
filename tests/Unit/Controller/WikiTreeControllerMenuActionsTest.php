@@ -380,7 +380,7 @@ final class WikiTreeControllerMenuActionsTest extends TestCase
         // Another request moved the page between this one's read and the space lock: 409, not a 500.
         $connection = $this->em->getConnection();
         $id         = $this->run->getId();
-        $stale      = $this->controller(onLock: static fn () => $connection->executeStatement('UPDATE wiki_pages SET parent_id = NULL WHERE id = ?', [$id]))->tree($this->post(['page' => $this->run->getId(), 'parent' => null, 'index' => 0]), 'eng', 'move');
+        $stale      = $this->controller(onLock: static fn (): int|string => $connection->executeStatement('UPDATE wiki_pages SET parent_id = NULL WHERE id = ?', [$id]))->tree($this->post(['page' => $this->run->getId(), 'parent' => null, 'index' => 0]), 'eng', 'move');
         self::assertSame(409, $stale->getStatusCode());
         self::assertSame('stale', $this->json($stale)['error']);
     }
@@ -443,15 +443,15 @@ final class WikiTreeControllerMenuActionsTest extends TestCase
     ): WikiTreeController {
         $repository = new DoctrineOrmWikiPageRepository($this->em);
         $hidden     = [$this->secret->getId() => true, $this->hidden->getId() => true];
-        $checker    = new CallbackSpaceAccessChecker(static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !($action === WikiAction::View && $page !== null && isset($hidden[$page->getId()]))
-            && $action !== $deny && !($action === WikiAction::Edit && $denyEditOn !== null && $page === $denyEditOn));
+        $checker    = new CallbackSpaceAccessChecker(static fn (WikiAction $action, WikiSpace $space, ?WikiPage $page): bool => !($action === WikiAction::View && $page instanceof WikiPage && isset($hidden[$page->getId()]))
+            && $action !== $deny && !($action === WikiAction::Edit && $denyEditOn instanceof WikiPage && $page === $denyEditOn));
         $access = $this->createStub(WikiAccessCheckerInterface::class);
         $access->method('canEdit')->willReturn($roles['edit'] ?? true);
         $access->method('canCreate')->willReturn($roles['create'] ?? true);
         $access->method('canArchive')->willReturn($roles['archive'] ?? true);
         $request = Request::create('/');
         $request->setSession(new Session(new MockArraySessionStorage()));
-        $writer = $onLock === null ? $repository : new class($repository, $onLock) implements WikiPageTreeWriterInterface {
+        $writer = $onLock instanceof Closure ? new class($repository, $onLock) implements WikiPageTreeWriterInterface {
             public function __construct(private readonly WikiPageTreeWriterInterface $inner, private readonly Closure $onLock)
             {
             }
@@ -471,10 +471,10 @@ final class WikiTreeControllerMenuActionsTest extends TestCase
             {
                 $this->inner->rollbackSpaceTransaction();
             }
-        };
+        } : $repository;
         $mover      = new WikiPageMover($repository, $writer);
         $duplicator = new WikiPageDuplicator($this->service, $mover, $repository, new WikiSlugger());
-        if ($duplicateFails !== null) {
+        if ($duplicateFails instanceof Throwable) {
             $pages = $this->createStub(WikiPageServiceInterface::class);
             $pages->method('create')->willThrowException($duplicateFails);
             $duplicator = new WikiPageDuplicator($pages, $mover, $repository, new WikiSlugger());

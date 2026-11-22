@@ -90,8 +90,8 @@ final class WikiUsersTest extends TestCase
         self::assertNotNull($users->find('bob'));
         foreach ([
             'request'                         => static fn () => $boundary->onKernelRequest(new RequestEvent($kernel, Request::create('/'), HttpKernelInterface::MAIN_REQUEST)),
-            'terminate / console / messenger' => static fn () => $boundary->reset(),
-            'kernel.reset'                    => static fn () => $users->reset(),
+            'terminate / console / messenger' => $boundary->reset(...),
+            'kernel.reset'                    => $users->reset(...),
         ] as $name => $cross) {
             $directory->bob = new TestUser('bob', $name . '@x'); // renamed by the host after the previous unit of work
             $cross();

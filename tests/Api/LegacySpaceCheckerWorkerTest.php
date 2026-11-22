@@ -77,7 +77,7 @@ final class LegacySpaceCheckerWorkerTest extends ApiTestCase
     public function testTwoPeopleInTurnNeverSeeEachOthersSpacesAndARevocationLandsAtOnce(): void
     {
         $people = ['ana' => $this->signIn($this->ana), 'bob' => $this->signIn($this->bob)];
-        $logger = static::getContainer()->get('logger');
+        $logger = self::getContainer()->get('logger');
         assert($logger instanceof RecordingLogger);
         $baseline = 0;
 
@@ -113,7 +113,7 @@ final class LegacySpaceCheckerWorkerTest extends ApiTestCase
 
     public function testABoundaryBuildsNoMemoAndStillEmptiesTheOnesInUse(): void
     {
-        $container  = static::getContainer();
+        $container  = self::getContainer();
         $dispatcher = $container->get('event_dispatcher');
         assert($dispatcher instanceof EventDispatcherInterface);
         self::assertFalse($container->initialized(WikiAvatars::class), 'nothing has used the avatar memo yet');
@@ -142,7 +142,7 @@ final class LegacySpaceCheckerWorkerTest extends ApiTestCase
     /** A `kernel.terminate` event of an unrelated request (a boundary the resetter listens to). */
     private function terminateEvent(): TerminateEvent
     {
-        $kernel = static::getContainer()->get('http_kernel');
+        $kernel = self::getContainer()->get('http_kernel');
         assert($kernel instanceof HttpKernelInterface);
 
         return new TerminateEvent($kernel, Request::create('/elsewhere'), new Response());
@@ -151,9 +151,9 @@ final class LegacySpaceCheckerWorkerTest extends ApiTestCase
     /** Moves a space to another owner with plain SQL. */
     private function transfer(string $slug, string $owner): void
     {
-        $connection = static::getContainer()->get('doctrine.dbal.default_connection');
+        $connection = self::getContainer()->get('doctrine.dbal.default_connection');
         assert($connection instanceof Connection);
-        $table = static::getContainer()->getParameter('nowo_wiki.spaces_table');
+        $table = self::getContainer()->getParameter('nowo_wiki.spaces_table');
         assert(is_string($table));
         self::assertSame(1, (int) $connection->executeStatement('UPDATE ' . $table . ' SET owner_scope_id = ? WHERE slug = ?', [$owner, $slug]));
     }
@@ -183,7 +183,7 @@ final class LegacySpaceCheckerWorkerTest extends ApiTestCase
      */
     private function raw(string $uri, array $cookies): Response
     {
-        $kernel = static::getContainer()->get('http_kernel');
+        $kernel = self::getContainer()->get('http_kernel');
         assert($kernel instanceof HttpKernelInterface && $kernel instanceof TerminableInterface);
         $request  = Request::create($uri, Request::METHOD_GET, [], $cookies);
         $response = $kernel->handle($request);

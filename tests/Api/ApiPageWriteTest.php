@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Event\WikiApiWriteEvent;
 use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
@@ -162,7 +163,7 @@ final class ApiPageWriteTest extends ApiTestCase
     {
         $page = $this->page($this->eng, 'Runbook', 'one');
         $path = '/wikis/eng/pages/' . $page->getId();
-        $sql  = static fn (): Connection => static::getContainer()->get('doctrine.dbal.default_connection');
+        $sql  = static fn (): Connection => self::getContainer()->get('doctrine.dbal.default_connection');
 
         // Archived by someone else between the checks and the lock.
         ApiTestHost::$race = static function (WikiPage $target) use ($sql): void {
@@ -213,25 +214,25 @@ final class ApiPageWriteTest extends ApiTestCase
         $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Other', 'slug' => 'runbook']), 409, 'WIKI_003');
         $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Other', 'slug' => 'Bad Slug']), 400, 'INPUT_002');
         ApiTestHost::$race = static function (WikiPage $target): void {
-            static::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('UPDATE wiki_pages SET archived_at = ? WHERE id = ?', ['2026-11-18 10:00:00', $target->getId()]);
+            self::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('UPDATE wiki_pages SET archived_at = ? WHERE id = ?', ['2026-11-18 10:00:00', $target->getId()]);
         };
         $this->assertRefusal($this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]), 409, 'WIKI_PAGE_ARCHIVED');
         ApiTestHost::$race = null;
-        static::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('UPDATE wiki_pages SET archived_at = NULL WHERE id = ?', [$page->getId()]);
+        self::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('UPDATE wiki_pages SET archived_at = NULL WHERE id = ?', [$page->getId()]);
 
         // An ORM error in the write: 500, logged; not 409.
-        ApiPageRepository::$beforeSave = static fn () => throw $orm();
+        ApiPageRepository::$beforeSave = static fn (): never => throw $orm();
         $this->assertRefusal($this->call('PUT', $path, self::ANA, ['content_markdown' => 'two', 'base_revision' => 1]), 500, 'SERVER_001');
         $this->assertRefusal($this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Fresh']), 500, 'SERVER_001');
 
-        $logger = static::getContainer()->get('logger');
+        $logger = self::getContainer()->get('logger');
         self::assertInstanceOf(RecordingLogger::class, $logger);
         self::assertCount(2, array_filter($logger->lines(), static fn (string $line): bool => $line === 'error: Wiki API: unexpected error.'));
         self::assertSame([], ApiAuditRecorder::$events);
 
         // An ORM error in the icon unit, after the content write committed (QY-L2): the write is answered and audited,
         // the icon is `not_applied`, and the error is logged (not silent).
-        ApiPageRepository::$beforeSave = static fn (WikiPage $saved) => $saved->getIcon() === 'tabler:tool' ? throw $orm() : null;
+        ApiPageRepository::$beforeSave = static fn (WikiPage $saved): null => $saved->getIcon() === 'tabler:tool' ? throw $orm() : null;
         $saved                         = $this->call('PUT', $path, self::ANA, ['content_markdown' => 'three', 'base_revision' => 1, 'icon' => 'tabler:tool']);
         self::assertSame(200, $saved->getStatusCode(), (string) $saved->getContent());
         $body = $this->json($saved);
@@ -262,8 +263,8 @@ final class ApiPageWriteTest extends ApiTestCase
 
         self::assertSame(201, $created->getStatusCode(), (string) $created->getContent());
         self::assertSame(200, $updated->getStatusCode(), (string) $updated->getContent());
-        self::assertSame(['page.create', 'page.update'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
-        $logger = static::getContainer()->get('logger');
+        self::assertSame(['page.create', 'page.update'], array_map(static fn (WikiApiWriteEvent $e): string => $e->operation, ApiAuditRecorder::$events));
+        $logger = self::getContainer()->get('logger');
         self::assertInstanceOf(RecordingLogger::class, $logger);
         self::assertContains('error: Wiki: a listener failed after the write committed; the write stands.', $logger->lines());
         // The idempotent answer is kept: a retry replays it.
@@ -327,7 +328,7 @@ final class ApiPageWriteTest extends ApiTestCase
         self::assertTrue($this->json($this->call('POST', '/wikis/eng/pages/' . $theirs->getId() . '/archive', self::ANA))['archived']);
         // Again: nothing changes, nothing audited.
         $this->call('POST', '/wikis/eng/pages/' . $theirs->getId() . '/archive', self::ANA);
-        self::assertSame(['page.archive', 'page.archive'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        self::assertSame(['page.archive', 'page.archive'], array_map(static fn (WikiApiWriteEvent $e): string => $e->operation, ApiAuditRecorder::$events));
 
         $restored = $this->json($this->call('POST', '/wikis/eng/pages/' . $mine->getId() . '/unarchive', 'editor'));
         self::assertFalse($restored['archived']);
@@ -345,7 +346,7 @@ final class ApiPageWriteTest extends ApiTestCase
             if ($target->getId() !== $a->getId()) {
                 return false;
             }
-            static::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('UPDATE wiki_pages SET archived_at = ? WHERE id = ?', ['2026-11-08 10:00:00', $a->getId()]);
+            self::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('UPDATE wiki_pages SET archived_at = ? WHERE id = ?', ['2026-11-08 10:00:00', $a->getId()]);
 
             return true;
         };
@@ -357,13 +358,13 @@ final class ApiPageWriteTest extends ApiTestCase
     {
         $page              = $this->page($this->eng, 'Runbook', 'one');
         ApiTestHost::$race = static function (): void {
-            static::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('DROP TABLE wiki_api_idempotency');
+            self::getContainer()->get('doctrine.dbal.default_connection')->executeStatement('DROP TABLE wiki_api_idempotency');
         };
 
         $response = $this->call('PUT', '/wikis/eng/pages/' . $page->getId(), self::ANA, ['content_markdown' => 'two', 'base_revision' => 1], ['Idempotency-Key' => 'k']);
 
         self::assertSame(200, $response->getStatusCode());
-        $logger = static::getContainer()->get('logger');
+        $logger = self::getContainer()->get('logger');
         self::assertInstanceOf(RecordingLogger::class, $logger);
         self::assertContains('error: Wiki API: the idempotency store failed to keep an answer.', $logger->lines());
     }

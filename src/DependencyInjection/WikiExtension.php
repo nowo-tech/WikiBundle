@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\DependencyInjection;
 use ArrayObject;
 use LogicException;
 use Nowo\BreadcrumbKitBundle\Event\BreadcrumbTrailBuiltEvent;
+use Nowo\IconSelectorBundle\Emoji\EmojiCatalogInterface;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Markdown\HostSchemes;
 use Nowo\MilkdownEditorBundle\Markdown\MilkdownMarkdownRenderer;
@@ -1504,7 +1505,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /** IconSelectorBundle >= 1.6: the emoji catalogue port (also the marker of the `icon_prefixes` option). */
-    public const ICON_SELECTOR_EMOJI_CATALOG = 'Nowo\\IconSelectorBundle\\Emoji\\EmojiCatalogInterface';
+    public const ICON_SELECTOR_EMOJI_CATALOG = EmojiCatalogInterface::class;
 
     /**
      * 1.14: the page tree — the mover (space-locked transaction on the Doctrine page repository, `nowo_wiki.page.moved`)

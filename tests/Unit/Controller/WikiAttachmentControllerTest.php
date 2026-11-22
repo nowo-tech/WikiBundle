@@ -91,7 +91,7 @@ final class WikiAttachmentControllerTest extends TestCase
             $event->deny('Storage full <b>(1 GB)</b>');
         });
         [$controller, $container] = $this->controller(CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit), quota: new WikiQuotaGate($events));
-        $png                      = (string) base64_decode(self::PNG, true);
+        $png                      = base64_decode(self::PNG, true);
 
         $response = $controller->upload($this->uploadRequest($container, $png, 'shot.png'), 'eng', 'runbook');
 
@@ -161,7 +161,7 @@ final class WikiAttachmentControllerTest extends TestCase
         self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
         self::assertStringContainsString('private', (string) $response->headers->get('Cache-Control'));
         self::assertSame("default-src 'none'; img-src 'self'; sandbox", $response->headers->get('Content-Security-Policy'));
-        self::assertSame((string) strlen((string) base64_decode(self::PNG, true)), $response->headers->get('Content-Length'));
+        self::assertSame((string) strlen(base64_decode(self::PNG, true)), $response->headers->get('Content-Length'));
 
         $download = $controller->download('eng', $pdf->getId());
         self::assertSame('application/pdf', $download->headers->get('Content-Type'));

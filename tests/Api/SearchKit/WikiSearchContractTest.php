@@ -153,12 +153,12 @@ final class WikiSearchContractTest extends EntitySearchProviderTestCase
         return [self::TENANT_A, self::TENANT_B];
     }
 
-    protected function seed(int|string $tenant, string $text): int|string
+    protected function seed(int|string $tenant, string $text): string
     {
         return $this->page($tenant, $text)->getId();
     }
 
-    protected function seedHidden(int|string $tenant, string $text): int|string
+    protected function seedHidden(int|string $tenant, string $text): string
     {
         $page                       = $this->page($tenant, $text);
         ApiTestHost::$hiddenPages[] = $page->getSlug();
@@ -166,7 +166,7 @@ final class WikiSearchContractTest extends EntitySearchProviderTestCase
         return $page->getId();
     }
 
-    protected function seedArchived(int|string $tenant, string $text): int|string
+    protected function seedArchived(int|string $tenant, string $text): string
     {
         $page = $this->page($tenant, $text);
         $this->pages()->archive($page);

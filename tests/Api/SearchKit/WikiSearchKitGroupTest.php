@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Event\WikiSearchSpace;
 use Nowo\WikiBundle\Event\WikiSearchSpacesEvent;
 use Nowo\WikiBundle\LinkPicker\WikiTenantPathsLinkTenantResolver;
 use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchDefinition;
@@ -129,7 +130,7 @@ final class WikiSearchKitGroupTest extends ApiTestCase
             ++$later;
         }, -10);
 
-        $group = $this->search('u-ana', 'argon', scope: null);
+        $group = $this->search('u-ana', 'argon');
 
         self::assertSame(['Argon eng'], $this->titles($group));
         self::assertSame(1, $group?->total);
@@ -138,7 +139,7 @@ final class WikiSearchKitGroupTest extends ApiTestCase
         self::assertSame('u-ana', $events[0]->userIdentifier);
         self::assertNull($events[0]->scope);
         self::assertSame('en', $events[0]->locale);
-        $slugs = array_map(static fn ($space): string => $space->space->slug, $events[0]->spaces());
+        $slugs = array_map(static fn (WikiSearchSpace $space): string => $space->space->slug, $events[0]->spaces());
         sort($slugs);
         self::assertSame(['eng', 'ops'], $slugs);
         self::assertSame(WikiTenantPathsLinkTenantResolver::NO_TENANT_ROW, $events[0]->spaces()[0]->tenant);

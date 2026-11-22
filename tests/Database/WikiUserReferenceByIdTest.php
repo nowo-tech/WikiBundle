@@ -21,6 +21,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
+use Nowo\WikiBundle\Repository\WikiPageMetadata;
 use Nowo\WikiBundle\Repository\WikiPageMetadataQuery;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
@@ -126,7 +127,7 @@ final class WikiUserReferenceByIdTest extends TestCase
         $space = $this->em->find(WikiSpace::class, $spaceId);
         self::assertInstanceOf(WikiSpace::class, $space);
         $metadata = (new DoctrineOrmWikiPageRepository($this->em))->pageMetadata($space, new WikiPageMetadataQuery());
-        self::assertSame(['alice'], array_map(static fn ($row): ?string => $row->authorId, $metadata));
+        self::assertSame(['alice'], array_map(static fn (WikiPageMetadata $row): ?string => $row->authorId, $metadata));
     }
 
     public function testAnIdThatCannotBeMatchedExactlyIsNeverWritten(): void
@@ -237,10 +238,10 @@ final class WikiUserReferenceByIdTest extends TestCase
     private function thread(DoctrineOrmWikiCommentRepository $repo, WikiPage $page, string $id): array
     {
         $user     = new WikiStoredUserRef($id);
-        $thread   = new WikiCommentThread($page, $user, null, null);
+        $thread   = new WikiCommentThread($page, $user);
         $comment  = new WikiComment($thread, $user, 'Body of ' . $id, 0);
         $reaction = new WikiCommentReaction($comment, $user, '+1');
-        $open     = new WikiCommentThread($page, $user, null, null);
+        $open     = new WikiCommentThread($page, $user);
         $thread->resolve($user);
         foreach ([$thread, $comment, $reaction, $open] as $entity) {
             $repo->add($entity);

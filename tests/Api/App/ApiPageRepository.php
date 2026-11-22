@@ -29,7 +29,7 @@ final class ApiPageRepository implements WikiPageRepositoryInterface, WikiPageBa
     /** Audit SH-L1: run before each save (it may throw, as the ORM does on a flush). */
     public static ?Closure $beforeSave = null;
 
-    private DoctrineOrmWikiPageRepository $inner;
+    private readonly DoctrineOrmWikiPageRepository $inner;
 
     public function __construct(WikiEntityManagerProvider $entityManager)
     {
