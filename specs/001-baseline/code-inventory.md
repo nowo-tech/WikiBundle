@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-11-17 (every file of `src/` mapped after reading it, including 1.22 to 1.41; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 518)
+**Last audited**: 2026-11-22 (every file of `src/` mapped, including 1.42 to 1.51; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 593)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -704,6 +704,101 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Util/WikiTableScroll.php` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
 | `Util/WikiTitleDedupe.php` | Page layout of the read and edit views: compact header, toolbar, path, children, breadcrumb labels, table scroll, date format and the comments list | FR-UI-013 |
 
+## Favourites, recents and backlinks (1.45)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Backlink/WikiBacklinks.php` | Linked-from list, viewer-filtered | FR-BL-001 |
+| `Backlink/WikiPageReferenceIndex.php` | Backlink index writer | FR-BL-001 |
+| `Backlink/WikiPageReferenceListener.php` | Keeps the backlink index current after PAGE_SAVED | FR-BL-001 |
+| `Command/WikiBacklinksRebuildCommand.php` | `wiki:backlinks:rebuild` | FR-BL-001 |
+| `Entity/WikiPageReference.php` | Backlink index row | FR-BL-001 |
+| `Resources/config/doctrine-xml/WikiPageReference.orm.xml` | XML mapping of the backlink row | FR-BL-001 |
+| `Resources/views/manage/_backlinks.html.twig` | Linked-from section | FR-BL-001 |
+| `Command/WikiQuickAccessEraseUserCommand.php` | `wiki:quick-access:erase-user` | FR-QA-001 |
+| `Command/WikiRecentsPurgeCommand.php` | `wiki:recents:purge` | FR-QA-001 |
+| `Controller/WikiFavouriteController.php` | Favourite toggle (POST + CSRF) | FR-QA-001 |
+| `Form/WikiFavouriteType.php` | Flat favourite form | FR-QA-001 |
+| `Entity/WikiPageFavourite.php` | Favourite row | FR-QA-001 |
+| `Entity/WikiPageVisit.php` | Recent visit row | FR-QA-001 |
+| `Resources/config/doctrine-xml/WikiPageFavourite.orm.xml` | XML mapping of the favourite row | FR-QA-001 |
+| `Resources/config/doctrine-xml/WikiPageVisit.orm.xml` | XML mapping of the visit row | FR-QA-001 |
+| `Resources/views/manage/_quick_access.html.twig` | Favourites and recents sections | FR-QA-001 |
+| `QuickAccess/WikiFavouriteResult.php` | Outcome of a favourite change | FR-QA-001 |
+| `QuickAccess/WikiQuickAccess.php` | Favourites and recents of the viewer | FR-QA-001 |
+| `QuickAccess/WikiQuickAccessErasureListener.php` | Erases quick access with a person's comments | FR-QA-001 |
+| `QuickAccess/WikiQuickAccessStore.php` | Favourite and visit rows store | FR-QA-001 |
+| `QuickAccess/WikiReadableSpaces.php` | Viewer scope of one view | FR-QA-001 |
+| `QuickAccess/WikiViewerScope.php` | What one viewer may see in the per-viewer lists | FR-QA-001 |
+| `History/WikiRenderedRevisionDiff.php` | Rendered diff of two Markdown revisions | FR-HIST-002 |
+| `History/WikiViewerBlockRenderer.php` | Per-viewer block renderer of the diff | FR-HIST-002 |
+| `Transaction/WikiConflictAnswer.php` | Lock-conflict answer of the favourite toggle | FR-TX-001 |
+| `Transaction/WikiStorageFailureConflictFormatter.php` | Lock-conflict formatter of the wiki's routes | FR-TX-001 |
+
+## SearchKit group (1.44 / 1.46 / 1.47)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `DependencyInjection/Compiler/WikiSearchKitPass.php` | Hands the generated provider's tags to the wiki provider | FR-SK-001 |
+| `Event/WikiSearchSpace.php` | One space a search would read | FR-SK-001 |
+| `Event/WikiSearchSpacesEvent.php` | Host hook: leave spaces out before the SQL | FR-SK-001 |
+| `Search/SearchKit/WikiPageSearchDefinition.php` | The wiki's SearchKit definition | FR-SK-001 |
+| `Search/SearchKit/WikiPageSearchKitProvider.php` | The wiki's SearchKit group | FR-SK-001 |
+| `Search/SearchKit/WikiSearchKitAvailability.php` | SearchKitBundle >= 1.10.1 check | FR-SK-001 |
+| `Search/UserProviderWikiSearchViewerResolver.php` | Default viewer resolver (user provider) | FR-SK-001 |
+| `Search/WikiReadablePageFinder.php` | Read rules as a bounded query port | FR-SK-001 |
+| `Search/WikiReadablePageHits.php` | Readable hits and completeness | FR-SK-001 |
+| `Search/WikiSearchTenantResolverInterface.php` | Current tenant port | FR-SK-001 |
+| `Search/WikiSearchTenantsResolverAdapter.php` | Single-key to list adapter | FR-SK-001 |
+| `Search/WikiSearchTenantsResolverInterface.php` | Current tenants port | FR-SK-001 |
+| `Search/WikiSearchViewerResolverInterface.php` | Search viewer port | FR-SK-001 |
+| `Search/WikiTenantPathsSearchTenantResolver.php` | Default tenant resolver | FR-SK-001 |
+
+## Space lifecycle and host flush probe (1.49 / 1.50)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Doctrine/WikiHostFlushProbe.php` | Host flush migration list (shared manager mode) | FR-PEM-001 |
+| `Event/WikiSpaceAccessCheckEvent.php` | Grant or deny a space lifecycle action | FR-SPACE-002 |
+| `Event/WikiSpaceLifecycleEvent.php` | Space renamed, archived or unarchived | FR-SPACE-002 |
+| `Event/WikiSpacePurgedEvent.php` | Space purged | FR-SPACE-002 |
+| `Security/WikiArchivedSpaceAccessChecker.php` | Archived space rule on the space checker | FR-SPACE-002 |
+| `Space/WikiSpaceAccessDeniedException.php` | Manage refused (403) | FR-SPACE-002 |
+| `Space/WikiSpaceLifecycle.php` | Default lifecycle service | FR-SPACE-002 |
+| `Space/WikiSpaceLifecycleAction.php` | Lifecycle action enum | FR-SPACE-002 |
+| `Space/WikiSpaceLifecycleInterface.php` | Lifecycle port | FR-SPACE-002 |
+| `Space/WikiSpaceNotFoundException.php` | Not found or not openable (404) | FR-SPACE-002 |
+| `Space/WikiSpacePurgeBatch.php` | One committed purge batch | FR-SPACE-002 |
+| `Space/WikiSpacePurgeInTransactionException.php` | Purge refused inside a transaction | FR-SPACE-002 |
+| `Space/WikiSpacePurgeResult.php` | Purge outcome | FR-SPACE-002 |
+| `Space/WikiSpacePurger.php` | Batched space purge | FR-SPACE-002 |
+| `Space/WikiSpaceStateException.php` | State refusal (409) | FR-SPACE-002 |
+| `Space/WikiSpaceVersionConflictException.php` | Optimistic version conflict (409) | FR-SPACE-002 |
+
+## Read ports and page access (1.51)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Query/WikiArchiveFilter.php` | Archive state filter | FR-QRY-001 |
+| `Query/WikiOwnerUsage.php` | What one owner holds | FR-QRY-001 |
+| `Query/WikiPageContent.php` | Current revision with body | FR-QRY-001 |
+| `Query/WikiPageCriteria.php` | Page query criteria | FR-QRY-001 |
+| `Query/WikiPageQuery.php` | Page read port implementation | FR-QRY-001 |
+| `Query/WikiPageQueryInterface.php` | Page read port | FR-QRY-001 |
+| `Query/WikiPageSearchHit.php` | One search hit | FR-QRY-001 |
+| `Query/WikiPageSearchResult.php` | Search outcome | FR-QRY-001 |
+| `Query/WikiPageSort.php` | Page order | FR-QRY-001 |
+| `Query/WikiQueryIds.php` | Input rules of the read ports | FR-QRY-001 |
+| `Query/WikiQueryRows.php` | Scalar selections and snapshots | FR-QRY-001 |
+| `Query/WikiSpaceCriteria.php` | Space query criteria | FR-QRY-001 |
+| `Query/WikiSpacePageStats.php` | Live pages of one space | FR-QRY-001 |
+| `Query/WikiSpaceQuery.php` | Space read port implementation | FR-QRY-001 |
+| `Query/WikiSpaceQueryInterface.php` | Space read port | FR-QRY-001 |
+| `Query/WikiSpaceSort.php` | Space order | FR-QRY-001 |
+| `Security/WikiPageAccess.php` | Page access by ids | FR-ACC-001 |
+| `Security/WikiPageAccessInterface.php` | Page access by ids (port) | FR-ACC-001 |
+| `Resources/assets/src/raw-modules.d.ts` | Type declaration for Vite `?raw` imports (test support, not shipped runtime) | FR-BUILD-002 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |
@@ -714,11 +809,11 @@ This file proves that **every production source artifact** under `src/` is refer
 | Persistence | 12 | 12 |
 | Forms | 6 | 6 |
 | Domain models | 6 | 6 |
-| Application services | 25 | 25 |
+| Application services | 26 | 26 |
 | Security | 15 | 15 |
 | AI | 7 | 7 |
 | Routing | 3 | 3 |
-| Persistence integration | 10 | 10 |
+| Persistence integration | 11 | 11 |
 | Support utilities | 2 | 2 |
 | Frontend TypeScript | 5 | 5 |
 | Symfony config | 1 | 1 |
@@ -734,7 +829,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | Avatars (1.16) | 4 | 4 |
 | Comments (1.16) | 18 | 18 |
 | Page files (1.20) | 3 | 3 |
-| Framework-free ports and Doctrine isolation (1.27 / 1.36) | 88 | 88 |
+| Framework-free ports and Doctrine isolation (1.27 / 1.36) | 97 | 97 |
 | REST API (1.24+) | 68 | 68 |
 | Co-editing epochs and resets (1.22 / 1.23) | 9 | 9 |
 | Link picker and section links (1.40) | 11 | 11 |
@@ -742,8 +837,12 @@ This file proves that **every production source artifact** under `src/` is refer
 | Icons (1.32 / 1.38 / 1.39) | 7 | 7 |
 | Member badges and write provenance (1.34) | 14 | 14 |
 | Saving and rendering (1.24 / 1.28) | 17 | 17 |
-| Tree menu and page navigation (1.35 / 1.39) | 13 | 13 |
+| Tree menu and page navigation (1.35 / 1.39) | 14 | 14 |
 | Page layout options (1.29 - 1.38) | 15 | 15 |
-| **Total production sources** | **506** | **506** |
+| Favourites, recents and backlinks (1.45) | 26 | 26 |
+| SearchKit group (1.44 / 1.46 / 1.47) | 14 | 14 |
+| Space lifecycle and host flush probe (1.49 / 1.50) | 16 | 16 |
+| Read ports and page access (1.51) | 19 | 19 |
+| **Total production sources** | **593** | **593** |
 
-Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 506. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
+Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 593. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
