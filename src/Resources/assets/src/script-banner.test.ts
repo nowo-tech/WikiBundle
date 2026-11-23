@@ -22,7 +22,7 @@ describe('announceScript', () => {
 
         expect(log).toHaveBeenCalledTimes(1);
         expect(String(log.mock.calls[0]?.[0])).toContain('[wiki] script loaded, build: ');
-        expect(log.mock.calls[0]).toContain('abc123def456');
+        expect(String(log.mock.calls[0]?.[0])).toContain('abc123def456');
     });
 
     it('logs without a build id when none is injected', () => {
@@ -76,6 +76,6 @@ describe('wiki entry', () => {
         const lines = log.mock.calls.filter((call) => String(call[0]).includes('script loaded'));
         expect(lines).toHaveLength(1);
         expect(String(lines[0]?.[0])).toContain('[wiki] script loaded, build: ');
-        expect(lines[0]).toContain('abc123def456');
+        expect(String(lines[0]?.[0])).toContain('abc123def456');
     });
 });
