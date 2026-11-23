@@ -84,3 +84,5 @@ jobs:
           draft: false
           prerelease: ${{ contains(steps.tag.outputs.TAG_NAME, '-alpha') || contains(steps.tag.outputs.TAG_NAME, '-beta') || contains(steps.tag.outputs.TAG_NAME, '-rc') }}
           generate_release_notes: true
+          # 1.x maintenance line: a 1.x release is never the repository's latest release.
+          make_latest: false
