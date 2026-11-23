@@ -9,10 +9,12 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
+use Symfony\Contracts\Service\ResetInterface;
 use Throwable;
 use ZipArchive;
 
 use function array_filter;
+use function array_keys;
 use function array_slice;
 use function array_values;
 use function basename;
@@ -23,6 +25,7 @@ use function dirname;
 use function explode;
 use function fclose;
 use function feof;
+use function file_exists;
 use function fileowner;
 use function fopen;
 use function fread;
@@ -49,7 +52,7 @@ use function time;
 /**
  * ZIP helpers for Notion exports and wiki download bundles.
  */
-final readonly class WikiArchiveHelper
+final class WikiArchiveHelper implements ResetInterface
 {
     /** Maximum number of entries accepted in an imported ZIP archive. */
     public const DEFAULT_MAX_ENTRIES = 10000;
@@ -70,17 +73,28 @@ final readonly class WikiArchiveHelper
     private const COPY_CHUNK_BYTES = 65536;
 
     /**
-     * Stores the ZIP-bomb limits applied when extracting imported archives.
+     * Temp paths to remove if the process ends before their callers' finally (fatal error), keyed by path. Entries whose
+     * path is gone are dropped on every new one and {@see self::reset()} clears it, so a worker keeps a handful at most.
+     *
+     * @var array<string, true>
+     */
+    private array $pendingRemovals = [];
+
+    /**
+     * Stores the ZIP-bomb limits applied when extracting imported archives, and registers the instance's single
+     * shutdown handler (once per worker for the shared service, never per request: see {@see self::removeAtShutdown()}).
      *
      * @param int $maxEntries maximum number of entries in an imported archive
      * @param int $maxUncompressedBytes maximum declared total uncompressed size in bytes
      * @param int $maxDocumentBytes maximum declared uncompressed size of one Markdown document in bytes
      */
     public function __construct(
-        private int $maxEntries = self::DEFAULT_MAX_ENTRIES,
-        private int $maxUncompressedBytes = self::DEFAULT_MAX_UNCOMPRESSED_BYTES,
-        private int $maxDocumentBytes = self::DEFAULT_MAX_DOCUMENT_BYTES,
+        private readonly int $maxEntries = self::DEFAULT_MAX_ENTRIES,
+        private readonly int $maxUncompressedBytes = self::DEFAULT_MAX_UNCOMPRESSED_BYTES,
+        private readonly int $maxDocumentBytes = self::DEFAULT_MAX_DOCUMENT_BYTES,
     ) {
+        // @igor-ignore - One handler per instance (once per worker for the shared service), not per request; it only removes the pending paths, which never accumulate (see removeAtShutdown()).
+        register_shutdown_function($this->removePending(...)); // @phpstan-ignore frankenphp.worker.noRegisterShutdownFunction (one handler per instance, only a shutdown function runs after a fatal error)
     }
 
     /**
@@ -148,16 +162,50 @@ final readonly class WikiArchiveHelper
 
     /**
      * Removes a temp file or directory when the process ends, for a fatal error (memory, time limit) that skips the
-     * callers' finally (audit GV-L3). Does nothing if the caller has removed it by then. In worker mode this runs when
-     * the worker script ends, which a fatal error does: there each call keeps one small callback until the worker
-     * restarts, and imports are rare.
+     * callers' finally (audit GV-L3). Does nothing if the caller has removed it by then. Worker mode (REQ-RUNTIME-002):
+     * the instance's single shutdown handler (registered by the constructor) removes whatever is still pending; the
+     * paths already removed are forgotten on every call and {@see self::reset()} clears the rest, so nothing
+     * accumulates across requests.
      *
      * @param string $path temp file or directory
      */
     public function removeAtShutdown(string $path): void
     {
-        // @phpstan-ignore frankenphp.worker.noRegisterShutdownFunction (intentional: only a shutdown function runs after a fatal error)
-        register_shutdown_function($this->removePath(...), $path);
+        foreach (array_keys($this->pendingRemovals) as $pending) {
+            if (!file_exists($pending)) {
+                unset($this->pendingRemovals[$pending]);
+            }
+        }
+        $this->pendingRemovals[$path] = true;
+    }
+
+    /**
+     * Removes the temp paths still pending (the shutdown handler, and {@see self::reset()} between worker requests,
+     * once their callers are done with them). Best effort: a path another process removed must not fail the caller.
+     */
+    public function removePending(): void
+    {
+        $paths                 = array_keys($this->pendingRemovals);
+        $this->pendingRemovals = [];
+        foreach ($paths as $path) {
+            try {
+                $this->removePath($path);
+                // @codeCoverageIgnoreStart
+            } catch (Throwable) {
+                continue;
+            }
+            // @codeCoverageIgnoreEnd
+        }
+    }
+
+    /**
+     * Worker mode: removes what the previous request left pending. The shutdown handler stays registered: it is per
+     * instance, not per request.
+     */
+    public function reset(): void
+    {
+        $this->removePending();
+        $this->pendingRemovals = [];
     }
 
     /**

@@ -26,6 +26,7 @@ final readonly class WikiApiQuery
     /** The deepest page a client may ask (10 000 pages of 100). */
     public const MAX_PAGE = 9999;
 
+    // @igor-ignore - Per-call value object: the API controller builds one with new for each request; never a shared service.
     public function __construct(private Request $request)
     {
     }
