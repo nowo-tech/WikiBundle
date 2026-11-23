@@ -366,7 +366,8 @@ final class WikiManageController extends AbstractController
         }
 
         // 1.35: the new-page dialog carries the user's form token: never kept by any cache (1.45: nor the viewer's lists).
-        return $this->renderPage('space', $vars + [
+        // 1.53.1: both answers of the two-mode URL vary on the dialog header (WK-L1).
+        return $this->dialogs()->fragment($this->renderPage('space', $vars + [
             'page'             => $pages->space($space, $can),
             'space_icon'       => $space->getIcon(),
             'tree'             => $treeNodes,
@@ -389,7 +390,7 @@ final class WikiManageController extends AbstractController
             'can_import'        => $can['import'],
             'can_export'        => $can['export'],
             'permissions'       => $permissions,
-        ], null, isset($vars['new_page_dialog']) || isset($vars['quick_access']) ? ['Cache-Control' => 'private, no-store'] : []);
+        ], null, isset($vars['new_page_dialog']) || isset($vars['quick_access']) ? ['Cache-Control' => 'private, no-store'] : []));
     }
 
     /**
@@ -981,13 +982,13 @@ final class WikiManageController extends AbstractController
      */
     private function renderNewPage(WikiSpace $space, FormInterface $form): Response
     {
-        return $this->renderPage('page_edit', [
+        return $this->dialogs()->fragment($this->renderPage('page_edit', [
             'page'            => $this->pages()->pageForm($space, null, $form->createView()),
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => 'wiki_new_' . $space->getId(),
             'editor_type'     => $this->editorType(),
-        ], $form);
+        ], $form));
     }
 
     /**
@@ -1784,7 +1785,7 @@ final class WikiManageController extends AbstractController
             ], new Response(null, Response::HTTP_OK, ['Cache-Control' => 'private, no-store'])));
         }
 
-        return $this->renderPage('ai_ask', [
+        return $this->dialogs()->fragment($this->renderPage('ai_ask', [
             'page' => $pages->aiAsk($this->createAiAskForm(
                 $spaces,
                 ['space' => $space?->getSlug(), 'q' => $question],
@@ -1797,7 +1798,7 @@ final class WikiManageController extends AbstractController
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'csrf_token_id'   => WikiAiAskType::CSRF_TOKEN_ID,
-        ]);
+        ]));
     }
 
     /**

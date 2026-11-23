@@ -804,6 +804,10 @@ final class WikiManageControllerTest extends TestCase
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('ai_ask', (string) $response->getContent());
+        // WK-L1: the page answer varies on the dialog header like the dialog fragment.
+        self::assertContains('X-Nowo-Dialog', $response->getVary());
+        $dialog = $controller->askAi(Request::create('/ask', 'GET', [], [], [], ['HTTP_X_NOWO_DIALOG' => '1']));
+        self::assertContains('X-Nowo-Dialog', $dialog->getVary());
     }
 
     /**

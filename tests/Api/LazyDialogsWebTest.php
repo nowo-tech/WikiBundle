@@ -92,6 +92,20 @@ final class LazyDialogsWebTest extends ApiTestCase
         }
     }
 
+    /** WK-L1: both answers of a two-mode URL vary on the dialog header, the page as well as the fragment. */
+    public function testThePageAnswersOfTheTwoModeUrlsVaryOnTheDialogHeader(): void
+    {
+        $this->client->loginUser($this->ana, 'main');
+        foreach (['/tools/wiki/spaces/eng/pages/new', '/tools/wiki/spaces/eng?dialog=tree-icon', '/tools/wiki/spaces/eng/import'] as $path) {
+            $this->client->request('GET', $path);
+            $page = $this->client->getResponse();
+            self::assertSame(200, $page->getStatusCode(), $path);
+            self::assertStringContainsString('<html', (string) $page->getContent(), $path);
+            self::assertContains('X-Nowo-Dialog', $page->getVary(), $path . ' (page)');
+            self::assertContains('X-Nowo-Dialog', $this->dialog($path)->getVary(), $path . ' (fragment)');
+        }
+    }
+
     public function testTheNewPageDialogPostsInPlace(): void
     {
         $this->client->loginUser($this->ana, 'main');
