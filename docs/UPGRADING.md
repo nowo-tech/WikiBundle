@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+  - [Erasure checks (1.55.1)](#erasure-checks-1551)
 - [To 1.55.0](#to-1550)
   - [Space create, erasure and comment reads by id (1.55)](#space-create-erasure-and-comment-reads-by-id-155)
 - [To 1.54.0](#to-1540)
@@ -149,6 +150,19 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+### Erasure checks (1.55.1)
+
+From **1.55.0**: `composer update nowo-tech/wiki-bundle`.
+
+- `eraseSpace()` refuses an id that is not a lowercase UUID (`InvalidArgumentException`). Pass `WikiSpaceSnapshot::$id`
+  exactly as the wiki gave it; never normalise or rebuild it.
+- Pass the expected owner on every erasure: `eraseSpace($id, null, WikiSpaceOwnerScope::Team, $ownerId)`; another owner
+  is `WikiSpaceOwnerMismatchException` (nothing written).
+- Read `$result->alreadyGone()` (nothing was there) and `$result->needsFileSweep()` (run
+  `WikiAttachmentService::purgeStrayFiles()` and your page-file sweep) before reporting an erasure complete.
+- A `WikiCommentByIdFinderInterface` of your own (new in 1.55.0) must add `findThreadComments(string $threadId, int $limit): array`;
+  a class implementing `WikiSpaceLifecycleInterface` must take the new optional `eraseSpace()` parameters.
 
 ## To 1.55.0
 

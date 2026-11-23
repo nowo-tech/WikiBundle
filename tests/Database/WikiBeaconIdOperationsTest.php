@@ -18,6 +18,7 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
@@ -28,11 +29,13 @@ use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiInvalidIconException;
 use Nowo\WikiBundle\Service\WikiInvalidSlugException;
 use Nowo\WikiBundle\Service\WikiPageOperations;
+use Nowo\WikiBundle\Service\WikiPageOperationsInterface;
 use Nowo\WikiBundle\Service\WikiPageServiceInterface;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Nowo\WikiBundle\Service\WikiSpaceOperations;
 use Nowo\WikiBundle\Service\WikiSpaceServiceInterface;
 use Nowo\WikiBundle\Space\WikiSpaceLifecycle;
+use Nowo\WikiBundle\Space\WikiSpaceOwnerMismatchException;
 use Nowo\WikiBundle\Space\WikiSpacePurgeInTransactionException;
 use Nowo\WikiBundle\Space\WikiSpacePurger;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -44,6 +47,7 @@ use Nowo\WikiBundle\ValueObject\WikiCommentSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiNewSpace;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
+use RuntimeException;
 use Stringable;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -51,6 +55,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use function array_map;
 use function fclose;
 use function fgets;
+use function in_array;
 use function is_resource;
 use function is_string;
 use function preg_match;
@@ -60,6 +65,7 @@ use function str_repeat;
 use function str_starts_with;
 use function stream_get_contents;
 use function strtoupper;
+use function substr;
 use function trim;
 
 use const PHP_BINARY;
@@ -88,6 +94,9 @@ final class WikiBeaconIdOperationsTest extends TestCase
 
     /** @var list<string> attachment storage keys deleted */
     private array $deletedKeys = [];
+
+    /** @var list<string> attachment storage keys whose delete fails */
+    private array $brokenKeys = [];
 
     private TestUserEntity $author;
 
@@ -134,6 +143,9 @@ final class WikiBeaconIdOperationsTest extends TestCase
     /** Called by the test storage. */
     public function deleted(string $key): void
     {
+        if (in_array($key, $this->brokenKeys, true)) {
+            throw new RuntimeException('disk full');
+        }
         $this->deletedKeys[] = $key;
     }
 
@@ -395,7 +407,12 @@ final class WikiBeaconIdOperationsTest extends TestCase
             $again = $lifecycle->eraseSpace($id);
             self::assertTrue($again->finished);
             self::assertSame([$id, 0, 0], [$again->spaceId, $again->pages, $again->batches]);
+            self::assertFalse($again->found);
+            self::assertTrue($again->alreadyGone());
         }
+        self::assertTrue($result->found);
+        self::assertFalse($result->alreadyGone());
+        self::assertFalse($result->needsFileSweep());
 
         // A budget: one batch per call, resumed by the next call.
         $first = $lifecycle->eraseSpace($keep->getId(), 1);
@@ -403,6 +420,91 @@ final class WikiBeaconIdOperationsTest extends TestCase
         self::assertTrue($this->spaces()->findSpace($keep->getId())?->isArchived());
         self::assertTrue($lifecycle->eraseSpace($keep->getId())->finished);
         self::assertSame(0, $this->spaceRows());
+    }
+
+    public function testEraseSpaceRefusesALookAlikeIdInsteadOfAnsweringAlreadyGone(): void
+    {
+        $space = $this->space('doomed', 'team-1');
+        $this->content($space);
+        $id = $space->getId();
+
+        // Audit ZAP-1: on a case-insensitive collation the upper-cased id finds the row, the exact compare does not.
+        foreach ([strtoupper($id), ' ' . $id, $id . ' ', substr($id, 0, 35), 'doomed', ''] as $lookAlike) {
+            try {
+                $this->lifecycle()->eraseSpace($lookAlike);
+                self::fail('Expected a refusal for "' . $lookAlike . '".');
+            } catch (InvalidArgumentException $refused) {
+                self::assertStringContainsString('lowercase UUID', $refused->getMessage());
+            }
+        }
+        self::assertSame(1, $this->spaceRows());
+        self::assertFalse($this->spaces()->findSpace($id)?->isArchived());
+        self::assertSame(2, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM wiki_pages'));
+    }
+
+    public function testEraseSpaceWithAnExpectedOwnerRefusesAnotherOwnerWithoutWriting(): void
+    {
+        $space = $this->space('doomed', 'team-1');
+        $this->content($space);
+        $id = $space->getId();
+
+        foreach ([[WikiSpaceOwnerScope::Team, 'team-2'], [WikiSpaceOwnerScope::Team, 'Team-1'], [WikiSpaceOwnerScope::Team, 'team-1 '], [WikiSpaceOwnerScope::User, 'team-1']] as [$type, $owner]) {
+            try {
+                $this->lifecycle()->eraseSpace($id, null, $type, $owner);
+                self::fail('Expected an owner mismatch for ' . $owner);
+            } catch (WikiSpaceOwnerMismatchException $mismatch) {
+                self::assertSame('The space has another owner.', $mismatch->getMessage());
+            }
+        }
+        foreach ([[WikiSpaceOwnerScope::Team, null], [null, 'team-1']] as [$type, $owner]) {
+            try {
+                $this->lifecycle()->eraseSpace($id, null, $type, $owner);
+                self::fail('Expected both owner values to be required.');
+            } catch (InvalidArgumentException) {
+            }
+        }
+        // Nothing written: not archived, not marked, every page there.
+        $row = $this->em->getConnection()->fetchAssociative('SELECT archived_at, purge_started_at, lock_version FROM wiki_spaces WHERE id = ?', [$id]);
+        self::assertIsArray($row);
+        self::assertSame([null, null, 1], [$row['archived_at'], $row['purge_started_at'], (int) $row['lock_version']]);
+        self::assertSame(2, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM wiki_pages'));
+
+        // The right owner: erased. Then gone: the expected owner cannot be checked any more, the answer is "already gone".
+        $result = $this->lifecycle()->eraseSpace($id, null, WikiSpaceOwnerScope::Team, 'team-1');
+        self::assertTrue($result->finished);
+        self::assertTrue($result->found);
+        self::assertTrue($this->lifecycle()->eraseSpace($id, null, WikiSpaceOwnerScope::Team, 'team-1')->alreadyGone());
+    }
+
+    public function testEraseSpaceCountsFilesThatMayStillBeStored(): void
+    {
+        $space = $this->space('doomed', 'team-1');
+        $this->content($space);
+        $this->brokenKeys = ['doomed-a'];
+        // Every revision refers to two files; one file listed per batch: the event list is cut.
+        foreach ($this->em->getRepository(WikiPageRevision::class)->findAll() as $revision) {
+            $this->em->getConnection()->executeStatement('UPDATE wiki_page_revisions SET content_markdown = ? WHERE id = ?', ['![a](/files/a.png) ![b](/files/b.png)', $revision->getId()]);
+        }
+        $this->em->clear();
+
+        $result = $this->lifecycle(null, 1)->eraseSpace($space->getId());
+
+        self::assertTrue($result->finished);
+        self::assertSame(1, $result->filesFailed);
+        self::assertSame(2, $result->filesTruncated);
+        self::assertTrue($result->needsFileSweep());
+        self::assertSame(0, $this->spaceRows());
+    }
+
+    public function testThreadCommentsAreCapped(): void
+    {
+        $space              = $this->space('docs', 'team-1');
+        [, $thread, $first] = $this->content($space);
+        $repository         = new DoctrineOrmWikiCommentRepository($this->em);
+
+        self::assertSame([$first->getId()], array_map(static fn (WikiComment $c): string => $c->getId(), $repository->findThreadComments($thread->getId(), 1)));
+        self::assertCount(2, $repository->findThreadComments($thread->getId(), WikiPageOperationsInterface::MAX_THREAD_COMMENTS));
+        self::assertSame([], $repository->findThreadComments(strtoupper($thread->getId()), 10));
     }
 
     public function testPageAndCommentReadModelsById(): void
@@ -474,7 +576,7 @@ final class WikiBeaconIdOperationsTest extends TestCase
         ], []));
     }
 
-    private function lifecycle(?WikiSpaceSlugRule $rule = null): WikiSpaceLifecycle
+    private function lifecycle(?WikiSpaceSlugRule $rule = null, ?int $maxFiles = null): WikiSpaceLifecycle
     {
         $test    = $this;
         $storage = new class($test) implements WikiAttachmentStorageInterface {
@@ -507,7 +609,10 @@ final class WikiBeaconIdOperationsTest extends TestCase
                 return false;
             }
         };
-        $purger = new WikiSpacePurger($this->runner, ['comments' => true, 'trash' => true, 'history_timeline' => true, 'collaboration' => true, 'favourites' => true, 'recents' => true, 'backlinks' => true, 'api_idempotency' => true]);
+        $tables = ['comments' => true, 'trash' => true, 'history_timeline' => true, 'collaboration' => true, 'favourites' => true, 'recents' => true, 'backlinks' => true, 'api_idempotency' => true];
+        $purger = $maxFiles === null
+            ? new WikiSpacePurger($this->runner, $tables)
+            : new WikiSpacePurger($this->runner, $tables, new WikiPageFileExtractor(), new DoctrineOrmWikiPageRevisionRepository($this->em), $maxFiles);
 
         return new WikiSpaceLifecycle($this->runner, new DoctrineOrmWikiSpaceRepository($this->em), $purger, new WikiSlugger(), $checker, new EventDispatcher(), null, $storage, batchSize: 1, slugRule: $rule);
     }

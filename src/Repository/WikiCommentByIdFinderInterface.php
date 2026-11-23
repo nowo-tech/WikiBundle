@@ -24,4 +24,11 @@ interface WikiCommentByIdFinderInterface
 
     /** The comment with exactly that id (re-checked byte for byte), or null. */
     public function findCommentById(string $id): ?WikiComment;
+
+    /**
+     * 1.55.1: the first `$limit` comments of the thread with exactly that id, in thread order (position, then id).
+     *
+     * @return list<WikiComment>
+     */
+    public function findThreadComments(string $threadId, int $limit): array;
 }

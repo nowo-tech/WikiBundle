@@ -21,11 +21,18 @@ use Nowo\WikiBundle\ValueObject\WikiUserRef;
  *
  * 1.55 (Beacon): read models by id for a host that keeps no wiki entity — a page revision by number and the comment
  * threads and comments of a page ({@see self::findPageRevision()}, {@see self::findCommentThread()},
- * {@see self::findComment()}, {@see self::findThreadComments()}). Read-only and stateless: they lock and write nothing,
- * answer what is stored (no access decision: ask the space checker, as for the page) and keep nothing between calls.
+ * {@see self::findComment()}, {@see self::findThreadComments()}). Read-only and stateless: they lock and write nothing
+ * and keep nothing between calls.
+ *
+ * **They decide no access** (as {@see self::findPage()}): they answer what is stored, for pages in the trash or in an
+ * archived space and deleted comments too. Before showing or sending anything to a person, check the snapshot's
+ * `pageId` with your space checker (`WikiAction::View` / `ViewComments` on that page) or `WikiPageAccessInterface`.
  */
 interface WikiPageOperationsInterface
 {
+    /** 1.55.1: most comments {@see self::findThreadComments()} answers (the first ones, in thread order). */
+    public const MAX_THREAD_COMMENTS = 1000;
+
     /** The page with exactly that id, or null. */
     public function findPage(string $pageId): ?WikiPageSnapshot;
 
@@ -105,8 +112,10 @@ interface WikiPageOperationsInterface
     public function findComment(string $commentId): ?WikiCommentSnapshot;
 
     /**
-     * 1.55: every comment of the thread with exactly that id, in thread order, deleted ones included (see
+     * 1.55: the comments of the thread with exactly that id, in thread order, deleted ones included (see
      * {@see WikiCommentSnapshot::isDeleted()}); empty when the thread is unknown (as {@see self::findCommentThread()}).
+     * 1.55.1: at most {@see self::MAX_THREAD_COMMENTS} (the first ones; `comments.limits.comments_per_thread` defaults
+     * to 500). No access decision: check the page first.
      *
      * @return list<WikiCommentSnapshot>
      */
