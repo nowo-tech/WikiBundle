@@ -76,7 +76,7 @@ final class WikiProvenanceDddHostTest extends TestCase
             {
             }
 
-            public function current(): ?WikiWriteProvenance
+            public function current(): WikiWriteProvenance
             {
                 /** @var object{path: string, token: string|null} $context */
                 $context = $this->context;

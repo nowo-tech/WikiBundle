@@ -17,30 +17,30 @@ final readonly class DenyingWikiApiWikiManagement implements WikiApiWikiManageme
 {
     public function ownerKey(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): ?string
     {
-        throw self::refusal();
+        throw $this->refusal();
     }
 
     public function create(WikiApiPrincipal $principal, WikiApiNewWiki $wiki): WikiApiWiki
     {
-        throw self::refusal();
+        throw $this->refusal();
     }
 
     public function update(WikiApiPrincipal $principal, WikiApiWiki $wiki, WikiApiWikiPatch $patch): WikiApiWiki
     {
-        throw self::refusal();
+        throw $this->refusal();
     }
 
     public function archive(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiApiWiki
     {
-        throw self::refusal();
+        throw $this->refusal();
     }
 
     public function unarchive(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiApiWiki
     {
-        throw self::refusal();
+        throw $this->refusal();
     }
 
-    private static function refusal(): WikiApiRefusal
+    private function refusal(): WikiApiRefusal
     {
         return new WikiApiRefusal(403, 'WIKI_001', 'Wikis are not managed through this API');
     }

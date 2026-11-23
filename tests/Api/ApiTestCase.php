@@ -170,7 +170,7 @@ abstract class ApiTestCase extends WebTestCase
             $title,
             $markdown,
             $em->find(TestUserEntity::class, ($author ?? $this->ana)->getUserIdentifier()) ?? $this->ana,
-            $parent === null ? null : $em->find(WikiPage::class, $parent->getId()),
+            $parent instanceof WikiPage ? $em->find(WikiPage::class, $parent->getId()) : null,
             null,
             WikiPageRevision::FORMAT_MARKDOWN,
         );

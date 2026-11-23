@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\RateLimiter\RateLimit;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -126,7 +127,7 @@ final class WikiLinkPickerController extends AbstractController
         }
 
         $limit = $this->rateLimiter?->create(self::LIMITER_KEY . $user->getUserIdentifier())->consume();
-        if ($limit !== null && !$limit->isAccepted()) {
+        if ($limit instanceof RateLimit && !$limit->isAccepted()) {
             return [$picker, $user, new JsonResponse(['error' => 'rate_limited'], Response::HTTP_TOO_MANY_REQUESTS, self::HEADERS + ['Retry-After' => (string) max(1, $limit->getRetryAfter()->getTimestamp() - time())])];
         }
 

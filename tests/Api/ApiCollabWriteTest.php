@@ -90,7 +90,7 @@ final class ApiCollabWriteTest extends ApiTestCase
 
     private function store(): WikiCollabStateStoreInterface
     {
-        $store = static::getContainer()->get('app.collab_store');
+        $store = self::getContainer()->get('app.collab_store');
         self::assertInstanceOf(WikiCollabStateStoreInterface::class, $store);
 
         return $store;

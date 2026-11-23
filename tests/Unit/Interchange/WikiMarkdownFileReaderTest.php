@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Interchange;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Enum\WikiInterchangeFormat;
 use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
+use Nowo\WikiBundle\Interchange\WikiDocumentNode;
 use Nowo\WikiBundle\Interchange\WikiDocumentTreeReader;
 use Nowo\WikiBundle\Interchange\WikiFormatDetector;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
@@ -84,7 +85,7 @@ final class WikiMarkdownFileReaderTest extends TestCase
 
         $nodes = (new WikiDocumentTreeReader(new WikiFrontMatterParser()))->read($this->root, WikiInterchangeFormat::Outline);
 
-        self::assertSame(['Page'], array_map(static fn ($node) => $node->title, $nodes));
+        self::assertSame(['Page'], array_map(static fn (WikiDocumentNode $node): ?string => $node->title, $nodes));
     }
 
     public function testFormatDetectorUsesTheBoundedRead(): void

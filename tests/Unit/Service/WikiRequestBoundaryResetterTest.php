@@ -21,8 +21,8 @@ final class WikiRequestBoundaryResetterTest extends TestCase
 {
     public function testEveryBoundaryEmptiesTheMemos(): void
     {
-        $memo       = self::memo();
-        $other      = self::memo();
+        $memo       = $this->memo();
+        $other      = $this->memo();
         $dispatcher = new EventDispatcher();
         $dispatcher->addSubscriber(new WikiRequestBoundaryResetter([$memo, $other]));
         $kernel = $this->createStub(HttpKernelInterface::class);
@@ -52,7 +52,7 @@ final class WikiRequestBoundaryResetterTest extends TestCase
         self::assertStringStartsWith('Symfony\\Component\\Messenger\\Event\\', WikiRequestBoundaryResetter::MESSENGER_FAILED);
     }
 
-    private static function memo(): RecordingResetter
+    private function memo(): RecordingResetter
     {
         return new RecordingResetter();
     }

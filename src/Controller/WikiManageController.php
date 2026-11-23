@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Controller;
 
 use InvalidArgumentException;
 use Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface;
+use Nowo\MilkdownEditorBundle\Diff\MarkdownDiff;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
@@ -421,7 +422,7 @@ final class WikiManageController extends AbstractController
             : null;
         // 1.45 (recents.enabled): the visit, before the lists are read (best effort, see WikiQuickAccess::recordVisit()),
         // never for a HEAD request or a browser prefetch (the person did not open the page).
-        if (!self::isPrefetch($this->currentRequest())) {
+        if (!$this->isPrefetch($this->currentRequest())) {
             $this->quickAccess?->recordVisit($user, $page);
         }
         // 1.45 (audit VC-9): one scope (the current tenant's readable spaces) for every per-viewer list of this view.
@@ -1251,13 +1252,13 @@ final class WikiManageController extends AbstractController
         // 1.45 (history.rendered_diff): the editor's rendered diff of two Markdown revisions, rendered for this viewer
         // and sanitized; HTML revisions (null) keep the line diff.
         $rendered = $this->renderedDiff?->diff($from, $to);
-        $diff     = $rendered === null ? $this->revisionDiffService->diff($from, $to) : [];
+        $diff     = $rendered instanceof MarkdownDiff ? [] : $this->revisionDiffService->diff($from, $to);
         $this->nameParentCrumb($request, $page, 'page_diff');
 
         return $this->renderPage('page_diff', [
             'page'            => $this->pages()->diff($space, $page, $from->getRevisionNumber(), $to->getRevisionNumber()),
             'diff'            => $diff,
-            'rendered_diff'   => $rendered === null ? null : ['html' => $rendered->html, 'changes' => $rendered->changes, 'fallback' => $rendered->fallback],
+            'rendered_diff'   => $rendered instanceof MarkdownDiff ? ['html' => $rendered->html, 'changes' => $rendered->changes, 'fallback' => $rendered->fallback] : null,
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
         ]);
@@ -1367,7 +1368,7 @@ final class WikiManageController extends AbstractController
 
         // Audit HO-L3: a restore replaces the document, so it asks as a save outside the session does.
         try {
-            if (!$this->saveUnlessItMustAsk($request, $page, false, fn () => $this->pageService->restore($page, $revision, $user))) {
+            if (!$this->saveUnlessItMustAsk($request, $page, false, fn (): WikiPageRevision => $this->pageService->restore($page, $revision, $user))) {
                 return $this->restoreConflict($space, $page, $revisionNumber);
             }
         } catch (WikiRevisionCollisionException) {
@@ -2265,7 +2266,7 @@ final class WikiManageController extends AbstractController
      * 1.45: a HEAD request or a browser prefetch / prerender (`Sec-Purpose: prefetch`, `Purpose: prefetch`,
      * `X-Moz: prefetch`, `X-Purpose: preview`) is not a visit.
      */
-    private static function isPrefetch(?Request $request): bool
+    private function isPrefetch(?Request $request): bool
     {
         if (!$request instanceof Request || $request->isMethod('HEAD')) {
             return $request instanceof Request;

@@ -21,6 +21,7 @@ use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
 use Nowo\WikiBundle\Query\WikiOwnerUsage;
 use Nowo\WikiBundle\Query\WikiPageCriteria;
 use Nowo\WikiBundle\Query\WikiPageQueryInterface;
+use Nowo\WikiBundle\Query\WikiPageSearchHit;
 use Nowo\WikiBundle\Query\WikiSpaceCriteria;
 use Nowo\WikiBundle\Query\WikiSpaceQueryInterface;
 use Nowo\WikiBundle\Repository\WikiPageProvenance;
@@ -309,7 +310,7 @@ final class DddHostKernelTest extends WebTestCase
             self::assertSame(['Guide', 'Runbook'], array_map(static fn (WikiPageSnapshot $page): string => $page->title, $pageQuery->backlinks($home->id)));
             self::assertSame([$home->id, $guide->id], $access->readablePageIds($ana, [$home->id, $run->id, $guide->id]));
             self::assertSame([$run->id], $access->readablePageIds($bob, [$home->id, $run->id, $guide->id]));
-            self::assertSame(['Runbook'], array_map(static fn ($hit): string => $hit->page->title, $pageQuery->searchPages([$docs->id, $ops->id], 'also', $bob)->hits));
+            self::assertSame(['Runbook'], array_map(static fn (WikiPageSearchHit $hit): string => $hit->page->title, $pageQuery->searchPages([$docs->id, $ops->id], 'also', $bob)->hits));
             // The guard, asked with the same person as the bundle's stand-in user, decides alike.
             foreach ([$ana, $bob] as $person) {
                 foreach ([$home, $guide, $run] as $page) {

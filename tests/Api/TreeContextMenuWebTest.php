@@ -137,7 +137,7 @@ final class TreeContextMenuWebTest extends ApiTestCase
         $token             = $this->treeToken($this->signedInPage($this->ana));
         $id                = $child->getId();
         ApiTestHost::$race = static function (WikiPage $target) use ($id): void {
-            $connection = static::getContainer()->get('doctrine.dbal.default_connection');
+            $connection = self::getContainer()->get('doctrine.dbal.default_connection');
             assert($connection instanceof Connection);
             $connection->executeStatement('UPDATE wiki_pages SET parent_id = NULL WHERE id = ?', [$id]);
         };

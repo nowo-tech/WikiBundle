@@ -234,7 +234,7 @@ final readonly class WikiLinkPickerService
                 if (count($groups) === self::MAX_WIKIS) {
                     continue;
                 }
-                $groups[$id] = ['wiki' => self::withoutFormatCharacters($page->getSpace()->getName()), 'pages' => []];
+                $groups[$id] = ['wiki' => $this->withoutFormatCharacters($page->getSpace()->getName()), 'pages' => []];
             }
             if (count($groups[$id]['pages']) === self::MAX_PER_WIKI) {
                 continue;
@@ -356,14 +356,14 @@ final readonly class WikiLinkPickerService
      */
     private function row(WikiPage $page): array
     {
-        return ['id' => $page->getId(), 'label' => self::withoutFormatCharacters($page->getTitle()), 'url' => $this->url($page)];
+        return ['id' => $page->getId(), 'label' => $this->withoutFormatCharacters($page->getTitle()), 'url' => $this->url($page)];
     }
 
     /**
      * Audit RY-I1: a title or wiki name without format characters (bidi overrides, zero-width), which could make a label
      * look like another one.
      */
-    private static function withoutFormatCharacters(string $text): string
+    private function withoutFormatCharacters(string $text): string
     {
         return (string) preg_replace('/\p{Cf}+/u', '', $text);
     }

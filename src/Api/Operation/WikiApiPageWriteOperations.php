@@ -260,7 +260,7 @@ final readonly class WikiApiPageWriteOperations
             };
         }
         if ($result->moved) {
-            $this->audit->written($principal, 'page.move', $wiki->slug, $space->getId(), $page->getId(), $parent === null ? [] : ['parent' => $parent->getId()], ['parent', 'position']);
+            $this->audit->written($principal, 'page.move', $wiki->slug, $space->getId(), $page->getId(), $parent instanceof WikiPage ? ['parent' => $parent->getId()] : [], ['parent', 'position']);
         }
         $body = $this->reads->body($principal, $wiki, $page);
         // 1.35 (audit PT-L1): the 1-based place among the siblings the token's user sees, not the sort key.

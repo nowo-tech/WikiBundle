@@ -85,7 +85,7 @@ for ($i = 1; $i <= (int) $writes; ++$i) {
             case 'upload':
                 $file = tempnam(sys_get_temp_dir(), 'wiki-upload');
                 file_put_contents($file, '0123456789');
-                LoadReadinessFactory::attachments($em, $args[2], (int) $args[3])->upload($em->find(WikiPage::class, $args[1]), $file, 'note.txt', null);
+                LoadReadinessFactory::attachments($em, $args[2], (int) $args[3])->upload($em->find(WikiPage::class, $args[1]), $file, 'note.txt');
                 @unlink($file);
                 break;
         }

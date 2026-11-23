@@ -17,7 +17,7 @@ final readonly class WikiApiSerializer
 {
     public static function ms(?DateTimeImmutable $date): ?int
     {
-        return $date === null ? null : (int) $date->format('Uv');
+        return $date instanceof DateTimeImmutable ? (int) $date->format('Uv') : null;
     }
 
     /**

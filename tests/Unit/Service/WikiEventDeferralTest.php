@@ -61,7 +61,7 @@ final class WikiEventDeferralTest extends TestCase
             });
         } catch (RuntimeException) {
         }
-        $deferral->run(static fn () => null);
+        $deferral->run(static fn (): null => null);
         self::assertSame([], $heard);
 
         $deferral->run(static fn () => $deferral->dispatch($dispatcher, new stdClass(), 'e'));

@@ -393,7 +393,7 @@ final class WikiArchiveHelperTest extends TestCase
         $zipPath = $this->lyingZip(['a.md' => [str_repeat('a', $size), 100], 'b.md' => [str_repeat('a', $size), 100]]);
         $helper  = new WikiArchiveHelper(maxDocumentBytes: $size);
         $before  = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
-        $limit   = (string) ini_get('memory_limit');
+        $limit   = ini_get('memory_limit');
         ini_set('memory_limit', (string) (memory_get_usage(true) + 3 * 1024 * 1024));
 
         try {
@@ -668,7 +668,7 @@ final class WikiArchiveHelperTest extends TestCase
         $zipPath = $this->createZip(['a.md' => str_repeat('a', $size), 'b.md' => str_repeat('a', $size)]);
         $helper  = new WikiArchiveHelper(maxDocumentBytes: $size);
         $before  = glob(sys_get_temp_dir() . '/wiki-import-*') ?: [];
-        $limit   = (string) ini_get('memory_limit');
+        $limit   = ini_get('memory_limit');
         ini_set('memory_limit', (string) (memory_get_usage(true) + 3 * 1024 * 1024));
 
         try {
@@ -686,7 +686,7 @@ final class WikiArchiveHelperTest extends TestCase
     public function testNoMemoryLimitSkipsTheMemoryCheck(): void
     {
         $zipPath = $this->createZip(['a.md' => 'a']);
-        $limit   = (string) ini_get('memory_limit');
+        $limit   = ini_get('memory_limit');
         ini_set('memory_limit', '-1');
 
         try {

@@ -22,6 +22,7 @@ use Doctrine\Persistence\Mapping\Driver\MappingDriverChain;
 use Nowo\WikiBundle\DependencyInjection\WikiDoctrineMapping;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
 use Nowo\WikiBundle\Tests\Support\WikiXmlMappingGenerator;
@@ -87,7 +88,7 @@ final class XmlMappingParityTest extends TestCase
         self::assertCount(self::ENTITIES + 1, $xml->getMetadataFactory()->getAllMetadata(), 'and nothing else (plus the test user)');
         self::assertSame(
             TestUserEntity::class,
-            $xml->getClassMetadata('Nowo\\WikiBundle\\Entity\\WikiPageRevision')->getAssociationMapping('author')->targetEntity,
+            $xml->getClassMetadata(WikiPageRevision::class)->getAssociationMapping('author')->targetEntity,
             'the user relations are remapped to user_class from XML too',
         );
 
@@ -157,7 +158,7 @@ final class XmlMappingParityTest extends TestCase
             $xml ? new SimplifiedXmlDriver([WikiDoctrineMapping::xmlDirectory() => WikiDoctrineMapping::ENTITY_NAMESPACE]) : new AttributeDriver([$src . '/Entity']),
             WikiDoctrineMapping::ENTITY_NAMESPACE,
         );
-        $chain->addDriver(new AttributeDriver([dirname(__DIR__) . '/Stub']), 'Nowo\\WikiBundle\\Tests\\Stub');
+        $chain->addDriver(new AttributeDriver([__DIR__ . '/../Stub']), 'Nowo\\WikiBundle\\Tests\\Stub');
         $config->setMetadataDriverImpl($chain);
         $events = new EventManager();
         $events->addEventListener(Events::loadClassMetadata, new WikiMetadataListener('wiki_spaces', 'wiki_pages', 'wiki_page_revisions', TestUserEntity::class));

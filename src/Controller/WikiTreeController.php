@@ -215,7 +215,7 @@ final class WikiTreeController extends AbstractController
      *
      * @param array<string, mixed> $body
      */
-    private function menuWrite(Request $request, UserInterface $user, WikiSpace $space, WikiPage $page, string $action, array $body): Response
+    private function menuWrite(Request $request, UserInterface $user, WikiSpace $space, WikiPage $page, string $action, array $body): JsonResponse
     {
         if (!$this->contextMenu || !$this->accessChecker->canEdit($user) || !$this->spaceGuard->isGranted($user, WikiAction::Edit, $space, $page)) {
             throw new AccessDeniedHttpException('Access denied.');

@@ -66,7 +66,7 @@ final class ApiIdempotencyTest extends ApiTestCase
     public function testInFlightAbandonedAndForgottenClaims(): void
     {
         $scope = WikiApiIdempotencyListener::scope(new WikiApiPrincipal(new TestUserEntity('u-ana'), WikiApiLevel::Full, WikiApiWhere::everything(), 'tok-u-ana', 'n'));
-        $store = static::getContainer()->get(WikiApiIdempotencyStoreInterface::class);
+        $store = self::getContainer()->get(WikiApiIdempotencyStoreInterface::class);
         self::assertInstanceOf(WikiApiIdempotencyStoreInterface::class, $store);
         $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Runbook'], ['Idempotency-Key' => 'k-4']);
         $sql = $this->sql();
@@ -127,7 +127,7 @@ final class ApiIdempotencyTest extends ApiTestCase
         $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Runbook'], ['Idempotency-Key' => 'k-5']);
         $this->sql()->executeStatement('UPDATE wiki_api_idempotency SET expires_at = ?', ['2020-01-01 00:00:00']);
 
-        $tester = new CommandTester(static::getContainer()->get(WikiApiPurgeIdempotencyCommand::class));
+        $tester = new CommandTester(self::getContainer()->get(WikiApiPurgeIdempotencyCommand::class));
         $tester->execute([]);
 
         self::assertStringContainsString('Deleted 1 expired answer(s).', $tester->getDisplay());
@@ -144,7 +144,7 @@ final class ApiIdempotencyTest extends ApiTestCase
 
     private function sql(): Connection
     {
-        $connection = static::getContainer()->get('doctrine.dbal.default_connection');
+        $connection = self::getContainer()->get('doctrine.dbal.default_connection');
         self::assertInstanceOf(Connection::class, $connection);
 
         return $connection;

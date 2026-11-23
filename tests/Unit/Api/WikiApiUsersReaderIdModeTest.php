@@ -37,7 +37,7 @@ final class WikiApiUsersReaderIdModeTest extends TestCase
 
         $users = $reader->byIds(['7', 'bob', 'gone', '7', 'bob ']);
 
-        self::assertSame(['7', 'bob', 'gone'], array_map('strval', array_keys($users)));
+        self::assertSame(['7', 'bob', 'gone'], array_map(strval(...), array_keys($users)));
         self::assertInstanceOf(TestUser::class, $users['7']);
         self::assertEquals(new WikiStoredUserRef('bob'), $users['bob'], 'a look-alike answer is ignored');
         self::assertEquals(new WikiStoredUserRef('gone'), $users['gone']);

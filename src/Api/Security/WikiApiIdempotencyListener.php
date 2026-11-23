@@ -201,7 +201,7 @@ final readonly class WikiApiIdempotencyListener implements EventSubscriberInterf
         // An upload is part of the request: its bytes, its name and its type.
         foreach ($request->files->all() as $name => $file) {
             if ($file instanceof UploadedFile) {
-                $content .= "\n" . $name . ':' . (string) hash_file('sha256', $file->getPathname()) . ':' . hash('sha256', $file->getClientOriginalName() . "\0" . (string) $file->getClientMimeType());
+                $content .= "\n" . $name . ':' . hash_file('sha256', $file->getPathname()) . ':' . hash('sha256', $file->getClientOriginalName() . "\0" . $file->getClientMimeType());
             }
         }
         $query = $this->sorted($request->query->all());

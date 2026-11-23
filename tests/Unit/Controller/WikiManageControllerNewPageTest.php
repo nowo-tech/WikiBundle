@@ -429,11 +429,11 @@ final class WikiManageControllerNewPageTest extends TestCase
 
     public function testReadersGetNoTreeMenuAndEditorsWithoutCreateNoAddEntries(): void
     {
-        $this->controller(menu: true, canEdit: false)->viewPage('eng', 'run');
+        $this->controller(canEdit: false, menu: true)->viewPage('eng', 'run');
         self::assertArrayNotHasKey('tree_menu', $this->twig->context);
         self::assertSame([], $this->marked($this->twig->context['tree_ui']['nodes'], WikiTreeMenu::EDIT_ATTRIBUTE));
 
-        $this->controller(dialog: false, menu: true, canCreate: false)->viewPage('eng', 'run');
+        $this->controller(dialog: false, canCreate: false, menu: true)->viewPage('eng', 'run');
         self::assertSame(['Operations', 'Runbooks', 'Deep', 'Guide', 'Locked'], $this->marked($this->twig->context['tree_ui']['nodes'], WikiTreeMenu::EDIT_ATTRIBUTE));
         self::assertSame([], $this->marked($this->twig->context['tree_ui']['nodes'], 'data-wiki-new-child'));
     }

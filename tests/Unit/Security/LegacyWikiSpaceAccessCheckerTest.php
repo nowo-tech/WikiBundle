@@ -94,7 +94,7 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         $other    = new WikiSpace('hr', 'HR', WikiSpaceOwnerScope::Team, 't');
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->expects(self::exactly(4))->method('listSpacesForUser')->willReturn([$space]);
-        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, self::requestStack());
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, $this->requestStack());
         $ana     = new TestUser('u1', 'ana@x.test');
 
         for ($i = 0; $i < 500; ++$i) {
@@ -116,7 +116,7 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 't');
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->expects(self::exactly(LegacyWikiSpaceAccessChecker::MAX_MEMO + 2))->method('listSpacesForUser')->willReturn([$space]);
-        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, self::requestStack());
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, $this->requestStack());
         $users   = [];
         for ($i = 0; $i <= LegacyWikiSpaceAccessChecker::MAX_MEMO; ++$i) {
             $users[] = new TestUser('u' . $i, 'u' . $i . '@x.test');
@@ -134,7 +134,7 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         $member   = new ArrayObject([true]);
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->expects(self::exactly(2))->method('listSpacesForUser')->willReturnCallback(static fn (): array => $member[0] ? [$space] : []);
-        $stack   = self::requestStack();
+        $stack   = $this->requestStack();
         $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, $stack);
         $ana     = new TestUser('u1', 'ana@x.test');
 
@@ -170,7 +170,7 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         $member   = new ArrayObject([true]);
         $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
         $resolver->expects(self::exactly(2))->method('listSpacesForUser')->willReturnCallback(static fn (): array => $member[0] ? [$space] : []);
-        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, self::requestStack());
+        $checker = new LegacyWikiSpaceAccessChecker($this->createStub(WikiAccessCheckerInterface::class), $resolver, $this->requestStack());
         $ana     = new TestUser('u1', 'ana@x.test');
 
         self::assertTrue($checker->isGranted($ana, WikiAction::View, $space));
@@ -179,7 +179,7 @@ final class LegacyWikiSpaceAccessCheckerTest extends TestCase
         self::assertFalse($checker->isGranted($ana, WikiAction::View, $space), 'read again after reset() in the same request');
     }
 
-    private static function requestStack(): RequestStack
+    private function requestStack(): RequestStack
     {
         $stack = new RequestStack();
         $stack->push(Request::create('/'));

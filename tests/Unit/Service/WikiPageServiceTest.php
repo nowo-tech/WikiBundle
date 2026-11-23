@@ -65,7 +65,7 @@ final class WikiPageServiceTest extends TestCase
 
         $html = $service->create($space, 'Forged', '<p>Shown <span class="nowo-md-ref nowo-md-ref--hidden">secret words</span></p>', new TestUser());
         self::assertSame('<p>Shown <span>secret words</span></p>', $html->getCurrentRevision()?->getContentHtml());
-        self::assertSame('Shown secret words', WikiPlainText::fromHtml((string) $html->getCurrentRevision()?->getContentHtml()));
+        self::assertSame('Shown secret words', WikiPlainText::fromHtml($html->getCurrentRevision()?->getContentHtml()));
 
         $markdown = $service->create($space, 'Linked', 'See [[wiki:0b6f4f0e-3c55-4d0a-9a43-1f7a2c9e8d10]].', new TestUser(), format: WikiPageRevision::FORMAT_MARKDOWN);
         self::assertStringContainsString('<span class="nowo-md-ref nowo-md-ref--hidden"></span>', (string) $markdown->getCurrentRevision()?->getContentHtml());

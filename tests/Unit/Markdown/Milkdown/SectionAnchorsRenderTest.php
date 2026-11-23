@@ -166,7 +166,7 @@ final class SectionAnchorsRenderTest extends TestCase
                 $html = [];
                 foreach ($ids as $id) {
                     $revision = isset($pages[$id]) ? $pages[$id]->getCurrentRevision() : null;
-                    if ($revision !== null) {
+                    if ($revision instanceof WikiPageRevision) {
                         $html[$id] = $revision->getContentHtml();
                     }
                 }
