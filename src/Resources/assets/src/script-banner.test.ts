@@ -54,6 +54,18 @@ describe('announceScript', () => {
         }
     });
 
+    it('falls back to the module-scope set when the global swallows the assignment without throwing', () => {
+        Object.defineProperty(window, '__nowoScriptBanners', { get: () => [], set: () => undefined, configurable: true });
+        try {
+            announceScript('wiki/swallowed');
+            announceScript('wiki/swallowed');
+
+            expect(log).toHaveBeenCalledTimes(1);
+        } finally {
+            delete (window as { __nowoScriptBanners?: unknown }).__nowoScriptBanners;
+        }
+    });
+
     it('does nothing without a window', () => {
         vi.stubGlobal('window', undefined);
         try {
