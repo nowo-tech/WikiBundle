@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+  - [Space create, erasure and comment reads by id (1.55)](#space-create-erasure-and-comment-reads-by-id-155)
 - [To 1.54.0](#to-1540)
 - [To 1.53.0](#to-1530)
   - [Dialogs load on demand](#dialogs-load-on-demand)
@@ -147,6 +148,31 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+### Space create, erasure and comment reads by id (1.55)
+
+From **1.54.0**: `composer update nowo-tech/wiki-bundle`. Nothing to change unless you want the new operations; they
+are what an application needs to turn on `database.private_entity_manager: true` without writing wiki rows itself
+(see [USAGE › Creating and erasing spaces by id](USAGE.md#creating-and-erasing-spaces-by-id-155)):
+
+| You did (with your entity manager) | Use instead |
+|---|---|
+| `persist(new WikiSpace(...))` + `flush()` | `WikiSpaceOperationsInterface::createSpaceFrom(new WikiNewSpace($slug, $name, $ownerId, icon: ...))` (keep the returned id) |
+| `findBy(['ownerScopeId' => ...])` on `WikiSpace`, then archive / purge each | `WikiSpaceQueryInterface::findSpaces(WikiSpaceCriteria::forOwners(...))`, then `WikiSpaceLifecycleInterface::eraseSpace($id)` after your erasure committed |
+| `getRepository(WikiComment::class)->findBy(['thread' => ...])` | `WikiPageOperationsInterface::findThreadComments($threadId)` (`findCommentThread()`, `findComment()`, `findPageRevision()`) |
+| Your own rows that point at a `WikiSpace` (a `ManyToOne`) | a plain id column holding `WikiSpaceSnapshot::$id` |
+
+Behaviour changes:
+
+- `WikiSpaceOperationsInterface::createSpace()` now writes through the wiki's runner with one `INSERT`: a slug taken
+  meanwhile is `WikiSlugTakenException` (still an `InvalidArgumentException`); a blank or longer than 255 characters
+  name is refused (`InvalidArgumentException`), and the name is stored trimmed; Doctrine `prePersist` / `postPersist`
+  listeners no longer see the new space (listen to nothing, or read it back by id).
+- A slug that a configured `tenant_paths` `slug_requirement` matches is accepted by `createSpace()`, `createSpaceFrom()`
+  and `renameSpace()` (lowercase letters, digits and dashes only).
+- A class of your own that implements `WikiSpaceOperationsInterface`, `WikiPageOperationsInterface` or
+  `WikiSpaceLifecycleInterface` (a test double) must add the new methods. A `WikiCommentRepositoryInterface` of your own
+  needs nothing: without `WikiCommentByIdFinderInterface` the comment reads answer null / an empty list.
 
 ## To 1.54.0
 

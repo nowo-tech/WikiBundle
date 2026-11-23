@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Service;
 
+use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -22,6 +23,7 @@ use Nowo\WikiBundle\Service\WikiSpaceOperations;
 use Nowo\WikiBundle\Service\WikiSpaceServiceInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiRefUser;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
@@ -118,11 +120,10 @@ final class WikiIdOperationsTest extends TestCase
     public function testSpaceOperations(): void
     {
         $service = $this->createMock(WikiSpaceServiceInterface::class);
-        $service->method('create')->willReturn($this->space);
+        $service->expects(self::never())->method('create');
         $service->method('findBySlug')->willReturnCallback(fn (WikiSpaceOwnerScope $scope, string $owner, string $slug): ?WikiSpace => $slug === 'none' ? null : $this->space);
-        $ops = new WikiSpaceOperations($service, $this->spaces());
+        $ops = new WikiSpaceOperations($service, $this->spaces(), new WikiTransactionRunner($this->createStub(EntityManagerInterface::class)));
 
-        self::assertSame('docs', $ops->createSpace('Docs', WikiSpaceOwnerScope::Team, 'team-1')->slug);
         self::assertSame('docs', $ops->findSpaceBySlug(WikiSpaceOwnerScope::Team, 'team-1', 'docs')?->slug);
         self::assertNull($ops->findSpaceBySlug(WikiSpaceOwnerScope::Team, 'Team-1', 'docs'), 'a look-alike owner is refused');
         self::assertNull($ops->findSpaceBySlug(WikiSpaceOwnerScope::User, 'team-1', 'docs'));

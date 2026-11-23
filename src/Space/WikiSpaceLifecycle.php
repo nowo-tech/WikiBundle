@@ -29,6 +29,7 @@ use Nowo\WikiBundle\Service\WikiInvalidSlugException;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use Nowo\WikiBundle\Util\WikiSpaceSlugRule;
 use Nowo\WikiBundle\ValueObject\Uuid;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
@@ -40,7 +41,6 @@ use Throwable;
 use function count;
 use function max;
 use function mb_strlen;
-use function strlen;
 use function trim;
 
 /**
@@ -51,9 +51,6 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
 {
     /** Longest space name (the column). */
     private const MAX_NAME_LENGTH = 255;
-
-    /** Longest space slug (the column). */
-    private const MAX_SLUG_LENGTH = 120;
 
     /**
      * @param WikiTransactionRunner $runner the wiki's runner
@@ -66,6 +63,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
      * @param WikiAttachmentStorageInterface|null $storage removes the purged attachments' files after each commit
      * @param LoggerInterface $logger the lifecycle's log (ids only, never names)
      * @param int $batchSize pages per purge batch
+     * @param WikiSpaceSlugRule|null $slugRule 1.55: the space slug rule (tenant-path slugs); null: the bundle's rule only
      */
     public function __construct(
         private WikiTransactionRunner $runner,
@@ -78,6 +76,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
         private ?WikiAttachmentStorageInterface $storage = null,
         private LoggerInterface $logger = new NullLogger(),
         private int $batchSize = self::DEFAULT_BATCH_SIZE,
+        private ?WikiSpaceSlugRule $slugRule = null,
     ) {
     }
 
@@ -92,7 +91,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
                 throw new InvalidArgumentException('Invalid space name: 1 to 255 characters.');
             }
         }
-        if ($slug !== null && (strlen($slug) > self::MAX_SLUG_LENGTH || !$this->slugger->isValid($slug))) {
+        if ($slug !== null && !($this->slugRule ?? new WikiSpaceSlugRule($this->slugger))->isValid($slug)) {
             throw new WikiInvalidSlugException('Invalid space slug.');
         }
         $this->authorize($spaceId, $actor, WikiSpaceLifecycleAction::Rename);
@@ -210,6 +209,16 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
         }
 
         return new WikiSpacePurgeResult($spaceId, false, $pages, $batches);
+    }
+
+    public function eraseSpace(string $spaceId, ?int $maxBatches = null): WikiSpacePurgeResult
+    {
+        try {
+            return $this->purgeSpace($spaceId, null, true, $maxBatches);
+        } catch (WikiSpaceNotFoundException) {
+            // Already gone (an earlier erasure finished, or another call deleted the row meanwhile): nothing left to do.
+            return new WikiSpacePurgeResult($spaceId, true, 0, 0);
+        }
     }
 
     private function changeArchived(string $spaceId, bool $archived, ?WikiUserRef $actor, ?int $expectedVersion): WikiSpaceSnapshot

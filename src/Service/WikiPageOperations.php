@@ -6,18 +6,25 @@ namespace Nowo\WikiBundle\Service;
 
 use InvalidArgumentException;
 use LogicException;
+use Nowo\WikiBundle\Entity\WikiComment;
+use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Port\WikiUserRefs;
+use Nowo\WikiBundle\Repository\WikiCommentByIdFinderInterface;
+use Nowo\WikiBundle\Repository\WikiCommentRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\ValueObject\WikiCommentSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiCommentThreadSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
+use function array_map;
 use function sprintf;
 
 /**
@@ -31,6 +38,7 @@ final readonly class WikiPageOperations implements WikiPageOperationsInterface
         private WikiSpaceRepositoryInterface $spaces,
         private WikiPageRevisionRepositoryInterface $revisions,
         private ?WikiPageMover $mover = null,
+        private ?WikiCommentRepositoryInterface $comments = null,
     ) {
     }
 
@@ -92,6 +100,51 @@ final readonly class WikiPageOperations implements WikiPageOperationsInterface
     public function unarchivePage(string $pageId, ?WikiUserRef $actor = null): void
     {
         $this->pageService->unarchive($this->page($pageId), $actor instanceof WikiUserRef ? WikiUserRefs::object($actor) : null);
+    }
+
+    public function findPageRevision(string $pageId, int $revisionNumber): ?WikiRevisionSnapshot
+    {
+        $page = $this->pages->findById($pageId);
+        if (!$page instanceof WikiPage || $page->getId() !== $pageId) {
+            return null;
+        }
+        $revision = $this->revisions->findByPageAndNumber($page, $revisionNumber);
+
+        return $revision instanceof WikiPageRevision && $revision->getPage()->getId() === $pageId && $revision->getRevisionNumber() === $revisionNumber
+            ? WikiSnapshots::revision($revision)
+            : null;
+    }
+
+    public function findCommentThread(string $threadId): ?WikiCommentThreadSnapshot
+    {
+        $thread = $this->thread($threadId);
+
+        return $thread instanceof WikiCommentThread ? WikiSnapshots::thread($thread) : null;
+    }
+
+    public function findComment(string $commentId): ?WikiCommentSnapshot
+    {
+        $comment = $this->comments instanceof WikiCommentByIdFinderInterface ? $this->comments->findCommentById($commentId) : null;
+
+        return $comment instanceof WikiComment && $comment->getId() === $commentId ? WikiSnapshots::comment($comment) : null;
+    }
+
+    public function findThreadComments(string $threadId): array
+    {
+        $thread = $this->thread($threadId);
+        if (!$thread instanceof WikiCommentThread || !$this->comments instanceof WikiCommentRepositoryInterface) {
+            return [];
+        }
+
+        return array_map(WikiSnapshots::comment(...), $this->comments->comments([$thread])[$threadId] ?? []);
+    }
+
+    /** The comment thread with exactly that id, or null (no comments, or a repository that cannot read by id). */
+    private function thread(string $threadId): ?WikiCommentThread
+    {
+        $thread = $this->comments instanceof WikiCommentByIdFinderInterface ? $this->comments->findThreadById($threadId) : null;
+
+        return $thread instanceof WikiCommentThread && $thread->getId() === $threadId ? $thread : null;
     }
 
     /**

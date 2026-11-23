@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added (1.55, Unreleased)](#added-155-unreleased)
+  - [Changed (1.55, Unreleased)](#changed-155-unreleased)
 - [[1.54.0] - 2026-11-23](#1540---2026-11-23)
   - [Fixed (Unreleased)](#fixed-unreleased)
   - [Added (Unreleased)](#added-unreleased)
@@ -302,6 +304,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+### Added (1.55, Unreleased)
+
+- **Space create by id with its settings (Beacon).** `WikiSpaceOperationsInterface::createSpaceFrom(WikiNewSpace $space): string` creates a space with exactly the given slug, name, owner (`WikiSpaceOwnerScope` + id) and settings (the `space_icon` icon) and returns its id. The values are checked as the space settings are (name trimmed, 1–255 characters; usable owner id; slug rule below; icon `<prefix>:<name>` of `space_icon`). One unit of the wiki's runner writes the row with one `INSERT` on the wiki's connection, never a flush: two requests creating the same slug for the same owner give one space and one `WikiSlugTakenException` from the unique key `wiki_space_scope_slug` — no duplicate, no 500, no entity manager closed, cleared or flushed (REQ-RUNTIME-003 rules 2 and 4). Inside a transaction of the application the insert is a savepoint of it. New value object `ValueObject\WikiNewSpace`.
+- **Tenant-path space slugs.** `Util\WikiSpaceSlugRule`: a space slug a host gives (create, rename) is the bundle's rule (lowercase letters and digits in segments joined by single dashes, at most 120 characters) or — still only lowercase letters, digits and dashes, never at either end — a slug the `slug_requirement` of a configured `tenant_paths` entry matches whole, such as Beacon's `<owner uuid>--<name>`. Without tenant paths nothing changes. `WikiTenantPaths::matchesSlug()`.
+- **Idempotent space erasure.** `WikiSpaceLifecycleInterface::eraseSpace(string $spaceId, ?int $maxBatches = null): WikiSpacePurgeResult`: the forced, trusted purge for account erasure (Beacon spec 209). A space already gone (an earlier call finished, or no such space) answers `finished: true` with no page and no batch instead of `WikiSpaceNotFoundException`, so a retried erasure or a replayed message has nothing to catch. It runs in the wiki's own units after the host's erasure committed (refused inside a transaction, as the purge); see USAGE › Creating and erasing spaces by id.
+- **Page and comment read models by id.** `WikiPageOperationsInterface::findPageRevision(string $pageId, int $revisionNumber): ?WikiRevisionSnapshot` (revision 1: the page's author), `findCommentThread(string $threadId): ?WikiCommentThreadSnapshot`, `findComment(string $commentId): ?WikiCommentSnapshot` and `findThreadComments(string $threadId): list<WikiCommentSnapshot>`. Ids are matched byte for byte; read-only, no lock, no access decision. New value objects `ValueObject\WikiCommentThreadSnapshot` and `ValueObject\WikiCommentSnapshot` (no anchor, quote or body), built by `Port\WikiSnapshots::thread()` / `comment()`. `Repository\WikiCommentByIdFinderInterface` (implemented by `DoctrineOrmWikiCommentRepository`): without `comments.enabled`, or with a host comment repository that does not implement it, the comment reads answer null / an empty list.
+
+### Changed (1.55, Unreleased)
+
+- `WikiSpaceOperationsInterface::createSpace()` creates through the same unit as `createSpaceFrom()`: a slug taken by a concurrent request is `WikiSlugTakenException` (an `InvalidArgumentException`, as before) instead of a unique-key error from a failed flush; the name is trimmed and must be 1–255 characters; the space row is written by statement, so Doctrine `prePersist` / `postPersist` listeners do not see it. `WikiSpaceServiceInterface::create()` (the 1.27 entity port) is unchanged.
+- `WikiSpaceLifecycleInterface::renameSpace()` accepts a tenant-path slug (`WikiSpaceSlugRule`).
+- `WikiSpaceOperations` takes the wiki's transaction runner (constructor; the container wires it).
 
 ## [1.54.0] - 2026-11-23
 

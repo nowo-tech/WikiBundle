@@ -149,6 +149,10 @@ services:
     Nowo\WikiBundle\Service\WikiSpaceOperationsInterface:
         alias: Nowo\WikiBundle\Service\WikiSpaceOperations
         public: true
+    # 1.55: createSpaceFrom() checks the icon as the space settings form does.
+    Nowo\WikiBundle\Service\WikiSpaceOperations:
+        arguments:
+            $iconPrefixes: '%nowo_wiki.space_icon.accepted_prefixes%'
     Nowo\WikiBundle\Link\WikiPageLinkOperationsInterface:
         alias: Nowo\WikiBundle\Link\WikiPageLinkOperations
         public: true

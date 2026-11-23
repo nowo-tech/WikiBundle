@@ -15,6 +15,7 @@
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
 - [Space lifecycle: rename, archive, purge (1.50)](#space-lifecycle-rename-archive-purge-150)
+- [Creating and erasing spaces by id (1.55)](#creating-and-erasing-spaces-by-id-155)
 - [Read ports and page access by id (1.51)](#read-ports-and-page-access-by-id-151)
 - [Space icon (1.32)](#space-icon-132)
 - [Icon picker, emoji icons and the tree menu (1.39)](#icon-picker-emoji-icons-and-the-tree-menu-139)
@@ -324,7 +325,8 @@ messages if nothing else uses them) and point `tests/Functional/Search/TaskWikiS
 1. Implement `WikiAccessCheckerInterface` (or use role-based defaults).
 2. For team spaces, register `WikiTeamMembershipResolverInterface`.
 3. Set **`nowo_ui_kit.layouts.admin`** (once for every UiKit bundle) to your project layout or a one-file bridge that renders the UiKit canonical blocks — every wiki page extends a UiKit scaffold that extends it and stacks `wiki.css` with **`{{ parent() }}`** (REQ-UI-001 / REQ-UI-003). `nowo_wiki.web_ui.layout_template` overrides it for the wiki only. Do not fork wiki pages; see [TEMPLATES.md](TEMPLATES.md).
-4. Seed `WikiSpace` rows per team (or expose a create UI in your app).
+4. Create the spaces per team with `WikiSpaceOperationsInterface::createSpaceFrom()` (1.55; or expose a create UI in
+   your app that calls it): [Creating and erasing spaces by id](#creating-and-erasing-spaces-by-id-155).
 
 ## Using it from a DDD / hexagonal application
 
@@ -404,7 +406,9 @@ own messages in one listener:
   snapshots, never a Symfony user, a request or a wiki entity. Same configuration keys.
 - Call the wiki through `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface` and
   `WikiPageLinkOperationsInterface` (ids in, snapshots out); `createPageAt()` / `createPageNextTo()` place a new page in
-  the tree (1.35 "create at a position", needs `tree.enabled`).
+  the tree (1.35 "create at a position", needs `tree.enabled`). 1.55: create spaces with `createSpaceFrom()`, erase
+  them with `WikiSpaceLifecycleInterface::eraseSpace()` and read comments by id:
+  [Creating and erasing spaces by id](#creating-and-erasing-spaces-by-id-155).
 - List, count, export, link back and search through `Query\WikiSpaceQueryInterface` and `Query\WikiPageQueryInterface`,
   and decide whether a person may read a page with `Security\WikiPageAccessInterface` (1.51, ids in, snapshots out):
   [Read ports and page access by id](#read-ports-and-page-access-by-id-151).
@@ -509,7 +513,8 @@ a message handler that already checked): pass the person whenever there is one.
 
 **Rename.** Only an active space is renamed (`WikiSpaceStateException::ARCHIVED` otherwise, as the REST API answers
 `WIKI_002` to a wiki update while it is archived): bring it back first. The slug stays unique per owner (`WikiSlugTakenException`; `WikiInvalidSlugException` for a slug that is
-not lowercase letters, digits and single dashes, at most 120 characters). Links between pages follow page ids and keep
+not lowercase letters, digits and single dashes, at most 120 characters — 1.55: or a slug a `tenant_paths`
+requirement matches, see [Creating and erasing spaces by id](#creating-and-erasing-spaces-by-id-155)). Links between pages follow page ids and keep
 working; URLs built with the old slug stop resolving, because the bundle keeps no slug history.
 
 **Archive.** An archived space is read-only on every path that goes through the space checker — the bundle's pages,
@@ -569,6 +574,163 @@ when the space row is gone), plus `ATTACHMENT_DELETED` for each purged attachmen
 **REST API.** `PATCH /wikis/{wiki}`, `POST /wikis/{wiki}/archive` and `/unarchive` still go to your
 `api.hooks.wiki_management` hook; call the service from it for the wiki's space (`$wiki->space?->getId()`). The purge
 has no endpoint.
+
+## Creating and erasing spaces by id (1.55)
+
+Three operations let an application keep no wiki entity at all — create a space, erase it, and read the comments of a
+page — so it can turn on `database.private_entity_manager: true`. Every write goes through the wiki's own transaction
+runner and connection, with the private manager or with the shared one (the 1.x default). Your rows that pointed at a
+`WikiSpace` (grants, shares, a profile) keep a plain id column instead of a relation.
+
+**Create a space** — `Service\WikiSpaceOperationsInterface::createSpaceFrom(WikiNewSpace $space): string` returns the
+new space's id. The values are checked as the space settings are: the name trimmed, 1 to 255 characters
+(`InvalidArgumentException`); a usable owner id (no leading or trailing whitespace, control or format characters, at
+most 64 characters); the slug (`WikiInvalidSlugException`): lowercase letters and digits in segments joined by single
+dashes, at most 120 characters — or, with `tenant_paths`, a slug of lowercase letters, digits and dashes that a tenant's
+`slug_requirement` matches whole (`<owner uuid>--<name>`); the icon (`WikiInvalidIconException`): `<prefix>:<name>` with
+a prefix of `space_icon`. The slug is unique per owner (exact owner id: `Team-a` and `team-a` are two owners): a taken
+slug is `WikiSlugTakenException`, also when another request created it at the same time (the unique key decides; no
+duplicate, no 500, your entity manager stays open and its pending changes are neither flushed nor dropped). Inside a
+transaction you opened, the insert joins it. Beacon's catalog (spec 209 FR-021):
+
+```php
+use App\Wiki\Domain\ValueObject\WikiSlug;
+use Nowo\WikiBundle\Service\WikiSlugTakenException;
+use Nowo\WikiBundle\Service\WikiSpaceOperationsInterface;
+use Nowo\WikiBundle\ValueObject\WikiNewSpace;
+
+final readonly class WikiCatalog
+{
+    public function __construct(private WikiSpaceOperationsInterface $wikiSpaces, private EntityManagerInterface $entityManager)
+    {
+    }
+
+    /** @return string the new wiki's space id */
+    public function create(WikiOwner $owner, string $name, string $slugName, ?string $description, ?string $icon = null): string
+    {
+        // Throws WikiSlugTakenException when the owner already has that slug (also when created meanwhile): show
+        // "slug taken" on the form, as WikiCreator::problem() does before.
+        $spaceId = $this->wikiSpaces->createSpaceFrom(new WikiNewSpace(WikiSlug::compose($owner->scopeId(), $slugName), $name, $owner->scopeId(), icon: $icon));
+        if (null !== $description && '' !== $description) {
+            $profile = new WikiSpaceProfile($spaceId); // Beacon's row: a plain space id column
+            $profile->setDescription($description);
+            $this->entityManager->persist($profile);
+            $this->entityManager->flush();
+        }
+
+        return $spaceId;
+    }
+}
+```
+
+`createSpace($name, $scope, $ownerId, $slug)` (1.36) goes through the same unit and returns the snapshot. Read a space
+back with `findSpace($id)`, list an owner's spaces with
+`WikiSpaceQueryInterface::findSpaces(WikiSpaceCriteria::forOwners(WikiSpaceOwnerScope::Team, [$ownerId]))`.
+
+**Erase a space (account erasure)** — `Space\WikiSpaceLifecycleInterface::eraseSpace(string $spaceId, ?int $maxBatches
+= null): WikiSpacePurgeResult` deletes the space for good: an active space is archived first (hidden from search,
+navigation, favourites and recents from that first unit on), then its pages, revisions, named versions, comments and
+reactions, attachments (rows, then their files through your attachment storage after each commit), links, references,
+favourites, visits, trash entries, co-editing state and REST idempotency records go, in batches of 100 pages, one
+transaction each, and the space row last. The wiki's search keeps no index of its own (it reads the page rows), so
+nothing of the space is found once its pages are gone. It is the forced, trusted `purgeSpace()`, and idempotent: a
+space already gone answers `finished: true` with no page and no batch (never `WikiSpaceNotFoundException`), so a
+retried erasure or a replayed message has nothing to catch.
+
+**Transaction: the erasure runs in the wiki's own units, after your erasure committed.** This is the recommended split:
+
+1. **Inside your erasure's transaction**, write only your own rows: mark your profile of each wiki as archived (your
+   lists and your space checker hide it at once, and the mark rolls back with the erasure), delete your grants and
+   shares by space id. Do not purge there: `eraseSpace()` throws `WikiSpacePurgeInTransactionException` inside a
+   transaction, before writing anything, because each batch must commit before its files are deleted and its events
+   are dispatched (a purge inside your transaction would delete files of rows your rollback brings back).
+2. **After the commit** (your "erasure committed" event, or a message), call `eraseSpace()` for each space id. A call
+   that stops (a lock conflict, a crash, the `maxBatches` budget) leaves the space archived and marked as being purged
+   — hidden — and the next call resumes where it stopped.
+
+Archiving the wiki's own space inside your transaction is not needed for that (your mark hides it, and the purge
+archives first). It is still possible — `archiveSpace($id)` joins a transaction you opened as a savepoint, in both
+entity manager modes, and rolls back with it — but its `SPACE_ARCHIVED` event is dispatched when the wiki's unit ends,
+before your commit: do not combine it with listeners that act on the archive. Beacon's eraser and the listener after
+the commit:
+
+```php
+use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Query\WikiSpaceCriteria;
+use Nowo\WikiBundle\Query\WikiSpaceQueryInterface;
+use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
+
+// UserKit runs the erasers in one transaction: Beacon's rows only.
+final readonly class PersonalWikiEraser implements PersonalDataEraserInterface
+{
+    public function erase(ErasureRequest $request): void
+    {
+        foreach ($this->spaceIds(PersonalWikiOwner::scopeIdOf($request->user)) as $spaceId) {
+            $this->profiles->markArchived($spaceId);              // WikiSpaceProfile.archivedAt, by space id
+            $this->grants->deleteBySpaceId($spaceId);             // DQL on Beacon's WikiSpaceGrant / WikiSpaceShare
+        }
+    }
+}
+
+// After UserKit committed the erasure (AccountErasedEvent): the wiki's own units.
+#[AsEventListener]
+final readonly class PersonalWikiPurgeListener
+{
+    public function __construct(private WikiSpaceQueryInterface $spaces, private WikiSpaceLifecycleInterface $lifecycle)
+    {
+    }
+
+    public function __invoke(AccountErasedEvent $event): void
+    {
+        $owner = PersonalWikiOwner::scopeIdOf($this->users->get($event->userId));
+        foreach ($this->spaces->findSpaces(WikiSpaceCriteria::forOwners(WikiSpaceOwnerScope::Team, [$owner]), 0, 500) as $space) {
+            $this->lifecycle->eraseSpace($space->id); // idempotent: safe to run again
+            $this->profiles->deleteBySpaceId($space->id);
+        }
+    }
+}
+```
+
+A lock conflict before the call committed anything is `TransientStorageFailure` (retry-safe, `CONFLICT_001`); after
+part of it committed, `ConcurrencyConflict` with `committed: true` (`CONFLICT_002`: call again to resume). From a queue,
+pass `maxBatches` and dispatch the next message while `finished` is false (as for `purgeSpace()`).
+
+**Read a page's comments by id** — `Service\WikiPageOperationsInterface` (read-only, no lock, no access decision: ask
+your space checker as for the page):
+
+| Method | Answers |
+|---|---|
+| `findPage(string $pageId): ?WikiPageSnapshot` | the page (1.36) |
+| `findPageRevision(string $pageId, int $revisionNumber): ?WikiRevisionSnapshot` | a revision by number; `1` is the first save, its `authorId` the page's author |
+| `findCommentThread(string $threadId): ?WikiCommentThreadSnapshot` | `pageId`, `createdById`, `pageLevel`, `resolvedAt`, `resolvedById`, `isResolved()` |
+| `findComment(string $commentId): ?WikiCommentSnapshot` | `threadId`, `pageId`, `authorId`, `position`, `editedAt`, `deletedAt`, `isDeleted()` |
+| `findThreadComments(string $threadId): list<WikiCommentSnapshot>` | every comment of the thread in order, deleted ones included |
+
+Ids are matched byte for byte (a look-alike id answers null). The snapshots carry no body, anchor or quoted text:
+render a comment for a reader with `WikiCommentService::renderBodyForNotification()`, which applies the reader's rights
+to the page links it holds. Without `comments.enabled` the comment reads answer null / an empty list. Beacon's comment
+notifications (spec 178 T064):
+
+```php
+#[AsEventListener(event: WikiEvents::COMMENT_REPLIED)]
+public function onReplied(WikiCommentEvent $event): void
+{
+    $thread       = $this->wikiPages->findCommentThread($event->threadId());
+    $participants = [$thread?->createdById];
+    foreach ($this->wikiPages->findThreadComments($event->threadId()) as $comment) {
+        if (!$comment->isDeleted()) {
+            $participants[] = $comment->authorId;
+        }
+    }
+    $this->notify($event, [NotificationType::WIKI_COMMENT_REPLY => $this->users->byIds(array_filter($participants))]);
+}
+
+/** Who wrote the page's first revision (the page's author), null when unknown. */
+private function pageAuthorId(string $pageId): ?string
+{
+    return $this->wikiPages->findPageRevision($pageId, 1)?->authorId;
+}
+```
 
 ## Read ports and page access by id (1.51)
 
