@@ -49,13 +49,42 @@ test.describe('Wiki demo', () => {
     await expect(page.getByTestId('wiki-new-page')).toBeVisible();
     await expect(page.getByTestId('wiki-space-search')).toBeVisible();
     // 1.21 web_ui.import_export: dialog (the demo turns it on): one action, the exports inside the dialog.
+    // 1.53 (lazy dialogs): nothing of it in the page until it opens; the dialog fetches its fragment then.
+    await expect(page.getByTestId('wiki-import-export-dialog').locator('[data-nowo-ui-dialog-body]')).toBeEmpty();
+    await expect(page.getByRole('link', { name: 'Export (Outline ZIP)' })).toHaveCount(0);
+    const fragment = page.waitForRequest((request) => request.url().endsWith('/spaces/engineering/import') && request.headers()['x-nowo-dialog'] === '1');
     await page.getByTestId('wiki-import-export-open').click();
+    await fragment;
     await expect(page.getByTestId('wiki-import-export-dialog')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Export (Outline ZIP)' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('wiki-import-export-dialog')).toBeHidden();
     await expect(page.getByTestId('wiki-import')).toHaveCount(0);
     await expect(page.getByTestId('wiki-archived')).toContainText('Legacy deploy (Capistrano)');
+  });
+
+  test('without JavaScript the Import & export opener is the dialog\'s own page', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto('/tools/wiki/spaces/engineering');
+    await page.getByTestId('wiki-import-export-open').click();
+    await expect(page).toHaveURL(/\/spaces\/engineering\/import$/);
+    await expect(page.getByTestId('wiki-import-export')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Export (Outline ZIP)' })).toBeVisible();
+    await context.close();
+  });
+
+  test('the AI question dialog of the index loads its form when it opens', async ({ page }) => {
+    await page.goto('/tools/wiki');
+    const dialog = page.getByTestId('wiki-ai-dialog');
+    await expect(dialog.locator('form')).toHaveCount(0);
+    await page.getByTestId('wiki-ai-open').click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId('wiki-ai-form')).toBeVisible();
+    await expect(dialog.locator('#wiki-ai-modal-question')).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(dialog.locator('form')).toHaveCount(0);
   });
 
   test('archive asks for confirmation in a native dialog', async ({ page }) => {

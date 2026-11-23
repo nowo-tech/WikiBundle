@@ -34,7 +34,7 @@ final class WikiRouteLoaderAttributesTest extends TestCase
             'search'       => ['search', ['GET'], []],
             'ai_ask'       => ['askAi', ['GET', 'POST'], []],
             'space_export' => ['exportSpace', ['GET'], ['spaceSlug' => $space]],
-            'space_import' => ['importSpace', ['POST'], ['spaceSlug' => $space]],
+            'space_import' => ['importSpace', ['GET', 'POST'], ['spaceSlug' => $space]],
         ];
 
         $routes = [];

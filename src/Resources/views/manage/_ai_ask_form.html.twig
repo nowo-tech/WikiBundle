@@ -1,0 +1,44 @@
+{#
+  1.53 (lazy dialogs): the AI question as the fragment of the index's AI dialog (_ai_dialog.html.twig), answered by the
+  ai_ask route to a dialog request (GET and POST): the error, the answer and its sources (pages the user may read
+  only), the form (WikiAiAskType: space, question with autofocus, CSRF token wiki_ai_ask) and the help, then Cancel and
+  Ask (Ask again once answered), which the dialog moves into its footer.
+  Variables: form, question, answer (string|null), sources (WikiPageFactory::hits()), error (key|null), bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _form_id = 'nowo-wiki-ai-dialog-form' %}
+{% if error %}
+    <div class="{{ nowo_ui_class('flash_warning', bundle) }}" role="alert" data-testid="wiki-ai-error">{{ error|trans }}</div>
+{% endif %}
+{% if answer %}
+    <section class="nowo-wiki-ai__answer" data-testid="wiki-ai-answer" aria-labelledby="wiki-ai-answer-title">
+        <h3 id="wiki-ai-answer-title" class="nowo-wiki-region-title">{{ 'wiki.ai.answer_title'|trans }}</h3>
+        <p class="{{ nowo_ui_class('muted', bundle) }}">{{ question }}</p>
+        <div class="nowo-wiki-ai__text">{{ answer|nl2br }}</div>
+        {% if sources is not empty %}
+            <h3 class="nowo-wiki-region-title">{{ 'wiki.ai.sources_title'|trans }}</h3>
+            <ul class="nowo-wiki-sources">
+                {% for hit in sources %}
+                    <li class="nowo-wiki-sources__item">
+                        <a href="{{ hit.href }}" class="nowo-wiki-link">{{ hit.title }}</a>
+                        <span class="{{ nowo_ui_class('muted', bundle) }}">{{ hit.space }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </section>
+{% else %}
+    <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.ai.highlight_intro'|trans }}</p>
+{% endif %}
+{{ form_start(form, {attr: {id: _form_id, class: nowo_ui_class('form', bundle), 'data-testid': 'wiki-ai-form'}}) }}
+    {% for child in form %}
+        {% if not child.rendered %}
+            {{ form_row(child) }}
+        {% endif %}
+    {% endfor %}
+{{ form_end(form) }}
+<p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.ai.help'|trans }}</p>
+<div class="{{ nowo_ui_class('form_actions', bundle) }}" data-nowo-ui-dialog-actions>
+    <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
+    <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="{{ _form_id }}" data-testid="wiki-ai-submit">{{ (answer ? 'wiki.ai.follow_up' : 'wiki.ai.submit')|trans }}</button>
+</div>

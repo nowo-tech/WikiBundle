@@ -298,6 +298,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dialogs load their content on demand. Owner rule of 2026-11-23: "every dialog loads its content on demand". The space home, the page view and the index no longer render the body or the form of a dialog the user has not opened. Each dialog is an empty UiKit `remote_form_dialog` (2.68). Its opener is a real link to the dialog's own page, so it works without JavaScript. When the dialog opens it fetches that page with `X-Nowo-Dialog: 1`, posts inside it, re-renders a refusal in place (422) and follows `204` + `X-Nowo-Redirect` once done. Every fragment answer sends `Vary: X-Nowo-Dialog` and `Cache-Control: private, no-store`. Routes and public services are unchanged; no route was added.
+  - **New page** (`web_ui.new_page_dialog`):
+    - "New page" in the page actions links to `page_new`, and the tree menu's above / below / as-child choices open the dialog on `page_new?place=…`.
+    - `page_new` answers a dialog request with the form fragment (`_new_page_form.html.twig`). The fragment holds the server's own "Above / Below / Inside “…”" line, shown only for a page the user may read.
+    - A refused or invalid submission answers 422 in place. A created page answers 204 + `X-Nowo-Redirect`. The page request keeps its 302.
+    - CSRF (`wiki_new_<space id>`), the role gate, `Create` on the space, the placement checks and the quota are those of `page_new` itself.
+    - The page loads the Milkdown module in advance, because a fragment's scripts never run. Tiptap was already loaded.
+  - **Import & export** (`web_ui.import_export: dialog`):
+    - The header action links to a GET of `space_import`, which now also accepts GET. With the header it answers the fragment (`_import_export_form.html.twig`); without it, the full page (`import_export.html.twig`, new template key `import_export`).
+    - The GET makes the space page's decision for the dialog: the space readable, import/export on, and the user may import or export there. The import form is shown only to users who may import.
+    - The import POST is unchanged: CSRF, the rights again, the flashes and the redirect. In the dialog, the redirect reloads the space.
+  - **AI question** (index):
+    - The header action links to `ai_ask`. With the header, `ai_ask` answers the question fragment (`_ai_ask_form.html.twig`) for both GET and POST: the answer, its sources or the error re-render in place.
+    - The access check, CSRF (`wiki_ai_ask`) and the readable-sources filter are the action's own.
+  - **Tree menu** (`tree.context_menu`):
+    - The "Change icon" and "Move to…" dialogs no longer carry their forms (the icon field in a `<template>`, the parent select). `wiki.js` loads each form when its dialog opens, from the space page with `?dialog=tree-icon|tree-move` and `X-Nowo-Dialog: 1`, and empties the dialog on close.
+    - That fragment makes the decision that offers the entry: the tree menu on, the edit role and `Edit` on the space, and the icon field or a movable tree. Otherwise it answers 403, and an unknown name answers 404. Without the header the parameter is ignored and the space page is served.
+    - The writes stay the tree endpoints', with their CSRF token, same-origin check and per-page check.
+    - The Archive / Delete confirm is a bare confirm with no form, and is unchanged.
+  - **Size:** a space of 50 pages with every option on went from 88,544 to 79,418 bytes and from 4 forms to 1 (the search). Its 5 dialogs are now empty shells: no new-page, icon, move or import form, and no form token.
+  - **Deprecated:** for host templates that include the partials with the 1.35–1.52 variables (`new_page_dialog.form`, `import_form` without `import_export_src`, `ai_form`, `tree_menu.icon_form` / `move_form`), the partials still render those forms inline. That path goes away in 2.0.
+- `nowo-tech/ui-kit-bundle` constraint `^2.54` → `^2.68` (the on-demand remote dialog).
+
 ## [1.52.0] - 2026-11-23
 
 ### Changed

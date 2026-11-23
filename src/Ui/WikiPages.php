@@ -47,6 +47,8 @@ final readonly class WikiPages
         'trash'        => '@NowoWikiBundle/manage/trash.html.twig',
         'page_version' => '@NowoWikiBundle/manage/page_version.html.twig',
         'trash_purge'  => '@NowoWikiBundle/manage/trash_purge.html.twig',
+        // 1.53 (lazy dialogs): the Import & export dialog's own page (GET of space_import).
+        'import_export' => '@NowoWikiBundle/manage/import_export.html.twig',
     ];
 
     /**

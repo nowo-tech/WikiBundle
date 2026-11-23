@@ -1,13 +1,23 @@
 {#
-  Import & export dialog of the space home (1.21, web_ui.import_export: dialog): the UiKit `dialog` theme partial
-  (native <dialog>, opened by the "Import & export" header action through data-nowo-ui-dialog-open, closed by Escape /
-  the close button / Cancel), medium size. The body has the intro, the Outline / Notion export links (users who may
-  export) and the import form (users who may import); the footer has Cancel then Import, bound to the form by
-  form="…". Without the import form the footer has Cancel only.
-  Variables: import_form (WikiImportType view or null), export_links (WikiPageFactory::exportLinks(): {format, label,
-  href}), bundle.
+  Import & export dialog of the space home (1.21, web_ui.import_export: dialog). Since 1.53 (lazy dialogs) an EMPTY UiKit
+  `remote_form_dialog`, medium size: the "Import & export" header action is a link to the dialog's own page (GET of the
+  space_import route, `import_export_src`), which js/nowo-ui-dialog.js loads with `X-Nowo-Dialog: 1` when the dialog
+  opens (_import_export_form.html.twig: the intro, the Outline / Notion export links, the import form with Cancel then
+  Import in the footer). The import posts inside the dialog; the space page then reloads with the import report.
+  Without JavaScript the link opens the full page (import_export.html.twig).
+  Variables: import_export_src (URL, 1.53), bundle. Deprecated since 1.53: without import_export_src, import_form
+  (WikiImportType view or null) and export_links render the 1.21 inline dialog.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
+{% if import_export_src|default(null) %}
+    {{ include(nowo_ui_partial('remote_form_dialog', bundle), {
+        id: 'nowo-wiki-import-export-dialog',
+        title: 'wiki.import_export.title'|trans,
+        size: 'md',
+        bundle: bundle,
+        attr: {'data-testid': 'wiki-import-export-dialog'},
+    }, false) }}
+{% else %}
 {% set _form_id = 'nowo-wiki-import-export-form' %}
 {% set _footer %}
     <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
@@ -45,3 +55,4 @@
     nowo_ui_page_type: nowo_ui_page_type|default(null),
     attr: {'data-testid': 'wiki-import-export-dialog'},
 }, false) }}
+{% endif %}

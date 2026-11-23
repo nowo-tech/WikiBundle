@@ -161,13 +161,13 @@ final class WikiManageControllerNewPageTest extends TestCase
 
         $dialog = $this->twig->context['new_page_dialog'];
         self::assertSame('tiptap', $dialog['editor_type']);
-        self::assertInstanceOf(FormView::class, $dialog['form']);
-        self::assertSame('/generated/nowo_wiki_page_new', $dialog['form']->vars['action']);
-        self::assertTrue(isset($dialog['form']['place'], $dialog['form']['_token']));
-        self::assertFalse(isset($dialog['form']['parent']));
+        // 1.53 (lazy dialogs): no form in the page; the dialog loads the new-page form's page when it opens.
+        self::assertArrayNotHasKey('form', $dialog);
+        self::assertSame('/generated/nowo_wiki_page_new', $dialog['url']);
         $action = $this->action('wiki-new-page');
         self::assertSame(WikiNewPageMenu::DIALOG_ID, $action->dialogId);
-        self::assertNull($action->href);
+        self::assertSame('/generated/nowo_wiki_page_new', $action->href);
+        self::assertTrue($action->attributes['data-nowo-ui-dialog-form']);
 
         $tree = $this->twig->context['tree_ui'];
         self::assertSame(WikiNewPageMenu::ACTIONS_TEMPLATE, $tree['actions_template']);
@@ -414,7 +414,9 @@ final class WikiManageControllerNewPageTest extends TestCase
         self::assertArrayNotHasKey('data-wiki-tree-new', $tree['attr']);
         $menu = $this->twig->context['tree_menu'];
         self::assertTrue($menu['dialog']);
-        self::assertInstanceOf(FormView::class, $menu['icon_form']);
+        // 1.53 (lazy dialogs): the icon form is not built; its dialog loads it from the space page.
+        self::assertNull($menu['icon_form']);
+        self::assertSame('/generated/nowo_wiki_space', $menu['icon_src']);
 
         // Without the dialog: the new-page form (?place=); a row whose parent is archived gets no "sibling".
         $this->ops->archive();
@@ -425,6 +427,7 @@ final class WikiManageControllerNewPageTest extends TestCase
         self::assertSame(['Deep', 'Guide', 'Locked'], $this->marked($tree['nodes'], 'data-wiki-new-sibling'));
         self::assertSame([], $this->marked($tree['nodes'], WikiTreeMenu::ICON_ATTRIBUTE));
         self::assertNull($this->twig->context['tree_menu']['icon_form']);
+        self::assertNull($this->twig->context['tree_menu']['icon_src']);
     }
 
     public function testReadersGetNoTreeMenuAndEditorsWithoutCreateNoAddEntries(): void

@@ -11,7 +11,8 @@
  * The menu opens from a right click on a row, the row's «…» button, or the ContextMenu key / Shift+F10 on a row. It
  * follows the WAI-ARIA menu pattern: focus on the first choice, arrows / Home / End move it (roving, wrapping), Enter /
  * Space choose, Escape and Tab close it and give the focus back to the row; a click elsewhere closes it. A choice fills
- * the dialog's place and opens it modal.
+ * the dialog's place and opens it modal. 1.53 (lazy dialogs): the dialog is empty (`data-wiki-new-page-url`): a choice
+ * opens it through the UiKit remote dialog with `?place=`, and the server renders the form and the line.
  */
 
 /** A choice of the menu. */
@@ -138,6 +139,19 @@ export function bindNewPageMenu(doc: Document = document): void {
     };
 
     const choose = (item: HTMLLIElement, choice: NewPageChoice): void => {
+        const remote = dialog.dataset.wikiNewPageUrl;
+        if (remote !== undefined) {
+            // 1.53 (lazy dialogs): the dialog loads the new-page form with the place (UiKit remote dialog: the server
+            // writes the line that says where the page goes); without the UiKit dialog script, the form's page.
+            close(true);
+            const url = `${remote}?place=${encodeURIComponent(placeFor(item, choice))}`;
+            const view = doc.defaultView as Window & { nowoUiOpenRemoteForm?: (id: string, url: string, opener?: HTMLElement | null) => boolean };
+            if (!view.nowoUiOpenRemoteForm?.(dialog.id, url, linkOf(item))) {
+                view.location.assign(url);
+            }
+
+            return;
+        }
         const line = dialog.querySelector<HTMLElement>('[data-wiki-new-page-context]');
         // A function: a `$` in a title is text, not a replacement pattern (audit PT-I2).
         const context = (line?.dataset[choice] ?? '').replace('%title%', () => titleOf(item));
