@@ -7,5 +7,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/Resources/assets/src/**/*.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src/Resources/assets/src/**/*.ts", "vitest.config.ts"]
 }

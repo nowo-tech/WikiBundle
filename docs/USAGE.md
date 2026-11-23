@@ -41,6 +41,7 @@
   - [Endpoints](#endpoints)
   - [Notifications](#notifications)
   - [Beacon](#beacon)
+- [Browser console](#browser-console)
 
 ## Manage UI routes (defaults)
 
@@ -1862,3 +1863,6 @@ What a host such as symfony-beacon configures:
     theme (`tabs`, `side_panel`, `side_panel_toggle`, `side_panel_container`, `_avatar`); `nowo-wiki-*` classes are
     hooks only.
 
+## Browser console
+
+The bundle's script logs one line when it loads (`📦 [wiki] script loaded, build: 2026-11-23 14:05 UTC`) so a developer can tell which build a page runs. To silence it, set `<html data-nowo-console="quiet">` or `globalThis.NOWO_CONSOLE = 'quiet'` before the script loads; nothing is printed then. The default is unchanged.
