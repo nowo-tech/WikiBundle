@@ -96,8 +96,8 @@ users and return snapshots, with the same events and checks:
 
 | 1.27 entity port | 1.36 id operations |
 |---|---|
-| `Service\WikiPageServiceInterface` (and the 1.35 `WikiPageMover::createAt()` / `createNextTo()`) | `Service\WikiPageOperationsInterface`: `findPage`, `createPage`, `createPageAt`, `createPageNextTo`, `saveRevision`, `restoreRevision`, `archivePage`, `unarchivePage` |
-| `Service\WikiSpaceServiceInterface` | `Service\WikiSpaceOperationsInterface`: `findSpace`, `createSpace`, `findSpaceBySlug` |
+| `Service\WikiPageServiceInterface` (and the 1.35 `WikiPageMover::createAt()` / `createNextTo()`) | `Service\WikiPageOperationsInterface`: `findPage`, `createPage`, `createPageAt`, `createPageNextTo`, `saveRevision`, `restoreRevision`, `archivePage`, `unarchivePage`; 1.55 reads `findPageRevision`, `findCommentThread`, `findComment`, `findThreadComments` |
+| `Service\WikiSpaceServiceInterface` | `Service\WikiSpaceOperationsInterface`: `findSpace`, `createSpace`, `findSpaceBySlug`; 1.55 `createSpaceFrom` (returns the id; erase with `WikiSpaceLifecycleInterface::eraseSpace`) |
 | `Link\WikiPageLinkServiceInterface` | `Link\WikiPageLinkOperationsInterface`: `linkPage`, `unlinkPage`, `usedIn` |
 
 Ids are matched byte for byte; an unknown id, a revision of another page or a parent in another space fails closed

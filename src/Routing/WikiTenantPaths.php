@@ -48,6 +48,20 @@ final readonly class WikiTenantPaths
         return $this->tenantOnly && $this->tenants !== [];
     }
 
+    /**
+     * 1.55: whether a tenant's slug requirement matches the whole slug (a space slug the tenant's URLs can serve).
+     */
+    public function matchesSlug(string $spaceSlug): bool
+    {
+        foreach ($this->tenants as $tenant) {
+            if (preg_match('#^(?:' . $tenant['slug_requirement'] . ')$#D', $spaceSlug) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Tells whether a configured route path is space-scoped (carries {@code {spaceSlug}}). */
     public static function isSpaceScoped(string $path): bool
     {

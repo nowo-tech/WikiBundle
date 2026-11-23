@@ -198,6 +198,7 @@ use Nowo\WikiBundle\User\WikiUserDirectoryInterface;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\User\WikiUsers;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use Nowo\WikiBundle\Util\WikiSpaceSlugRule;
 use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use Symfony\AI\Agent\AgentInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -1391,6 +1392,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$deferral', new Reference(WikiEventDeferral::class))
             ->setArgument('$storage', new Reference(WikiAttachmentStorageInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$logger', new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE))
+            ->setArgument('$slugRule', new Reference(WikiSpaceSlugRule::class))
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
         $container->setAlias(WikiSpaceLifecycleInterface::class, WikiSpaceLifecycle::class)->setPublic(true);
 
