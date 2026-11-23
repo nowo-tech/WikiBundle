@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Port;
 
+use Nowo\WikiBundle\Entity\WikiComment;
+use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\User\WikiUserId;
+use Nowo\WikiBundle\ValueObject\WikiCommentSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiCommentThreadSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
@@ -106,5 +110,49 @@ final class WikiSnapshots
     public static function revisionOrNull(?WikiPageRevision $revision): ?WikiRevisionSnapshot
     {
         return $revision instanceof WikiPageRevision ? self::revision($revision) : null;
+    }
+
+    /**
+     * 1.55: a comment thread (ids and people only: never the anchor or the quoted text).
+     *
+     * @param WikiCommentThread $thread the thread row
+     *
+     * @return WikiCommentThreadSnapshot its snapshot
+     */
+    public static function thread(WikiCommentThread $thread): WikiCommentThreadSnapshot
+    {
+        return new WikiCommentThreadSnapshot(
+            $thread->getId(),
+            $thread->getPage()->getId(),
+            WikiUserId::of($thread->getCreatedBy()),
+            $thread->isPageLevel(),
+            $thread->getResolvedAt(),
+            WikiUserId::of($thread->getResolvedBy()),
+            $thread->getCreatedAt(),
+            $thread->getUpdatedAt(),
+        );
+    }
+
+    /**
+     * 1.55: a comment (never its body).
+     *
+     * @param WikiComment $comment the comment row
+     *
+     * @return WikiCommentSnapshot its snapshot
+     */
+    public static function comment(WikiComment $comment): WikiCommentSnapshot
+    {
+        $thread = $comment->getThread();
+
+        return new WikiCommentSnapshot(
+            $comment->getId(),
+            $thread->getId(),
+            $thread->getPage()->getId(),
+            WikiUserId::of($comment->getAuthor()),
+            $comment->getPosition(),
+            $comment->getCreatedAt(),
+            $comment->getEditedAt(),
+            $comment->getDeletedAt(),
+        );
     }
 }

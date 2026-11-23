@@ -7,6 +7,8 @@ namespace Nowo\WikiBundle\Service;
 use InvalidArgumentException;
 use LogicException;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
+use Nowo\WikiBundle\ValueObject\WikiCommentSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiCommentThreadSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiRevisionSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
@@ -16,9 +18,21 @@ use Nowo\WikiBundle\ValueObject\WikiUserRef;
  * {@see WikiPageServiceInterface} (public alias; same events, same checks). Ids are matched byte for byte; an id
  * naming no stored page, space or revision (or a revision of another page, a parent in another space) fails closed
  * with an `InvalidArgumentException`. The caller checks the user's rights, as with the entity port.
+ *
+ * 1.55 (Beacon): read models by id for a host that keeps no wiki entity — a page revision by number and the comment
+ * threads and comments of a page ({@see self::findPageRevision()}, {@see self::findCommentThread()},
+ * {@see self::findComment()}, {@see self::findThreadComments()}). Read-only and stateless: they lock and write nothing
+ * and keep nothing between calls.
+ *
+ * **They decide no access** (as {@see self::findPage()}): they answer what is stored, for pages in the trash or in an
+ * archived space and deleted comments too. Before showing or sending anything to a person, check the snapshot's
+ * `pageId` with your space checker (`WikiAction::View` / `ViewComments` on that page) or `WikiPageAccessInterface`.
  */
 interface WikiPageOperationsInterface
 {
+    /** 1.55.1: most comments {@see self::findThreadComments()} answers (the first ones, in thread order). */
+    public const MAX_THREAD_COMMENTS = 1000;
+
     /** The page with exactly that id, or null. */
     public function findPage(string $pageId): ?WikiPageSnapshot;
 
@@ -78,4 +92,32 @@ interface WikiPageOperationsInterface
 
     /** @throws InvalidArgumentException when the page is unknown */
     public function unarchivePage(string $pageId, ?WikiUserRef $actor = null): void;
+
+    /**
+     * 1.55: the revision of a page with that number (1: the first save, whose author is the page's author), or null when
+     * the page or the number is unknown.
+     */
+    public function findPageRevision(string $pageId, int $revisionNumber): ?WikiRevisionSnapshot;
+
+    /**
+     * 1.55: the comment thread with exactly that id, or null (also when `comments.enabled` is off, or the comment
+     * repository the application configured cannot read by id).
+     */
+    public function findCommentThread(string $threadId): ?WikiCommentThreadSnapshot;
+
+    /**
+     * 1.55: the comment with exactly that id, deleted ones included (see {@see WikiCommentSnapshot::isDeleted()}), or
+     * null (as {@see self::findCommentThread()}).
+     */
+    public function findComment(string $commentId): ?WikiCommentSnapshot;
+
+    /**
+     * 1.55: the comments of the thread with exactly that id, in thread order, deleted ones included (see
+     * {@see WikiCommentSnapshot::isDeleted()}); empty when the thread is unknown (as {@see self::findCommentThread()}).
+     * 1.55.1: at most {@see self::MAX_THREAD_COMMENTS} (the first ones; `comments.limits.comments_per_thread` defaults
+     * to 500). No access decision: check the page first.
+     *
+     * @return list<WikiCommentSnapshot>
+     */
+    public function findThreadComments(string $threadId): array;
 }

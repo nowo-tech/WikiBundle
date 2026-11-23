@@ -6,9 +6,11 @@ namespace Nowo\WikiBundle\Space;
 
 use InvalidArgumentException;
 use Nowo\TransactionContract\TransientStorageFailure;
+use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiSpaceAccessCheckEvent;
 use Nowo\WikiBundle\Service\WikiInvalidSlugException;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
+use Nowo\WikiBundle\Util\WikiSpaceSlugRule;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
@@ -42,7 +44,8 @@ interface WikiSpaceLifecycleInterface
      * @throws WikiSpaceAccessDeniedException|WikiSpaceNotFoundException|WikiSpaceVersionConflictException
      * @throws WikiSpaceStateException when the space is archived (bring it back first, as the REST API asks) or being purged
      * @throws InvalidArgumentException when nothing is asked or the name is empty or longer than 255 characters
-     * @throws WikiInvalidSlugException when the slug is not lowercase letters, digits and single dashes (max 120)
+     * @throws WikiInvalidSlugException when the slug is not lowercase letters, digits and single dashes (max 120) — or,
+     *                                  1.55, a slug a configured `tenant_paths` requirement matches ({@see WikiSpaceSlugRule})
      * @throws WikiSlugTakenException when another space of the owner has the slug
      * @throws TransientStorageFailure on a lock conflict (nothing written)
      */
@@ -90,4 +93,44 @@ interface WikiSpaceLifecycleInterface
      *                                 committed part of the purge
      */
     public function purgeSpace(string $spaceId, ?WikiUserRef $actor = null, bool $force = false, ?int $maxBatches = null): WikiSpacePurgeResult;
+
+    /**
+     * 1.55 (Beacon spec 209, account erasure): {@see self::purgeSpace()} as a trusted, forced call that is idempotent —
+     * a space that is already gone (an earlier call finished, or there never was one) answers `finished: true`,
+     * `found: false` ({@see WikiSpacePurgeResult::alreadyGone()}) with no page and no batch instead of
+     * {@see WikiSpaceNotFoundException}, so a retried erasure or a replayed message has nothing to catch. Everything else
+     * is the purge: an active space is archived first (search, navigation, favourites and recents hide it from that first
+     * unit on), then its pages, revisions, attachments (rows, then files through the attachment storage after each
+     * commit), comments, links, references, favourites, visits, trash entries, co-editing state and the space row go,
+     * one transaction per batch. Search has no index of its own: it reads the page rows, so nothing of the space is found
+     * once its pages are gone.
+     *
+     * - **Canonical id only** (1.55.1, audit ZAP-1): `$spaceId` must be a lowercase UUID, as the bundle generates them.
+     *   Anything else (an upper-cased, padded or truncated id) is refused, so "already gone" never answers an id that only
+     *   looks like a stored one while the space stays.
+     * - **Expected owner** (1.55.1, audit ZAP-2): give `$expectedOwnerType` and `$expectedOwnerId` (both or none). They
+     *   are compared byte for byte with the space's owner under the space lock of the first unit; another owner answers
+     *   {@see WikiSpaceOwnerMismatchException} and nothing is written. An erasure always knows whose data it erases:
+     *   pass them on every call.
+     * - **Files** (1.55.1, audit ZAP-3): the rows are gone when `finished` is true, files may not be. Run
+     *   `WikiAttachmentService::purgeStrayFiles()` when `filesFailed` > 0 (a storage delete failed and was logged), and
+     *   the host's own page-file sweep when `filesTruncated` > 0 (`page_files.max_purge_files` cut the
+     *   `WikiPageFilesPurgedEvent` list) — {@see WikiSpacePurgeResult::needsFileSweep()}. A process that dies between a
+     *   batch commit and its file deletes cannot report them: keep `purgeStrayFiles()` in a nightly job as well.
+     *
+     * Runs in the wiki's own units, after your erasure committed: call it outside any transaction (from a listener of
+     * your "erasure committed" event or a message handler); inside one it throws before writing anything. A call that
+     * stops (failure, `$maxBatches`) resumes on the next call.
+     *
+     * @param int|null $maxBatches batches this call commits at most (null: until done)
+     * @param WikiSpaceOwnerScope|null $expectedOwnerType 1.55.1: the owner kind the space must have (with the id)
+     * @param string|null $expectedOwnerId 1.55.1: the owner id the space must have, byte for byte (with the type)
+     *
+     * @throws InvalidArgumentException when the id is not a lowercase UUID, or only one of the expected owner values is given
+     * @throws WikiSpaceOwnerMismatchException when the space has another owner (nothing written)
+     * @throws WikiSpacePurgeInTransactionException when a transaction is open on the wiki's connection (nothing written)
+     * @throws TransientStorageFailure on a lock conflict: `ConcurrencyConflict::$committed` true when this call already
+     *                                 committed part of the purge (call again to resume)
+     */
+    public function eraseSpace(string $spaceId, ?int $maxBatches = null, ?WikiSpaceOwnerScope $expectedOwnerType = null, ?string $expectedOwnerId = null): WikiSpacePurgeResult;
 }

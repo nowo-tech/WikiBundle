@@ -34,7 +34,7 @@ use function strtr;
  * part of the schema only with `comments.enabled`. Deleting a thread or a comment deletes its children explicitly (the
  * foreign keys cascade too, but a platform without enforced keys, such as SQLite by default, would keep orphans).
  */
-final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface, WikiCommentAuthorRepositoryInterface, WikiCommentMentionRepositoryInterface
+final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepositoryInterface, WikiCommentAuthorRepositoryInterface, WikiCommentMentionRepositoryInterface, WikiCommentByIdFinderInterface
 {
     /** Underscores in a handle up to which every `_` / `\_` spelling is queried (2^n LIKE terms). */
     private const MAX_UNDERSCORE_VARIANTS = 3;
@@ -86,6 +86,52 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
             ->getResult();
 
         return $comments[0] ?? null;
+    }
+
+    public function findThreadById(string $id): ?WikiCommentThread
+    {
+        $thread = $this->entityManager()->getRepository(WikiCommentThread::class)->findOneBy(['id' => $id]);
+
+        // House rule LQ: a case-folding collation could answer a look-alike id.
+        return $thread instanceof WikiCommentThread && $thread->getId() === $id ? $thread : null;
+    }
+
+    public function findCommentById(string $id): ?WikiComment
+    {
+        /** @var list<WikiComment> $comments */
+        $comments = $this->entityManager()->createQueryBuilder()
+            ->select('c', 't')
+            ->from(WikiComment::class, 'c')
+            ->innerJoin('c.thread', 't')
+            ->where('c.id = :id')
+            ->setParameter('id', $id)
+            ->getQuery()
+            ->getResult();
+        foreach ($comments as $comment) {
+            if ($comment->getId() === $id) {
+                return $comment;
+            }
+        }
+
+        return null;
+    }
+
+    public function findThreadComments(string $threadId, int $limit): array
+    {
+        /** @var list<WikiComment> $comments */
+        $comments = $this->entityManager()->createQueryBuilder()
+            ->select('c')
+            ->from(WikiComment::class, 'c')
+            ->where('c.thread = :thread')
+            ->setParameter('thread', $threadId)
+            ->orderBy('c.position', 'ASC')
+            ->addOrderBy('c.id', 'ASC')
+            ->setMaxResults(max(1, $limit))
+            ->getQuery()
+            ->getResult();
+
+        // House rule LQ: only the comments of exactly that thread.
+        return array_values(array_filter($comments, static fn (WikiComment $comment): bool => $comment->getThread()->getId() === $threadId));
     }
 
     public function comments(array $threads): array

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.55.1] - 2026-11-23](#1551---2026-11-23)
+  - [Fixed (1.55.1, Unreleased)](#fixed-1551-unreleased)
+- [[1.55.0] - 2026-11-23](#1550---2026-11-23)
+  - [Added (1.55, Unreleased)](#added-155-unreleased)
+  - [Changed (1.55, Unreleased)](#changed-155-unreleased)
+  - [Fixed](#fixed)
 - [[1.54.0] - 2026-11-23](#1540---2026-11-23)
   - [Fixed (Unreleased)](#fixed-unreleased)
   - [Added (Unreleased)](#added-unreleased)
@@ -18,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Added](#added)
 - [[1.51.1] - 2026-11-22](#1511---2026-11-22)
   - [Changed](#changed-2)
-  - [Fixed](#fixed)
+  - [Fixed](#fixed-1)
 - [[1.51.0] - 2026-11-21](#1510---2026-11-21)
   - [Added (1.51.0)](#added-1510)
   - [Changed](#changed-3)
@@ -31,14 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Changed (1.49.0)](#changed-1490)
   - [Deprecated (1.49.0)](#deprecated-1490)
 - [[1.48.1] - 2026-11-20](#1481---2026-11-20)
-  - [Fixed](#fixed-1)
+  - [Fixed](#fixed-2)
 - [[1.48.0] - 2026-11-20](#1480---2026-11-20)
   - [Changed](#changed-4)
   - [Deprecated](#deprecated)
   - [Added](#added-1)
   - [Tests](#tests)
 - [[1.47.1] - 2026-11-20](#1471---2026-11-20)
-  - [Fixed](#fixed-2)
+  - [Fixed](#fixed-3)
 - [[1.47.0] - 2026-11-20](#1470---2026-11-20)
   - [Added](#added-2)
   - [Changed](#changed-5)
@@ -50,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Changed](#changed-7)
 - [[1.44.0] - 2026-11-18](#1440---2026-11-18)
   - [Added](#added-5)
-  - [Fixed](#fixed-3)
+  - [Fixed](#fixed-4)
   - [Tests](#tests-1)
 - [[1.43.0] - 2026-11-18](#1430---2026-11-18)
   - [Added](#added-6)
@@ -60,11 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.41.0] - 2026-11-17](#1410---2026-11-17)
   - [Added](#added-8)
   - [Changed](#changed-9)
-  - [Fixed](#fixed-4)
+  - [Fixed](#fixed-5)
 - [[1.40.2] - 2026-11-17](#1402---2026-11-17)
   - [Changed](#changed-10)
   - [Added](#added-9)
-  - [Fixed](#fixed-5)
+  - [Fixed](#fixed-6)
   - [Documentation](#documentation)
 - [[1.40.1] - 2026-11-17](#1401---2026-11-17)
   - [Changed](#changed-11)
@@ -78,14 +84,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Added](#added-12)
   - [Changed](#changed-13)
 - [[1.38.1] - 2026-11-16](#1381---2026-11-16)
-  - [Fixed](#fixed-6)
+  - [Fixed](#fixed-7)
 - [[1.38.0] - 2026-11-16](#1380---2026-11-16)
   - [Added](#added-13)
   - [Tests](#tests-2)
-  - [Fixed](#fixed-7)
+  - [Fixed](#fixed-8)
 - [[1.37.0] - 2026-11-15](#1370---2026-11-15)
   - [Added](#added-14)
-  - [Fixed](#fixed-8)
+  - [Fixed](#fixed-9)
   - [Changed](#changed-14)
   - [Tests](#tests-3)
 - [[1.36.0] - 2026-11-15](#1360---2026-11-15)
@@ -101,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Added](#added-17)
 - [[1.33.0] - 2026-11-14](#1330---2026-11-14)
   - [Added](#added-18)
-  - [Fixed](#fixed-9)
+  - [Fixed](#fixed-10)
 - [[1.32.0] - 2026-11-13](#1320---2026-11-13)
   - [Added](#added-19)
 - [[1.31.1] - 2026-11-13](#1311---2026-11-13)
@@ -111,7 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [1.31.0 (unreleased)](#1310-unreleased)
 - [[1.30.0] - 2026-11-11](#1300---2026-11-11)
   - [Added](#added-21)
-  - [Fixed](#fixed-11)
+  - [Fixed](#fixed-12)
 - [[1.29.1] - 2026-11-11](#1291---2026-11-11)
   - [Security](#security-2)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
@@ -123,11 +129,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.27.0] - 2026-11-09](#1270---2026-11-09)
   - [Added](#added-24)
 - [[1.26.0] - 2026-11-09](#1260---2026-11-09)
-  - [Fixed](#fixed-12)
+  - [Fixed](#fixed-13)
   - [Changed](#changed-19)
   - [Documentation](#documentation-1)
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
-  - [Fixed](#fixed-13)
+  - [Fixed](#fixed-14)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
   - [Added](#added-25)
   - [Changed](#changed-20)
@@ -142,23 +148,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-4)
   - [Tests](#tests-6)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
-  - [Fixed](#fixed-14)
+  - [Fixed](#fixed-15)
   - [Changed](#changed-23)
   - [Added](#added-28)
 - [[1.22.0] - 2026-11-07](#1220---2026-11-07)
-  - [Fixed](#fixed-15)
+  - [Fixed](#fixed-16)
   - [Added](#added-29)
 - [[1.21.1] - 2026-11-07](#1211---2026-11-07)
   - [Security](#security-5)
-  - [Fixed](#fixed-16)
+  - [Fixed](#fixed-17)
   - [Documentation](#documentation-2)
 - [[1.21.0] - 2026-11-06](#1210---2026-11-06)
   - [Added](#added-30)
-  - [Fixed](#fixed-17)
+  - [Fixed](#fixed-18)
 - [[1.20.0] - 2026-11-06](#1200---2026-11-06)
   - [Added](#added-31)
 - [[1.19.1] - 2026-11-06](#1191---2026-11-06)
-  - [Fixed](#fixed-18)
+  - [Fixed](#fixed-19)
 - [[1.19.0] - 2026-11-06](#1190---2026-11-06)
   - [Changed](#changed-24)
   - [Dependencies](#dependencies)
@@ -169,27 +175,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.17.0] - 2026-11-05](#1170---2026-11-05)
   - [Added](#added-33)
 - [[1.16.2] - 2026-11-04](#1162---2026-11-04)
-  - [Fixed](#fixed-19)
+  - [Fixed](#fixed-20)
 - [[1.16.1] - 2026-11-04](#1161---2026-11-04)
   - [Added](#added-34)
   - [Changed](#changed-26)
-  - [Fixed](#fixed-20)
+  - [Fixed](#fixed-21)
 - [[1.16.0] - 2026-11-04](#1160---2026-11-04)
   - [Added](#added-35)
   - [Changed](#changed-27)
 - [[1.15.1] - 2026-11-04](#1151---2026-11-04)
-  - [Fixed](#fixed-21)
+  - [Fixed](#fixed-22)
 - [[1.15.0] - 2026-11-04](#1150---2026-11-04)
   - [Added](#added-36)
 - [[1.14.1] - 2026-11-03](#1141---2026-11-03)
-  - [Fixed](#fixed-22)
+  - [Fixed](#fixed-23)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
   - [Added](#added-37)
   - [Changed](#changed-28)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
   - [Security](#security-6)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
-  - [Fixed](#fixed-23)
+  - [Fixed](#fixed-24)
   - [Changed](#changed-29)
   - [Added](#added-38)
   - [Documentation](#documentation-3)
@@ -199,9 +205,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.12.0] - 2026-10-31](#1120---2026-10-31)
   - [Added](#added-40)
   - [Changed](#changed-31)
-  - [Fixed](#fixed-24)
-- [[1.11.1] - 2026-10-30](#1111---2026-10-30)
   - [Fixed](#fixed-25)
+- [[1.11.1] - 2026-10-30](#1111---2026-10-30)
+  - [Fixed](#fixed-26)
 - [[1.11.0] - 2026-10-30](#1110---2026-10-30)
   - [Added](#added-41)
   - [Changed](#changed-32)
@@ -219,10 +225,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.8.0] - 2026-10-29](#180---2026-10-29)
   - [Added](#added-44)
   - [Changed](#changed-36)
-  - [Fixed](#fixed-26)
+  - [Fixed](#fixed-27)
   - [Removed](#removed-1)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
-  - [Fixed](#fixed-27)
+  - [Fixed](#fixed-28)
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
   - [Security](#security-8)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
@@ -236,9 +242,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.6.2] - 2026-10-13](#162---2026-10-13)
   - [Changed](#changed-41)
 - [[1.6.1] - 2026-10-13](#161---2026-10-13)
-  - [Fixed](#fixed-28)
-- [[1.6.0] - 2026-10-13](#160---2026-10-13)
   - [Fixed](#fixed-29)
+- [[1.6.0] - 2026-10-13](#160---2026-10-13)
+  - [Fixed](#fixed-30)
   - [Deprecated](#deprecated-4)
   - [Changed](#changed-42)
 - [[1.5.0] - 2026-10-13](#150---2026-10-13)
@@ -249,10 +255,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Dependencies](#dependencies-2)
 - [[1.4.0] - 2026-10-09](#140---2026-10-09)
   - [Changed](#changed-44)
-  - [Fixed](#fixed-30)
+  - [Fixed](#fixed-31)
   - [Dependencies](#dependencies-3)
 - [[1.3.5] - 2026-09-27](#135---2026-09-27)
-  - [Fixed](#fixed-31)
+  - [Fixed](#fixed-32)
   - [Added](#added-47)
   - [Changed](#changed-45)
 - [[1.3.4] - 2026-08-24](#134---2026-08-24)
@@ -263,7 +269,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.3.2] - 2026-08-18](#132---2026-08-18)
   - [Changed](#changed-48)
 - [[1.3.1] - 2026-08-07](#131---2026-08-07)
-  - [Fixed](#fixed-32)
+  - [Fixed](#fixed-33)
 - [[1.3.0] - 2026-08-04](#130---2026-08-04)
   - [Changed](#changed-49)
   - [Added](#added-48)
@@ -274,7 +280,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Compatibility](#compatibility)
   - [Upgrade](#upgrade)
 - [[1.1.1] - 2026-07-31](#111---2026-07-31)
-  - [Fixed](#fixed-33)
+  - [Fixed](#fixed-34)
   - [Tests](#tests-7)
   - [Upgrade](#upgrade-1)
 - [[1.1.0] - 2026-07-30](#110---2026-07-30)
@@ -288,13 +294,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Added](#added-52)
   - [Changed](#changed-54)
 - [[1.0.3] - 2026-07-16](#103---2026-07-16)
-  - [Fixed](#fixed-34)
+  - [Fixed](#fixed-35)
   - [Added](#added-53)
   - [Changed](#changed-55)
 - [[1.0.2] - 2026-07-16](#102---2026-07-16)
   - [Changed](#changed-56)
 - [[1.0.1] - 2026-07-16](#101---2026-07-16)
-  - [Fixed](#fixed-35)
+  - [Fixed](#fixed-36)
   - [Added](#added-54)
   - [Changed](#changed-57)
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
@@ -302,6 +308,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+## [1.55.1] - 2026-11-23
+
+### Fixed (1.55.1, Unreleased)
+
+- **Erasure never reports a look-alike id as erased (audit ZAP-1).** `WikiSpaceLifecycleInterface::eraseSpace()` refuses a space id that is not a lowercase UUID (an upper-cased, padded or truncated id) with `InvalidArgumentException` before any lookup. In 1.55.0 such an id answered `finished: true` while the space stayed whole: on a case-insensitive MySQL / MariaDB collation the row was found, then failed the exact id check, and the miss was taken for "already gone". `WikiSpacePurgeResult` gains `found` and `alreadyGone()`, so a caller can tell an erasure that ran from one that found nothing.
+- **The erasure can check whose space it erases (audit ZAP-2).** `eraseSpace(string $spaceId, ?int $maxBatches = null, ?WikiSpaceOwnerScope $expectedOwnerType = null, ?string $expectedOwnerId = null)`: with the expected owner (both values or none), type and id are compared byte for byte with the space's owner under the space lock of the first unit; another owner answers the new `Space\WikiSpaceOwnerMismatchException` and nothing is written. Hosts erasing a person's data should always pass it.
+- **File leftovers are reported (audit ZAP-3).** `WikiSpacePurgeResult::$filesFailed` (attachment files whose delete failed) and `$filesTruncated` (batches whose `WikiPageFilesPurgedEvent` list `page_files.max_purge_files` cut), with `needsFileSweep()`. The `eraseSpace()` phpdoc and USAGE say when `WikiAttachmentService::purgeStrayFiles()` and the host's page-file sweep must follow an erasure. Also returned by `purgeSpace()`.
+- **`findThreadComments()` is bounded (audit ZAP-I2).** At most `WikiPageOperationsInterface::MAX_THREAD_COMMENTS` (1000) comments, the first ones, read with a limited query (`WikiCommentByIdFinderInterface::findThreadComments(string $threadId, int $limit)`). The interface phpdoc states that the read ports decide no access: the host checks the snapshot's `pageId` before showing anything.
+- **Tests:** the "concurrent first favourite / visit" race tests read the worker's stderr before its "ready" line was checked, which waited for the worker to commit; the writes never overlapped. They now race.
+
+## [1.55.0] - 2026-11-23
+
+### Added (1.55, Unreleased)
+
+- **Space create by id with its settings (Beacon).** `WikiSpaceOperationsInterface::createSpaceFrom(WikiNewSpace $space): string` creates a space with exactly the given slug, name, owner (`WikiSpaceOwnerScope` + id) and settings (the `space_icon` icon) and returns its id. The values are checked as the space settings are (name trimmed, 1–255 characters; usable owner id; slug rule below; icon `<prefix>:<name>` of `space_icon`). One unit of the wiki's runner writes the row with one `INSERT` on the wiki's connection, never a flush: two requests creating the same slug for the same owner give one space and one `WikiSlugTakenException` from the unique key `wiki_space_scope_slug` — no duplicate, no 500, no entity manager closed, cleared or flushed (REQ-RUNTIME-003 rules 2 and 4). Inside a transaction of the application the insert is a savepoint of it. New value object `ValueObject\WikiNewSpace`.
+- **Tenant-path space slugs.** `Util\WikiSpaceSlugRule`: a space slug a host gives (create, rename) is the bundle's rule (lowercase letters and digits in segments joined by single dashes, at most 120 characters) or — still only lowercase letters, digits and dashes, never at either end — a slug the `slug_requirement` of a configured `tenant_paths` entry matches whole, such as Beacon's `<owner uuid>--<name>`. Without tenant paths nothing changes. `WikiTenantPaths::matchesSlug()`.
+- **Idempotent space erasure.** `WikiSpaceLifecycleInterface::eraseSpace(string $spaceId, ?int $maxBatches = null): WikiSpacePurgeResult`: the forced, trusted purge for account erasure (Beacon spec 209). A space already gone (an earlier call finished, or no such space) answers `finished: true` with no page and no batch instead of `WikiSpaceNotFoundException`, so a retried erasure or a replayed message has nothing to catch. It runs in the wiki's own units after the host's erasure committed (refused inside a transaction, as the purge); see USAGE › Creating and erasing spaces by id.
+- **Page and comment read models by id.** `WikiPageOperationsInterface::findPageRevision(string $pageId, int $revisionNumber): ?WikiRevisionSnapshot` (revision 1: the page's author), `findCommentThread(string $threadId): ?WikiCommentThreadSnapshot`, `findComment(string $commentId): ?WikiCommentSnapshot` and `findThreadComments(string $threadId): list<WikiCommentSnapshot>`. Ids are matched byte for byte; read-only, no lock, no access decision. New value objects `ValueObject\WikiCommentThreadSnapshot` and `ValueObject\WikiCommentSnapshot` (no anchor, quote or body), built by `Port\WikiSnapshots::thread()` / `comment()`. `Repository\WikiCommentByIdFinderInterface` (implemented by `DoctrineOrmWikiCommentRepository`): without `comments.enabled`, or with a host comment repository that does not implement it, the comment reads answer null / an empty list.
+
+### Changed (1.55, Unreleased)
+
+- `WikiSpaceOperationsInterface::createSpace()` creates through the same unit as `createSpaceFrom()`: a slug taken by a concurrent request is `WikiSlugTakenException` (an `InvalidArgumentException`, as before) instead of a unique-key error from a failed flush; the name is trimmed and must be 1–255 characters; the space row is written by statement, so Doctrine `prePersist` / `postPersist` listeners do not see it. `WikiSpaceServiceInterface::create()` (the 1.27 entity port) is unchanged.
+- `WikiSpaceLifecycleInterface::renameSpace()` accepts a tenant-path slug (`WikiSpaceSlugRule`).
+- `WikiSpaceOperations` takes the wiki's transaction runner (constructor; the container wires it).
+
+### Fixed
+
+- `announceScript()` (console banner) no longer reads or writes the page global `window.__nowoScriptBanners` unguarded: page HTML can clobber it (DOM named access), and a strict-mode write would then throw and stop the script. A module-scope set is the fallback, the global is only trusted when it is a plain object, and every access is wrapped in `try/catch` (audit ZAI-3). Once-per-page output is unchanged.
 
 ## [1.54.0] - 2026-11-23
 
@@ -2891,7 +2926,7 @@ No application or config API changes. See [UPGRADING.md](UPGRADING.md).
 
 - HTML sanitized on every revision save; see [SECURITY.md](SECURITY.md).
 
-[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.54.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/WikiBundle/compare/v1.55.1...HEAD
 [1.2.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nowo-tech/WikiBundle/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nowo-tech/WikiBundle/compare/v1.0.5...v1.1.0

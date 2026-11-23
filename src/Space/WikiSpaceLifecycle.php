@@ -14,6 +14,7 @@ use Nowo\TransactionDoctrine\WriteUnit\ConcurrencyConflict;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiPageFilesPurgedEvent;
@@ -29,6 +30,7 @@ use Nowo\WikiBundle\Service\WikiInvalidSlugException;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Util\WikiSlugger;
+use Nowo\WikiBundle\Util\WikiSpaceSlugRule;
 use Nowo\WikiBundle\ValueObject\Uuid;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
@@ -40,7 +42,7 @@ use Throwable;
 use function count;
 use function max;
 use function mb_strlen;
-use function strlen;
+use function preg_match;
 use function trim;
 
 /**
@@ -49,11 +51,11 @@ use function trim;
  */
 final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
 {
+    /** A space id as the bundle generates it (a lowercase UUID). */
+    private const SPACE_ID = '/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/';
+
     /** Longest space name (the column). */
     private const MAX_NAME_LENGTH = 255;
-
-    /** Longest space slug (the column). */
-    private const MAX_SLUG_LENGTH = 120;
 
     /**
      * @param WikiTransactionRunner $runner the wiki's runner
@@ -66,6 +68,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
      * @param WikiAttachmentStorageInterface|null $storage removes the purged attachments' files after each commit
      * @param LoggerInterface $logger the lifecycle's log (ids only, never names)
      * @param int $batchSize pages per purge batch
+     * @param WikiSpaceSlugRule|null $slugRule 1.55: the space slug rule (tenant-path slugs); null: the bundle's rule only
      */
     public function __construct(
         private WikiTransactionRunner $runner,
@@ -78,6 +81,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
         private ?WikiAttachmentStorageInterface $storage = null,
         private LoggerInterface $logger = new NullLogger(),
         private int $batchSize = self::DEFAULT_BATCH_SIZE,
+        private ?WikiSpaceSlugRule $slugRule = null,
     ) {
     }
 
@@ -92,7 +96,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
                 throw new InvalidArgumentException('Invalid space name: 1 to 255 characters.');
             }
         }
-        if ($slug !== null && (strlen($slug) > self::MAX_SLUG_LENGTH || !$this->slugger->isValid($slug))) {
+        if ($slug !== null && !($this->slugRule ?? new WikiSpaceSlugRule($this->slugger))->isValid($slug)) {
             throw new WikiInvalidSlugException('Invalid space slug.');
         }
         $this->authorize($spaceId, $actor, WikiSpaceLifecycleAction::Rename);
@@ -157,6 +161,36 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
 
     public function purgeSpace(string $spaceId, ?WikiUserRef $actor = null, bool $force = false, ?int $maxBatches = null): WikiSpacePurgeResult
     {
+        return $this->purge($spaceId, $actor, $force, $maxBatches, null, null);
+    }
+
+    public function eraseSpace(string $spaceId, ?int $maxBatches = null, ?WikiSpaceOwnerScope $expectedOwnerType = null, ?string $expectedOwnerId = null): WikiSpacePurgeResult
+    {
+        // Audit ZAP-1: only a canonical id can be answered "already gone"; a look-alike (upper case, padded, truncated)
+        // could match the row on a case-insensitive collation and never be erased.
+        if (preg_match(self::SPACE_ID, $spaceId) !== 1) {
+            throw new InvalidArgumentException('Invalid space id: expected a lowercase UUID.');
+        }
+        if ((!$expectedOwnerType instanceof WikiSpaceOwnerScope) !== ($expectedOwnerId === null)) {
+            throw new InvalidArgumentException('Give the expected owner type and id together.');
+        }
+        try {
+            return $this->purge($spaceId, null, true, $maxBatches, $expectedOwnerType, $expectedOwnerId);
+        } catch (WikiSpaceNotFoundException) {
+            // Already gone (an earlier erasure finished, or another call deleted the row meanwhile): nothing left to do.
+            return new WikiSpacePurgeResult($spaceId, true, 0, 0, found: false);
+        }
+    }
+
+    /**
+     * The purge; with an expected owner (audit ZAP-2) the owner is compared byte for byte under the space lock of the
+     * first unit, before anything is written.
+     *
+     * @throws WikiSpaceOwnerMismatchException when the space has another owner (nothing written)
+     * @throws WikiSpaceNotFoundException when the space does not exist (an already finished purge included)
+     */
+    private function purge(string $spaceId, ?WikiUserRef $actor, bool $force, ?int $maxBatches, ?WikiSpaceOwnerScope $ownerType, ?string $ownerId): WikiSpacePurgeResult
+    {
         // Audit XO-1: inside a transaction each batch would be a savepoint, yet its files go and its events fire at once.
         if ($this->runner->manager()->getConnection()->isTransactionActive()) {
             throw new WikiSpacePurgeInTransactionException();
@@ -164,8 +198,11 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
         $this->authorize($spaceId, $actor, WikiSpaceLifecycleAction::Purge);
 
         // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
-        [$space, $started] = $this->runner->run(function () use ($spaceId, $force): array {
+        [$space, $started] = $this->runner->run(function () use ($spaceId, $force, $ownerType, $ownerId): array {
             $space = $this->lockedSpace($spaceId);
+            if ($ownerType instanceof WikiSpaceOwnerScope && ($space->getOwnerScopeType() !== $ownerType || $space->getOwnerScopeId() !== $ownerId)) {
+                throw new WikiSpaceOwnerMismatchException();
+            }
             if ($space->getPurgeStartedAt() instanceof DateTimeImmutable) {
                 return [WikiSnapshots::space($space), false];
             }
@@ -181,8 +218,10 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
             $this->logger->info('Wiki space purge started.', ['bundle' => 'nowo_wiki', 'action' => 'space_purge', 'space_id' => $spaceId]);
         }
 
-        $pages   = 0;
-        $batches = 0;
+        $pages     = 0;
+        $batches   = 0;
+        $failed    = 0;
+        $truncated = 0;
         while ($maxBatches === null || $batches < max(0, $maxBatches)) {
             try {
                 $batch = $this->purger->batch($spaceId, max(1, $this->batchSize));
@@ -196,20 +235,21 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
             }
             ++$batches;
             $pages += count($batch->pageIds);
-            $this->afterBatch($batch, $actor);
+            $failed += $this->afterBatch($batch, $actor);
+            $truncated += $batch->truncated ? 1 : 0;
             if ($batch->finished && !$batch->spaceDeleted) {
                 // Audit XO-2: another call deleted the space row meanwhile; it announces the purge, not this one.
-                return new WikiSpacePurgeResult($spaceId, true, $pages, $batches);
+                return new WikiSpacePurgeResult($spaceId, true, $pages, $batches, true, $failed, $truncated);
             }
             if ($batch->finished) {
                 $this->logger->info('Wiki space purged.', ['bundle' => 'nowo_wiki', 'action' => 'space_purge', 'space_id' => $spaceId, 'pages' => $pages]);
                 $this->dispatch(new WikiSpacePurgedEvent($space, $pages, $actor, new DateTimeImmutable()), WikiEvents::SPACE_PURGED);
 
-                return new WikiSpacePurgeResult($spaceId, true, $pages, $batches);
+                return new WikiSpacePurgeResult($spaceId, true, $pages, $batches, true, $failed, $truncated);
             }
         }
 
-        return new WikiSpacePurgeResult($spaceId, false, $pages, $batches);
+        return new WikiSpacePurgeResult($spaceId, false, $pages, $batches, true, $failed, $truncated);
     }
 
     private function changeArchived(string $spaceId, bool $archived, ?WikiUserRef $actor, ?int $expectedVersion): WikiSpaceSnapshot
@@ -301,14 +341,18 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
     /**
      * After a committed batch: the attachment files go (a failure is logged and leaves an orphan file for the attachment
      * maintenance), then the attachment and page-file events.
+     *
+     * @return int attachment files whose delete failed
      */
-    private function afterBatch(WikiSpacePurgeBatch $batch, ?WikiUserRef $actor): void
+    private function afterBatch(WikiSpacePurgeBatch $batch, ?WikiUserRef $actor): int
     {
-        $user = $actor instanceof WikiUserRef ? WikiUserRefs::object($actor) : null;
+        $user   = $actor instanceof WikiUserRef ? WikiUserRefs::object($actor) : null;
+        $failed = 0;
         foreach ($batch->attachments as $attachment) {
             try {
                 $this->storage?->delete($attachment->getStorageKey());
             } catch (Throwable $exception) {
+                ++$failed;
                 $this->logger->warning('Wiki space purge: an attachment file could not be deleted.', ['bundle' => 'nowo_wiki', 'action' => 'space_purge', 'exception_class' => $exception::class]);
             }
             $this->dispatch(new WikiAttachmentEvent($attachment, $user), WikiEvents::ATTACHMENT_DELETED);
@@ -317,6 +361,8 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
             // `page_files.purge_event`: the host deletes the files it stores for these pages (untrusted URLs, see the event).
             $this->dispatch(new WikiPageFilesPurgedEvent($batch->space, 'space-purge:' . Uuid::generate()->toString(), $batch->pageIds, $batch->files, $user, $batch->truncated), WikiEvents::PAGE_FILES_PURGED);
         }
+
+        return $failed;
     }
 
     private function dispatch(object $event, string $name): void
