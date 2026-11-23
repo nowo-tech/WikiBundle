@@ -82,7 +82,7 @@ final class ExactKeyColumnsGateTest extends ExactKeyColumnsTestCase
         }
 
         $config = ORMSetup::createAttributeMetadataConfiguration(
-            [dirname(__DIR__, 2) . '/src/Entity', dirname(__DIR__) . '/Stub'],
+            [dirname(__DIR__, 2) . '/src/Entity', __DIR__ . '/../Stub'],
             true,
             sys_get_temp_dir() . '/wiki_exactkey_proxies_' . getmypid(),
         );

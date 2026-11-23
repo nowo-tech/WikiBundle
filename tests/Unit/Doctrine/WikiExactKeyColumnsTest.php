@@ -19,14 +19,14 @@ use function str_starts_with;
 final class WikiExactKeyColumnsTest extends TestCase
 {
     /** Everything on, with the default table names. */
-    private static function all(): WikiExactKeyColumns
+    private function all(): WikiExactKeyColumns
     {
         return new WikiExactKeyColumns(userIds: true, comments: true, favourites: true, recents: true, backlinks: true);
     }
 
     public function testItDeclaresEveryKeyColumnOfTheWikiTables(): void
     {
-        $columns = self::all()->exactKeyColumns();
+        $columns = $this->all()->exactKeyColumns();
 
         self::assertSame([
             'wiki_spaces.owner_scope_id',
@@ -133,7 +133,7 @@ final class WikiExactKeyColumnsTest extends TestCase
     public function testItIsSafeToCallMoreThanOnce(): void
     {
         // REQ-RUNTIME-002: nothing is memoised, so a worker that keeps the service gets the same answer every time.
-        $declaration = self::all();
+        $declaration = $this->all();
 
         self::assertEquals($declaration->exactKeyColumns(), $declaration->exactKeyColumns());
     }
