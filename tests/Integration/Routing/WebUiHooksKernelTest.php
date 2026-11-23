@@ -139,12 +139,46 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringNotContainsString('wiki.css', $html);
         self::assertStringNotContainsString('wiki.js', $html);
         self::assertStringNotContainsString('nowo-ui.css', $html);
-        // Dialog: the opener with its dialog, no import card.
-        self::assertStringContainsString('data-nowo-ui-dialog-open="nowo-wiki-import-export-dialog"', $html);
+        // Dialog: the opener with its dialog, no import card. 1.53 (lazy dialogs): the opener is a link to the dialog's
+        // own page and the dialog is empty: no export link, no import form in the space page.
+        self::assertStringContainsString('href="/tools/wiki/spaces/eng/import" data-testid="wiki-import-export-open" data-nowo-ui-dialog-form data-nowo-ui-dialog-open="nowo-wiki-import-export-dialog" data-nowo-ui-dialog-src="/tools/wiki/spaces/eng/import"', $html);
         self::assertStringContainsString('<dialog id="nowo-wiki-import-export-dialog"', $html);
-        self::assertStringContainsString('data-testid="wiki-export-outline"', $html);
-        self::assertStringContainsString('id="nowo-wiki-import-export-form"', $html);
+        self::assertStringNotContainsString('data-testid="wiki-export-outline"', $html);
+        self::assertStringNotContainsString('id="nowo-wiki-import-export-form"', $html);
         self::assertStringNotContainsString('data-testid="wiki-import"', $html);
+
+        // The dialog's page: the fragment for the dialog, the full page without the header; both vary on it. One
+        // request per kernel (the token does not survive a request here).
+        $this->again(self::HOOKS, '-hooks');
+        $fragment = $this->request($this->dialogRequest('/tools/wiki/spaces/eng/import'));
+        self::assertSame(Response::HTTP_OK, $fragment->getStatusCode());
+        self::assertContains('X-Nowo-Dialog', $fragment->getVary());
+        $body = (string) $fragment->getContent();
+        self::assertStringNotContainsString('<html', $body);
+        self::assertStringContainsString('data-testid="wiki-export-outline"', $body);
+        self::assertStringContainsString('id="nowo-wiki-import-export-form"', $body);
+        self::assertStringContainsString('data-nowo-ui-dialog-actions', $body);
+        $this->again(self::HOOKS, '-hooks');
+        $page = $this->request(Request::create('/tools/wiki/spaces/eng/import'));
+        self::assertSame(Response::HTTP_OK, $page->getStatusCode());
+        self::assertContains('X-Nowo-Dialog', $page->getVary());
+        self::assertStringContainsString('<html', (string) $page->getContent());
+        self::assertStringContainsString('data-testid="wiki-import-export"', (string) $page->getContent());
+        self::assertStringContainsString('id="nowo-wiki-import-export-form"', (string) $page->getContent());
+        // Another space the user may not read: 404, as the space page.
+        $this->again(self::HOOKS, '-hooks');
+        self::assertSame(Response::HTTP_NOT_FOUND, $this->request($this->dialogRequest('/tools/wiki/spaces/other/import'))->getStatusCode());
+    }
+
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    private function dialogRequest(string $path, string $method = 'GET', array $parameters = []): Request
+    {
+        $request = Request::create($path, $method, $parameters);
+        $request->headers->set('X-Nowo-Dialog', '1');
+
+        return $request;
     }
 
     public function testTheHeaderSlotReachesThePageView(): void
@@ -170,6 +204,9 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringContainsString('data-testid="wiki-import"', $html);
         self::assertStringNotContainsString('nowo-wiki-import-export-dialog', $html);
         self::assertStringNotContainsString('data-testid="host-', $html);
+        // 1.53: without the dialog the import route has no page of its own (the import card is in the space page).
+        $this->again(['import_export' => ['enabled' => true]], '-defaults');
+        self::assertSame(Response::HTTP_NOT_FOUND, $this->request($this->dialogRequest('/tools/wiki/spaces/eng/import'))->getStatusCode());
     }
 
     /** GV-L2: the reason is on the page the user sees, nothing is written. */
@@ -285,8 +322,26 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringContainsString('data-wiki-menu-edit="1"', $html);
         self::assertStringContainsString('data-wiki-menu-icon="1"', $html);
         self::assertStringContainsString('data-wiki-tree-menu-more', $html);
-        self::assertStringContainsString('<template data-wiki-tree-icon-template>', $html);
-        self::assertStringContainsString('name="form[icon]"', $html);
+        // 1.53 (lazy dialogs): no icon / move form in the page; their dialogs load them from the space page.
+        self::assertStringNotContainsString('<template data-wiki-tree-icon-template>', $html);
+        self::assertStringNotContainsString('name="form[icon]"', $html);
+        self::assertStringNotContainsString('name="form[parent]"', $html);
+        self::assertStringContainsString('data-wiki-tree-icon-src="/tools/wiki/spaces/eng?dialog=tree-icon"', $html);
+        self::assertStringContainsString('data-wiki-tree-move-src="/tools/wiki/spaces/eng?dialog=tree-move"', $html);
+        $this->again(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true]], '-treemenu');
+        $icon = $this->request($this->dialogRequest('/tools/wiki/spaces/eng?dialog=tree-icon'));
+        self::assertSame(Response::HTTP_OK, $icon->getStatusCode(), (string) $icon->getContent());
+        self::assertContains('X-Nowo-Dialog', $icon->getVary());
+        self::assertStringContainsString('name="form[icon]"', (string) $icon->getContent());
+        self::assertStringNotContainsString('<html', (string) $icon->getContent());
+        $this->again(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true]], '-treemenu');
+        $move = $this->request($this->dialogRequest('/tools/wiki/spaces/eng?dialog=tree-move'));
+        self::assertStringContainsString('name="form[parent]"', (string) $move->getContent());
+        $this->again(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true]], '-treemenu');
+        self::assertSame(Response::HTTP_NOT_FOUND, $this->request($this->dialogRequest('/tools/wiki/spaces/eng?dialog=other'))->getStatusCode());
+        // Without the header the parameter is ignored: the space page.
+        $this->again(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true]], '-treemenu');
+        self::assertStringContainsString('data-wiki-tree-menu ', $this->html('/tools/wiki/spaces/eng?dialog=tree-icon'));
 
         $this->kernel?->shutdown();
         $this->boot(['tree' => ['enabled' => true, 'context_menu' => true], 'web_ui' => ['new_page_dialog' => true]], '-treemenu-dialog');
@@ -392,7 +447,9 @@ final class WebUiHooksKernelTest extends TestCase
         $html = $this->html('/tools/wiki/spaces/eng/pages/home');
         self::assertGreaterThanOrEqual(2, substr_count($html, 'nowo-wiki-page-icon--emoji" aria-hidden="true">🚀</span>'));
         self::assertStringContainsString('aria-hidden="true">👩🏽‍💻</span>', $html);
-        self::assertStringContainsString('name="form[icon]"', $html);
+        // 1.53 (lazy dialogs): the icon field comes with the dialog's fragment.
+        $this->again(['tree' => ['enabled' => true, 'context_menu' => true], 'page_icon' => ['form_field' => true, 'emoji' => true]], '-icon-emoji');
+        self::assertStringContainsString('name="form[icon]"', (string) $this->request($this->dialogRequest('/tools/wiki/spaces/eng?dialog=tree-icon'))->getContent());
     }
 
     /** GV-I5: with search.scope: space the index search form has no "all spaces" choice, which would answer 404. */
@@ -404,10 +461,12 @@ final class WebUiHooksKernelTest extends TestCase
 
         self::assertStringContainsString('<dialog id="nowo-wiki-new-page-dialog"', $html);
         self::assertStringContainsString('data-nowo-ui-dialog-open="nowo-wiki-new-page-dialog"', $html);
-        self::assertStringContainsString('action="/tools/wiki/spaces/eng/pages/new"', $html);
-        self::assertStringContainsString('name="wiki_page_form[place]"', $html);
+        // 1.53 (lazy dialogs): the dialog is empty; "New page" links to the form, whose fragment the dialog loads.
+        self::assertStringContainsString('data-wiki-new-page-url="/tools/wiki/spaces/eng/pages/new"', $html);
+        self::assertStringContainsString('href="/tools/wiki/spaces/eng/pages/new" data-testid="wiki-new-page" data-nowo-ui-dialog-form', $html);
+        self::assertStringNotContainsString('name="wiki_page_form[place]"', $html);
+        self::assertStringNotContainsString('name="wiki_page_form[_token]"', $html);
         self::assertStringNotContainsString('wiki_page_form[position]', $html);
-        self::assertStringContainsString('name="wiki_page_form[_token]"', $html);
         self::assertStringContainsString('role="menu"', $html);
         self::assertSame(3, substr_count($html, 'role="menuitem"'));
         self::assertStringContainsString('New page above', $html);
@@ -416,7 +475,41 @@ final class WebUiHooksKernelTest extends TestCase
         self::assertStringContainsString('aria-label="Add a page next to “Home”"', $html);
         self::assertStringContainsString('data-wiki-new-child="1"', $html);
         self::assertStringContainsString('data-wiki-new-sibling="1"', $html);
-        self::assertStringContainsString('data-above="Above “%title%”"', $html);
+
+        // The form's page: the fragment for the dialog (the place and the line the server writes), the page without.
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $home     = $this->pageBySlug('home');
+        $fragment = $this->request($this->dialogRequest('/tools/wiki/spaces/eng/pages/new?place=below:' . $home->getId()));
+        self::assertSame(Response::HTTP_OK, $fragment->getStatusCode());
+        self::assertContains('X-Nowo-Dialog', $fragment->getVary());
+        $body = (string) $fragment->getContent();
+        self::assertStringNotContainsString('<html', $body);
+        self::assertStringContainsString('name="wiki_page_form[place]" data-wiki-new-page-place="1" value="below:' . $home->getId() . '"', $body);
+        self::assertStringContainsString('name="wiki_page_form[_token]"', $body);
+        self::assertStringContainsString('Below “Home”', $body);
+        self::assertStringContainsString('data-nowo-ui-dialog-actions', $body);
+        $this->again(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        self::assertStringContainsString('<html', $this->html('/tools/wiki/spaces/eng/pages/new'));
+
+        // Posted in the dialog: invalid = 422 with the fragment in place; created = 204 + X-Nowo-Redirect.
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $invalid = $this->request($this->dialogRequest('/tools/wiki/spaces/eng/pages/new', 'POST', ['wiki_page_form' => ['_token' => 'ok-wiki_new_' . $this->space->getId(), 'title' => '', 'content' => 'x']]));
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $invalid->getStatusCode());
+        self::assertStringNotContainsString('<html', (string) $invalid->getContent());
+        self::assertStringContainsString('id="nowo-wiki-new-page-form"', (string) $invalid->getContent());
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $created = $this->request($this->dialogRequest('/tools/wiki/spaces/eng/pages/new', 'POST', ['wiki_page_form' => ['_token' => 'ok-wiki_new_' . $this->space->getId(), 'title' => 'From the dialog', 'content' => 'Body']]));
+        self::assertSame(Response::HTTP_NO_CONTENT, $created->getStatusCode(), (string) $created->getContent());
+        self::assertSame('/tools/wiki/spaces/eng/pages/from-the-dialog', $created->headers->get('X-Nowo-Redirect'));
+        // A forged token is refused as before, dialog or not.
+        $this->kernel?->shutdown();
+        $this->boot(['tree' => ['enabled' => true], 'web_ui' => ['new_page_dialog' => true]], '-newpage');
+        $forged = $this->request($this->dialogRequest('/tools/wiki/spaces/eng/pages/new', 'POST', ['wiki_page_form' => ['_token' => 'forged', 'title' => 'X', 'content' => 'x']]));
+        self::assertSame(Response::HTTP_UNPROCESSABLE_ENTITY, $forged->getStatusCode());
+        self::assertNull($this->pageBySlugOrNull('x'));
 
         // One request per kernel, as the other tests (the token does not survive a request here).
         $this->kernel?->shutdown();
@@ -495,6 +588,23 @@ final class WebUiHooksKernelTest extends TestCase
         $tokens = $container->get('security.token_storage');
         self::assertInstanceOf(TokenStorageInterface::class, $tokens);
         $tokens->setToken(new UsernamePasswordToken($this->user, 'main', ['ROLE_USER']));
+    }
+
+    /**
+     * @param array<string, mixed> $wiki
+     */
+    private function again(array $wiki, string $variant): void
+    {
+        $this->kernel?->shutdown();
+        $this->boot($wiki, $variant);
+    }
+
+    private function pageBySlugOrNull(string $slug): ?WikiPage
+    {
+        $em = $this->services()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+
+        return $em->getRepository(WikiPage::class)->findOneBy(['space' => $this->space, 'slug' => $slug]);
     }
 
     private function pageBySlug(string $slug): WikiPage

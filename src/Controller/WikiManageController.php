@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Nowo\BreadcrumbKitBundle\Service\BreadcrumbCurrentLabelInterface;
 use Nowo\MilkdownEditorBundle\Diff\MarkdownDiff;
 use Nowo\TransactionContract\TransientStorageFailure;
+use Nowo\UiKitBundle\Dialog\RemoteDialogResponder;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Backlink\WikiBacklinks;
@@ -253,6 +254,7 @@ final class WikiManageController extends AbstractController
         private readonly ?WikiBacklinks $backlinks = null,
         private readonly ?WikiRenderedRevisionDiff $renderedDiff = null,
         private readonly ?WikiReadableSpaces $readableSpaces = null,
+        private readonly ?RemoteDialogResponder $remoteDialogs = null,
     ) {
         $this->spaceGuard = $spaceGuard ?? new WikiSpaceGuard(
             new AccessibleWikiSpaceLocator($this->spaceAccessResolver),
@@ -293,7 +295,9 @@ final class WikiManageController extends AbstractController
                 $this->createSearchForm($spaces, [], ['space' => 'wiki-index-search-space', 'q' => 'wiki-index-search-q'], true, $this->searchScope !== 'space'),
                 $canAskAi,
             ),
-            'ai_form'         => $canAskAi ? $this->createAiAskForm($spaces, [], ['space' => 'wiki-ai-modal-space', 'q' => 'wiki-ai-modal-question'], ['autofocus' => true])->createView() : null,
+            // 1.53 (lazy dialogs): no AI form in the page; the dialog loads the ai_ask page's fragment when opened.
+            'ai_form'         => null,
+            'ai_dialog'       => $canAskAi,
             'routes'          => $this->routes,
             'dashboard_route' => $this->dashboardRoute,
             'can_create'      => $this->accessChecker->canCreate($user),
@@ -309,11 +313,16 @@ final class WikiManageController extends AbstractController
      * @return Response rendered space page
      */
     #[Route(path: '/tools/wiki/spaces/{spaceSlug}', name: 'nowo_wiki_space', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'space'], methods: ['GET'])]
-    public function space(string $spaceSlug): Response
+    public function space(string $spaceSlug, ?Request $request = null): Response
     {
         $this->denyUnlessFeature('list');
-        $user                   = $this->requireUser();
-        $space                  = $this->requireAccessibleSpace($user, $spaceSlug);
+        $user  = $this->requireUser();
+        $space = $this->requireAccessibleSpace($user, $spaceSlug);
+        // 1.53 (lazy dialogs): the "Change icon" / "Move to…" dialogs of the tree menu load their form from here.
+        $treeDialog = $request?->query->getString('dialog') ?? '';
+        if ($treeDialog !== '' && $request instanceof Request && $this->dialogs()->isDialog($request)) {
+            return $this->treeMenuDialog($user, $space, $treeDialog);
+        }
         [$tree, $treeTruncated] = $this->buildTree($user, $space);
         $permissions            = $this->spaceGuard->grants($user, $space);
         $archived               = $permissions['archive'] && isset($this->routes['page_unarchive'])
@@ -369,15 +378,17 @@ final class WikiManageController extends AbstractController
                 $this->generateUrl($this->routes['page_unarchive']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $item->getSlug()]),
                 'wiki_unarchive_' . $item->getId(),
             ])),
-            'search_form'     => $this->createSearchForm(null, ['space' => $space->getSlug()], ['q' => 'wiki-space-search'], false),
-            'import_form'     => $can['import'] ? $this->createImportForm($space)->createView() : null,
-            'export_links'    => $pages->exportLinks($space, $can),
-            'routes'          => $this->routes,
-            'dashboard_route' => $this->dashboardRoute,
-            'can_create'      => $can['create'],
-            'can_import'      => $can['import'],
-            'can_export'      => $can['export'],
-            'permissions'     => $permissions,
+            'search_form' => $this->createSearchForm(null, ['space' => $space->getSlug()], ['q' => 'wiki-space-search'], false),
+            // 1.53 (lazy dialogs): with web_ui.import_export: dialog the dialog loads its form from space_import (GET).
+            'import_form'       => $can['import'] && !$this->importExportDialog() ? $this->createImportForm($space)->createView() : null,
+            'import_export_src' => $this->importExportDialog() && ($can['import'] || $can['export']) ? $this->generateUrl($this->routes['space_import']['name'], ['spaceSlug' => $space->getSlug()]) : null,
+            'export_links'      => $pages->exportLinks($space, $can),
+            'routes'            => $this->routes,
+            'dashboard_route'   => $this->dashboardRoute,
+            'can_create'        => $can['create'],
+            'can_import'        => $can['import'],
+            'can_export'        => $can['export'],
+            'permissions'       => $permissions,
         ], null, isset($vars['new_page_dialog']) || isset($vars['quick_access']) ? ['Cache-Control' => 'private, no-store'] : []);
     }
 
@@ -846,6 +857,11 @@ final class WikiManageController extends AbstractController
             // 1.35: ?place=child:<id> | above:<id> | below:<id> pre-fills the place.
             $form->get('place')->setData($request->query->getString('place'));
         }
+        // 1.53 (lazy dialogs): the new-page dialog loads this page (X-Nowo-Dialog: 1) and posts inside it: the answers
+        // below are the form fragment (422 when refused, in place) and, once created, 204 + X-Nowo-Redirect.
+        $renderNewPage = fn (): Response => $this->dialogs()->isDialog($request)
+            ? $this->renderNewPageFragment($user, $space, $form)
+            : $this->renderNewPage($space, $form);
 
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var WikiPageFormData $payload */
@@ -855,7 +871,7 @@ final class WikiManageController extends AbstractController
             if ($refusal !== null) {
                 $this->addFlash('error', $refusal);
 
-                return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
+                return $renderNewPage()->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
             try {
@@ -867,7 +883,7 @@ final class WikiManageController extends AbstractController
             if ($placement === false || ($placement instanceof WikiPagePlacement && !$this->mover instanceof WikiPageMover)) {
                 $this->flash('error', new TranslatableMessage('wiki.new_page.error.placement', [], WikiPages::DOMAIN));
 
-                return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
+                return $renderNewPage()->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
             // Audit PT-L2: placing a page reorders its siblings, so it needs the role gate of the tree moves too.
             if ($placement instanceof WikiPagePlacement && !$this->allowUnauthenticated && !$this->accessChecker->canEdit($user)) {
@@ -877,7 +893,7 @@ final class WikiManageController extends AbstractController
             if ($pages === false) {
                 $this->flash('error', new TranslatableMessage('wiki.tree.error.parent_missing', [], WikiPages::DOMAIN));
 
-                return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
+                return $renderNewPage()->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
             try {
@@ -895,15 +911,19 @@ final class WikiManageController extends AbstractController
                 // 1.41: the page service's refusals only (audit SH-L1): an ORM error is not a slug problem.
                 $this->flash('error', $this->pageErrorMessage($exception));
 
-                return $this->renderNewPage($space, $form);
+                return $renderNewPage();
             } catch (WikiPageMoveException $exception) {
                 $this->flash('error', new TranslatableMessage('wiki.tree.error.' . $exception->reason, [], WikiPages::DOMAIN));
 
-                return $this->renderNewPage($space, $form)->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
+                return $renderNewPage()->setStatusCode(Response::HTTP_UNPROCESSABLE_ENTITY);
             }
 
             // 1.38: the icon of the new page (already checked by the form field, with the same rules).
             $this->applyPageIcon($page, $payload);
+
+            if ($this->dialogs()->isDialog($request)) {
+                return $this->dialogs()->redirectToRoute($this->routes['page_view']['name'], ['spaceSlug' => $space->getSlug(), 'pageSlug' => $page->getSlug()], Response::HTTP_FOUND, $request);
+            }
 
             return $this->redirectToRoute($this->routes['page_view']['name'], [
                 'spaceSlug' => $space->getSlug(),
@@ -911,7 +931,7 @@ final class WikiManageController extends AbstractController
             ]);
         }
 
-        return $this->renderNewPage($space, $form);
+        return $renderNewPage();
     }
 
     /**
@@ -971,6 +991,38 @@ final class WikiManageController extends AbstractController
     }
 
     /**
+     * 1.53 (lazy dialogs): the new-page form as the fragment of the new-page dialog: the flashes of the request (a
+     * refusal), the line that says where the page goes (only for a place on a page the user may read) and the form
+     * with its Cancel / Create row (moved into the dialog footer). A submission answered with the form again was refused
+     * (invalid, a slug taken, a stale place, the host's quota): always 422 in the dialog, re-rendered in place.
+     *
+     * @param FormInterface<mixed> $form
+     */
+    private function renderNewPageFragment(UserInterface $user, WikiSpace $space, FormInterface $form): Response
+    {
+        $context = null;
+        try {
+            $placement = $form->has('place') ? WikiPagePlacement::fromValue($form->get('place')->getData()) : null;
+        } catch (WikiInvalidPlacementException) {
+            $placement = null;
+        }
+        if ($placement instanceof WikiPagePlacement) {
+            $relative = $this->pageRepository->findById($placement->pageId);
+            if ($relative instanceof WikiPage && $relative->getSpace()->getId() === $space->getId() && !$relative->isArchived() && $this->spaceGuard->isPageReadable($user, $space, $relative)) {
+                $context = new TranslatableMessage('wiki.new_page.context_' . $placement->kind, ['%title%' => $relative->getTitle()], WikiPages::DOMAIN);
+            }
+        }
+        $response = $this->render('@NowoWikiBundle/manage/_new_page_form.html.twig', [
+            'form'        => $form->createView(),
+            'context'     => $context,
+            'editor_type' => $this->editorType(),
+            'bundle'      => WikiPages::BUNDLE,
+        ], new Response(null, $form->isSubmitted() ? Response::HTTP_UNPROCESSABLE_ENTITY : Response::HTTP_OK, ['Cache-Control' => 'private, no-store']));
+
+        return $this->dialogs()->fragment($response);
+    }
+
+    /**
      * 1.35: the page a place is relative to and the new page's parent (that page for a child, its parent otherwise;
      * null: the root). Same rule as the API create and the tree's moves: a page of the space the user may read (with
      * every ancestor), the parent active and editable. False when the page is missing, archived or hidden, or its
@@ -1008,21 +1060,18 @@ final class WikiManageController extends AbstractController
      * create pages in the space: the new-page form (posted to page_new, CSRF token wiki_new_<space id>) and the editor
      * type (the Tiptap script). Null otherwise.
      *
-     * @return array{form: FormView, editor_type: string}|null
+     * 1.53 (lazy dialogs): no form any more: `url` is the new-page form's page, whose fragment the dialog loads when it
+     * opens (`?place=` for the tree menu's choices); the page renders only the empty dialog.
+     *
+     * @return array{url: string, editor_type: string}|null
      */
     private function newPageDialog(UserInterface $user, WikiSpace $space): ?array
     {
         if (!$this->newPageDialogEnabled() || (!$this->allowUnauthenticated && !$this->accessChecker->canCreate($user)) || !$this->spaceGuard->isGranted($user, WikiAction::Create, $space)) {
             return null;
         }
-        $form = $this->createForm(WikiPageFormType::class, new WikiPageFormData(), [
-            'action'         => $this->generateUrl($this->routes['page_new']['name'], ['spaceSlug' => $space->getSlug()]),
-            'csrf_token_id'  => 'wiki_new_' . $space->getId(),
-            'editor_options' => $this->editorOptions($user, $space, null),
-            'placement'      => true,
-        ] + $this->pageFormOptions());
 
-        return ['form' => $form->createView(), 'editor_type' => $this->editorType()];
+        return ['url' => $this->generateUrl($this->routes['page_new']['name'], ['spaceSlug' => $space->getSlug()]), 'editor_type' => $this->editorType()];
     }
 
     /**
@@ -1113,27 +1162,17 @@ final class WikiManageController extends AbstractController
             // Without the dialog, "Add child / sibling page" opens the new-page form with ?place=.
             $attr['data-wiki-tree-new'] = $this->generateUrl($this->routes['page_new']['name'], ['spaceSlug' => $space->getSlug()]);
         }
-        $form = null;
-        if ($icon) {
-            $form = $this->createFormBuilder(['icon' => null], ['csrf_protection' => false, 'translation_domain' => WikiPages::DOMAIN])
-                ->add('icon', $this->pageIconFieldType(), ['label' => 'wiki.page.icon', 'help' => 'wiki.page.icon_help', 'allowed_prefixes' => $this->iconPicker['page']['prefixes'] ?? WikiSpaceIcon::DEFAULT_PREFIXES])
-                ->getForm()
-                ->createView();
-        }
-        $moveForm = null;
-        if ($move) {
-            // 1.41: the "Move to…" dialog's parent field; its choices come from the tree's parents endpoint.
-            $moveForm = $this->createFormBuilder(['parent' => null], ['csrf_protection' => false, 'translation_domain' => WikiPages::DOMAIN])
-                ->add('parent', ChoiceType::class, ['label' => 'wiki.tree.move_parent', 'required' => true, 'choices' => [], 'attr' => ['data-wiki-tree-move-parent' => true]])
-                ->getForm()
-                ->createView();
-        }
+        // 1.53 (lazy dialogs): the "Change icon" and "Move to…" forms are not built here: their dialogs load them from
+        // the space page (`?dialog=tree-icon|tree-move`, X-Nowo-Dialog: 1, {@see self::treeMenuDialog()}) when opened.
+        $dialogSrc = fn (string $dialog): string => $this->generateUrl($this->routes['space']['name'], ['spaceSlug' => $space->getSlug(), 'dialog' => $dialog]);
 
         return [
             'tree_ui'   => ['nodes' => $nodes, 'attr' => $attr, 'actions_template' => WikiTreeMenu::ACTIONS_TEMPLATE] + $treeUi,
             'tree_menu' => [
-                'icon_form' => $form,
-                'move_form' => $moveForm,
+                'icon_form' => null,
+                'move_form' => null,
+                'icon_src'  => $icon ? $dialogSrc('tree-icon') : null,
+                'move_src'  => $move ? $dialogSrc('tree-move') : null,
                 'dialog'    => $dialog,
                 'items'     => [
                     'edit'    => $edit && isset($this->routes['page_edit']),
@@ -1519,6 +1558,7 @@ final class WikiManageController extends AbstractController
      * Imports an uploaded Outline/Notion ZIP export into a space and flashes the import report.
      *
      * Missing, oversized or non-ZIP uploads and importer validation errors are reported as error flashes.
+     * 1.53 (lazy dialogs): a GET is the Import & export dialog's own page ({@see self::importExportPage()}).
      *
      * @param Request $request current request (import form submission with the uploaded archive)
      * @param string $spaceSlug space slug from the route
@@ -1526,11 +1566,14 @@ final class WikiManageController extends AbstractController
      * @throws NotFoundHttpException when import/export is disabled
      * @throws AccessDeniedHttpException when the form or its CSRF token is invalid
      *
-     * @return RedirectResponse redirect to the space page
+     * @return Response redirect to the space page (POST); the dialog's fragment or page (GET, 1.53)
      */
-    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/import', name: 'nowo_wiki_space_import', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'space_import'], methods: ['POST'])]
-    public function importSpace(Request $request, string $spaceSlug): RedirectResponse
+    #[Route(path: '/tools/wiki/spaces/{spaceSlug}/import', name: 'nowo_wiki_space_import', requirements: ['spaceSlug' => WikiRouteLoader::SPACE_SLUG], options: [WikiRouteLoader::ROUTE_KEY_OPTION => 'space_import'], methods: ['GET', 'POST'])]
+    public function importSpace(Request $request, string $spaceSlug): Response
     {
+        if (!$request->isMethod('POST')) {
+            return $this->importExportPage($request, $spaceSlug);
+        }
         $this->denyUnlessFeature('import');
         if (!$this->importExport['enabled']) {
             throw new NotFoundHttpException('Import/export is disabled.');
@@ -1625,6 +1668,50 @@ final class WikiManageController extends AbstractController
     }
 
     /**
+     * 1.53 (lazy dialogs): GET of the import route, the Import & export dialog's own page (`web_ui.import_export:
+     * dialog`): its fragment for the dialog (X-Nowo-Dialog: 1), the full page otherwise (no JavaScript, a deep link).
+     * The decision of the space page that shows the dialog: the space readable, import/export on, and the user may
+     * import or export there (404 / 403 otherwise); the import form only for users who may import. The import itself
+     * (POST) is unchanged: CSRF, the rights again, the flashes and the redirect to the space.
+     */
+    private function importExportPage(Request $request, string $spaceSlug): Response
+    {
+        $this->denyUnlessFeature('list');
+        if (!$this->importExport['enabled'] || !$this->importExportDialog()) {
+            throw new NotFoundHttpException('Not found.');
+        }
+        $user        = $this->requireUser();
+        $space       = $this->requireAccessibleSpace($user, $spaceSlug);
+        $permissions = $this->spaceGuard->grants($user, $space);
+        $can         = [
+            'create' => false,
+            'import' => $this->accessChecker->canImport($user) && $permissions['import'],
+            'export' => $this->accessChecker->canExport($user) && $permissions['export'],
+        ];
+        $pages = $this->pages();
+        $links = $pages->exportLinks($space, $can);
+        if (!$can['import'] && $links === []) {
+            throw new AccessDeniedHttpException('Access denied.');
+        }
+        $vars = [
+            'import_form'  => $can['import'] ? $this->createImportForm($space)->createView() : null,
+            'export_links' => $links,
+            'bundle'       => WikiPages::BUNDLE,
+        ];
+        $headers = ['Cache-Control' => 'private, no-store'];
+        if ($this->dialogs()->isDialog($request)) {
+            return $this->dialogs()->fragment($this->render('@NowoWikiBundle/manage/_import_export_form.html.twig', $vars, new Response(null, Response::HTTP_OK, $headers)));
+        }
+
+        return $this->dialogs()->fragment($this->renderPage('import_export', $vars + [
+            'page'            => $pages->importExport($space),
+            'space_href'      => $this->generateUrl($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]),
+            'routes'          => $this->routes,
+            'dashboard_route' => $this->dashboardRoute,
+        ], null, $headers));
+    }
+
+    /**
      * Shows the AI question form and, on a valid POST, asks the AI assistant and renders its answer and sources.
      *
      * Assistant failures are rendered as an error message instead of being rethrown.
@@ -1679,6 +1766,23 @@ final class WikiManageController extends AbstractController
         }
 
         $pages = $this->pages();
+        // 1.53 (lazy dialogs): the AI dialog of the index loads this page and posts inside it; the question, the error
+        // and the answer re-render in the dialog (200 fragment).
+        if ($this->dialogs()->isDialog($request)) {
+            return $this->dialogs()->fragment($this->render('@NowoWikiBundle/manage/_ai_ask_form.html.twig', [
+                'form' => $this->createAiAskForm(
+                    $spaces,
+                    ['space' => $space?->getSlug(), 'q' => $question],
+                    ['space' => 'wiki-ai-modal-space', 'q' => 'wiki-ai-modal-question'],
+                    ['autofocus' => true],
+                )->createView(),
+                'question' => $question,
+                'answer'   => $answer,
+                'sources'  => $pages->hits($this->readableHits($user, $sources)),
+                'error'    => $error,
+                'bundle'   => WikiPages::BUNDLE,
+            ], new Response(null, Response::HTTP_OK, ['Cache-Control' => 'private, no-store'])));
+        }
 
         return $this->renderPage('ai_ask', [
             'page' => $pages->aiAsk($this->createAiAskForm(
@@ -2437,6 +2541,52 @@ final class WikiManageController extends AbstractController
         if ($request instanceof Request && ($this->layout['breadcrumb_current_label'] ?? false) === true && $this->breadcrumbCurrentLabel instanceof BreadcrumbCurrentLabelInterface) {
             WikiBreadcrumbParentLabel::remember($request, $page->getTitle(), $routeKey);
         }
+    }
+
+    /** 1.53 (lazy dialogs): the UiKit remote dialog answers (the host's header names when UiKit is wired). */
+    private function dialogs(): RemoteDialogResponder
+    {
+        return $this->remoteDialogs ?? new RemoteDialogResponder();
+    }
+
+    /** 1.53: `web_ui.import_export: dialog`. */
+    private function importExportDialog(): bool
+    {
+        return $this->pages()->hasImportExportDialog() && isset($this->routes['space_import']);
+    }
+
+    /**
+     * 1.53 (lazy dialogs): the form of the tree menu's "Change icon" (`tree-icon`) or "Move to…" (`tree-move`) dialog,
+     * the fragment the dialog loads when it opens. Exactly the decision of {@see self::withTreeMenu()} that offers the
+     * entry (the tree menu on, the edit role and Edit on the space; the icon field, or a movable tree): 403 otherwise,
+     * 404 for another name. The writes stay the tree endpoints' (CSRF, same origin, the page checked again).
+     */
+    private function treeMenuDialog(UserInterface $user, WikiSpace $space, string $dialog): Response
+    {
+        if (!in_array($dialog, ['tree-icon', 'tree-move'], true)) {
+            throw new NotFoundHttpException('Not found.');
+        }
+        $treeUi = $this->treeContextMenu && isset($this->routes['space_tree']) ? $this->treeUi($user, $space, []) : null;
+        $edit   = $treeUi !== null && $this->accessChecker->canEdit($user) && $this->spaceGuard->isGranted($user, WikiAction::Edit, $space);
+        $icon   = $edit && $this->pageIconFieldEnabled();
+        $move   = $edit && ($treeUi['movable'] ?? false);
+        if (!($dialog === 'tree-icon' ? $icon : $move)) {
+            throw new AccessDeniedHttpException('Access denied.');
+        }
+        $form = $dialog === 'tree-icon'
+            ? $this->createFormBuilder(['icon' => null], ['csrf_protection' => false, 'translation_domain' => WikiPages::DOMAIN])
+                ->add('icon', $this->pageIconFieldType(), ['label' => 'wiki.page.icon', 'help' => 'wiki.page.icon_help', 'allowed_prefixes' => $this->iconPicker['page']['prefixes'] ?? WikiSpaceIcon::DEFAULT_PREFIXES])
+                ->getForm()
+            // 1.41: the "Move to…" dialog's parent field; its choices come from the tree's parents endpoint.
+            : $this->createFormBuilder(['parent' => null], ['csrf_protection' => false, 'translation_domain' => WikiPages::DOMAIN])
+                ->add('parent', ChoiceType::class, ['label' => 'wiki.tree.move_parent', 'required' => true, 'choices' => [], 'attr' => ['data-wiki-tree-move-parent' => true]])
+                ->getForm();
+
+        return $this->dialogs()->fragment($this->render('@NowoWikiBundle/manage/_tree_menu_form.html.twig', [
+            'form'   => $form->createView(),
+            'kind'   => $dialog === 'tree-icon' ? 'icon' : 'move',
+            'bundle' => WikiPages::BUNDLE,
+        ], new Response(null, Response::HTTP_OK, ['Cache-Control' => 'private, no-store'])));
     }
 
     private function currentRequest(): ?Request

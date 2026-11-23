@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+  - [Dialogs load on demand](#dialogs-load-on-demand)
 - [To 1.52.0](#to-1520)
   - [The bundle declares its own identity / access-key columns (REQ-SEC-006)](#the-bundle-declares-its-own-identity--access-key-columns-req-sec-006)
 - [To 1.51.1](#to-1511)
@@ -144,6 +145,26 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+### Dialogs load on demand
+
+```bash
+composer update nowo-tech/wiki-bundle nowo-tech/ui-kit-bundle
+php bin/console cache:clear
+```
+
+- Requires `nowo-tech/ui-kit-bundle` `^2.68`, and the UiKit dialog script (`js/nowo-ui-dialog.js`, loaded by the UiKit layouts) on the pages. Without it, every opener is a plain link to its own page.
+- No configuration change and no new route. `space_import` also answers GET (the Import & export dialog's page). Host `access_control` rules on that path now also apply to the GET.
+- Host template overrides:
+  - **`manage/space.html.twig`, `page_view.html.twig`, `index.html.twig`** that keep `{{ parent() }}` in `nowo_ui_modals`: nothing to change.
+  - Overrides that include the dialog partials themselves pass the new variables, or keep the deprecated inline forms:
+    - `_new_page_dialog.html.twig`: `new_page_dialog` is now `{url, editor_type}` (no `form`);
+    - `_import_export_dialog.html.twig`: `import_export_src`;
+    - `_ai_dialog.html.twig`: no `ai_form` (the index now passes `ai_dialog: true` and `ai_form: null`);
+    - `_tree_menu.html.twig`: `tree_menu.icon_src` / `move_src` (`icon_form` / `move_form` are null).
+  - Overrides that print `import_form` in the space page with `web_ui.import_export: dialog`: the form is now null there, and the dialog's page builds it.
+  - `wiki.js` reads `data-wiki-new-page-url`, `data-wiki-tree-icon-src` and `data-wiki-tree-move-src` on those dialogs. A host that copies the markup keeps those attributes.
+- Host tests that look for the dialog forms in the page (`wiki_page_form`, `name="form[icon]"`, `#nowo-wiki-import-export-form`, the AI form) must open the dialog, or request its URL with `X-Nowo-Dialog: 1`.
 
 ## To 1.52.0
 

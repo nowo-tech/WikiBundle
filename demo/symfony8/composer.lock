@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "948249b8cddd900eb2c2bfd8ca8c3e61",
+    "content-hash": "c9f5c8d96a3b73cd8fd1cf2c8cafa281",
     "packages": [
         {
             "name": "dflydev/dot-access-data",
@@ -2666,16 +2666,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.60.0",
+            "version": "v2.68.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "cd142ddce9afc51681e85f64d5fc96ef0c14302e"
+                "reference": "b88274f85f5edbe2976debe53b0b6a766e7cba96"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/cd142ddce9afc51681e85f64d5fc96ef0c14302e",
-                "reference": "cd142ddce9afc51681e85f64d5fc96ef0c14302e",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/b88274f85f5edbe2976debe53b0b6a766e7cba96",
+                "reference": "b88274f85f5edbe2976debe53b0b6a766e7cba96",
                 "shasum": ""
             },
             "require": {
@@ -2765,8 +2765,8 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-11-20T20:27:14+00:00",
-            "published-time": "2026-11-20T20:30:01+00:00"
+            "time": "2026-11-23T05:57:27+00:00",
+            "published-time": "2026-11-23T05:59:40+00:00"
         },
         {
             "name": "nowo-tech/wiki-bundle",
@@ -2774,7 +2774,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/wiki-bundle",
-                "reference": "fd968bf9ae97007c750de1e326783929750cc176"
+                "reference": "4e611a6b874915dc7980108a8ea199ede7396bd7"
             },
             "require": {
                 "doctrine/dbal": "^3.8.2 || ^4.0",
@@ -2789,7 +2789,7 @@
                 "nowo-tech/tiptap-editor-bundle": "^1.6",
                 "nowo-tech/transaction-contract": "^1.0",
                 "nowo-tech/transaction-doctrine": "^1.9.1",
-                "nowo-tech/ui-kit-bundle": "^2.54",
+                "nowo-tech/ui-kit-bundle": "^2.68",
                 "php": ">=8.2 <8.6",
                 "psr/log": "^1.1 || ^2.0 || ^3.0",
                 "symfony/config": "^7.4 || ^8.0",

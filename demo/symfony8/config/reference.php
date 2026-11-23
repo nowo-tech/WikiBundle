@@ -1810,6 +1810,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     icon_set?: "bootstrap-icons"|"tabler-icons"|"ux_icon"|"svg_inline"|"none"|Param, // Icon rendering: bootstrap-icons|tabler-icons|ux_icon|svg_inline|none. // Default: "bootstrap-icons"
  *     row_actions_display?: "icon"|"text"|"icon_text"|Param, // Table/list row actions: icon (glyph only) | text (label only) | icon_text (both). // Default: "icon"
  *     row_actions_confirm?: "inline"|"native"|"dialog"|Param, // confirm_message of 1.x row_actions POST hashes (2.22, REQ-UI-003): inline = onsubmit="return confirm(…)" (default, unchanged markup); native | dialog = no inline handler, the confirm-submit Stimulus peer asks (window.confirm or the kit <dialog>). native / dialog need the confirm-submit peer registered. // Default: "inline"
+ *     table_confirm?: "per_row"|"shared"|Param, // Row actions with a Confirm in the `table` partial (2.68): per_row = one confirm <dialog> (title, message, POST form + CSRF) per row (default, deprecated: the default becomes shared in 3.0); shared = ONE dialog per table filled when it opens, each row keeps only its toggle and a hidden POST form. The `table` partial option confirm_shared wins. // Default: "per_row"
  *     action_icons?: array<string, scalar|Param|null>,
  *     action_variants?: array<string, scalar|Param|null>,
  *     panel_path_rewrites?: array<string, scalar|Param|null>,
@@ -1917,6 +1918,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         tokens?: array<string, mixed>,
  *         tokens_dark?: array<string, mixed>,
  *         confirm_message_in_header?: bool|Param, // Confirm dialogs and the full-page confirm render the message inside the header, under the title (hosts whose dialog header is title + message). View\Confirm::messageInHeader wins when set. // Default: false
+ *         form_actions_order?: "cancel_first"|"primary_first"|Param, // 2.66: order of the form actions row (form scaffold, `form_actions` partial). primary_first (default; 2.66.1 restores the 2.65 order) = the primary first, secondary actions, Cancel last; cancel_first (opt-in) = Cancel, secondary actions, then the primary last, on the right. Dialog footers, dialog form fragments (Cancel closes the dialog), the full-page confirm and the wizard always keep Cancel / Back first. The DOM order is the visual and focus order (never reversed with CSS). // Default: "primary_first"
  *         popover_menus?: bool|Param, // 2.4: menu / kebab / row-action menus render their panel as a native [popover] (browser top layer: never clipped by table scrollers or cards; nowo-ui-popover.js places it). The partial option `popover` wins. // Default: false
  *         context_menus?: bool|Param, // 2.54: kebab / row-action menus also open as the context menu of the row or card around them (right-click, the ContextMenu key, Shift+F10, long press on touch), with the same items. Loads the opt-in context-menu runtime through the scripts partial. The partial option `context_menu` wins; data-nowo-ui-context-menu="off" opts a row out. // Default: false
  *         form_errors_after_widget?: bool|Param, // 2.10: the UiKit form theme (form/nowo_ui_layout.html.twig) prints a field's errors after its widget (and before the help), instead of Symfony's order (label, errors, widget, help). // Default: false
@@ -1967,6 +1969,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *                     testids?: bool|Param, // data-testid filters-collapse-toggle / filters-collapse-summary. // Default: false
  *                     morph?: bool|Param, // Add the <morph-icon> of assets/morphicons to the toggle. // Default: false
  *                 },
+ *                 sheet?: bool|Param, // 2.65: below 48rem the filters card folds behind a "Filters (n)" button that opens it in a native modal <dialog> bottom sheet (the filter_bar sheet: macros/filter_sheet.html.twig, runtime filter-sheet, appended to the scripts partial by itself). false = the 2.64 output. // Default: false
  *             },
  *         }>,
  *     },

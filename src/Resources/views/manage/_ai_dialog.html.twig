@@ -1,13 +1,21 @@
 {#
-  AI question dialog of the wiki index: the UiKit `dialog` theme partial (native <dialog>, opened by the page-header
-  action through data-nowo-ui-dialog-open, closed by Escape / the close button / Cancel). 1.18 (UiKit 2.29 dialog
-  sizes): the medium size (a short form: space + question): the width is the platform's (--nowo-dialog-width-md); the
-  height is UiKit's (1.19, dialog rule v2: from UiKit 2.31 the content's, capped at --nowo-dialog-height-md; the
-  bundle sets none); the body is the only part that scrolls and
-  the footer stays outside it, with Cancel then the one primary (Ask) bound to the form by form="…". The question
-  field has autofocus, so showModal() focuses it. Variables: ai_form (WikiAiAskType view, POST to the ai_ask route),
-  bundle.
+  AI question dialog of the wiki index. Since 1.53 (lazy dialogs) an EMPTY UiKit `remote_form_dialog`, medium size: the
+  page-header action is a link to the ai_ask page, which js/nowo-ui-dialog.js loads with `X-Nowo-Dialog: 1` when the
+  dialog opens (_ai_ask_form.html.twig: the question form with Cancel then Ask in the footer; the question field has
+  autofocus). The question posts inside the dialog and the answer, its sources or the error re-render in place.
+  Without JavaScript the link opens the full ask page.
+  Variables: ai_src (the ai_ask URL, 1.53), bundle. Deprecated since 1.53: with ai_form (WikiAiAskType view) instead,
+  the 1.18 inline dialog.
 #}
+{% if ai_form|default(null) is null %}
+    {{ include(nowo_ui_partial('remote_form_dialog', bundle), {
+        id: 'nowo-wiki-ai-dialog',
+        title: 'wiki.ai.highlight_title'|trans({}, 'NowoWikiBundle'),
+        size: 'md',
+        bundle: bundle,
+        attr: {'data-testid': 'wiki-ai-dialog'},
+    }, false) }}
+{% else %}
 {% set _form_id = 'nowo-wiki-ai-dialog-form' %}
 {% set _footer %}
     <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}</button>
@@ -34,3 +42,4 @@
     nowo_ui_page_type: nowo_ui_page_type|default(null),
     attr: {'data-testid': 'wiki-ai-dialog'},
 }, false) }}
+{% endif %}

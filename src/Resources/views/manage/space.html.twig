@@ -42,6 +42,9 @@
         {#- 1.35 (web_ui.new_page_dialog): the new-page dialog's editor (the Milkdown widget adds its own module) -#}
         {% if new_page_dialog|default(null) and new_page_dialog.editor_type == 'tiptap' %}
             <script src="{{ asset(nowo_tiptap_editor_asset_path('tiptap-editor.js'), nowo_tiptap_editor_asset_package()) }}"{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
+        {% elseif new_page_dialog|default(null) and new_page_dialog.editor_type == 'milkdown' and new_page_dialog.form is not defined %}
+            {#- 1.53 (lazy dialogs): the dialog loads the form later (scripts of a fragment never run): the module now -#}
+            {{ include('@NowoWikiBundle/manage/_milkdown_editor_assets.html.twig', {nonce: _nonce}, false) }}
         {% endif %}
         {% if nowo_wiki_icon_picker() %}{{ include('@NowoWikiBundle/manage/_icon_picker_script.html.twig', {nonce: _nonce}, false) }}{% endif %}<script src="{{ asset('wiki.js', 'nowo_wiki') }}" data-code-label="{{ 'wiki.code_block'|trans }}" defer{% if _nonce %} nonce="{{ _nonce }}"{% endif %}></script>
     {% endif %}
@@ -49,8 +52,8 @@
 
 {% block nowo_ui_modals %}
     {{ parent() }}
-    {% if (nowo_wiki_web_ui.import_export ?? 'page') == 'dialog' and (import_form|default(null) or export_links|default([]) is not empty) %}
-        {{ include('@NowoWikiBundle/manage/_import_export_dialog.html.twig', {import_form: import_form|default(null), export_links: export_links|default([]), bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
+    {% if (nowo_wiki_web_ui.import_export ?? 'page') == 'dialog' and (import_export_src|default(null) or import_form|default(null) or export_links|default([]) is not empty) %}
+        {{ include('@NowoWikiBundle/manage/_import_export_dialog.html.twig', {import_export_src: import_export_src|default(null), import_form: import_form|default(null), export_links: export_links|default([]), bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
     {% endif %}
     {#- 1.35 (web_ui.new_page_dialog): the new-page dialog and the page tree's menu -#}
     {% if new_page_dialog|default(null) %}

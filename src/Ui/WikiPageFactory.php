@@ -58,6 +58,12 @@ final readonly class WikiPageFactory
     /** 1.21: id of the Import & export dialog of the space home (`web_ui.import_export: dialog`). */
     public const IMPORT_EXPORT_DIALOG_ID = 'nowo-wiki-import-export-dialog';
 
+    /**
+     * 1.53 (lazy dialogs): the attribute that makes a UiKit dialog opener (`dialogId` + `href`) load its page as a
+     * remote form dialog (`X-Nowo-Dialog: 1`, posted in place, 422 re-rendered, 204 + X-Nowo-Redirect followed).
+     */
+    private const REMOTE_DIALOG = ['data-nowo-ui-dialog-form' => true];
+
     /** Formats of the space export links. */
     public const EXPORT_FORMATS = ['outline', 'notion'];
 
@@ -134,7 +140,8 @@ final readonly class WikiPageFactory
     {
         $actions = [];
         if ($canAskAi && $this->has('ai_ask')) {
-            $actions[] = new Action('custom', WikiPages::label('wiki.ai.title'), variant: 'primary', attributes: ['data-testid' => 'wiki-ai-open'], dialogId: self::AI_DIALOG_ID);
+            // 1.53 (lazy dialogs): a link to the ask page, whose fragment the dialog loads when it opens.
+            $actions[] = new Action('custom', WikiPages::label('wiki.ai.title'), $this->url('ai_ask'), variant: 'primary', attributes: ['data-testid' => 'wiki-ai-open', ...self::REMOTE_DIALOG], dialogId: self::AI_DIALOG_ID);
         }
         $actions = [...$actions, ...$this->dashboardActions()];
 
@@ -183,7 +190,8 @@ final readonly class WikiPageFactory
         $exports = $this->exportLinks($space, $can);
         if ($this->importExportDialog && ($exports !== [] || $can['import'])) {
             // 1.21: one secondary action; the dialog (space template, nowo_ui_modals) holds the exports and the import form.
-            $actions[] = new Action('custom', WikiPages::label('wiki.import_export.title'), attributes: ['data-testid' => 'wiki-import-export-open'], dialogId: self::IMPORT_EXPORT_DIALOG_ID);
+            // 1.53 (lazy dialogs): a link to the dialog's own page (GET of the import route), loaded when it opens.
+            $actions[] = new Action('custom', WikiPages::label('wiki.import_export.title'), $this->has('space_import') ? $this->url('space_import', ['spaceSlug' => $space->getSlug()]) : null, attributes: ['data-testid' => 'wiki-import-export-open', ...self::REMOTE_DIALOG], dialogId: self::IMPORT_EXPORT_DIALOG_ID);
         } elseif (!$this->importExportDialog) {
             foreach ($exports as $export) {
                 $actions[] = new Action('export', WikiPages::label($export['label']), $export['href']);
@@ -259,10 +267,10 @@ final readonly class WikiPageFactory
                 form: $favourite['form'],
             );
         }
-        // 1.35 (web_ui.new_page_dialog): "New page" opens the new-page dialog (UiKit dialog script; a button, no URL: a
-        // URL would be fetched into the dialog body).
+        // 1.35 (web_ui.new_page_dialog): "New page" opens the new-page dialog. 1.53 (lazy dialogs): a link to the
+        // new-page form, whose fragment the dialog loads when it opens (the full page without JavaScript).
         if ($can['new_page_dialog'] ?? false) {
-            $actions[] = new Action('create', WikiPages::label('wiki.space.new_page'), attributes: ['data-testid' => 'wiki-new-page'], dialogId: WikiNewPageMenu::DIALOG_ID);
+            $actions[] = new Action('create', WikiPages::label('wiki.space.new_page'), $this->has('page_new') ? $this->url('page_new', ['spaceSlug' => $space->getSlug()]) : null, attributes: ['data-testid' => 'wiki-new-page', ...self::REMOTE_DIALOG], dialogId: WikiNewPageMenu::DIALOG_ID);
         }
         // 1.15: Save version names the current revision (history.timeline, editors).
         if (($can['version'] ?? false) && $this->has('page_version_save')) {
@@ -609,6 +617,26 @@ final readonly class WikiPageFactory
     /**
      * AI question: the question form; the template renders the error, the answer and the sources ({@see self::hits()}).
      */
+    /** 1.53: whether the space home's import and exports are one dialog (`web_ui.import_export: dialog`). */
+    public function hasImportExportDialog(): bool
+    {
+        return $this->importExportDialog;
+    }
+
+    /**
+     * 1.53 (lazy dialogs): the Import & export dialog's own page (no JavaScript, a deep link): the space's crumbs; the
+     * template renders the exports and the import form.
+     */
+    public function importExport(WikiSpace $space): ShowPage
+    {
+        return new ShowPage(
+            header: new PageHeader(WikiPages::label('wiki.import_export.title'), WikiPages::label('wiki.import_export.intro'), [], $this->crumbs($space, null, WikiPages::label('wiki.import_export.title'))),
+            bundle: WikiPages::BUNDLE,
+            layout: $this->pages->layout(),
+            attributes: ['data-testid' => 'wiki-import-export-page'],
+        );
+    }
+
     public function aiAsk(FormView $form, bool $answered): FormPage
     {
         return new FormPage(

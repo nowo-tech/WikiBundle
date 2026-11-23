@@ -1033,7 +1033,7 @@ Paths are relative to `src/Resources/views` (`@NowoWikiBundle/<subpath>`):
 | `manage/_backlinks.html.twig` | 1.45: "Linked from" after the page body (`backlinks`, block `wiki_page_backlinks`) |
 | `manage/_page_tree.html.twig` | One level of the tree (`<ul class="nowo-wiki-tree">`) |
 | `manage/_page_tree_item.html.twig` | One page of the tree: link, depth class, `aria-current`, its children |
-| `manage/_ai_dialog.html.twig` | AI question `<dialog>` of the index (UiKit `_dialog`) |
+| `manage/_ai_dialog.html.twig` | AI question `<dialog>` of the index (1.53: empty UiKit `remote_form_dialog`, loads `ai_ask` → `manage/_ai_ask_form.html.twig`) |
 | `manage/_legacy_layout.html.twig` | Deprecated bridge around a pre-1.10 layout (removed in 2.0) |
 | `manage/_member_label_suffix.html.twig` | Host badges after a member's name (history authors, comment authors); block `member_label_suffix` |
 
@@ -1054,7 +1054,7 @@ Every form in the manage views is a PHP Symfony Form Type (Form Kit `wiki` profi
 | `manage/page_edit.html.twig` | `page.form` | `WikiPageFormType` — its own CSRF field (token id `wiki_edit_<page id>` / `wiki_new_<space id>`) replaces the former top-level `_token` |
 | `manage/index.html.twig`, `manage/search.html.twig` (`page.filters`), `manage/space.html.twig` (`search_form`) | `page.filters` / `search_form` | `WikiSearchType` (GET, flat `space` / `q`) |
 | `manage/space.html.twig` | `import_form` | `WikiImportType` (multipart, flat `format` / `archive` / `update_existing` / `_token`) |
-| `manage/ai_ask.html.twig` (`page.form`), `manage/_ai_dialog.html.twig` (`ai_form`) | `page.form` / `ai_form` | `WikiAiAskType` (flat `space` / `q` / `_token`, token id `wiki_ai_ask`) |
+| `manage/ai_ask.html.twig` (`page.form`), `manage/_ai_ask_form.html.twig` (`form`, 1.53; `_ai_dialog.html.twig` `ai_form` deprecated) | `page.form` / `ai_form` | `WikiAiAskType` (flat `space` / `q` / `_token`, token id `wiki_ai_ask`) |
 
 Render custom children first, then the canonical loop so remaining children (CSRF, hidden fields) still appear:
 

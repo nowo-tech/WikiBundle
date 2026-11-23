@@ -1,0 +1,24 @@
+{#
+  1.53 (lazy dialogs): the new-page form as the fragment of the new-page dialog (_new_page_dialog.html.twig), answered
+  by the page_new route to a dialog request (X-Nowo-Dialog: 1): the flashes of a refusal, the line that says where the
+  page goes (the server's, for a place on a page the user may read), the form (WikiPageFormType: title, editor, the
+  hidden `place`, CSRF token wiki_new_<space id>) and Cancel then Create, which the dialog moves into its footer.
+  Variables: form (FormView), context (TranslatableMessage|null), editor_type, bundle.
+#}
+{% trans_default_domain 'NowoWikiBundle' %}
+{% set _form_id = 'nowo-wiki-new-page-form' %}
+{{ include(nowo_ui_partial('flashes', bundle), {bundle: bundle}, false) }}
+{% if context %}
+    <p class="{{ nowo_ui_class('muted', bundle) }} nowo-wiki-new-page__context" data-wiki-new-page-context data-testid="wiki-new-page-context">{{ context|trans }}</p>
+{% endif %}
+{{ form_start(form, {attr: {id: _form_id, class: nowo_ui_class('form', bundle) ~ ' nowo-wiki-new-page__form', 'data-testid': 'wiki-new-page-form'}}) }}
+    {% for child in form %}
+        {% if not child.rendered %}
+            {{ form_row(child) }}
+        {% endif %}
+    {% endfor %}
+{{ form_end(form) }}
+<div class="{{ nowo_ui_class('form_actions', bundle) }}" data-nowo-ui-dialog-actions>
+    <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
+    <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="{{ _form_id }}" data-testid="wiki-new-page-submit">{{ 'wiki.new_page.create'|trans }}</button>
+</div>

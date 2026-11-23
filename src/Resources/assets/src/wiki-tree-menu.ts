@@ -135,6 +135,32 @@ export async function postTree(url: string, token: string, body: Record<string, 
     return { status: response.status, data };
 }
 
+/**
+ * 1.53 (lazy dialogs): the form of a dialog loaded on demand. The server answers the dialog's own URL
+ * (`data-wiki-tree-icon-src` / `data-wiki-tree-move-src`: the space page, `?dialog=tree-icon|tree-move`) with the form
+ * fragment for `X-Nowo-Dialog: 1`; it is parsed in an inert <template>. Rejects on another answer (an error, a whole
+ * page, another origin).
+ *
+ * @param url - The dialog's form URL.
+ * @param fetcher - fetch (tests pass their own).
+ */
+export async function loadDialogForm(url: string, fetcher: typeof fetch = fetch): Promise<DocumentFragment> {
+    const response = await fetcher(url, {
+        credentials: 'same-origin',
+        mode: 'same-origin',
+        headers: { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest', 'X-Nowo-Dialog': '1' },
+    });
+    const html = response.status === 200 ? await response.text() : '';
+    if (!(response.headers.get('content-type') ?? '').startsWith('text/html') || html === '' || /<html|<!doctype/i.test(html.slice(0, 512))) {
+        throw new Error(`Dialog form not loaded (HTTP ${response.status}).`);
+    }
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    template.content.querySelectorAll('script').forEach((script) => script.remove());
+
+    return template.content;
+}
+
 const boundMenus = new WeakSet<HTMLElement>();
 
 /**
@@ -308,11 +334,25 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
     const openIconDialog = (item: HTMLLIElement): void => {
         // The menu offers "icon" only with the dialog (WikiTreeMenu + _tree_menu.html.twig render them together).
         const dialog = iconDialog as HTMLDialogElement;
+        const template = dialog.querySelector<HTMLTemplateElement>('template[data-wiki-tree-icon-template]');
+        if (template) {
+            // 1.39–1.52 markup (a host's template): the form is in the page.
+            showIconDialog(item, template.content.cloneNode(true) as DocumentFragment);
+
+            return;
+        }
+        // 1.53 (lazy dialogs): the form is loaded when the dialog opens.
+        loadDialogForm(`${dialog.dataset.wikiTreeIconSrc}`, fetcher).then(
+            (fragment) => showIconDialog(item, fragment),
+            () => say(text('failed')),
+        );
+    };
+
+    const showIconDialog = (item: HTMLLIElement, fragment: DocumentFragment): void => {
+        const dialog = iconDialog as HTMLDialogElement;
         const tree = treeOf(item) as HTMLElement;
         const url = `${tree.dataset.wikiTreeIcon}`;
-        const template = dialog.querySelector<HTMLTemplateElement>('template[data-wiki-tree-icon-template]') as HTMLTemplateElement;
         const slot = dialog.querySelector<HTMLElement>('[data-wiki-tree-icon-slot]') as HTMLElement;
-        const fragment = template.content.cloneNode(true) as DocumentFragment;
         const field = fragment.querySelector<HTMLInputElement>('[name$="[icon]"]') as HTMLInputElement;
         const value = `${item.getAttribute('data-wiki-icon')}`;
         field.value = value;
@@ -358,6 +398,18 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
     const newPage = (item: HTMLLIElement, entry: 'child' | 'below' | 'above'): void => {
         const place = placeFor(item, entry);
         const dialog = doc.querySelector<HTMLDialogElement>('[data-wiki-new-page-dialog]');
+        const remote = dialog?.dataset.wikiNewPageUrl;
+        if (dialog && remote !== undefined) {
+            // 1.53 (lazy dialogs): the dialog loads the new-page form with the place (UiKit remote dialog); without
+            // the UiKit dialog script, the form's page.
+            const url = `${remote}?place=${encodeURIComponent(place)}`;
+            const open = (doc.defaultView as Window & { nowoUiOpenRemoteForm?: (id: string, url: string, opener?: HTMLElement | null) => boolean }).nowoUiOpenRemoteForm;
+            if (!open?.(dialog.id, url, linkOf(item))) {
+                (doc.defaultView as Window).location.assign(url);
+            }
+
+            return;
+        }
         if (dialog) {
             // The 1.35 new-page dialog: its hidden place field and the line that says where the page goes.
             const field = dialog.querySelector<HTMLInputElement>('[data-wiki-new-page-place]') as HTMLInputElement;
@@ -551,7 +603,8 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
         request(item, 'wikiTreeMove', { parent, index: 1_000_000 }, () => view.location.reload());
     };
 
-    moveDialog?.querySelector('form')?.addEventListener('submit', (event) => {
+    // The form is the page's (1.41–1.52) or, 1.53 (lazy dialogs), loaded when the dialog opens (bound then).
+    const onMoveSubmit = (event: Event): void => {
         event.preventDefault();
         const select = (event.currentTarget as HTMLFormElement).querySelector('select') as HTMLSelectElement;
         const target = moving as { item: HTMLLIElement; current: string | null };
@@ -560,9 +613,28 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
         if (parent !== target.current) {
             moveTo(target.item, parent);
         }
-    });
+    };
+    moveDialog?.querySelector('form')?.addEventListener('submit', onMoveSubmit);
 
     const openMove = (item: HTMLLIElement): void => {
+        const dialog = moveDialog as HTMLDialogElement;
+        const slot = dialog.querySelector<HTMLElement>('[data-wiki-tree-move-slot]');
+        const src = dialog.dataset.wikiTreeMoveSrc;
+        if (!slot || src === undefined) {
+            // 1.41–1.52 markup (a host's template): the form is in the page.
+            showMove(item);
+
+            return;
+        }
+        // 1.53 (lazy dialogs): the form is loaded first (once per opening), then the parents as before.
+        loadDialogForm(src, fetcher).then((fragment) => {
+            slot.replaceChildren(fragment);
+            slot.querySelector('form')?.addEventListener('submit', onMoveSubmit);
+            showMove(item);
+        }, () => say(text('failed')));
+    };
+
+    const showMove = (item: HTMLLIElement): void => {
         request(item, 'wikiTreeParents', {}, (data) => {
             const dialog = moveDialog as HTMLDialogElement;
             const select = dialog.querySelector('select') as HTMLSelectElement;
@@ -576,7 +648,11 @@ export function bindTreeMenu(doc: Document = document, fetcher: typeof fetch = f
             select.value = data.parent ?? '';
             moving = { item, current: data.parent ?? null };
             const back = linkOf(item);
-            dialog.addEventListener('close', () => back?.focus(), { once: true });
+            const slot = dialog.querySelector<HTMLElement>('[data-wiki-tree-move-slot]');
+            dialog.addEventListener('close', () => {
+                slot?.replaceChildren();
+                back?.focus();
+            }, { once: true });
             openDialog(dialog);
             select.focus();
         });

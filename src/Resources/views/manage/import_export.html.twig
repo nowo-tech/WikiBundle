@@ -1,0 +1,31 @@
+{#
+  1.53 (lazy dialogs): the Import & export dialog's own page (web_ui.import_export: dialog), the GET of the space_import
+  route without JavaScript or as a deep link — UiKit page/show. Variable: page (View\ShowPage from
+  WikiPageFactory::importExport(): header, the space's crumbs); also import_form, export_links, bundle.
+  Data block: nowo_ui_show_sections (_import_export_form.html.twig in a card).
+#}
+{% extends '@NowoUiKit/page/show.html.twig' %}
+{% trans_default_domain 'NowoWikiBundle' %}
+
+{% block nowo_ui_styles %}
+    {#- web_ui.assets.styles: false = the host bundles the assets (nothing printed here) -#}
+    {% if nowo_wiki_web_ui.assets.styles ?? true %}
+        {{ parent() }}
+        <link rel="stylesheet" href="{{ asset('wiki.css', 'nowo_wiki') }}">
+    {% endif %}
+{% endblock %}
+
+{% block nowo_ui_scripts %}
+    {% if nowo_wiki_web_ui.assets.scripts ?? true %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}
+
+{% block nowo_ui_show_sections %}
+    {% set _b = page.bundle %}
+    <section class="{{ nowo_ui_class('section', _b) }} {{ nowo_ui_class('card', _b) }}" data-testid="wiki-import-export"{{ nowo_ui_attrs('card', _b) }}>
+        <div class="{{ nowo_ui_class('card_body', _b) }}">
+            {{ include('@NowoWikiBundle/manage/_import_export_form.html.twig', {import_form: import_form|default(null), export_links: export_links|default([]), bundle: _b, space_href: space_href|default(null)}, false) }}
+        </div>
+    </section>
+{% endblock %}

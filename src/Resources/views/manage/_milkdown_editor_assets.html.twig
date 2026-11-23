@@ -1,0 +1,4 @@
+{#- 1.53 (lazy dialogs): the Milkdown editor's stylesheet and module for a page whose new-page dialog loads the form
+    later (the scripts of a fragment never run, so the page brings them). Included only with editor.type: milkdown, so
+    the MilkdownEditorBundle function exists. Variables: nonce (optional). -#}
+{{ nowo_milkdown_editor_assets(nonce|default(null)) }}

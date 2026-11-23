@@ -846,6 +846,7 @@ final class WikiManageControllerTest extends TestCase
             $controller->index();
 
             self::assertNull($twig->context['ai_form']);
+            self::assertFalse($twig->context['ai_dialog']);
             self::assertInstanceOf(ListPage::class, $twig->context['page']);
             foreach ($twig->context['page']->actions as $action) {
                 self::assertNotSame(WikiPageFactory::AI_DIALOG_ID, $action->dialogId);
@@ -858,7 +859,13 @@ final class WikiManageControllerTest extends TestCase
         $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $available);
         WikiControllerContainerBuilder::bind($controller, new TestUser(), ['twig' => $twig]);
         $controller->index();
-        self::assertNotNull($twig->context['ai_form']);
+        // 1.53 (lazy dialogs): the dialog, but no form in the page; the action links to the ask page.
+        self::assertNull($twig->context['ai_form']);
+        self::assertTrue($twig->context['ai_dialog']);
+        $open = array_values(array_filter($twig->context['page']->header->actions, static fn ($action): bool => $action->dialogId === WikiPageFactory::AI_DIALOG_ID));
+        self::assertCount(1, $open);
+        self::assertSame('/generated/nowo_wiki_ai_ask', $open[0]->href);
+        self::assertTrue($open[0]->attributes['data-nowo-ui-dialog-form']);
     }
 
     public function testPageHistoryRendersRevisions(): void
@@ -2735,6 +2742,46 @@ MD);
 
         self::assertSame(Response::HTTP_OK, $response->getStatusCode());
         self::assertStringContainsString('ai_ask', (string) $response->getContent());
+    }
+
+    /**
+     * 1.53 (lazy dialogs): the index's AI dialog loads the ask page (X-Nowo-Dialog: 1) and posts inside it: the
+     * fragment, with the answer, varying on the header; a forged token is refused as on the page.
+     */
+    public function testAskAiAnswersTheDialogWithItsFragment(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $aiAssistant = $this->createMock(WikiAiAssistantInterface::class);
+        $aiAssistant->method('isAvailable')->willReturn(true);
+        $aiAssistant->method('ask')->willReturn(new WikiAiAnswer('Use the runbook.', []));
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, aiAssistant: $aiAssistant);
+        $twig       = $this->capturingTwig();
+        $container  = WikiControllerContainerBuilder::bind($controller, $user, ['twig' => $twig]);
+
+        $open = Request::create('/ask');
+        $open->headers->set('X-Nowo-Dialog', '1');
+        $response = $controller->askAi($open);
+        self::assertSame('@NowoWikiBundle/manage/_ai_ask_form.html.twig', $response->getContent());
+        self::assertContains('X-Nowo-Dialog', $response->getVary());
+        self::assertNull($twig->context['answer']);
+
+        $ask = Request::create('/ask', 'POST', ['q' => 'How do I deploy?', 'space' => 'eng', '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_ai_ask')]);
+        $ask->headers->set('X-Nowo-Dialog', '1');
+        $response = $controller->askAi($ask);
+        self::assertSame(Response::HTTP_OK, $response->getStatusCode());
+        self::assertSame('@NowoWikiBundle/manage/_ai_ask_form.html.twig', $response->getContent());
+        self::assertSame('Use the runbook.', $twig->context['answer']);
+
+        $forged = Request::create('/ask', 'POST', ['q' => 'x']);
+        $forged->headers->set('X-Nowo-Dialog', '1');
+        $this->expectException(AccessDeniedHttpException::class);
+        $controller->askAi($forged);
     }
 
     public function testAskAiPostRejectsEmptyQuestion(): void

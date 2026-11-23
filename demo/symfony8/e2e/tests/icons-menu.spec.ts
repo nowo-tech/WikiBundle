@@ -111,6 +111,8 @@ test.describe('Tree context menu', () => {
   test('Change icon: the picker\'s Emoji tab sets an emoji, shown as text in the row', async ({ page }) => {
     await page.goto(deploy);
     await item(page, 'Rollback').click({ button: 'right' });
+    // 1.53 (lazy dialogs): the icon field is not in the page; the dialog loads it when it opens.
+    await expect(page.locator('input[name="form[icon]"]')).toHaveCount(0);
     await menu(page).getByRole('menuitem', { name: 'Change icon / emoji' }).click();
     const dialog = page.getByTestId('wiki-tree-icon-dialog');
     await expect(dialog).toBeVisible();

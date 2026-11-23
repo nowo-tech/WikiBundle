@@ -1,0 +1,14 @@
+{#
+  1.53 (lazy dialogs): the form of the tree menu's "Change icon" (kind icon: the page icon field, text input or the
+  IconSelector picker) or "Move to…" dialog (kind move: the parent field; its choices come from the tree's parents
+  endpoint), answered by the space page to `?dialog=tree-icon|tree-move` with X-Nowo-Dialog: 1. wiki.js loads it into
+  the dialog's slot when the dialog opens and posts it to the tree's endpoints (CSRF token, same origin).
+  Variables: form (FormView), kind (icon|move), bundle.
+#}
+{{ form_start(form, {attr: {id: 'nowo-wiki-tree-' ~ kind ~ '-form', class: nowo_ui_class('form', bundle), 'data-testid': 'wiki-tree-' ~ kind ~ '-form', novalidate: 'novalidate'}}) }}
+    {% for child in form %}
+        {% if not child.rendered %}
+            {{ form_row(child) }}
+        {% endif %}
+    {% endfor %}
+{{ form_end(form) }}
