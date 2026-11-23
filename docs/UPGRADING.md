@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+- [To 1.55.1](#to-1551)
   - [Erasure checks (1.55.1)](#erasure-checks-1551)
 - [To 1.55.0](#to-1550)
   - [Space create, erasure and comment reads by id (1.55)](#space-create-erasure-and-comment-reads-by-id-155)
@@ -150,6 +151,14 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+## To 1.55.1
+
+From **1.55.0**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ### Erasure checks (1.55.1)
 
