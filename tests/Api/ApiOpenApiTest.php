@@ -76,7 +76,7 @@ final class ApiOpenApiTest extends ApiTestCase
     {
         $em      = $this->em();
         $page    = $this->page($this->eng, 'Guide', '# Guide');
-        $service = static::getContainer()->get(WikiCommentService::class);
+        $service = self::getContainer()->get(WikiCommentService::class);
         self::assertInstanceOf(WikiCommentService::class, $service);
         $stored = $this->wikiEm()->find(WikiPage::class, $page->getId());
         self::assertInstanceOf(WikiPage::class, $stored);

@@ -184,7 +184,7 @@ final class WorkerNoResetTrashTest extends ApiTestCase
 
     private function trash(): WikiTrashService
     {
-        $trash = static::getContainer()->get(WikiTrashService::class);
+        $trash = self::getContainer()->get(WikiTrashService::class);
         assert($trash instanceof WikiTrashService);
 
         return $trash;
@@ -214,7 +214,7 @@ final class WorkerNoResetTrashTest extends ApiTestCase
      */
     private function raw(string $method, string $path, array $body): Response
     {
-        $kernel = static::getContainer()->get('http_kernel');
+        $kernel = self::getContainer()->get('http_kernel');
         assert($kernel instanceof HttpKernelInterface && $kernel instanceof TerminableInterface);
         $server   = ['HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . self::ANA, 'CONTENT_TYPE' => 'application/json'];
         $request  = Request::create('/api/wiki/v1' . $path, $method, [], [], [], $server, (string) json_encode($body));

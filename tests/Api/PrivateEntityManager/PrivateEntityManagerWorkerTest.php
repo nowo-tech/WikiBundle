@@ -51,7 +51,7 @@ final class PrivateEntityManagerWorkerTest extends ApiTestCase
     public function testTwoPeopleWriteAndReadInTurnWithoutTouchingTheApplicationsUnitOfWork(): void
     {
         $this->token(self::BOB, 'u-bob', WikiApiLevel::Full);
-        $container = static::getContainer();
+        $container = self::getContainer();
         $provider  = $container->get(WikiEntityManagerProvider::class);
         assert($provider instanceof WikiEntityManagerProvider);
         $private = $provider->get();
@@ -121,7 +121,7 @@ final class PrivateEntityManagerWorkerTest extends ApiTestCase
      */
     private function raw(string $method, string $path, string $secret, ?array $body = null): Response
     {
-        $kernel = static::getContainer()->get('http_kernel');
+        $kernel = self::getContainer()->get('http_kernel');
         assert($kernel instanceof HttpKernelInterface && $kernel instanceof TerminableInterface);
         $server = ['HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . $secret];
         if ($body !== null) {

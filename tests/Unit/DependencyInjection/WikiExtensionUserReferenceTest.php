@@ -44,7 +44,7 @@ final class WikiExtensionUserReferenceTest extends TestCase
         self::assertTrue($container->getDefinition(WikiSpaceCollationListener::class)->hasTag('doctrine.event_listener'));
         $memos = $container->getDefinition(WikiRequestBoundaryResetter::class)->getArgument('$memos');
         self::assertInstanceOf(IteratorArgument::class, $memos);
-        self::assertContains(WikiUsers::class, array_map('strval', $memos->getValues()), 'emptied at every boundary');
+        self::assertContains(WikiUsers::class, array_map(strval(...), $memos->getValues()), 'emptied at every boundary');
 
         $default = $this->load(['user_class' => 'App\\User']);
         self::assertSame('entity', $default->getDefinition(WikiMetadataListener::class)->getArgument('$userReference'));

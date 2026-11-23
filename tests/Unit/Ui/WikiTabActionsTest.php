@@ -21,9 +21,9 @@ final class WikiTabActionsTest extends TestCase
 {
     public function testThePageViewGetsEditAndHistory(): void
     {
-        $actions = WikiTabActions::fromTabs(self::tabs('page'), 'tabler-icons');
+        $actions = WikiTabActions::fromTabs($this->tabs('page'), 'tabler-icons');
 
-        self::assertSame(['wiki-toolbar-edit', 'wiki-toolbar-history'], self::ids($actions));
+        self::assertSame(['wiki-toolbar-edit', 'wiki-toolbar-history'], $this->ids($actions));
         self::assertSame(['/edit', '/history'], array_map(static fn (Action $action): ?string => $action->href, $actions));
         // tabler-icons draws the tabler names without their prefix; icon-only buttons, the label is the name.
         self::assertSame(['pencil', 'history'], array_map(static fn (Action $action): ?string => $action->icon, $actions));
@@ -34,15 +34,15 @@ final class WikiTabActionsTest extends TestCase
 
     public function testTheEditFormAndTheHistoryGetBackAndTheCurrentButton(): void
     {
-        $edit = WikiTabActions::fromTabs(self::tabs('edit'));
-        self::assertSame(['wiki-toolbar-back', 'wiki-toolbar-edit', 'wiki-toolbar-history'], self::ids($edit));
+        $edit = WikiTabActions::fromTabs($this->tabs('edit'));
+        self::assertSame(['wiki-toolbar-back', 'wiki-toolbar-edit', 'wiki-toolbar-history'], $this->ids($edit));
         self::assertSame('/page', $edit[0]->href);
         self::assertSame('page', $edit[1]->attributes['aria-current']);
         self::assertArrayNotHasKey('aria-current', $edit[2]->attributes);
         // bootstrap-icons cannot draw tabler names: the canonical kinds.
         self::assertSame(['prev', 'edit', 'restore'], array_map(static fn (Action $action): ?string => $action->icon, $edit));
 
-        $history = WikiTabActions::fromTabs(self::tabs('history'), 'ux_icon');
+        $history = WikiTabActions::fromTabs($this->tabs('history'), 'ux_icon');
         self::assertSame('page', $history[2]->attributes['aria-current']);
         // ux_icon draws any name as written.
         self::assertSame(['tabler:arrow-left', 'tabler:pencil', 'tabler:history'], array_map(static fn (Action $action): ?string => $action->icon, $history));
@@ -69,7 +69,7 @@ final class WikiTabActionsTest extends TestCase
         self::assertSame([], WikiTabActions::fromTabs(null));
     }
 
-    private static function tabs(string $current): AreaNav
+    private function tabs(string $current): AreaNav
     {
         return new AreaNav([
             new AreaNavItem('Page', '/page', $current === 'page', ['data-testid' => 'wiki-tab-page'], 'tabler:file-text'),
@@ -83,7 +83,7 @@ final class WikiTabActionsTest extends TestCase
      *
      * @return list<mixed>
      */
-    private static function ids(array $actions): array
+    private function ids(array $actions): array
     {
         return array_map(static fn (Action $action): mixed => $action->attributes['data-testid'] ?? null, $actions);
     }

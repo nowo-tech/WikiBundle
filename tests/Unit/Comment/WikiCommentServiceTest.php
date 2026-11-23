@@ -207,7 +207,7 @@ final class WikiCommentServiceTest extends TestCase
         $repository = $this->createStub(WikiCommentRepositoryInterface::class);
         $threads    = [];
         for ($i = 0; $i <= WikiCommentService::MAX_THREADS; ++$i) {
-            $threads[] = new WikiCommentThread($this->page, $this->ana, null, null);
+            $threads[] = new WikiCommentThread($this->page, $this->ana);
         }
         $repository->method('threads')->willReturn($threads);
         $repository->method('comments')->willReturn([]);
@@ -1176,8 +1176,6 @@ final class WikiCommentServiceTest extends TestCase
             new WikiMarkdownRenderer(),
             new WikiHtmlSanitizer(),
             dispatcher: $dispatcher,
-            // 1.37: as the bundle wires it, every write a unit of the transaction runner under its row lock.
-            runner: new WikiTransactionRunner($this->em),
             collab: new WikiCollabService(new InMemoryCollabStateStore(), $publisher, $authorizer, ['topic_prefix' => 'eng-topic/page-'], secret: 'secret'),
             publisher: $publisher,
             rateLimiter: $limiter,
@@ -1185,6 +1183,8 @@ final class WikiCommentServiceTest extends TestCase
             pageRateLimiter: $pageLimiter,
             limits: $limits,
             badges: $badges,
+            // 1.37: as the bundle wires it, every write a unit of the transaction runner under its row lock.
+            runner: new WikiTransactionRunner($this->em),
         );
     }
 

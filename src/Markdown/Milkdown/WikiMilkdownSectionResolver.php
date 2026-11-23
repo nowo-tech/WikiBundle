@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Markdown\Milkdown;
 
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\SectionResolverInterface;
+use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Markdown\WikiHeadingOutline;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Markdown\WikiRenderFrame;
@@ -79,7 +80,7 @@ final readonly class WikiMilkdownSectionResolver implements SectionResolverInter
         $html = [];
         foreach ($ids as $id) {
             $revision = $this->pages->findById($id)?->getCurrentRevision();
-            if ($revision !== null) {
+            if ($revision instanceof WikiPageRevision) {
                 $html[$id] = $revision->getContentHtml();
             }
         }

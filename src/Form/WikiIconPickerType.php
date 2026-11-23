@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Form;
 
+use Nowo\IconSelectorBundle\Form\IconSelectorType;
 use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use Nowo\WikiBundle\WikiBundle;
 use Override;
@@ -26,7 +27,7 @@ use function in_array;
 final class WikiIconPickerType extends AbstractType
 {
     /** IconSelectorBundle's form type (named as a string: the bundle is optional). */
-    public const PARENT = 'Nowo\IconSelectorBundle\Form\IconSelectorType';
+    public const PARENT = IconSelectorType::class;
 
     /**
      * @param list<string> $allowedPrefixes accepted prefixes (with "emoji" when emoji are allowed)

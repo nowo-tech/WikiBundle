@@ -103,7 +103,7 @@ final class WikiHostFlushProbe implements ResetInterface
      */
     public function __construct(?HostFlushProbe $probe = null)
     {
-        $this->ownProbe = $probe === null;
+        $this->ownProbe = !$probe instanceof HostFlushProbe;
         $this->probe    = $probe ?? new HostFlushProbe();
     }
 
@@ -146,7 +146,7 @@ final class WikiHostFlushProbe implements ResetInterface
             self::DELETE => $unitOfWork->getScheduledEntityDeletions(),
         ] as $kind => $entities) {
             foreach ($entities as $entity) {
-                $class = self::realClass($entity::class);
+                $class = $this->realClass($entity::class);
                 if (WikiFlushObserver::isWikiEntity($class)) {
                     $this->report($class, $kind);
                 }
@@ -191,7 +191,7 @@ final class WikiHostFlushProbe implements ResetInterface
     }
 
     /** The entity class behind a Doctrine proxy class. */
-    private static function realClass(string $class): string
+    private function realClass(string $class): string
     {
         $marker = strrpos($class, '\\__CG__\\');
 

@@ -309,7 +309,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         $this->store->append('p8', 'dQ==');
 
         try {
-            $this->store->whileLocked('p8', function (): void {
+            $this->store->whileLocked('p8', function (): never {
                 $this->store->reset('p8', 'rev-2');
 
                 throw new RuntimeException('save failed');
@@ -345,7 +345,7 @@ final class DoctrineWikiCollabStateStoreTest extends TestCase
         };
 
         try {
-            $this->store->whileLocked('p7', static function () use ($connection, $driver): void {
+            $this->store->whileLocked('p7', static function () use ($connection, $driver): never {
                 $connection->beginTransaction();
                 $connection->executeStatement('ROLLBACK');
 

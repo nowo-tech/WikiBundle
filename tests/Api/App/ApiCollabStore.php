@@ -20,7 +20,7 @@ final class ApiCollabStore implements WikiCollabStateStoreInterface, WikiCollabL
 {
     public static bool $failReset = false;
 
-    private DoctrineWikiCollabStateStore $inner;
+    private readonly DoctrineWikiCollabStateStore $inner;
 
     public function __construct(WikiEntityManagerProvider $entityManager)
     {

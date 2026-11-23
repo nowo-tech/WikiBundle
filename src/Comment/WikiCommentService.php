@@ -1243,7 +1243,7 @@ final readonly class WikiCommentService
     private function changed(WikiPage $page, WikiCommentThread $thread, ?WikiComment $comment, UserInterface $user, string $event, ?string $body = null): void
     {
         $this->publish($page, $thread);
-        if ($this->dispatcher === null) {
+        if (!$this->dispatcher instanceof EventDispatcherInterface) {
             return;
         }
         $changed = new WikiCommentEvent($page, $thread, $comment, $user, $body === null ? [] : $this->references->mentions($body));

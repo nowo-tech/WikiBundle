@@ -108,7 +108,7 @@ final readonly class WikiPageDuplicator
     {
         $children = [];
         foreach ($this->repository->findActiveBySpace($parent->getSpace()) as $candidate) {
-            if ($candidate->getParent()?->getId() === $parent->getId() && ($scope === null || isset($scope->visibleIds[$candidate->getId()]))) {
+            if ($candidate->getParent()?->getId() === $parent->getId() && (!$scope instanceof WikiPageMoveScope || isset($scope->visibleIds[$candidate->getId()]))) {
                 $children[] = $candidate;
             }
         }

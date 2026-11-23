@@ -40,7 +40,7 @@ final class HostFlushProbeWorkerTest extends ApiTestCase
 
     public function testEachRequestReportsTheApplicationsPendingChangeAgain(): void
     {
-        $provider = static::getContainer()->get(WikiEntityManagerProvider::class);
+        $provider = self::getContainer()->get(WikiEntityManagerProvider::class);
         self::assertInstanceOf(WikiEntityManagerProvider::class, $provider);
         self::assertNotNull($provider->hostFlushProbe(), 'the shared manager runs the probe');
         $host = $this->em();
@@ -56,7 +56,7 @@ final class HostFlushProbeWorkerTest extends ApiTestCase
         self::assertCount(self::ROUNDS, $probe, 'one notice per request: the probe forgets at every request boundary');
         $ownPaths = array_values(array_filter($seen, static fn (string $message): bool => !str_contains($message, TestUserEntity::class) && (str_contains($message, 'nowo-tech/wiki-bundle 1.49') || str_contains($message, 'flushed by NowoWikiBundle'))));
         self::assertSame([], $ownPaths, 'the bundle\'s own code paths trigger none of the 1.49 notices');
-        $connection = static::getContainer()->get('doctrine.dbal.default_connection');
+        $connection = self::getContainer()->get('doctrine.dbal.default_connection');
         assert($connection instanceof Connection);
         self::assertSame(self::ROUNDS, (int) $connection->fetchOne("SELECT COUNT(*) FROM test_users WHERE id LIKE 'pending-%'"), 'host mode is unchanged in 1.x');
     }
@@ -88,7 +88,7 @@ final class HostFlushProbeWorkerTest extends ApiTestCase
      */
     private function raw(string $method, string $path, array $body): Response
     {
-        $kernel = static::getContainer()->get('http_kernel');
+        $kernel = self::getContainer()->get('http_kernel');
         assert($kernel instanceof HttpKernelInterface && $kernel instanceof TerminableInterface);
         $server   = ['HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer ' . self::ANA, 'CONTENT_TYPE' => 'application/json'];
         $request  = Request::create('/api/wiki/v1' . $path, $method, [], [], [], $server, (string) json_encode($body));

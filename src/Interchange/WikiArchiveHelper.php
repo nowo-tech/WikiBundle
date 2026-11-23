@@ -348,7 +348,7 @@ final readonly class WikiArchiveHelper
      */
     private function assertFitsInMemory(int $markdownBytes): void
     {
-        $limit = ini_parse_quantity((string) ini_get('memory_limit'));
+        $limit = ini_parse_quantity(ini_get('memory_limit'));
         if ($limit > 0 && $markdownBytes * 2 > $limit - memory_get_usage()) {
             throw new WikiInterchangeException(sprintf('ZIP archive Markdown documents (%d bytes) do not fit in the memory limit of this server.', $markdownBytes));
         }

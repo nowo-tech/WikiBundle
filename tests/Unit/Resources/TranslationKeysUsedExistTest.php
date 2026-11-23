@@ -40,7 +40,7 @@ final class TranslationKeysUsedExistTest extends TestCase
                     continue;
                 }
                 foreach ($m[1] as $key) {
-                    if (!isset(self::keys()[$key])) {
+                    if (!isset($this->keys()[$key])) {
                         $missing[$key] = substr((string) $file, strlen($root) + 1);
                     }
                 }
@@ -59,7 +59,7 @@ final class TranslationKeysUsedExistTest extends TestCase
                 continue;
             }
             $key = sprintf('wiki_page_form.%s.placeholder', $match[1]);
-            if (!isset(self::keys()[$key])) {
+            if (!isset($this->keys()[$key])) {
                 $missing[] = $key;
             }
         }
@@ -69,7 +69,7 @@ final class TranslationKeysUsedExistTest extends TestCase
     /**
      * @return array<string, true>
      */
-    private static function keys(): array
+    private function keys(): array
     {
         if (self::$keys === null) {
             $parsed     = Yaml::parseFile(dirname(__DIR__, 3) . '/src/Resources/translations/NowoWikiBundle.en.yaml');

@@ -18,7 +18,7 @@ final class ApiWithoutFirewallTest extends ApiTestCase
     {
         $this->assertRefusal($this->call('GET', '/wikis/eng'), 500, 'SERVER_001');
 
-        $logger = static::getContainer()->get('logger');
+        $logger = self::getContainer()->get('logger');
         self::assertInstanceOf(RecordingLogger::class, $logger);
         self::assertContains('error: Wiki API: the security user is not the token\'s user. The API must sit behind a stateless, secured firewall that authenticates the token.', $logger->lines());
     }

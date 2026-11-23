@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Api;
 
 use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Event\WikiApiWriteEvent;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 
@@ -44,7 +45,7 @@ final class ApiCommentWriteTest extends ApiTestCase
 
         $resolved = $this->json($this->call('PATCH', $path . '/' . $thread['id'], 'bob', ['resolved' => true]));
         self::assertTrue($resolved['resolved']);
-        self::assertSame(['thread.create', 'comment.create', 'thread.resolve'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        self::assertSame(['thread.create', 'comment.create', 'thread.resolve'], array_map(static fn (WikiApiWriteEvent $e): string => $e->operation, ApiAuditRecorder::$events));
         self::assertFalse($this->json($this->call('PATCH', $path . '/' . $thread['id'], 'bob', ['resolved' => false]))['resolved']);
         $this->assertRefusal($this->call('PATCH', $path . '/' . $thread['id'], 'bob', []), 400, 'INPUT_002');
     }
@@ -91,7 +92,7 @@ final class ApiCommentWriteTest extends ApiTestCase
         $created = $this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/threads', 'bob', ['body' => 'Hi @ana']);
 
         self::assertSame(201, $created->getStatusCode(), (string) $created->getContent());
-        self::assertSame(['thread.create'], array_map(static fn ($e): string => $e->operation, ApiAuditRecorder::$events));
+        self::assertSame(['thread.create'], array_map(static fn (WikiApiWriteEvent $e): string => $e->operation, ApiAuditRecorder::$events));
         self::assertContains(['comment', 0], ApiAuditRecorder::$heard);
     }
 

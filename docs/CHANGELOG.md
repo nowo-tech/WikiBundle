@@ -295,6 +295,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI only: new `release-gates` job (full mode, after PHPStan) runs the four `make release-check` gates on every PR and push: `rector-dry`, `validate-phpdoc`, `validate-translations` and `check-twig-extra`, so a green CI can no longer fail at release time.
+- Internal, no behaviour change and no public signature change: `make rector-dry` is clean again. Applied Rector's internal refactors: private static helpers made non-static, `!== null` on object-typed values written as `instanceof`, redundant casts removed, class-name strings written as `::class` (same values), named arguments sorted; in tests also `static::` to `self::` (final test classes only), closure and arrow-function types. `ClassPropertyAssignToConstructorPromotionRector` is skipped narrowly in `rector.php` for `WikiApiPrincipal`, `WikiEditorOptionsEvent` and `WikiQuotaCheckEvent`: promotion would rename their public constructor parameter `$user` (named-argument API); `ArrowFunctionDelegatingCallToFirstClassCallableRector` is skipped in one test whose arrow function is re-bound with `Closure::call()`.
 ### Added
 
 - REQ-SEC-006: the bundle now declares its own identity / access-key columns, so the knowledge of which columns are

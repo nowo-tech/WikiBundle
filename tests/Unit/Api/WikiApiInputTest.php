@@ -20,12 +20,12 @@ final class WikiApiInputTest extends TestCase
         self::assertSame(5, $input->int('n', 0, 10));
         self::assertNull($input->int('missing'));
         foreach ([
-            static fn () => $input->string('z'),
-            static fn () => $input->string('missing', true),
-            static fn () => $input->string('s', false, 3),
-            static fn () => $input->bool('a'),
-            static fn () => $input->int('big', 0, 10),
-            static fn () => $input->int('odd'),
+            static fn (): ?string => $input->string('z'),
+            static fn (): ?string => $input->string('missing', true),
+            static fn (): ?string => $input->string('s', false, 3),
+            static fn (): ?bool => $input->bool('a'),
+            static fn (): ?int => $input->int('big', 0, 10),
+            static fn (): ?int => $input->int('odd'),
         ] as $call) {
             try {
                 $call();

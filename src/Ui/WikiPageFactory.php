@@ -297,13 +297,13 @@ final readonly class WikiPageFactory
                 WikiPages::label('wiki.page.archive'),
                 $this->url('page_archive', $params),
                 method: 'POST',
-                variant: $this->compactHeader ? 'danger' : null,
                 confirm: new Confirm(
                     WikiPages::label('wiki.page.archive_confirm_title'),
                     WikiPages::label('wiki.page.archive_confirm_message', ['%title%' => $page->getTitle()]),
                     WikiPages::label('wiki.page.archive'),
                     cancelLabel: WikiPages::label('wiki.action.cancel'),
                 ),
+                variant: $this->compactHeader ? 'danger' : null,
                 form: $archiveForm,
             );
         }
@@ -347,14 +347,14 @@ final readonly class WikiPageFactory
                 WikiPages::label('wiki.collab.reset'),
                 (string) ($collabResetForm->vars['action'] ?? ''),
                 method: 'POST',
-                // 1.31: a danger item at the end of the "more" menu (UiKit split layout), not a large button.
-                variant: $toolbar ? 'danger' : null,
                 confirm: new Confirm(
                     WikiPages::label('wiki.collab.reset_confirm_title'),
                     WikiPages::label('wiki.collab.reset_confirm_message'),
                     WikiPages::label('wiki.collab.reset'),
                     cancelLabel: WikiPages::label('wiki.action.cancel'),
                 ),
+                // 1.31: a danger item at the end of the "more" menu (UiKit split layout), not a large button.
+                variant: $toolbar ? 'danger' : null,
                 attributes: ['data-testid' => 'wiki-collab-reset'],
                 form: $collabResetForm,
             );
