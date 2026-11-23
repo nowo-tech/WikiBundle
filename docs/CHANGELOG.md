@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Fixed (Unreleased)](#fixed-unreleased)
 - [[1.53.0] - 2026-11-23](#1530---2026-11-23)
   - [Changed](#changed)
 - [[1.52.0] - 2026-11-23](#1520---2026-11-23)
@@ -299,6 +300,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+### Fixed (Unreleased)
+
+- Worker mode (REQ-RUNTIME-002, Igor 0.11): the fatal-error cleanup of import temp files (audit GV-L3) no longer registers one shutdown function per import, which accumulated in a FrankenPHP worker until it restarted. `WikiArchiveHelper` registers a single shutdown handler per instance and keeps the paths still pending; a path its caller already removed is forgotten on the next call, and `reset()` (`kernel.reset`) removes and forgets the rest. A fatal error still removes the extracted directory and the uploaded copy. `WikiArchiveHelper` is no longer a `readonly` class (it is `final`; its constructor arguments stay `readonly`).
 
 ## [1.53.0] - 2026-11-23
 

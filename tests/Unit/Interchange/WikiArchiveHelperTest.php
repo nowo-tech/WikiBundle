@@ -9,6 +9,7 @@ use Nowo\WikiBundle\Interchange\WikiArchiveHelper;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
+use ReflectionProperty;
 use RuntimeException;
 use ZipArchive;
 
@@ -588,6 +589,38 @@ final class WikiArchiveHelperTest extends TestCase
         } finally {
             unlink($base . '/link');
             unlink($base . '/target');
+            rmdir($base);
+        }
+    }
+
+    /**
+     * Worker mode (igor 0.11, REQ-RUNTIME-002): the pending paths never accumulate across requests. A path its caller
+     * already removed is forgotten on the next call, and reset() removes and forgets the rest.
+     */
+    public function testPendingRemovalsDoNotAccumulateAndResetRemovesThem(): void
+    {
+        $pending = new ReflectionProperty(WikiArchiveHelper::class, 'pendingRemovals');
+        $base    = sys_get_temp_dir() . '/wiki-pending-' . bin2hex(random_bytes(4));
+        mkdir($base . '/dir', 0700, true);
+        file_put_contents($base . '/dir/a.md', 'a');
+
+        try {
+            for ($i = 0; $i < 3; ++$i) {
+                file_put_contents($base . '/file' . $i, 'x');
+                $this->helper->removeAtShutdown($base . '/file' . $i);
+                unlink($base . '/file' . $i);
+            }
+            $this->helper->removeAtShutdown($base . '/dir');
+            self::assertSame([$base . '/dir' => true], $pending->getValue($this->helper));
+
+            $this->helper->reset();
+            self::assertDirectoryDoesNotExist($base . '/dir');
+            self::assertSame([], $pending->getValue($this->helper));
+
+            $this->helper->removeAtShutdown($base . '/missing');
+            $this->helper->removePending();
+            self::assertSame([], $pending->getValue($this->helper));
+        } finally {
             rmdir($base);
         }
     }
