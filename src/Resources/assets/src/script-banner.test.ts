@@ -41,6 +41,31 @@ describe('announceScript', () => {
         expect(String(log.mock.calls[1]?.[0])).toContain('[wiki/other] script loaded');
     });
 
+    it('never throws when page HTML clobbers the registry global, and still announces once', () => {
+        document.body.innerHTML = '<img id="__nowoScriptBanners" name="wiki"><img id="__nowoScriptBanners" name="wiki">';
+        Object.defineProperty(window, '__nowoScriptBanners', { get: () => document.getElementsByName('wiki'), set: () => { throw new TypeError('read-only'); }, configurable: true });
+        try {
+            expect(() => announceScript('wiki')).not.toThrow();
+            expect(() => announceScript('wiki')).not.toThrow();
+            expect(log).toHaveBeenCalledTimes(1);
+        } finally {
+            delete (window as { __nowoScriptBanners?: unknown }).__nowoScriptBanners;
+            document.body.innerHTML = '';
+        }
+    });
+
+    it('falls back to the module-scope set when the global swallows the assignment without throwing', () => {
+        Object.defineProperty(window, '__nowoScriptBanners', { get: () => [], set: () => undefined, configurable: true });
+        try {
+            announceScript('wiki/swallowed');
+            announceScript('wiki/swallowed');
+
+            expect(log).toHaveBeenCalledTimes(1);
+        } finally {
+            delete (window as { __nowoScriptBanners?: unknown }).__nowoScriptBanners;
+        }
+    });
+
     it('does nothing without a window', () => {
         vi.stubGlobal('window', undefined);
         try {

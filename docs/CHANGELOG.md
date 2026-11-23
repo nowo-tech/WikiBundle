@@ -303,6 +303,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `announceScript()` (console banner) no longer reads or writes the page global `window.__nowoScriptBanners` unguarded: page HTML can clobber it (DOM named access), and a strict-mode write would then throw and stop the script. A module-scope set is the fallback, the global is only trusted when it is a plain object, and every access is wrapped in `try/catch` (audit ZAI-3). Once-per-page output is unchanged.
+
 ## [1.54.0] - 2026-11-23
 
 ### Fixed (Unreleased)
