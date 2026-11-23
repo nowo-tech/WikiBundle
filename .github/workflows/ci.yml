@@ -248,6 +248,13 @@ jobs:
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- --testsuite database,api
 
+      # REQ-SEC-006: the bundle's own gate over its own identity / access-key column declaration.
+      - name: Run the identity / access-key collation gate against MySQL
+        env:
+          WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: composer test -- --testsuite collation
+
   mariadb:
     name: Look-alike owner test on MariaDB
     runs-on: ubuntu-latest
@@ -301,6 +308,13 @@ jobs:
           WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- tests/Database/WikiUserReferenceByIdTest.php
+
+      # REQ-SEC-006: the declaration gate, on MariaDB's utf8mb4_nopad_bin.
+      - name: Run the identity / access-key collation gate against MariaDB
+        env:
+          WIKI_TEST_DATABASE_URL: mysql://root:root@127.0.0.1:3306/wiki_test?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+          SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+        run: composer test -- --testsuite collation
 
       # 1.45: favourites, recents and backlinks, with the two-connection races (lock conflict, unique-key race).
       - name: Run the favourites, recents and backlinks tests against MariaDB
