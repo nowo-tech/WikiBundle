@@ -303,6 +303,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed (Unreleased)
 
+- The full-page answers of the two-mode URLs `space` (with `?dialog=`), `page_new` and `ai_ask` now carry `Vary: X-Nowo-Dialog` (and `private, no-store`), like their dialog fragments and `space_import` (audit WK-L1, KIT-68 "both answers vary"). Not exploitable before (fragments were never stored); this closes the cache-key gap.
 - Worker mode (REQ-RUNTIME-002, Igor 0.11): the fatal-error cleanup of import temp files (audit GV-L3) no longer registers one shutdown function per import, which accumulated in a FrankenPHP worker until it restarted. `WikiArchiveHelper` registers a single shutdown handler per instance and keeps the paths still pending; a path its caller already removed is forgotten on the next call, and `reset()` (`kernel.reset`) removes and forgets the rest. A fatal error still removes the extracted directory and the uploaded copy. `WikiArchiveHelper` is no longer a `readonly` class (it is `final`; its constructor arguments stay `readonly`).
 
 ## [1.53.0] - 2026-11-23
