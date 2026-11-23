@@ -7,6 +7,11 @@ import { bindNewPageMenu } from './wiki-new-page';
 import { bindTreeMenu } from './wiki-tree-menu';
 import { initPlainTrees } from './wiki-plain-tree';
 import { bindSectionLinks, watchLegacyFragments } from './wiki-section-links';
+import { announceScript } from './script-banner';
+
+declare const __WIKI_BUILD_TIME__: string;
+
+announceScript('wiki', typeof __WIKI_BUILD_TIME__ !== 'undefined' ? __WIKI_BUILD_TIME__ : undefined);
 
 /** True when the element scrolls its own content vertically (overflow auto / scroll and taller content). */
 const scrollsItself = (el: HTMLElement): boolean => {

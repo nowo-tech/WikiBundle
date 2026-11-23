@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [[Unreleased]](#unreleased)
   - [Fixed (Unreleased)](#fixed-unreleased)
+  - [Added (Unreleased)](#added-unreleased)
 - [[1.53.0] - 2026-11-23](#1530---2026-11-23)
   - [Changed](#changed)
 - [[1.52.0] - 2026-11-23](#1520---2026-11-23)
@@ -305,6 +306,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The full-page answers of the two-mode URLs `space` (with `?dialog=`), `page_new` and `ai_ask` now carry `Vary: X-Nowo-Dialog` (and `private, no-store`), like their dialog fragments and `space_import` (audit WK-L1, KIT-68 "both answers vary"). Not exploitable before (fragments were never stored); this closes the cache-key gap.
 - Worker mode (REQ-RUNTIME-002, Igor 0.11): the fatal-error cleanup of import temp files (audit GV-L3) no longer registers one shutdown function per import, which accumulated in a FrankenPHP worker until it restarted. `WikiArchiveHelper` registers a single shutdown handler per instance and keeps the paths still pending; a path its caller already removed is forgotten on the next call, and `reset()` (`kernel.reset`) removes and forgets the rest. A fatal error still removes the extracted directory and the uploaded copy. `WikiArchiveHelper` is no longer a `readonly` class (it is `final`; its constructor arguments stay `readonly`).
+
+### Added (Unreleased)
+
+- **Console**: `wiki.js` (a `wiki.js` loaded twice on one page logs once) logs one line on load, `📦 [wiki] script loaded, build: 2026-11-23 14:05 UTC`, with the house `createBundleLogger`. The build time is read from the committed `build-info.json` (`{sourceHash, builtAt}`): it is reused while the sources are unchanged and renewed only when they change, so rebuilding unchanged sources never rewrites the committed assets (no wall-clock stamp, no user data). Quiet switch: `<html data-nowo-console="quiet">` or `globalThis.NOWO_CONSOLE = 'quiet'` prints nothing; the default is unchanged.
 
 ## [1.53.0] - 2026-11-23
 
