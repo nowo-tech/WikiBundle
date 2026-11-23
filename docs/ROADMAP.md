@@ -38,6 +38,7 @@ marked **E** below need that bundle; items marked **W + E** need both. Task ids 
 - [Decided](#decided)
 - [Open decisions](#open-decisions)
 - [Links](#links)
+- [Requested for CrmKit (Beacon spec 254, 2026-11-23)](#requested-for-crmkit-beacon-spec-254-2026-11-23)
 
 ## Ground rules
 
@@ -401,3 +402,15 @@ format names. Recommended answers are the defaults until the owner decides.
 - symfony-beacon `specs/178-wiki/tasks.md` (T044–T069), `specs/183-images-object-storage/spec.md`
 - [SearchKitBundle](https://github.com/nowo-tech/SearchKitBundle) · [UiKitBundle](https://github.com/nowo-tech/UiKitBundle)
   · [StorageKitBundle](https://github.com/nowo-tech/StorageKitBundle)
+
+## Requested for CrmKit (Beacon spec 254, 2026-11-23)
+
+Beacon spec 254 "CRM HubSpot parity" (owner decision D-20261123-11) and the owner's reuse rule of 2026-11-23 ("if a
+nowo bundle already does, or nearly does, a CRM capability, use it or extend it") send these pieces here instead of
+building CRM-only copies in CrmKitBundle. Each piece is opt-in, generic (no CRM dependency) and gets its own contract
+revision before it is built. Versions are planned next minors and move if this bundle releases something else first.
+Plan and reuse matrix: [CrmKitBundle docs/ROADMAP.md](https://github.com/nowo-tech/CrmKitBundle/blob/main/docs/ROADMAP.md#reuse-matrix).
+
+| Version | Piece | Used by |
+| --- | --- | --- |
+| 1.55.0 | **`published_spaces`**, a first step of [Public links](#public-links): an admin publishes a space as a knowledge base; only pages marked published are public and read-only (no comments, revisions or author names), search over published pages only, no-index option, off by default per space (D-W23) | CrmKit H knowledge base and D-2 article suggestions (Wiki search over published pages through a CrmKit bridge) |
