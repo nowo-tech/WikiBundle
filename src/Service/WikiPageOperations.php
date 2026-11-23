@@ -132,11 +132,11 @@ final readonly class WikiPageOperations implements WikiPageOperationsInterface
     public function findThreadComments(string $threadId): array
     {
         $thread = $this->thread($threadId);
-        if (!$thread instanceof WikiCommentThread || !$this->comments instanceof WikiCommentRepositoryInterface) {
+        if (!$thread instanceof WikiCommentThread || !$this->comments instanceof WikiCommentByIdFinderInterface) {
             return [];
         }
 
-        return array_map(WikiSnapshots::comment(...), $this->comments->comments([$thread])[$threadId] ?? []);
+        return array_map(WikiSnapshots::comment(...), $this->comments->findThreadComments($threadId, self::MAX_THREAD_COMMENTS));
     }
 
     /** The comment thread with exactly that id, or null (no comments, or a repository that cannot read by id). */

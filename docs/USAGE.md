@@ -634,8 +634,21 @@ reactions, attachments (rows, then their files through your attachment storage a
 favourites, visits, trash entries, co-editing state and REST idempotency records go, in batches of 100 pages, one
 transaction each, and the space row last. The wiki's search keeps no index of its own (it reads the page rows), so
 nothing of the space is found once its pages are gone. It is the forced, trusted `purgeSpace()`, and idempotent: a
-space already gone answers `finished: true` with no page and no batch (never `WikiSpaceNotFoundException`), so a
-retried erasure or a replayed message has nothing to catch.
+space already gone answers `finished: true`, `found: false` (`alreadyGone()`) with no page and no batch (never
+`WikiSpaceNotFoundException`), so a retried erasure or a replayed message has nothing to catch.
+
+Since 1.55.1 (audit ZAP):
+
+- **The id must be a lowercase UUID**, exactly as the wiki gave it (`InvalidArgumentException` otherwise). A look-alike
+  id (upper-cased, padded, truncated) is refused instead of being answered "already gone" while the space stays.
+- **Pass the expected owner on every erasure**: `eraseSpace($id, null, WikiSpaceOwnerScope::Team, $ownerId)`. Type and id
+  are compared byte for byte under the space lock before anything is written; another owner is
+  `WikiSpaceOwnerMismatchException`. A wrong id from a stale mapping or another organisation's list then erases nothing.
+- **Files.** `finished` means the rows are gone. `filesFailed` counts attachment files whose delete failed (logged),
+  `filesTruncated` the batches whose `WikiPageFilesPurgedEvent` list was cut by `page_files.max_purge_files`. When
+  `needsFileSweep()` is true, run `WikiAttachmentService::purgeStrayFiles()` (attachments) and your own page-file sweep
+  (files you store for the pages) before reporting the erasure complete. A process that dies between a batch commit and
+  its file deletes cannot report them, so keep `purgeStrayFiles()` in a nightly job too.
 
 **Transaction: the erasure runs in the wiki's own units, after your erasure committed.** This is the recommended split:
 
@@ -684,7 +697,11 @@ final readonly class PersonalWikiPurgeListener
     {
         $owner = PersonalWikiOwner::scopeIdOf($this->users->get($event->userId));
         foreach ($this->spaces->findSpaces(WikiSpaceCriteria::forOwners(WikiSpaceOwnerScope::Team, [$owner]), 0, 500) as $space) {
-            $this->lifecycle->eraseSpace($space->id); // idempotent: safe to run again
+            // Idempotent; the expected owner makes a wrong id erase nothing.
+            $result = $this->lifecycle->eraseSpace($space->id, null, WikiSpaceOwnerScope::Team, $owner);
+            if ($result->needsFileSweep()) {
+                $this->bus->dispatch(new SweepWikiFiles()); // WikiAttachmentService::purgeStrayFiles() + page files
+            }
             $this->profiles->deleteBySpaceId($space->id);
         }
     }
@@ -704,9 +721,11 @@ your space checker as for the page):
 | `findPageRevision(string $pageId, int $revisionNumber): ?WikiRevisionSnapshot` | a revision by number; `1` is the first save, its `authorId` the page's author |
 | `findCommentThread(string $threadId): ?WikiCommentThreadSnapshot` | `pageId`, `createdById`, `pageLevel`, `resolvedAt`, `resolvedById`, `isResolved()` |
 | `findComment(string $commentId): ?WikiCommentSnapshot` | `threadId`, `pageId`, `authorId`, `position`, `editedAt`, `deletedAt`, `isDeleted()` |
-| `findThreadComments(string $threadId): list<WikiCommentSnapshot>` | every comment of the thread in order, deleted ones included |
+| `findThreadComments(string $threadId): list<WikiCommentSnapshot>` | the comments of the thread in order, deleted ones included; at most `MAX_THREAD_COMMENTS` (1000, the first ones) |
 
-Ids are matched byte for byte (a look-alike id answers null). The snapshots carry no body, anchor or quoted text:
+Ids are matched byte for byte (a look-alike id answers null). **These reads decide no access**: they answer pages in
+the trash or in archived spaces and deleted comments too. Check the snapshot's `pageId` with your space checker
+(`ViewComments` on that page) or `WikiPageAccessInterface` before showing or sending anything. The snapshots carry no body, anchor or quoted text:
 render a comment for a reader with `WikiCommentService::renderBodyForNotification()`, which applies the reader's rights
 to the page links it holds. Without `comments.enabled` the comment reads answer null / an empty list. Beacon's comment
 notifications (spec 178 T064):

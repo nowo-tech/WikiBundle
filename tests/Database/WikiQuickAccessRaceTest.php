@@ -192,7 +192,11 @@ final class WikiQuickAccessRaceTest extends TestCase
     {
         $process = proc_open([PHP_BINARY, __DIR__ . '/Race/favourite-worker.php', $table, $this->page->getId(), 'u-1', (string) $hold], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         self::assertTrue(is_resource($process));
-        self::assertSame('ready', trim((string) fgets($pipes[1])), (string) stream_get_contents($pipes[2]));
+        // stderr is read only on failure: building the message first would wait for the worker to exit (its commit),
+        // and the "concurrent" write would then never race (1.55.1).
+        if (trim((string) fgets($pipes[1])) !== 'ready') {
+            self::fail('The worker did not start: ' . stream_get_contents($pipes[2]));
+        }
         // This session waits up to 5 s for the worker's commit (it holds its row 1.5 s).
         $this->em->getConnection()->executeStatement(str_starts_with((string) WikiTestDatabase::url(), 'mysql')
             ? 'SET SESSION innodb_lock_wait_timeout = 5'

@@ -116,6 +116,24 @@ final readonly class DoctrineOrmWikiCommentRepository implements WikiCommentRepo
         return null;
     }
 
+    public function findThreadComments(string $threadId, int $limit): array
+    {
+        /** @var list<WikiComment> $comments */
+        $comments = $this->entityManager()->createQueryBuilder()
+            ->select('c')
+            ->from(WikiComment::class, 'c')
+            ->where('c.thread = :thread')
+            ->setParameter('thread', $threadId)
+            ->orderBy('c.position', 'ASC')
+            ->addOrderBy('c.id', 'ASC')
+            ->setMaxResults(max(1, $limit))
+            ->getQuery()
+            ->getResult();
+
+        // House rule LQ: only the comments of exactly that thread.
+        return array_values(array_filter($comments, static fn (WikiComment $comment): bool => $comment->getThread()->getId() === $threadId));
+    }
+
     public function comments(array $threads): array
     {
         if ($threads === []) {

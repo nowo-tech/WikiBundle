@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Fixed (1.55.1, Unreleased)](#fixed-1551-unreleased)
 - [[1.55.0] - 2026-11-23](#1550---2026-11-23)
   - [Added (1.55, Unreleased)](#added-155-unreleased)
   - [Changed (1.55, Unreleased)](#changed-155-unreleased)
@@ -306,6 +307,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+### Fixed (1.55.1, Unreleased)
+
+- **Erasure never reports a look-alike id as erased (audit ZAP-1).** `WikiSpaceLifecycleInterface::eraseSpace()` refuses a space id that is not a lowercase UUID (an upper-cased, padded or truncated id) with `InvalidArgumentException` before any lookup. In 1.55.0 such an id answered `finished: true` while the space stayed whole: on a case-insensitive MySQL / MariaDB collation the row was found, then failed the exact id check, and the miss was taken for "already gone". `WikiSpacePurgeResult` gains `found` and `alreadyGone()`, so a caller can tell an erasure that ran from one that found nothing.
+- **The erasure can check whose space it erases (audit ZAP-2).** `eraseSpace(string $spaceId, ?int $maxBatches = null, ?WikiSpaceOwnerScope $expectedOwnerType = null, ?string $expectedOwnerId = null)`: with the expected owner (both values or none), type and id are compared byte for byte with the space's owner under the space lock of the first unit; another owner answers the new `Space\WikiSpaceOwnerMismatchException` and nothing is written. Hosts erasing a person's data should always pass it.
+- **File leftovers are reported (audit ZAP-3).** `WikiSpacePurgeResult::$filesFailed` (attachment files whose delete failed) and `$filesTruncated` (batches whose `WikiPageFilesPurgedEvent` list `page_files.max_purge_files` cut), with `needsFileSweep()`. The `eraseSpace()` phpdoc and USAGE say when `WikiAttachmentService::purgeStrayFiles()` and the host's page-file sweep must follow an erasure. Also returned by `purgeSpace()`.
+- **`findThreadComments()` is bounded (audit ZAP-I2).** At most `WikiPageOperationsInterface::MAX_THREAD_COMMENTS` (1000) comments, the first ones, read with a limited query (`WikiCommentByIdFinderInterface::findThreadComments(string $threadId, int $limit)`). The interface phpdoc states that the read ports decide no access: the host checks the snapshot's `pageId` before showing anything.
+- **Tests:** the "concurrent first favourite / visit" race tests read the worker's stderr before its "ready" line was checked, which waited for the worker to commit; the writes never overlapped. They now race.
 
 ## [1.55.0] - 2026-11-23
 
