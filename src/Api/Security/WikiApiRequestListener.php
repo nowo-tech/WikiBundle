@@ -27,6 +27,7 @@ use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\UnexpectedSessionUsageException;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -213,8 +214,14 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
      */
     private function requireSecurityUser(WikiApiPrincipal $principal): void
     {
-        $securityUser = $this->tokenStorage->getToken()?->getUser();
-        $match        = $securityUser instanceof UserInterface ? $this->match($securityUser, $principal->securityUser()) : null;
+        try {
+            $securityUser = $this->tokenStorage->getToken()?->getUser();
+        } catch (UnexpectedSessionUsageException) {
+            // 1.56.1: Symfony 7.4.24+ refuses to read the token (from the session) of a stateless request no stateless
+            // firewall covers. No firewall stands behind the token: the same answer as no security user.
+            $securityUser = null;
+        }
+        $match = $securityUser instanceof UserInterface ? $this->match($securityUser, $principal->securityUser()) : null;
         if ($match !== null && $match !== self::DIFFERENT && $this->tokenGuard->isTokenTrusted()) {
             if ($match !== self::SAME) {
                 // Audit OX-D1-L1 (1.36): a security adapter of another class with the same exact id is let through in

@@ -29,8 +29,11 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
+use Symfony\Component\HttpKernel\Exception\UnexpectedSessionUsageException;
 use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 
@@ -156,12 +159,35 @@ final class WikiApiRequestListenerTest extends TestCase
         }
     }
 
+    /**
+     * 1.56.1: Symfony 7.4.24+ refuses to read the token of a stateless request no stateless firewall covers
+     * (`UnexpectedSessionUsageException`). That is no security user: the firewall answer (500, the "must sit behind a
+     * stateless, secured firewall" log line), never "unexpected error".
+     */
+    public function testATokenReadRefusedForAStatelessRequestIsNoSecurityUser(): void
+    {
+        $tokens = new class implements TokenStorageInterface {
+            public function getToken(): ?TokenInterface
+            {
+                throw new UnexpectedSessionUsageException('Session was used while the request was declared stateless.');
+            }
+
+            public function setToken(?TokenInterface $token): void
+            {
+            }
+        };
+        $logger = new RecordingLogger();
+
+        self::assertSame(500, $this->enter($this->principalOf(new TestUserEntity('5')), $tokens, null, $logger)->getResponse()?->getStatusCode());
+        self::assertSame(['error: Wiki API: the security user is not the token\'s user. The API must sit behind a stateless, secured firewall that authenticates the token.'], $logger->lines());
+    }
+
     private function principalOf(object $user): WikiApiPrincipal
     {
         return new WikiApiPrincipal($user, WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n');
     }
 
-    private function enter(WikiApiPrincipal $principal, TokenStorage $tokens, ?WikiUserClassPolicy $classes = null, ?RecordingLogger $logger = null): RequestEvent
+    private function enter(WikiApiPrincipal $principal, TokenStorageInterface $tokens, ?WikiUserClassPolicy $classes = null, ?RecordingLogger $logger = null): RequestEvent
     {
         $authenticator = $this->createStub(WikiApiAuthenticatorInterface::class);
         $authenticator->method('authenticate')->willReturn($principal);
