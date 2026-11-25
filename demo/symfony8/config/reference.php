@@ -1384,7 +1384,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         entity_manager?: scalar|Param|null, // Default: "default"
  *         mapping_type?: "attribute"|"xml"|Param, // 1.36: "attribute" (default) maps the wiki entities from their ORM attributes; "xml" from Resources/config/doctrine-xml (same tables, columns and indexes), for hosts that map everything in XML. // Default: "attribute"
  *         user_reference?: "entity"|"id"|Param, // 1.36: "entity" (default) stores revision authors, link creators, uploaders, comment authors, resolvers and reactions as ManyToOne relations to user_class; "id" stores the user's id in a string column (no foreign key, user_class need not be a Doctrine entity; set user_directory for names and avatars). // Default: "entity"
- *         private_entity_manager?: bool|Param, // 2.0: no effect, the private entity manager is the only mode (the wiki rows are read and written through a private entity manager on the connection and mapping of entity_manager; a wiki write never flushes, clears or closes the application's manager). false fails the build; true is accepted until 3.0. Remove the key.
+ *         private_entity_manager?: bool|Param, // Deprecated: The option "nowo_wiki.database.private_entity_manager.private_entity_manager" has no effect since 2.0 (the private manager is the only mode); remove it. // 2.0: no effect, the private entity manager is the only mode (the wiki rows are read and written through a private entity manager on the connection and mapping of entity_manager; a wiki write never flushes, clears or closes the application's manager). false fails the build; true is accepted until 3.0. Remove the key.
  *     },
  *     user_directory?: scalar|Param|null, // 1.36: service id of a User\WikiUserDirectoryInterface that finds a user by id (database.user_reference: id; names and avatars of stored users). Null: stored users are shown without a name. // Default: null
  *     dashboard_route?: scalar|Param|null, // Default: null
@@ -1779,6 +1779,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             history?: scalar|Param|null, // Default: "tabler:history"
  *         },
  *     },
+ *     ...<string, mixed>
  * }
  * @psalm-type NowoUiKitConfig = array{
  *     css_framework?: "bootstrap"|"bootstrap5"|"bootstrap4"|"tailwind"|"foundation"|"custom"|"tabler"|"none"|Param, // Host CSS stack: bootstrap5|bootstrap4|tailwind|foundation|custom|none|tabler (bootstrap alias → bootstrap5). // Default: "bootstrap5"
