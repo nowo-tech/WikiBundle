@@ -2,8 +2,8 @@
 
 ## Table of contents
 
-- [Done in 2.0](#done-in-20)
 - [Unreleased](#unreleased)
+- [To 2.0.0](#to-200)
   - [Before you upgrade (on 1.55.1)](#before-you-upgrade-on-1551)
   - [Default flip: the private entity manager is the only mode](#default-flip-the-private-entity-manager-is-the-only-mode)
   - [Private manager only](#private-manager-only)
@@ -12,6 +12,7 @@
   - [Deprecated for 3.0](#deprecated-for-30)
   - [Composer](#composer)
   - [Unchanged](#unchanged)
+  - [Host checklist](#host-checklist)
   - [1.x support](#1x-support)
 - [To 1.55.1](#to-1551)
   - [Erasure checks (1.55.1)](#erasure-checks-1551)
@@ -141,14 +142,11 @@
   - [Breaking changes](#breaking-changes)
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
-## Done in 2.0
-
-2.0 removed what 1.x announced as deprecated and made the private entity manager the only mode; nothing else changed
-without a notice first. See [Unreleased](#unreleased) (promoted to "To 2.0.0" at release) for the steps.
-
 ## Unreleased
 
-From **1.55.1** (the last 1.x release):
+## To 2.0.0
+
+From **1.55.1** (the last 1.x release; a major version: widen your constraint):
 
 ```bash
 composer require nowo-tech/wiki-bundle:^2.0 -W
@@ -338,6 +336,28 @@ No package moves to `suggest`; the requirements are those of 1.55.1.
 The schema, the routes and their answers, the REST API, co-editing, comments, search, the conflict answers
 (`CONFLICT_001` / `CONFLICT_002`), the HTML sanitizer, the access rules of the bundle's default checkers, and the
 worker-mode resets.
+
+### Host checklist
+
+Search your application for each item; every hit is a change to make on 1.55.1 (where it works and the notices tell
+you) or in the 2.0 bump.
+
+| Search your code / config for | Change |
+|---|---|
+| `database.private_entity_manager` | on 1.55.1 set it to `true` and run a deploy cycle with a clean probe log; in the 2.0 bump drop the line (`false` fails the build, `true` is a deprecated no-op) and the deprecation-log allowance for its 1.49 notice |
+| `persist(new WikiSpace(` / `WikiPage` / ... with your manager, `$space->set…()` / `$page->set…()` then your `flush()` | the wiki's id operations: `WikiSpaceOperationsInterface::createSpaceFrom()` / `createSpace()`, `WikiSpaceLifecycleInterface` (`renameSpace()`, `archiveSpace()`, `eraseSpace()`), `WikiPageOperationsInterface` |
+| An entity of yours with a Doctrine relation to `WikiSpace` / `WikiPage` (a profile, a grant, a share), filled with an instance a wiki service returned | `$em->getReference(WikiSpace::class, $id)` on your manager, or store the id in a plain column |
+| A wiki row loaded with your manager (`$em->getRepository(WikiSpace::class)->find…`, a route value resolver) handed to a wiki service | nothing to change for the write (the wiki loads it again by id), but what you changed on your instance is not carried over: change it through the wiki |
+| A listener of a wiki event (`WikiEvents::*`) or a port of yours that changes your entities without flushing | flush your own manager (the wiki no longer does) |
+| A Doctrine `onFlush` / `postFlush` listener of yours that reacts to wiki rows | it now runs on the wiki's private manager flush (same connection, mapping and listeners): it must not rely on your manager's unit of work there |
+| The 17 removed interfaces ([Removed](#removed)) in `implements`, `#[AsAlias]`, `#[AsDecorator]`, `decorates:`, constructor types, service ids | the 1.36 twin |
+| `->user` on `WikiApiPrincipal`, `WikiQuotaCheckEvent`, `WikiEditorOptionsEvent` | `userRef()` (`userRef()->user()` gives back the object) |
+| `new WikiApiPrincipal($user, …)` in your API authenticator | still works with a deprecation notice (removed in 3.0): `WikiApiPrincipal::of(new WikiUserRef($user::class, $id, $user->getUserIdentifier(), $user->getRoles(), $user), …)` |
+| `route_prefix`, `templates:` directly under `nowo_wiki`, `firewall`, `database.driver` / `platform`, `web_ui.css_framework`, `security.*_roles` | the key in [Removed](#removed) (each fails the build naming it) |
+| `web_ui.layout_template` pointing at a layout without the UiKit canonical blocks | render the canonical blocks or set it to `null` |
+| Overrides of `_new_page_dialog`, `_import_export_dialog`, `_ai_dialog`, `_tree_menu` passing the 1.35–1.52 variables | the 1.53 on-demand variables |
+| `WikiStorageFailureSubscriber::committed()`, `WikiAlignedHeaderConverter`, `postGenerateSchemaTable()`, `data-code-label` | see [Removed](#removed) |
+| A security adapter as firewall user whose class is not `user_class` and not in `accepted_user_classes` (REST API) | add it to `accepted_user_classes` or return the same user from the firewall and the authenticator |
 
 ### 1.x support
 

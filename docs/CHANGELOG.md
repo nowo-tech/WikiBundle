@@ -109,7 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 2.0.0 (REQ-ARCH-001 rules 1, 3 and 6): only what 1.x announced through deprecation notices changes. An application whose
 deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.1 (the last 1.x release) upgrades without code changes. See
-[UPGRADING](UPGRADING.md#unreleased).
+[UPGRADING › To 2.0.0](UPGRADING.md#to-200).
 
 ### Changed
 
@@ -195,7 +195,7 @@ deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.1 (the last 1
 
 ## [1.55.1] - 2026-11-23
 
-### Fixed (1.55.1, Unreleased)
+### Fixed
 
 - **Erasure never reports a look-alike id as erased (audit ZAP-1).** `WikiSpaceLifecycleInterface::eraseSpace()` refuses a space id that is not a lowercase UUID (an upper-cased, padded or truncated id) with `InvalidArgumentException` before any lookup. In 1.55.0 such an id answered `finished: true` while the space stayed whole: on a case-insensitive MySQL / MariaDB collation the row was found, then failed the exact id check, and the miss was taken for "already gone". `WikiSpacePurgeResult` gains `found` and `alreadyGone()`, so a caller can tell an erasure that ran from one that found nothing.
 - **The erasure can check whose space it erases (audit ZAP-2).** `eraseSpace(string $spaceId, ?int $maxBatches = null, ?WikiSpaceOwnerScope $expectedOwnerType = null, ?string $expectedOwnerId = null)`: with the expected owner (both values or none), type and id are compared byte for byte with the space's owner under the space lock of the first unit; another owner answers the new `Space\WikiSpaceOwnerMismatchException` and nothing is written. Hosts erasing a person's data should always pass it.
@@ -205,14 +205,14 @@ deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.1 (the last 1
 
 ## [1.55.0] - 2026-11-23
 
-### Added (1.55, Unreleased)
+### Added
 
 - **Space create by id with its settings (Beacon).** `WikiSpaceOperationsInterface::createSpaceFrom(WikiNewSpace $space): string` creates a space with exactly the given slug, name, owner (`WikiSpaceOwnerScope` + id) and settings (the `space_icon` icon) and returns its id. The values are checked as the space settings are (name trimmed, 1–255 characters; usable owner id; slug rule below; icon `<prefix>:<name>` of `space_icon`). One unit of the wiki's runner writes the row with one `INSERT` on the wiki's connection, never a flush: two requests creating the same slug for the same owner give one space and one `WikiSlugTakenException` from the unique key `wiki_space_scope_slug` — no duplicate, no 500, no entity manager closed, cleared or flushed (REQ-RUNTIME-003 rules 2 and 4). Inside a transaction of the application the insert is a savepoint of it. New value object `ValueObject\WikiNewSpace`.
 - **Tenant-path space slugs.** `Util\WikiSpaceSlugRule`: a space slug a host gives (create, rename) is the bundle's rule (lowercase letters and digits in segments joined by single dashes, at most 120 characters) or — still only lowercase letters, digits and dashes, never at either end — a slug the `slug_requirement` of a configured `tenant_paths` entry matches whole, such as Beacon's `<owner uuid>--<name>`. Without tenant paths nothing changes. `WikiTenantPaths::matchesSlug()`.
 - **Idempotent space erasure.** `WikiSpaceLifecycleInterface::eraseSpace(string $spaceId, ?int $maxBatches = null): WikiSpacePurgeResult`: the forced, trusted purge for account erasure (Beacon spec 209). A space already gone (an earlier call finished, or no such space) answers `finished: true` with no page and no batch instead of `WikiSpaceNotFoundException`, so a retried erasure or a replayed message has nothing to catch. It runs in the wiki's own units after the host's erasure committed (refused inside a transaction, as the purge); see USAGE › Creating and erasing spaces by id.
 - **Page and comment read models by id.** `WikiPageOperationsInterface::findPageRevision(string $pageId, int $revisionNumber): ?WikiRevisionSnapshot` (revision 1: the page's author), `findCommentThread(string $threadId): ?WikiCommentThreadSnapshot`, `findComment(string $commentId): ?WikiCommentSnapshot` and `findThreadComments(string $threadId): list<WikiCommentSnapshot>`. Ids are matched byte for byte; read-only, no lock, no access decision. New value objects `ValueObject\WikiCommentThreadSnapshot` and `ValueObject\WikiCommentSnapshot` (no anchor, quote or body), built by `Port\WikiSnapshots::thread()` / `comment()`. `Repository\WikiCommentByIdFinderInterface` (implemented by `DoctrineOrmWikiCommentRepository`): without `comments.enabled`, or with a host comment repository that does not implement it, the comment reads answer null / an empty list.
 
-### Changed (1.55, Unreleased)
+### Changed
 
 - `WikiSpaceOperationsInterface::createSpace()` creates through the same unit as `createSpaceFrom()`: a slug taken by a concurrent request is `WikiSlugTakenException` (an `InvalidArgumentException`, as before) instead of a unique-key error from a failed flush; the name is trimmed and must be 1–255 characters; the space row is written by statement, so Doctrine `prePersist` / `postPersist` listeners do not see it. `WikiSpaceServiceInterface::create()` (the 1.27 entity port) is unchanged.
 - `WikiSpaceLifecycleInterface::renameSpace()` accepts a tenant-path slug (`WikiSpaceSlugRule`).
@@ -224,12 +224,12 @@ deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.1 (the last 1
 
 ## [1.54.0] - 2026-11-23
 
-### Fixed (Unreleased)
+### Fixed
 
 - The full-page answers of the two-mode URLs `space` (with `?dialog=`), `page_new` and `ai_ask` now carry `Vary: X-Nowo-Dialog` (and `private, no-store`), like their dialog fragments and `space_import` (audit WK-L1, KIT-68 "both answers vary"). Not exploitable before (fragments were never stored); this closes the cache-key gap.
 - Worker mode (REQ-RUNTIME-002, Igor 0.11): the fatal-error cleanup of import temp files (audit GV-L3) no longer registers one shutdown function per import, which accumulated in a FrankenPHP worker until it restarted. `WikiArchiveHelper` registers a single shutdown handler per instance and keeps the paths still pending; a path its caller already removed is forgotten on the next call, and `reset()` (`kernel.reset`) removes and forgets the rest. A fatal error still removes the extracted directory and the uploaded copy. `WikiArchiveHelper` is no longer a `readonly` class (it is `final`; its constructor arguments stay `readonly`).
 
-### Added (Unreleased)
+### Added
 
 - **Console**: `wiki.js` (a `wiki.js` loaded twice on one page logs once) logs one line on load, `📦 [wiki] script loaded, build: 2026-11-23 14:05 UTC`, with the house `createBundleLogger`. The build time is read from the committed `build-info.json` (`{sourceHash, builtAt}`): it is reused while the sources are unchanged and renewed only when they change, so rebuilding unchanged sources never rewrites the committed assets (no wall-clock stamp, no user data). Quiet switch: `<html data-nowo-console="quiet">` or `globalThis.NOWO_CONSOLE = 'quiet'` prints nothing; the default is unchanged.
 
@@ -1222,7 +1222,7 @@ Target: **1.31.1** (patch, security; house rule LQ — look-alike owner ids).
     and `WikiSpaceService::create()` refuses it (`InvalidArgumentException`), never trimmed or folded;
   - the new `WikiSpaceCollationListener` gives `owner_scope_id` a binary NO PAD collation in the generated schema
     (MySQL 8.0+ `utf8mb4_0900_bin`, MariaDB `utf8mb4_nopad_bin`, MySQL 5.7 `utf8mb4_bin`). Existing tables need an
-    `ALTER TABLE`: see [UPGRADING › Unreleased](UPGRADING.md#unreleased).
+    `ALTER TABLE`: see [UPGRADING › To 1.33.0](UPGRADING.md#to-1330).
 
 ### Tests
 
@@ -2243,7 +2243,7 @@ Patch for hosts adopting 1.13 (Beacon requests) and the audit Info residuals CW-
 
 Milkdown editor bridge (renderer, link index, exports, HTML→Markdown conversion with report) and Mercure co-editing (off by default)
 
-Wiki: Milkdown editor (`editor.type: milkdown`) and co-editing (`collaboration`, Mercure) — the Milkdown ↔ wiki bridge renders the nowo-tech/milkdown-editor-bundle dialect (page links, mentions, Tabler icons, directives, math, Mermaid) in every wiki surface under Milkdown's limits; `wiki:convert-markdown` gains page scope and a fidelity report. Schema change only when co-editing is used (two tables); Tiptap stays the default. See [UPGRADING](UPGRADING.md#unreleased).
+Wiki: Milkdown editor (`editor.type: milkdown`) and co-editing (`collaboration`, Mercure) — the Milkdown ↔ wiki bridge renders the nowo-tech/milkdown-editor-bundle dialect (page links, mentions, Tabler icons, directives, math, Mermaid) in every wiki surface under Milkdown's limits; `wiki:convert-markdown` gains page scope and a fidelity report. Schema change only when co-editing is used (two tables); Tiptap stays the default. See [UPGRADING › To 1.13.0](UPGRADING.md#to-1130).
 
 ### Added
 
@@ -2327,7 +2327,7 @@ Wiki: Markdown storage (`editor.type: markdown`) — revisions keep their Markdo
 
 Wiki: UiKit page contract (scaffolds, value-free view models, dialogs); SEC-004 BR: hidden pages never listed, searched, exported or sent to AI, access_roles enforced, attachment downloads gated, allow_unauthenticated debug-only. See [UPGRADING](UPGRADING.md#to-1100).
 
-Wiki: pages on the UiKit page contract (scaffolds, value-free view models, `<dialog>` confirm), canonical web_ui / security.roles keys, hidden pages filtered from lists and AI, CSRF and roles fail closed. See [UPGRADING](UPGRADING.md#unreleased).
+Wiki: pages on the UiKit page contract (scaffolds, value-free view models, `<dialog>` confirm), canonical web_ui / security.roles keys, hidden pages filtered from lists and AI, CSRF and roles fail closed. See [UPGRADING › To 1.10.0](UPGRADING.md#to-1100).
 
 ### Added
 
