@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Fixed (1.56.1, Unreleased)](#fixed-1561-unreleased)
 - [[1.56.0] - 2026-11-25](#1560---2026-11-25)
   - [Added (1.56.0, Unreleased)](#added-1560-unreleased)
 - [[1.55.2] - 2026-11-25](#1552---2026-11-25)
@@ -313,6 +314,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+### Fixed (1.56.1, Unreleased)
+
+- **REST API without a stateless firewall on Symfony 7.4.24+.** Symfony 7.4.24 refuses to read the security token of a stateless request that no stateless firewall covers (`UnexpectedSessionUsageException`); the API reported that as an unexpected error. It is answered as no security user again: 500 `SERVER_001` with the "The API must sit behind a stateless, secured firewall that authenticates the token." log line (contract F2, fail closed as before). The dev lock moves `symfony/*` to 7.4.24 (no constraint change).
 
 ## [1.56.0] - 2026-11-25
 
