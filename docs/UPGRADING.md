@@ -4,7 +4,7 @@
 
 - [Unreleased](#unreleased)
 - [To 2.0.0](#to-200)
-  - [Before you upgrade (on 1.55.2)](#before-you-upgrade-on-1552)
+  - [Before you upgrade (on 1.56.1)](#before-you-upgrade-on-1561)
   - [Default flip: the private entity manager is the only mode](#default-flip-the-private-entity-manager-is-the-only-mode)
   - [Private manager only](#private-manager-only)
   - [REST API: the firewall user and the token's user must be the same person](#rest-api-the-firewall-user-and-the-tokens-user-must-be-the-same-person)
@@ -152,7 +152,7 @@
 
 ## To 2.0.0
 
-From **1.55.2** (the last 1.x release; a major version: widen your constraint):
+From **1.56.1** (the last 1.x release; a major version: widen your constraint):
 
 ```bash
 composer require nowo-tech/wiki-bundle:^2.0 -W
@@ -164,9 +164,9 @@ without deprecation notices from this bundle upgrades without code changes. Afte
 receives security fixes for 6 months: fixes rated Moderate and above are backported to the last 1.x minor; Low ones are
 fixed in 2.x only.
 
-No schema change and no migration: the tables, columns and indexes are those of 1.55.2.
+No schema change and no migration: the tables, columns and indexes are those of 1.56.1.
 
-### Before you upgrade (on 1.55.2)
+### Before you upgrade (on 1.56.1)
 
 Clear every `nowo-tech/wiki-bundle` notice from your deprecation log (`var/log/*.log` with the `php` channel, the
 profiler's "Deprecations" tab, or your test suite's deprecation report), for a full deploy cycle of your tests and
@@ -180,7 +180,7 @@ production traffic:
    > Opt in now with "nowo_wiki: { database: { private_entity_manager: true } }" once the host-flush probe notices
    > ("flushed by NowoWikiBundle", "rows with its own entity manager") are gone; see UPGRADING "To 1.49.0".
 
-   Set `nowo_wiki.database.private_entity_manager: true` on 1.55.2 first, once the two probe notices below are gone, and
+   Set `nowo_wiki.database.private_entity_manager: true` on 1.56.1 first, once the two probe notices below are gone, and
    run with it for a deploy cycle.
 2. **The host-flush probe** (the migration list, see [Reading the host-flush probe](#reading-the-host-flush-probe-as-a-migration-list)):
    - "Your pending changes to App\X were flushed by NowoWikiBundle; 2.0 no longer does.": flush your own changes
@@ -246,7 +246,7 @@ There is no way to keep the 1.x behaviour: the private manager is the only mode.
   that only changed a managed row of yours, a membership source or a quota listener that wrote your entities): your
   implementation must commit its own change.
 - In a FrankenPHP worker with the kernel kept alive and not reset, the private manager is dropped at every request,
-  Messenger message and console command boundary and at `kernel.reset`, as on 1.36–1.55.2 with the option on.
+  Messenger message and console command boundary and at `kernel.reset`, as on 1.36–1.56.1 with the option on.
 
 ### REST API: the firewall user and the token's user must be the same person
 
@@ -356,7 +356,7 @@ works, but carries no BC promise either.
 
 ### Composer
 
-No package moves to `suggest`; the requirements are those of 1.55.2.
+No package moves to `suggest`; the requirements are those of 1.56.1.
 
 ### Unchanged
 
@@ -366,12 +366,12 @@ worker-mode resets.
 
 ### Host checklist
 
-Search your application for each item; every hit is a change to make on 1.55.2 (where it works and the notices tell
+Search your application for each item; every hit is a change to make on 1.56.1 (where it works and the notices tell
 you) or in the 2.0 bump.
 
 | Search your code / config for | Change |
 |---|---|
-| `database.private_entity_manager` | on 1.55.1 set it to `true` and run a deploy cycle with a clean probe log; in the 2.0 bump drop the line (`false` fails the build, `true` is a deprecated no-op) and the deprecation-log allowance for its 1.49 notice |
+| `database.private_entity_manager` | on 1.56.1 set it to `true` and run a deploy cycle with a clean probe log; in the 2.0 bump drop the line (`false` fails the build, `true` is a deprecated no-op) and the deprecation-log allowance for its 1.49 notice |
 | `persist(new WikiSpace(` / `WikiPage` / ... with your manager, `$space->set…()` / `$page->set…()` then your `flush()` | the wiki's id operations: `WikiSpaceOperationsInterface::createSpaceFrom()` / `createSpace()`, `WikiSpaceLifecycleInterface` (`renameSpace()`, `archiveSpace()`, `eraseSpace()`), `WikiPageOperationsInterface` |
 | An entity of yours with a Doctrine relation to `WikiSpace` / `WikiPage` (a profile, a grant, a share), filled with an instance a wiki service returned | `$em->getReference(WikiSpace::class, $id)` on your manager, or store the id in a plain column |
 | A wiki row loaded with your manager (`$em->getRepository(WikiSpace::class)->find…`, a route value resolver) handed to a wiki service | nothing to change for the write (the wiki loads it again by id), but what you changed on your instance is not carried over: change it through the wiki |

@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 2.0.0 (REQ-ARCH-001 rules 1, 3 and 6): only what 1.x announced through deprecation notices changes. An application whose
-deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.2 (the last 1.x release) upgrades without code changes. See
+deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.56.1 (the last 1.x release) upgrades without code changes. See
 [UPGRADING › To 2.0.0](UPGRADING.md#to-200).
 
 ### Changed
@@ -224,7 +224,7 @@ deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.2 (the last 1
 
 ### Fixed (1.56.1, Unreleased)
 
-- **REST API without a stateless firewall on Symfony 7.4.24+.** Symfony 7.4.24 refuses to read the security token of a stateless request that no stateless firewall covers (`UnexpectedSessionUsageException`); the API reported that as an unexpected error. It is answered as no security user again: 500 `SERVER_001` with the "The API must sit behind a stateless, secured firewall that authenticates the token." log line (contract F2, fail closed as before). The dev lock moves `symfony/*` to 7.4.24 (no constraint change).
+- **REST API without a stateless firewall (or behind a session firewall in debug) on Symfony 7.4.24+.** Symfony 7.4.24 refuses to read the security token from the session of a request routed as stateless (`UnexpectedSessionUsageException`): outside any firewall, and also behind a session (stateful) firewall in debug; the API reported that as an unexpected error. It is answered as no security user again: 500 `SERVER_001` with the "The API must sit behind a stateless, secured firewall that authenticates the token." log line (contract F2, fail closed as before). The dev lock moves `symfony/*` to 7.4.24 (no constraint change).
 
 ## [1.56.0] - 2026-11-25
 
