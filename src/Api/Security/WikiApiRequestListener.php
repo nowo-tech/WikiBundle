@@ -27,6 +27,7 @@ use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\UnexpectedSessionUsageException;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -213,8 +214,14 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
      */
     private function requireSecurityUser(WikiApiPrincipal $principal): void
     {
-        $securityUser = $this->tokenStorage->getToken()?->getUser();
-        $match        = $securityUser instanceof UserInterface ? $this->match($securityUser, WikiUserRefs::securityUser($principal->userRef())) : null;
+        try {
+            $securityUser = $this->tokenStorage->getToken()?->getUser();
+        } catch (UnexpectedSessionUsageException) {
+            // Symfony 7.4.24+: on a stateless request no stateless firewall covers, reading the token (from the session)
+            // is refused. No firewall stands behind the token: the same answer as no security user.
+            $securityUser = null;
+        }
+        $match = $securityUser instanceof UserInterface ? $this->match($securityUser, WikiUserRefs::securityUser($principal->userRef())) : null;
         if ($match === self::SAME && $this->tokenGuard->isTokenTrusted()) {
             return;
         }
