@@ -576,6 +576,25 @@ page. Every write goes through the wiki's own transaction runner and connection,
 only mode since 2.0). Your rows that pointed at a
 `WikiSpace` (grants, shares, a profile) keep a plain id column instead of a relation.
 
+**Container cycle with your space checker (Beacon).** `WikiSpaceOperationsInterface` depends on the space lifecycle
+(`setSpaceIcon()`, 1.56), and the lifecycle on the space access checker, which the bundle wraps with
+`WikiArchivedSpaceAccessChecker` around your own checker. If your checker uses a service of yours that injects
+`WikiSpaceOperationsInterface`, the container has a cycle (your checker → your service → `WikiSpaceOperations` →
+`WikiSpaceLifecycle` → `WikiArchivedSpaceAccessChecker` → your checker) and fails to build. Inject the operations lazily
+in that service:
+
+```php
+use Nowo\WikiBundle\Service\WikiSpaceOperationsInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+
+final readonly class WikiCatalog
+{
+    public function __construct(#[Autowire(lazy: true)] private WikiSpaceOperationsInterface $wikiSpaces)
+    {
+    }
+}
+```
+
 **Create a space** — `Service\WikiSpaceOperationsInterface::createSpaceFrom(WikiNewSpace $space): string` returns the
 new space's id. The values are checked as the space settings are: the name trimmed, 1 to 255 characters
 (`InvalidArgumentException`); a usable owner id (no leading or trailing whitespace, control or format characters, at
