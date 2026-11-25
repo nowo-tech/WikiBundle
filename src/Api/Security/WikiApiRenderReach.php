@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api\Security;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Markdown\WikiRenderReach;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
 
 /**
  * 1.24 (spec 218): a token's reach for one render: a space counts only when the directory answers its wiki for the token

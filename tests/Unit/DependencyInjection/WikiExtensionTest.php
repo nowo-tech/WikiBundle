@@ -13,10 +13,8 @@ use Nowo\MilkdownEditorBundle\Markdown\Resolver\FilePreviewResolverInterface;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
-use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Avatar\NullWikiUserAvatarResolver;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
-use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Collaboration\DoctrineWikiCollabStateStore;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabPublisher;
 use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
@@ -24,7 +22,6 @@ use Nowo\WikiBundle\Collaboration\WikiCollabCookieListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
-use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Command\WikiSearchBackfillTextCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Comment\WikiCommentsPanel;
@@ -49,8 +46,14 @@ use Nowo\WikiBundle\Markdown\WikiMarkdownRenderer;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
-use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Port\Internal\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiTeamMembershipResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiTreeStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiCommentRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiRevisionLabelRepository;
@@ -61,16 +64,13 @@ use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Search\WikiSearchScopeListener;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
-use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
-use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
@@ -100,7 +100,6 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use function array_diff_key;
 use function array_fill_keys;
 use function array_keys;
-use function is_array;
 use function ksort;
 
 use const E_USER_DEPRECATED;
@@ -1106,29 +1105,21 @@ final class WikiExtensionTest extends TestCase
         self::assertSame('layouts/app.html.twig', $templates['layout']);
     }
 
-    public function testCanonicalWebUiKeysWinOverTheDeprecatedOnes(): void
+    public function testTheWebUiKeysReachTheParameters(): void
     {
         $container = new ContainerBuilder();
         $container->setParameter('kernel.bundles', ['SecurityBundle' => SecurityBundle::class]);
-        set_error_handler(static fn (): bool => true, E_USER_DEPRECATED);
-
-        try {
-            (new WikiExtension())->load([[
-                'user_class'   => 'App\\Entity\\User',
-                'route_prefix' => '/legacy',
-                'templates'    => ['layout' => 'old.html.twig', 'index' => 'old/index.html.twig', 'search' => 'old/search.html.twig'],
-                'web_ui'       => ['path_prefix' => '/admin', 'layout_template' => 'layouts/admin.html.twig', 'templates' => ['index' => 'new/index.html.twig']],
-            ]], $container);
-        } finally {
-            restore_error_handler();
-        }
+        (new WikiExtension())->load([[
+            'user_class' => 'App\\Entity\\User',
+            'web_ui'     => ['path_prefix' => '/admin', 'layout_template' => 'layouts/admin.html.twig', 'templates' => ['index' => 'new/index.html.twig', 'search' => 'new/search.html.twig']],
+        ]], $container);
 
         self::assertSame('/admin', $container->getParameter('nowo_wiki.route_prefix'));
         /** @var array<string, string|null> $templates */
         $templates = $container->getParameter('nowo_wiki.templates');
         self::assertSame('layouts/admin.html.twig', $templates['layout']);
         self::assertSame('new/index.html.twig', $templates['index']);
-        self::assertSame('old/search.html.twig', $templates['search']);
+        self::assertSame('new/search.html.twig', $templates['search']);
         self::assertSame(WikiPages::TEMPLATES['space'], $templates['space']);
         self::assertSame('layouts/admin.html.twig', $container->getDefinition(WikiPages::class)->getArgument('$layoutTemplate'));
         self::assertArrayNotHasKey('layout', $container->getDefinition(WikiPages::class)->getArgument('$templates'));
@@ -1151,12 +1142,15 @@ final class WikiExtensionTest extends TestCase
         self::assertSame(['edit' => 'bi:pencil', 'history' => null, 'page' => 'tabler:file-text'], $tabIcons);
     }
 
-    public function testDeprecatedKeysStillApplyAndTheOldDefaultLayoutMeansUiKit(): void
+    public function testTheRemovedKeysAreNotReadAndTheOldDefaultLayoutMeansUiKit(): void
     {
-        self::assertSame('/legacy', WikiExtension::pathPrefix(['route_prefix' => '/legacy', 'web_ui' => ['path_prefix' => null]]));
+        // 2.0: the removed route_prefix / templates keys are refused by the configuration; never read here.
+        self::assertSame('', WikiExtension::pathPrefix(['route_prefix' => '/legacy', 'web_ui' => ['path_prefix' => null]]));
+        self::assertSame('/admin', WikiExtension::pathPrefix(['web_ui' => ['path_prefix' => '/admin']]));
         self::assertSame('', WikiExtension::pathPrefix([]));
-        self::assertNull(WikiExtension::templates(['templates' => ['layout' => WikiPages::LEGACY_DEFAULT_LAYOUT]])['layout']);
-        self::assertSame('base.html.twig', WikiExtension::templates(['templates' => ['layout' => 'base.html.twig']])['layout']);
+        self::assertNull(WikiExtension::templates(['web_ui' => ['layout_template' => WikiPages::LEGACY_DEFAULT_LAYOUT]])['layout']);
+        self::assertNull(WikiExtension::templates(['templates' => ['layout' => 'base.html.twig']])['layout']);
+        self::assertSame('base.html.twig', WikiExtension::templates(['web_ui' => ['layout_template' => 'base.html.twig']])['layout']);
         self::assertSame(WikiPages::TEMPLATES, array_diff_key(WikiExtension::templates([]), ['layout' => true]));
     }
 
@@ -1206,7 +1200,7 @@ final class WikiExtensionTest extends TestCase
         }
     }
 
-    public function testPrependDoesNotSeedUiKitWithoutTheDeprecatedFramework(): void
+    public function testPrependNeverSeedsUiKit(): void
     {
         $container = new ContainerBuilder();
         $this->registerStubExtension($container, 'nowo_ui_kit');
@@ -1387,60 +1381,6 @@ final class WikiExtensionTest extends TestCase
         self::assertFalse($wikiReseed);
     }
 
-    public function testPrependSeedsUiKitFromWebUiWhenHostUnset(): void
-    {
-        $container = new ContainerBuilder();
-        $this->registerStubExtension($container, 'nowo_ui_kit');
-        $extension = new WikiExtension();
-        $container->registerExtension($extension);
-        $container->prependExtensionConfig('nowo_wiki', [
-            'user_class' => 'App\\Entity\\User',
-            'web_ui'     => [
-                'css_framework' => 'tabler',
-            ],
-        ]);
-
-        $extension->prepend($container);
-
-        $found = false;
-        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
-            if (($cfg['css_framework'] ?? null) === 'tabler'
-                && ($cfg['icon_set'] ?? null) === 'tabler-icons'
-            ) {
-                $found = true;
-                break;
-            }
-        }
-        self::assertTrue($found);
-    }
-
-    public function testPrependSeedsUiKitBootstrapFromWebUi(): void
-    {
-        $container = new ContainerBuilder();
-        $this->registerStubExtension($container, 'nowo_ui_kit');
-        $extension = new WikiExtension();
-        $container->registerExtension($extension);
-        $container->prependExtensionConfig('nowo_wiki', [
-            'user_class' => 'App\\Entity\\User',
-            'web_ui'     => [
-                'css_framework' => 'bootstrap',
-            ],
-        ]);
-
-        $extension->prepend($container);
-
-        $found = false;
-        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
-            if (($cfg['css_framework'] ?? null) === 'bootstrap5'
-                && ($cfg['icon_set'] ?? null) === 'bootstrap-icons'
-            ) {
-                $found = true;
-                break;
-            }
-        }
-        self::assertTrue($found);
-    }
-
     public function testPrependDoesNotOverrideExplicitUiKitHostConfig(): void
     {
         $container = new ContainerBuilder();
@@ -1466,37 +1406,6 @@ final class WikiExtensionTest extends TestCase
             }
         }
         self::assertFalse($seeded);
-    }
-
-    public function testPrependSkipsNonArrayUiKitConfigEntries(): void
-    {
-        // A container whose nowo_ui_kit config stack holds a malformed (non-array) entry next to a partial host config.
-        $container = new class extends ContainerBuilder {
-            public function getExtensionConfig(string $name): array
-            {
-                $configs = parent::getExtensionConfig($name);
-
-                return $name === 'nowo_ui_kit' ? ['broken', ...$configs] : $configs;
-            }
-        };
-        $this->registerStubExtension($container, 'nowo_ui_kit');
-        $container->prependExtensionConfig('nowo_ui_kit', ['icon_set' => 'none']);
-        $extension = new WikiExtension();
-        $container->registerExtension($extension);
-        $container->prependExtensionConfig('nowo_wiki', [
-            'user_class' => 'App\\Entity\\User',
-            'web_ui'     => ['css_framework' => 'tabler'],
-        ]);
-
-        $extension->prepend($container);
-
-        $seeded = null;
-        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
-            if (is_array($cfg) && isset($cfg['css_framework'])) {
-                $seeded = $cfg;
-            }
-        }
-        self::assertSame(['css_framework' => 'tabler'], $seeded);
     }
 
     private function registerStubExtension(ContainerBuilder $container, string $alias): void

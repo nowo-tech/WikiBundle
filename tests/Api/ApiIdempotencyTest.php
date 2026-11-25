@@ -13,6 +13,7 @@ use Nowo\WikiBundle\Api\Security\WikiApiIdempotencyListener;
 use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiWhere;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Tests\Api\App\ApiAuditRecorder;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -65,7 +66,7 @@ final class ApiIdempotencyTest extends ApiTestCase
 
     public function testInFlightAbandonedAndForgottenClaims(): void
     {
-        $scope = WikiApiIdempotencyListener::scope(new WikiApiPrincipal(new TestUserEntity('u-ana'), WikiApiLevel::Full, WikiApiWhere::everything(), 'tok-u-ana', 'n'));
+        $scope = WikiApiIdempotencyListener::scope(WikiApiPrincipal::of(WikiUserRefs::fromUser(new TestUserEntity('u-ana')), WikiApiLevel::Full, WikiApiWhere::everything(), 'tok-u-ana', 'n'));
         $store = self::getContainer()->get(WikiApiIdempotencyStoreInterface::class);
         self::assertInstanceOf(WikiApiIdempotencyStoreInterface::class, $store);
         $this->call('POST', '/wikis/eng/pages', self::ANA, ['title' => 'Runbook'], ['Idempotency-Key' => 'k-4']);

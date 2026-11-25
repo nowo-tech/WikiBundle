@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Doctrine;
 
 use Closure;
+use DateTimeInterface;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepositoryInterface;
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\LockMode;
@@ -14,13 +15,17 @@ use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\Event\PostLoadEventArgs;
+use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Query\Filter\Parameter;
 use Doctrine\ORM\Query\Filter\SQLFilter;
 use Doctrine\ORM\UnitOfWork;
 use Doctrine\Persistence\ManagerRegistry;
 use LogicException;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Service\WikiPageNotFoundException;
 use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
+use Nowo\WikiBundle\Space\WikiSpaceNotFoundException;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Service\ResetInterface;
 use Throwable;
@@ -39,13 +44,12 @@ use function strrpos;
 use function substr;
 
 /**
- * The wiki's private entity manager (1.36.0, REQ-ARCH-001 rule 6; opt-in with
- * `nowo_wiki.database.private_entity_manager: true` until 2.0). Adapted from AuthKitBundle 1.46.0 (audits NV,
+ * The wiki's private entity manager (1.36.0, REQ-ARCH-001 rule 6; opt-in in 1.x, the only mode since 2.0). Adapted from AuthKitBundle 1.46.0 (audits NV,
  * NJ-2, NJV-1, NF-2, NF2-2, NF3-2, NF-7) with audit NZ's repository factory.
  *
  * Up to 1.35 the bundle wrote its rows through `database.entity_manager` (the application's `default` manager unless
  * configured): every wiki save flushed whatever the application had left pending in that unit of work, and a failed
- * wiki write closed the application's manager. With the option on, every wiki service writes and reads through
+ * wiki write closed the application's manager. Since 2.0 (opt-in from 1.36), every wiki service writes and reads through
  * this **private** manager, created on the connection, mapping, caches, proxies and event manager of the source manager
  * (`database.entity_manager`): the tables do not move, the bundle's Doctrine listeners (table names, user references) and
  * the host's listeners still run, and a wiki flush never commits an application change. The connection is shared,
@@ -254,8 +258,90 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
 
     public function refresh(object $object, LockMode|int|null $lockMode = LockMode::NONE): void
     {
+        $this->refuseForeign($object, 'refresh');
         $this->live()->refresh($object, $lockMode);
         $this->wrote();
+    }
+
+    /**
+     * 2.0 (W1-2): a wiki row your manager loaded is refused with a clear message, never inserted a second time.
+     */
+    public function persist(object $object): void
+    {
+        $this->refuseForeign($object, 'persist');
+        $this->live()->persist($object);
+    }
+
+    /**
+     * 2.0 (W1-2): a wiki row your manager loaded is refused with a clear message (it is not managed here).
+     */
+    public function lock(object $entity, LockMode|int $lockMode, DateTimeInterface|int|null $lockVersion = null): void
+    {
+        $this->refuseForeign($entity, 'lock');
+        $this->live()->lock($entity, $lockMode, $lockVersion);
+    }
+
+    /**
+     * 2.0 (W1-2, REQ-ARCH-001 rule 6): the private manager's instance of a wiki row. A row the private manager holds is
+     * returned as it is; a wiki row your application's manager (`database.entity_manager`) loaded (a route value
+     * resolver, a repository of yours) is loaded again by its id in the private manager, so the wiki writes the row
+     * itself and never inserts it a second time. What you changed on your instance before the call is not carried over
+     * (change wiki rows through the wiki). A new row (not saved yet) and anything that is not a wiki entity are returned
+     * as they are.
+     *
+     * @template T of object
+     *
+     * @param T $entity
+     *
+     * @throws WikiPageNotFoundException when a page your manager loaded no longer exists
+     * @throws WikiSpaceNotFoundException when a space your manager loaded no longer exists
+     * @throws LogicException when another wiki row your manager loaded no longer exists
+     *
+     * @return T
+     */
+    public function attach(object $entity): object
+    {
+        $live = $this->live();
+        if (!self::isBundleEntity($entity::class) || $live->contains($entity) || !$this->heldBySource($entity)) {
+            return $entity;
+        }
+        $metadata = $live->getClassMetadata($entity::class);
+        /** @var T|null $managed */
+        $managed = $live->find($metadata->getName(), $this->source()->getUnitOfWork()->getEntityIdentifier($entity));
+        if ($managed !== null) {
+            return $managed;
+        }
+
+        throw match ($metadata->getName()) {
+            WikiPage::class  => new WikiPageNotFoundException('The wiki page no longer exists.'),
+            WikiSpace::class => new WikiSpaceNotFoundException(),
+            default          => new LogicException(sprintf('The %s row no longer exists.', $metadata->getName())),
+        };
+    }
+
+    /**
+     * A wiki row the application's manager holds and the private manager does not: refused by persist / refresh /
+     * lock with what to do instead (W1-2: never a duplicate INSERT or Doctrine's "not managed").
+     *
+     * @throws LogicException when the row is one of them
+     */
+    private function refuseForeign(object $object, string $operation): void
+    {
+        if (!self::isBundleEntity($object::class) || $this->live()->contains($object) || !$this->heldBySource($object)) {
+            return;
+        }
+
+        throw new LogicException(sprintf('Cannot %s this %s: it was loaded through your entity manager "%s", not through the wiki. Since 2.0 the wiki reads and writes its rows only through its private entity manager: load wiki rows through the wiki (its repositories, WikiPageOperationsInterface / WikiSpaceOperationsInterface by id) or hand them to the wiki services, which load them again by id. See UPGRADING "To 2.0.0" (Private manager only).', $operation, self::realClass($object::class), $this->sourceManagerName));
+    }
+
+    /**
+     * Whether the application's manager (`database.entity_manager`) holds the object. Never creates or loads anything.
+     */
+    private function heldBySource(object $object): bool
+    {
+        $source = $this->registry->getManager($this->sourceManagerName);
+
+        return $source instanceof EntityManagerInterface && $source->isOpen() && $source->getUnitOfWork()->isInIdentityMap($object);
     }
 
     /**
@@ -347,12 +433,64 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
                     continue;
                 }
                 $target = $manager->getClassMetadata($value::class);
-                $id     = $target->getIdentifierValues($value);
-                if ($id !== [] && !in_array(null, $id, true)) {
-                    $metadata->setFieldValue($entity, $field, $manager->getReference($target->getName(), $id));
+                $id     = $this->identifierOf($value, $target);
+                if (self::isBundleEntity($value::class)) {
+                    if ($id !== [] && !in_array(null, $id, true)) {
+                        $metadata->setFieldValue($entity, $field, $manager->getReference($target->getName(), $id));
+                    }
+
+                    continue;
                 }
+                $metadata->setFieldValue($entity, $field, $this->hostReference($manager, $entity::class, $field, $mapping->targetEntity, $value, $id));
             }
         }
+    }
+
+    /**
+     * 2.0 (W1-2): the private manager's reference to a host object (a user) on a wiki row, by the host object's own
+     * identifier. Fails clearly, before anything is written, for an object of another class than the association's
+     * target, an object without an identifier yet (persisted but not flushed, or never persisted: "flush it first"), and
+     * a reference Doctrine cannot give (never Doctrine's misleading "new entity found through the relationship").
+     *
+     * @param class-string $targetClass the association's target class
+     * @param array<string, mixed> $id the host object's identifier
+     *
+     * @throws LogicException in the cases above
+     */
+    private function hostReference(EntityManagerInterface $manager, string $class, string $field, string $targetClass, object $value, array $id): object
+    {
+        if (!$value instanceof $targetClass) {
+            throw new LogicException(sprintf('Cannot write %s::$%s: it holds a %s, not a %s.', self::realClass($class), $field, self::realClass($value::class), $targetClass));
+        }
+        $source  = $this->registry->getManager($this->sourceManagerName);
+        $unsaved = $source instanceof EntityManagerInterface && $source->isOpen() && $source->getUnitOfWork()->isScheduledForInsert($value);
+        if ($unsaved || $id === [] || in_array(null, $id, true)) {
+            throw new LogicException(sprintf('Cannot write %s::$%s: the %s it points to has no identifier yet (persisted but not flushed, or never saved). Flush your %s first; the wiki never writes your entities.', self::realClass($class), $field, self::realClass($value::class), self::realClass($value::class)));
+        }
+        $reference = $manager->getReference($targetClass, $id);
+        if ($reference === null) {
+            throw new LogicException(sprintf('Cannot write %s::$%s: no %s reference exists for this identifier.', self::realClass($class), $field, $targetClass));
+        }
+
+        return $reference;
+    }
+
+    /**
+     * The identifier of an object the private manager does not hold: the application's unit of work's when it holds
+     * the object (never loads an uninitialised proxy), else its mapped identifier fields.
+     *
+     * @param ClassMetadata<object> $target
+     *
+     * @return array<string, mixed>
+     */
+    private function identifierOf(object $value, ClassMetadata $target): array
+    {
+        $source = $this->registry->getManager($this->sourceManagerName);
+        if ($source instanceof EntityManagerInterface && $source->isOpen() && $source->getUnitOfWork()->isInIdentityMap($value)) {
+            return $source->getUnitOfWork()->getEntityIdentifier($value);
+        }
+
+        return $target->getIdentifierValues($value);
     }
 
     /**
@@ -438,7 +576,7 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
     {
         $source = $this->registry->getManager($this->sourceManagerName);
         if (!$source instanceof EntityManagerInterface || $source->getMetadataFactory()->isTransient(WikiPage::class)) {
-            throw new LogicException(sprintf('The Doctrine entity manager "%s" (nowo_wiki.database.entity_manager, the source of database.private_entity_manager) does not map %s.', $this->sourceManagerName, WikiPage::class));
+            throw new LogicException(sprintf('The Doctrine entity manager "%s" (nowo_wiki.database.entity_manager, the source of the wiki\'s private entity manager) does not map %s.', $this->sourceManagerName, WikiPage::class));
         }
 
         return $source;

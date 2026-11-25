@@ -6,17 +6,13 @@ namespace Nowo\WikiBundle\Tests\Integration;
 
 use Doctrine\DBAL\DriverManager;
 use Doctrine\ORM\EntityManager;
-use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\ORMSetup;
 use Doctrine\ORM\Tools\SchemaTool;
-use Doctrine\Persistence\ManagerRegistry;
-use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
-use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use PHPUnit\Framework\TestCase;
 
 use function dirname;
@@ -100,33 +96,6 @@ final class WikiRepositoryWorkerTest extends TestCase
         self::assertSame('Intro v2', $pagesB->findById($introB->getId())?->getTitle());
         self::assertNull($pagesB->findById('missing'));
         self::assertNull($spacesB->findById('missing'));
-    }
-
-    public function testRepositoriesRecoverFromManagerClosedByPreviousRequest(): void
-    {
-        $fresh  = $this->entityManager(true);
-        $closed = $this->createMock(EntityManagerInterface::class);
-        $closed->method('isOpen')->willReturn(false);
-
-        $registry = $this->createMock(ManagerRegistry::class);
-        $calls    = 0;
-        $registry->method('getManager')->with('wiki')->willReturnCallback(static function () use (&$calls, $closed, $fresh): EntityManagerInterface {
-            return ++$calls === 1 ? $closed : $fresh;
-        });
-        $registry->expects(self::once())->method('resetManager')->with('wiki')->willReturn($fresh);
-
-        $provider = new WikiEntityManagerProvider($registry, 'wiki');
-        $spaces   = new DoctrineOrmWikiSpaceRepository($provider);
-        $pages    = new DoctrineOrmWikiPageRepository($provider);
-        $space    = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1');
-
-        // 1.37: the next request's boundary replaces the closed manager (never in the middle of a request).
-        (new WikiTransactionRunner($provider, $registry, 'wiki'))->reset();
-        $spaces->save($space);
-        $pages->save(new WikiPage($space, 'intro', 'Intro'));
-
-        self::assertSame(1, $pages->countBySpaceAndSlug($space, 'intro'));
-        self::assertNotNull($pages->findBySlug($space, 'intro'));
     }
 
     private function entityManager(bool $createSchema = false): EntityManager

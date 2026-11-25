@@ -6,8 +6,9 @@ namespace Nowo\WikiBundle\Service;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
-use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\ValueObject\WikiOwnerScopeId;
 use Symfony\Component\Security\Core\User\UserInterface;
 

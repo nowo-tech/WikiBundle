@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Port;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiPlanPolicyInterface;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**

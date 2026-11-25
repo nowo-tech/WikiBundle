@@ -6,11 +6,11 @@ namespace Nowo\WikiBundle\Tests\Integration;
 
 use LogicException;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\WikiBundle;

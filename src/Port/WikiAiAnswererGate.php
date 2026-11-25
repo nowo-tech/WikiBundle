@@ -6,11 +6,11 @@ namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Ai\WikiAiAnswer;
 use Nowo\WikiBundle\Ai\WikiAiAnswererInterface;
-use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**

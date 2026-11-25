@@ -28,6 +28,7 @@ use Nowo\WikiBundle\Event\WikiPageRestoredEvent;
 use Nowo\WikiBundle\Event\WikiPageUnarchivedEvent;
 use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Event\WikiTrashEvent;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Service\WikiPageArchivedEvent;
 use Nowo\WikiBundle\Service\WikiPageSavedEvent;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
@@ -146,7 +147,7 @@ final class WikiEventValueAccessorsTest extends TestCase
         self::assertNull($create->pageId());
         self::assertNull($create->pageSnapshot());
 
-        $write = new WikiApiWriteEvent(new WikiApiPrincipal($user, WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n'), 'page.create', 'eng');
+        $write = new WikiApiWriteEvent(WikiApiPrincipal::of(WikiUserRefs::fromUser($user), WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n'), 'page.create', 'eng');
         self::assertSame('carol', $write->actorRef()->identifier);
     }
 }

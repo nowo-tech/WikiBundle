@@ -14,7 +14,6 @@ use Doctrine\DBAL\Schema\Table;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
-use Doctrine\ORM\Tools\Event\GenerateSchemaTableEventArgs;
 use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Entity\WikiPageFavourite;
 use Nowo\WikiBundle\Entity\WikiPageLink;
@@ -143,17 +142,6 @@ final readonly class WikiSpaceCollationListener
             }
             $args->setSchema($schemaEditor->create());
         }
-    }
-
-    /**
-     * No longer subscribed (1.49.1, audit XI-2): replacing the table there lost its foreign keys. Kept for BC; does
-     * nothing.
-     *
-     * @deprecated since 1.49.1, the collation is applied on postGenerateSchema ({@see self::postGenerateSchema()})
-     */
-    public function postGenerateSchemaTable(GenerateSchemaTableEventArgs $args): void
-    {
-        unset($args);
     }
 
     /**

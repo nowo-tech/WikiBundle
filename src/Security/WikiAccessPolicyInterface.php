@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Security;
 
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Global wiki rights, framework-free (1.36.0): the twin of the deprecated {@see WikiAccessCheckerInterface}
- * (`nowo_wiki.security.access_checker` takes either). The user is a {@see WikiUserRef}; null when the bundle asks
+ * Global wiki rights, framework-free (1.36.0): since 2.0 the only host port; it replaced the removed 1.x `WikiAccessCheckerInterface`
+ * (`nowo_wiki.security.access_checker` names your service). The user is a {@see WikiUserRef}; null when the bundle asks
  * without one (decide from your own security context, as the default checker does from the token).
  */
 interface WikiAccessPolicyInterface

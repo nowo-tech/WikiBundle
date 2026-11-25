@@ -27,8 +27,8 @@ Versionable team wiki: spaces, page trees, immutable revisions, diff, search, Ti
 
 | Interface | Role |
 |-----------|------|
-| `WikiAccessCheckerInterface` | Feature ACL (list, create, edit, history, archive) |
-| `WikiTeamMembershipResolverInterface` | Team-scoped space visibility |
+| `WikiAccessPolicyInterface` | Feature ACL (list, create, edit, history, archive) |
+| `WikiTeamMembershipSourceInterface` | Team-scoped space visibility |
 | `WikiHtmlSanitizerInterface` | HTML sanitization on persist (default: `WikiHtmlSanitizer`) |
 
 ## Dependencies

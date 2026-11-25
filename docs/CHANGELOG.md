@@ -14,305 +14,189 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Fixed (1.55.2, Unreleased)](#fixed-1552-unreleased)
   - [Added (1.55.2, Unreleased)](#added-1552-unreleased)
 - [[1.55.1] - 2026-11-23](#1551---2026-11-23)
-  - [Fixed (1.55.1, Unreleased)](#fixed-1551-unreleased)
 - [[1.55.0] - 2026-11-23](#1550---2026-11-23)
-  - [Added (1.55, Unreleased)](#added-155-unreleased)
-  - [Changed (1.55, Unreleased)](#changed-155-unreleased)
-  - [Fixed](#fixed)
 - [[1.54.0] - 2026-11-23](#1540---2026-11-23)
-  - [Fixed (Unreleased)](#fixed-unreleased)
-  - [Added (Unreleased)](#added-unreleased)
 - [[1.53.0] - 2026-11-23](#1530---2026-11-23)
-  - [Changed](#changed)
 - [[1.52.0] - 2026-11-23](#1520---2026-11-23)
-  - [Changed](#changed-1)
-  - [Added](#added)
 - [[1.51.1] - 2026-11-22](#1511---2026-11-22)
-  - [Changed](#changed-2)
-  - [Fixed](#fixed-1)
 - [[1.51.0] - 2026-11-21](#1510---2026-11-21)
-  - [Added (1.51.0)](#added-1510)
-  - [Changed](#changed-3)
 - [[1.50.0] - 2026-11-21](#1500---2026-11-21)
-  - [Added (1.50.0)](#added-1500)
 - [[1.49.1] - 2026-11-20](#1491---2026-11-20)
-  - [Fixed (1.49.1)](#fixed-1491)
 - [[1.49.0] - 2026-11-20](#1490---2026-11-20)
-  - [Added (1.49.0)](#added-1490)
-  - [Changed (1.49.0)](#changed-1490)
-  - [Deprecated (1.49.0)](#deprecated-1490)
 - [[1.48.1] - 2026-11-20](#1481---2026-11-20)
-  - [Fixed](#fixed-2)
 - [[1.48.0] - 2026-11-20](#1480---2026-11-20)
-  - [Changed](#changed-4)
-  - [Deprecated](#deprecated)
-  - [Added](#added-1)
-  - [Tests](#tests)
 - [[1.47.1] - 2026-11-20](#1471---2026-11-20)
-  - [Fixed](#fixed-3)
 - [[1.47.0] - 2026-11-20](#1470---2026-11-20)
-  - [Added](#added-2)
-  - [Changed](#changed-5)
 - [[1.46.0] - 2026-11-19](#1460---2026-11-19)
-  - [Changed](#changed-6)
-  - [Added](#added-3)
 - [[1.45.0] - 2026-11-19](#1450---2026-11-19)
-  - [Added](#added-4)
-  - [Changed](#changed-7)
 - [[1.44.0] - 2026-11-18](#1440---2026-11-18)
-  - [Added](#added-5)
-  - [Fixed](#fixed-4)
-  - [Tests](#tests-1)
 - [[1.43.0] - 2026-11-18](#1430---2026-11-18)
-  - [Added](#added-6)
 - [[1.42.0] - 2026-11-17](#1420---2026-11-17)
-  - [Changed](#changed-8)
-  - [Added](#added-7)
 - [[1.41.0] - 2026-11-17](#1410---2026-11-17)
-  - [Added](#added-8)
-  - [Changed](#changed-9)
-  - [Fixed](#fixed-5)
 - [[1.40.2] - 2026-11-17](#1402---2026-11-17)
-  - [Changed](#changed-10)
-  - [Added](#added-9)
-  - [Fixed](#fixed-6)
-  - [Documentation](#documentation)
 - [[1.40.1] - 2026-11-17](#1401---2026-11-17)
-  - [Changed](#changed-11)
-  - [Added](#added-10)
 - [[1.40.0] - 2026-11-17](#1400---2026-11-17)
-  - [Added](#added-11)
-  - [Changed](#changed-12)
-  - [Deprecated](#deprecated-1)
-  - [Known gaps](#known-gaps)
 - [[1.39.0] - 2026-11-17](#1390---2026-11-17)
-  - [Added](#added-12)
-  - [Changed](#changed-13)
 - [[1.38.1] - 2026-11-16](#1381---2026-11-16)
-  - [Fixed](#fixed-7)
 - [[1.38.0] - 2026-11-16](#1380---2026-11-16)
-  - [Added](#added-13)
-  - [Tests](#tests-2)
-  - [Fixed](#fixed-8)
 - [[1.37.0] - 2026-11-15](#1370---2026-11-15)
-  - [Added](#added-14)
-  - [Fixed](#fixed-9)
-  - [Changed](#changed-14)
-  - [Tests](#tests-3)
 - [[1.36.0] - 2026-11-15](#1360---2026-11-15)
-  - [Added](#added-15)
-  - [Security](#security)
-  - [Deprecated](#deprecated-2)
-  - [Changed](#changed-15)
-  - [Tests](#tests-4)
 - [[1.35.0] - 2026-11-14](#1350---2026-11-14)
-  - [Added](#added-16)
-  - [Changed](#changed-16)
 - [[1.34.0] - 2026-11-14](#1340---2026-11-14)
-  - [Added](#added-17)
 - [[1.33.0] - 2026-11-14](#1330---2026-11-14)
-  - [Added](#added-18)
-  - [Fixed](#fixed-10)
 - [[1.32.0] - 2026-11-13](#1320---2026-11-13)
-  - [Added](#added-19)
 - [[1.31.1] - 2026-11-13](#1311---2026-11-13)
-  - [Security](#security-1)
-  - [Tests](#tests-5)
 - [[1.31.0] - 2026-11-12](#1310---2026-11-12)
-  - [1.31.0 (unreleased)](#1310-unreleased)
 - [[1.30.0] - 2026-11-11](#1300---2026-11-11)
-  - [Added](#added-21)
-  - [Fixed](#fixed-12)
 - [[1.29.1] - 2026-11-11](#1291---2026-11-11)
-  - [Security](#security-2)
 - [[1.29.0] - 2026-11-11](#1290---2026-11-11)
-  - [Added](#added-22)
-  - [Changed](#changed-17)
 - [[1.28.0] - 2026-11-10](#1280---2026-11-10)
-  - [Added](#added-23)
-  - [Changed](#changed-18)
 - [[1.27.0] - 2026-11-09](#1270---2026-11-09)
-  - [Added](#added-24)
 - [[1.26.0] - 2026-11-09](#1260---2026-11-09)
-  - [Fixed](#fixed-13)
-  - [Changed](#changed-19)
-  - [Documentation](#documentation-1)
 - [[1.25.1] - 2026-11-09](#1251---2026-11-09)
-  - [Fixed](#fixed-14)
 - [[1.25.0] - 2026-11-08](#1250---2026-11-08)
-  - [Added](#added-25)
-  - [Changed](#changed-20)
 - [[1.24.1] - 2026-11-08](#1241---2026-11-08)
-  - [Security](#security-3)
-  - [Added](#added-26)
-  - [Known limitation](#known-limitation)
-  - [Changed](#changed-21)
 - [[1.24.0] - 2026-11-08](#1240---2026-11-08)
-  - [Added](#added-27)
-  - [Changed](#changed-22)
-  - [Security](#security-4)
-  - [Tests](#tests-6)
 - [[1.23.0] - 2026-11-07](#1230---2026-11-07)
-  - [Fixed](#fixed-15)
-  - [Changed](#changed-23)
-  - [Added](#added-28)
 - [[1.22.0] - 2026-11-07](#1220---2026-11-07)
-  - [Fixed](#fixed-16)
-  - [Added](#added-29)
 - [[1.21.1] - 2026-11-07](#1211---2026-11-07)
-  - [Security](#security-5)
-  - [Fixed](#fixed-17)
-  - [Documentation](#documentation-2)
 - [[1.21.0] - 2026-11-06](#1210---2026-11-06)
-  - [Added](#added-30)
-  - [Fixed](#fixed-18)
 - [[1.20.0] - 2026-11-06](#1200---2026-11-06)
-  - [Added](#added-31)
 - [[1.19.1] - 2026-11-06](#1191---2026-11-06)
-  - [Fixed](#fixed-19)
 - [[1.19.0] - 2026-11-06](#1190---2026-11-06)
-  - [Changed](#changed-24)
-  - [Dependencies](#dependencies)
 - [[1.18.0] - 2026-11-05](#1180---2026-11-05)
-  - [Changed](#changed-25)
-  - [Added](#added-32)
-  - [Dependencies](#dependencies-1)
 - [[1.17.0] - 2026-11-05](#1170---2026-11-05)
-  - [Added](#added-33)
 - [[1.16.2] - 2026-11-04](#1162---2026-11-04)
-  - [Fixed](#fixed-20)
 - [[1.16.1] - 2026-11-04](#1161---2026-11-04)
-  - [Added](#added-34)
-  - [Changed](#changed-26)
-  - [Fixed](#fixed-21)
 - [[1.16.0] - 2026-11-04](#1160---2026-11-04)
-  - [Added](#added-35)
-  - [Changed](#changed-27)
 - [[1.15.1] - 2026-11-04](#1151---2026-11-04)
-  - [Fixed](#fixed-22)
 - [[1.15.0] - 2026-11-04](#1150---2026-11-04)
-  - [Added](#added-36)
 - [[1.14.1] - 2026-11-03](#1141---2026-11-03)
-  - [Fixed](#fixed-23)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
-  - [Added](#added-37)
-  - [Changed](#changed-28)
 - [[1.13.2] - 2026-11-03](#1132---2026-11-03)
-  - [Security](#security-6)
 - [[1.13.1] - 2026-11-03](#1131---2026-11-03)
-  - [Fixed](#fixed-24)
-  - [Changed](#changed-29)
-  - [Added](#added-38)
-  - [Documentation](#documentation-3)
 - [[1.13.0] - 2026-11-03](#1130---2026-11-03)
-  - [Added](#added-39)
-  - [Changed](#changed-30)
 - [[1.12.0] - 2026-10-31](#1120---2026-10-31)
-  - [Added](#added-40)
-  - [Changed](#changed-31)
-  - [Fixed](#fixed-25)
 - [[1.11.1] - 2026-10-30](#1111---2026-10-30)
-  - [Fixed](#fixed-26)
 - [[1.11.0] - 2026-10-30](#1110---2026-10-30)
-  - [Added](#added-41)
-  - [Changed](#changed-32)
 - [[1.10.0] - 2026-10-30](#1100---2026-10-30)
-  - [Added](#added-42)
-  - [Changed](#changed-33)
-  - [Security](#security-7)
-  - [Deprecated](#deprecated-3)
-  - [Removed](#removed)
 - [[1.9.0] - 2026-10-30](#190---2026-10-30)
-  - [Added](#added-43)
-  - [Changed](#changed-34)
 - [[1.8.1] - 2026-10-29](#181---2026-10-29)
-  - [Changed](#changed-35)
 - [[1.8.0] - 2026-10-29](#180---2026-10-29)
-  - [Added](#added-44)
-  - [Changed](#changed-36)
-  - [Fixed](#fixed-27)
-  - [Removed](#removed-1)
 - [[1.7.2] - 2026-10-28](#172---2026-10-28)
-  - [Fixed](#fixed-28)
 - [[1.7.1] - 2026-10-28](#171---2026-10-28)
-  - [Security](#security-8)
 - [[1.7.0] - 2026-10-26](#170---2026-10-26)
-  - [Changed](#changed-37)
-  - [Added](#added-45)
-  - [Changed](#changed-38)
 - [[1.6.4] - 2026-10-24](#164---2026-10-24)
-  - [Changed](#changed-39)
 - [[1.6.3] - 2026-10-18](#163---2026-10-18)
-  - [Changed](#changed-40)
 - [[1.6.2] - 2026-10-13](#162---2026-10-13)
-  - [Changed](#changed-41)
 - [[1.6.1] - 2026-10-13](#161---2026-10-13)
-  - [Fixed](#fixed-29)
 - [[1.6.0] - 2026-10-13](#160---2026-10-13)
-  - [Fixed](#fixed-30)
-  - [Deprecated](#deprecated-4)
-  - [Changed](#changed-42)
 - [[1.5.0] - 2026-10-13](#150---2026-10-13)
-  - [Security](#security-9)
-  - [Added](#added-46)
 - [[1.4.1] - 2026-10-13](#141---2026-10-13)
-  - [Changed](#changed-43)
-  - [Dependencies](#dependencies-2)
 - [[1.4.0] - 2026-10-09](#140---2026-10-09)
-  - [Changed](#changed-44)
-  - [Fixed](#fixed-31)
-  - [Dependencies](#dependencies-3)
 - [[1.3.5] - 2026-09-27](#135---2026-09-27)
-  - [Fixed](#fixed-32)
-  - [Added](#added-47)
-  - [Changed](#changed-45)
 - [[1.3.4] - 2026-08-24](#134---2026-08-24)
-  - [Changed](#changed-46)
-  - [Notes](#notes)
 - [[1.3.3] - 2026-08-19](#133---2026-08-19)
-  - [Changed](#changed-47)
 - [[1.3.2] - 2026-08-18](#132---2026-08-18)
-  - [Changed](#changed-48)
 - [[1.3.1] - 2026-08-07](#131---2026-08-07)
-  - [Fixed](#fixed-33)
 - [[1.3.0] - 2026-08-04](#130---2026-08-04)
-  - [Changed](#changed-49)
-  - [Added](#added-48)
-  - [Changed](#changed-50)
 - [[1.2.0] - 2026-08-03](#120---2026-08-03)
-  - [Added](#added-49)
-  - [Changed](#changed-51)
-  - [Compatibility](#compatibility)
-  - [Upgrade](#upgrade)
 - [[1.1.1] - 2026-07-31](#111---2026-07-31)
-  - [Fixed](#fixed-34)
-  - [Tests](#tests-7)
-  - [Upgrade](#upgrade-1)
 - [[1.1.0] - 2026-07-30](#110---2026-07-30)
-  - [Added](#added-50)
-  - [Changed](#changed-52)
-  - [Documentation](#documentation-4)
 - [[1.0.5] - 2026-07-29](#105---2026-07-29)
-  - [Added](#added-51)
-  - [Changed](#changed-53)
 - [[1.0.4] - 2026-07-22](#104---2026-07-22)
-  - [Added](#added-52)
-  - [Changed](#changed-54)
 - [[1.0.3] - 2026-07-16](#103---2026-07-16)
-  - [Fixed](#fixed-35)
-  - [Added](#added-53)
-  - [Changed](#changed-55)
 - [[1.0.2] - 2026-07-16](#102---2026-07-16)
-  - [Changed](#changed-56)
 - [[1.0.1] - 2026-07-16](#101---2026-07-16)
-  - [Fixed](#fixed-36)
-  - [Added](#added-54)
-  - [Changed](#changed-57)
 - [[1.0.0] - 2026-07-13](#100---2026-07-13)
-  - [Added](#added-55)
-  - [Security](#security-10)
 
 ## [Unreleased]
+
+2.0.0 (REQ-ARCH-001 rules 1, 3 and 6): only what 1.x announced through deprecation notices changes. An application whose
+deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.1 (the last 1.x release) upgrades without code changes. See
+[UPGRADING](UPGRADING.md#unreleased).
+
+### Changed
+
+- **BREAKING:** the private entity manager is the only mode (REQ-ARCH-001 rule 6). Every wiki row is read and written
+  through the wiki's private entity manager, on the connection, mapping, listeners and SQL filters of
+  `database.entity_manager`: a wiki write never flushes, clears or closes your entity manager, so changes your
+  application left pending are no longer written by it. `database.private_entity_manager: false` fails the build;
+  `true` has no effect and is deprecated (accepted until 3.0); the parameter `nowo_wiki.database.private_entity_manager`
+  is always `true`.
+- **BREAKING:** a wiki row your entity manager loaded and handed to a wiki service (`WikiPageServiceInterface`,
+  `WikiPageLinkServiceInterface`, the trash, attachment, page mover and page icon services) is loaded again by its id in
+  the private manager, so the wiki writes the row itself and never inserts it a second time; what you changed on your
+  instance before the call is not carried over. A row that no longer exists answers `WikiPageNotFoundException` /
+  `WikiSpaceNotFoundException`. Persisting, refreshing or locking such a row through the wiki's manager fails with a
+  clear `LogicException` (never a duplicate `INSERT`); a user (or other host entity) on a wiki row that has no identifier
+  yet, or is of the wrong class, fails with a clear `LogicException` before anything is written ("flush your user first").
+- `WikiTransactionRunner`: every unit runs on the wiki's private manager (transaction-doctrine's ORM runner). Built by
+  hand with another manager, each unit is one connection-level transaction flushed at its end, and nothing of that
+  manager is cleared after a failure (the 1.x forgetting of touched wiki rows and the QN-M1 close are gone). Its `$registry`, `$managerName` and
+  `$logger` arguments are ignored (deprecated, removed in 3.0) and `reset()` does nothing (deprecated); the new
+  `attach()` returns the private manager's instance of a wiki row.
+- `WikiEntityManagerProvider::get()` answers the private manager, which the bundle always injects (built by hand
+  without one, the registry's manager is treated as the wiki's own); its `$hostFlushProbe` argument is ignored and
+  `hostFlushProbe()` returns null (both deprecated, removed in 3.0).
+- **BREAKING:** REST API (audit OX-D1-L1, announced in 1.36 "this will be refused in 2.0"): a firewall user and a token
+  user of different classes that only share an id (a security adapter not listed in `accepted_user_classes`) are
+  refused as a configuration error (500, logged), instead of being let through with a notice: a look-alike id in
+  another user class is another person. Add the adapter to `accepted_user_classes` or return the same user.
+- A `web_ui.layout_template` that does not render the UiKit canonical blocks (a pre-1.10 layout) fails with a
+  `LogicException` naming the layout when a page renders, instead of being wrapped in the removed bridge.
+
+### Deprecated
+
+- Building `WikiApiPrincipal` with its constructor (a Symfony user): use `WikiApiPrincipal::of()` with a `WikiUserRef`
+  (audit ZAQ-8, REQ-ARCH-001 rule 3); removed in 3.0.
+
+### Removed
+
+- **BREAKING:** the host-flush probe (`Doctrine\WikiHostFlushProbe`, 1.49) and the 1.49 notice of
+  `database.private_entity_manager` unset or `false`, with the shared-manager code paths of the transaction runner, the
+  flusher and the provider (`WikiFlushObserver` keeps only `isWikiEntity()`).
+- **BREAKING:** the 17 host port interfaces replaced by a framework-free twin in 1.36 (deprecated since 1.36, notices
+  since 1.49): `Security\WikiAccessCheckerInterface`, `Security\WikiSpaceAccessCheckerInterface`,
+  `Security\WikiTeamMembershipResolverInterface`, `Service\WikiSpaceAccessResolverInterface`,
+  `Service\WikiSpaceLocatorInterface`, `Link\WikiObjectLinkResolverInterface`, `Avatar\WikiUserAvatarResolverInterface`,
+  `Panel\WikiPanelStateStoreInterface`, `Tree\WikiTreeStateStoreInterface`,
+  `Collaboration\WikiCollabSubscriberAuthorizerInterface`, `Collaboration\WikiCollabTopicsAuthorizerInterface`,
+  `Api\Hook\WikiApiAuthenticatorInterface`, `Api\Hook\WikiApiFilesInterface`, `Api\Hook\WikiApiPlanGateInterface`,
+  `Api\Hook\WikiApiDirectoryInterface`, `Ai\WikiAiAssistantInterface`, `Attachment\WikiAttachmentLimitsProviderInterface`.
+  A host implements the twin ([table](ARCHITECTURE.md#host-ports)). The bundle asks its ports through `@internal`
+  bundle-side interfaces of the same names in `Port\Internal\` (no BC promise; a host class configured as a port that
+  implements one instead of the twin is refused, a decorator of a bundle service through one is accepted). A service configured with a class that does not implement the twin, a service or alias registered under a
+  removed interface's id, a decorator of a removed id (also with `onInvalid: IGNORE`) and an autodiscovered class that
+  still implements a removed interface all fail the build with the twin to implement (`WikiRemovedPortsPass`), instead of
+  being dropped by Symfony.
+- **BREAKING:** `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user` and `WikiEditorOptionsEvent::$user` (deprecated
+  since 1.36, notices since 1.49): read `userRef()`. The member is now private, so reading it throws an `Error` (never
+  a silent null, audit ZAQ-1). The constructors are unchanged. The `@internal` `securityUser()`
+  accessors of the three classes are removed with them.
+- **BREAKING:** `WikiStorageFailureSubscriber::committed()` (deprecated since 1.48): use
+  `Nowo\TransactionDoctrine\ConflictCode::forRequest()`.
+- **BREAKING:** `Interchange\HtmlToMarkdown\WikiAlignedHeaderConverter` (deprecated since 1.40): use
+  `WikiHeadingIdConverter`.
+- **BREAKING:** the configuration keys deprecated in 1.6 and 1.10: `route_prefix`, `templates.*`, `firewall`,
+  `database.driver`, `database.platform`, `web_ui.css_framework` and `security.<action>_roles`. Each fails the build with
+  the key to use instead; `web_ui.css_framework` no longer seeds `nowo_ui_kit.css_framework` / `icon_set`, and the
+  parameters `nowo_wiki.firewall` and `nowo_wiki.web_ui.css_framework` are gone.
+- **BREAKING:** the pre-1.10 layout bridge `@NowoWikiBundle/manage/_legacy_layout.html.twig` (deprecated since 1.10),
+  `WikiPages::LEGACY_ADMIN_BRIDGE` and the page variables `nowo_wiki_legacy_layout` / `nowo_wiki_legacy_blocks`.
+- **BREAKING:** the inline forms of the dialog partials (deprecated since 1.53): `_new_page_dialog.html.twig` with
+  `new_page_dialog.form`, `_import_export_dialog.html.twig` without `import_export_src`, `_ai_dialog.html.twig` with
+  `ai_form`, and `_tree_menu.html.twig` with `icon_form` / `move_form` now render only the on-demand dialogs.
+- `wiki-code-blocks.ts` (deprecated since 1.29): `wiki.js` no longer marks overflowing code blocks itself (UiKit
+  `js/nowo-ui-scroll-region.js` gives them their tab stop) and the `data-code-label` attribute of the `wiki.js` script
+  tags is gone.
+- `Doctrine\WikiSpaceCollationListener::postGenerateSchemaTable()` (a no-op since 1.49.1); the collation stays on
+  `postGenerateSchema` (FK regression test kept).
+
+### Security
+
+- The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and higher are backported to the last
+  1.x minor; Low ones are fixed in 2.x only ([SECURITY](SECURITY.md)).
 
 ## [1.56.0] - 2026-11-25
 

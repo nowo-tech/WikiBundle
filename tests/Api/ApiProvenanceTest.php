@@ -113,7 +113,7 @@ final class ApiProvenanceTest extends ApiTestCase
         $page = $this->page($this->eng, 'Guide', 'first');
         $this->em()->clear();
         ApiTestHost::$raceOnView = function () use ($page): void {
-            // 1.36: through the wiki's own manager (the private one with WIKI_TEST_PRIVATE_EM=1), as a host does.
+            // 1.36: through the wiki's own manager (its private one), as a host does.
             $em = $this->wikiEm();
             $this->pages()->saveRevision($em->find(WikiPage::class, $page->getId()) ?? $page, 'Guide', 'by bob', $em->find(TestUserEntity::class, 'u-bob') ?? $this->bob, WikiPageRevision::FORMAT_MARKDOWN);
             $em->getConnection()->executeStatement("UPDATE wiki_page_revisions SET channel = 'mcp', actor_label = 'Bob token' WHERE revision_number = 2");
@@ -158,7 +158,7 @@ final class ApiProvenanceTest extends ApiTestCase
     private function twoRevisions(string $title = 'Guide'): WikiPage
     {
         $page = $this->page($this->eng, $title, 'first');
-        // 1.36: wiki rows through the wiki's own manager (the private one with WIKI_TEST_PRIVATE_EM=1).
+        // 1.36: wiki rows through the wiki's own manager (its private one).
         $em = $this->wikiEm();
         $this->pages()->saveRevision($em->find(WikiPage::class, $page->getId()) ?? $page, $title, "first\nsecond", $em->find(TestUserEntity::class, 'u-bob') ?? $this->bob, WikiPageRevision::FORMAT_MARKDOWN);
         // What a host provider records (the API kernel has none): Ana's first save from the web, Bob's from MCP.

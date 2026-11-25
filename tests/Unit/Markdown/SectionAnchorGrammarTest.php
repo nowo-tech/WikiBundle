@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Markdown;
 
-use League\HTMLToMarkdown\Environment;
-use League\HTMLToMarkdown\HtmlConverter;
-use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiAlignedHeaderConverter;
 use Nowo\WikiBundle\Interchange\HtmlToMarkdown\WikiHeadingIdConverter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Interchange\WikiMarkdownPortableLinks;
@@ -80,13 +77,5 @@ final class SectionAnchorGrammarTest extends TestCase
             . '<h2 id="nowo-h-ask-x">Ask <span class="nowo-md-mention">@ana</span><span class="nowo-md-icon" data-icon="home"></span> <code>x</code><span class="nowo-md-math">y</span></h2>';
 
         self::assertSame('<h2>See <a class="nowo-md-ref" href="/p">Other page</a> now</h2><h2>Ask <span class="nowo-md-mention">@ana</span><span class="nowo-md-icon" data-icon="home"></span> <code>x</code><span class="nowo-md-math">y</span></h2>', WikiHeadingIdConverter::keepDifferentIds($html));
-    }
-
-    public function testTheDeprecatedAlignedHeaderConverterStillAligns(): void
-    {
-        $environment = Environment::createDefaultEnvironment(['header_style' => 'atx']);
-        $environment->addConverter(new WikiAlignedHeaderConverter());
-
-        self::assertSame("::: {align=right}\n## Right\n:::", (new HtmlConverter($environment))->convert('<h2 style="text-align: right">Right</h2>'));
     }
 }

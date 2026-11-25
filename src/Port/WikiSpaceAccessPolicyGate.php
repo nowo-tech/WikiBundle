@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Port;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessPolicyInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 

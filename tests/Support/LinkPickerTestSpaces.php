@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Support;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function in_array;

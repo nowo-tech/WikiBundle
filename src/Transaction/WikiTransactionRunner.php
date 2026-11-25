@@ -6,24 +6,20 @@ namespace Nowo\WikiBundle\Transaction;
 
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Events;
-use Doctrine\Persistence\ManagerRegistry;
 use Nowo\TransactionContract\TransactionRunnerInterface;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\TransactionDoctrine\DoctrineTransactionRunner;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
-use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
+use Nowo\WikiBundle\Doctrine\WikiFlusher;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Psr\Log\LoggerInterface;
 use Symfony\Contracts\Service\ResetInterface;
-use Throwable;
 
-use function is_object;
 use function max;
 use function min;
 use function random_int;
-use function spl_object_id;
+use function trigger_deprecation;
 use function usleep;
 
 /**
@@ -39,17 +35,12 @@ use function usleep;
  * savepoints and `ROLLBACK TO SAVEPOINT` fails with 1305). A transient failure (deadlock, lock wait timeout, serialization
  * failure, lost savepoint) surfaces as {@see TransientStorageFailure} with a Retry-After hint: 503 on the bundle's routes.
  *
- * - **Private entity manager** (`database.private_entity_manager: true`): transaction-doctrine's ORM runner on the
- *   wiki's own manager ({@see WikiEntityManager}); after a failure it forgets what the unit loaded or wrote, and a manager
- *   closed by a failed flush is created again on its next call. The application's manager is never involved.
- * - **Shared manager** (the default, `database.entity_manager`): the unit runs in a connection-level transaction, because
- *   transaction-doctrine's ORM runner would close and reset (or clear) that manager after a storage failure, detaching the
- *   application's entities behind its back (audit QD-M1). After a failure only the wiki rows the unit added, wrote,
- *   changed or scheduled for deletion are forgotten (and the wiki rows that point at them); every entity of the
- *   application stays managed. A failed flush closes the manager (the ORM does), and so does the runner when a flush of
- *   the failed unit had written entities of the application (the rollback undid them, audit QN-M1): it stays closed for
- *   the rest of the request, so the application's next flush fails loudly, and {@see self::reset()} replaces it at the
- *   next request, message or command boundary. A closed manager is refused with a transient failure (QN-L2).
+ * The unit runs on the wiki's private entity manager ({@see WikiEntityManager}, the only mode since 2.0):
+ * transaction-doctrine's ORM runner; after a failure it forgets what the unit loaded or wrote, and a manager closed by a
+ * failed flush is created again on its next call. The application's manager is never involved. A manager given by hand
+ * (an {@see EntityManagerInterface} instead of the provider, or a provider built without the private manager) runs each
+ * unit in a connection-level transaction flushed at its end; after a failure nothing of it is cleared, detached or
+ * reset.
  *
  * {@see self::run()} makes one attempt (HTTP writes: the client retries after the 503). {@see self::runRetrying()} replays
  * a transient failure a few times with full-jitter backoff, only when it is the outermost transaction, for a replayable
@@ -77,20 +68,25 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
 
     /**
      * @param EntityManagerInterface|WikiEntityManagerProvider $entityManager the wiki's manager (or its provider, resolved per call)
-     * @param ManagerRegistry|null $registry replaces a shared manager a failed wiki flush closed, at the next boundary
-     * @param string|null $managerName the registry name of the shared manager (`database.entity_manager`)
+     * @param object|null $registry @deprecated since 2.0, ignored (it replaced a closed shared manager); removed in 3.0
+     * @param string|null $managerName @deprecated since 2.0, ignored (the shared manager's name); removed in 3.0
      * @param int|null $retryAfterSeconds Retry-After hint of the TransientStorageFailure; null for none
      * @param int $backoffBaseMilliseconds upper bound of the first backoff of {@see self::runRetrying()} (0 = no wait)
-     * @param LoggerInterface|null $logger warns when a closed shared manager is replaced at a boundary
+     * @param LoggerInterface|null $logger @deprecated since 2.0, ignored (it warned when a closed shared manager was
+     *                                     replaced); removed in 3.0
      */
     public function __construct(
         private EntityManagerInterface|WikiEntityManagerProvider $entityManager,
-        private ?ManagerRegistry $registry = null,
-        private ?string $managerName = null,
+        ?object $registry = null,
+        ?string $managerName = null,
         private ?int $retryAfterSeconds = 1,
         private int $backoffBaseMilliseconds = self::BACKOFF_BASE_MILLISECONDS,
-        private ?LoggerInterface $logger = null,
+        ?LoggerInterface $logger = null,
     ) {
+        // Deprecated arguments of the removed shared manager, kept for the signature (removed in 3.0).
+        if ($registry !== null || $managerName !== null || $logger instanceof LoggerInterface) {
+            trigger_deprecation('nowo-tech/wiki-bundle', '2.0', 'The $registry, $managerName and $logger arguments of %s are ignored since 2.0 (the private entity manager is the only mode) and removed in 3.0.', self::class);
+        }
     }
 
     /**
@@ -101,22 +97,15 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
         $manager = $this->manager();
         if ($manager instanceof WikiEntityManager) {
             // The wiki's own manager: transaction-doctrine's ORM runner (forgets what a failed unit loaded or wrote; a
-            // closed manager is created again by the decorator on its next call). The application's manager is not involved.
+            // closed private manager is created again by the decorator on its next call).
             return DoctrineTransactionRunner::forEntityManager($manager, null, null, $this->retryAfterSeconds)->run($operation);
         }
 
-        // The application's manager (shared): a connection-level transaction, and only the wiki rows the unit touched
-        // are forgotten after a failure (audit QD-M1), unless the unit flushed the application's own changes (QN-M1).
-        // 1.49: the flush goes through the host-flush probe, which reports the application's pending changes it writes.
-        $probe = $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->hostFlushProbe() : null;
-
-        return $this->sharedUnit($manager, static function () use ($operation, $manager, $probe): mixed {
+        // A manager given by hand: one connection-level unit flushed at its end; after a failure nothing is cleared,
+        // detached or reset (the wiki does not own that manager).
+        return DoctrineTransactionRunner::forConnection($manager->getConnection(), $this->retryAfterSeconds)->run(static function () use ($operation, $manager): mixed {
             $result = $operation();
-            if ($probe instanceof WikiHostFlushProbe) {
-                $probe->around($manager, static fn () => $manager->flush());
-            } else {
-                $manager->flush();
-            }
+            WikiFlusher::flush($manager);
 
             return $result;
         });
@@ -125,7 +114,7 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
     /**
      * 1.37 (audit QN-M1): a unit of work on the wiki's connection that flushes nothing itself (the co-editing log, which
      * writes through DBAL), around wiki writes that may flush (a page save inside the log's lock). After a failure the
-     * shared manager is treated as by {@see self::run()}; the private manager follows its own rollback bookkeeping.
+     * private manager follows its own rollback bookkeeping.
      *
      * @template T
      *
@@ -135,55 +124,7 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
      */
     public function runOnConnection(callable $operation): mixed
     {
-        $manager = $this->manager();
-        if ($manager instanceof WikiEntityManager) {
-            return DoctrineTransactionRunner::forConnection($manager->getConnection(), $this->retryAfterSeconds)->run($operation);
-        }
-
-        return $this->sharedUnit($manager, $operation);
-    }
-
-    /**
-     * A unit on the shared manager's connection. Refuses a closed manager with a transient failure (audit QN-L2: 503,
-     * never `EntityManagerClosed`). After a failure with the manager still open:
-     *
-     * - when a flush inside the unit wrote the application's entities, the database rolled them back but Doctrine
-     *   keeps them as written: the manager is closed, so the application's next flush fails loudly instead of silently
-     *   writing nothing (audit QN-M1); it is replaced at the next boundary ({@see self::reset()});
-     * - otherwise only the wiki rows the unit added, wrote, changed or scheduled for deletion are forgotten.
-     *
-     * @template T
-     *
-     * @param callable(): T $operation
-     *
-     * @return T
-     */
-    private function sharedUnit(EntityManagerInterface $manager, callable $operation): mixed
-    {
-        if (!$manager->isOpen()) {
-            throw new TransientStorageFailure($this->retryAfterSeconds, 'The entity manager was closed by an earlier failure of this request; it is replaced at the next request.');
-        }
-        $before   = $this->wikiRows($manager);
-        $observer = new WikiFlushObserver();
-        $events   = $manager->getEventManager();
-        $events->addEventListener([Events::onFlush], $observer);
-        try {
-            return DoctrineTransactionRunner::forConnection($manager->getConnection(), $this->retryAfterSeconds)->run($operation);
-        } catch (Throwable $failure) {
-            // A manager the ORM closed in a failed flush stays closed: loud for the application; replaced at the boundary.
-            if (!$this->isClosed($manager)) {
-                if ($observer->hostWritten) {
-                    $manager->close();
-                    $this->logger?->warning('Wiki: a failed write rolled back changes of the application that the shared entity manager had flushed; the manager is closed until the next request.', ['bundle' => 'nowo_wiki', 'exception_class' => $failure::class]);
-                } else {
-                    $this->forgetWikiRows($manager, $before);
-                }
-            }
-
-            throw $failure;
-        } finally {
-            $events->removeEventListener([Events::onFlush], $observer);
-        }
+        return DoctrineTransactionRunner::forConnection($this->manager()->getConnection(), $this->retryAfterSeconds)->run($operation);
     }
 
     /**
@@ -303,33 +244,35 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
     }
 
     /**
-     * At a request, message or command boundary: a shared manager that a failed wiki flush closed is replaced, so the
-     * next request of a long-running worker starts with an open one. Nothing happens to an open manager, or with the
-     * private manager (the wiki replaces its own).
+     * @deprecated since 2.0, no effect (it replaced a closed shared manager at a boundary; the private manager replaces
+     *             itself); removed in 3.0
      */
     public function reset(): void
     {
-        if (!$this->registry instanceof ManagerRegistry || $this->entityManager instanceof EntityManagerInterface) {
-            return;
-        }
-        $manager = $this->registry->getManager($this->managerName);
-        if (!$manager instanceof EntityManagerInterface || $manager->isOpen() || $this->entityManager->get() instanceof WikiEntityManager) {
-            return;
-        }
-        $this->registry->resetManager($this->managerName);
-        $this->logger?->warning('Wiki: the entity manager closed by a failed write was replaced at the request boundary.', ['bundle' => 'nowo_wiki']);
+    }
+
+    /**
+     * 2.0 (W1-2): the private manager's instance of a wiki row handed to a wiki service ({@see WikiEntityManager::attach()}):
+     * a row your application's manager loaded is loaded again by its id, so the wiki writes it itself and never inserts
+     * it a second time. With a manager given by hand, the row is returned as it is.
+     *
+     * @template T of object
+     *
+     * @param T $entity
+     *
+     * @return T
+     */
+    public function attach(object $entity): object
+    {
+        $manager = $this->manager();
+
+        return $manager instanceof WikiEntityManager ? $manager->attach($entity) : $entity;
     }
 
     /** The wiki's manager of this call. */
     public function manager(): EntityManagerInterface
     {
         return $this->entityManager instanceof WikiEntityManagerProvider ? $this->entityManager->get() : $this->entityManager;
-    }
-
-    /** Whether the manager is closed (read again after a failure: the ORM closes it in a failed flush). */
-    private function isClosed(EntityManagerInterface $manager): bool
-    {
-        return !$manager->isOpen();
     }
 
     /**
@@ -341,96 +284,5 @@ final readonly class WikiTransactionRunner implements TransactionRunnerInterface
         if ($bound > 0) {
             usleep(random_int(0, $bound) * 1000);
         }
-    }
-
-    /**
-     * The wiki rows the manager holds, with the data it knows them by (before a unit of work).
-     *
-     * @return array<int, array<string, mixed>> object id => original data
-     */
-    private function wikiRows(EntityManagerInterface $manager): array
-    {
-        $unitOfWork = $manager->getUnitOfWork();
-        $rows       = [];
-        foreach ($unitOfWork->getIdentityMap() as $class => $entities) {
-            if (WikiFlushObserver::isWikiEntity($class)) {
-                foreach ($entities as $entity) {
-                    $rows[spl_object_id($entity)] = $unitOfWork->getOriginalEntityData($entity);
-                }
-            }
-        }
-
-        return $rows;
-    }
-
-    /**
-     * After a failed unit: detaches the wiki rows it added, wrote or changed (their database state was rolled back); a
-     * wiki row the caller held and the unit did not change stays managed, and so does every entity of the application.
-     *
-     * @param array<int, array<string, mixed>> $before {@see self::wikiRows()} before the unit
-     */
-    private function forgetWikiRows(EntityManagerInterface $manager, array $before): void
-    {
-        $unitOfWork = $manager->getUnitOfWork();
-        // Audit QN-L1: a wiki row the unit scheduled for deletion is managed again, then forgotten (a later flush of the
-        // application must not carry out the deletion of a failed unit).
-        foreach ($unitOfWork->getScheduledEntityDeletions() as $removed) {
-            if (WikiFlushObserver::isWikiEntity($removed::class)) {
-                $manager->persist($removed);
-                $manager->detach($removed);
-            }
-        }
-        $rows = $unitOfWork->getScheduledEntityInsertions();
-        foreach ($unitOfWork->getIdentityMap() as $class => $entities) {
-            if (WikiFlushObserver::isWikiEntity($class)) {
-                foreach ($entities as $entity) {
-                    $rows[] = $entity;
-                }
-            }
-        }
-        $stale = [];
-        $kept  = [];
-        foreach ($rows as $entity) {
-            if (!WikiFlushObserver::isWikiEntity($entity::class) || !$manager->contains($entity)) {
-                continue;
-            }
-            $id = spl_object_id($entity);
-            if (!isset($before[$id]) || $before[$id] !== $unitOfWork->getOriginalEntityData($entity) || $this->changed($manager, $entity)) {
-                $stale[$id] = $entity;
-            } else {
-                $kept[$id] = $entity;
-            }
-        }
-        // A kept row that points at a stale one goes too (it would drag it back as a new entity on the next flush).
-        do {
-            $more = false;
-            foreach ($kept as $id => $entity) {
-                $metadata = $manager->getClassMetadata($entity::class);
-                foreach ($metadata->associationMappings as $field => $mapping) {
-                    $target = $mapping->isToOne() ? $metadata->getFieldValue($entity, $field) : null;
-                    if (is_object($target) && isset($stale[spl_object_id($target)])) {
-                        $stale[$id] = $entity;
-                        unset($kept[$id]);
-                        $more = true;
-
-                        break;
-                    }
-                }
-            }
-        } while ($more);
-        foreach ($stale as $entity) {
-            $manager->detach($entity);
-        }
-    }
-
-    /**
-     * Whether the row has changes the manager would write (the ORM's own comparison with the data it knows it by).
-     */
-    private function changed(EntityManagerInterface $manager, object $entity): bool
-    {
-        $unitOfWork = $manager->getUnitOfWork();
-        $unitOfWork->computeChangeSet($manager->getClassMetadata($entity::class), $entity);
-
-        return $unitOfWork->getEntityChangeSet($entity) !== [];
     }
 }

@@ -45,19 +45,9 @@ The wiki never runs its writes through a runner your application binds to `Trans
 (DoctrineDeadlockRetryBundle's adapter, your own): such a runner drives your manager. It is injected into the wiki
 services by its class.
 
-- **Private entity manager** (`database.private_entity_manager: true`, the only mode in 2.0): the wiki's writes never
-  touch your manager at all. After a failure the wiki forgets what its unit loaded or wrote; a manager closed by a
-  failed flush is created again on its next call.
-- **Shared manager** (the default, `database.entity_manager`): the unit runs in a connection-level transaction. After
-  a failure only the wiki rows the unit added, wrote, changed or scheduled for deletion are forgotten; your entities
-  stay managed and your pending changes stay pending. A failed flush closes the manager (Doctrine does): it **stays
-  closed for the rest of the request** (your next flush fails loudly; a wiki write answers 409) and is replaced at the
-  next request, message or command boundary. Until 1.36 the wiki reset it in the middle of the request, which detached
-  every entity you had loaded. In this mode a wiki unit still writes what you left pending in the shared manager, as in
-  1.36; the co-editing log and the search backfill no longer do (they write through DBAL). When a wiki unit that
-  flushed changes of yours then fails (a later deadlock or lock wait, a failed COMMIT, a `postFlush` listener that
-  throws), the database rolled them back while Doctrine still takes them as written: the wiki **closes the manager**
-  (audit QN-M1), so your next flush fails loudly instead of silently writing nothing.
+- **Private entity manager** (the only mode since 2.0): the wiki's writes never touch your manager at all. After a
+  failure the wiki forgets what its unit loaded or wrote; a manager closed by a failed flush is created again on its
+  next call. (1.x also had a shared mode on `database.entity_manager`, removed in 2.0.)
 
 The connection is shared: when your code opens a transaction around a wiki call, the wiki's unit nests in it as a
 savepoint, and a wiki failure rolls back to that savepoint only. A transient failure inside your transaction is not
@@ -162,9 +152,9 @@ exact one's place. The API keeps its id-with-class rules (audit OX-L1).
 
 ## Workers
 
-The private manager is replaced on its next call when a failure closed it; a closed shared manager is replaced at the
-next boundary by the runner (`WikiRequestBoundaryResetter`: start and end of every main request, Messenger message
-and console command, and `kernel.reset`). The runner and the subscriber hold no state.
+The private manager is replaced on its next call when a failure closed it, and dropped at every boundary
+(`WikiRequestBoundaryResetter`: start and end of every main request, Messenger message and console command, and
+`kernel.reset`). The runner and the subscriber hold no state.
 
 ## Tests
 

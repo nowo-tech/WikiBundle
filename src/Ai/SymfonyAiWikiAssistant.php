@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Ai;
 
 use InvalidArgumentException;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiAiAssistantInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\AI\Agent\AgentInterface;

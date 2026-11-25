@@ -3,7 +3,6 @@
   wiki.index.title / intro with "Ask the wiki" (opens the AI dialog, when the AI is available) and "Back to dashboard"
   (dashboard_route); filters = the global search form (GET to the search route); columns name, slug; rows
   {id, name, slug, href}; row action Open; Pagination (pagination.spaces_per_page); EmptyState wiki.index.empty).
-  Also: ai_form (WikiAiAskType view or null).
   Blocks filled: nowo_ui_styles (parent() + wiki.css), nowo_ui_list_row (the name
   links to the space), nowo_ui_modals (AI question dialog).
 #}
@@ -36,8 +35,8 @@
 {% endblock %}
 
 {% block nowo_ui_modals %}
-    {#- 1.53 (lazy dialogs): ai_dialog = the empty dialog that loads the ask page; ai_form (deprecated) = inline -#}
-    {% if ai_form|default(null) or ai_dialog|default(false) %}
-        {{ include('@NowoWikiBundle/manage/_ai_dialog.html.twig', {ai_form: ai_form|default(null), bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
+    {#- 1.53 (lazy dialogs): ai_dialog = the empty dialog that loads the ask page -#}
+    {% if ai_dialog|default(false) %}
+        {{ include('@NowoWikiBundle/manage/_ai_dialog.html.twig', {bundle: page.bundle, nowo_ui_page_type: nowo_ui_page_type|default(null)}, false) }}
     {% endif %}
 {% endblock %}

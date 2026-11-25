@@ -11,48 +11,43 @@ use LogicException;
 use function sprintf;
 
 /**
- * Resolves the configured wiki entity manager on every call.
+ * Resolves the wiki's entity manager: its private manager ({@see WikiEntityManager}, REQ-ARCH-001 rule 6), on the
+ * connection and mapping of `database.entity_manager`, so a wiki write never flushes, clears or closes the application's
+ * manager. 2.0: the bundle's service always has the private manager (the only mode).
  *
- * 1.36.0: with `database.private_entity_manager: true` it is the wiki's private manager ({@see WikiEntityManager}),
- * so a wiki write never flushes, clears or closes the application's manager (REQ-ARCH-001 rule 6).
- *
- * 1.37 (Beacon spec 239, audit QD-M1): a shared manager closed by a failed flush is no longer reset here, in the middle
- * of a request (that detached every entity the application had loaded, behind its back). It is returned as it is: reads
- * still work, a wiki write answers a transient failure ({@see WikiFlusher}), and the bundle's transaction runner
- * replaces it at the next request, message or command boundary, so a long-running worker recovers without depending on
- * `services_resetter`.
+ * Built by hand without a private manager (a test, an application that wires the wiki itself), the registry's
+ * `$managerName` manager is resolved on every call and treated as the wiki's own manager: never hand it the manager your
+ * application writes through.
  */
 final readonly class WikiEntityManagerProvider
 {
     /**
-     * Stores the registry and the name of the entity manager to resolve.
-     *
      * @param ManagerRegistry $registry Doctrine manager registry
-     * @param string $managerName name of the wiki entity manager
-     * @param WikiEntityManager|null $private 1.36.0 (`database.private_entity_manager: true`): the wiki's private
-     *                                        manager on the connection and mapping of `$managerName`
-     * @param WikiHostFlushProbe|null $hostFlushProbe 1.49: the probe of the shared manager's wiki flushes (registered
-     *                                                only without the private manager)
+     * @param string $managerName name of the source entity manager (`database.entity_manager`)
+     * @param WikiEntityManager|null $private the wiki's private manager on the connection and mapping of `$managerName`
+     *                                        (always set by the bundle)
+     * @param object|null $hostFlushProbe @deprecated since 2.0, ignored (the 1.49 host-flush probe of the removed
+     *                                    shared manager); removed in 3.0
      */
     public function __construct(
         private ManagerRegistry $registry,
         private string $managerName = 'default',
         private ?WikiEntityManager $private = null,
-        private ?WikiHostFlushProbe $hostFlushProbe = null,
+        ?object $hostFlushProbe = null,
     ) {
+        unset($hostFlushProbe);
     }
 
     /**
-     * 1.49: the probe that flushes the shared manager for the wiki ({@see WikiFlusher::flush()}); null with the private
-     * manager (it never flushes the application's manager).
+     * @deprecated since 2.0, always null (the host-flush probe of the removed shared manager); removed in 3.0
      */
-    public function hostFlushProbe(): ?WikiHostFlushProbe
+    public function hostFlushProbe(): null
     {
-        return $this->private instanceof WikiEntityManager ? null : $this->hostFlushProbe;
+        return null;
     }
 
     /**
-     * Returns the wiki entity manager (1.37: a closed shared manager as it is, see the class description).
+     * Returns the wiki entity manager: the private one (a manager built by hand: the registry's `$managerName`).
      *
      * @throws LogicException when the configured manager is not an ORM entity manager
      *
@@ -65,7 +60,6 @@ final readonly class WikiEntityManagerProvider
         }
 
         $manager = $this->registry->getManager($this->managerName);
-
         if (!$manager instanceof EntityManagerInterface) {
             throw new LogicException(sprintf('Doctrine manager "%s" is not an ORM entity manager.', $this->managerName));
         }

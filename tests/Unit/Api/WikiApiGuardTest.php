@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Unit\Api;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\WikiApiLevel;
@@ -17,10 +15,13 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
@@ -320,12 +321,12 @@ final class WikiApiGuardTest extends TestCase
 
     private function principal(WikiApiLevel $level = WikiApiLevel::Full, ?WikiApiWhere $where = null, ?TestUserEntity $user = null): WikiApiPrincipal
     {
-        return new WikiApiPrincipal($user ?? $this->ana, $level, $where ?? WikiApiWhere::everything(), 't', 'n');
+        return WikiApiPrincipal::of(WikiUserRefs::fromUser($user ?? $this->ana), $level, $where ?? WikiApiWhere::everything(), 't', 'n');
     }
 
     private function principalOf(object $user): WikiApiPrincipal
     {
-        return new WikiApiPrincipal($user, WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n');
+        return WikiApiPrincipal::of(WikiUserRefs::fromUser($user), WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n');
     }
 
     private function refused(int $status, string $ecode, callable $call): void
