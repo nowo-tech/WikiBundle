@@ -238,7 +238,7 @@ final class Configuration implements ConfigurationInterface
                                 ->ifTrue(static fn (mixed $value): bool => $value === false)
                                 ->thenInvalid(self::PRIVATE_ENTITY_MANAGER_FALSE)
                             ->end()
-                            ->setDeprecated(self::PACKAGE, '2.0', 'The option "%path%.%node%" has no effect since 2.0 (the private manager is the only mode); remove it.')
+                            ->setDeprecated(self::PACKAGE, '2.0', 'The option "%path%" has no effect since 2.0 (the private manager is the only mode); remove it.')
                         ->end()
                     ->end()
                 ->end()
