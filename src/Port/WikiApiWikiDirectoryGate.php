@@ -11,8 +11,10 @@ use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\Value\WikiApiWikiFilter;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Repository\WikiSpaceBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 
+use function array_values;
 use function sprintf;
 
 /**
@@ -32,9 +34,19 @@ final readonly class WikiApiWikiDirectoryGate implements WikiApiDirectoryInterfa
 
     public function list(WikiApiPrincipal $principal, WikiApiWikiFilter $filter): array
     {
+        $answered = $this->directory->list($principal, $filter);
+        // 1.55.2: the named spaces in one query when the repository can (it was one read per wiki); each is still
+        // re-checked byte for byte and a missing one fails closed.
+        $ids = [];
+        foreach ($answered as $wiki) {
+            if (!$wiki->space instanceof WikiSpace && $wiki->spaceId !== null) {
+                $ids[$wiki->spaceId] = $wiki->spaceId;
+            }
+        }
+        $found = $this->spaces instanceof WikiSpaceBatchFinderInterface && $ids !== [] ? $this->spaces->findByIds(array_values($ids)) : [];
         $wikis = [];
-        foreach ($this->directory->list($principal, $filter) as $wiki) {
-            $wikis[] = $this->hydrate($wiki);
+        foreach ($answered as $wiki) {
+            $wikis[] = $wiki->spaceId !== null && isset($found[$wiki->spaceId]) && !$wiki->space instanceof WikiSpace ? $wiki->withSpace($found[$wiki->spaceId]) : $this->hydrate($wiki);
         }
 
         return $wikis;

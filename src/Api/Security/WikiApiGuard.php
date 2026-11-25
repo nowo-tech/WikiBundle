@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\WikiApiCapability;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
+use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -56,6 +57,7 @@ final readonly class WikiApiGuard
         private WikiPageRevisionRepositoryInterface $revisions,
         private ?WikiTenantPaths $tenantPaths = null,
         private ?WikiUserClassPolicy $classes = null,
+        private ?WikiManagedEntities $managed = null,
     ) {
     }
 
@@ -67,7 +69,16 @@ final readonly class WikiApiGuard
     public function wiki(WikiApiPrincipal $principal, string $slug): WikiApiWiki
     {
         $wiki = $this->isSlug($slug) ? $this->directory->find($principal, $slug) : null;
-        if (!$wiki instanceof WikiApiWiki || $wiki->slug !== $slug || !$this->sees($principal, $wiki)) {
+        if (!$wiki instanceof WikiApiWiki || $wiki->slug !== $slug) {
+            throw WikiApiRefusal::notFound();
+        }
+        // 1.55.2: the space a deprecated directory loaded through the application's manager is read again by id through
+        // the wiki's own (private) manager, so every operation writes against an instance the wiki's unit of work holds.
+        // Audit ZBO-1: a space the wiki cannot read (purged meanwhile, a stale host instance) answers 404 like a missing one.
+        if ($wiki->space instanceof WikiSpace && $this->managed instanceof WikiManagedEntities) {
+            $wiki = $wiki->withSpace($this->managed->visibleSpace($wiki->space) ?? throw WikiApiRefusal::notFound());
+        }
+        if (!$this->sees($principal, $wiki)) {
             throw WikiApiRefusal::notFound();
         }
         if (!$this->planGate->allowsWiki($principal->securityUser(), $wiki)) {

@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Attachment;
 
 use DateTimeImmutable;
 use finfo;
+use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
@@ -61,6 +62,7 @@ final readonly class WikiAttachmentService
         ?LoggerInterface $logger = null,
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiTransactionRunner $runner = null,
+        private ?WikiManagedEntities $managed = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -81,6 +83,9 @@ final readonly class WikiAttachmentService
      */
     public function upload(WikiPage $page, string $path, string $originalName, ?object $actor = null): WikiAttachment
     {
+        // 1.55.2 (audit ZBO-2): a page of another manager (the host's, with the private manager) is read again by id, so
+        // the attachment's page and space are the wiki's own instances.
+        $page   = $this->managed?->page($page) ?? $page;
         $space  = $page->getSpace();
         $limits = $this->limitsProvider->limits($space);
         $size   = (int) @filesize($path);

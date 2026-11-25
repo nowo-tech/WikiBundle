@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Link;
 
 use InvalidArgumentException;
+use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -34,6 +35,7 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
      * @param iterable<object> $resolvers host resolvers (WikiObjectLinkResolverInterface, or since 1.36 WikiObjectLinkSourceInterface)
      * @param EventDispatcherInterface $eventDispatcher dispatcher of the link events
      * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored link creator for a non-entity user
+     * @param WikiManagedEntities|null $managed 1.55.2: the wiki manager's instance of a page another manager loaded
      */
     public function __construct(
         private WikiPageLinkRepositoryInterface $linkRepository,
@@ -42,6 +44,7 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
         private EventDispatcherInterface $eventDispatcher,
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiTransactionRunner $runner = null,
+        private ?WikiManagedEntities $managed = null,
     ) {
     }
 
@@ -57,6 +60,8 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
      */
     public function link(WikiPage $page, string $objectType, string $objectId, ?object $actor = null): WikiPageLink
     {
+        // 1.55.2: a page of another manager (the host's, with the private manager) is read again by id first.
+        $page = $this->managed?->page($page) ?? $page;
         // 1.37: looked up again under the page lock, so the same link sent twice at once is stored and announced once
         // (the second one used to fail on the unique key).
         [$link, $created] = $this->underPageLock($page, function () use ($page, $objectType, $objectId, $actor): array {
@@ -90,6 +95,7 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
      */
     public function unlink(WikiPage $page, string $objectType, string $objectId, ?object $actor = null): bool
     {
+        $page    = $this->managed?->page($page) ?? $page;
         $removed = $this->underPageLock($page, function () use ($page, $objectType, $objectId): bool {
             $link = $this->linkRepository->findOne($page, $objectType, $objectId);
             if (!$link instanceof WikiPageLink) {

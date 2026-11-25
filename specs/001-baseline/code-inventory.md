@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-11-22 (every file of `src/` mapped, including 1.42 to 1.51; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 593)
+**Last audited**: 2026-11-25 (every file of `src/` mapped, including 1.42 to 1.55.2; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 610)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -799,6 +799,28 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Security/WikiPageAccessInterface.php` | Page access by ids (port) | FR-ACC-001 |
 | `Resources/assets/src/raw-modules.d.ts` | Type declaration for Vite `?raw` imports (test support, not shipped runtime) | FR-BUILD-002 |
 
+## Ids, erasure, key columns, assets and host-loaded entities (1.52 – 1.55.2)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Doctrine/WikiExactKeyColumns.php` | 1.52: the bundle's declaration of its identity / access-key columns (REQ-SEC-006) | FR-SEC-011 |
+| `Doctrine/WikiManagedEntities.php` | 1.55.2: the private manager's instance of a host-loaded space or page, read again by id before a write | FR-ARCH-002 / FR-WORKER-002 |
+| `Repository/WikiSpaceBatchFinderInterface.php` | 1.55.2: spaces by ids in one query, and the no-refresh read for read paths | FR-REPO-001 / FR-WORKER-002 |
+| `Repository/WikiCommentByIdFinderInterface.php` | 1.55: comment threads and comments by id, bounded thread reads | FR-ARCH-001 / FR-COMMENT-001 |
+| `Util/WikiSpaceSlugRule.php` | 1.55: the space slug rule of the create by id | FR-SPACE-002 |
+| `Space/WikiSpaceOwnerMismatchException.php` | 1.55.1: erasure refused for another owner | FR-SPACE-002 |
+| `ValueObject/WikiCommentThreadSnapshot.php` | 1.55: comment thread read by id | FR-ARCH-001 |
+| `ValueObject/WikiCommentSnapshot.php` | 1.55: comment read by id | FR-ARCH-001 |
+| `ValueObject/WikiNewSpace.php` | 1.55: space create by id | FR-ARCH-001 / FR-SPACE-002 |
+| `Resources/assets/src/logger.ts` | Console logger of the scripts (REQ-ASSETS-005) | FR-BUILD-001 |
+| `Resources/assets/src/script-banner.ts` | "script loaded" banner, safe with a clobbered global | FR-BUILD-001 |
+| `Resources/views/manage/_import_export_form.html.twig` | 1.53: import / export dialog loaded on demand | FR-UI-012 / FR-IX-001 |
+| `Resources/views/manage/_ai_ask_form.html.twig` | 1.53: AI dialog loaded on demand | FR-UI-012 / FR-AI-001 |
+| `Resources/views/manage/_new_page_form.html.twig` | 1.53: new page dialog loaded on demand | FR-UI-012 / FR-PAGE-001 |
+| `Resources/views/manage/import_export.html.twig` | Import / export page | FR-IX-001 |
+| `Resources/views/manage/_tree_menu_form.html.twig` | 1.53: tree menu dialog loaded on demand | FR-UI-012 / FR-TREE-001 |
+| `Resources/views/manage/_milkdown_editor_assets.html.twig` | 1.53: editor assets of a dialog loaded on demand | FR-UI-012 / FR-MD-002 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |
@@ -843,6 +865,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | SearchKit group (1.44 / 1.46 / 1.47) | 14 | 14 |
 | Space lifecycle and host flush probe (1.49 / 1.50) | 16 | 16 |
 | Read ports and page access (1.51) | 19 | 19 |
-| **Total production sources** | **593** | **593** |
+| Ids, erasure, key columns, assets and host-loaded entities (1.52 – 1.55.2) | 17 | 17 |
+| **Total production sources** | **610** | **610** |
 
-Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 593. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
+Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 610. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).

@@ -23,7 +23,9 @@ interface WikiSpaceRepositoryInterface
     public function save(WikiSpace $space): void;
 
     /**
-     * Finds a space by its identifier.
+     * Finds a space by its identifier, read from the database on every call (the bundle's repository refreshes a space
+     * its manager already holds), so it is safe on write paths and in kept-alive workers. 1.55.2: for many ids, or for
+     * repeated read-only checks within one request, see {@see WikiSpaceBatchFinderInterface}.
      *
      * @param string $id space UUID
      *

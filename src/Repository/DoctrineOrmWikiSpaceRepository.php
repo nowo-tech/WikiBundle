@@ -12,16 +12,22 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use SortDirection;
 
+use function array_chunk;
 use function array_filter;
+use function array_unique;
 use function array_values;
 use function in_array;
 
 /**
  * Lookups refresh already-managed spaces ({@see Query::HINT_REFRESH}) so changes made by another
- * worker are not hidden by a stale identity map.
+ * worker are not hidden by a stale identity map. 1.55.2: {@see WikiSpaceBatchFinderInterface} adds a batch read (one
+ * query, still fresh) and a no-refresh read for read paths.
  */
-final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceRepositoryInterface
+final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceRepositoryInterface, WikiSpaceBatchFinderInterface
 {
+    /** 1.55.2: ids per `findByIds()` statement. */
+    public const FIND_BY_IDS_CHUNK = 500;
+
     /**
      * Creates the repository.
      *
@@ -45,7 +51,8 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
     }
 
     /**
-     * Finds a space by its identifier, refreshing it from the database when found.
+     * Finds a space by its identifier, always read from the database: a space the manager already holds is refreshed,
+     * any other one is loaded (1.55.2: one query either way, no refresh right after the load).
      *
      * @param string $id space UUID
      *
@@ -54,12 +61,72 @@ final readonly class DoctrineOrmWikiSpaceRepository implements WikiSpaceReposito
     public function findById(string $id): ?WikiSpace
     {
         $entityManager = $this->entityManager();
-        $space         = $entityManager->find(WikiSpace::class, $id);
-        if ($space instanceof WikiSpace) {
-            $entityManager->refresh($space);
+        $held          = $entityManager->getUnitOfWork()->tryGetById($id, WikiSpace::class);
+        if ($held instanceof WikiSpace) {
+            $entityManager->refresh($held);
+
+            return $held;
+        }
+        $space = $entityManager->find(WikiSpace::class, $id);
+
+        // Audit ZBO-3: a folding collation may answer a look-alike space; only the exact id counts.
+        return $space instanceof WikiSpace && $space->getId() === $id ? $space : null;
+    }
+
+    /**
+     * Finds the spaces of the given ids in one query per {@see self::FIND_BY_IDS_CHUNK} ids, refreshed by the query itself (1.55.2).
+     *
+     * @param list<string> $ids space ids (duplicates are ignored)
+     *
+     * @return array<string, WikiSpace> the spaces found, keyed by id, in the order of `$ids`
+     */
+    public function findByIds(array $ids): array
+    {
+        $ids = array_values(array_unique($ids));
+        if ($ids === []) {
+            return [];
         }
 
-        return $space;
+        // Audit ZBO-4: at most FIND_BY_IDS_CHUNK ids per statement (driver placeholder limits).
+        $byId = [];
+        foreach (array_chunk($ids, self::FIND_BY_IDS_CHUNK) as $chunk) {
+            /** @var list<WikiSpace> $spaces */
+            $spaces = $this->entityManager()->createQueryBuilder()
+                ->select('s')
+                ->from(WikiSpace::class, 's')
+                ->where('s.id IN (:ids)')
+                ->setParameter('ids', $chunk)
+                ->getQuery()
+                ->setHint(Query::HINT_REFRESH, true)
+                ->getResult();
+            foreach ($spaces as $space) {
+                $byId[$space->getId()] = $space;
+            }
+        }
+        // House rule LQ: only the exact ids count (a folding collation may also match a look-alike one).
+        $found = [];
+        foreach ($ids as $id) {
+            if (isset($byId[$id])) {
+                $found[$id] = $byId[$id];
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * Finds a space by id through the identity map, loading it only when the manager does not hold it yet (1.55.2;
+     * read paths only, see {@see WikiSpaceBatchFinderInterface}).
+     *
+     * @param string $id space id
+     *
+     * @return WikiSpace|null the space, or null when none has exactly that id
+     */
+    public function findByIdWithoutRefresh(string $id): ?WikiSpace
+    {
+        $space = $this->entityManager()->find(WikiSpace::class, $id);
+
+        return $space instanceof WikiSpace && $space->getId() === $id ? $space : null;
     }
 
     /**

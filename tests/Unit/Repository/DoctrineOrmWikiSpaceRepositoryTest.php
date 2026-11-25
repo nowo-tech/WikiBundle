@@ -7,10 +7,13 @@ namespace Nowo\WikiBundle\Tests\Unit\Repository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
+use Doctrine\ORM\UnitOfWork;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
 use PHPUnit\Framework\TestCase;
+
+use function strtoupper;
 
 final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
 {
@@ -77,13 +80,30 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
     public function testFindById(): void
     {
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
-        $em    = $this->createMock(EntityManagerInterface::class);
-        $em->expects(self::once())->method('refresh');
+        $uow   = $this->createMock(UnitOfWork::class);
+        $uow->method('tryGetById')->willReturnOnConsecutiveCalls($space, false);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getUnitOfWork')->willReturn($uow);
+        // 1.55.2: a held space is refreshed; any other one is loaded once, never loaded then refreshed.
+        $em->expects(self::once())->method('refresh')->with($space);
+        $em->expects(self::once())->method('find')->willReturn($space);
+        $repository = new DoctrineOrmWikiSpaceRepository($em);
+
+        self::assertSame($space, $repository->findById($space->getId()));
+        self::assertSame($space, $repository->findById($space->getId()));
+    }
+
+    public function testFindByIdKeepsOnlyTheExactId(): void
+    {
+        // Audit ZBO-3: a folding collation answering a look-alike space is no answer.
+        $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
+        $uow   = $this->createMock(UnitOfWork::class);
+        $uow->method('tryGetById')->willReturn(false);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getUnitOfWork')->willReturn($uow);
         $em->method('find')->willReturn($space);
 
-        $found = (new DoctrineOrmWikiSpaceRepository($em))->findById($space->getId());
-
-        self::assertSame($space, $found);
+        self::assertNull((new DoctrineOrmWikiSpaceRepository($em))->findById(strtoupper($space->getId())));
     }
 
     public function testFindAccessibleReturnsEmptyForNoScopeIds(): void

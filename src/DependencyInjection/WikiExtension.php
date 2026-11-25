@@ -76,6 +76,7 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiExactKeyColumns;
 use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
+use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -139,6 +140,7 @@ use Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiSpaceBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
@@ -533,6 +535,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 ->setArgument('$entityManager', $emProviderRef));
             $container->setAlias($interface, $repoClass);
         }
+        // 1.55.2: the batch / no-refresh space reads (host access checkers) and the wiki manager's instance of a space or
+        // page another manager loaded (deprecated host ports with the private manager).
+        $container->setAlias(WikiSpaceBatchFinderInterface::class, DoctrineOrmWikiSpaceRepository::class);
+        $container->setDefinition(WikiManagedEntities::class, (new Definition(WikiManagedEntities::class))
+            ->setAutowired(false)
+            ->setArgument('$entityManager', $emProviderRef));
 
         $container->setDefinition(WikiMetadataListener::class, (new Definition(WikiMetadataListener::class))
             ->setArgument('$spacesTableName', $spacesTable)
@@ -1459,6 +1467,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$retentionDays', $trash['retention_days'])
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
+            ->setArgument('$managed', new Reference(WikiManagedEntities::class))
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
     }
 
@@ -1557,7 +1566,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$maxDepth', $tree['max_depth'])
             ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$runner', new Reference(WikiTransactionRunner::class)));
+            ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
+            ->setArgument('$managed', new Reference(WikiManagedEntities::class)));
         // 1.41 (tree.context_menu): "Duplicate" of the tree menu, placed by the mover.
         $container->setDefinition(WikiPageDuplicator::class, (new Definition(WikiPageDuplicator::class))
             ->setArgument('$pages', new Reference(WikiPageServiceInterface::class))
@@ -1565,7 +1575,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$repository', new Reference(WikiPageRepositoryInterface::class))
             ->setArgument('$slugger', new Reference(WikiSlugger::class))
             ->setArgument('$icons', new Reference(WikiPageIconService::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$managed', new Reference(WikiManagedEntities::class)));
     }
 
     /**

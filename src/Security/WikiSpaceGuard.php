@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Security;
 
+use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
@@ -23,10 +24,13 @@ final readonly class WikiSpaceGuard
     /**
      * @param WikiSpaceLocatorInterface $locator finds (or provisions) the space of a slug
      * @param WikiSpaceAccessCheckerInterface $checker space- and page-aware decision
+     * @param WikiManagedEntities|null $managed 1.55.2: the wiki manager's instance of a space a deprecated locator
+     *                                          loaded through another manager
      */
     public function __construct(
         private WikiSpaceLocatorInterface $locator,
         private WikiSpaceAccessCheckerInterface $checker,
+        private ?WikiManagedEntities $managed = null,
     ) {
     }
 
@@ -38,6 +42,12 @@ final readonly class WikiSpaceGuard
     public function requireSpace(UserInterface $user, string $slug): WikiSpace
     {
         $space = $this->locator->locate($slug, $user);
+        // 1.55.2: a space of the application's manager (a deprecated locator, with the private manager) is read again
+        // by id, so the pages, files and comments written under this route attach to the wiki's own instance.
+        // Audit ZBO-1: a space the wiki cannot read (purged meanwhile, a stale host instance) answers 404 like a missing one.
+        if ($space instanceof WikiSpace && $this->managed instanceof WikiManagedEntities) {
+            $space = $this->managed->visibleSpace($space);
+        }
         if (!$space instanceof WikiSpace || !$this->checker->isGranted($user, WikiAction::View, $space)) {
             throw new NotFoundHttpException('Space not found.');
         }
