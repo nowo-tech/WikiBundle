@@ -125,6 +125,7 @@ final readonly class WikiSpaceOperations implements WikiSpaceOperationsInterface
     {
         $lifecycle = $this->lifecycle ?? throw new LogicException('WikiSpaceOperations::setSpaceIcon() needs the space lifecycle (the container always wires it).');
 
+        // @igor-ignore - A call to the stateless lifecycle service (it writes the space row in its own unit), not a mutation of service state.
         return $lifecycle->setSpaceIcon($spaceId, $icon, $actor, $expectedVersion);
     }
 
