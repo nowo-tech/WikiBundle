@@ -31,7 +31,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 interface WikiSpaceBatchFinderInterface
 {
     /**
-     * Finds the spaces of the given ids in one query, read fresh from the database (archived ones included; unknown or
+     * Finds the spaces of the given ids in one query (one per 500 ids in the bundle's repository), read fresh from the database (archived ones included; unknown or
      * look-alike ids are left out).
      *
      * @param list<string> $ids space ids (duplicates are ignored)

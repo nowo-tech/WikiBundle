@@ -44,8 +44,9 @@ final readonly class WikiSpaceGuard
         $space = $this->locator->locate($slug, $user);
         // 1.55.2: a space of the application's manager (a deprecated locator, with the private manager) is read again
         // by id, so the pages, files and comments written under this route attach to the wiki's own instance.
+        // Audit ZBO-1: a space the wiki cannot read (purged meanwhile, a stale host instance) answers 404 like a missing one.
         if ($space instanceof WikiSpace && $this->managed instanceof WikiManagedEntities) {
-            $space = $this->managed->space($space);
+            $space = $this->managed->visibleSpace($space);
         }
         if (!$space instanceof WikiSpace || !$this->checker->isGranted($user, WikiAction::View, $space)) {
             throw new NotFoundHttpException('Space not found.');

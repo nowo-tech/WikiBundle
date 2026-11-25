@@ -74,8 +74,9 @@ final readonly class WikiApiGuard
         }
         // 1.55.2: the space a deprecated directory loaded through the application's manager is read again by id through
         // the wiki's own (private) manager, so every operation writes against an instance the wiki's unit of work holds.
+        // Audit ZBO-1: a space the wiki cannot read (purged meanwhile, a stale host instance) answers 404 like a missing one.
         if ($wiki->space instanceof WikiSpace && $this->managed instanceof WikiManagedEntities) {
-            $wiki = $wiki->withSpace($this->managed->space($wiki->space));
+            $wiki = $wiki->withSpace($this->managed->visibleSpace($wiki->space) ?? throw WikiApiRefusal::notFound());
         }
         if (!$this->sees($principal, $wiki)) {
             throw WikiApiRefusal::notFound();

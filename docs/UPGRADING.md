@@ -156,21 +156,26 @@ minor; Low ones are fixed in 2.x only (upgrade to get them).
 ### Private entity manager: host-loaded spaces and pages (1.55.2)
 
 From **1.55.1**: `composer update nowo-tech/wiki-bundle`. Nothing to change with the shared entity manager (the 1.x
-default). With `database.private_entity_manager: true` (required by 2.0):
+default), unless you hand over detached or never-persisted instances (last points). With `database.private_entity_manager: true` (required by 2.0):
 
-- The wiki reads every space or page you hand it (a deprecated directory or locator, `WikiPageService`,
-  `WikiPageLinkService`, `WikiPageIconService`) again by id through its own manager and writes to that instance, not to
-  yours: after `$pages->saveRevision($page, …)` with a page of your manager, read the returned revision (or load the page
+- The wiki reads every space or page you hand it again by id through its own manager and writes to that instance, not
+  to yours. Covered: the deprecated `WikiApiDirectoryInterface` (`find()`, `provision()`) and `WikiSpaceLocatorInterface`;
+  `WikiPageService` (`create()`, `createInSpace()`, `saveRevision()`, `restore()`, `convertToMarkdown()`, `archive()`,
+  `unarchive()`), `WikiPageLinkService` (`link()`, `unlink()`), `WikiPageIconService::setIcon()`, `WikiPageMover`
+  (`move()`, `createAt()`, `createNextTo()`), `WikiPageDuplicator::duplicate()`, `WikiTrashService` (`delete()`,
+  `restore()`, `purge()`) and `WikiAttachmentService::upload()`. So after `$pages->saveRevision($page, …)` with a page of your manager, read the returned revision (or load the page
   again) rather than your `$page`.
 - A space must be **stored** before you hand it over: a `WikiApiDirectoryInterface::provision()` or
   `WikiSpaceLocatorInterface::locate()` that persists a new `WikiSpace` must flush it (and commit it, when your manager
   uses another connection than the wiki's) before returning it. A space the wiki cannot read is refused with a
   `LogicException` and nothing is written (1.55.1 failed later, with Doctrine's "A new entity was found through the
-  relationship 'WikiPage#space'"). Better: implement the framework-free twins (`WikiApiWikiDirectoryInterface`,
+  relationship 'WikiPage#space'"). The API and UI guards answer such a space, or one purged meanwhile, with 404. Better: implement the framework-free twins (`WikiApiWikiDirectoryInterface`,
   `WikiSpaceIdLocatorInterface`), which return ids, or create spaces with `WikiSpaceOperationsInterface`.
+- Shared manager too: a detached `WikiSpace` / `WikiPage` (no manager holds it) is read again by id and written through
+  the managed instance; a `WikiSpace` you never persisted is refused early with the same `LogicException`.
 - Holding a space id? `WikiPageService::createInSpace($spaceId, …)` (or `WikiPageOperationsInterface::createPage()`).
 - Access checkers that load spaces one by one: autowire `Repository\WikiSpaceBatchFinderInterface` and use
-  `findByIds($ids)` (one query, fresh). `findByIdWithoutRefresh()` only on read paths within one request: it may return a
+  `findByIds($ids)` (one query per 500 ids, fresh). `findByIdWithoutRefresh()` only on read paths within one request: it may return a
   state another worker changed since (FrankenPHP worker mode included). Keep `findById()` on write paths.
 
 ## To 1.55.1

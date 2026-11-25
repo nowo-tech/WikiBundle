@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Trash;
 
 use DateTimeImmutable;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
+use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
@@ -75,6 +76,7 @@ final readonly class WikiTrashService
         private ?WikiPageRevisionRepositoryInterface $revisions = null,
         private int $maxPurgeFiles = self::DEFAULT_MAX_PURGE_FILES,
         private ?WikiTransactionRunner $runner = null,
+        private ?WikiManagedEntities $managed = null,
     ) {
     }
 
@@ -109,6 +111,8 @@ final readonly class WikiTrashService
      */
     public function delete(WikiPage $page, ?object $actor = null): string
     {
+        // 1.55.2 (audit ZBO-2): a page of another manager (the host's, with the private manager) is read again by id.
+        $page    = $this->managed?->page($page) ?? $page;
         $space   = $page->getSpace();
         $batch   = Uuid::generate()->toString();
         $entries = $this->unit(function () use ($space, $page, $batch): array {
@@ -168,6 +172,7 @@ final readonly class WikiTrashService
      */
     public function restore(WikiSpace $space, string $batchId, ?object $actor = null): ?WikiPage
     {
+        $space   = $this->managed?->space($space) ?? $space;
         $entries = $this->unit(function () use ($space, $batchId): array {
             $this->writer->beginSpaceTransaction($space);
             try {
@@ -220,7 +225,8 @@ final readonly class WikiTrashService
      */
     public function purge(WikiSpace $space, string $batchId, ?object $actor = null): int
     {
-        $done = $this->unit(function () use ($space, $batchId): ?array {
+        $space = $this->managed?->space($space) ?? $space;
+        $done  = $this->unit(function () use ($space, $batchId): ?array {
             $removed = [];
             $this->writer->beginSpaceTransaction($space);
             try {

@@ -13,6 +13,8 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
 use PHPUnit\Framework\TestCase;
 
+use function strtoupper;
+
 final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
 {
     public function testSavePersistsSpace(): void
@@ -89,6 +91,19 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
 
         self::assertSame($space, $repository->findById($space->getId()));
         self::assertSame($space, $repository->findById($space->getId()));
+    }
+
+    public function testFindByIdKeepsOnlyTheExactId(): void
+    {
+        // Audit ZBO-3: a folding collation answering a look-alike space is no answer.
+        $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
+        $uow   = $this->createMock(UnitOfWork::class);
+        $uow->method('tryGetById')->willReturn(false);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getUnitOfWork')->willReturn($uow);
+        $em->method('find')->willReturn($space);
+
+        self::assertNull((new DoctrineOrmWikiSpaceRepository($em))->findById(strtoupper($space->getId())));
     }
 
     public function testFindAccessibleReturnsEmptyForNoScopeIds(): void

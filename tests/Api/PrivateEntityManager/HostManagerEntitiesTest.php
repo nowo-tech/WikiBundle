@@ -16,19 +16,26 @@ use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
+use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
 use Nowo\WikiBundle\Repository\WikiSpaceBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\Service\WikiPageDuplicator;
 use Nowo\WikiBundle\Service\WikiPageIconService;
+use Nowo\WikiBundle\Service\WikiPageMoveException;
+use Nowo\WikiBundle\Service\WikiPageMover;
 use Nowo\WikiBundle\Service\WikiPageNotFoundException;
 use Nowo\WikiBundle\Space\WikiSpaceNotFoundException;
 use Nowo\WikiBundle\Tests\Api\ApiTestCase;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
+use Nowo\WikiBundle\Trash\WikiTrashService;
+use ReflectionProperty;
 
 use function array_filter;
 use function array_keys;
 use function assert;
 use function count;
+use function sprintf;
 use function str_contains;
 
 /**
@@ -43,7 +50,7 @@ use function str_contains;
 final class HostManagerEntitiesTest extends ApiTestCase
 {
     /** @var array<string, mixed> */
-    protected static array $wikiConfig = ['database' => ['private_entity_manager' => true]];
+    protected static array $wikiConfig = ['database' => ['private_entity_manager' => true], 'trash' => ['enabled' => true]];
 
     public function testANewPageAttachesToTheWikisOwnInstanceOfAHostLoadedSpace(): void
     {
@@ -139,6 +146,62 @@ final class HostManagerEntitiesTest extends ApiTestCase
         self::assertSame(1, $this->rows('SELECT COUNT(*) FROM wiki_pages WHERE slug = ?', ['direct']));
     }
 
+    public function testTreeDuplicateAndTrashWritesTakeHostLoadedEntities(): void
+    {
+        // Audit ZBO-2: the mover, the duplicator and the trash read the host's instances again by id too.
+        $parent = $this->page($this->eng, 'Parent', 'p');
+        $child  = $this->page($this->eng, 'Child', 'c');
+        $host   = fn (WikiPage $page): WikiPage => $this->em()->find(WikiPage::class, $page->getId()) ?? throw new LogicException('missing');
+        $space  = $this->em()->find(WikiSpace::class, $this->eng->getId());
+        self::assertInstanceOf(WikiSpace::class, $space);
+        $mover = self::getContainer()->get(WikiPageMover::class);
+        assert($mover instanceof WikiPageMover);
+
+        self::assertTrue($mover->move($host($child), $host($parent), 0, $this->ana)->moved);
+        self::assertSame($parent->getId(), $this->connection()->fetchOne('SELECT parent_id FROM wiki_pages WHERE id = ?', [$child->getId()]));
+        $placed = $mover->createAt($space, $host($parent), 0, fn (): WikiPage => $this->pages()->create($space, 'First', 'f', $this->ana, $host($parent)));
+        self::assertTrue($this->private()->contains($placed->page->getSpace()));
+        $next = $mover->createNextTo($space, $host($child), true, fn (): WikiPage => $this->pages()->create($space, 'Next', 'n', $this->ana, $host($parent)));
+        self::assertSame($parent->getId(), $next->page->getParent()?->getId());
+
+        $duplicator = self::getContainer()->get(WikiPageDuplicator::class);
+        assert($duplicator instanceof WikiPageDuplicator);
+        $copy = $duplicator->duplicate($host($child), 'Child copy', $this->ana);
+        self::assertTrue($this->private()->contains($copy->page));
+
+        $trash = self::getContainer()->get(WikiTrashService::class);
+        assert($trash instanceof WikiTrashService);
+        $batch = $trash->delete($host($child), $this->ana);
+        self::assertNotNull($trash->restore($space, $batch, $this->ana));
+        $again = $trash->delete($host($child), $this->ana);
+        self::assertGreaterThan(0, $trash->purge($space, $again, $this->ana));
+
+        $ghost = new WikiPage($this->eng, 'ghost', 'Ghost');
+        try {
+            $mover->move($ghost, null, 0);
+            self::fail('a page the wiki cannot read is gone');
+        } catch (WikiPageMoveException $exception) {
+            self::assertSame('page_missing', $exception->reason);
+        }
+        try {
+            $mover->move($host($parent), $ghost, 0);
+            self::fail('a parent the wiki cannot read is gone');
+        } catch (WikiPageMoveException $exception) {
+            self::assertSame('parent_missing', $exception->reason);
+        }
+    }
+
+    public function testADetachedSpaceIsReadAgainById(): void
+    {
+        // Audit ZBO-5: an instance no manager holds (detached, e.g. kept across requests) is read again by id.
+        $this->em()->clear();
+        $detached = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'owner-1');
+        (new ReflectionProperty(WikiSpace::class, 'id'))->setValue($detached, $this->eng->getId());
+
+        $page = $this->pages()->create($detached, 'Detached', 'd', $this->ana);
+        self::assertNotSame($detached, $page->getSpace());
+    }
+
     public function testAPageTheWikiCannotReadIsRefusedAsMissing(): void
     {
         $ghost = new WikiPage($this->eng, 'ghost', 'Ghost');
@@ -183,6 +246,14 @@ final class HostManagerEntitiesTest extends ApiTestCase
         self::assertSame($ids, array_keys($found), 'every known id once, in the asked order');
         self::assertSame(1, $queries, 'one query for eight spaces');
         self::assertSame([], $batch->findByIds([]));
+        // Audit ZBO-4: one statement per 500 ids (driver placeholder limits).
+        $many = [];
+        for ($i = 0; $i < DoctrineOrmWikiSpaceRepository::FIND_BY_IDS_CHUNK; ++$i) {
+            $many[] = sprintf('00000000-0000-4000-8000-%012d', $i);
+        }
+        $found = $this->queries(static fn (): array => $batch->findByIds([...$many, $ids[1]]), $queries);
+        self::assertSame([$ids[1]], array_keys($found));
+        self::assertSame(2, $queries);
 
         // The batch read is fresh: a rename committed behind the manager's back is seen.
         $this->connection()->executeStatement('UPDATE wiki_spaces SET name = ? WHERE id = ?', ['Renamed', $ids[0]]);

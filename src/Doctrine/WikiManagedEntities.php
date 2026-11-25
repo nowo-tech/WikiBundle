@@ -61,6 +61,16 @@ final readonly class WikiManagedEntities
     }
 
     /**
+     * 1.55.2 (audit ZBO-1): {@see self::space()} for the access guards: null when no row of that space is visible to the
+     * wiki (purged meanwhile, a stale instance the application's manager kept, or never stored), so the guard answers it
+     * like any missing space (404) instead of a server error.
+     */
+    public function visibleSpace(WikiSpace $space): ?WikiSpace
+    {
+        return $this->manager()->contains($space) ? $space : $this->spaceById($space->getId());
+    }
+
+    /**
      * The wiki manager's instance of a space id (identity map first, else one load); null when no row matches exactly.
      */
     public function spaceById(string $id): ?WikiSpace

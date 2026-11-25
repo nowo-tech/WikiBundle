@@ -1467,6 +1467,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$retentionDays', $trash['retention_days'])
             ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
+            ->setArgument('$managed', new Reference(WikiManagedEntities::class))
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
     }
 
@@ -1565,7 +1566,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$maxDepth', $tree['max_depth'])
             ->setArgument('$deferral', new Reference(WikiEventDeferral::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$runner', new Reference(WikiTransactionRunner::class)));
+            ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
+            ->setArgument('$managed', new Reference(WikiManagedEntities::class)));
         // 1.41 (tree.context_menu): "Duplicate" of the tree menu, placed by the mover.
         $container->setDefinition(WikiPageDuplicator::class, (new Definition(WikiPageDuplicator::class))
             ->setArgument('$pages', new Reference(WikiPageServiceInterface::class))
@@ -1573,7 +1575,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$repository', new Reference(WikiPageRepositoryInterface::class))
             ->setArgument('$slugger', new Reference(WikiSlugger::class))
             ->setArgument('$icons', new Reference(WikiPageIconService::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE)));
+            ->setArgument('$dispatcher', new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE))
+            ->setArgument('$managed', new Reference(WikiManagedEntities::class)));
     }
 
     /**
