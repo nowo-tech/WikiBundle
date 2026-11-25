@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Avatar;
 
 use Nowo\UiKitBundle\Avatar\AvatarUrlPolicy;
 use Nowo\WikiBundle\History\WikiAuthorLabel;
+use Nowo\WikiBundle\Port\Internal\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Contracts\Service\ResetInterface;

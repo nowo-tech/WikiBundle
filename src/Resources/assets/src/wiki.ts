@@ -1,7 +1,6 @@
 import { bindWikiComments, openRequestedPanel } from './wiki-comments';
 import { bindThreadList } from './wiki-comments-list';
 import { bindCommentsModeration } from './wiki-comments-moderation';
-import { codeLabel, observeScrollableCode } from './wiki-code-blocks';
 import { bindFocusTreeDrawer, bindTreeHiddenFocus, observeCardToolbar } from './wiki-layout';
 import { bindNewPageMenu } from './wiki-new-page';
 import { bindTreeMenu } from './wiki-tree-menu';
@@ -391,4 +390,3 @@ whenLoaded(() => {
     openRequestedPanel();
     void renderWikiRichContent();
 });
-observeScrollableCode(codeLabel(document.currentScript));

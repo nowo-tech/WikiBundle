@@ -35,7 +35,7 @@ Versionable internal wiki for Symfony apps: runbooks, ADRs, and team documentati
 | Tiptap or Milkdown editor, Markdown storage, archive pages | Built-in billing or plan limits (the host decides, `nowo_wiki.quota.check`) |
 | Markdown import-export (CLI + interchange services) | Full CSP / rate-limit middleware in bundle |
 | Optional Symfony AI assistant (`WikiAiAssistantInterface`) | |
-| `WikiAccessCheckerInterface`, space- and page-aware checker, team membership resolver, tenant paths | |
+| `WikiAccessPolicyInterface`, space- and page-aware access policy, team membership source, tenant paths (2.0: framework-free ports) | |
 | Opt-in: co-editing (Mercure), page tree moves, trash, history timeline, comments, page files | |
 | Attachments and links to host objects | |
 | CSRF + HTML sanitization on save | |
@@ -58,7 +58,7 @@ Versionable internal wiki for Symfony apps: runbooks, ADRs, and team documentati
 |----|------|
 | BR-WIKI-001 | Unique slug per space |
 | BR-WIKI-002 | Revisions are append-only; archive pages instead of deleting |
-| BR-WIKI-003 | Only authorized users can edit (via `WikiAccessCheckerInterface`) |
+| BR-WIKI-003 | Only authorized users can edit (via `WikiAccessPolicyInterface`) |
 | BR-WIKI-004 | Diff available between any pair of revisions in the same page |
 | BR-WIKI-005 | HTML content is sanitized before persistence |
 

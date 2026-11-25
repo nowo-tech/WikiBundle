@@ -109,6 +109,8 @@ final readonly class WikiPageIconService
      */
     public function setIcon(WikiPage $page, ?string $icon): bool
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page  = $this->runner?->attach($page) ?? $page;
         $icon  = $this->normalize($icon);
         $apply = function () use ($page, $icon): bool {
             if ($page->isArchived()) {
@@ -117,6 +119,7 @@ final readonly class WikiPageIconService
             if ($page->getIcon() === $icon) {
                 return false;
             }
+            // @igor-ignore - a wiki row of this call (loaded by the private manager), never a shared service.
             $page->setIcon($icon, $this->allowedPrefixes);
             $this->pages->save($page);
 

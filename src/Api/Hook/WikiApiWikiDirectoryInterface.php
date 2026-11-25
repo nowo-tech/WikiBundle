@@ -8,11 +8,12 @@ use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\Value\WikiApiWikiFilter;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 
 /**
- * The REST API's wiki directory, framework-free (1.36.0): the twin of the deprecated {@see WikiApiDirectoryInterface}
- * (`nowo_wiki.api.hooks.directory` takes either). Name a wiki's space by id (`WikiApiWiki::$spaceId`, no entity);
+ * The REST API's wiki directory, framework-free (1.36.0): since 2.0 the only host port; it replaced the removed 1.x `WikiApiDirectoryInterface`
+ * (`nowo_wiki.api.hooks.directory` names your service). Name a wiki's space by id (`WikiApiWiki::$spaceId`, no entity);
  * the bundle loads it and refuses an id that names no stored space.
  */
 interface WikiApiWikiDirectoryInterface

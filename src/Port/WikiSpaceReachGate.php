@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceReachInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 

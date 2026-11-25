@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\DependencyInjection\Compiler;
 
 use LogicException;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Repository\WikiPageLockInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 

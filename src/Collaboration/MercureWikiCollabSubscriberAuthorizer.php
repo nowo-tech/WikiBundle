@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Collaboration;
 
+use Nowo\WikiBundle\Port\Internal\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiCollabTopicsAuthorizerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Mercure\Authorization;
 use Symfony\Component\Mercure\Jwt\Grant;

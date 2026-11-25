@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 
 /**
  * 1.24 (spec 218 FR-034): thread reads, through the comment service's own rights check (`ViewComments`).
@@ -33,7 +34,7 @@ final readonly class WikiApiCommentReadOperations
     public function threads(WikiApiPrincipal $principal, string $slug, string $pageId): array
     {
         $page   = $this->page($principal, $slug, $pageId);
-        $all    = $this->comments->call(fn (): array => $this->comments->service()->threadEntities($principal->securityUser(), $page->getSpace(), $page));
+        $all    = $this->comments->call(fn (): array => $this->comments->service()->threadEntities(WikiUserRefs::securityUser($principal->userRef()), $page->getSpace(), $page));
         $view   = $this->content->view($principal, $page);
         $answer = [];
         foreach ($all['threads'] as $thread) {
@@ -53,7 +54,7 @@ final readonly class WikiApiCommentReadOperations
     public function thread(WikiApiPrincipal $principal, string $slug, string $pageId, string $threadId): array
     {
         $page = $this->page($principal, $slug, $pageId);
-        $one  = $this->comments->call(fn (): array => $this->comments->service()->threadEntity($principal->securityUser(), $page->getSpace(), $page, $threadId));
+        $one  = $this->comments->call(fn (): array => $this->comments->service()->threadEntity(WikiUserRefs::securityUser($principal->userRef()), $page->getSpace(), $page, $threadId));
 
         return $this->comments->thread($principal, $page, $one['thread'], $one['comments'], $this->content->view($principal, $page));
     }

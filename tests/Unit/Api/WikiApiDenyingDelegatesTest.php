@@ -16,6 +16,7 @@ use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -27,7 +28,7 @@ final class WikiApiDenyingDelegatesTest extends TestCase
 {
     public function testEveryDefaultDenies(): void
     {
-        $principal  = new WikiApiPrincipal(new TestUser(), WikiApiLevel::Full, WikiApiWhere::everything(), 't', 'n');
+        $principal  = WikiApiPrincipal::of(WikiUserRefs::fromUser(new TestUser()), WikiApiLevel::Full, WikiApiWhere::everything(), 't', 'n');
         $wiki       = new WikiApiWiki('eng', null, 'Eng');
         $management = new DenyingWikiApiWikiManagement();
         foreach ([

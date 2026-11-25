@@ -42,7 +42,7 @@ final readonly class DoctrineOrmWikiPageRevisionRepository implements WikiPageRe
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($revision);
-        WikiFlusher::flush($entityManager, $this->entityManager);
+        WikiFlusher::flush($entityManager);
     }
 
     /**

@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Port\Internal\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiAttachmentRepository;
 use Nowo\WikiBundle\Repository\WikiAttachmentRepositoryInterface;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
@@ -81,6 +82,8 @@ final readonly class WikiAttachmentService
      */
     public function upload(WikiPage $page, string $path, string $originalName, ?object $actor = null): WikiAttachment
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page   = $this->runner?->attach($page) ?? $page;
         $space  = $page->getSpace();
         $limits = $this->limitsProvider->limits($space);
         $size   = (int) @filesize($path);
@@ -175,6 +178,8 @@ final readonly class WikiAttachmentService
      */
     public function delete(WikiAttachment $attachment, ?object $actor = null): void
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $attachment = $this->runner?->attach($attachment) ?? $attachment;
         // @igor-ignore - Repository call (Doctrine remove + flush of a request-scoped entity); no service state.
         $this->attachmentRepository->remove($attachment);
         $this->storage->delete($attachment->getStorageKey());

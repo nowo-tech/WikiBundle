@@ -81,6 +81,9 @@ final readonly class WikiPageMover
      */
     public function move(WikiPage $page, ?WikiPage $parent, int $index, ?object $actor = null, ?WikiPageMoveScope $scope = null): WikiPageMoveResult
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page                          = $this->runner?->attach($page) ?? $page;
+        $parent                        = $parent instanceof WikiPage ? ($this->runner?->attach($parent) ?? $parent) : null;
         [$result, $fromParent, $moved] = $this->unit(function () use ($page, $parent, $index, $scope): array {
             $this->writer->beginSpaceTransaction($page->getSpace());
             try {
@@ -128,6 +131,10 @@ final readonly class WikiPageMover
      */
     public function createAt(WikiSpace $space, ?WikiPage $parent, int $index, callable $create, ?WikiPageMoveScope $scope = null): WikiPageCreateResult
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $space  = $this->runner?->attach($space) ?? $space;
+        $parent = $parent instanceof WikiPage ? ($this->runner?->attach($parent) ?? $parent) : null;
+
         return $this->locked($space, function (array $byId, callable $parentOf) use ($space, $parent, $index, $create, $scope): WikiPageCreateResult {
             $target = null;
             if ($parent instanceof WikiPage) {
@@ -161,6 +168,9 @@ final readonly class WikiPageMover
      */
     public function createNextTo(WikiSpace $space, WikiPage $sibling, bool $after, callable $create, ?WikiPageMoveScope $scope = null, bool $scopeParent = false): WikiPageCreateResult
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $space         = $this->runner?->attach($space) ?? $space;
+        $sibling       = $this->runner?->attach($sibling) ?? $sibling;
         $checkedParent = $scopeParent && $scope instanceof WikiPageMoveScope ? $scope->fromParentId : $sibling->getParent()?->getId();
 
         return $this->locked($space, function (array $byId, callable $parentOf) use ($space, $sibling, $after, $create, $scope, $checkedParent): WikiPageCreateResult {

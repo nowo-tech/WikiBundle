@@ -17,23 +17,17 @@ use Nowo\MilkdownEditorBundle\Markdown\Resolver\IconResolverInterface;
 use Nowo\MilkdownEditorBundle\Markdown\Resolver\UserResolverInterface;
 use Nowo\MilkdownEditorBundle\ProfileRegistry;
 use Nowo\MilkdownEditorBundle\Twig\MilkdownEditorTwig;
-use Nowo\TransactionDoctrine\HostFlushProbe;
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponseFormatterInterface;
 use Nowo\WikiBundle\Ai\NullWikiAiAssistant;
 use Nowo\WikiBundle\Ai\SymfonyAiWikiAssistant;
 use Nowo\WikiBundle\Ai\Tool\WikiKnowledgeSearchTool;
-use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
 use Nowo\WikiBundle\Ai\WikiContextRetriever;
 use Nowo\WikiBundle\Api\Hook\DenyingWikiApiFiles;
 use Nowo\WikiBundle\Api\Hook\DenyingWikiApiPlanGate;
 use Nowo\WikiBundle\Api\Hook\DenyingWikiApiRateLimiter;
 use Nowo\WikiBundle\Api\Hook\DenyingWikiApiWikiManagement;
 use Nowo\WikiBundle\Api\Hook\NullWikiApiUsers;
-use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiFilesInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiIdempotencyStoreInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiUsersInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiWikiManagementInterface;
@@ -41,13 +35,11 @@ use Nowo\WikiBundle\Api\Idempotency\DoctrineWikiApiIdempotencyStore;
 use Nowo\WikiBundle\Attachment\ConfiguredWikiAttachmentLimitsProvider;
 use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
 use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
-use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
 use Nowo\WikiBundle\Attachment\WikiAttachmentScannerInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Avatar\NullWikiUserAvatarResolver;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
-use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Backlink\WikiBacklinks;
 use Nowo\WikiBundle\Backlink\WikiPageReferenceIndex;
 use Nowo\WikiBundle\Backlink\WikiPageReferenceListener;
@@ -59,7 +51,6 @@ use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
-use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Command\WikiBacklinksRebuildCommand;
 use Nowo\WikiBundle\Command\WikiQuickAccessEraseUserCommand;
 use Nowo\WikiBundle\Command\WikiRecentsPurgeCommand;
@@ -75,7 +66,6 @@ use Nowo\WikiBundle\Doctrine\Type\WikiUserRefType;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiExactKeyColumns;
-use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -85,7 +75,6 @@ use Nowo\WikiBundle\History\WikiHistoryThinner;
 use Nowo\WikiBundle\History\WikiHistoryTimeline;
 use Nowo\WikiBundle\History\WikiRenderedRevisionDiff;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
-use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiObjectLinkSourceInterface;
 use Nowo\WikiBundle\LinkPicker\ConfiguredWikiLinkPickerSettings;
 use Nowo\WikiBundle\LinkPicker\WikiLinkPickerEditorOptions;
@@ -110,8 +99,22 @@ use Nowo\WikiBundle\Member\WikiMemberBadgeProviderInterface;
 use Nowo\WikiBundle\Member\WikiMemberBadges;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
 use Nowo\WikiBundle\Panel\SessionWikiPanelStateStore;
-use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Panel\WikiTreeRail;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiAuthenticatorInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiFilesInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAttachmentLimitsProviderInterface;
+use Nowo\WikiBundle\Port\Internal\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Port\Internal\WikiTeamMembershipResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiTreeStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Provenance\NullWikiWriteProvenanceProvider;
 use Nowo\WikiBundle\Provenance\WikiProvenanceAuthorErasedListener;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
@@ -159,15 +162,12 @@ use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
 use Nowo\WikiBundle\Security\NullWikiTeamMembershipResolver;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiArchivedSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
 use Nowo\WikiBundle\Security\WikiPageAccess;
 use Nowo\WikiBundle\Security\WikiPageAccessInterface;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
-use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
@@ -178,8 +178,6 @@ use Nowo\WikiBundle\Service\WikiPageServiceInterface;
 use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
 use Nowo\WikiBundle\Service\WikiSearchService;
 use Nowo\WikiBundle\Service\WikiSpaceAccessResolver;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
-use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Space\WikiSpaceLifecycle;
 use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
 use Nowo\WikiBundle\Space\WikiSpacePurger;
@@ -189,7 +187,6 @@ use Nowo\WikiBundle\Transaction\WikiStorageFailureSubscriber;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Trash\WikiTrashService;
 use Nowo\WikiBundle\Tree\SessionWikiTreeStateStore;
-use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Ui\WikiBreadcrumbParentLabel;
 use Nowo\WikiBundle\Ui\WikiPageFactory;
 use Nowo\WikiBundle\Ui\WikiPages;
@@ -246,11 +243,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 {
     /** 1.21: service id of the Twig global `nowo_wiki_web_ui` (an ArrayObject of %nowo_wiki.web_ui%). */
     public const WEB_UI_GLOBAL = 'nowo_wiki.web_ui_global';
-
-    /**
-     * 1.49 (REQ-ARCH-001 rule 6): the notice of `database.private_entity_manager` unset or false (`%s` = the manager).
-     */
-    public const PRIVATE_ENTITY_MANAGER_NOTICE = 'nowo_wiki.database.private_entity_manager is false (the 1.x default): every wiki write flushes your entity manager "%s", including what your application left pending in it. 2.0 removes the option: the private entity manager becomes the only mode, and wiki writes never flush, clear or close your manager. Opt in now with "nowo_wiki: { database: { private_entity_manager: true } }" once the host-flush probe notices ("flushed by NowoWikiBundle", "rows with its own entity manager") are gone; see UPGRADING "To 1.49.0".';
 
     /** 1.13: elements of the Milkdown dialect markup kept by the sanitizer with editor.type milkdown. */
     public const MILKDOWN_SANITIZER_ELEMENTS = ['details' => ['open'], 'summary' => []];
@@ -371,7 +363,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.database', $database);
         $container->setParameter('nowo_wiki.database.mapping_type', $database['mapping_type']);
         $container->setParameter('nowo_wiki.database.user_reference', $database['user_reference']);
-        $container->setParameter('nowo_wiki.database.private_entity_manager', (bool) $database['private_entity_manager']);
+        // 2.0: always true (the private entity manager is the only mode); kept for hosts that read it.
+        $container->setParameter('nowo_wiki.database.private_entity_manager', true);
         $container->setParameter('nowo_wiki.user_directory', $config['user_directory']);
         // 1.36 (database.user_reference: id): the host's user directory, when configured.
         if (is_string($config['user_directory']) && $config['user_directory'] !== '') {
@@ -382,7 +375,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setParameter('nowo_wiki.dashboard_route', $config['dashboard_route']);
         $container->setParameter('nowo_wiki.routes', $config['routes']);
         $container->setParameter('nowo_wiki.templates', self::templates($config));
-        $container->setParameter('nowo_wiki.firewall', $config['firewall']);
         $container->setParameter('nowo_wiki.security.allow_unauthenticated', $config['security']['allow_unauthenticated']);
         $container->setParameter('nowo_wiki.editor', $config['editor']);
         $container->setParameter('nowo_wiki.editor.type', $config['editor']['type']);
@@ -403,7 +395,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $templates = self::templates($config);
         $container->setParameter('nowo_wiki.web_ui', [
             'enabled'         => (bool) $config['web_ui']['enabled'],
-            'css_framework'   => $config['web_ui']['css_framework'],
             'layout_template' => $templates['layout'],
             'path_prefix'     => self::pathPrefix($config),
             'templates'       => array_diff_key($templates, ['layout' => true]),
@@ -417,7 +408,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setDefinition(self::WEB_UI_GLOBAL, new Definition(ArrayObject::class, ['%nowo_wiki.web_ui%']));
         $container->setParameter('nowo_wiki.search.scope', $config['search']['scope']);
         $container->setParameter('nowo_wiki.web_ui.enabled', (bool) $config['web_ui']['enabled']);
-        $container->setParameter('nowo_wiki.web_ui.css_framework', $config['web_ui']['css_framework']);
         // 1.29: the page layout options (controllers: tree rail, title dedupe).
         $container->setParameter('nowo_wiki.web_ui.layout', self::layout($config['web_ui']));
         $container->setParameter('nowo_wiki.security.roles', $roles);
@@ -467,47 +457,29 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         $container->setParameter('nowo_wiki.database.entity_manager', $emName);
-        // 1.36.0 (REQ-ARCH-001 rule 6): the opt-in private entity manager.
-        $private = $database['private_entity_manager'] === true;
-        if ($private) {
-            $container->setDefinition(WikiEntityManager::class, (new Definition(WikiEntityManager::class))
-                ->setArguments([new Reference('doctrine'), $emName, new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)])
-                ->addTag('kernel.reset', ['method' => 'reset'])
-                ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
-                // Loads of the private manager inside a transaction are tracked like its writes (audit NJV-1).
-                ->addTag('doctrine.event_listener', ['event' => 'postLoad', 'method' => 'postLoad', 'lazy' => true, 'entity_manager' => $emName]));
-            if (PrivateEntityManagerPass::supportsRollbackMiddleware()) {
-                $container->setDefinition(PrivateEntityManagerMiddleware::class, (new Definition(PrivateEntityManagerMiddleware::class))
-                    ->setArguments([new Reference(WikiEntityManager::class)])
-                    ->addTag('doctrine.middleware'));
-            }
-        }
-        if (!$private) {
-            // 1.49 (REQ-ARCH-001 rule 6 deprecation layer): 2.0 keeps only the private manager. The notice once per
-            // container build, and the host-flush probe on every wiki flush of the shared manager (its output is the
-            // host's migration list): the application's pending changes a wiki flush writes, and wiki rows the
-            // application writes with its own manager.
-            trigger_deprecation(Configuration::PACKAGE, '1.49', self::PRIVATE_ENTITY_MANAGER_NOTICE, $emName);
-            $container->setDefinition(WikiHostFlushProbe::class, (new Definition(WikiHostFlushProbe::class))
-                ->setArgument('$probe', new Reference(HostFlushProbe::SERVICE_ID, ContainerInterface::NULL_ON_INVALID_REFERENCE))
-                ->addTag('kernel.reset', ['method' => 'reset'])
-                ->addTag('doctrine.event_listener', ['event' => 'onFlush', 'method' => 'onFlush', 'lazy' => true, 'entity_manager' => $emName]));
+        // REQ-ARCH-001 rule 6 (2.0: the only mode): every wiki row is read and written through the wiki's private entity
+        // manager, on the connection, mapping, listeners and SQL filters of database.entity_manager; a wiki write never
+        // flushes, clears or closes the application's manager.
+        $container->setDefinition(WikiEntityManager::class, (new Definition(WikiEntityManager::class))
+            ->setArguments([new Reference('doctrine'), $emName, new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE)])
+            ->addTag('kernel.reset', ['method' => 'reset'])
+            ->addTag('monolog.logger', ['channel' => 'nowo_wiki'])
+            // Loads of the private manager inside a transaction are tracked like its writes (audit NJV-1).
+            ->addTag('doctrine.event_listener', ['event' => 'postLoad', 'method' => 'postLoad', 'lazy' => true, 'entity_manager' => $emName]));
+        if (PrivateEntityManagerPass::supportsRollbackMiddleware()) {
+            $container->setDefinition(PrivateEntityManagerMiddleware::class, (new Definition(PrivateEntityManagerMiddleware::class))
+                ->setArguments([new Reference(WikiEntityManager::class)])
+                ->addTag('doctrine.middleware'));
         }
         $container->setDefinition(WikiEntityManagerProvider::class, (new Definition(WikiEntityManagerProvider::class))
             ->setArgument('$registry', new Reference('doctrine'))
             ->setArgument('$managerName', $emName)
-            ->setArgument('$private', $private ? new Reference(WikiEntityManager::class) : null)
-            ->setArgument('$hostFlushProbe', $private ? null : new Reference(WikiHostFlushProbe::class)));
+            ->setArgument('$private', new Reference(WikiEntityManager::class)));
         $emProviderRef = new Reference(WikiEntityManagerProvider::class);
         // 1.37 (Beacon spec 239): the runner of every wiki write, injected by its class (never a runner the application
         // binds to TransactionRunnerInterface), and the 503 / 409 answers of the wiki's routes.
         $container->setDefinition(WikiTransactionRunner::class, (new Definition(WikiTransactionRunner::class))
-            ->setArgument('$entityManager', $emProviderRef)
-            ->setArgument('$registry', new Reference('doctrine'))
-            ->setArgument('$managerName', $emName)
-            ->setArgument('$logger', new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE))
-            ->addTag('kernel.reset', ['method' => 'reset'])
-            ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+            ->setArgument('$entityManager', $emProviderRef));
         $container->setAlias(WikiTransactionRunner::SERVICE_ID, WikiTransactionRunner::class);
         $container->setDefinition(WikiStorageFailureSubscriber::class, (new Definition(WikiStorageFailureSubscriber::class))
             // The shared policy (409 by default); absent when the host did not register nowo-tech/transaction-doctrine's bundle (the subscriber then uses 409 + 1 s).
@@ -776,11 +748,8 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $memos = array_map(
             static fn (string $id): Reference => new Reference($id, ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE),
             [LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class,
-                // 1.36.0: the private entity manager last, after the memos that may still hold its rows; 1.37: then a
-                // shared manager a failed wiki write closed.
-                WikiEntityManager::class, WikiTransactionRunner::class,
-                // 1.49: what the host-flush probe already reported (shared manager only).
-                WikiHostFlushProbe::class],
+                // The private entity manager last, after the memos that may still hold its rows.
+                WikiEntityManager::class],
         );
         $container->setDefinition(WikiRequestBoundaryResetter::class, (new Definition(WikiRequestBoundaryResetter::class))
             ->setArgument('$memos', new IteratorArgument($memos))
@@ -1661,7 +1630,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $container->setAlias(WikiSpaceAccessCheckerInterface::class, LegacyWikiSpaceAccessChecker::class);
         $container->setDefinition(AccessibleWikiSpaceLocator::class, (new Definition(AccessibleWikiSpaceLocator::class))->setAutowired(true));
         $container->setAlias(WikiSpaceLocatorInterface::class, AccessibleWikiSpaceLocator::class);
-        $container->registerForAutoconfiguration(WikiObjectLinkResolverInterface::class)->addTag('nowo_wiki.object_link_resolver');
         // 1.36: the framework-free twin takes the same tag (WikiPageLinkService asks it through a gate).
         $container->registerForAutoconfiguration(WikiObjectLinkSourceInterface::class)->addTag('nowo_wiki.object_link_resolver');
 
@@ -1844,20 +1812,20 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
-     * Route path prefix: web_ui.path_prefix, else the deprecated route_prefix, else none.
+     * Route path prefix: web_ui.path_prefix, else none.
      *
      * @param array<string, mixed> $config processed configuration
      */
     public static function pathPrefix(array $config): string
     {
-        $prefix = $config['web_ui']['path_prefix'] ?? $config['route_prefix'] ?? '';
+        $prefix = $config['web_ui']['path_prefix'] ?? '';
 
         return is_string($prefix) ? $prefix : '';
     }
 
     /**
-     * Layout and page templates: web_ui.layout_template / web_ui.templates.<page>, else the deprecated
-     * templates.layout / templates.<page>, else null (UiKit admin layout) / the bundle template.
+     * Layout and page templates: web_ui.layout_template / web_ui.templates.<page>, else null (UiKit admin layout) / the
+     * bundle template.
      *
      * @param array<string, mixed> $config processed configuration
      *
@@ -1866,13 +1834,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     public static function templates(array $config): array
     {
         $webUi     = is_array($config['web_ui'] ?? null) ? $config['web_ui'] : [];
-        $legacy    = is_array($config['templates'] ?? null) ? $config['templates'] : [];
         $overrides = is_array($webUi['templates'] ?? null) ? $webUi['templates'] : [];
-        $layout    = $webUi['layout_template'] ?? $legacy['layout'] ?? null;
+        $layout    = $webUi['layout_template'] ?? null;
 
         $templates = ['layout' => is_string($layout) && $layout !== '' && $layout !== WikiPages::LEGACY_DEFAULT_LAYOUT ? $layout : null];
         foreach (WikiPages::TEMPLATES as $page => $default) {
-            $template         = $overrides[$page] ?? $legacy[$page] ?? null;
+            $template         = $overrides[$page] ?? null;
             $templates[$page] = is_string($template) && $template !== '' ? $template : $default;
         }
 
@@ -1975,7 +1942,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
     }
 
     /**
-     * Prepends Twig globals, asset package, Doctrine mapping, FormKit and UiKit defaults when those extensions are present.
+     * Prepends Twig globals, asset package, Doctrine mapping and FormKit defaults when those extensions are present.
      *
      * @param ContainerBuilder $container container being built
      */
@@ -1985,7 +1952,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         if (!$container->hasParameter('nowo_wiki.web_ui')) {
             $container->setParameter('nowo_wiki.web_ui', [
                 'enabled'         => true,
-                'css_framework'   => null,
                 'layout_template' => null,
                 'path_prefix'     => '',
                 'templates'       => [],
@@ -2021,7 +1987,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         }
 
         $this->prependFormKitDefaults($container);
-        $this->prependUiKitDefaults($container);
     }
 
     /**
@@ -2083,58 +2048,6 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
 
         if ($seed !== []) {
             $container->prependExtensionConfig('nowo_form_kit', $seed);
-        }
-    }
-
-    /**
-     * When UiKit is installed and the host still sets the deprecated web_ui.css_framework, seed
-     * nowo_ui_kit.css_framework / icon_set from it. Does not override keys the host already set.
-     */
-    private function prependUiKitDefaults(ContainerBuilder $container): void
-    {
-        if (!$container->hasExtension('nowo_ui_kit')) {
-            return;
-        }
-
-        $hostHasCssFramework = false;
-        $hostHasIconSet      = false;
-        foreach ($container->getExtensionConfig('nowo_ui_kit') as $cfg) {
-            if (!is_array($cfg)) {
-                continue;
-            }
-            if (array_key_exists('css_framework', $cfg)) {
-                $hostHasCssFramework = true;
-            }
-            if (array_key_exists('icon_set', $cfg)) {
-                $hostHasIconSet = true;
-            }
-        }
-
-        if ($hostHasCssFramework && $hostHasIconSet) {
-            return;
-        }
-
-        // Deprecated web_ui.css_framework (1.10): seeds UiKit only when the host set it and left UiKit unset.
-        $framework = null;
-        foreach ($container->getExtensionConfig(Configuration::ALIAS) as $cfg) {
-            if (is_array($cfg) && is_array($cfg['web_ui'] ?? null) && is_string($cfg['web_ui']['css_framework'] ?? null)) {
-                $framework = $cfg['web_ui']['css_framework'];
-            }
-        }
-        if ($framework === null) {
-            return;
-        }
-
-        $defaults = [];
-        if (!$hostHasCssFramework) {
-            $defaults['css_framework'] = $framework === 'bootstrap' ? 'bootstrap5' : $framework;
-        }
-        if (!$hostHasIconSet) {
-            $defaults['icon_set'] = $framework === 'tabler' ? 'tabler-icons' : 'bootstrap-icons';
-        }
-
-        if ($defaults !== []) {
-            $container->prependExtensionConfig('nowo_ui_kit', $defaults);
         }
     }
 }

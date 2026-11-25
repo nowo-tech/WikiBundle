@@ -124,6 +124,9 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         ?string $slug = null,
         string $format = WikiPageRevision::FORMAT_HTML,
     ): WikiPage {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $space  = $this->runner?->attach($space) ?? $space;
+        $parent = $parent instanceof WikiPage ? ($this->runner?->attach($parent) ?? $parent) : null;
         $this->assertFormat($format);
         $slug ??= $this->slugger->slugify($title);
         if (!$this->slugger->isValid($slug)) {
@@ -195,6 +198,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         string $format = WikiPageRevision::FORMAT_HTML,
         ?int $expectedRevision = null,
     ): WikiPageRevision {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page = $this->runner?->attach($page) ?? $page;
         $this->assertFormat($format);
         if ($expectedRevision !== null) {
             return $this->saveFromRevision($page, $title, $contentHtml, $author, $format, $expectedRevision);
@@ -204,6 +209,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
             // revision), the number follows the current one, and the revision and the page's pointer commit together.
             // Two saves at once no longer collide on the number or leave the page on the older revision.
             [$revision, $previous] = $this->underPageLock($page, null, 'Archived pages cannot be edited.', static fn (): ?WikiPageRevision => null, function (?WikiPageRevision $current) use ($page, $title, $contentHtml, $format, $author): WikiPageRevision {
+                // @igor-ignore - a wiki row of this call (loaded by the private manager), never a shared service.
                 $page->setTitle($title);
 
                 return $this->appendRevision($page, $contentHtml, $format, $author, $this->nextAfter($page, $current?->getRevisionNumber() ?? 0));
@@ -220,6 +226,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         }
 
         $previous = $page->getCurrentRevision();
+        // @igor-ignore - a wiki row of this call (loaded by the private manager), never a shared service.
         $page->setTitle($title);
         $revision = $this->appendRevision($page, $contentHtml, $format, $author);
 
@@ -248,6 +255,9 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function restore(WikiPage $page, WikiPageRevision $from, object $actor, ?int $expectedRevision = null): WikiPageRevision
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page = $this->runner?->attach($page) ?? $page;
+        $from = $this->runner?->attach($from) ?? $from;
         if ($expectedRevision === null && $page->isArchived()) {
             throw new WikiPageArchivedException('Archived pages cannot be restored.');
         }
@@ -306,6 +316,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function convertToMarkdown(WikiPage $page, string $markdown, object $actor): WikiPageRevision
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page     = $this->runner?->attach($page) ?? $page;
         $previous = $page->getCurrentRevision();
         if ($this->runner instanceof WikiTransactionRunner && $this->pageRepository instanceof WikiPageLockInterface) {
             // 1.37: under the page lock like a save (archived pages included).
@@ -336,6 +348,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function archive(WikiPage $page, ?object $actor = null): void
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page = $this->runner?->attach($page) ?? $page;
         if (!$this->toggleArchived($page, true)) {
             return;
         }
@@ -358,6 +372,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function unarchive(WikiPage $page, ?object $actor = null): void
     {
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page = $this->runner?->attach($page) ?? $page;
         if (!$this->toggleArchived($page, false)) {
             return;
         }
@@ -421,6 +437,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
             'Archived pages cannot be edited.',
             fn (?WikiPageRevision $current): ?WikiPageRevision => $current instanceof WikiPageRevision && $this->isUnchanged($page, $current, $title, $content, $format) ? $current : null,
             function () use ($page, $title, $content, $format, $author, $expectedRevision): WikiPageRevision {
+                // @igor-ignore - a wiki row of this call (loaded by the private manager), never a shared service.
                 $page->setTitle($title);
 
                 return $this->appendRevision($page, $content, $format, $author, $this->nextAfter($page, $expectedRevision));

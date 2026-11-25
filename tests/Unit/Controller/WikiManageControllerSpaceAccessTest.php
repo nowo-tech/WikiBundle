@@ -25,14 +25,15 @@ use Nowo\WikiBundle\Interchange\WikiDocumentImporter;
 use Nowo\WikiBundle\Interchange\WikiFrontMatterParser;
 use Nowo\WikiBundle\Interchange\WikiMarkdownConverter;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
-use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiPageLinkService;
 use Nowo\WikiBundle\LinkPicker\WikiLinkPickerEditorOptions;
 use Nowo\WikiBundle\PageFile\WikiPageFile;
 use Nowo\WikiBundle\PageFile\WikiPageFileExtractor;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Service\WikiPageService;
@@ -40,7 +41,6 @@ use Nowo\WikiBundle\Service\WikiPageTreeBuilder;
 use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
 use Nowo\WikiBundle\Service\WikiSearchService;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\CallbackSpaceAccessChecker;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\FixedSpaceLocator;
@@ -493,7 +493,7 @@ final class WikiManageControllerSpaceAccessTest extends TestCase
         [$controller] = $this->controller(
             CallbackSpaceAccessChecker::allowing(WikiAction::View, WikiAction::Edit, WikiAction::Create),
             static function (WikiEditorOptionsEvent $event) use (&$seen): void {
-                $seen[]                        = [$event->page?->getSlug(), array_keys($event->options), $event->space->getSlug(), $event->user->getUserIdentifier()];
+                $seen[]                        = [$event->page?->getSlug(), array_keys($event->options), $event->space->getSlug(), $event->userRef()->identifier];
                 $event->options['suggestions'] = [['trigger' => '@', 'url' => '/people']];
             },
         );

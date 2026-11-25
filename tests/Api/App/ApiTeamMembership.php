@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api\App;
 
-use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiTeamMembershipResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**

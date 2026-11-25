@@ -6,7 +6,7 @@ namespace Nowo\WikiBundle\Entity;
 
 use DateTimeImmutable;
 use Doctrine\ORM\Mapping as ORM;
-use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\ValueObject\Uuid;
 use Symfony\Component\Security\Core\User\UserInterface;
 

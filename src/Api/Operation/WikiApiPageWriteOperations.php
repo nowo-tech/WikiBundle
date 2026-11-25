@@ -6,7 +6,6 @@ namespace Nowo\WikiBundle\Api\Operation;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Nowo\TransactionContract\TransientStorageFailure;
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Serializer\WikiApiPeople;
 use Nowo\WikiBundle\Api\Serializer\WikiApiSerializer;
@@ -24,9 +23,11 @@ use Nowo\WikiBundle\Event\WikiApiWriteEvent;
 use Nowo\WikiBundle\Event\WikiQuotaCheckEvent;
 use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Nowo\WikiBundle\Service\WikiInvalidIconException;
 use Nowo\WikiBundle\Service\WikiInvalidSlugException;
@@ -132,9 +133,9 @@ final readonly class WikiApiPageWriteOperations
             $parent = $this->guard->page($principal, $wiki, $parentId);
             $this->guard->require($principal, WikiAction::Edit, $space, $parent);
         }
-        $this->audit->requireQuota(WikiQuotaCheckEvent::PAGE_CREATE, $principal->securityUser(), $space);
+        $this->audit->requireQuota(WikiQuotaCheckEvent::PAGE_CREATE, WikiUserRefs::securityUser($principal->userRef()), $space);
 
-        $create = fn (): WikiPage => $this->service->create($space, $title, $markdown, $principal->securityUser(), $parent, $pageSlug, WikiPageRevision::FORMAT_MARKDOWN);
+        $create = fn (): WikiPage => $this->service->create($space, $title, $markdown, WikiUserRefs::securityUser($principal->userRef()), $parent, $pageSlug, WikiPageRevision::FORMAT_MARKDOWN);
         try {
             $placed = $this->deferral->run(fn (): WikiPage|WikiPageCreateResult => ($position !== null || $parent instanceof WikiPage) && $mover instanceof WikiPageMover
                 // 1.35: the place counts the siblings the token's user may read, as a move; a parent alone: last.
@@ -192,7 +193,7 @@ final readonly class WikiApiPageWriteOperations
         }
         $this->audit->requireAudit();
 
-        $revision = $this->underCollab($principal, $page, fn (): WikiPageRevision => $this->service->saveRevision($page, $title, $markdown, $principal->securityUser(), WikiPageRevision::FORMAT_MARKDOWN, $base));
+        $revision = $this->underCollab($principal, $page, fn (): WikiPageRevision => $this->service->saveRevision($page, $title, $markdown, WikiUserRefs::securityUser($principal->userRef()), WikiPageRevision::FORMAT_MARKDOWN, $base));
         // 1.38: the icon in its own unit under the page lock, after the revision (a refused save wrote neither; audit
         // QY-L2: a failure of the icon unit leaves the committed revision answered and audited, the icon `not_applied`).
         $iconChanged = $iconChanged && $this->applyIcon($page, $icon, $input);
@@ -218,7 +219,7 @@ final readonly class WikiApiPageWriteOperations
         $base          = $this->baseRevision($input);
         $this->audit->requireAudit();
 
-        $revision = $this->underCollab($principal, $page, fn (): WikiPageRevision => $this->service->restore($page, $from, $principal->securityUser(), $base));
+        $revision = $this->underCollab($principal, $page, fn (): WikiPageRevision => $this->service->restore($page, $from, WikiUserRefs::securityUser($principal->userRef()), $base));
         $this->audit->written($principal, 'page.restore', $wiki->slug, $page->getSpace()->getId(), $page->getId(), ['revision' => $revision->getId(), 'from' => $from->getId()], ['content_markdown']);
 
         return [$this->reads->body($principal, $wiki, $page), $wiki, $page];
@@ -251,7 +252,7 @@ final readonly class WikiApiPageWriteOperations
         $readable = $this->readableIds($principal, $space);
         try {
             $mover  = $this->mover;
-            $result = $this->deferral->run(static fn (): WikiPageMoveResult => $mover->move($page, $parent, $index, $principal->securityUser(), new WikiPageMoveScope($readable, $from?->getId())));
+            $result = $this->deferral->run(static fn (): WikiPageMoveResult => $mover->move($page, $parent, $index, WikiUserRefs::securityUser($principal->userRef()), new WikiPageMoveScope($readable, $from?->getId())));
         } catch (WikiPageMoveException $exception) {
             throw match ($exception->reason) {
                 'too_deep'                       => new WikiApiRefusal(422, 'WIKI_MOVE_002', 'The page would be too deep'),
@@ -285,9 +286,9 @@ final readonly class WikiApiPageWriteOperations
             return [$this->reads->body($principal, $wiki, $page), $wiki, $page];
         }
         if (!$archive) {
-            $this->audit->requireQuota(WikiQuotaCheckEvent::PAGE_UNARCHIVE, $principal->securityUser(), $page->getSpace(), $page);
+            $this->audit->requireQuota(WikiQuotaCheckEvent::PAGE_UNARCHIVE, WikiUserRefs::securityUser($principal->userRef()), $page->getSpace(), $page);
         }
-        $this->deferral->run(fn () => $archive ? $this->service->archive($page, $principal->securityUser()) : $this->service->unarchive($page, $principal->securityUser()));
+        $this->deferral->run(fn () => $archive ? $this->service->archive($page, WikiUserRefs::securityUser($principal->userRef())) : $this->service->unarchive($page, WikiUserRefs::securityUser($principal->userRef())));
         $this->audit->written($principal, $archive ? 'page.archive' : 'page.unarchive', $wiki->slug, $page->getSpace()->getId(), $page->getId(), [], ['archived']);
 
         return [$this->reads->body($principal, $wiki, $page), $wiki, $page];
@@ -304,7 +305,7 @@ final readonly class WikiApiPageWriteOperations
         $readable  = [];
         $decisions = [];
         foreach ($this->pages->findActiveBySpace($space) as $candidate) {
-            if (WikiPageVisibility::isReadable($this->checker, $principal->securityUser(), $space, $candidate, $decisions)) {
+            if (WikiPageVisibility::isReadable($this->checker, WikiUserRefs::securityUser($principal->userRef()), $space, $candidate, $decisions)) {
                 $readable[$candidate->getId()] = true;
             }
         }

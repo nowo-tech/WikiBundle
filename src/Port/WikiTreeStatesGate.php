@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiTreeStateStoreInterface;
 use Nowo\WikiBundle\Tree\WikiTreeStatesInterface;
-use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function is_string;

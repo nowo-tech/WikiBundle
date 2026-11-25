@@ -46,7 +46,7 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
         foreach ($entries as $entry) {
             $entityManager->persist($entry);
         }
-        WikiFlusher::flush($entityManager, $this->entityManager);
+        WikiFlusher::flush($entityManager);
     }
 
     public function findRoots(WikiSpace $space): array
@@ -130,7 +130,7 @@ final readonly class DoctrineOrmWikiTrashRepository implements WikiTrashReposito
                 $entityManager->detach($entry);
             }
         }
-        WikiFlusher::flush($entityManager, $this->entityManager);
+        WikiFlusher::flush($entityManager);
     }
 
     public function deletePages(array $pages): void

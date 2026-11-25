@@ -7,7 +7,7 @@ namespace Nowo\WikiBundle\Port;
 use Nowo\WikiBundle\Collaboration\WikiCollabCookie;
 use Nowo\WikiBundle\Collaboration\WikiCollabCookieListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriptionPolicyInterface;
-use Nowo\WikiBundle\Collaboration\WikiCollabTopicsAuthorizerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiCollabTopicsAuthorizerInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
