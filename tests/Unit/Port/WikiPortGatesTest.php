@@ -76,6 +76,7 @@ use Symfony\Component\HttpFoundation\Request;
 
 use function array_filter;
 use function array_slice;
+use function array_values;
 use function file_put_contents;
 use function in_array;
 use function property_exists;
@@ -502,7 +503,7 @@ final class WikiPortGatesTest extends TestCase
         self::assertFalse($gate->allowsWiki(new TestUser('u-2'), new WikiApiWiki('docs', null, 'Docs')));
     }
 
-    public function testApiDirectoryLoadsTheNamedSpacesAndFailsClosedOnAnUnknownOne(): void
+    public function testApiDirectoryLoadsTheNamedSpacesAndAnswersAnUnknownOneAsMissing(): void
     {
         $directory = new class($this->space->getId()) implements WikiApiWikiDirectoryInterface {
             public ?WikiSpaceSnapshot $of = null;
@@ -538,6 +539,7 @@ final class WikiPortGatesTest extends TestCase
         };
         $spaces = $this->createMock(WikiSpaceRepositoryInterface::class);
         $spaces->method('findById')->willReturnCallback(fn (string $id): ?WikiSpace => $id === $this->space->getId() || $id === 'folded' ? $this->space : null);
+        $spaces->method('findByIds')->willReturnCallback(fn (array $ids): array => in_array($this->space->getId(), $ids, true) ? [$this->space->getId() => $this->space] : []);
         $gate      = new WikiApiWikiDirectoryGate($directory, $spaces);
         $principal = $this->principal();
 
@@ -559,9 +561,10 @@ final class WikiPortGatesTest extends TestCase
         } catch (LogicException $exception) {
             self::assertStringContainsString('does not exist', $exception->getMessage());
         }
+        // 2.0 (audit ZBL-v-2): a space that is not stored (purged meanwhile) makes the wiki missing (404), never a 500.
         $directory->spaceId = 'missing';
-        $this->expectException(LogicException::class);
-        $gate->find($principal, 'docs');
+        self::assertNull($gate->find($principal, 'docs'));
+        self::assertSame([], array_values(array_filter($gate->list($principal, new WikiApiWikiFilter()), static fn (WikiApiWiki $wiki): bool => $wiki->slug === 'docs')));
     }
 
     /** Audit OX-I1: the wiki a twin directory gives for a space is kept only when it names exactly that space. */

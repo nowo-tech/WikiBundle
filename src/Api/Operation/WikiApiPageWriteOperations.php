@@ -124,9 +124,9 @@ final readonly class WikiApiPageWriteOperations
         }
         $this->audit->requireAudit();
 
-        // The first write of a wiki nobody opened creates it, with the rights of a first visit (FR-009). 1.55.2: the space
-        // the directory hands over is always read again by id through the wiki's own (private) manager before the page
-        // is attached to it ("A new entity was found through WikiPage#space" with a host-manager instance otherwise).
+        // The first write of a wiki nobody opened creates it, with the rights of a first visit (FR-009). 2.0: both spaces
+        // are the private manager's own: the directory gate reads the space of the wiki's id (and of the provision's id)
+        // through it, never an entity the directory handed over (audit ZBL-v-2).
         $space = $wiki->space ?? $this->directory->provision($principal, $wiki);
         $wiki  = $wiki->withSpace($space);
         $this->guard->require($principal, WikiAction::Create, $space);

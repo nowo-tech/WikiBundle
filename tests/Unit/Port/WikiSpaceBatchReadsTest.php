@@ -53,43 +53,42 @@ final class WikiSpaceBatchReadsTest extends TestCase
         self::assertSame([$two, $one], (new WikiSpaceReachGate($reach, $spaces))->listSpacesForUser(new TestUser()));
     }
 
-    public function testTheDirectoryGateListsTheNamedSpacesInOneBatch(): void
+    public function testTheDirectoryGateListsTheNamedSpacesInOneBatchAndNeverKeepsAnEntityOfTheAnswer(): void
     {
-        $named = new WikiSpace('named', 'Named', WikiSpaceOwnerScope::Team, 't');
-        $given = new WikiSpace('given', 'Given', WikiSpaceOwnerScope::Team, 't');
-        $wikis = [
+        $named  = new WikiSpace('named', 'Named', WikiSpaceOwnerScope::Team, 't');
+        $given  = new WikiSpace('given', 'Given', WikiSpaceOwnerScope::Team, 't');
+        $stored = clone $given; // the private manager's row of the same id
+        $wikis  = [
             new WikiApiWiki('named', null, 'Named', spaceId: $named->getId()),
-            new WikiApiWiki('given', $given, 'Given'),
+            new WikiApiWiki('given', $given, 'Given'), // audit ZBL-v-2: a host-manager entity on the answer
             new WikiApiWiki('unopened', null, 'Unopened'),
+            new WikiApiWiki('purged', null, 'Purged', spaceId: 'purged-id'),
         ];
         $directory = $this->createMock(WikiApiWikiDirectoryInterface::class);
         $directory->method('list')->willReturnCallback(static function () use (&$wikis): array {
             return $wikis;
         });
+        $directory->method('find')->willReturnCallback(static function (WikiApiPrincipal $principal, string $slug) use (&$wikis): ?WikiApiWiki {
+            foreach ($wikis as $wiki) {
+                if ($wiki->slug === $slug) {
+                    return $wiki;
+                }
+            }
+
+            return null;
+        });
         $spaces = $this->createMock(WikiSpaceRepositoryInterface::class);
-        $spaces->expects(self::never())->method('findById');
-        $spaces->expects(self::once())->method('findByIds')->with([$named->getId()])->willReturn([$named->getId() => $named]);
+        $spaces->expects(self::once())->method('findByIds')->with([$named->getId(), $given->getId(), 'purged-id'])->willReturn([$named->getId() => $named, $given->getId() => $stored]);
+        $spaces->method('findById')->willReturnCallback(static fn (string $id): ?WikiSpace => $id === $given->getId() ? $stored : null);
         $gate      = new WikiApiWikiDirectoryGate($directory, $spaces);
         $principal = new WikiApiPrincipal(new TestUser(), WikiApiLevel::Full, WikiApiWhere::everything(), 'tok', 'token');
 
         $listed = $gate->list($principal, new WikiApiWikiFilter());
+        self::assertCount(3, $listed, 'the purged wiki is left out');
         self::assertSame($named, $listed[0]->space);
-        self::assertSame($given, $listed[1]->space);
+        self::assertSame($stored, $listed[1]->space, 'the stored row, not the answer\'s entity');
         self::assertNull($listed[2]->space);
-
-        $wikis = [new WikiApiWiki('given', $given, 'Given')];
-        self::assertSame($given, $gate->list($principal, new WikiApiWikiFilter())[0]->space, 'nothing to read: no batch');
-    }
-
-    public function testTheDirectoryGateStillFailsClosedOnASpaceTheBatchDidNotFind(): void
-    {
-        $directory = $this->createMock(WikiApiWikiDirectoryInterface::class);
-        $directory->method('list')->willReturn([new WikiApiWiki('gone', null, 'Gone', spaceId: 'gone-id')]);
-        $spaces = $this->createMock(WikiSpaceRepositoryInterface::class);
-        $spaces->method('findByIds')->willReturn([]);
-        $spaces->method('findById')->willReturn(null);
-
-        $this->expectException(LogicException::class);
-        (new WikiApiWikiDirectoryGate($directory, $spaces))->list(new WikiApiPrincipal(new TestUser(), WikiApiLevel::Full, WikiApiWhere::everything(), 'tok', 'token'), new WikiApiWikiFilter());
+        self::assertSame($stored, $gate->find($principal, 'given')?->space);
+        self::assertNull($gate->find($principal, 'purged'), 'a purged space is a missing wiki (404)');
     }
 }
