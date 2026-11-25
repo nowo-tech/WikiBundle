@@ -7,10 +7,12 @@ namespace Nowo\WikiBundle\Service;
 use BackedEnum;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use InvalidArgumentException;
+use LogicException;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
+use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use Nowo\WikiBundle\Util\WikiSpaceSlugRule;
@@ -18,6 +20,7 @@ use Nowo\WikiBundle\ValueObject\WikiNewSpace;
 use Nowo\WikiBundle\ValueObject\WikiOwnerScopeId;
 use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 use function mb_strlen;
 use function trim;
@@ -42,6 +45,7 @@ final readonly class WikiSpaceOperations implements WikiSpaceOperationsInterface
      * @param WikiSpaceSlugRule $slugRule 1.55: the space slug rule (the bundle's, or a tenant path's)
      * @param WikiSlugger $slugger the slug of a name, for {@see self::createSpace()} without a slug
      * @param list<string> $iconPrefixes 1.55: icon prefixes of the space settings (`space_icon`, emoji included when on)
+     * @param WikiSpaceLifecycleInterface|null $lifecycle 1.56: the space changes ({@see self::setSpaceIcon()})
      */
     public function __construct(
         private WikiSpaceServiceInterface $spaceService,
@@ -50,6 +54,7 @@ final readonly class WikiSpaceOperations implements WikiSpaceOperationsInterface
         private WikiSpaceSlugRule $slugRule = new WikiSpaceSlugRule(),
         private WikiSlugger $slugger = new WikiSlugger(),
         private array $iconPrefixes = WikiSpaceIcon::DEFAULT_PREFIXES,
+        private ?WikiSpaceLifecycleInterface $lifecycle = null,
     ) {
     }
 
@@ -114,6 +119,14 @@ final readonly class WikiSpaceOperations implements WikiSpaceOperationsInterface
         }
 
         return $row;
+    }
+
+    public function setSpaceIcon(string $spaceId, ?string $icon, ?WikiUserRef $actor = null, ?int $expectedVersion = null): WikiSpaceSnapshot
+    {
+        $lifecycle = $this->lifecycle ?? throw new LogicException('WikiSpaceOperations::setSpaceIcon() needs the space lifecycle (the container always wires it).');
+
+        // @igor-ignore - A call to the stateless lifecycle service (it writes the space row in its own unit), not a mutation of service state.
+        return $lifecycle->setSpaceIcon($spaceId, $icon, $actor, $expectedVersion);
     }
 
     public function findSpaceBySlug(WikiSpaceOwnerScope $scopeType, string $ownerScopeId, string $slug): ?WikiSpaceSnapshot

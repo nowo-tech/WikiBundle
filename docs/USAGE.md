@@ -477,6 +477,12 @@ final class WikiAdminController extends AbstractController
         return $this->spaces->renameSpace($spaceId, $name, $slug, $this->actor(), $version);
     }
 
+    public function icon(string $spaceId, ?string $icon, int $version): WikiSpaceSnapshot
+    {
+        // 1.56: `<prefix>:<name>` of space_icon.allowed_prefixes, or null to clear it.
+        return $this->spaces->setSpaceIcon($spaceId, $icon, $this->actor(), $version);
+    }
+
     public function archive(string $spaceId, int $version): WikiSpaceSnapshot
     {
         return $this->spaces->archiveSpace($spaceId, $this->actor(), $version);
@@ -516,6 +522,14 @@ a message handler that already checked): pass the person whenever there is one.
 not lowercase letters, digits and single dashes, at most 120 characters — 1.55: or a slug a `tenant_paths`
 requirement matches, see [Creating and erasing spaces by id](#creating-and-erasing-spaces-by-id-155)). Links between pages follow page ids and keep
 working; URLs built with the old slug stop resolving, because the bundle keeps no slug history.
+
+**Icon (1.56).** `setSpaceIcon($spaceId, $icon, $actor, $version)` (also on `WikiSpaceOperationsInterface`, for hosts
+that create spaces with `createSpaceFrom()`) sets the icon of an existing space, or clears it with `null` (or `''`).
+The icon is checked as `createSpaceFrom()` checks it (`<prefix>:<name>` of `space_icon.allowed_prefixes`, `emoji:` with
+`space_icon.emoji`; `WikiInvalidIconException` otherwise, nothing written) and the rename rules apply: who may do it
+(`WikiSpaceLifecycleAction::Icon` in the access-check event), only an active space (`WikiSpaceStateException`), the row
+locked and read again, `$version` compared under the lock, the version bumped and `WikiEvents::SPACE_ICON_CHANGED`
+(`WikiSpaceLifecycleEvent`) after the commit. The same icon writes nothing.
 
 **Archive.** An archived space is read-only on every path that goes through the space checker — the bundle's pages,
 tree, comments, attachments and the REST API (`403 WIKI_002`) — and the page service refuses creates (the space row is
@@ -567,7 +581,7 @@ without `Retry-After`; the client reads again and calls the purge again. `Confli
 | `WikiInvalidSlugException`, `InvalidArgumentException` (empty or too long name, nothing to rename) | 422 |
 | `TransientStorageFailure` | 409 + `Retry-After`, `CONFLICT_001` / `CONFLICT_002` |
 
-**Events**, after the change committed: `WikiEvents::SPACE_RENAMED`, `SPACE_ARCHIVED`, `SPACE_UNARCHIVED`
+**Events**, after the change committed: `WikiEvents::SPACE_RENAMED`, `SPACE_ICON_CHANGED` (1.56), `SPACE_ARCHIVED`, `SPACE_UNARCHIVED`
 (`WikiSpaceLifecycleEvent`: the space before and after, the actor) and `SPACE_PURGED` (`WikiSpacePurgedEvent`, once,
 when the space row is gone), plus `ATTACHMENT_DELETED` for each purged attachment.
 

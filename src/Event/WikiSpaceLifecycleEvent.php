@@ -11,8 +11,9 @@ use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * 1.50: a space was renamed, archived or brought back ({@see WikiEvents::SPACE_RENAMED},
- * {@see WikiEvents::SPACE_ARCHIVED}, {@see WikiEvents::SPACE_UNARCHIVED}); dispatched after the change committed (after
- * the outermost transaction when the call ran inside one).
+ * {@see WikiEvents::SPACE_ARCHIVED}, {@see WikiEvents::SPACE_UNARCHIVED}); 1.56: its icon was set or cleared
+ * ({@see WikiEvents::SPACE_ICON_CHANGED}, action {@see WikiSpaceLifecycleAction::Icon}). Dispatched after the change
+ * committed (after the outermost transaction when the call ran inside one).
  */
 final readonly class WikiSpaceLifecycleEvent
 {

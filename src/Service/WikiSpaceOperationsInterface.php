@@ -7,11 +7,17 @@ namespace Nowo\WikiBundle\Service;
 use InvalidArgumentException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Query\WikiSpaceQueryInterface;
+use Nowo\WikiBundle\Space\WikiSpaceAccessDeniedException;
 use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
+use Nowo\WikiBundle\Space\WikiSpaceNotFoundException;
+use Nowo\WikiBundle\Space\WikiSpaceStateException;
+use Nowo\WikiBundle\Space\WikiSpaceVersionConflictException;
 use Nowo\WikiBundle\Util\WikiSpaceSlugRule;
 use Nowo\WikiBundle\ValueObject\WikiNewSpace;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
+use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
  * The space operations a host calls, returning snapshots (1.36.0, REQ-ARCH-001 rule 1): the framework-free twin of
@@ -58,4 +64,20 @@ interface WikiSpaceOperationsInterface
     public function createSpaceFrom(WikiNewSpace $space): string;
 
     public function findSpaceBySlug(WikiSpaceOwnerScope $scopeType, string $ownerScopeId, string $slug): ?WikiSpaceSnapshot;
+
+    /**
+     * 1.56 (Beacon spec 233): sets the icon of an existing space, or clears it with null, through the wiki's entity
+     * manager: {@see WikiSpaceLifecycleInterface::setSpaceIcon()} (same checks as `createSpaceFrom()`'s icon, same rules
+     * as `renameSpace()`: an unknown or unreadable id is {@see WikiSpaceNotFoundException}, an archived or purging space
+     * {@see WikiSpaceStateException}, the row locked and read again, the version bumped,
+     * {@see WikiEvents::SPACE_ICON_CHANGED} after the commit). Pass `$actor` to check that the
+     * person manages the space (null: a trusted call).
+     *
+     * @throws WikiSpaceAccessDeniedException|WikiSpaceNotFoundException|WikiSpaceStateException|WikiSpaceVersionConflictException
+     * @throws WikiInvalidIconException when the icon is not a valid icon of an allowed prefix (nothing written)
+     * @throws TransientStorageFailure on a lock conflict (nothing written: retry-safe)
+     *
+     * @return WikiSpaceSnapshot the space as stored after the change
+     */
+    public function setSpaceIcon(string $spaceId, ?string $icon, ?WikiUserRef $actor = null, ?int $expectedVersion = null): WikiSpaceSnapshot;
 }

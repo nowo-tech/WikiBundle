@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Service;
 
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
+use LogicException;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -131,6 +132,15 @@ final class WikiIdOperationsTest extends TestCase
         self::assertNull($ops->findSpaceBySlug(WikiSpaceOwnerScope::Team, 'team-1', 'none'));
         self::assertSame('docs', $ops->findSpace($this->space->getId())?->slug);
         self::assertNull($ops->findSpace('folded'));
+    }
+
+    public function testSetSpaceIconNeedsTheSpaceLifecycle(): void
+    {
+        // 1.56: setSpaceIcon() is the lifecycle's (lock, version, event); built by hand without it, it says so.
+        $ops = new WikiSpaceOperations($this->createMock(WikiSpaceServiceInterface::class), $this->spaces(), new WikiTransactionRunner($this->createStub(EntityManagerInterface::class)));
+
+        $this->expectException(LogicException::class);
+        $ops->setSpaceIcon($this->space->getId(), 'tabler:book');
     }
 
     public function testLinkOperations(): void
