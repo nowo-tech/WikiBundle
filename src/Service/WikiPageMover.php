@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Service;
 
 use DateTimeImmutable;
-use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -55,8 +54,6 @@ final readonly class WikiPageMover
      * @param EventDispatcherInterface|null $dispatcher receives {@see WikiPageMovedEvent}
      * @param int $maxDepth tree.max_depth: deepest level of a page (roots are level 1)
      * @param WikiEventDeferral|null $deferral 1.24: holds the event until the caller's scope ends
-     * @param WikiManagedEntities|null $managed 1.55.2 (audit ZBO-2): the wiki manager's instance of a space or page
-     *                                          another manager loaded
      */
     public function __construct(
         private WikiPageRepositoryInterface $repository,
@@ -65,7 +62,6 @@ final readonly class WikiPageMover
         private int $maxDepth = 10,
         private ?WikiEventDeferral $deferral = null,
         private ?WikiTransactionRunner $runner = null,
-        private ?WikiManagedEntities $managed = null,
     ) {
     }
 
@@ -86,8 +82,8 @@ final readonly class WikiPageMover
     public function move(WikiPage $page, ?WikiPage $parent, int $index, ?object $actor = null, ?WikiPageMoveScope $scope = null): WikiPageMoveResult
     {
         // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
-        $page                          = $this->runner?->attach($page) ?? $page;
-        $parent                        = $parent instanceof WikiPage ? ($this->runner?->attach($parent) ?? $parent) : null;
+        $page                          = $this->attachPage($page, 'page_missing');
+        $parent                        = $parent instanceof WikiPage ? $this->attachPage($parent, 'parent_missing') : null;
         [$result, $fromParent, $moved] = $this->unit(function () use ($page, $parent, $index, $scope): array {
             $this->writer->beginSpaceTransaction($page->getSpace());
             try {
@@ -137,7 +133,7 @@ final readonly class WikiPageMover
     {
         // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
         $space  = $this->runner?->attach($space) ?? $space;
-        $parent = $parent instanceof WikiPage ? ($this->runner?->attach($parent) ?? $parent) : null;
+        $parent = $parent instanceof WikiPage ? $this->attachPage($parent, 'parent_missing') : null;
 
         return $this->locked($space, function (array $byId, callable $parentOf) use ($space, $parent, $index, $create, $scope): WikiPageCreateResult {
             $target = null;
@@ -174,7 +170,7 @@ final readonly class WikiPageMover
     {
         // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
         $space         = $this->runner?->attach($space) ?? $space;
-        $sibling       = $this->runner?->attach($sibling) ?? $sibling;
+        $sibling       = $this->attachPage($sibling, 'page_missing');
         $checkedParent = $scopeParent && $scope instanceof WikiPageMoveScope ? $scope->fromParentId : $sibling->getParent()?->getId();
 
         return $this->locked($space, function (array $byId, callable $parentOf) use ($space, $sibling, $after, $create, $scope, $checkedParent): WikiPageCreateResult {
@@ -478,15 +474,15 @@ final readonly class WikiPageMover
     }
 
     /**
-     * The wiki manager's instance of a page (as given without {@see WikiManagedEntities}); a page the wiki cannot read is
-     * refused like one that is gone: nothing is written.
+     * The private manager's instance of a page ({@see WikiTransactionRunner::attach()}; as given without the runner); a page
+     * your manager loaded that no longer exists is refused like one that is gone (1.55.2 audit ZBO-2): nothing is written.
      *
      * @throws WikiPageMoveException with the reason
      */
-    private function managedPage(WikiPage $page, string $reason): WikiPage
+    private function attachPage(WikiPage $page, string $reason): WikiPage
     {
         try {
-            return $this->managed?->page($page) ?? $page;
+            return $this->runner?->attach($page) ?? $page;
         } catch (WikiPageNotFoundException) {
             throw new WikiPageMoveException($reason);
         }

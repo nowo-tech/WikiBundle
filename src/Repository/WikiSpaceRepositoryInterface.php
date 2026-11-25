@@ -12,8 +12,11 @@ use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
  *
  * Persistence adapter of the bundle's own entities, not a host port (REQ-ARCH-001): it is entity-typed by design;
  * hosts reach wiki data through the services, the id operations and the events.
+ *
+ * 2.0: it includes {@see WikiSpaceBatchFinderInterface} (`findByIds()`, `findByIdWithoutRefresh()`, 1.55.2): a space
+ * repository of your own must implement them (read the interface description for when to use which).
  */
-interface WikiSpaceRepositoryInterface
+interface WikiSpaceRepositoryInterface extends WikiSpaceBatchFinderInterface
 {
     /**
      * Persists the space and flushes it immediately.
@@ -25,7 +28,7 @@ interface WikiSpaceRepositoryInterface
     /**
      * Finds a space by its identifier, read from the database on every call (the bundle's repository refreshes a space
      * its manager already holds), so it is safe on write paths and in kept-alive workers. 1.55.2: for many ids, or for
-     * repeated read-only checks within one request, see {@see WikiSpaceBatchFinderInterface}.
+     * repeated read-only checks within one request, see {@see self::findByIds()} and {@see self::findByIdWithoutRefresh()}.
      *
      * @param string $id space UUID
      *

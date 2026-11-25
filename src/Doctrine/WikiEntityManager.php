@@ -286,8 +286,8 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
      * returned as it is; a wiki row your application's manager (`database.entity_manager`) loaded (a route value
      * resolver, a repository of yours) is loaded again by its id in the private manager, so the wiki writes the row
      * itself and never inserts it a second time. What you changed on your instance before the call is not carried over
-     * (change wiki rows through the wiki). A new row (not saved yet) and anything that is not a wiki entity are returned
-     * as they are.
+     * (change wiki rows through the wiki). A detached row (no manager holds it) is loaded again by its id too (1.55.2,
+     * audit ZBO-5). A new row (not saved yet) and anything that is not a wiki entity are returned as they are.
      *
      * @template T of object
      *
@@ -302,10 +302,19 @@ final class WikiEntityManager extends EntityManagerDecorator implements ResetInt
     public function attach(object $entity): object
     {
         $live = $this->live();
-        if (!self::isBundleEntity($entity::class) || $live->contains($entity) || !$this->heldBySource($entity)) {
+        if (!self::isBundleEntity($entity::class) || $live->contains($entity)) {
             return $entity;
         }
         $metadata = $live->getClassMetadata($entity::class);
+        if (!$this->heldBySource($entity)) {
+            // 1.55.2 (audit ZBO-5): a detached row (no manager holds it, e.g. kept across requests) is the stored row of
+            // its id when there is one; a new row (no stored row yet) is returned as it is.
+            $id = $metadata->getIdentifierValues($entity);
+            /** @var T|null $stored */
+            $stored = $id === [] || in_array(null, $id, true) ? null : $live->find($metadata->getName(), $id);
+
+            return $stored ?? $entity;
+        }
         /** @var T|null $managed */
         $managed = $live->find($metadata->getName(), $this->source()->getUnitOfWork()->getEntityIdentifier($entity));
         if ($managed !== null) {

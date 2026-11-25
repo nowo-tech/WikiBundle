@@ -6,7 +6,6 @@ namespace Nowo\WikiBundle\Trash;
 
 use DateTimeImmutable;
 use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
-use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Entity\WikiTrashEntry;
@@ -76,7 +75,6 @@ final readonly class WikiTrashService
         private ?WikiPageRevisionRepositoryInterface $revisions = null,
         private int $maxPurgeFiles = self::DEFAULT_MAX_PURGE_FILES,
         private ?WikiTransactionRunner $runner = null,
-        private ?WikiManagedEntities $managed = null,
     ) {
     }
 
