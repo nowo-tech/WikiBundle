@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-11-25 (every file of `src/` mapped, including 1.42 to 1.56.0; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 610)
+**Last audited**: 2026-11-25 (2.0.0: every file of `src/` mapped, including 1.52 to 1.56.0 and the 2.0 removals; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 605)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -101,8 +101,8 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Service/WikiRevisionDiffService.php` | Revision diff | FR-REV-001 |
 | `Service/WikiSearchService.php` | Full-text search | FR-SEARCH-001 |
 | `Service/WikiSpaceAccessResolver.php` | Space ACL resolver | FR-SEC-001 |
-| `Service/WikiSpaceAccessResolverInterface.php` | Space ACL contract | FR-SEC-001 |
-| `Service/WikiSpaceLocatorInterface.php` | Finds the space a route slug names; replaceable for tenant slugs | FR-SEC-010 |
+| `Port/Internal/WikiSpaceAccessResolverInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Service\WikiSpaceAccessResolverInterface` was removed; hosts implement the 1.36 twin). Space ACL contract | FR-SEC-001 |
+| `Port/Internal/WikiSpaceLocatorInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Service\WikiSpaceLocatorInterface` was removed; hosts implement the 1.36 twin). Finds the space a route slug names; replaceable for tenant slugs | FR-SEC-010 |
 | `Service/WikiSpaceService.php` | Space CRUD | FR-SPACE-001 |
 
 ## Security
@@ -116,13 +116,13 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Security/ConfigurableWikiAccessChecker.php` | Configurable access checker | FR-SEC-001 |
 | `Security/LegacyWikiSpaceAccessChecker.php` | Default space checker: the 1.x decision plus space membership | FR-SEC-010 |
 | `Security/NullWikiTeamMembershipResolver.php` | Team membership resolver | FR-SEC-006 |
-| `Security/WikiAccessCheckerInterface.php` | Access checker contract | FR-SEC-001 |
+| `Port/Internal/WikiAccessCheckerInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Security\WikiAccessCheckerInterface` was removed; hosts implement the 1.36 twin). Access checker contract | FR-SEC-001 |
 | `Security/WikiHtmlSanitizer.php` | HTML sanitizer impl | FR-SEC-005 |
 | `Security/WikiHtmlSanitizerInterface.php` | Sanitizer contract | FR-SEC-005 |
 | `Security/WikiPageVisibility.php` | One read rule: View on the page and every ancestor | FR-SEC-009 |
-| `Security/WikiSpaceAccessCheckerInterface.php` | Space- and page-aware access decision | FR-SEC-010 |
+| `Port/Internal/WikiSpaceAccessCheckerInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Security\WikiSpaceAccessCheckerInterface` was removed; hosts implement the 1.36 twin). Space- and page-aware access decision | FR-SEC-010 |
 | `Security/WikiSpaceGuard.php` | Resolves a route's space and enforces the checker (404 / 403) | FR-SEC-010 |
-| `Security/WikiTeamMembershipResolverInterface.php` | Team membership contract | FR-SEC-006 |
+| `Port/Internal/WikiTeamMembershipResolverInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Security\WikiTeamMembershipResolverInterface` was removed; hosts implement the 1.36 twin). Team membership contract | FR-SEC-006 |
 | `Security/WikiTokenGuard.php` | Stale token guard | FR-WORKER-001 |
 
 ## AI
@@ -134,7 +134,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Ai/SymfonyAiWikiAssistant.php` | Symfony AI assistant | FR-AI-001 |
 | `Ai/Tool/WikiKnowledgeSearchTool.php` | AI knowledge tool | FR-AI-002 |
 | `Ai/WikiAiAnswer.php` | AI answer DTO | FR-AI-001 |
-| `Ai/WikiAiAssistantInterface.php` | AI assistant contract | FR-AI-001 |
+| `Port/Internal/WikiAiAssistantInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Ai\WikiAiAssistantInterface` was removed; hosts implement the 1.36 twin). AI assistant contract | FR-AI-001 |
 | `Ai/WikiContextRetriever.php` | AI context retrieval | FR-AI-005 |
 
 ## Routing
@@ -172,7 +172,6 @@ This file proves that **every production source artifact** under `src/` is refer
 
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
-| `Resources/assets/src/wiki-code-blocks.ts` | Focusable, labelled code blocks that overflow | FR-UI-011 |
 | `Resources/assets/src/wiki-comments.ts` | Ties the Milkdown thread component to the UiKit side panel | FR-COMMENT-002 |
 | `Resources/assets/src/wiki.ts` | Wiki Tiptap editor | FR-UI-010 |
 | `Resources/public/wiki.css` | Built frontend asset | FR-BUILD-001 |
@@ -205,7 +204,6 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Resources/views/manage/_comments_panel_body.html.twig` | Panel body: thread mount, no-JavaScript list and form, 1.21 extras | FR-COMMENT-002 / FR-UI-012 |
 | `Resources/views/manage/_comments_view.html.twig` | Read-only Milkdown mount carrying the highlights | FR-COMMENT-002 |
 | `Resources/views/manage/_copy_markdown.html.twig` | "Copy as Markdown" of a page, for editors | FR-MD-002 |
-| `Resources/views/manage/_legacy_layout.html.twig` | Deprecated bridge around a pre-1.10 host layout | FR-VIEW-001 |
 | `Resources/views/manage/_page_tabs.html.twig` | Page / Edit / History tab row | FR-VIEW-001 |
 | `Resources/views/manage/_page_tree.html.twig` | Page tree level | FR-VIEW-005 |
 | `Resources/views/manage/_page_tree_item.html.twig` | Page tree item (override point) | FR-VIEW-005 |
@@ -230,7 +228,6 @@ This file proves that **every production source artifact** under `src/` is refer
 | `DependencyInjection/Compiler/MilkdownBridgePass.php` | Milkdown options handed to the bridge (fail closed) | FR-MD-002 |
 | `Interchange/Conversion/WikiConversionFidelity.php` | Fidelity of one conversion | FR-MD-003 |
 | `Interchange/Conversion/WikiConversionFidelityAnalyzer.php` | Lost / approximated constructs, word comparison | FR-MD-003 |
-| `Interchange/HtmlToMarkdown/WikiAlignedHeaderConverter.php` | Dialect alignment of headings | FR-MD-002 |
 | `Interchange/HtmlToMarkdown/WikiAlignedParagraphConverter.php` | Dialect alignment of paragraphs | FR-MD-002 |
 | `Interchange/HtmlToMarkdown/WikiAlignmentTrait.php` | Dialect alignment container | FR-MD-002 |
 | `Interchange/HtmlToMarkdown/WikiDialectTextConverter.php` | Page-link / mention tokens kept | FR-MD-002 |
@@ -274,8 +271,8 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Collaboration/WikiCollabService.php` | Protocol, validation, seeding, reset | FR-MD-004 |
 | `Collaboration/WikiCollabState.php` | Stored log | FR-MD-004 |
 | `Collaboration/WikiCollabStateStoreInterface.php` | Store contract | FR-MD-004 |
-| `Collaboration/WikiCollabSubscriberAuthorizerInterface.php` | Subscriber contract | FR-MD-004 |
-| `Collaboration/WikiCollabTopicsAuthorizerInterface.php` | Subscriber authorizer granting several topics in one cookie | FR-MD-004 / FR-COMMENT-001 |
+| `Port/Internal/WikiCollabSubscriberAuthorizerInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Collaboration\WikiCollabSubscriberAuthorizerInterface` was removed; hosts implement the 1.36 twin). Subscriber contract | FR-MD-004 |
+| `Port/Internal/WikiCollabTopicsAuthorizerInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Collaboration\WikiCollabTopicsAuthorizerInterface` was removed; hosts implement the 1.36 twin). Subscriber authorizer granting several topics in one cookie | FR-MD-004 / FR-COMMENT-001 |
 | `Controller/WikiCollabController.php` | Collaboration endpoints | FR-MD-004 |
 | `Entity/WikiCollabDocument.php` | Log document per page | FR-MD-004 |
 | `Entity/WikiCollabUpdate.php` | Log entry | FR-MD-004 |
@@ -293,7 +290,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Service/WikiPageMoveResult.php` | Move outcome | FR-TREE-001 |
 | `Service/WikiPageMoveScope.php` | Visible siblings and checked parent of a move | FR-TREE-001 |
 | `Service/WikiPageMoveException.php` | Refused move | FR-TREE-001 |
-| `Tree/WikiTreeStateStoreInterface.php` | Fold state contract | FR-TREE-001 |
+| `Port/Internal/WikiTreeStateStoreInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Tree\WikiTreeStateStoreInterface` was removed; hosts implement the 1.36 twin). Fold state contract | FR-TREE-001 |
 | `Tree/SessionWikiTreeStateStore.php` | Session fold state | FR-TREE-001 |
 | `Resources/views/manage/page_move.html.twig` | Move form page | FR-TREE-001 |
 
@@ -334,7 +331,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Attachment/LocalWikiAttachmentStorage.php` | Default storage: a private local directory | FR-ATT-001 |
 | `Attachment/NullWikiAttachmentScanner.php` | Default scanner: accepts every file | FR-ATT-001 |
 | `Attachment/WikiAttachmentLimits.php` | Upload limits of a space | FR-ATT-001 |
-| `Attachment/WikiAttachmentLimitsProviderInterface.php` | Contract: limits per space, from host settings | FR-ATT-001 |
+| `Port/Internal/WikiAttachmentLimitsProviderInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Attachment\WikiAttachmentLimitsProviderInterface` was removed; hosts implement the 1.36 twin). Contract: limits per space, from host settings | FR-ATT-001 |
 | `Attachment/WikiAttachmentReferenceFilter.php` | Drops references to another space's attachments from a page body | FR-ATT-002 |
 | `Attachment/WikiAttachmentRejectedException.php` | Upload refused by limits, type allowlist or scanner | FR-ATT-001 |
 | `Attachment/WikiAttachmentScannerInterface.php` | Contract: scans a file before it is stored | FR-ATT-001 |
@@ -351,7 +348,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | --- | --- | --- |
 | `Event/WikiPageLinkEvent.php` | After a page was linked to or unlinked from a host object | FR-LINK-001 / FR-EVT-002 |
 | `Link/WikiLinkedObject.php` | A host object as described for a viewer allowed to open it | FR-LINK-001 |
-| `Link/WikiObjectLinkResolverInterface.php` | Contract: describes and authorizes host objects by type | FR-LINK-001 |
+| `Port/Internal/WikiObjectLinkResolverInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Link\WikiObjectLinkResolverInterface` was removed; hosts implement the 1.36 twin). Contract: describes and authorizes host objects by type | FR-LINK-001 |
 | `Link/WikiPageLinkService.php` | Links pages to host objects, lists "Used in" for a viewer | FR-LINK-001 |
 
 ## Avatars (1.16)
@@ -361,7 +358,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Avatar/NullWikiUserAvatarResolver.php` | Default resolver: no pictures, initials only | FR-AVATAR-001 |
 | `Avatar/WikiAvatarKey.php` | The key of a user in the resolver's answer | FR-AVATAR-001 |
 | `Avatar/WikiAvatars.php` | Batches and memoises avatar URLs of one response (`ResetInterface`) | FR-AVATAR-001 / FR-WORKER-001 |
-| `Avatar/WikiUserAvatarResolverInterface.php` | Contract: host picture URLs, asked only for real names shown | FR-AVATAR-001 |
+| `Port/Internal/WikiUserAvatarResolverInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Avatar\WikiUserAvatarResolverInterface` was removed; hosts implement the 1.36 twin). Contract: host picture URLs, asked only for real names shown | FR-AVATAR-001 |
 
 ## Comments (1.16)
 
@@ -379,7 +376,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Event/WikiCommentMentionsErasedEvent.php` | Mentions of an erased person were rewritten | FR-COMMENT-003 / FR-EVT-002 |
 | `Form/WikiCommentType.php` | No-JavaScript page-level comment form | FR-COMMENT-002 / FR-FORM-001 |
 | `Panel/SessionWikiPanelStateStore.php` | Default panel state: the session | FR-PANEL-001 |
-| `Panel/WikiPanelStateStoreInterface.php` | Contract: open / closed state of side panels per user | FR-PANEL-001 |
+| `Port/Internal/WikiPanelStateStoreInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Panel\WikiPanelStateStoreInterface` was removed; hosts implement the 1.36 twin). Contract: open / closed state of side panels per user | FR-PANEL-001 |
 | `Repository/DoctrineOrmWikiCommentRepository.php` | Doctrine storage of threads, comments and reactions | FR-COMMENT-001 |
 | `Repository/WikiCommentAuthorRepositoryInterface.php` | Per-author queries: thread cap and privacy export | FR-COMMENT-001 / FR-COMMENT-003 |
 | `Repository/WikiCommentMentionBatch.php` | One page of the mention walk | FR-COMMENT-003 |
@@ -398,13 +395,13 @@ This file proves that **every production source artifact** under `src/` is refer
 
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
-| `Ai/WikiAiAnswererInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Ai/WikiAiReply.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Attachment/WikiAttachmentLimitsPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Avatar/WikiUserAvatarSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Ai/WikiAiAnswererInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Ai/WikiAiReply.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Attachment/WikiAttachmentLimitsPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Avatar/WikiUserAvatarSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
 | `DependencyInjection/Compiler/PrivateEntityManagerPass.php` | Private entity manager (`database.private_entity_manager`, opt-in; REQ-ARCH-001 rule 6) | FR-ARCH-002 |
 | `DependencyInjection/Compiler/WikiMappingManagerPass.php` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
-| `DependencyInjection/Compiler/WikiPortsPass.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `DependencyInjection/Compiler/WikiPortsPass.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
 | `DependencyInjection/WikiDoctrineMapping.php` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
 | `Doctrine/PrivateEntityManagerConnection.php` | Private entity manager (`database.private_entity_manager`, opt-in; REQ-ARCH-001 rule 6) | FR-ARCH-002 |
 | `Doctrine/PrivateEntityManagerDriver.php` | Private entity manager (`database.private_entity_manager`, opt-in; REQ-ARCH-001 rule 6) | FR-ARCH-002 |
@@ -413,37 +410,37 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Doctrine/Type/WikiUserRefType.php` | Exact, binary matching of stored user and owner ids (look-alike ids never match) | FR-SEC-011 |
 | `Doctrine/WikiExcludedEntityNamespaceDriver.php` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
 | `Doctrine/WikiSpaceCollationListener.php` | Exact, binary matching of stored user and owner ids (look-alike ids never match) | FR-SEC-011 |
-| `Link/WikiObjectLinkSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Link/WikiPageLinkOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Link/WikiPageLinkOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Link/WikiPageLinkServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Panel/WikiPanelStatesInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Port/WikiAccessPolicyGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiAiAnswererGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiApiFileStoreGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiApiPlanPolicyGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiApiRequestAuthenticatorGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiApiWikiDirectoryGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiAttachmentLimitsPolicyGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiCollabSubscriptionGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiObjectLinkSourceGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiPanelStatesGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiPorts.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiRequestContexts.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiSnapshots.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiSpaceAccessPolicyGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiSpaceIdLocatorGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiSpaceReachGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiTeamMembershipSourceGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiTreeStatesGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiUserAvatarSourceGate.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Port/WikiUserRefs.php` | Framework-free host port: gate adapting the deprecated Symfony-typed port to its twin, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
-| `Repository/WikiPageChildrenFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Repository/WikiPageLockInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Repository/WikiPageMetadata.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Repository/WikiPageMetadataFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Repository/WikiPageMetadataQuery.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Repository/WikiPageTitleFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Link/WikiObjectLinkSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Link/WikiPageLinkOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Link/WikiPageLinkOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Link/WikiPageLinkServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Panel/WikiPanelStatesInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Port/WikiAccessPolicyGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiAiAnswererGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiApiFileStoreGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiApiPlanPolicyGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiApiRequestAuthenticatorGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiApiWikiDirectoryGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiAttachmentLimitsPolicyGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiCollabSubscriptionGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiObjectLinkSourceGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiPanelStatesGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiPorts.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiRequestContexts.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiSnapshots.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiSpaceAccessPolicyGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiSpaceIdLocatorGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiSpaceReachGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiTeamMembershipSourceGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiTreeStatesGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiUserAvatarSourceGate.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Port/WikiUserRefs.php` | Framework-free host port: gate adapting the host twin to the bundle-side `Port\Internal` interface, or request/snapshot plumbing (REQ-ARCH-001 rules 1 and 3) | FR-ARCH-001 |
+| `Repository/WikiPageChildrenFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Repository/WikiPageLockInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Repository/WikiPageMetadata.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Repository/WikiPageMetadataFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Repository/WikiPageMetadataQuery.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Repository/WikiPageTitleFinderInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
 | `Resources/config/doctrine-xml/WikiAttachment.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
 | `Resources/config/doctrine-xml/WikiCollabDocument.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
 | `Resources/config/doctrine-xml/WikiCollabUpdate.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
@@ -456,10 +453,10 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Resources/config/doctrine-xml/WikiRevisionLabel.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
 | `Resources/config/doctrine-xml/WikiSpace.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
 | `Resources/config/doctrine-xml/WikiTrashEntry.orm.xml` | XML ORM mapping (`database.mapping_type: xml`, opt-in) and the manager the mapping is registered on | FR-ARCH-003 |
-| `Security/WikiAccessPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Security/WikiSpaceAccessPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Security/WikiTeamMembershipSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Service/WikiPageCreateResult.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Security/WikiAccessPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Security/WikiSpaceAccessPolicyInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Security/WikiTeamMembershipSourceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Service/WikiPageCreateResult.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
 | `Service/WikiPageDuplicator.php` | 1.41: Duplicate of the tree menu (the page only by default; placed by the mover) | FR-TREE-002 |
 | `Service/WikiInvalidIconException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
 | `Service/WikiInvalidSlugException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
@@ -468,22 +465,22 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Service/WikiRevisionMismatchException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
 | `Service/WikiSlugTakenException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
 | `Service/WikiUnknownFormatException.php` | 1.40.2 (audit SH-L1): a page service refusal (an `InvalidArgumentException`); callers catch it, not the broad class | FR-API-001 |
-| `Service/WikiPageOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Service/WikiPageOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Service/WikiPageServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Service/WikiSpaceIdLocatorInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Service/WikiSpaceOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Service/WikiSpaceOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Service/WikiSpaceReachInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Service/WikiSpaceServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `Tree/WikiTreeStatesInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
-| `User/DoctrineWikiUserReferenceResolver.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `Service/WikiPageOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Service/WikiPageOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Service/WikiPageServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Service/WikiSpaceIdLocatorInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Service/WikiSpaceOperations.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Service/WikiSpaceOperationsInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Service/WikiSpaceReachInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Service/WikiSpaceServiceInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `Tree/WikiTreeStatesInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
+| `User/DoctrineWikiUserReferenceResolver.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
 | `User/WikiRefUser.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
 | `User/WikiUserClassPolicy.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
-| `User/WikiUserDirectoryInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `User/WikiUserDirectoryInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
 | `User/WikiUserFields.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
 | `User/WikiUserId.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
-| `User/WikiUserReferenceResolverInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of an older port that stays deprecated | FR-USER-001 |
+| `User/WikiUserReferenceResolverInterface.php` | Port typed with ids and snapshots (no Symfony or Doctrine types), the twin of a 1.x port removed in 2.0 | FR-USER-001 |
 | `User/WikiUsers.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
 | `ValueObject/WikiOwnerScopeId.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
 | `ValueObject/WikiPagePlacement.php` | Framework-free value object or user reference of the host path (ids, snapshots, request context) | FR-ARCH-001 |
@@ -511,12 +508,12 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Api/Hook/DenyingWikiApiRateLimiter.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
 | `Api/Hook/DenyingWikiApiWikiManagement.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
 | `Api/Hook/NullWikiApiUsers.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
-| `Api/Hook/WikiApiAuthenticatorInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
-| `Api/Hook/WikiApiDirectoryInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Port/Internal/WikiApiAuthenticatorInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Api\Hook\WikiApiAuthenticatorInterface` was removed; hosts implement the 1.36 twin). Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Port/Internal/WikiApiDirectoryInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Api\Hook\WikiApiDirectoryInterface` was removed; hosts implement the 1.36 twin). Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
 | `Api/Hook/WikiApiFileStoreInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
-| `Api/Hook/WikiApiFilesInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Port/Internal/WikiApiFilesInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Api\Hook\WikiApiFilesInterface` was removed; hosts implement the 1.36 twin). Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
 | `Api/Hook/WikiApiIdempotencyStoreInterface.php` | Idempotency of API writes (`Idempotency-Key`: claim, replay, outcome, purge) | FR-API-004 |
-| `Api/Hook/WikiApiPlanGateInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
+| `Port/Internal/WikiApiPlanGateInterface.php` | 2.0: `@internal` bundle-side port (the 1.x public interface `Api\Hook\WikiApiPlanGateInterface` was removed; hosts implement the 1.36 twin). Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
 | `Api/Hook/WikiApiPlanPolicyInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
 | `Api/Hook/WikiApiRateLimiterInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
 | `Api/Hook/WikiApiRequestAuthenticatorInterface.php` | Host hook of the REST API: a port the host implements (denying or null default when the feature is not wired) | FR-API-003 |
@@ -754,11 +751,10 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Search/WikiSearchViewerResolverInterface.php` | Search viewer port | FR-SK-001 |
 | `Search/WikiTenantPathsSearchTenantResolver.php` | Default tenant resolver | FR-SK-001 |
 
-## Space lifecycle and host flush probe (1.49 / 1.50)
+## Space lifecycle (1.49 / 1.50)
 
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
-| `Doctrine/WikiHostFlushProbe.php` | Host flush migration list (shared manager mode) | FR-PEM-001 |
 | `Event/WikiSpaceAccessCheckEvent.php` | Grant or deny a space lifecycle action | FR-SPACE-002 |
 | `Event/WikiSpaceLifecycleEvent.php` | Space renamed, archived or unarchived | FR-SPACE-002 |
 | `Event/WikiSpacePurgedEvent.php` | Space purged | FR-SPACE-002 |
@@ -799,27 +795,46 @@ This file proves that **every production source artifact** under `src/` is refer
 | `Security/WikiPageAccessInterface.php` | Page access by ids (port) | FR-ACC-001 |
 | `Resources/assets/src/raw-modules.d.ts` | Type declaration for Vite `?raw` imports (test support, not shipped runtime) | FR-BUILD-002 |
 
-## Ids, erasure, key columns, assets and host-loaded entities (1.52 – 1.55.2)
+## Exact identity columns (1.52)
 
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
-| `Doctrine/WikiExactKeyColumns.php` | 1.52: the bundle's declaration of its identity / access-key columns (REQ-SEC-006) | FR-SEC-011 |
-| `Doctrine/WikiManagedEntities.php` | 1.55.2: the private manager's instance of a host-loaded space or page, read again by id before a write | FR-ARCH-002 / FR-WORKER-002 |
-| `Repository/WikiSpaceBatchFinderInterface.php` | 1.55.2: spaces by ids in one query, and the no-refresh read for read paths | FR-REPO-001 / FR-WORKER-002 |
-| `Repository/WikiCommentByIdFinderInterface.php` | 1.55: comment threads and comments by id, bounded thread reads | FR-ARCH-001 / FR-COMMENT-001 |
-| `Util/WikiSpaceSlugRule.php` | 1.55: the space slug rule of the create by id | FR-SPACE-002 |
-| `Space/WikiSpaceOwnerMismatchException.php` | 1.55.1: erasure refused for another owner | FR-SPACE-002 |
-| `ValueObject/WikiCommentThreadSnapshot.php` | 1.55: comment thread read by id | FR-ARCH-001 |
-| `ValueObject/WikiCommentSnapshot.php` | 1.55: comment read by id | FR-ARCH-001 |
-| `ValueObject/WikiNewSpace.php` | 1.55: space create by id | FR-ARCH-001 / FR-SPACE-002 |
-| `Resources/assets/src/logger.ts` | Console logger of the scripts (REQ-ASSETS-005) | FR-BUILD-001 |
-| `Resources/assets/src/script-banner.ts` | "script loaded" banner, safe with a clobbered global | FR-BUILD-001 |
-| `Resources/views/manage/_import_export_form.html.twig` | 1.53: import / export dialog loaded on demand | FR-UI-012 / FR-IX-001 |
-| `Resources/views/manage/_ai_ask_form.html.twig` | 1.53: AI dialog loaded on demand | FR-UI-012 / FR-AI-001 |
-| `Resources/views/manage/_new_page_form.html.twig` | 1.53: new page dialog loaded on demand | FR-UI-012 / FR-PAGE-001 |
-| `Resources/views/manage/import_export.html.twig` | Import / export page | FR-IX-001 |
-| `Resources/views/manage/_tree_menu_form.html.twig` | 1.53: tree menu dialog loaded on demand | FR-UI-012 / FR-TREE-001 |
-| `Resources/views/manage/_milkdown_editor_assets.html.twig` | 1.53: editor assets of a dialog loaded on demand | FR-UI-012 / FR-MD-002 |
+| `Doctrine/WikiExactKeyColumns.php` | The bundle declares its own identity / access-key columns with a binary collation (REQ-SEC-006) | FR-SEC-012 |
+
+## Dialogs on demand (1.53)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Resources/views/manage/_ai_ask_form.html.twig` | Body of the AI dialog, loaded when it opens | FR-DIALOG-001 |
+| `Resources/views/manage/_import_export_form.html.twig` | Body of the Import & export dialog, loaded when it opens | FR-DIALOG-001 |
+| `Resources/views/manage/_milkdown_editor_assets.html.twig` | Milkdown editor assets of a dialog fragment | FR-DIALOG-001 |
+| `Resources/views/manage/_new_page_form.html.twig` | Body of the New page dialog, loaded when it opens | FR-DIALOG-001 |
+| `Resources/views/manage/_tree_menu_form.html.twig` | Icon and move forms of the tree menu, loaded when they open | FR-DIALOG-001 |
+| `Resources/views/manage/import_export.html.twig` | Import & export page (the dialog's own URL without JavaScript) | FR-DIALOG-001 |
+
+## Browser console line (1.54)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Resources/assets/src/logger.ts` | House bundle logger (quiet switch, debug-only diagnostics) | FR-BUILD-003 |
+| `Resources/assets/src/script-banner.ts` | One "script loaded" line per page with the build time (REQ-ASSETS-005) | FR-BUILD-003 |
+
+## Space create, erasure and comment reads by id (1.55)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Repository/WikiCommentByIdFinderInterface.php` | Comment and thread reads by id (bounded thread list) | FR-COMMENT-004 |
+| `Space/WikiSpaceOwnerMismatchException.php` | Erasure refused: the space belongs to another owner | FR-SPACE-003 |
+| `Util/WikiSpaceSlugRule.php` | Space slug rule, tenant-path slugs included | FR-SPACE-003 |
+| `ValueObject/WikiCommentSnapshot.php` | Comment read model | FR-COMMENT-004 |
+| `ValueObject/WikiCommentThreadSnapshot.php` | Comment thread read model | FR-COMMENT-004 |
+| `ValueObject/WikiNewSpace.php` | Space to create by id with its settings | FR-SPACE-003 |
+
+## 2.0 removals (REQ-ARCH-001)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `DependencyInjection/Compiler/WikiRemovedPortsPass.php` | Fails the build on any trace of a removed 1.x host port (service id, decorator, class that still implements it) | FR-ARCH-004 |
 
 ## Coverage summary
 
@@ -837,11 +852,11 @@ This file proves that **every production source artifact** under `src/` is refer
 | Routing | 3 | 3 |
 | Persistence integration | 11 | 11 |
 | Support utilities | 2 | 2 |
-| Frontend TypeScript | 5 | 5 |
+| Frontend TypeScript | 4 | 4 |
 | Symfony config | 1 | 1 |
 | Translations | 7 | 7 |
-| Twig views | 21 | 21 |
-| Markdown and the Milkdown bridge (1.11 / 1.13) | 32 | 32 |
+| Twig views | 20 | 20 |
+| Markdown and the Milkdown bridge (1.11 / 1.13) | 31 | 31 |
 | Co-editing (1.13) | 16 | 16 |
 | Page tree (1.14) | 12 | 12 |
 | Trash (1.14) | 9 | 9 |
@@ -863,9 +878,13 @@ This file proves that **every production source artifact** under `src/` is refer
 | Page layout options (1.29 - 1.38) | 15 | 15 |
 | Favourites, recents and backlinks (1.45) | 26 | 26 |
 | SearchKit group (1.44 / 1.46 / 1.47) | 14 | 14 |
-| Space lifecycle and host flush probe (1.49 / 1.50) | 16 | 16 |
+| Space lifecycle (1.49 / 1.50) | 15 | 15 |
 | Read ports and page access (1.51) | 19 | 19 |
-| Ids, erasure, key columns, assets and host-loaded entities (1.52 – 1.55.2) | 17 | 17 |
-| **Total production sources** | **610** | **610** |
+| Exact identity columns (1.52) | 1 | 1 |
+| Dialogs on demand (1.53) | 6 | 6 |
+| Browser console line (1.54) | 2 | 2 |
+| Space create, erasure and comment reads by id (1.55) | 6 | 6 |
+| 2.0 removals (REQ-ARCH-001) | 1 | 1 |
+| **Total production sources** | **605** | **605** |
 
-Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 610. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
+Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 605. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
