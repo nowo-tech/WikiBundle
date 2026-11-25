@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Ai;
 
 use Nowo\WikiBundle\Ai\Exception\WikiAiUnavailableException;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiAiAssistantInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**

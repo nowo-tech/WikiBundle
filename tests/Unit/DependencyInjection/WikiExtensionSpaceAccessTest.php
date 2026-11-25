@@ -11,20 +11,19 @@ use Nowo\WikiBundle\Attachment\WikiAttachmentStorageInterface;
 use Nowo\WikiBundle\Avatar\WikiAvatars;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
-use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
-use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Link\WikiObjectLinkSourceInterface;
 use Nowo\WikiBundle\Markdown\Milkdown\WikiFilePreviewFrames;
 use Nowo\WikiBundle\Markdown\WikiRenderContext;
 use Nowo\WikiBundle\Member\WikiMemberBadges;
+use Nowo\WikiBundle\Port\Internal\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
 use Nowo\WikiBundle\Routing\WikiTenantUrlGenerator;
 use Nowo\WikiBundle\Security\LegacyWikiSpaceAccessChecker;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
 use Nowo\WikiBundle\Service\WikiRequestBoundaryResetter;
-use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
-use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUsers;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
@@ -49,7 +48,9 @@ final class WikiExtensionSpaceAccessTest extends TestCase
         self::assertSame(NullWikiAttachmentScanner::class, (string) $container->getAlias(WikiAttachmentScannerInterface::class));
         self::assertNull($container->getDefinition(WikiTenantUrlGenerator::class)->getDecoratedService());
         self::assertFalse($container->getParameter('nowo_wiki.attachments')['enabled']);
-        self::assertArrayHasKey(WikiObjectLinkResolverInterface::class, $container->getAutoconfiguredInstanceof());
+        // 2.0: only the framework-free link source is autoconfigured (the 1.x resolver interface was removed).
+        self::assertArrayNotHasKey(WikiObjectLinkResolverInterface::class, $container->getAutoconfiguredInstanceof());
+        self::assertArrayHasKey(WikiObjectLinkSourceInterface::class, $container->getAutoconfiguredInstanceof());
     }
 
     public function testTheRequestMemosAreEmptiedAtEveryBoundary(): void
@@ -61,7 +62,7 @@ final class WikiExtensionSpaceAccessTest extends TestCase
         $memos = $definition->getArgument('$memos');
         self::assertInstanceOf(IteratorArgument::class, $memos);
         $ids = array_map(static fn (mixed $reference): string => $reference instanceof Reference ? (string) $reference : '', $memos->getValues());
-        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class, WikiEntityManager::class, WikiTransactionRunner::class, WikiHostFlushProbe::class], $ids);
+        self::assertSame([LegacyWikiSpaceAccessChecker::class, WikiAvatars::class, WikiFilePreviewFrames::class, WikiRenderContext::class, WikiEventDeferral::class, WikiUsers::class, WikiMemberBadges::class, WikiEntityManager::class], $ids);
         foreach ($memos->getValues() as $reference) {
             self::assertInstanceOf(Reference::class, $reference);
             self::assertSame(ContainerInterface::IGNORE_ON_UNINITIALIZED_REFERENCE, $reference->getInvalidBehavior(), 'only built memos are reset; missing ones are skipped');

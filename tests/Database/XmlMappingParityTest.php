@@ -85,7 +85,7 @@ final class XmlMappingParityTest extends TestCase
             self::assertSame($this->normalize($metadata), $this->normalize($xml->getClassMetadata($metadata->getName())), $metadata->getName());
         }
         self::assertCount(self::ENTITIES, $classes, 'every wiki entity has an XML mapping');
-        self::assertCount(self::ENTITIES + 1, $xml->getMetadataFactory()->getAllMetadata(), 'and nothing else (plus the test user)');
+        self::assertCount(self::ENTITIES + 2, $xml->getMetadataFactory()->getAllMetadata(), 'and nothing else (plus the test user and the 2.0 host bookmark)');
         self::assertSame(
             TestUserEntity::class,
             $xml->getClassMetadata(WikiPageRevision::class)->getAssociationMapping('author')->targetEntity,

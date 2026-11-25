@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Security;
 
 use Doctrine\ORM\Query;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Query\WikiQueryIds;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;

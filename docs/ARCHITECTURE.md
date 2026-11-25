@@ -23,13 +23,13 @@ or matches is compared byte for byte (REQ-SEC-006, see [SECURITY](SECURITY.md)).
 
 | | Standard host (default) | DDD host (opt-in) |
 |---|---|---|
-| Host ports | the 1.x interfaces (Symfony `UserInterface`, `Request`, wiki entities) | their framework-free twins (`WikiUserRef`, snapshots, request-context VOs) |
+| Host ports | the framework-free ports (`WikiUserRef`, snapshots, request-context VOs; 2.0: the only host ports) | the same |
 | Calling the wiki | `WikiPageServiceInterface`, `WikiSpaceServiceInterface`, `WikiPageLinkServiceInterface` (entities) | `WikiPageOperationsInterface`, `WikiSpaceOperationsInterface`, `WikiPageLinkOperationsInterface` (ids, snapshots) |
 | Lists, counts, page access | the repositories (persistence adapters), `WikiSpaceGuard` (entities) | `WikiSpaceQueryInterface`, `WikiPageQueryInterface`, `WikiPageAccessInterface` (1.51: ids, snapshots) |
 | Events | entity payloads, `actorId()` | `spaceId()`, `pageId()`, `pageSnapshot()`, `actorRef()`, ... |
 | Mapping of the 16 wiki entities | ORM attributes | `database.mapping_type: xml` |
 | Host users on wiki rows | `ManyToOne` to `user_class` (a Doctrine entity) | `database.user_reference: id` + `user_directory` |
-| Entity manager | `database.entity_manager` (flushed by wiki writes) | `database.private_entity_manager: true` |
+| Entity manager | the wiki's private manager on `database.entity_manager` (2.0: the only mode; your manager is never flushed) | the same |
 | Bundle base classes / traits for host entities | none | none |
 
 The wiki's entities are bundle-owned: a host never extends them and references them by id (`WikiPageSnapshot::$id`,
@@ -40,17 +40,18 @@ entities.
 
 A host extends the wiki through ports it implements (configuration keys or service aliases). Since 1.36 every port that
 took a Symfony `UserInterface`, `Request`, `Response`, `UploadedFile` or a wiki entity has a **twin** that takes and
-returns only bundle value objects, enums and scalars:
+returns only bundle value objects, enums and scalars; 2.0 removed the 1.x interfaces, so the twins are the only host
+ports:
 
-| Configuration key / alias | Deprecated interface (removed in 2.0) | 1.36 twin |
+| Configuration key / alias | Removed 1.x interface (deprecated 1.36, removed in 2.0) | Port (1.36 twin) |
 |---|---|---|
 | `security.access_checker` | `Security\WikiAccessCheckerInterface` | `Security\WikiAccessPolicyInterface` |
-| `WikiSpaceAccessCheckerInterface` alias | `Security\WikiSpaceAccessCheckerInterface` | `Security\WikiSpaceAccessPolicyInterface` |
+| `WikiSpaceAccessPolicyInterface` alias | `Security\WikiSpaceAccessCheckerInterface` | `Security\WikiSpaceAccessPolicyInterface` |
 | `team_membership_resolver` | `Security\WikiTeamMembershipResolverInterface` | `Security\WikiTeamMembershipSourceInterface` |
-| `WikiSpaceAccessResolverInterface` alias | `Service\WikiSpaceAccessResolverInterface` | `Service\WikiSpaceReachInterface` (space ids) |
-| `WikiSpaceLocatorInterface` alias | `Service\WikiSpaceLocatorInterface` | `Service\WikiSpaceIdLocatorInterface` (a space id) |
+| `WikiSpaceReachInterface` alias | `Service\WikiSpaceAccessResolverInterface` | `Service\WikiSpaceReachInterface` (space ids) |
+| `WikiSpaceIdLocatorInterface` alias | `Service\WikiSpaceLocatorInterface` | `Service\WikiSpaceIdLocatorInterface` (a space id) |
 | tag `nowo_wiki.object_link_resolver` (autoconfigured) | `Link\WikiObjectLinkResolverInterface` | `Link\WikiObjectLinkSourceInterface` |
-| `WikiUserAvatarResolverInterface` alias | `Avatar\WikiUserAvatarResolverInterface` | `Avatar\WikiUserAvatarSourceInterface` |
+| `WikiUserAvatarSourceInterface` alias | `Avatar\WikiUserAvatarResolverInterface` | `Avatar\WikiUserAvatarSourceInterface` |
 | `comments.state_store` | `Panel\WikiPanelStateStoreInterface` | `Panel\WikiPanelStatesInterface` |
 | `tree.state_store` | `Tree\WikiTreeStateStoreInterface` | `Tree\WikiTreeStatesInterface` (space id) |
 | `collaboration.subscriber_authorizer` | `Collaboration\WikiCollabSubscriberAuthorizerInterface` / `WikiCollabTopicsAuthorizerInterface` | `Collaboration\WikiCollabSubscriptionPolicyInterface` (returns `WikiCollabCookie`s) |
@@ -58,8 +59,8 @@ returns only bundle value objects, enums and scalars:
 | `api.hooks.files` | `Api\Hook\WikiApiFilesInterface` | `Api\Hook\WikiApiFileStoreInterface` |
 | `api.hooks.plan_gate` | `Api\Hook\WikiApiPlanGateInterface` | `Api\Hook\WikiApiPlanPolicyInterface` |
 | `api.hooks.directory` | `Api\Hook\WikiApiDirectoryInterface` | `Api\Hook\WikiApiWikiDirectoryInterface` (space ids) |
-| `WikiAiAssistantInterface` alias | `Ai\WikiAiAssistantInterface` | `Ai\WikiAiAnswererInterface` (returns `Ai\WikiAiReply`) |
-| `WikiAttachmentLimitsProviderInterface` alias | `Attachment\WikiAttachmentLimitsProviderInterface` | `Attachment\WikiAttachmentLimitsPolicyInterface` |
+| `WikiAiAnswererInterface` alias | `Ai\WikiAiAssistantInterface` | `Ai\WikiAiAnswererInterface` (returns `Ai\WikiAiReply`) |
+| `WikiAttachmentLimitsPolicyInterface` alias | `Attachment\WikiAttachmentLimitsProviderInterface` | `Attachment\WikiAttachmentLimitsPolicyInterface` |
 | `user_directory` (id mode, new) | — | `User\WikiUserDirectoryInterface` |
 
 Value objects of the twins: `ValueObject\WikiUserRef` (class, id, identifier and roles, copied when the port is called;
@@ -70,12 +71,14 @@ Value objects of the twins: `ValueObject\WikiUserRef` (class, id, identifier and
 session, CSRF or infrastructure token header: the REST API credential reaches the authenticator only as `$credential`), `Api\Value\WikiApiUpload`, `Api\Value\WikiApiDownload`, `Collaboration\WikiCollabCookie`,
 `Ai\WikiAiReply`.
 
-**Selection rule.** The same configuration key or alias takes either interface. A service implementing the deprecated
-interface is asked exactly as in 1.35, also when it implements the twin too. One implementing only the twin is asked
-through an internal gate (`Port\*Gate`). A host may also alias the twin interface itself; two different host services
-(one per interface) fail the build. `DependencyInjection\Compiler\WikiPortsPass` stops the build when a configured
-service implements neither, naming the configuration key; a factory or synthetic service, whose class the build cannot
-know, is checked when it is built and fails closed.
+**Wiring (2.0).** The bundle asks each port through an `@internal` bundle-side interface of the removed name in
+`Port\Internal\` (no BC promise): its own defaults implement it, and a host service is asked through an internal gate
+(`Port\*Gate`). `DependencyInjection\Compiler\WikiPortsPass` stops the build when a configured host service does not
+implement the twin, naming the configuration key; a factory or synthetic service, whose class the build cannot know, is
+checked when it is built and fails closed. A host may also alias the twin interface itself; two different host services
+(the key and the alias) fail the build. `WikiRemovedPortsPass` fails the build on every trace of a removed 1.x
+interface: a service or alias under its id, a decorator of it (also `onInvalid: IGNORE`), and an autodiscovered class
+that still implements it, which Symfony would otherwise drop.
 
 **What a twin returns is checked.** Space ids are loaded and kept only when a stored space has exactly that id (the
 locator also needs exactly the asked slug); an unknown directory space id fails closed. Linked objects are kept only for
@@ -122,11 +125,11 @@ answer those reads by id, framework-free ([USAGE](USAGE.md#read-ports-and-page-a
 | `Query\WikiPageQueryInterface` | `findPages` / `countPages` (`WikiPageCriteria`), `findPagesByIds`, `pageStats`, `ancestors`, `pageContents`, `backlinks` and `searchPages` (optional viewer) |
 | `Security\WikiPageAccessInterface` | `isPageReadable(WikiUserRef, pageId)`, `readablePageIds(WikiUserRef, pageIds)`: the twin of `WikiSpaceGuard::isPageReadable()`, same rule and checker, same decisions |
 
-They read through the wiki's entity manager (the private one when it is on) and never write or lock. Lists, counts,
+They read through the wiki's private entity manager and never write or lock. Lists, counts,
 trees, contents and usage read columns and build snapshots, so no entity enters any manager; ids and owner ids read
 back are compared byte for byte in PHP (REQ-SEC-006), owner ids are validated as `WikiOwnerScopeId`. Stateless
-(REQ-RUNTIME-002): the decisions of one `readablePageIds()` call are a local memo. The page rule asks the service behind
-`WikiSpaceAccessCheckerInterface`, which `WikiSpaceGuard` asks too (a twin policy through its gate, decorated by the
+(REQ-RUNTIME-002): the decisions of one `readablePageIds()` call are a local memo. The page rule asks the bundle-side space checker (`Port\Internal\WikiSpaceAccessCheckerInterface`), which
+`WikiSpaceGuard` asks too (a twin policy through its gate, decorated by the
 archived-space rule), so the two answer alike by construction; `WikiPageAccessEquivalenceTest` proves it decision by
 decision.
 
@@ -135,7 +138,7 @@ decision.
 Every event that carries a wiki entity also answers with ids and snapshots, built on call: `spaceId()`, `pageId()`,
 `pageSnapshot()`, `revisionId()`, `revisionSnapshot()`, `threadId()`, `commentId()`, `attachmentId()`, ... and the actor
 as `actorRef()` (next to the 1.27 `actorId()`). The Symfony-typed members (`WikiQuotaCheckEvent::$user`,
-`WikiEditorOptionsEvent::$user`, `WikiApiPrincipal::$user`) are deprecated in favour of `userRef()`. The entity members
+`WikiEditorOptionsEvent::$user`, `WikiApiPrincipal::$user`) were removed in 2.0: read `userRef()`. The entity members
 stay (a listener that changes a page still needs them) and are not deprecated.
 
 Write events are dispatched after the write is committed (`WikiEventDeferral`): never from inside the bundle's own
@@ -145,20 +148,12 @@ bookkeeping, inside the transaction); hosts listen to `PAGE_SAVED`.
 
 ## Persistence
 
-**Standard host (default).** The wiki reads and writes through `database.entity_manager` (`default`), exactly as up to
-1.35: a wiki save flushes that manager, including what your application left pending in it.
+**The private entity manager is the only mode (REQ-ARCH-001 rule 6, 2.0).** Up to 1.35 the wiki wrote through
+`database.entity_manager` and a wiki save flushed that manager, including what the application left pending in it; 1.36
+added the private manager as an opt-in, 1.49 a notice and a host-flush probe for the shared mode, and 2.0 removed the
+shared mode (`database.private_entity_manager: false` fails the build; `true` is a deprecated no-op until 3.0).
 
-**Why the private manager is not the default in 1.x (REQ-ARCH-001 rule 6).** Turning it on changes what existing
-hosts rely on: a wiki write no longer flushes what the application left pending in its manager, wiki rows the host
-loaded through its own manager are not the wiki's instances (a host must load them through the wiki), and users read
-back from wiki rows are no longer `===` the host's objects. That would break hosts in a minor release, so 1.36 keeps
-the standard path as the default and makes the private manager opt-in; 2.0 makes it the only mode. Since 1.49 the shared
-manager triggers a deprecation notice and runs the host-flush probe (`Doctrine\WikiHostFlushProbe`): before every wiki
-flush of it, nowo-tech/transaction-doctrine's `HostFlushProbe` reports the application's entity classes that flush
-writes, and a flush the application runs itself that writes wiki rows is reported with the id operation to use instead
-([UPGRADING › To 1.49.0](UPGRADING.md#to-1490)). Read-only; reset at every boundary.
-
-**Private entity manager (opt-in, `database.private_entity_manager: true`; the only mode in 2.0).** Every wiki service
+**Private entity manager.** Every wiki service
 reads and writes through `Doctrine\WikiEntityManager`, a private manager created on the connection, mapping, caches,
 proxies and event manager of `database.entity_manager` (REQ-ARCH-001 rule 6). The tables do not move and the bundle's
 and your Doctrine listeners still run. Adapted from TaskBoardBundle 2.15.0 / AuthKitBundle 1.46.0:
@@ -173,11 +168,16 @@ and your Doctrine listeners still run. Adapted from TaskBoardBundle 2.15.0 / Aut
 - the source manager's SQL filters are mirrored, with their parameters, on every call;
 - repositories: service repositories come from your configuration's factory, every other one is built and kept per
   manager (`PrivateManagerRepositoryFactory`; no growth in a kept-alive worker);
-- your security user and other host objects on wiki rows, and saved wiki rows a legacy host port loaded through your
-  manager (a space from a 1.x directory), are adopted as the private manager's references before each flush; your
-  instances are never written. Users read back from wiki rows are the private manager's instances: compare users by
-  id, never with `===`. Load wiki rows you pass to the wiki services through the wiki (its repositories or the id
-  operations), not through your own manager;
+- your security user and other host objects on wiki rows, and saved wiki rows your manager loaded, are adopted as the
+  private manager's references before each flush, by the identifier your unit of work holds (an uninitialised proxy is
+  never loaded); your instances are never written. A host object without an identifier yet (persisted, not flushed) or
+  of another class than the association's target fails with a `LogicException` before anything is written (2.0, W1-2).
+  Users read back from wiki rows are the private manager's instances: compare users by id, never with `===`;
+- 2.0 (W1-2): a wiki row your manager loaded and handed to a wiki service (`WikiPageServiceInterface`,
+  `WikiPageLinkServiceInterface`, the trash, attachment, page mover and page icon services) is loaded again by its id in
+  the private manager (`WikiEntityManager::attach()`, `WikiTransactionRunner::attach()`), so it is never inserted a
+  second time; a row gone meanwhile answers the not-found exception. Persisting, refreshing or locking such a row through
+  the private manager fails with a `LogicException` naming the class, never a duplicate `INSERT`;
 - the wiki's bulk statements inside your open transaction run in a savepoint (`WikiSavepoint`); a failure rolls back to
   it and the ORIGINAL exception is rethrown. A rollback of a wiki savepoint that fails (the server already ended your
   transaction) is logged, never thrown over the original failure.
@@ -201,9 +201,10 @@ those whose id is `===` the person's, and writes or deletes them by primary key,
 ## Both host kinds, tested
 
 - **Standard host**: the whole unit, integration, database and API suite (attribute mapping, the `TestUserEntity`
-  Doctrine user, the deprecated ports, the application's manager), plus its replays, each a CI job: every API host port
-  through its twin only (`WIKI_TEST_PORTS=twin`, job `twin-ports`) and the private entity manager on
-  (`WIKI_TEST_PRIVATE_EM=1`, job `private-entity-manager`, SQLite and MySQL).
+  Doctrine user, the private entity manager), plus its replay with every API host port through its twin only
+  (`WIKI_TEST_PORTS=twin`, job `twin-ports`). The removed 1.x interfaces are covered by `RemovedPortsKernelTest` (real
+  bundle build, autodiscovered fixtures) and `WikiPortsPassTest`; the W1-2 cases (host-loaded wiki rows, unsaved users,
+  pending host changes) by `WikiPrivateManagerHostEntitiesTest` on SQLite, MySQL 8.4, MariaDB 11.4 and PostgreSQL 16.
 - **DDD host**: `tests/Api/DddHost` (`DddHostKernel`: a plain-PHP security user with no mapping and no user table, the
   XML mapping, users stored by id with a directory, the private entity manager, the twin ports only, the id
   operations; a two-person kept-alive kernel run through `http_kernel->handle()` / `terminate()`), plus

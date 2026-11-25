@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Avatar\WikiAvatarKey;
-use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Avatar\WikiUserAvatarSourceInterface;
+use Nowo\WikiBundle\Port\Internal\WikiUserAvatarResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_key_exists;

@@ -11,11 +11,12 @@ use Nowo\WikiBundle\Api\Value\WikiApiUploadedFile;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
+use Nowo\WikiBundle\Port\Internal\WikiApiFilesInterface;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 
 /**
- * The REST API's host files, framework-free (1.36.0): the twin of the deprecated {@see WikiApiFilesInterface}
- * (`nowo_wiki.api.hooks.files` takes either).
+ * The REST API's host files, framework-free (1.36.0): since 2.0 the only host port; it replaced the removed 1.x `WikiApiFilesInterface`
+ * (`nowo_wiki.api.hooks.files` names your service).
  */
 interface WikiApiFileStoreInterface
 {

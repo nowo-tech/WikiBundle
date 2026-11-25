@@ -8,7 +8,6 @@ use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
-use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
 use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
@@ -41,12 +40,12 @@ final class ApiSamePersonAcrossClassesTest extends ApiTestCase
     }
 
     /**
-     * Audit OX-D1-L1: the firewall loads a security adapter class that is not in `accepted_user_classes`, the API
-     * authenticator returns the `user_class` user with the same id. 1.x lets the request through with a deprecation
-     * notice (refused in 2.0), and ownership stays the guard's, on the token's user alone: an Admin#u-ana token behind
-     * the same adapter still cannot archive Ana's page.
+     * Audit OX-D1-L1, 2.0: the firewall loads a security adapter class that is not in `accepted_user_classes`, the API
+     * authenticator returns a user of another class with the same id. 1.x let the request through with a notice ("this
+     * will be refused in 2.0"); 2.0 refuses it as a configuration error (500): a look-alike id in another user class is
+     * another person. Nothing is written.
      */
-    public function testASecurityAdapterIsLetThroughWithAWarningButNeverDecidesOwnership(): void
+    public function testASecurityAdapterSharingOnlyTheIdIsRefused(): void
     {
         $page                                 = $this->page($this->eng, 'Guide', 'first');
         ApiTestHost::$tokens['adapted']       = ['user' => 'u-ana', 'level' => WikiApiLevel::Edit, 'where' => WikiApiWhere::everything(), 'adapter' => true];
@@ -56,12 +55,10 @@ final class ApiSamePersonAcrossClassesTest extends ApiTestCase
         self::assertInstanceOf(RecordingLogger::class, $logger);
         $logger->records = [];
 
-        $this->assertRefusal($this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/archive', 'admin'), 403, 'TOKEN_001');
-        self::assertNull($this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'admin'))['created_by']['id']);
-        self::assertContains('notice: Wiki API: the firewall user (' . WikiSecurityUserDto::class . ') and the token\'s user (' . WikiForeignAdminUser::class . ') are matched by their id only: add ' . WikiSecurityUserDto::class . ', ' . WikiForeignAdminUser::class . ' to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $logger->lines());
-
-        self::assertSame('api-u-ana', $this->json($this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'adapted'))['created_by']['id']);
-        self::assertTrue($this->json($this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/archive', 'adapted'))['archived']);
-        self::assertContains('notice: Wiki API: the firewall user (' . WikiSecurityUserDto::class . ') and the token\'s user (' . TestUserEntity::class . ') are matched by their id only: add ' . WikiSecurityUserDto::class . ' to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $logger->lines());
+        self::assertSame(500, $this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/archive', 'admin')->getStatusCode());
+        self::assertContains('error: Wiki API: configuration error: the firewall user (' . WikiSecurityUserDto::class . ') and the token\'s user (' . WikiForeignAdminUser::class . ') share only their id; 2.0 refuses this: add ' . WikiSecurityUserDto::class . ', ' . WikiForeignAdminUser::class . ' to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user.', $logger->lines());
+        self::assertSame(500, $this->call('POST', '/wikis/eng/pages/' . $page->getId() . '/archive', 'adapted')->getStatusCode());
+        self::assertSame(500, $this->call('GET', '/wikis/eng/pages/' . $page->getId(), 'adapted')->getStatusCode());
+        self::assertNull($this->em()->getConnection()->fetchOne('SELECT archived_at FROM wiki_pages WHERE id = ?', [$page->getId()]), 'nothing was written');
     }
 }

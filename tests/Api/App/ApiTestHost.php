@@ -6,9 +6,6 @@ namespace Nowo\WikiBundle\Tests\Api\App;
 
 use Closure;
 use Doctrine\Persistence\ManagerRegistry;
-use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiUsersInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiWikiManagementInterface;
@@ -27,7 +24,11 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiAuthenticatorInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Stub\WikiForeignAdminUser;
 use Nowo\WikiBundle\Tests\Stub\WikiSecurityUserDto;
@@ -112,7 +113,7 @@ final class ApiTestHost implements WikiApiAuthenticatorInterface, WikiApiDirecto
         $user = isset($token['foreign']) ? new WikiForeignAdminUser($token['user'], 'foreign-' . $token['user']) : $this->doctrine->getManager()->find(TestUserEntity::class, $token['user']);
 
         return $user instanceof TestUserEntity || $user instanceof WikiForeignAdminUser
-            ? new WikiApiPrincipal($user, $token['level'], $token['where'], 'tok-' . $token['user'], $token['name'] ?? 'test token')
+            ? WikiApiPrincipal::of(WikiUserRefs::fromUser($user), $token['level'], $token['where'], 'tok-' . $token['user'], $token['name'] ?? 'test token')
             : WikiApiAuthFailure::Invalid;
     }
 

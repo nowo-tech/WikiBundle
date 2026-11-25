@@ -21,7 +21,7 @@
   - The confirm dialog of Archive / Delete is a bare confirm: no form, its sentence is written in when it opens.
   Variables: tree_menu ({icon_src: URL|null, move_src: URL|null (1.53), dialog: bool, items: {edit, rename, icon,
   create, move, archive, delete}}), bundle, nowo_ui_page_type. Without `items` (a host's 1.39 / 1.40 variables) the
-  1.40 entries. Deprecated since 1.53: icon_form / move_form (FormView) render the forms inline, as in 1.39–1.52.
+  1.40 entries. 2.0: icon_form / move_form (FormView, the inline forms of 1.39–1.52) are no longer rendered.
 #}
 {% trans_default_domain 'NowoWikiBundle' %}
 <div class="nowo-wiki-tree-menu" id="nowo-wiki-tree-menu" role="menu" aria-label="{{ 'wiki.tree_menu.menu'|trans }}" hidden data-wiki-tree-menu data-testid="wiki-tree-menu"
@@ -29,9 +29,9 @@
      data-denied="{{ 'wiki.tree_menu.error.denied'|trans }}" data-archive-confirm="{{ 'wiki.tree_menu.archive_confirm'|trans }}">
     {% set _can = tree_menu.items|default({rename: true, create: true}) %}
     {% set _groups = [
-        [['open', true], ['edit', _can.edit|default(false)], ['rename', _can.rename|default(false)], ['icon', tree_menu.icon_form|default(null) is not null or tree_menu.icon_src|default(null) is not null]],
+        [['open', true], ['edit', _can.edit|default(false)], ['rename', _can.rename|default(false)], ['icon', tree_menu.icon_src|default(null) is not null]],
         [['child', _can.create|default(false)], ['above', _can.create|default(false) and (tree_menu.items is defined or tree_menu.dialog|default(false))], ['below', _can.create|default(false)], ['duplicate', _can.create|default(false) and tree_menu.items is defined]],
-        [['up', _can.move|default(false)], ['down', _can.move|default(false)], ['moveto', _can.move|default(false) and (tree_menu.move_form|default(null) is not null or tree_menu.move_src|default(null) is not null)]],
+        [['up', _can.move|default(false)], ['down', _can.move|default(false)], ['moveto', _can.move|default(false) and tree_menu.move_src|default(null) is not null]],
         [['copy', true]],
         [['archive', _can.archive|default(false)], ['delete', _can.delete|default(false)]],
     ] %}
@@ -48,7 +48,7 @@
     {% endfor %}
 </div>
 <p class="nowo-wiki-sr-only" role="status" aria-live="polite" data-wiki-tree-menu-status data-testid="wiki-tree-menu-status"></p>
-{% if tree_menu.icon_src|default(null) and not tree_menu.icon_form|default(null) %}
+{% if tree_menu.icon_src|default(null) %}
     {% set _footer %}
         <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
         <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="nowo-wiki-tree-icon-form" data-testid="wiki-tree-icon-save">{{ 'wiki.tree_menu.icon_save'|trans }}</button>
@@ -68,37 +68,6 @@
         bundle: bundle,
         nowo_ui_page_type: nowo_ui_page_type|default(null),
         attr: {'data-testid': 'wiki-tree-icon-dialog', 'data-wiki-tree-icon-dialog': true, 'data-wiki-tree-icon-src': tree_menu.icon_src},
-    }, false) }}
-{% elseif tree_menu.icon_form|default(null) %}
-    {% set _form = tree_menu.icon_form %}
-    {% set _footer %}
-        <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
-        <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="nowo-wiki-tree-icon-form" data-testid="wiki-tree-icon-save">{{ 'wiki.tree_menu.icon_save'|trans }}</button>
-    {% endset %}
-    {% set _body %}
-        <p class="{{ nowo_ui_class('muted', bundle) }}" data-wiki-tree-icon-context data-template="{{ 'wiki.tree_menu.icon_context'|trans }}"></p>
-        <template data-wiki-tree-icon-template>
-            {{ form_start(_form, {attr: {id: 'nowo-wiki-tree-icon-form', class: nowo_ui_class('form', bundle), 'data-testid': 'wiki-tree-icon-form', novalidate: 'novalidate'}}) }}
-                {% for child in _form %}
-                    {% if not child.rendered %}
-                        {{ form_row(child) }}
-                    {% endif %}
-                {% endfor %}
-            {{ form_end(_form) }}
-        </template>
-        <div data-wiki-tree-icon-slot></div>
-        <p class="nowo-wiki-tree-icon__error" role="alert" hidden data-wiki-tree-icon-error data-testid="wiki-tree-icon-error"></p>
-    {% endset %}
-    {{ include(nowo_ui_partial('dialog', bundle), {
-        id: 'nowo-wiki-tree-icon-dialog',
-        title: 'wiki.tree_menu.icon_title'|trans,
-        size: 'medium',
-        body: _body,
-        footer: _footer,
-        backdrop_close: false,
-        bundle: bundle,
-        nowo_ui_page_type: nowo_ui_page_type|default(null),
-        attr: {'data-testid': 'wiki-tree-icon-dialog', 'data-wiki-tree-icon-dialog': true},
     }, false) }}
 {% endif %}
 {% if (tree_menu.items.archive|default(false)) or (tree_menu.items.delete|default(false)) %}
@@ -128,7 +97,7 @@
         <button type="button" class="{{ nowo_ui_class('btn_link', bundle) }}" data-wiki-tree-undo-button data-testid="wiki-tree-undo-button">{{ 'wiki.tree_menu.unarchive'|trans }}</button>
     </div>
 {% endif %}
-{% if tree_menu.move_src|default(null) and not tree_menu.move_form|default(null) %}
+{% if tree_menu.move_src|default(null) %}
     {% set _footer %}
         <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
         <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="nowo-wiki-tree-move-form" data-testid="wiki-tree-move-save">{{ 'wiki.tree.move'|trans }}</button>
@@ -148,33 +117,5 @@
         bundle: bundle,
         nowo_ui_page_type: nowo_ui_page_type|default(null),
         attr: {'data-testid': 'wiki-tree-move-dialog', 'data-wiki-tree-move-dialog': true, 'data-wiki-tree-move-src': tree_menu.move_src},
-    }, false) }}
-{% elseif tree_menu.move_form|default(null) %}
-    {% set _form = tree_menu.move_form %}
-    {% set _footer %}
-        <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans }}</button>
-        <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="nowo-wiki-tree-move-form" data-testid="wiki-tree-move-save">{{ 'wiki.tree.move'|trans }}</button>
-    {% endset %}
-    {% set _body %}
-        <p class="{{ nowo_ui_class('muted', bundle) }}" data-wiki-tree-move-context data-template="{{ 'wiki.tree_menu.icon_context'|trans }}" data-root="{{ 'wiki.tree.move_root'|trans }}"></p>
-        {{ form_start(_form, {attr: {id: 'nowo-wiki-tree-move-form', class: nowo_ui_class('form', bundle), 'data-testid': 'wiki-tree-move-form', novalidate: 'novalidate'}}) }}
-            {% for child in _form %}
-                {% if not child.rendered %}
-                    {{ form_row(child) }}
-                {% endif %}
-            {% endfor %}
-        {{ form_end(_form) }}
-        <p class="nowo-wiki-tree-icon__error" role="alert" hidden data-wiki-tree-move-error data-testid="wiki-tree-move-error"></p>
-    {% endset %}
-    {{ include(nowo_ui_partial('dialog', bundle), {
-        id: 'nowo-wiki-tree-move-dialog',
-        title: 'wiki.tree_menu.moveto_title'|trans,
-        size: 'medium',
-        body: _body,
-        footer: _footer,
-        backdrop_close: false,
-        bundle: bundle,
-        nowo_ui_page_type: nowo_ui_page_type|default(null),
-        attr: {'data-testid': 'wiki-tree-move-dialog', 'data-wiki-tree-move-dialog': true},
     }, false) }}
 {% endif %}

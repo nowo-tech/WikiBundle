@@ -636,23 +636,18 @@ final class PageContractTest extends PageContractTestCase
     {
         $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/index.html.twig', PageFixtures::index()))->html;
 
+        // 1.53: an empty on-demand dialog that loads the ask page; 2.0: the 1.18 inline form (ai_form) is gone.
         self::assertMatchesRegularExpression('#<dialog id="nowo-wiki-ai-dialog"[^>]*data-nowo-ui-dialog#', $html);
         self::assertStringContainsString('data-nowo-ui-dialog-open="nowo-wiki-ai-dialog"', $html);
-        self::assertStringContainsString('form="nowo-wiki-ai-dialog-form"', $html);
-        self::assertStringContainsString('autofocus', $html);
+        self::assertStringNotContainsString('form="nowo-wiki-ai-dialog-form"', $html);
         self::assertStringNotContainsString('data-bs-toggle', $html);
-
-        // 1.18 (UiKit 2.29 dialog sizes): the medium size (no size modifier), the form in the scrolling body, the footer
-        // outside it with Cancel then the one primary (last), bound to the form by form="…".
-        self::assertMatchesRegularExpression('#<dialog id="nowo-wiki-ai-dialog" class="nowo-ui-dialog(?: pc-dialog)?"[ >]#', $html);
         self::assertDoesNotMatchRegularExpression('#nowo-ui-dialog--(?:sm|lg|xl|wide)#', $html);
-        self::assertSame(1, preg_match('#<dialog id="nowo-wiki-ai-dialog".*?</dialog>#s', $html, $dialog));
-        self::assertSame(1, preg_match('#<div class="[^"]*nowo-ui-dialog__body[^"]*"[^>]*>(.*?)</div>\s*<footer class="[^"]*nowo-ui-dialog__footer[^"]*"[^>]*>(.*?)</footer>\s*</dialog>#s', $dialog[0], $parts));
-        self::assertStringContainsString('id="nowo-wiki-ai-dialog-form"', $parts[1]);
-        self::assertStringNotContainsString('<button', $parts[1]);
-        self::assertSame(2, substr_count($parts[2], '<button'));
-        self::assertSame(1, substr_count($parts[2], 'nowo-ui-btn--primary'));
-        self::assertMatchesRegularExpression('#data-nowo-ui-dialog-close>Cancel</button>\s*<button type="submit" class="[^"]*nowo-ui-btn--primary[^"]*" form="nowo-wiki-ai-dialog-form"[^>]*>[^<]+</button>\s*$#', $parts[2]);
+
+        // A host that still passes the 1.18 ai_form gets the same empty dialog, never the inline form.
+        $legacy            = PageFixtures::index();
+        $legacy['ai_form'] = PageFixtures::aiForm(['autofocus' => true]);
+        $html              = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/index.html.twig', $legacy))->html;
+        self::assertStringNotContainsString('form="nowo-wiki-ai-dialog-form"', $html);
     }
 
     public function testThePageTabsCarryTheirIconsForTheHostTabStyle(): void
@@ -887,31 +882,22 @@ final class PageContractTest extends PageContractTestCase
         self::assertStringNotContainsString('nowo-wiki-import-export-dialog', $default);
         self::assertStringContainsString('data-testid="wiki-import"', $default);
 
-        $factory                 = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), null, WikiPageFactory::TAB_ICONS, true);
-        $context                 = ['nowo_wiki_web_ui' => ['import_export' => 'dialog']] + PageFixtures::spaceHome(true, $factory);
-        $context['export_links'] = $factory->exportLinks(PageFixtures::space('engineering', 'Engineering'), ['export' => true]);
+        $factory                      = new WikiPageFactory(PageFixtures::urlGenerator(), PageFixtures::routes(), new WikiPages(), null, WikiPageFactory::TAB_ICONS, true);
+        $context                      = ['nowo_wiki_web_ui' => ['import_export' => 'dialog']] + PageFixtures::spaceHome(true, $factory);
+        $context['import_form']       = null;
+        $context['import_export_src'] = '/nowo_wiki_space_import';
 
+        // 1.53: the empty on-demand dialog; its page holds the form.
         $html = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', $context))->html;
-        self::assertStringContainsString('data-nowo-ui-dialog-open="nowo-wiki-import-export-dialog"', $html);
-        self::assertStringNotContainsString('data-testid="wiki-import"', $html);
         self::assertSame(1, preg_match('#<dialog id="nowo-wiki-import-export-dialog".*?</dialog>#s', $html, $dialog));
-        self::assertStringContainsString('data-testid="wiki-export-outline"', $dialog[0]);
-        self::assertStringContainsString('data-testid="wiki-export-notion"', $dialog[0]);
-        self::assertStringContainsString('id="nowo-wiki-import-export-form"', $dialog[0]);
-        self::assertStringContainsString('form="nowo-wiki-import-export-form"', $dialog[0]);
-        // No export action left in the header beside the dialog.
-        self::assertSame(1, substr_count($html, 'data-testid="wiki-export-outline"'));
+        self::assertStringNotContainsString('id="nowo-wiki-import-export-form"', $dialog[0]);
 
-        // Read only: neither the action nor the dialog.
-        $readOnly = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', ['nowo_wiki_web_ui' => ['import_export' => 'dialog']] + PageFixtures::spaceHome(false, $factory)))->html;
-        self::assertStringNotContainsString('nowo-wiki-import-export-dialog', $readOnly);
-
-        // Export only: the links, Cancel, no submit.
-        $context['import_form'] = null;
-        $export                 = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', $context))->html;
-        self::assertSame(1, preg_match('#<dialog id="nowo-wiki-import-export-dialog".*?</dialog>#s', $export, $dialog));
-        self::assertStringContainsString('data-testid="wiki-export-outline"', $dialog[0]);
-        self::assertStringNotContainsString('wiki-import-submit', $dialog[0]);
+        // 2.0: without import_export_src (the 1.21 variables only) nothing is drawn inline.
+        $legacy                 = ['nowo_wiki_web_ui' => ['import_export' => 'dialog']] + PageFixtures::spaceHome(true, $factory);
+        $legacy['export_links'] = $factory->exportLinks(PageFixtures::space('engineering', 'Engineering'), ['export' => true]);
+        $html                   = $this->renderPage(new PageFixture('@NowoWikiBundle/manage/space.html.twig', $legacy))->html;
+        self::assertStringNotContainsString('<dialog id="nowo-wiki-import-export-dialog"', $html);
+        self::assertStringNotContainsString('id="nowo-wiki-import-export-form"', $html);
     }
 
     /** 1.21 comments.error_notices / comments.moderation_panel: nothing unless on; the labels are attribute-escaped. */

@@ -228,11 +228,11 @@ final class WikiPortValuesTest extends TestCase
         $ref       = WikiUserRef::ofId(TestUserEntity::class, '5', 'alice');
         $principal = WikiApiPrincipal::of($ref, WikiApiLevel::Edit, WikiApiWhere::everything(), 'tok', 'name', 'mcp');
 
-        self::assertInstanceOf(WikiRefUser::class, $principal->user);
+        self::assertInstanceOf(WikiRefUser::class, $principal->userRef()->user() ?? WikiUserRefs::securityUser($principal->userRef()));
         self::assertSame($ref, $principal->userRef());
         self::assertSame('mcp', $principal->channel);
         $security = new TestUser('u-1', 'bob');
-        self::assertSame($security, WikiApiPrincipal::of(WikiUserRefs::fromUser($security), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n')->user);
-        self::assertSame('bob', (new WikiApiPrincipal($security, WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n'))->userRef()->identifier);
+        self::assertSame($security, WikiApiPrincipal::of(WikiUserRefs::fromUser($security), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n')->userRef()->user());
+        self::assertSame('bob', WikiApiPrincipal::of(WikiUserRefs::fromUser($security), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n')->userRef()->identifier);
     }
 }

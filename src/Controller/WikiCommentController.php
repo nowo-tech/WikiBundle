@@ -9,7 +9,7 @@ use Nowo\WikiBundle\Comment\WikiCommentException;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
-use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiPanelStateStoreInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;

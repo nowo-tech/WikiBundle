@@ -101,14 +101,14 @@ illustrative; the UiKit contract is the reference.
 
 ## 3. Open / closed state per user
 
-- Remembered **per user** (not per page) like the tree's fold state: `WikiPanelStateStoreInterface` with
+- Remembered **per user** (not per page) like the tree's fold state: `WikiPanelStatesInterface` (2.0; `WikiPanelStateStoreInterface` up to 1.x) with
   `isOpen(UserInterface, string $panel): bool` / `setOpen(…)`; default store = the session; `comments.state_store`
   names a host service (Beacon: its user preferences store).
 - The server renders the panel in the remembered state (no flash of the wrong state). The JS posts changes to
   `POST …/spaces/{spaceSlug}/panel-state` (same-origin JSON, CSRF per space, body `{ "panel": "comments", "open":
   bool }`, 204), the same pattern as the 1.14 tree state endpoint.
 - `?comments=1` / `?comments=0` overrides the stored state for that request (deep links from notifications open it).
-- **v1 store: the session** (B-Q4). `WikiPanelStateStoreInterface` is a stable public contract: Beacon will plug a
+- **v1 store: the session** (B-Q4). `WikiPanelStatesInterface` is a stable public contract: Beacon will plug a
   database store in later through `comments.state_store`.
 
 ## 4. Rights (checker actions)
@@ -195,7 +195,7 @@ never in the event, only ids and the per-viewer rendered text on demand.
   markup (`.uic-work/uikit-2.25/CONTRACT.md`) before that PR; the interim WikiBundle partial uses the same classes.
 - **B-Q3 rights:** `ViewComments` is separate in the bundle; Beacon maps ViewComments → View, Comment → Edit,
   ResolveComment and ModerateComments → manage.
-- **B-Q4 state:** the session in v1; `WikiPanelStateStoreInterface` stays stable for a later DB store.
+- **B-Q4 state:** the session in v1; `WikiPanelStatesInterface` stays stable for a later DB store.
 - **B-Q5 toggle:** icon button `tabler:message-circle`, visible count badge also in the accessible name; no default
   shortcut, configurable; opening from a highlight scrolls to the thread and focuses its first control; others' new
   comments update the badge live, announced only when the panel is open.
@@ -208,7 +208,7 @@ never in the event, only ids and the per-viewer rendered text on demand.
 ## Addendum (2026-11-04): avatars in 1.16
 
 Avatar contract v1.1 (`.uic-work/avatars/CONTRACT.md` §8–§12) is approved by Beacon. WikiBundle 1.16.0 adds
-`WikiUserAvatarResolverInterface` (keyed by `WikiAvatarKey`, size 32; a Null default by alias). It covers the author in the
+`WikiUserAvatarSourceInterface` (keyed by `WikiAvatarKey`, size 32; a Null default by alias). It covers the author in the
 page table and history, plus comment `author` / `resolvedBy.avatarUrl`, rendered through UiKit `_avatar` (UiKit ^2.26).
 **Privacy:** where the name is hidden (`history.show_names` / `collab.show_names` false, or the name fails
 `isSafeName()`), there is no avatar and **no resolution**. Add tests asserting the resolver is never called in those

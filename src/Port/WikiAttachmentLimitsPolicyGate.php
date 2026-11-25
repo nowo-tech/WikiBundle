@@ -6,8 +6,8 @@ namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimits;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsPolicyInterface;
-use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiAttachmentLimitsProviderInterface;
 
 /**
  * Asks a framework-free {@see WikiAttachmentLimitsPolicyInterface} (1.36.0) with the space's snapshot.

@@ -6,11 +6,11 @@ namespace Nowo\WikiBundle\Tests\Unit\DependencyInjection\Compiler;
 
 use LogicException;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiApiSafetyPass;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRepository;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Security\AllowAllWikiAccessChecker;
 use Nowo\WikiBundle\Security\ConfigurableWikiAccessChecker;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Tests\Support\ConcurrentlyEditedPageRepository;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;

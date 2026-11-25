@@ -89,8 +89,8 @@ final class HostManagerEntitiesTest extends ApiTestCase
         try {
             $this->pages()->create($draft, 'Lost', 'body', $this->ana);
             self::fail('a space the wiki cannot read is refused');
-        } catch (LogicException $exception) {
-            self::assertStringContainsString('is not stored yet', $exception->getMessage());
+        } catch (WikiSpaceNotFoundException) {
+            // 2.0 (W1-2): a space your manager holds that the wiki cannot load is a missing space.
         }
         self::assertSame(0, $this->rows('SELECT COUNT(*) FROM wiki_pages', []));
         self::assertTrue($this->em()->getUnitOfWork()->isScheduledForInsert($draft), 'the application\'s pending work is left alone');

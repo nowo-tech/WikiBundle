@@ -112,8 +112,8 @@ final readonly class WikiPageIconService
      */
     public function setIcon(WikiPage $page, ?string $icon): bool
     {
-        // 1.55.2: a page of another manager (the host's, with the private manager) is read again by id first.
-        $page  = $this->managed?->page($page) ?? $page;
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page  = $this->runner?->attach($page) ?? $page;
         $icon  = $this->normalize($icon);
         $apply = function () use ($page, $icon): bool {
             if ($page->isArchived()) {
@@ -122,7 +122,7 @@ final readonly class WikiPageIconService
             if ($page->getIcon() === $icon) {
                 return false;
             }
-            // @igor-ignore - $page is a request-scoped wiki entity (1.55.2: the wiki manager's instance from WikiManagedEntities), not a shared service.
+            // @igor-ignore - a wiki row of this call (loaded by the private manager), never a shared service.
             $page->setIcon($icon, $this->allowedPrefixes);
             $this->pages->save($page);
 

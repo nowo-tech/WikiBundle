@@ -11,6 +11,7 @@ use Nowo\WikiBundle\DependencyInjection\Compiler\TwigPathsPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiApiSafetyPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiMappingManagerPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiPortsPass;
+use Nowo\WikiBundle\DependencyInjection\Compiler\WikiRemovedPortsPass;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiSearchKitPass;
 use Nowo\WikiBundle\DependencyInjection\WikiExtension;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
@@ -38,8 +39,13 @@ final class WikiBundle extends Bundle
         $container->addCompilerPass(new WikiApiSafetyPass());
         // 1.36.0: the wiki entities only on database.entity_manager (DoctrineBundle 3.4 auto_discover_entities).
         $container->addCompilerPass(new WikiMappingManagerPass());
-        // 1.36: framework-free twins of the host ports (REQ-ARCH-001).
+        // 1.36: framework-free twins of the host ports (REQ-ARCH-001); 2.0: the only host ports.
         $container->addCompilerPass(new WikiPortsPass());
+        // 2.0: the removed 1.x host port interfaces fail the build (before optimization drops what uses them).
+        $container->addCompilerPass(new WikiRemovedPortsPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, WikiRemovedPortsPass::PRIORITY);
+        // Again after Symfony applied #[AsDecorator] (priority 100): a loadable decorator of a removed id, also with
+        // onInvalid: IGNORE, which DecoratorServicePass would drop silently (lesson XR2-I1).
+        $container->addCompilerPass(new WikiRemovedPortsPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, WikiRemovedPortsPass::DECORATORS_PRIORITY);
         // 1.36.0: the private entity manager's rollback middleware on the source manager's connection only (before
         // DoctrineBundle's MiddlewaresPass).
         $container->addCompilerPass(new PrivateEntityManagerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 10);

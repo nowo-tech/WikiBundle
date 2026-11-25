@@ -218,10 +218,6 @@ final class WikiStorageFailureSubscriberTest extends TestCase
         self::assertFalse(WikiApiRequestListener::wroteAnyway($retry->getRequest()));
         self::assertSame('7', $retry->getResponse()?->headers->get('Retry-After'));
         self::assertSame('CONFLICT_001', $retry->getResponse()?->headers->get('X-Conflict-Code'));
-
-        // The deprecated helper still reads the failure alone.
-        self::assertTrue(WikiStorageFailureSubscriber::committed(new RuntimeException('wrapped', 0, $conflict)));
-        self::assertFalse(WikiStorageFailureSubscriber::committed($open));
     }
 
     /**

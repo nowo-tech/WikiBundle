@@ -59,17 +59,17 @@ The build refuses `api.enabled` in three cases:
 
 ## What a host provides
 
-The bundle stores no tokens. Each hook is an interface in `Nowo\WikiBundle\Api\Hook`.
+The bundle stores no tokens. Each hook is an interface in `Nowo\WikiBundle\Api\Hook` (2.0: the framework-free ports only; the 1.x `WikiApiAuthenticatorInterface`, `WikiApiDirectoryInterface`, `WikiApiPlanGateInterface` and `WikiApiFilesInterface` were removed).
 
 | `api.hooks.*` | Interface | Without it |
 |---|---|---|
-| `authenticator` | `WikiApiAuthenticatorInterface`: answers a `WikiApiPrincipal` (the user, the level, *where*, the token id and name), or `Invalid`, `ApiDisabled` or `NoWikiLevel` | The container does not build |
-| `directory` | `WikiApiDirectoryInterface`: lists and finds the wikis the token may see (a read never creates one) and provisions a wiki on its first write | The container does not build |
+| `authenticator` | `WikiApiRequestAuthenticatorInterface`: answers a `WikiApiPrincipal` (the user, the level, *where*, the token id and name), or `Invalid`, `ApiDisabled` or `NoWikiLevel` | The container does not build |
+| `directory` | `WikiApiWikiDirectoryInterface`: lists and finds the wikis the token may see (a read never creates one) and provisions a wiki on its first write | The container does not build |
 | `rate_limiter` | `WikiApiRateLimiterInterface`: one bucket per token, plus a failed-token limit per IP | Every request gets 429 |
-| `plan_gate` | `WikiApiPlanGateInterface` | 403 `PLAN_001` |
+| `plan_gate` | `WikiApiPlanPolicyInterface` | 403 `PLAN_001` |
 | `users` | `WikiApiUsersInterface`: the `id` shown for the token's own user | People have no `id` |
 | `wiki_management` | `WikiApiWikiManagementInterface`: the owner key of a new wiki, then create; rename, archive and unarchive wikis | 403 `WIKI_001` |
-| `files` | `WikiApiFilesInterface`: list, upload and download, with every check of the file | No files (403 `FILE_001`, empty lists) |
+| `files` | `WikiApiFileStoreInterface`: list, upload and download, with every check of the file | No files (403 `FILE_001`, empty lists) |
 | `idempotency_store` | `WikiApiIdempotencyStoreInterface` | The bundle's table |
 
 Every operation is a public service in `Nowo\WikiBundle\Api\Operation`: `WikiApiWikiOperations`,

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Support;
 
 use Nowo\WikiBundle\Avatar\WikiAvatarKey;
-use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiUserAvatarResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_map;
