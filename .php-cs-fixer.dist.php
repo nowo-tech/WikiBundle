@@ -3,18 +3,21 @@
 declare(strict_types=1);
 
 /**
- * PHP-CS-Fixer configuration (PSR-12 + Symfony canonical).
+ * PHP-CS-Fixer configuration (PER-CS + Symfony canonical, REQ-CS-009).
  * Standard for Nowo bundles. Run: make cs-check | make cs-fix
  */
 use PhpCsFixer\Config;
 use PhpCsFixer\Finder;
 use PhpCsFixer\Runner\Parallel\ParallelConfig;
+use Symfony\Component\Finder\SplFileInfo;
 
 return (new Config())
     ->setParallelConfig(new ParallelConfig(2))
     ->setRiskyAllowed(true)
     ->setRules([
-        '@PSR12' => true,
+        // REQ-CS-009: PER Coding Style (the maintained successor of PSR-12), Symfony on top, house overrides last.
+        '@PER-CS' => true,
+        '@PER-CS:risky' => true,
         '@Symfony' => true,
         '@Symfony:risky' => true,
         'declare_strict_types' => true,
@@ -99,4 +102,6 @@ return (new Config())
             ->exclude(['vendor', 'var', 'coverage', '.phpunit.cache'])
             // Symfony auto-generated DI reference dumps (no declare_strict_types).
             ->notPath('config/reference.php')
+            // REQ-CS-009: Flex and Symfony regenerate these demo files.
+            ->filter(static fn (SplFileInfo $file): bool => 1 !== preg_match('#/demo/[^/]+/config/(bundles|reference)\.php$#', str_replace('\\', '/', $file->getPathname())))
     );
