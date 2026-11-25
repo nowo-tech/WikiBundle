@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+- [To 1.55.2](#to-1552)
   - [Private entity manager: host-loaded spaces and pages (1.55.2)](#private-entity-manager-host-loaded-spaces-and-pages-1552)
 - [To 1.55.1](#to-1551)
   - [Erasure checks (1.55.1)](#erasure-checks-1551)
@@ -152,6 +153,14 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+## To 1.55.2
+
+From **1.55.1**:
+
+```bash
+composer update nowo-tech/wiki-bundle
+```
 
 ### Private entity manager: host-loaded spaces and pages (1.55.2)
 
