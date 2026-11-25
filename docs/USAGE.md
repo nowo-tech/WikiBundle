@@ -7,10 +7,6 @@
 - [Symfony AI](#symfony-ai)
 - [Search](#search)
 - [SearchKit provider (1.44)](#searchkit-provider-144)
-  - [Current tenant (1.46)](#current-tenant-146)
-  - [Several current tenants (1.47)](#several-current-tenants-147)
-  - [Host rules (1.46)](#host-rules-146)
-  - [Beacon: replacing WikiPageSearchProvider](#beacon-replacing-wikipagesearchprovider)
 - [Application integration](#application-integration)
 - [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
 - [Pagination and list limits (REQ-PERF-001)](#pagination-and-list-limits-req-perf-001)
@@ -19,14 +15,10 @@
 - [Read ports and page access by id (1.51)](#read-ports-and-page-access-by-id-151)
 - [Space icon (1.32)](#space-icon-132)
 - [Icon picker, emoji icons and the tree menu (1.39)](#icon-picker-emoji-icons-and-the-tree-menu-139)
-  - [Tree menu entries (1.41)](#tree-menu-entries-141)
-  - [Focus mode (1.41, UiKit >= 2.55)](#focus-mode-141-uikit--255)
 - [New page dialog and tree menu (1.35)](#new-page-dialog-and-tree-menu-135)
 - [Member badges and write provenance](#member-badges-and-write-provenance)
 - [Twig overrides (REQ-TWIG-001)](#twig-overrides-req-twig-001)
 - [Theming: classes, tokens and blocks (REQ-UI-003)](#theming-classes-tokens-and-blocks-req-ui-003)
-  - [Page layout (1.29)](#page-layout-129)
-  - [Theming the page card (1.43)](#theming-the-page-card-143)
 - [Demo smoke (REQ-TEST-011)](#demo-smoke-req-test-011)
 - [Translations (REQ-I18N-001)](#translations-req-i18n-001)
 - [Events](#events)
@@ -34,14 +26,8 @@
 - [Attachments (1.9)](#attachments-19)
 - [Markdown pages (1.11)](#markdown-pages-111)
 - [Milkdown editor (1.13)](#milkdown-editor-113)
-  - [Co-editing (1.13)](#co-editing-113)
-  - [Conversion report (1.13)](#conversion-report-113)
 - [Favourites, recents and backlinks (1.45)](#favourites-recents-and-backlinks-145)
-  - [Rendered diff (1.45)](#rendered-diff-145)
 - [Comments (1.16)](#comments-116)
-  - [Endpoints](#endpoints)
-  - [Notifications](#notifications)
-  - [Beacon](#beacon)
 - [Browser console](#browser-console)
 
 ## Manage UI routes (defaults)
@@ -322,8 +308,8 @@ messages if nothing else uses them) and point `tests/Functional/Search/TaskWikiS
 
 ## Application integration
 
-1. Implement `WikiAccessCheckerInterface` (or use role-based defaults).
-2. For team spaces, register `WikiTeamMembershipResolverInterface`.
+1. Implement `WikiAccessPolicyInterface` (or use role-based defaults).
+2. For team spaces, register `WikiTeamMembershipSourceInterface`.
 3. Set **`nowo_ui_kit.layouts.admin`** (once for every UiKit bundle) to your project layout or a one-file bridge that renders the UiKit canonical blocks — every wiki page extends a UiKit scaffold that extends it and stacks `wiki.css` with **`{{ parent() }}`** (REQ-UI-001 / REQ-UI-003). `nowo_wiki.web_ui.layout_template` overrides it for the wiki only. Do not fork wiki pages; see [TEMPLATES.md](TEMPLATES.md).
 4. Create the spaces per team with `WikiSpaceOperationsInterface::createSpaceFrom()` (1.55; or expose a create UI in
    your app that calls it): [Creating and erasing spaces by id](#creating-and-erasing-spaces-by-id-155).
@@ -340,7 +326,7 @@ to wiki pages by id, and the wiki refers to your objects by string ids.
 - Spaces are owned by `owner_scope_type` (`team` | `user`) and an `owner_scope_id` string — no relation to your
   team or user tables.
 - Link wiki pages to your objects with `WikiPageLinkService::link($page, $objectType, $objectId)`; the wiki only keeps
-  the strings and asks your `WikiObjectLinkResolverInterface` what the viewer may see.
+  the strings and asks your `WikiObjectLinkSourceInterface` what the viewer may see.
 - Call the ports `Service\WikiPageServiceInterface` / `Service\WikiSpaceServiceInterface` /
   `Link\WikiPageLinkServiceInterface` (public aliases of the services, 1.27) from an infrastructure adapter, not from
   domain code; replace them with doubles in your tests.
@@ -362,11 +348,11 @@ to wiki pages by id, and the wiki refers to your objects by string ids.
 
 | Concern | Interface | Config |
 |---|---|---|
-| Who may use the wiki | `Security\WikiAccessCheckerInterface` | `security.access_checker` |
-| Per-space / per-page rights | `Security\WikiSpaceAccessCheckerInterface` | service alias |
-| Team membership | `Security\WikiTeamMembershipResolverInterface` | `team_membership_resolver` |
-| Your objects shown on a page | `Link\WikiObjectLinkResolverInterface` | autoconfigured |
-| Avatars | `Avatar\WikiUserAvatarResolverInterface` | service alias |
+| Who may use the wiki | `Security\WikiAccessPolicyInterface` | `security.access_checker` |
+| Per-space / per-page rights | `Security\WikiSpaceAccessPolicyInterface` | service alias |
+| Team membership | `Security\WikiTeamMembershipSourceInterface` | `team_membership_resolver` |
+| Your objects shown on a page | `Link\WikiObjectLinkSourceInterface` | autoconfigured |
+| Avatars | `Avatar\WikiUserAvatarSourceInterface` | service alias |
 | Security user → stored user relation | `User\WikiUserReferenceResolverInterface` | service alias (1.27) |
 | File storage / scanning | `Attachment\WikiAttachmentStorageInterface`, `WikiAttachmentScannerInterface` | `attachments.storage`, `attachments.scanner` |
 | REST API | `Api\Hook\*Interface` (authenticator, directory, users, plan gate, ...) | `api.hooks.*` |
@@ -399,7 +385,6 @@ own messages in one listener:
             database:
                 mapping_type: xml               # the wiki entities from Resources/config/doctrine-xml
                 user_reference: id              # host users stored by id (no foreign key, no user table needed)
-                private_entity_manager: true    # wiki writes never flush, clear or close your manager
 
 - Implement the framework-free twins of the ports above (`WikiAccessPolicyInterface`, `WikiSpaceAccessPolicyInterface`,
   `WikiTeamMembershipSourceInterface`, `WikiObjectLinkSourceInterface`, ...): they take `ValueObject\WikiUserRef` and
@@ -430,11 +415,10 @@ own messages in one listener:
 - With the attribute mapping the bundle maps its entities in the default entity manager; with another
   `database.entity_manager`, add the `WikiBundle` mapping to that manager yourself or use `mapping_type: xml`, which
   maps it there.
-- In the shared entity manager mode, a managed entity of yours with a `ManyToOne(WikiPage)` to a page the trash purge
-  deletes keeps pointing at a detached page, and the next flush of that manager fails (the purge forgets the wiki's own
-  rows only). Store the page id instead of a relation, use `private_entity_manager: true`, or listen to
-  `nowo_wiki.trash.purged` (`WikiTrashEvent::$pageIds`, after the commit) and detach your rows that point at those pages
-  ([UPGRADING › Unreleased](UPGRADING.md#to-1402) has an example).
+- A `ManyToOne(WikiPage)` of yours is set with `getReference()` on your own manager (never with an instance the wiki
+  returned); after a trash purge it points at a page that no longer exists. Store the page id instead of a relation, or
+  listen to `nowo_wiki.trash.purged` (`WikiTrashEvent::$pageIds`, after the commit) and clear your rows that point at
+  those pages ([UPGRADING › To 1.40.2](UPGRADING.md#to-1402) has an example).
 
 ## Pagination and list limits (REQ-PERF-001)
 
@@ -453,11 +437,7 @@ Each list is one query (no N+1): spaces through `WikiSpaceRepositoryInterface::f
 
 `Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface` (public service) renames, archives, brings back and purges a
 space. Call it instead of writing the wiki's tables yourself: it keeps every wiki table consistent, runs on the wiki's
-own transaction runner. With `database.private_entity_manager: true` your entity manager is not involved at all. With
-the shared manager (the default) the runner flushes it at the end of each unit (your pending changes are written with
-the wiki's) and, as for every wiki write, a unit that fails after such a flush wrote your entities closes it until the
-next request (it is replaced at the boundary); otherwise only the wiki rows of the failed unit are forgotten. It never
-clears or resets your manager.
+own transaction runner, on the wiki's private entity manager: your entity manager is not involved at all.
 
 ```php
 use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
@@ -511,7 +491,7 @@ final class WikiAdminController extends AbstractController
 
 **Who may do it.** With an actor, the person must be able to open the space (otherwise
 `WikiSpaceNotFoundException`, exactly as for a space that does not exist: a space of another tenant cannot be told
-from a missing one) and hold `Manage` on it through your `WikiSpaceAccessCheckerInterface`; a listener of
+from a missing one) and hold `Manage` on it through your `WikiSpaceAccessPolicyInterface`; a listener of
 `WikiEvents::SPACE_ACCESS_CHECK` (`WikiSpaceAccessCheckEvent`: `action`, `space`, `actor`, `isDefaultGranted()`,
 `grant()`, `deny()`, a deny sticks) may narrow or widen that, for example to keep a default space from being archived.
 A refusal is `WikiSpaceAccessDeniedException`. A null actor is a trusted call that checks nothing (a console command,
@@ -538,7 +518,7 @@ not refused: `convertToMarkdown()`, archiving or bringing back a page, the page 
 attachment uploads and the icon services; check `WikiSpaceSnapshot::isArchived()` before calling them. Only the
 people who may manage the space can open it: for everyone else it disappears from lists, the tree, search, the link picker,
 favourites, recents and the host-object link lists (`findByHostObject(s)`). It is reversible. The rule wraps whatever space checker you configured
-(`WikiArchivedSpaceAccessChecker` decorates `WikiSpaceAccessCheckerInterface`). The REST API's wiki body reports
+(`WikiArchivedSpaceAccessChecker` decorates the bundle-side space checker). The REST API's wiki body reports
 `archived: true` for it as well.
 
 **Purge.** Irreversible. It deletes the pages with their revisions, named versions, comments and reactions, attachment
@@ -592,8 +572,8 @@ has no endpoint.
 ## Creating and erasing spaces by id (1.55)
 
 Three operations let an application keep no wiki entity at all — create a space, erase it, and read the comments of a
-page — so it can turn on `database.private_entity_manager: true`. Every write goes through the wiki's own transaction
-runner and connection, with the private manager or with the shared one (the 1.x default). Your rows that pointed at a
+page. Every write goes through the wiki's own transaction runner and connection, on its private entity manager (the
+only mode since 2.0). Your rows that pointed at a
 `WikiSpace` (grants, shares, a profile) keep a plain id column instead of a relation.
 
 **Create a space** — `Service\WikiSpaceOperationsInterface::createSpaceFrom(WikiNewSpace $space): string` returns the
@@ -846,7 +826,7 @@ searched); pass the spaces your rules let the person search.
 
 **Who may read a page, by id.** `WikiPageAccessInterface` is the id twin of `WikiSpaceGuard::isPageReadable()`: `View`
 on the page and every ancestor through the same space checker (your `WikiSpaceAccessPolicyInterface` or
-`WikiSpaceAccessCheckerInterface`, with the 1.50 archived-space rule), a parent cycle reading as hidden. The decisions
+the space access policy, with the 1.50 archived-space rule), a parent cycle reading as hidden. The decisions
 are the guard's. When you hold the security user, put it in the reference, so a policy that needs the user object
 decides as on the wiki's own pages; a person given only by ids (`WikiUserRef::ofId()`) is asked as the bundle's stand-in
 user, as the id operations do, and a policy that needs your user object then refuses (fail closed: nothing readable).
@@ -1230,7 +1210,6 @@ Paths are relative to `src/Resources/views` (`@NowoWikiBundle/<subpath>`):
 | `manage/_page_tree.html.twig` | One level of the tree (`<ul class="nowo-wiki-tree">`) |
 | `manage/_page_tree_item.html.twig` | One page of the tree: link, depth class, `aria-current`, its children |
 | `manage/_ai_dialog.html.twig` | AI question `<dialog>` of the index (1.53: empty UiKit `remote_form_dialog`, loads `ai_ask` → `manage/_ai_ask_form.html.twig`) |
-| `manage/_legacy_layout.html.twig` | Deprecated bridge around a pre-1.10 layout (removed in 2.0) |
 | `manage/_member_label_suffix.html.twig` | Host badges after a member's name (history authors, comment authors); block `member_label_suffix` |
 
 Page header, pagination, flashes, empty states, confirm dialogs and row actions are UiKit partials: re-skin them in UiKit (`templates/bundles/NowoUiKitBundle/…` or `nowo_ui_kit.theme.partials`), once for every bundle.
@@ -1629,12 +1608,12 @@ Dispatched after the change is flushed, except `nowo_wiki.quota.check` and the r
 ## Links to host objects (1.9)
 
 ```php
-final class IssueLinkResolver implements WikiObjectLinkResolverInterface   // autoconfigured
+final class IssueLinkResolver implements WikiObjectLinkSourceInterface   // autoconfigured
 {
     public function supports(string $objectType): bool { return $objectType === 'issue'; }
 
-    // One query for every id; leave out what the viewer may not open.
-    public function resolveVisible(UserInterface $user, string $objectType, array $objectIds): array
+    // One query for every id; leave out what the viewer may not open ($user->id is the viewer's id).
+    public function resolveVisible(WikiUserRef $user, string $objectType, array $objectIds): array
     {
         $objects = [];
         foreach ($this->issues->findVisible($user, $objectIds) as $issue) {
@@ -1974,17 +1953,17 @@ What a host such as symfony-beacon configures:
    pages); `editor.type:
    milkdown` with `nowo-tech/milkdown-editor-bundle` ^1.6 and `nowo-tech/ui-kit-bundle` ^2.26.
 2. The migration of the three comment tables and of `content_text`, then `wiki:search:backfill-text` once.
-3. Its `WikiSpaceAccessCheckerInterface` maps `ViewComments` → `project.wiki.view` / `wiki.view`, `Comment` → edit,
+3. Its `WikiSpaceAccessPolicyInterface` maps `ViewComments` → `project.wiki.view` / `wiki.view`, `Comment` → edit,
    `ResolveComment` and `ModerateComments` → manage (B-Q3).
 4. The two routes (`page_comments`, `space_panel_state`) behind the wiki firewall; tenant paths get them automatically.
 5. 1.21: `comments.moderation_panel: true` and `comments.error_notices: true` replace a forked panel body and Stimulus
    controller.
-5. Optional: `comments.state_store` → its user-preferences store (`WikiPanelStateStoreInterface`), `comments.shortcut`.
+5. Optional: `comments.state_store` → its user-preferences store (`WikiPanelStatesInterface`), `comments.shortcut`.
    Keep `comments.read_view_source: false` (the default) while `ViewComments` maps to view: readers then never get the
    page source; editors keep inline highlights on the read view.
 6. Live updates come with co-editing (the comments topic shares the co-editing subscriber cookie).
 7. Notifications from `nowo_wiki.comment.*`; deep links with `?comments=1`.
-8. Avatars: alias `WikiUserAvatarResolverInterface` to its `WikiAvatarUrls` adapter of the core `AvatarUrls`
+8. Avatars: alias `WikiUserAvatarSourceInterface` to its `WikiAvatarUrls` adapter of the core `AvatarUrls`
    service; keep `history.show_names` as it is (pictures follow names).
 9. Search: switch `WikiPageSearchProvider`'s `LIKE` from `content_markdown` to `content_text`.
 10. Privacy: call `WikiCommentService::exportAuthor()` / `eraseAuthor()` (or `wiki:comments:erase-user`) from its

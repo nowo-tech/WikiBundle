@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Link;
 
+use Nowo\WikiBundle\Port\Internal\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Describes linked host objects, framework-free (1.36.0): the twin of the deprecated
- * {@see WikiObjectLinkResolverInterface}; autoconfigured with the same tag (`nowo_wiki.object_link_resolver`).
+ * Describes linked host objects, framework-free (1.36.0): since 2.0 the only host port; it replaced the removed 1.x
+ * `WikiObjectLinkResolverInterface`; autoconfigured with the same tag (`nowo_wiki.object_link_resolver`).
  * Objects keyed by an id that was not asked for are dropped.
  */
 interface WikiObjectLinkSourceInterface

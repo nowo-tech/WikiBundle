@@ -26,7 +26,7 @@ Since **1.10** every wiki page extends a [UiKitBundle](https://github.com/nowo-t
 | `search` | `@NowoWikiBundle/manage/search.html.twig` | `@NowoUiKit/page/list.html.twig` | `ListPage` from `WikiPageFactory::search()` | `query`, `global_search`, `routes`, `dashboard_route` |
 | `ai_ask` | `@NowoWikiBundle/manage/ai_ask.html.twig` | `@NowoUiKit/page/form.html.twig` | `FormPage` from `WikiPageFactory::aiAsk()` | `question`, `answer`, `sources`, `error`, `csrf_token_id`, `routes`, `dashboard_route` |
 
-Every page also reads the Twig global `nowo_wiki_web_ui` (1.21: a service, so any bundle order works; `assets`, `slots`, `import_export`, `space_index`; see [CONFIGURATION › Host hooks](CONFIGURATION.md#host-hooks-121)). Every page also receives `nowo_wiki_legacy_layout` / `nowo_wiki_legacy_blocks` (the deprecated pre-1.10 layout bridge, see [Layout](#layout)).
+Every page also reads the Twig global `nowo_wiki_web_ui` (1.21: a service, so any bundle order works; `assets`, `slots`, `import_export`, `space_index`; see [CONFIGURATION › Host hooks](CONFIGURATION.md#host-hooks-121)).
 
 ## View models
 
@@ -88,7 +88,7 @@ The scaffolds extend `page.layout ?? nowo_ui_layout.admin`:
 
 - `nowo_wiki.web_ui.layout_template: null` (default): `nowo_ui_kit.layouts.admin` — set it once for every UiKit bundle.
 - A layout that renders the UiKit canonical blocks (`nowo_ui_page_header`, `nowo_ui_flashes`, `nowo_ui_content`, `nowo_ui_modals`, `nowo_ui_styles`, `nowo_ui_scripts`, `nowo_ui_document_title`): used as is.
-- A pre-1.10 layout (renders `{% block body %}` / `stylesheets` / `javascripts` only): wrapped in the **deprecated** bridge `@NowoWikiBundle/manage/_legacy_layout.html.twig` with a deprecation notice (removed in 2.0).
+- A pre-1.10 layout (renders `{% block body %}` / `stylesheets` / `javascripts` only): 2.0 removed the bridge that wrapped it; a page fails with a `LogicException` naming the layout. Render the canonical blocks.
 
 ## Overriding one page
 

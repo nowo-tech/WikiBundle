@@ -10,6 +10,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiPageLinkEvent;
+use Nowo\WikiBundle\Port\Internal\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Port\WikiObjectLinkSourceGate;
 use Nowo\WikiBundle\Repository\WikiPageLinkRepositoryInterface;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
@@ -60,8 +61,8 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
      */
     public function link(WikiPage $page, string $objectType, string $objectId, ?object $actor = null): WikiPageLink
     {
-        // 1.55.2: a page of another manager (the host's, with the private manager) is read again by id first.
-        $page = $this->managed?->page($page) ?? $page;
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page = $this->runner?->attach($page) ?? $page;
         // 1.37: looked up again under the page lock, so the same link sent twice at once is stored and announced once
         // (the second one used to fail on the unique key).
         [$link, $created] = $this->underPageLock($page, function () use ($page, $objectType, $objectId, $actor): array {
@@ -95,7 +96,8 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
      */
     public function unlink(WikiPage $page, string $objectType, string $objectId, ?object $actor = null): bool
     {
-        $page    = $this->managed?->page($page) ?? $page;
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page    = $this->runner?->attach($page) ?? $page;
         $removed = $this->underPageLock($page, function () use ($page, $objectType, $objectId): bool {
             $link = $this->linkRepository->findOne($page, $objectType, $objectId);
             if (!$link instanceof WikiPageLink) {

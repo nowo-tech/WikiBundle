@@ -6,89 +6,116 @@ namespace Nowo\WikiBundle\Port;
 
 use LogicException;
 use Nowo\WikiBundle\Ai\WikiAiAnswererInterface;
-use Nowo\WikiBundle\Ai\WikiAiAssistantInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiFilesInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiFileStoreInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiPlanPolicyInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRequestAuthenticatorInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiWikiDirectoryInterface;
 use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsPolicyInterface;
-use Nowo\WikiBundle\Attachment\WikiAttachmentLimitsProviderInterface;
-use Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Avatar\WikiUserAvatarSourceInterface;
-use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSubscriptionPolicyInterface;
 use Nowo\WikiBundle\DependencyInjection\Compiler\WikiPortsPass;
+use Nowo\WikiBundle\Link\WikiObjectLinkSourceInterface;
 use Nowo\WikiBundle\Panel\WikiPanelStatesInterface;
-use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAiAssistantInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiAuthenticatorInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiFilesInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAttachmentLimitsProviderInterface;
+use Nowo\WikiBundle\Port\Internal\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceLocatorInterface;
+use Nowo\WikiBundle\Port\Internal\WikiTeamMembershipResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiTreeStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiUserAvatarResolverInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiAccessPolicyInterface;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessPolicyInterface;
-use Nowo\WikiBundle\Security\WikiTeamMembershipResolverInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipSourceInterface;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceIdLocatorInterface;
-use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Service\WikiSpaceReachInterface;
 use Nowo\WikiBundle\Tree\WikiTreeStatesInterface;
-use Nowo\WikiBundle\Tree\WikiTreeStateStoreInterface;
+use Throwable;
 
 use function array_values;
+use function class_exists;
 use function get_debug_type;
 use function sprintf;
+use function str_contains;
 use function str_starts_with;
-use function trigger_deprecation;
 
 /**
- * The host ports that have a framework-free twin (1.36.0, REQ-ARCH-001 rules 1 and 3) and their selection rule: a
- * service implementing the deprecated interface is asked through it exactly as before (also when it implements the
- * twin too); a service implementing only the twin is asked through its gate. {@see WikiPortsPass} wires them at build
- * time; {@see self::port()} is the factory for services whose class the build cannot know.
+ * The host ports (REQ-ARCH-001 rules 1 and 3): since 2.0 a host implements only the framework-free twin (1.36), asked
+ * through an internal gate (`Port\*Gate`) under the bundle-side interface id (`Port\Internal\*`). The 1.x host
+ * interfaces of the same names (deprecated since 1.36, notices since 1.49) are removed. {@see WikiPortsPass} wires them
+ * at build time; {@see self::port()} is the factory for services whose class the build cannot know.
  *
  * @internal
  */
 final class WikiPorts
 {
     /**
-     * Port name => [deprecated interface (also the service id the bundle asks), twin interface, gate class, the gate's
-     * other constructor services, the configuration that names the service].
+     * Port name => [bundle-side interface (also the service id the bundle asks), twin interface, gate class, the gate's
+     * other constructor services, the configuration that names the service, the removed 1.x host interface].
      *
-     * @var array<string, array{class-string, class-string, class-string, list<string>, string}>
+     * @var array<string, array{class-string, class-string, class-string, list<string>, string, string}>
      */
     public const PORTS = [
-        'access_checker'               => [WikiAccessCheckerInterface::class, WikiAccessPolicyInterface::class, WikiAccessPolicyGate::class, [], 'nowo_wiki.security.access_checker'],
-        'space_access_checker'         => [WikiSpaceAccessCheckerInterface::class, WikiSpaceAccessPolicyInterface::class, WikiSpaceAccessPolicyGate::class, [], 'the WikiSpaceAccessCheckerInterface alias'],
-        'team_membership_resolver'     => [WikiTeamMembershipResolverInterface::class, WikiTeamMembershipSourceInterface::class, WikiTeamMembershipSourceGate::class, [], 'nowo_wiki.team_membership_resolver'],
-        'space_access_resolver'        => [WikiSpaceAccessResolverInterface::class, WikiSpaceReachInterface::class, WikiSpaceReachGate::class, [WikiSpaceRepositoryInterface::class], 'the WikiSpaceAccessResolverInterface alias'],
-        'space_locator'                => [WikiSpaceLocatorInterface::class, WikiSpaceIdLocatorInterface::class, WikiSpaceIdLocatorGate::class, [WikiSpaceRepositoryInterface::class], 'the WikiSpaceLocatorInterface alias'],
-        'avatar_resolver'              => [WikiUserAvatarResolverInterface::class, WikiUserAvatarSourceInterface::class, WikiUserAvatarSourceGate::class, [], 'the WikiUserAvatarResolverInterface alias'],
-        'panel_state_store'            => [WikiPanelStateStoreInterface::class, WikiPanelStatesInterface::class, WikiPanelStatesGate::class, [], 'nowo_wiki.comments.state_store'],
-        'tree_state_store'             => [WikiTreeStateStoreInterface::class, WikiTreeStatesInterface::class, WikiTreeStatesGate::class, [], 'nowo_wiki.tree.state_store'],
-        'collab_subscriber_authorizer' => [WikiCollabSubscriberAuthorizerInterface::class, WikiCollabSubscriptionPolicyInterface::class, WikiCollabSubscriptionGate::class, [], 'nowo_wiki.collaboration.subscriber_authorizer'],
-        'api_authenticator'            => [WikiApiAuthenticatorInterface::class, WikiApiRequestAuthenticatorInterface::class, WikiApiRequestAuthenticatorGate::class, [], 'nowo_wiki.api.hooks.authenticator'],
-        'api_files'                    => [WikiApiFilesInterface::class, WikiApiFileStoreInterface::class, WikiApiFileStoreGate::class, [], 'nowo_wiki.api.hooks.files'],
-        'api_plan_gate'                => [WikiApiPlanGateInterface::class, WikiApiPlanPolicyInterface::class, WikiApiPlanPolicyGate::class, [], 'nowo_wiki.api.hooks.plan_gate'],
-        'api_directory'                => [WikiApiDirectoryInterface::class, WikiApiWikiDirectoryInterface::class, WikiApiWikiDirectoryGate::class, [WikiSpaceRepositoryInterface::class], 'nowo_wiki.api.hooks.directory'],
-        'ai_assistant'                 => [WikiAiAssistantInterface::class, WikiAiAnswererInterface::class, WikiAiAnswererGate::class, [WikiPageRepositoryInterface::class, WikiSpaceAccessResolverInterface::class], 'the WikiAiAssistantInterface alias'],
-        'attachment_limits'            => [WikiAttachmentLimitsProviderInterface::class, WikiAttachmentLimitsPolicyInterface::class, WikiAttachmentLimitsPolicyGate::class, [], 'the WikiAttachmentLimitsProviderInterface alias'],
+        'access_checker'               => [WikiAccessCheckerInterface::class, WikiAccessPolicyInterface::class, WikiAccessPolicyGate::class, [], 'nowo_wiki.security.access_checker', 'Nowo\\WikiBundle\\Security\\WikiAccessCheckerInterface'],
+        'space_access_checker'         => [WikiSpaceAccessCheckerInterface::class, WikiSpaceAccessPolicyInterface::class, WikiSpaceAccessPolicyGate::class, [], 'the WikiSpaceAccessPolicyInterface alias', 'Nowo\\WikiBundle\\Security\\WikiSpaceAccessCheckerInterface'],
+        'team_membership_resolver'     => [WikiTeamMembershipResolverInterface::class, WikiTeamMembershipSourceInterface::class, WikiTeamMembershipSourceGate::class, [], 'nowo_wiki.team_membership_resolver', 'Nowo\\WikiBundle\\Security\\WikiTeamMembershipResolverInterface'],
+        'space_access_resolver'        => [WikiSpaceAccessResolverInterface::class, WikiSpaceReachInterface::class, WikiSpaceReachGate::class, [WikiSpaceRepositoryInterface::class], 'the WikiSpaceReachInterface alias', 'Nowo\\WikiBundle\\Service\\WikiSpaceAccessResolverInterface'],
+        'space_locator'                => [WikiSpaceLocatorInterface::class, WikiSpaceIdLocatorInterface::class, WikiSpaceIdLocatorGate::class, [WikiSpaceRepositoryInterface::class], 'the WikiSpaceIdLocatorInterface alias', 'Nowo\\WikiBundle\\Service\\WikiSpaceLocatorInterface'],
+        'avatar_resolver'              => [WikiUserAvatarResolverInterface::class, WikiUserAvatarSourceInterface::class, WikiUserAvatarSourceGate::class, [], 'the WikiUserAvatarSourceInterface alias', 'Nowo\\WikiBundle\\Avatar\\WikiUserAvatarResolverInterface'],
+        'panel_state_store'            => [WikiPanelStateStoreInterface::class, WikiPanelStatesInterface::class, WikiPanelStatesGate::class, [], 'nowo_wiki.comments.state_store', 'Nowo\\WikiBundle\\Panel\\WikiPanelStateStoreInterface'],
+        'tree_state_store'             => [WikiTreeStateStoreInterface::class, WikiTreeStatesInterface::class, WikiTreeStatesGate::class, [], 'nowo_wiki.tree.state_store', 'Nowo\\WikiBundle\\Tree\\WikiTreeStateStoreInterface'],
+        'collab_subscriber_authorizer' => [WikiCollabSubscriberAuthorizerInterface::class, WikiCollabSubscriptionPolicyInterface::class, WikiCollabSubscriptionGate::class, [], 'nowo_wiki.collaboration.subscriber_authorizer', 'Nowo\\WikiBundle\\Collaboration\\WikiCollabSubscriberAuthorizerInterface'],
+        'api_authenticator'            => [WikiApiAuthenticatorInterface::class, WikiApiRequestAuthenticatorInterface::class, WikiApiRequestAuthenticatorGate::class, [], 'nowo_wiki.api.hooks.authenticator', 'Nowo\\WikiBundle\\Api\\Hook\\WikiApiAuthenticatorInterface'],
+        'api_files'                    => [WikiApiFilesInterface::class, WikiApiFileStoreInterface::class, WikiApiFileStoreGate::class, [], 'nowo_wiki.api.hooks.files', 'Nowo\\WikiBundle\\Api\\Hook\\WikiApiFilesInterface'],
+        'api_plan_gate'                => [WikiApiPlanGateInterface::class, WikiApiPlanPolicyInterface::class, WikiApiPlanPolicyGate::class, [], 'nowo_wiki.api.hooks.plan_gate', 'Nowo\\WikiBundle\\Api\\Hook\\WikiApiPlanGateInterface'],
+        'api_directory'                => [WikiApiDirectoryInterface::class, WikiApiWikiDirectoryInterface::class, WikiApiWikiDirectoryGate::class, [WikiSpaceRepositoryInterface::class], 'nowo_wiki.api.hooks.directory', 'Nowo\\WikiBundle\\Api\\Hook\\WikiApiDirectoryInterface'],
+        'ai_assistant'                 => [WikiAiAssistantInterface::class, WikiAiAnswererInterface::class, WikiAiAnswererGate::class, [WikiPageRepositoryInterface::class, WikiSpaceAccessResolverInterface::class], 'the WikiAiAnswererInterface alias', 'Nowo\\WikiBundle\\Ai\\WikiAiAssistantInterface'],
+        'attachment_limits'            => [WikiAttachmentLimitsProviderInterface::class, WikiAttachmentLimitsPolicyInterface::class, WikiAttachmentLimitsPolicyGate::class, [], 'the WikiAttachmentLimitsPolicyInterface alias', 'Nowo\\WikiBundle\\Attachment\\WikiAttachmentLimitsProviderInterface'],
     ];
 
+    /** 2.0: the removed 1.x object link interface (tag `nowo_wiki.object_link_resolver`) and its twin. */
+    public const REMOVED_OBJECT_LINK_RESOLVER = 'Nowo\\WikiBundle\\Link\\WikiObjectLinkResolverInterface';
+
+    /** 2.0: the removed 1.x sub-interface of the co-editing subscriber authorizer. */
+    public const REMOVED_COLLAB_TOPICS_AUTHORIZER = 'Nowo\\WikiBundle\\Collaboration\\WikiCollabTopicsAuthorizerInterface';
+
     /**
-     * The service to ask for a port: the service itself when it implements the deprecated interface, else its gate.
+     * The removed 1.x host interfaces (FQCN => the twin to implement instead).
+     *
+     * @return array<string, string>
+     */
+    public static function removed(): array
+    {
+        $removed = [];
+        foreach (self::PORTS as [, $twin, , , , $legacy]) {
+            $removed[$legacy] = $twin;
+        }
+        $removed[self::REMOVED_OBJECT_LINK_RESOLVER]     = WikiObjectLinkSourceInterface::class;
+        $removed[self::REMOVED_COLLAB_TOPICS_AUTHORIZER] = WikiCollabSubscriptionPolicyInterface::class;
+
+        return $removed;
+    }
+
+    /**
+     * The service to ask for a port: a bundle service implementing the bundle-side interface itself, else the gate
+     * around a host twin.
      *
      * @param string $name port name ({@see self::PORTS})
      * @param mixed $service the configured service
      * @param object ...$dependencies the gate's other constructor services (in {@see self::PORTS} order)
      *
-     * @throws LogicException when the port is unknown or the service implements neither interface (fail closed)
+     * @throws LogicException when the port is unknown or the service does not implement the twin (fail closed)
      *
-     * @return object the deprecated interface's implementation to ask
+     * @return object the bundle-side interface's implementation to ask
      */
     public static function port(string $name, mixed $service, object ...$dependencies): object
     {
@@ -96,10 +123,8 @@ final class WikiPorts
             throw new LogicException(sprintf('Unknown WikiBundle port "%s".', $name));
         }
 
-        [$legacy, $twin, , , $option] = self::PORTS[$name];
-        if ($service instanceof $legacy) {
-            self::deprecateLegacy(null, $service::class, $legacy, $twin, $option);
-
+        [$internal, $twin, , , $option] = self::PORTS[$name];
+        if ($service instanceof $internal && self::isBundleClass($service::class)) {
             return $service;
         }
         $gate = self::gate($name, $service, array_values($dependencies));
@@ -107,26 +132,39 @@ final class WikiPorts
             return $gate;
         }
 
-        throw new LogicException(sprintf('The service "%s" of %s must implement "%s" (or the deprecated "%s").', get_debug_type($service), $option, $twin, $legacy));
+        throw new LogicException(sprintf('The service "%s" of %s must implement "%s" (2.0 removed the 1.x interface it may still implement; see UPGRADING "To 2.0.0").', get_debug_type($service), $option, $twin));
     }
 
     /**
-     * 1.49 (REQ-BC-001): a host service that still implements one of the 16 deprecated port interfaces (removed in 2.0)
-     * triggers one notice when the container is built (or, for a service whose class the build cannot know, when it is
-     * created). The bundle's own default services are not reported.
-     *
-     * @param string|null $serviceId the service id, when known
-     * @param string $class the service's class
-     * @param string $legacy the deprecated interface it implements
-     * @param string $twin the framework-free interface to implement instead
-     * @param string $option the configuration that names the service
+     * Whether a class is one of the bundle's own (its defaults and its test suite): only those may implement the
+     * bundle-side interfaces directly.
      */
-    public static function deprecateLegacy(?string $serviceId, string $class, string $legacy, string $twin, string $option): void
+    public static function isBundleClass(string $class): bool
     {
-        if (str_starts_with($class, 'Nowo\\WikiBundle\\') && !str_starts_with($class, 'Nowo\\WikiBundle\\Tests\\')) {
-            return;
+        return str_starts_with($class, 'Nowo\\WikiBundle\\');
+    }
+
+    /**
+     * 2.0: whether a class can be loaded; a class that still implements a removed 1.x interface fails with the
+     * migration message instead of a PHP error.
+     *
+     * @param string $owner what names the class (a service id, a configuration key)
+     *
+     * @throws LogicException when the class implements a removed 1.x host interface
+     */
+    public static function loadable(string $class, string $owner): bool
+    {
+        try {
+            return class_exists($class);
+        } catch (Throwable $error) {
+            foreach (self::removed() as $legacy => $twin) {
+                if (str_contains($error->getMessage(), '"' . $legacy . '"')) {
+                    throw new LogicException(sprintf('nowo_wiki: %s (%s) implements %s, which 2.0 removed (deprecated since 1.36, notices since 1.49): implement %s instead. See UPGRADING "To 2.0.0".', $owner, $class, $legacy, $twin), 0, $error);
+                }
+            }
+
+            throw $error;
         }
-        trigger_deprecation('nowo-tech/wiki-bundle', '1.49', 'The service %s implements the deprecated %s, which 2.0 removes: implement %s instead and keep it configured as %s (a service may implement both while you migrate; drop the deprecated one before 2.0). See UPGRADING "Host ports: move to the framework-free twins".', $serviceId !== null ? sprintf('"%s" (%s)', $serviceId, $class) : $class, $legacy, $twin, $option);
     }
 
     /**

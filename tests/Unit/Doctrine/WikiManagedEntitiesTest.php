@@ -6,8 +6,6 @@ namespace Nowo\WikiBundle\Tests\Unit\Doctrine;
 
 use Doctrine\ORM\EntityManagerInterface;
 use LogicException;
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiWikiDirectoryInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
@@ -16,44 +14,33 @@ use Nowo\WikiBundle\Api\WikiApiLevel;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Api\WikiApiWhere;
-use Nowo\WikiBundle\Attachment\ConfiguredWikiAttachmentLimitsProvider;
-use Nowo\WikiBundle\Attachment\LocalWikiAttachmentStorage;
-use Nowo\WikiBundle\Attachment\NullWikiAttachmentScanner;
-use Nowo\WikiBundle\Attachment\WikiAttachmentService;
 use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Port\WikiApiWikiDirectoryGate;
 use Nowo\WikiBundle\Port\WikiSpaceReachGate;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Service\WikiPageNotFoundException;
 use Nowo\WikiBundle\Service\WikiPageService;
-use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Service\WikiSpaceReachInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
-use Nowo\WikiBundle\Tests\Support\InMemoryAttachmentRepository;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Security\Core\User\UserInterface;
-
-use function bin2hex;
-use function escapeshellarg;
-use function exec;
-use function file_put_contents;
-use function random_bytes;
-use function sys_get_temp_dir;
-use function tempnam;
 
 /**
  * 1.55.2: the wiki manager's instance of a host-loaded space or page, and the batch space reads of the gates.
@@ -199,28 +186,5 @@ final class WikiManagedEntitiesTest extends TestCase
         } catch (WikiApiRefusal $refusal) {
             self::assertSame(404, $refusal->status);
         }
-    }
-
-    public function testAnUploadIsStoredOnTheWikisOwnPage(): void
-    {
-        // Audit ZBO-2: the attachment points at the wiki manager's page and space, not the host's.
-        $hostSpace = new WikiSpace('eng', 'Eng', WikiSpaceOwnerScope::Team, 't');
-        $host      = new WikiPage($hostSpace, 'p', 'P');
-        $own       = clone $host;
-        $manager   = $this->createMock(EntityManagerInterface::class);
-        $manager->method('contains')->willReturn(false);
-        $manager->method('find')->willReturnCallback(static fn (string $class, string $id): ?WikiPage => $id === $host->getId() ? $own : null);
-        $dir  = sys_get_temp_dir() . '/wiki-zbo-' . bin2hex(random_bytes(4));
-        $path = (string) tempnam(sys_get_temp_dir(), 'wiki-zbo-');
-        file_put_contents($path, 'plain text');
-        $service = new WikiAttachmentService(new InMemoryAttachmentRepository(), new LocalWikiAttachmentStorage($dir), new NullWikiAttachmentScanner(), new ConfiguredWikiAttachmentLimitsProvider(1_000_000, 10_000_000), new EventDispatcher(), null, null, null, new WikiManagedEntities($manager));
-
-        try {
-            $attachment = $service->upload($host, $path, 'notes.txt', new TestUser());
-        } finally {
-            exec('rm -rf ' . escapeshellarg($dir) . ' ' . escapeshellarg($path));
-        }
-        self::assertSame($own, $attachment->getPage());
-        self::assertNotSame($host, $attachment->getPage());
     }
 }

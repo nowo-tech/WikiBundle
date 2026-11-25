@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api\App;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiFilesInterface;
 use Nowo\WikiBundle\Api\Value\WikiApiFile;
 use Nowo\WikiBundle\Api\Value\WikiApiUploadedFile;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Entity\WikiPage;
+use Nowo\WikiBundle\Port\Internal\WikiApiFilesInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 

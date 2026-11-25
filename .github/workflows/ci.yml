@@ -4,9 +4,9 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 1.x]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, 1.x]
 
 # Superseded PR runs are cancelled. Push runs (main/master) get their own group (run_id), so a main run is never
 # cancelled, not even while pending: tag_when_green.sh needs a completed run on every release commit.
@@ -911,15 +911,14 @@ jobs:
           tools: composer:v2
 
       - run: composer install --prefer-dist --no-progress --no-interaction
-      # 1.36 (REQ-ARCH-001 rule 6): every wiki write through the opt-in private entity manager, on SQLite and MySQL.
-      - name: Run the API suite with WIKI_TEST_PRIVATE_EM=1 (SQLite)
+      # 2.0 (REQ-ARCH-001 rule 6): the private entity manager is the only mode, so every suite runs through it; this job
+      # (a required check) keeps the API suite on SQLite and MySQL.
+      - name: Run the API suite (SQLite)
         env:
-          WIKI_TEST_PRIVATE_EM: '1'
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- --testsuite api
-      - name: Run the API suite with WIKI_TEST_PRIVATE_EM=1 (MySQL)
+      - name: Run the API suite (MySQL)
         env:
-          WIKI_TEST_PRIVATE_EM: '1'
           WIKI_TEST_DATABASE_URL: mysql://root@127.0.0.1:3306/wiki_test?serverVersion=8.4.0&charset=utf8mb4
           SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
         run: composer test -- --testsuite api

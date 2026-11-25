@@ -21,7 +21,7 @@ use const JSON_THROW_ON_ERROR;
 
 /**
  * 1.41 (tree.context_menu): the tree menu's entries over HTTP on one kept-alive kernel (no reboot between requests, as a
- * FrankenPHP worker without kernel reset), in the shared and the private entity manager modes (`WIKI_TEST_PRIVATE_EM`):
+ * FrankenPHP worker without kernel reset), through the private entity manager:
  * the marks follow the rights, every write asks the session's CSRF token and the same origin, Delete sends a page and
  * its sub-pages to the trash, Duplicate copies right below, Move refuses a cycle, Archive / Unarchive round-trip.
  */

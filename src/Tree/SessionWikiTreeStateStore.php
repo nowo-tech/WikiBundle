@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tree;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiTreeStateStoreInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Security\Core\User\UserInterface;
 

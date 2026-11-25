@@ -7,10 +7,10 @@ namespace Nowo\WikiBundle\Ai;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiSearchService;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_filter;

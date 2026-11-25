@@ -1381,15 +1381,12 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     space_scope?: "team"|"user"|Param, // Default: "team"
  *     team_membership_resolver?: scalar|Param|null, // Default: null
  *     database?: array{
- *         driver?: scalar|Param|null, // Deprecated: The "nowo_wiki.database.driver.driver" option is deprecated and has no effect: the bundle only ships Doctrine ORM repositories. It will be removed in 2.0. // Default: "doctrine_orm"
- *         platform?: scalar|Param|null, // Deprecated: The "nowo_wiki.database.platform.platform" option is deprecated and has no effect: the database platform comes from the Doctrine connection. It will be removed in 2.0. // Default: "mysql"
  *         entity_manager?: scalar|Param|null, // Default: "default"
  *         mapping_type?: "attribute"|"xml"|Param, // 1.36: "attribute" (default) maps the wiki entities from their ORM attributes; "xml" from Resources/config/doctrine-xml (same tables, columns and indexes), for hosts that map everything in XML. // Default: "attribute"
  *         user_reference?: "entity"|"id"|Param, // 1.36: "entity" (default) stores revision authors, link creators, uploaders, comment authors, resolvers and reactions as ManyToOne relations to user_class; "id" stores the user's id in a string column (no foreign key, user_class need not be a Doctrine entity; set user_directory for names and avatars). // Default: "entity"
- *         private_entity_manager?: bool|Param, // 1.36: true reads and writes the wiki rows through a private entity manager on the connection and mapping of entity_manager, so a wiki write never flushes, clears or closes the application's manager. The only mode in 2.0. // Default: false
+ *         private_entity_manager?: bool|Param, // 2.0: no effect, the private entity manager is the only mode (the wiki rows are read and written through a private entity manager on the connection and mapping of entity_manager; a wiki write never flushes, clears or closes the application's manager). false fails the build; true is accepted until 3.0. Remove the key.
  *     },
  *     user_directory?: scalar|Param|null, // 1.36: service id of a User\WikiUserDirectoryInterface that finds a user by id (database.user_reference: id; names and avatars of stored users). Null: stored users are shown without a name. // Default: null
- *     route_prefix?: scalar|Param|null, // Deprecated: The "nowo_wiki.route_prefix.route_prefix" option is deprecated, use "nowo_wiki.web_ui.path_prefix" instead. // Deprecated since 1.10: use web_ui.path_prefix. // Default: null
  *     dashboard_route?: scalar|Param|null, // Default: null
  *     tenant_paths?: list<array{ // Default: []
  *         path?: scalar|Param|null,
@@ -1517,7 +1514,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     security?: array{
  *         access_checker?: scalar|Param|null, // Default: null
  *         access_roles?: list<scalar|Param|null>,
- *         roles?: array{ // Roles per action (REQ-UI-003 security.roles.<action>; replace the deprecated <action>_roles keys). null = the deprecated key, else the default. admin = every action; an empty list grants that action to nobody but the admin roles.
+ *         roles?: array{ // Roles per action (REQ-UI-003 security.roles.<action>). null = the default. admin = every action; an empty list grants that action to nobody but the admin roles.
  *             admin?: mixed, // Roles granted the "admin" action (default ROLE_ADMIN). An explicit null (`~`) means no role, like []. // Default: null
  *             list?: mixed, // Roles granted the "list" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
  *             create?: mixed, // Roles granted the "create" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
@@ -1528,15 +1525,6 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             import?: mixed, // Roles granted the "import" action (default ROLE_ADMIN). An explicit null (`~`) means no role, like []. // Default: null
  *             export?: mixed, // Roles granted the "export" action (default ROLE_USER). An explicit null (`~`) means no role, like []. // Default: null
  *         },
- *         admin_roles?: mixed, // Deprecated: The "nowo_wiki.security.admin_roles.admin_roles" option is deprecated, use "nowo_wiki.security.roles.admin" instead. // Deprecated since 1.10: use security.roles.admin. // Default: null
- *         list_roles?: mixed, // Deprecated: The "nowo_wiki.security.list_roles.list_roles" option is deprecated, use "nowo_wiki.security.roles.list" instead. // Deprecated since 1.10: use security.roles.list. // Default: null
- *         create_roles?: mixed, // Deprecated: The "nowo_wiki.security.create_roles.create_roles" option is deprecated, use "nowo_wiki.security.roles.create" instead. // Deprecated since 1.10: use security.roles.create. // Default: null
- *         edit_roles?: mixed, // Deprecated: The "nowo_wiki.security.edit_roles.edit_roles" option is deprecated, use "nowo_wiki.security.roles.edit" instead. // Deprecated since 1.10: use security.roles.edit. // Default: null
- *         history_roles?: mixed, // Deprecated: The "nowo_wiki.security.history_roles.history_roles" option is deprecated, use "nowo_wiki.security.roles.history" instead. // Deprecated since 1.10: use security.roles.history. // Default: null
- *         archive_roles?: mixed, // Deprecated: The "nowo_wiki.security.archive_roles.archive_roles" option is deprecated, use "nowo_wiki.security.roles.archive" instead. // Deprecated since 1.10: use security.roles.archive. // Default: null
- *         ai_roles?: mixed, // Deprecated: The "nowo_wiki.security.ai_roles.ai_roles" option is deprecated, use "nowo_wiki.security.roles.ai" instead. // Deprecated since 1.10: use security.roles.ai. // Default: null
- *         import_roles?: mixed, // Deprecated: The "nowo_wiki.security.import_roles.import_roles" option is deprecated, use "nowo_wiki.security.roles.import" instead. // Deprecated since 1.10: use security.roles.import. // Default: null
- *         export_roles?: mixed, // Deprecated: The "nowo_wiki.security.export_roles.export_roles" option is deprecated, use "nowo_wiki.security.roles.export" instead. // Deprecated since 1.10: use security.roles.export. // Default: null
  *         allow_unauthenticated?: bool|Param, // DEV / DEMO ONLY: allow every wiki action without a role check. Literal boolean; refused in the prod environment and in non-debug kernels (test* environments excepted). // Default: false
  *     },
  *     search?: array{ // 1.21: the search page (routes.search).
@@ -1727,17 +1715,6 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             name?: scalar|Param|null, // Default: "nowo_wiki_link_sections"
  *         },
  *     },
- *     templates?: array{ // Deprecated since 1.10: use web_ui.layout_template and web_ui.templates.<page>.
- *         layout?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.layout.layout" option is deprecated, use "nowo_wiki.web_ui.layout_template" instead. // Default: null
- *         index?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.index.index" option is deprecated, use "nowo_wiki.web_ui.templates.index" instead. // Default: null
- *         space?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.space.space" option is deprecated, use "nowo_wiki.web_ui.templates.space" instead. // Default: null
- *         page_view?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.page_view.page_view" option is deprecated, use "nowo_wiki.web_ui.templates.page_view" instead. // Default: null
- *         page_edit?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.page_edit.page_edit" option is deprecated, use "nowo_wiki.web_ui.templates.page_edit" instead. // Default: null
- *         page_history?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.page_history.page_history" option is deprecated, use "nowo_wiki.web_ui.templates.page_history" instead. // Default: null
- *         page_diff?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.page_diff.page_diff" option is deprecated, use "nowo_wiki.web_ui.templates.page_diff" instead. // Default: null
- *         search?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.search.search" option is deprecated, use "nowo_wiki.web_ui.templates.search" instead. // Default: null
- *         ai_ask?: scalar|Param|null, // Deprecated: The "nowo_wiki.templates.ai_ask.ai_ask" option is deprecated, use "nowo_wiki.web_ui.templates.ai_ask" instead. // Default: null
- *     },
  *     web_ui?: array{ // Wiki Web UI (REQ-UI-001 / REQ-UI-003): the pages extend the UiKit page scaffolds; the CSS stack, icons and row actions come from nowo_ui_kit.
  *         enabled?: bool|Param, // false: the nowo_wiki route loader registers no route. // Default: true
  *         space_index?: bool|Param, // 1.21: false = the tenant-less space index (routes.index, /tools/wiki) is not registered (no route, so 404), for hosts whose spaces live under their own pages (tenant_paths). Its breadcrumb link disappears with it. // Default: true
@@ -1780,8 +1757,8 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             page_header_extra?: scalar|Param|null, // Default: null
  *             page_header_toolbar?: scalar|Param|null, // Default: null
  *         },
- *         path_prefix?: scalar|Param|null, // Prefix of every wiki route path (e.g. /admin). null = the deprecated route_prefix, else none. // Default: null
- *         layout_template?: scalar|Param|null, // Layout the pages extend. null = nowo_ui_kit.layouts.admin. A pre-1.10 layout without the UiKit canonical blocks is wrapped in a deprecated bridge. // Default: null
+ *         path_prefix?: scalar|Param|null, // Prefix of every wiki route path (e.g. /admin). null = none. // Default: null
+ *         layout_template?: scalar|Param|null, // Layout the pages extend. null = nowo_ui_kit.layouts.admin. It must render the UiKit canonical blocks (2.0: a pre-1.10 layout is no longer wrapped in a bridge). // Default: null
  *         templates?: array{ // Per-page template overrides (page id => template); null = the bundle template.
  *             index?: scalar|Param|null, // Default: null
  *             space?: scalar|Param|null, // Default: null
@@ -1801,9 +1778,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             edit?: scalar|Param|null, // Default: "tabler:pencil"
  *             history?: scalar|Param|null, // Default: "tabler:history"
  *         },
- *         css_framework?: null|"bootstrap"|"bootstrap4"|"bootstrap5"|"tabler"|"tailwind"|"foundation"|"custom"|"none"|Param, // Deprecated: The "nowo_wiki.web_ui.css_framework.css_framework" option is deprecated: set nowo_ui_kit.css_framework once for every bundle. It only seeds nowo_ui_kit.css_framework when the host leaves it unset. // Deprecated since 1.10: set nowo_ui_kit.css_framework once for every bundle. Only seeds nowo_ui_kit.css_framework (and icon_set) when the host leaves them unset. // Default: null
  *     },
- *     firewall?: scalar|Param|null, // Deprecated: The "nowo_wiki.firewall.firewall" option is deprecated and has no effect: access uses whichever secured firewall handles the wiki routes (see WikiTokenGuard). It will be removed in 2.0. // Default: "main"
  * }
  * @psalm-type NowoUiKitConfig = array{
  *     css_framework?: "bootstrap"|"bootstrap5"|"bootstrap4"|"tailwind"|"foundation"|"custom"|"tabler"|"none"|Param, // Host CSS stack: bootstrap5|bootstrap4|tailwind|foundation|custom|none|tabler (bootstrap alias → bootstrap5). // Default: "bootstrap5"

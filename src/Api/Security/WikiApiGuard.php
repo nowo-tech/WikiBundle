@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api\Security;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\WikiApiCapability;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
@@ -17,13 +15,16 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\History\WikiActorLabels;
 use Nowo\WikiBundle\Markdown\WikiRenderReach;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
 use Nowo\WikiBundle\Routing\WikiTenantPaths;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Nowo\WikiBundle\User\WikiUserId;
 use Stringable;
@@ -81,7 +82,7 @@ final readonly class WikiApiGuard
         if (!$this->sees($principal, $wiki)) {
             throw WikiApiRefusal::notFound();
         }
-        if (!$this->planGate->allowsWiki($principal->securityUser(), $wiki)) {
+        if (!$this->planGate->allowsWiki(WikiUserRefs::securityUser($principal->userRef()), $wiki)) {
             throw WikiApiRefusal::planRefused();
         }
 
@@ -97,7 +98,7 @@ final readonly class WikiApiGuard
             return false;
         }
 
-        return !$wiki->space instanceof WikiSpace || !$wiki->canOpen || $this->checker->isGranted($principal->securityUser(), WikiAction::View, $wiki->space);
+        return !$wiki->space instanceof WikiSpace || !$wiki->canOpen || $this->checker->isGranted(WikiUserRefs::securityUser($principal->userRef()), WikiAction::View, $wiki->space);
     }
 
     /**
@@ -125,7 +126,7 @@ final readonly class WikiApiGuard
         $space = $this->openSpace($wiki);
         $page  = $space instanceof WikiSpace && preg_match('/^' . self::UUID . '$/D', $pageId) === 1 ? $this->pages->findById($pageId) : null;
         if (!$page instanceof WikiPage || $page->getSpace()->getId() !== $space?->getId()
-            || !WikiPageVisibility::isReadable($this->checker, $principal->securityUser(), $space, $page)
+            || !WikiPageVisibility::isReadable($this->checker, WikiUserRefs::securityUser($principal->userRef()), $space, $page)
             || ($page->isArchived() && (!$archived || !$this->maySeeArchived($principal, $space, $page)))) {
             throw WikiApiRefusal::notFound();
         }
@@ -140,8 +141,8 @@ final readonly class WikiApiGuard
     public function maySeeArchived(WikiApiPrincipal $principal, WikiSpace $space, ?WikiPage $page = null): bool
     {
         return WikiApiCapability::allows($principal->level, WikiAction::Archive)
-            && $this->roles->canArchive($principal->securityUser())
-            && $this->checker->isGranted($principal->securityUser(), WikiAction::Archive, $space, $page);
+            && $this->roles->canArchive(WikiUserRefs::securityUser($principal->userRef()))
+            && $this->checker->isGranted(WikiUserRefs::securityUser($principal->userRef()), WikiAction::Archive, $space, $page);
     }
 
     /**
@@ -169,7 +170,7 @@ final readonly class WikiApiGuard
         if (!WikiApiCapability::allows($principal->level, $action)) {
             throw WikiApiRefusal::levelRefused();
         }
-        if (!$this->roleAllows($principal, $action) || !$this->checker->isGranted($principal->securityUser(), $action, $space, $page)) {
+        if (!$this->roleAllows($principal, $action) || !$this->checker->isGranted(WikiUserRefs::securityUser($principal->userRef()), $action, $space, $page)) {
             throw WikiApiRefusal::permissionRefused();
         }
     }
@@ -216,15 +217,15 @@ final readonly class WikiApiGuard
         if ($user === null) {
             return false;
         }
-        if ($user === $principal->securityUser()) {
+        if ($user === WikiUserRefs::securityUser($principal->userRef())) {
             return true;
         }
         if ($this->classes instanceof WikiUserClassPolicy) {
-            $id = $this->classes->idOf($principal->securityUser());
+            $id = $this->classes->idOf(WikiUserRefs::securityUser($principal->userRef()));
 
             return $id !== null && (string) $id === WikiUserId::of($user);
         }
-        $mine = $this->idOf($principal->securityUser());
+        $mine = $this->idOf(WikiUserRefs::securityUser($principal->userRef()));
 
         return $mine !== null && $mine === $this->idOf($user);
     }
@@ -234,8 +235,8 @@ final readonly class WikiApiGuard
     {
         return WikiApiCapability::maySeeSource($principal->level)
             && !$page->isArchived()
-            && $this->roles->canEdit($principal->securityUser())
-            && $this->checker->isGranted($principal->securityUser(), WikiAction::Edit, $space, $page);
+            && $this->roles->canEdit(WikiUserRefs::securityUser($principal->userRef()))
+            && $this->checker->isGranted(WikiUserRefs::securityUser($principal->userRef()), WikiAction::Edit, $space, $page);
     }
 
     /** The token's reach for a render: a space shows only when its wiki is within *where* (contract F3). */
@@ -272,7 +273,7 @@ final readonly class WikiApiGuard
 
     private function roleAllows(WikiApiPrincipal $principal, WikiAction $action): bool
     {
-        $user = $principal->securityUser();
+        $user = WikiUserRefs::securityUser($principal->userRef());
 
         return match ($action) {
             WikiAction::Create                    => $this->roles->canCreate($user),

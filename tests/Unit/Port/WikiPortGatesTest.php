@@ -34,9 +34,10 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Link\WikiLinkedObject;
-use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiObjectLinkSourceInterface;
 use Nowo\WikiBundle\Panel\WikiPanelStatesInterface;
+use Nowo\WikiBundle\Port\Internal\WikiObjectLinkResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Port\WikiAccessPolicyGate;
 use Nowo\WikiBundle\Port\WikiAiAnswererGate;
 use Nowo\WikiBundle\Port\WikiApiFileStoreGate;
@@ -53,12 +54,12 @@ use Nowo\WikiBundle\Port\WikiSpaceReachGate;
 use Nowo\WikiBundle\Port\WikiTeamMembershipSourceGate;
 use Nowo\WikiBundle\Port\WikiTreeStatesGate;
 use Nowo\WikiBundle\Port\WikiUserAvatarSourceGate;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiAccessPolicyInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessPolicyInterface;
 use Nowo\WikiBundle\Security\WikiTeamMembershipSourceInterface;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\WikiSpaceIdLocatorInterface;
 use Nowo\WikiBundle\Service\WikiSpaceReachInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
@@ -303,7 +304,7 @@ final class WikiPortGatesTest extends TestCase
         self::assertSame(['1'], array_map(strval(...), array_keys($visible)));
 
         $legacy = $this->createMock(WikiObjectLinkResolverInterface::class);
-        self::assertSame($legacy, WikiObjectLinkSourceGate::of($legacy));
+        self::assertNull(WikiObjectLinkSourceGate::of($legacy), '2.0: a host class may not serve the bundle-side interface');
         self::assertNull(WikiObjectLinkSourceGate::of(new stdClass()));
     }
 
@@ -671,6 +672,6 @@ final class WikiPortGatesTest extends TestCase
 
     private function principal(): WikiApiPrincipal
     {
-        return new WikiApiPrincipal(new TestUser(), WikiApiLevel::Full, WikiApiWhere::everything(), 'tok', 'token');
+        return WikiApiPrincipal::of(WikiUserRefs::fromUser(new TestUser()), WikiApiLevel::Full, WikiApiWhere::everything(), 'tok', 'token');
     }
 }

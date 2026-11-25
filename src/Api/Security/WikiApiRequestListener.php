@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Api\Security;
 
 use LogicException;
-use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
 use Nowo\WikiBundle\Api\Value\WikiApiRateLimitState;
 use Nowo\WikiBundle\Api\WikiApiAuthFailure;
 use Nowo\WikiBundle\Api\WikiApiCredential;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiAuthenticatorInterface;
 use Nowo\WikiBundle\Port\WikiUserRefs;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\User\WikiUserClassPolicy;
 use Psr\Log\LoggerInterface;
@@ -188,7 +188,7 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
             throw WikiApiRefusal::levelRefused();
         }
         $this->requireSecurityUser($principal);
-        if (!$this->accessChecker->canAccess($principal->securityUser())) {
+        if (!$this->accessChecker->canAccess(WikiUserRefs::securityUser($principal->userRef()))) {
             // The same answer as a bad token, and counted as one.
             // @igor-ignore - Failed-token counter is meant to persist across requests (host rate limiter storage).
             $this->rateLimiter->registerFailedToken($clientIp);
@@ -217,22 +217,24 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
         try {
             $securityUser = $this->tokenStorage->getToken()?->getUser();
         } catch (UnexpectedSessionUsageException) {
-            // 1.56.1: Symfony 7.4.24+ refuses to read the token (from the session) of a stateless request no stateless
-            // firewall covers. No firewall stands behind the token: the same answer as no security user.
+            // 1.56.1: Symfony 7.4.24+ refuses to read the token from the session of a request routed as stateless: outside
+            // any firewall, and behind a session (stateful) firewall in debug. The API cannot stand behind such a token:
+            // the same answer as no security user.
             $securityUser = null;
         }
-        $match = $securityUser instanceof UserInterface ? $this->match($securityUser, $principal->securityUser()) : null;
-        if ($match !== null && $match !== self::DIFFERENT && $this->tokenGuard->isTokenTrusted()) {
-            if ($match !== self::SAME) {
-                // Audit OX-D1-L1 (1.36): a security adapter of another class with the same exact id is let through in
-                // 1.x. It only stands behind the token: ownership and the API id are judged on the token's user alone.
-                $this->logger->notice(sprintf('Wiki API: the firewall user (%s) and the token\'s user (%s) are matched by their id only: add %s to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user. This will be refused in 2.0.', $this->classOf($securityUser), $this->classOf($principal->securityUser()), $match), ['bundle' => 'nowo_wiki']);
-            }
-
+        $match = $securityUser instanceof UserInterface ? $this->match($securityUser, WikiUserRefs::securityUser($principal->userRef())) : null;
+        if ($match === self::SAME && $this->tokenGuard->isTokenTrusted()) {
             return;
         }
+        if (!in_array($match, [null, self::SAME, self::DIFFERENT], true)) {
+            // 2.0 (audit OX-D1-L1, announced in 1.36): two users of different classes that only share an id are refused,
+            // since a look-alike id in another user class is another person. 1.x let them through with a notice.
+            $this->logger->error(sprintf('Wiki API: configuration error: the firewall user (%s) and the token\'s user (%s) share only their id; 2.0 refuses this: add %s to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the firewall and the authenticator must return the same user.', $this->classOf($securityUser), $this->classOf(WikiUserRefs::securityUser($principal->userRef())), $match), ['bundle' => 'nowo_wiki']);
+
+            throw $this->serverError();
+        }
         if ($match === self::DIFFERENT && $securityUser instanceof UserInterface) {
-            $this->logger->error(sprintf('Wiki API: configuration error: the firewall user (%s) is not the token\'s user (%s): another id, or an id that cannot be matched exactly. The firewall must authenticate the same person as nowo_wiki.api.hooks.authenticator.', $this->classOf($securityUser), $this->classOf($principal->securityUser())), ['bundle' => 'nowo_wiki']);
+            $this->logger->error(sprintf('Wiki API: configuration error: the firewall user (%s) is not the token\'s user (%s): another id, or an id that cannot be matched exactly. The firewall must authenticate the same person as nowo_wiki.api.hooks.authenticator.', $this->classOf($securityUser), $this->classOf(WikiUserRefs::securityUser($principal->userRef()))), ['bundle' => 'nowo_wiki']);
         } else {
             $this->logger->error('Wiki API: the security user is not the token\'s user. The API must sit behind a stateless, secured firewall that authenticates the token.', ['bundle' => 'nowo_wiki']);
         }
@@ -245,7 +247,7 @@ final readonly class WikiApiRequestListener implements EventSubscriberInterface
      * or a listed accepted class with the same usable id (audit OX-L1, JX-W1), or two users of one other class with the
      * same exact id; {@see self::DIFFERENT} otherwise. Audit OX-D1-L1: two users of different classes with the same
      * exact id where a side is not an accepted class (a security adapter) give the classes to add to
-     * `accepted_user_classes` (let through with a notice in 1.x). Without the class policy (a listener built by hand),
+     * `accepted_user_classes` (let through with a notice in 1.x; refused in 2.0). Without the class policy (a listener built by hand),
      * the 1.24 rule: the same id.
      */
     private function match(object $securityUser, object $tokenUser): string

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Enum;
 
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 
 /**

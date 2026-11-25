@@ -25,7 +25,6 @@ use Throwable;
 use function is_string;
 use function max;
 use function str_starts_with;
-use function trigger_deprecation;
 
 /**
  * 1.37 (Beacon spec 239): a storage failure of a wiki route answers 409 or 503 instead of 500.
@@ -138,26 +137,6 @@ final readonly class WikiStorageFailureSubscriber implements EventSubscriberInte
             }
             $event->setThrowable(new ConflictHttpException('A concurrent request changed the same data. Reload and retry.', $failure));
         }
-    }
-
-    /**
-     * Whether the chain holds a {@see ConcurrencyConflict} whose attempt already committed (no safe retry).
-     *
-     * @deprecated since 1.48, the answers use {@see ConflictCode::forRequest()}, which also sees earlier commits of the
-     *             same request and lost savepoints; removed in 2.0
-     */
-    public static function committed(Throwable $failure): bool
-    {
-        // 1.49: the runtime notice of a member 2.0 removes (the bundle no longer calls it).
-        trigger_deprecation('nowo-tech/wiki-bundle', '1.49', '%s::committed() is deprecated, 2.0 removes it: read the answer\'s code with Nowo\\TransactionDoctrine\\ConflictCode::forRequest() instead.', self::class);
-
-        for ($current = $failure; $current instanceof Throwable; $current = $current->getPrevious()) {
-            if ($current instanceof ConcurrencyConflict && $current->committed) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**

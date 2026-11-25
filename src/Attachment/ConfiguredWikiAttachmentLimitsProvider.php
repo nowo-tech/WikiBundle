@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Attachment;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiAttachmentLimitsProviderInterface;
 
 /**
  * Default limits provider: the {@code nowo_wiki.attachments} configuration, the same for every space (1.9).

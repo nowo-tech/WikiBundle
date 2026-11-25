@@ -6,12 +6,12 @@ namespace Nowo\WikiBundle\Controller;
 
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\QuickAccess\WikiFavouriteResult;
 use Nowo\WikiBundle\QuickAccess\WikiQuickAccess;
 use Nowo\WikiBundle\QuickAccess\WikiReadableSpaces;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiSpaceGuard;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Transaction\WikiConflictAnswer;

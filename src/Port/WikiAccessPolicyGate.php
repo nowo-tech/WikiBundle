@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Port;
 
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiAccessPolicyInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 

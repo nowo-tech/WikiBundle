@@ -10,8 +10,12 @@ return RectorConfig::configure()
     ->withPaths([__DIR__ . '/src', __DIR__ . '/tests'])
     ->withSkip([
         __DIR__ . '/demo',
+        // 2.0: fixtures that implement the removed 1.x port interfaces on purpose (they cannot be loaded).
+        __DIR__ . '/tests/Integration/TwoZero/Fixtures',
+        __DIR__ . '/tests/Fixtures/TwoZero',
+        __DIR__ . '/tests/Fixtures/HostApp',
         // Public API: promoting $securityUser renames the public constructor parameter $user, which breaks every host
-        // that builds these objects with named arguments (`user: ...`); the deprecated `->user` member goes in 2.0.
+        // that builds these objects with named arguments (`user: ...`); the public `->user` member went in 2.0.
         ClassPropertyAssignToConstructorPromotionRector::class => [
             __DIR__ . '/src/Api/WikiApiPrincipal.php',
             __DIR__ . '/src/Event/WikiEditorOptionsEvent.php',

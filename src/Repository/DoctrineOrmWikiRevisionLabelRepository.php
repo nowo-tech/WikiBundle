@@ -26,7 +26,7 @@ final readonly class DoctrineOrmWikiRevisionLabelRepository implements WikiRevis
     {
         $entityManager = $this->entityManager();
         $entityManager->persist($label);
-        WikiFlusher::flush($entityManager, $this->entityManager);
+        WikiFlusher::flush($entityManager);
     }
 
     public function findForRevision(WikiPageRevision $revision): ?WikiRevisionLabel

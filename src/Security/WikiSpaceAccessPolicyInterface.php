@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Security;
 
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * Per-space and per-page rights, framework-free (1.36.0): the twin of the deprecated
- * {@see WikiSpaceAccessCheckerInterface} (alias either interface to your service).
+ * Per-space and per-page rights, framework-free (1.36.0): since 2.0 the only host port; it replaced the removed 1.x
+ * `WikiSpaceAccessCheckerInterface` (alias this interface to your service).
  */
 interface WikiSpaceAccessPolicyInterface
 {
