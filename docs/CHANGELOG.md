@@ -158,6 +158,10 @@ deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.2 (the last 1
 
 ### Fixed
 
+- The REST API's directory gate never keeps a `WikiSpace` entity your `WikiApiWikiDirectoryInterface` put on a
+  `WikiApiWiki`: the space of its id is read through the wiki's private manager, so the guards, the quota and the plan
+  decide on the wiki's own row, and a wiki whose space is no longer stored (purged meanwhile) answers 404 instead of a
+  500 at the write (audit ZBL-v-2).
 - The deprecation notice of `database.private_entity_manager` names the option once
   (`nowo_wiki.database.private_entity_manager`, not `….private_entity_manager.private_entity_manager`; audit ZBL-1).
 

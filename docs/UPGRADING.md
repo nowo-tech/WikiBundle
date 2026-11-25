@@ -277,7 +277,8 @@ one other class with the same exact id still match; ownership and the API id are
   `WikiPageNotFoundException` / `WikiSpaceNotFoundException` (the mover: `page_missing` / `parent_missing`); a space you
   persisted without flushing is `WikiSpaceNotFoundException` (1.55.2: `LogicException`); a detached row (no manager
   holds it) is loaded again by its id. The API and UI guards need no re-read: their spaces come from the framework-free
-  ports by id.
+  ports by id; a `WikiSpace` your `WikiApiWikiDirectoryInterface` puts on a `WikiApiWiki` is only its id (the gate reads
+  that space through the wiki), and a wiki whose space is no longer stored is a missing wiki (404).
 - `WikiSpaceRepositoryInterface` extends `WikiSpaceBatchFinderInterface` (1.55.2): a space repository of your own must
   implement `findByIds(array $ids): array` (keyed by id, exact ids only) and `findByIdWithoutRefresh(string $id)`. The
   gates check the exact id of every answer again.
