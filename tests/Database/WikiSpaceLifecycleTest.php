@@ -46,6 +46,7 @@ use Nowo\WikiBundle\Security\WikiArchivedSpaceAccessChecker;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Nowo\WikiBundle\Service\WikiInvalidIconException;
 use Nowo\WikiBundle\Service\WikiInvalidSlugException;
 use Nowo\WikiBundle\Service\WikiPageArchivedException;
 use Nowo\WikiBundle\Service\WikiPageService;
@@ -159,7 +160,7 @@ final class WikiSpaceLifecycleTest extends TestCase
         $this->runner     = new WikiTransactionRunner($this->em, backoffBaseMilliseconds: 0);
         $this->dispatcher = new EventDispatcher();
         $this->logger     = new RecordingLogger();
-        foreach ([WikiEvents::SPACE_RENAMED, WikiEvents::SPACE_ARCHIVED, WikiEvents::SPACE_UNARCHIVED] as $name) {
+        foreach ([WikiEvents::SPACE_RENAMED, WikiEvents::SPACE_ICON_CHANGED, WikiEvents::SPACE_ARCHIVED, WikiEvents::SPACE_UNARCHIVED] as $name) {
             $this->dispatcher->addListener($name, function (WikiSpaceLifecycleEvent $event) use ($name): void {
                 $this->events[$name][] = $event->space->id . '@' . $event->space->version . '<' . $event->before->version;
             });
@@ -289,6 +290,66 @@ final class WikiSpaceLifecycleTest extends TestCase
         }
         self::assertSame('doomed', $this->fresh($this->doomed)->getSlug());
         self::assertTrue($this->em->isOpen());
+    }
+
+    public function testSetSpaceIconUnderTheLockAndTheOptimisticVersion(): void
+    {
+        // 1.56 (Beacon spec 233 T020).
+        $lifecycle = $this->lifecycle();
+        $id        = $this->doomed->getId();
+
+        $set = $lifecycle->setSpaceIcon($id, 'tabler:book', $this->ana, 1);
+        self::assertSame('tabler:book', $set->icon);
+        self::assertSame(2, $set->version);
+        self::assertSame('tabler:book', $this->fresh($this->doomed)->getIcon());
+        self::assertSame(2, $lifecycle->setSpaceIcon($id, 'tabler:book', $this->ana)->version, 'the same icon writes nothing');
+        try {
+            $lifecycle->setSpaceIcon($id, 'tabler:rocket', $this->ana, 1);
+            self::fail('Expected a version conflict.');
+        } catch (WikiSpaceVersionConflictException) {
+        }
+        foreach (['nope', 'other:icon', 'tabler:Bad Name'] as $invalid) {
+            try {
+                $lifecycle->setSpaceIcon($id, $invalid, $this->ana);
+                self::fail('Expected an invalid icon: ' . $invalid);
+            } catch (WikiInvalidIconException) {
+            }
+        }
+        $cleared = $lifecycle->setSpaceIcon($id, null, $this->ana);
+        self::assertNull($cleared->icon);
+        self::assertSame(3, $cleared->version);
+        self::assertSame(3, $lifecycle->setSpaceIcon($id, '', $this->ana)->version, "'' clears too: already clear, nothing written");
+        self::assertNull($this->fresh($this->doomed)->getIcon());
+        self::assertSame([$id . '@2<1', $id . '@3<2'], $this->events[WikiEvents::SPACE_ICON_CHANGED] ?? []);
+    }
+
+    public function testSetSpaceIconFollowsTheRenameRules(): void
+    {
+        $lifecycle = $this->lifecycle();
+        $id        = $this->doomed->getId();
+        foreach ([[$id, $this->eve], ['00000000-0000-4000-8000-000000000000', $this->ana]] as [$space, $actor]) {
+            try {
+                $lifecycle->setSpaceIcon($space, 'tabler:book', $actor);
+                self::fail('Expected not found.');
+            } catch (WikiSpaceNotFoundException) {
+            }
+        }
+        try {
+            $lifecycle->setSpaceIcon($id, 'tabler:book', $this->bob);
+            self::fail('Expected access denied.');
+        } catch (WikiSpaceAccessDeniedException $denied) {
+            self::assertSame(WikiSpaceLifecycleAction::Icon, $denied->action);
+        }
+        $lifecycle->archiveSpace($id, $this->ana);
+        try {
+            $lifecycle->setSpaceIcon($id, 'tabler:book', $this->ana);
+            self::fail('Expected the archived state.');
+        } catch (WikiSpaceStateException $state) {
+            self::assertSame(WikiSpaceStateException::ARCHIVED, $state->reason);
+        }
+        $lifecycle->unarchiveSpace($id, $this->ana);
+        self::assertSame('tabler:book', $lifecycle->setSpaceIcon($id, 'tabler:book')->icon, 'a trusted call checks no person');
+        self::assertArrayNotHasKey(WikiEvents::SPACE_RENAMED, $this->events);
     }
 
     public function testPermissionsAnswerAnotherTenantLikeAnUnknownSpace(): void
@@ -473,7 +534,7 @@ final class WikiSpaceLifecycleTest extends TestCase
         self::assertSame(2, $this->pagesOf($space));
 
         // Being purged: only the purge goes on.
-        foreach ([fn (): WikiSpaceSnapshot => $lifecycle->unarchiveSpace($space->getId(), $this->ana), fn (): WikiSpaceSnapshot => $lifecycle->renameSpace($space->getId(), 'New', null, $this->ana)] as $change) {
+        foreach ([fn (): WikiSpaceSnapshot => $lifecycle->unarchiveSpace($space->getId(), $this->ana), fn (): WikiSpaceSnapshot => $lifecycle->renameSpace($space->getId(), 'New', null, $this->ana), fn (): WikiSpaceSnapshot => $lifecycle->setSpaceIcon($space->getId(), 'tabler:book', $this->ana)] as $change) {
             try {
                 $change();
                 self::fail('Expected the purging refusal.');
@@ -536,7 +597,7 @@ final class WikiSpaceLifecycleTest extends TestCase
         $this->shortLockTimeout($this->em->getConnection());
 
         try {
-            foreach ([fn (): WikiSpaceSnapshot => $lifecycle->archiveSpace($this->doomed->getId(), $this->ana), fn (): WikiSpaceSnapshot => $lifecycle->renameSpace($this->doomed->getId(), 'X', null, $this->ana), fn (): WikiSpacePurgeResult => $lifecycle->purgeSpace($this->doomed->getId(), $this->ana, true)] as $change) {
+            foreach ([fn (): WikiSpaceSnapshot => $lifecycle->archiveSpace($this->doomed->getId(), $this->ana), fn (): WikiSpaceSnapshot => $lifecycle->renameSpace($this->doomed->getId(), 'X', null, $this->ana), fn (): WikiSpaceSnapshot => $lifecycle->setSpaceIcon($this->doomed->getId(), 'tabler:book', $this->ana), fn (): WikiSpacePurgeResult => $lifecycle->purgeSpace($this->doomed->getId(), $this->ana, true)] as $change) {
                 try {
                     $change();
                     self::fail('Expected the lock conflict.');

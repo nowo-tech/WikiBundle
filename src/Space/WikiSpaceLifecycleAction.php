@@ -21,6 +21,9 @@ enum WikiSpaceLifecycleAction: string
     /** Bring an archived space back. */
     case Unarchive = 'unarchive';
 
+    /** 1.56: set or clear the space icon. */
+    case Icon = 'icon';
+
     /** Delete the space and everything in it, for good. */
     case Purge = 'purge';
 }

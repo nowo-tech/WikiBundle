@@ -26,12 +26,14 @@ use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiEventDeferral;
+use Nowo\WikiBundle\Service\WikiInvalidIconException;
 use Nowo\WikiBundle\Service\WikiInvalidSlugException;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use Nowo\WikiBundle\Util\WikiSpaceSlugRule;
 use Nowo\WikiBundle\ValueObject\Uuid;
+use Nowo\WikiBundle\ValueObject\WikiSpaceIcon;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Psr\Log\LoggerInterface;
@@ -69,6 +71,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
      * @param LoggerInterface $logger the lifecycle's log (ids only, never names)
      * @param int $batchSize pages per purge batch
      * @param WikiSpaceSlugRule|null $slugRule 1.55: the space slug rule (tenant-path slugs); null: the bundle's rule only
+     * @param list<string> $iconPrefixes 1.56: icon prefixes of the space settings (`space_icon`, emoji included when on)
      */
     public function __construct(
         private WikiTransactionRunner $runner,
@@ -82,6 +85,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
         private LoggerInterface $logger = new NullLogger(),
         private int $batchSize = self::DEFAULT_BATCH_SIZE,
         private ?WikiSpaceSlugRule $slugRule = null,
+        private array $iconPrefixes = WikiSpaceIcon::DEFAULT_PREFIXES,
     ) {
     }
 
@@ -147,6 +151,38 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
         }
 
         return $this->announce(WikiSpaceLifecycleAction::Rename, WikiEvents::SPACE_RENAMED, $before, $after, $actor);
+    }
+
+    public function setSpaceIcon(string $spaceId, ?string $icon, ?WikiUserRef $actor = null, ?int $expectedVersion = null): WikiSpaceSnapshot
+    {
+        $icon = $icon === '' ? null : $icon;
+        if ($icon !== null && !WikiSpaceIcon::isValid($icon, $this->iconPrefixes)) {
+            throw new WikiInvalidIconException('Invalid space icon.');
+        }
+        $this->authorize($spaceId, $actor, WikiSpaceLifecycleAction::Icon);
+
+        // @igor-ignore - The closure runs at once inside the unit of work and is not kept: the runner holds no state.
+        [$before, $after] = $this->runner->run(function () use ($spaceId, $icon, $expectedVersion): array {
+            $space = $this->lockedSpace($spaceId);
+            if ($space->getPurgeStartedAt() instanceof DateTimeImmutable) {
+                throw new WikiSpaceStateException(WikiSpaceStateException::PURGING);
+            }
+            if ($space->isArchived()) {
+                throw new WikiSpaceStateException(WikiSpaceStateException::ARCHIVED);
+            }
+            $this->assertVersion($space, $expectedVersion);
+            $before = WikiSnapshots::space($space);
+            if ($space->getIcon() === $icon) {
+                return [$before, null];
+            }
+            // @igor-ignore - The space row of this call (a Doctrine entity), not service state.
+            $space->setIcon($icon, $this->iconPrefixes);
+            $space->bumpVersion();
+
+            return [$before, WikiSnapshots::space($space)];
+        });
+
+        return $this->announce(WikiSpaceLifecycleAction::Icon, WikiEvents::SPACE_ICON_CHANGED, $before, $after, $actor);
     }
 
     public function archiveSpace(string $spaceId, ?WikiUserRef $actor = null, ?int $expectedVersion = null): WikiSpaceSnapshot

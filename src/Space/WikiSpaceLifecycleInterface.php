@@ -7,15 +7,18 @@ namespace Nowo\WikiBundle\Space;
 use InvalidArgumentException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiSpaceAccessCheckEvent;
+use Nowo\WikiBundle\Service\WikiInvalidIconException;
 use Nowo\WikiBundle\Service\WikiInvalidSlugException;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
+use Nowo\WikiBundle\Service\WikiSpaceOperationsInterface;
 use Nowo\WikiBundle\Util\WikiSpaceSlugRule;
 use Nowo\WikiBundle\ValueObject\WikiSpaceSnapshot;
 use Nowo\WikiBundle\ValueObject\WikiUserRef;
 
 /**
- * 1.50: rename, archive, unarchive and purge a space (public service, SemVer). Framework-free: ids in, snapshots out.
+ * 1.50: rename, archive, unarchive and purge a space (public service, SemVer); 1.56: set its icon. Framework-free: ids in, snapshots out.
  *
  * - **Who**: with an `$actor`, the person must open the space (else {@see WikiSpaceNotFoundException}, the answer of a
  *   missing space, so another tenant's space reads as unknown) and hold `Manage` on it through the space checker, which
@@ -50,6 +53,22 @@ interface WikiSpaceLifecycleInterface
      * @throws TransientStorageFailure on a lock conflict (nothing written)
      */
     public function renameSpace(string $spaceId, ?string $name, ?string $slug = null, ?WikiUserRef $actor = null, ?int $expectedVersion = null): WikiSpaceSnapshot;
+
+    /**
+     * 1.56 (Beacon spec 233): sets the icon of the space, or clears it with null (or ''). The icon is `<prefix>:<name>`
+     * with a prefix of `space_icon.allowed_prefixes` (`emoji:` too with `space_icon.emoji`), checked as
+     * {@see WikiSpaceOperationsInterface::createSpaceFrom()} checks it. Same rules as
+     * {@see self::renameSpace()}: the person must manage the space, the row is locked and read again, an archived or
+     * purging space is refused, `$expectedVersion` is compared under the lock, the version is bumped and
+     * {@see WikiEvents::SPACE_ICON_CHANGED} is dispatched after the commit. The same icon writes
+     * nothing and dispatches nothing.
+     *
+     * @throws WikiSpaceAccessDeniedException|WikiSpaceNotFoundException|WikiSpaceVersionConflictException
+     * @throws WikiSpaceStateException when the space is archived or being purged
+     * @throws WikiInvalidIconException when the icon is not a valid icon of an allowed prefix (nothing written)
+     * @throws TransientStorageFailure on a lock conflict (nothing written)
+     */
+    public function setSpaceIcon(string $spaceId, ?string $icon, ?WikiUserRef $actor = null, ?int $expectedVersion = null): WikiSpaceSnapshot;
 
     /**
      * Archives the space: read-only for everyone, hidden from navigation and search, open only to the people who may

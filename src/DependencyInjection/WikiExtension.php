@@ -1401,6 +1401,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
             ->setArgument('$storage', new Reference(WikiAttachmentStorageInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE))
             ->setArgument('$logger', new Reference('logger', ContainerInterface::IGNORE_ON_INVALID_REFERENCE))
             ->setArgument('$slugRule', new Reference(WikiSpaceSlugRule::class))
+            ->setArgument('$iconPrefixes', '%nowo_wiki.space_icon.accepted_prefixes%')
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
         $container->setAlias(WikiSpaceLifecycleInterface::class, WikiSpaceLifecycle::class)->setPublic(true);
 

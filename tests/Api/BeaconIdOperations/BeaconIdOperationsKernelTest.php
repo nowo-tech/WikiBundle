@@ -7,10 +7,12 @@ namespace Nowo\WikiBundle\Tests\Api\BeaconIdOperations;
 use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentThread;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Service\WikiInvalidIconException;
 use Nowo\WikiBundle\Service\WikiPageOperationsInterface;
 use Nowo\WikiBundle\Service\WikiSlugTakenException;
 use Nowo\WikiBundle\Service\WikiSpaceOperationsInterface;
 use Nowo\WikiBundle\Space\WikiSpaceLifecycleInterface;
+use Nowo\WikiBundle\Space\WikiSpaceNotFoundException;
 use Nowo\WikiBundle\Tests\Api\ApiTestCase;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\ValueObject\WikiCommentSnapshot;
@@ -59,6 +61,24 @@ class BeaconIdOperationsKernelTest extends ApiTestCase
         self::assertTrue($host->getUnitOfWork()->isScheduledForInsert($pending), 'the host flushes its own changes');
         self::assertSame(0, (int) $host->getConnection()->fetchOne("SELECT COUNT(*) FROM test_users WHERE id = 'u-pending'"));
         $host->flush();
+        // 1.56 (Beacon spec 233 T020): the icon of an existing space, through the wiki's manager (after the host flushed
+        // its own pending change: with the shared manager a wiki unit would write it).
+        $changed = $spaces->setSpaceIcon($id, 'tabler:rocket');
+        self::assertSame('tabler:rocket', $changed->icon);
+        self::assertSame('tabler:rocket', $spaces->findSpace($id)?->icon);
+        self::assertNull($spaces->setSpaceIcon($id, null)->icon, 'null clears the icon');
+        self::assertSame('tabler:book', $spaces->setSpaceIcon($id, 'tabler:book', null, $changed->version + 1)->icon);
+        try {
+            $spaces->setSpaceIcon($id, 'other:icon');
+            self::fail('Expected an invalid icon.');
+        } catch (WikiInvalidIconException) {
+        }
+        try {
+            $spaces->setSpaceIcon('00000000-0000-4000-8000-000000000000', 'tabler:book');
+            self::fail('Expected not found.');
+        } catch (WikiSpaceNotFoundException) {
+        }
+        self::assertSame('tabler:book', $spaces->findSpace($id)?->icon);
 
         // Comments written by the wiki (here straight through its manager), read back as read models by id.
         $wiki  = $this->wikiEm();

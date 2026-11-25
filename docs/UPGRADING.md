@@ -4,6 +4,7 @@
 
 - [Preparing for 2.0](#preparing-for-20)
 - [Unreleased](#unreleased)
+  - [Space icon by id (1.56)](#space-icon-by-id-156)
 - [To 1.55.2](#to-1552)
   - [Private entity manager: host-loaded spaces and pages (1.55.2)](#private-entity-manager-host-loaded-spaces-and-pages-1552)
 - [To 1.55.1](#to-1551)
@@ -153,6 +154,18 @@ The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and 
 minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## Unreleased
+
+### Space icon by id (1.56)
+
+From **1.55.2**: `composer update nowo-tech/wiki-bundle`. Nothing to change unless you use the new call.
+
+- Change a space's icon with `WikiSpaceOperationsInterface::setSpaceIcon($spaceId, $icon)` (or the lifecycle's, with the
+  person and the expected version): never load the `WikiSpace` and call `setIcon()` + your own `flush()`, which the
+  private entity manager does not see.
+- `WikiSpaceOperationsInterface` and `WikiSpaceLifecycleInterface` gain `setSpaceIcon()`: a class of yours that
+  implements either (a test double) must add it.
+- `WikiSpaceLifecycleAction` gains the case `Icon`: a `WikiSpaceAccessCheckEvent` listener that `match`es every case
+  without a `default` must handle it.
 
 ## To 1.55.2
 

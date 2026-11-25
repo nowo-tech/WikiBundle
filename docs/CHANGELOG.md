@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Added (1.56.0, Unreleased)](#added-1560-unreleased)
 - [[1.55.2] - 2026-11-25](#1552---2026-11-25)
   - [Fixed (1.55.2, Unreleased)](#fixed-1552-unreleased)
   - [Added (1.55.2, Unreleased)](#added-1552-unreleased)
@@ -311,6 +312,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+### Added (1.56.0, Unreleased)
+
+- **The icon of an existing space by id (Beacon spec 233 T020).** `WikiSpaceOperationsInterface::setSpaceIcon(string $spaceId, ?string $icon, ?WikiUserRef $actor = null, ?int $expectedVersion = null)` and `WikiSpaceLifecycleInterface::setSpaceIcon()` set the icon, or clear it with `null` (or `''`), through the wiki's entity manager (the private one with `database.private_entity_manager: true`), so a host that sets a space's icon at creation (`WikiNewSpace::$icon`) can change it afterwards without loading the space. Validated against `space_icon.allowed_prefixes` (`emoji:` with `space_icon.emoji`) like `createSpaceFrom()` (`WikiInvalidIconException`, nothing written); the `renameSpace()` rules apply: an unknown id, or one the actor cannot open, is `WikiSpaceNotFoundException`; `Manage` is checked (new `WikiSpaceLifecycleAction::Icon` in `WikiSpaceAccessCheckEvent`); an archived or purging space is `WikiSpaceStateException`; one unit of the wiki's runner under the space row lock with the row read again, `$expectedVersion` compared under the lock (`WikiSpaceVersionConflictException`), the version bumped; a lock conflict is a retry-safe `TransientStorageFailure`; the new `WikiEvents::SPACE_ICON_CHANGED` (`WikiSpaceLifecycleEvent`) after the commit. The same icon writes nothing and dispatches nothing.
 
 ## [1.55.2] - 2026-11-25
 

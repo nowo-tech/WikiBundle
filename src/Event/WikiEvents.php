@@ -114,13 +114,16 @@ final class WikiEvents
     public const SEARCH_KIT_SPACES = 'nowo_wiki.search_kit.spaces';
 
     /**
-     * 1.50: {@see WikiSpaceAccessCheckEvent}, before a rename, archive, unarchive or purge of a space by a person, once the
+     * 1.50: {@see WikiSpaceAccessCheckEvent}, before a rename, icon change (1.56), archive, unarchive or purge of a space by a person, once the
      * space checker answered (its decision is the default): a listener may deny it (a deny sticks) or grant it.
      */
     public const SPACE_ACCESS_CHECK = 'nowo_wiki.space.access_check';
 
     /** 1.50: a space was renamed (name and/or slug), after commit. {@see WikiSpaceLifecycleEvent} */
     public const SPACE_RENAMED = 'nowo_wiki.space.renamed';
+
+    /** 1.56: the icon of a space was set or cleared, after commit. {@see WikiSpaceLifecycleEvent} */
+    public const SPACE_ICON_CHANGED = 'nowo_wiki.space.icon_changed';
 
     /** 1.50: a space was archived, after commit. {@see WikiSpaceLifecycleEvent} */
     public const SPACE_ARCHIVED = 'nowo_wiki.space.archived';
