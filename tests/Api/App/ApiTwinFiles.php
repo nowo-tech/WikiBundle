@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api\App;
 
-use Doctrine\Persistence\ManagerRegistry;
 use Nowo\WikiBundle\Api\Hook\WikiApiFileStoreInterface;
 use Nowo\WikiBundle\Api\Value\WikiApiDownload;
 use Nowo\WikiBundle\Api\Value\WikiApiUpload;
 use Nowo\WikiBundle\Api\Value\WikiApiUploadedFile;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
+use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\ValueObject\WikiPageSnapshot;
 use RuntimeException;
@@ -28,13 +28,13 @@ final readonly class ApiTwinFiles implements WikiApiFileStoreInterface
 {
     public function __construct(
         private ApiTestFiles $inner,
-        private ManagerRegistry $doctrine,
+        private WikiEntityManagerProvider $doctrine,
     ) {
     }
 
     public function list(WikiApiPrincipal $principal, WikiApiWiki $wiki, WikiPageSnapshot $page): array
     {
-        $entity = $this->doctrine->getManager()->find(WikiPage::class, $page->id);
+        $entity = $this->doctrine->get()->find(WikiPage::class, $page->id);
         if (!$entity instanceof WikiPage) {
             throw new RuntimeException('Unknown page ' . $page->id);
         }

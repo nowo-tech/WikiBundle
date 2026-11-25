@@ -16,10 +16,8 @@ use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Mapping\ClassMetadataFactory;
 use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
-use Doctrine\ORM\Tools\Event\GenerateSchemaTableEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\ORM\Tools\ToolEvents;
 use Doctrine\Persistence\ManagerRegistry;
@@ -134,19 +132,6 @@ final class WikiSpaceCollationListenerTest extends TestCase
         (new WikiSpaceCollationListener())->postGenerateSchema($args);
 
         self::assertSame($schema, $args->getSchema());
-    }
-
-    /** The former table event does nothing (1.49.1: replacing the table there lost its foreign keys). */
-    public function testTheFormerTableEventDoesNothing(): void
-    {
-        $table = new Table('wiki_spaces');
-        $table->addColumn('owner_scope_id', Types::STRING, ['length' => 64]);
-        $args = new GenerateSchemaTableEventArgs(new ClassMetadata(WikiSpace::class), new Schema(), $table);
-
-        (new WikiSpaceCollationListener())->postGenerateSchemaTable($args);
-
-        self::assertSame($table, $args->getClassTable());
-        self::assertSame([], $table->getColumn('owner_scope_id')->getPlatformOptions());
     }
 
     public function testCollatesInPlaceOrThroughTheEditor(): void

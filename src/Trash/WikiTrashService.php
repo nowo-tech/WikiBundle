@@ -111,8 +111,8 @@ final readonly class WikiTrashService
      */
     public function delete(WikiPage $page, ?object $actor = null): string
     {
-        // 1.55.2 (audit ZBO-2): a page of another manager (the host's, with the private manager) is read again by id.
-        $page    = $this->managed?->page($page) ?? $page;
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page    = $this->runner?->attach($page) ?? $page;
         $space   = $page->getSpace();
         $batch   = Uuid::generate()->toString();
         $entries = $this->unit(function () use ($space, $page, $batch): array {
@@ -172,7 +172,8 @@ final readonly class WikiTrashService
      */
     public function restore(WikiSpace $space, string $batchId, ?object $actor = null): ?WikiPage
     {
-        $space   = $this->managed?->space($space) ?? $space;
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $space   = $this->runner?->attach($space) ?? $space;
         $entries = $this->unit(function () use ($space, $batchId): array {
             $this->writer->beginSpaceTransaction($space);
             try {
@@ -225,7 +226,8 @@ final readonly class WikiTrashService
      */
     public function purge(WikiSpace $space, string $batchId, ?object $actor = null): int
     {
-        $space = $this->managed?->space($space) ?? $space;
+        // 2.0 (W1-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $space = $this->runner?->attach($space) ?? $space;
         $done  = $this->unit(function () use ($space, $batchId): ?array {
             $removed = [];
             $this->writer->beginSpaceTransaction($space);

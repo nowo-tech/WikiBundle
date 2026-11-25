@@ -7,6 +7,7 @@
 - [Access control](#access-control)
 - [Look-alike owner ids (1.31.1)](#look-alike-owner-ids-1311)
 - [Content safety](#content-safety)
+- [Co-editing threat model (1.13)](#co-editing-threat-model-113)
 - [Comments threat model (1.16)](#comments-threat-model-116)
 - [Page layout (1.29)](#page-layout-129)
 - [REST API (1.24, spec 218)](#rest-api-124-spec-218)
@@ -37,7 +38,7 @@
 | **Stored XSS** | Malicious HTML/JS in page body. | `WikiHtmlSanitizer` (symfony/html-sanitizer, per-element attribute allowlist) on every save **and** at render time (`nowo_wiki_safe_html` Twig filter); drops `script`, event handlers, `srcdoc`, `style` (except `text-align`), non http/https/mailto URLs and iframes outside the https embed host allowlist. |
 | **IDOR on spaces/pages** | User accesses another team's wiki. | `WikiSpaceAccessResolver` filters by team/user scope; controller resolves space via membership. |
 | **Look-alike owner ids** (fixed in 1.31.1) | `Alice`, `álice` or `alice ` reach the spaces of `alice` through a folding or PAD SPACE collation. | See [Look-alike owner ids](#look-alike-owner-ids-1311): `===` re-check after every owner lookup, padded / control / format ids refused, binary NO PAD collation on `owner_scope_id`. |
-| **Unauthorized edit** | Viewer modifies pages. | `WikiAccessCheckerInterface` on all manage actions (`canEdit`, `canCreate`, etc.). |
+| **Unauthorized edit** | Viewer modifies pages. | The access policy (`WikiAccessPolicyInterface`, or the role-based default) on all manage actions (`canEdit`, `canCreate`, etc.). |
 | **CSRF on POST** | Forged save/archive requests. | `WikiCsrfTrait` validates tokens on edit, create, archive. |
 | **Slug injection** | Path traversal or invalid URLs. | Route requirements `[a-z0-9]+(?:-[a-z0-9]+)*`; `WikiSlugger` validation. |
 | **Revision tampering** | Delete or overwrite history. | Revisions are append-only; pages are soft-archived only (`BR-WIKI-002`). |
@@ -76,7 +77,7 @@ See [docs/examples/AccessControl.md](examples/AccessControl.md) and [USAGE.md](U
 
 ### Space- and page-aware access (1.9)
 
-`WikiSpaceAccessCheckerInterface` is asked on every route with the resolved space and page. A space or page the user
+The space access policy (`WikiSpaceAccessPolicyInterface`, or the role-based default) is asked on every route with the resolved space and page. A space or page the user
 may not view answers 404 (never 403), so its existence does not leak; a denied write on a readable space answers 403.
 Attachment downloads ask `view` on the attachment's **own** page and answer 404 to every denial (missing, other space,
 forbidden, archived page without `manage`).
@@ -123,7 +124,7 @@ the newest one.
 **Host endpoints.** The endpoints your application provides to the editor — link titles of `[[` page links, the `@`
 mention candidates and the page picker (`suggestions` / `link_title_url` of the Milkdown or Tiptap editor) — must
 apply the same rule: call `WikiSpaceGuard::isPageReadable()` (or `WikiPageVisibility::isReadable()` with your
-`WikiSpaceAccessCheckerInterface`) for every page they return, so a page under a hidden parent never shows up there
+the space access policy) for every page they return, so a page under a hidden parent never shows up there
 either (audit DJ-I2).
 
 Since 1.40 the bundle serves the page picker itself (`editor.milkdown.link_picker`), so a host no longer needs its own
@@ -180,7 +181,7 @@ list, the page routes, search, AI retrieval and the REST API. Measured on MySQL 
 
 Host conditions: owner ids that two principals can hold in look-alike forms. That is user scope with a user class
 without `getId()` (the bundle then uses `getUserIdentifier()`) or with string ids, or a team resolver
-(`WikiTeamMembershipResolverInterface`) returning such ids, plus a user store that lets both forms exist (another
+(`WikiTeamMembershipSourceInterface`) returning such ids, plus a user store that lets both forms exist (another
 collation, LDAP / OAuth / in-memory users, an identifier that is not normalised). Integer and UUID ids are not affected;
 PostgreSQL and SQLite compare exactly.
 

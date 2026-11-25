@@ -12,7 +12,6 @@ use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 
-use function implode;
 use function json_encode;
 
 use const E_USER_DEPRECATED;
@@ -150,31 +149,6 @@ final class ConfigurationTest extends TestCase
         ]]);
     }
 
-    public function testDeadKeysAreDeprecated(): void
-    {
-        $deprecations = [];
-        set_error_handler(static function (int $level, string $message) use (&$deprecations): bool {
-            $deprecations[] = $message;
-
-            return true;
-        }, E_USER_DEPRECATED);
-
-        try {
-            (new Processor())->processConfiguration(new Configuration(), [[
-                'user_class' => 'App\\Entity\\User',
-                'database'   => ['driver' => 'doctrine_orm', 'platform' => 'postgresql', 'entity_manager' => 'wiki'],
-                'firewall'   => 'admin',
-            ]]);
-        } finally {
-            restore_error_handler();
-        }
-
-        self::assertCount(3, $deprecations);
-        self::assertStringContainsString('nowo_wiki.database.driver', $deprecations[0] . $deprecations[1] . $deprecations[2]);
-        self::assertStringContainsString('nowo_wiki.database.platform', $deprecations[0] . $deprecations[1] . $deprecations[2]);
-        self::assertStringContainsString('nowo_wiki.firewall', $deprecations[0] . $deprecations[1] . $deprecations[2]);
-    }
-
     public function testDefaultsDoNotTriggerDeprecations(): void
     {
         $deprecations = [];
@@ -193,37 +167,6 @@ final class ConfigurationTest extends TestCase
         self::assertSame([], $deprecations);
     }
 
-    public function testRolesPerActionWinOverTheDeprecatedKeys(): void
-    {
-        $deprecations = [];
-        set_error_handler(static function (int $level, string $message) use (&$deprecations): bool {
-            $deprecations[] = $message;
-
-            return true;
-        }, E_USER_DEPRECATED);
-
-        try {
-            $config = (new Processor())->processConfiguration(new Configuration(), [[
-                'user_class' => 'App\\Entity\\User',
-                'security'   => [
-                    'list_roles' => ['ROLE_READER'],
-                    'edit_roles' => ['ROLE_WRITER'],
-                    'roles'      => ['edit' => ['ROLE_EDITOR'], 'export' => []],
-                ],
-            ]]);
-        } finally {
-            restore_error_handler();
-        }
-
-        $roles = Configuration::resolveRoles($config['security']);
-        self::assertSame(['ROLE_READER'], $roles['list']);
-        self::assertSame(['ROLE_EDITOR'], $roles['edit']);
-        self::assertSame([], $roles['export']);
-        self::assertSame(['ROLE_ADMIN'], $roles['admin']);
-        self::assertCount(2, $deprecations);
-        self::assertStringContainsString('security.roles.list', $deprecations[0] . $deprecations[1]);
-    }
-
     public function testAnExplicitNullRoleListGrantsNothingLikeAnEmptyOne(): void
     {
         set_error_handler(static fn (): bool => true, E_USER_DEPRECATED);
@@ -233,14 +176,12 @@ final class ConfigurationTest extends TestCase
                 $config = (new Processor())->processConfiguration(new Configuration(), [[
                     'user_class' => 'App\\Entity\\User',
                     'security'   => [
-                        'create_roles' => $value,
-                        'admin_roles'  => $value,
-                        'roles'        => ['import' => $value, 'export' => $value],
+                        'roles' => ['create' => $value, 'admin' => $value, 'import' => $value, 'export' => $value],
                     ],
                 ]]);
                 $roles = Configuration::resolveRoles($config['security']);
 
-                self::assertSame([], $roles['create'], 'deprecated create_roles: ' . json_encode($value));
+                self::assertSame([], $roles['create'], 'roles.create: ' . json_encode($value));
                 self::assertSame([], $roles['admin']);
                 self::assertSame([], $roles['import'], 'roles.import: ' . json_encode($value));
                 self::assertSame([], $roles['export']);
@@ -254,7 +195,8 @@ final class ConfigurationTest extends TestCase
     public function testResolveRolesDropsBlankRoles(): void
     {
         self::assertSame(['ROLE_A'], Configuration::resolveRoles(['roles' => ['list' => ['ROLE_A', '', 'x' => 3]]])['list']);
-        self::assertSame(['ROLE_B'], Configuration::resolveRoles(['list_roles' => 'ROLE_B'])['list']);
+        self::assertSame(['ROLE_B'], Configuration::resolveRoles(['roles' => ['list' => 'ROLE_B']])['list']);
+        self::assertSame(['ROLE_USER'], Configuration::resolveRoles(['list_roles' => ['ROLE_C']])['list'], 'the removed 1.x key is not read');
     }
 
     public function testRolesMustBeListsOfNames(): void
@@ -270,22 +212,39 @@ final class ConfigurationTest extends TestCase
         ]]);
     }
 
-    public function testDeprecatedRoleKeysAreValidated(): void
+    /** @return iterable<string, array{array<string, mixed>, string, string}> */
+    public static function removedKeys(): iterable
     {
-        $this->expectException(InvalidConfigurationException::class);
-        set_error_handler(static fn (): bool => true, E_USER_DEPRECATED);
-
-        try {
-            (new Processor())->processConfiguration(new Configuration(), [[
-                'user_class' => 'App\\Entity\\User',
-                'security'   => ['list_roles' => 'ROLE_A'],
-            ]]);
-        } finally {
-            restore_error_handler();
-        }
+        yield 'route_prefix' => [['route_prefix' => '/admin'], 'nowo_wiki.route_prefix', 'web_ui.path_prefix'];
+        yield 'templates' => [['templates' => ['layout' => 'base.html.twig']], 'nowo_wiki.templates', 'web_ui.layout_template'];
+        yield 'firewall' => [['firewall' => 'admin'], 'nowo_wiki.firewall', 'never had an effect'];
+        yield 'database.driver' => [['database' => ['driver' => 'doctrine_orm']], 'nowo_wiki.database.driver', 'Doctrine ORM'];
+        yield 'database.platform' => [['database' => ['platform' => 'mysql']], 'nowo_wiki.database.platform', 'Doctrine connection'];
+        yield 'web_ui.css_framework' => [['web_ui' => ['css_framework' => 'tailwind']], 'nowo_wiki.web_ui.css_framework', 'nowo_ui_kit.css_framework'];
+        yield 'security.list_roles' => [['security' => ['list_roles' => ['ROLE_A']]], 'nowo_wiki.security.list_roles', 'security.roles.list'];
+        yield 'security.admin_roles (null)' => [['security' => ['admin_roles' => null]], 'nowo_wiki.security.admin_roles', 'security.roles.admin'];
     }
 
-    public function testDeprecatedWebUiKeysTriggerDeprecations(): void
+    /**
+     * 2.0: every key 1.x deprecated (1.6, 1.10) fails with the key to use instead.
+     *
+     * @param array<string, mixed> $config
+     */
+    #[DataProvider('removedKeys')]
+    public function testARemovedKeyFailsWithItsReplacement(array $config, string $key, string $instead): void
+    {
+        try {
+            (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User'] + $config]);
+            self::fail('The removed key must be refused.');
+        } catch (InvalidConfigurationException $exception) {
+            self::assertStringContainsString('"' . $key . '" was removed in 2.0', $exception->getMessage());
+            self::assertStringContainsString($instead, $exception->getMessage());
+            self::assertStringContainsString('UPGRADING "To 2.0.0"', $exception->getMessage());
+        }
+        self::assertSame('scalar', Configuration::refuseRemovedKeys('scalar'));
+    }
+
+    public function testThePrivateEntityManagerOptionIsGoneButTrueStaysAccepted(): void
     {
         $deprecations = [];
         set_error_handler(static function (int $level, string $message) use (&$deprecations): bool {
@@ -295,22 +254,22 @@ final class ConfigurationTest extends TestCase
         }, E_USER_DEPRECATED);
 
         try {
-            (new Processor())->processConfiguration(new Configuration(), [[
-                'user_class'   => 'App\\Entity\\User',
-                'route_prefix' => '/admin',
-                'templates'    => ['layout' => 'base.html.twig', 'index' => 'wiki/index.html.twig'],
-                'web_ui'       => ['css_framework' => 'tailwind'],
-            ]]);
+            $config = (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'database' => ['private_entity_manager' => true]]]);
         } finally {
             restore_error_handler();
         }
+        self::assertTrue($config['database']['private_entity_manager']);
+        self::assertCount(1, $deprecations);
+        self::assertStringContainsString('has no effect since 2.0', $deprecations[0]);
 
-        $all = implode("\n", $deprecations);
-        self::assertCount(4, $deprecations);
-        self::assertStringContainsString('web_ui.path_prefix', $all);
-        self::assertStringContainsString('web_ui.layout_template', $all);
-        self::assertStringContainsString('web_ui.templates.index', $all);
-        self::assertStringContainsString('nowo_ui_kit.css_framework', $all);
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('private_entity_manager: false is no longer supported');
+        set_error_handler(static fn (): bool => true, E_USER_DEPRECATED);
+        try {
+            (new Processor())->processConfiguration(new Configuration(), [['user_class' => 'App\\Entity\\User', 'database' => ['private_entity_manager' => false]]]);
+        } finally {
+            restore_error_handler();
+        }
     }
 
     public function testAiHttpTimeoutMustBePositive(): void

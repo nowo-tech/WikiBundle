@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Service;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceLocatorInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**

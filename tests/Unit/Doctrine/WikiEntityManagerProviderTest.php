@@ -8,10 +8,12 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use LogicException;
+use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiPageRevisionRepository;
 use PHPUnit\Framework\TestCase;
+use stdClass;
 
 final class WikiEntityManagerProviderTest extends TestCase
 {
@@ -67,5 +69,17 @@ final class WikiEntityManagerProviderTest extends TestCase
         $repository = new DoctrineOrmWikiPageRevisionRepository(new WikiEntityManagerProvider($registry));
 
         self::assertSame($revision, $repository->findById('r1'));
+    }
+
+    /** 2.0: the bundle's provider always answers its private manager; the 1.49 probe argument is ignored. */
+    public function testThePrivateManagerWinsAndTheProbeIsGone(): void
+    {
+        $registry = $this->createMock(ManagerRegistry::class);
+        $registry->expects(self::never())->method('getManager');
+        $private  = new WikiEntityManager($registry);
+        $provider = new WikiEntityManagerProvider($registry, 'default', $private, new stdClass());
+
+        self::assertSame($private, $provider->get());
+        self::assertNull($provider->hostFlushProbe());
     }
 }

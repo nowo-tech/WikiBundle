@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api\Operation;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Serializer\WikiApiSerializer;
 use Nowo\WikiBundle\Api\Value\WikiApiWikiFilter;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiQuery;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 
 use function array_map;
 use function array_slice;
@@ -43,12 +44,12 @@ final readonly class WikiApiWikiOperations
      */
     public function list(WikiApiPrincipal $principal, WikiApiWikiFilter $filter, int $page): array
     {
-        if (!$this->roles->canList($principal->securityUser())) {
+        if (!$this->roles->canList(WikiUserRefs::securityUser($principal->userRef()))) {
             throw WikiApiRefusal::permissionRefused();
         }
         $visible = [];
         foreach ($this->directory->list($principal, $filter) as $wiki) {
-            if ($this->guard->isSlug($wiki->slug) && $this->guard->sees($principal, $wiki) && $this->planGate->allowsWiki($principal->securityUser(), $wiki)) {
+            if ($this->guard->isSlug($wiki->slug) && $this->guard->sees($principal, $wiki) && $this->planGate->allowsWiki(WikiUserRefs::securityUser($principal->userRef()), $wiki)) {
                 $visible[] = $wiki;
             }
         }
@@ -69,7 +70,7 @@ final readonly class WikiApiWikiOperations
      */
     public function get(WikiApiPrincipal $principal, string $slug): array
     {
-        if (!$this->roles->canList($principal->securityUser())) {
+        if (!$this->roles->canList(WikiUserRefs::securityUser($principal->userRef()))) {
             throw WikiApiRefusal::permissionRefused();
         }
 

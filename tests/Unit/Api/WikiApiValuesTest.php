@@ -19,6 +19,7 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiApiWriteEvent;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 
@@ -97,7 +98,7 @@ final class WikiApiValuesTest extends TestCase
 
     public function testTheDenyingDefaults(): void
     {
-        $principal = new WikiApiPrincipal(new TestUser(), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n');
+        $principal = WikiApiPrincipal::of(WikiUserRefs::fromUser(new TestUser()), WikiApiLevel::Read, WikiApiWhere::everything(), 't', 'n');
         $limiter   = new DenyingWikiApiRateLimiter();
         self::assertFalse($limiter->consume($principal)->accepted);
         self::assertFalse($limiter->failedTokenState('127.0.0.1')->accepted);
@@ -121,7 +122,7 @@ final class WikiApiValuesTest extends TestCase
         $record = new WikiApiIdempotencyRecord('s', 'k', 'f', new DateTimeImmutable(), new DateTimeImmutable());
         self::assertNull($record->status);
 
-        $event = new WikiApiWriteEvent(new WikiApiPrincipal(new TestUser(), WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n'), 'page.update', 'eng', 's', 'p', ['revision' => 'r'], ['title']);
+        $event = new WikiApiWriteEvent(WikiApiPrincipal::of(WikiUserRefs::fromUser(new TestUser()), WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n'), 'page.update', 'eng', 's', 'p', ['revision' => 'r'], ['title']);
         self::assertSame(['title'], $event->changedFields);
     }
 

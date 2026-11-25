@@ -6,11 +6,11 @@ namespace Nowo\WikiBundle\Ai\Tool;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiTokenGuard;
 use Nowo\WikiBundle\Service\WikiSearchService;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Core\User\UserInterface;

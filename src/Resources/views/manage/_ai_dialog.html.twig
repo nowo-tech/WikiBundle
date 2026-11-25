@@ -4,42 +4,12 @@
   dialog opens (_ai_ask_form.html.twig: the question form with Cancel then Ask in the footer; the question field has
   autofocus). The question posts inside the dialog and the answer, its sources or the error re-render in place.
   Without JavaScript the link opens the full ask page.
-  Variables: ai_src (the ai_ask URL, 1.53), bundle. Deprecated since 1.53: with ai_form (WikiAiAskType view) instead,
-  the 1.18 inline dialog.
+  Variables: ai_src (the ai_ask URL, 1.53), bundle. 2.0: the 1.18 inline dialog (ai_form) is no longer rendered.
 #}
-{% if ai_form|default(null) is null %}
-    {{ include(nowo_ui_partial('remote_form_dialog', bundle), {
-        id: 'nowo-wiki-ai-dialog',
-        title: 'wiki.ai.highlight_title'|trans({}, 'NowoWikiBundle'),
-        size: 'md',
-        bundle: bundle,
-        attr: {'data-testid': 'wiki-ai-dialog'},
-    }, false) }}
-{% else %}
-{% set _form_id = 'nowo-wiki-ai-dialog-form' %}
-{% set _footer %}
-    <button type="button" class="{{ nowo_ui_class('btn_secondary', bundle) }}" data-nowo-ui-dialog-close>{{ 'wiki.action.cancel'|trans({}, 'NowoWikiBundle') }}</button>
-    <button type="submit" class="{{ nowo_ui_class('btn_primary', bundle) }}" form="{{ _form_id }}" data-testid="wiki-ai-submit">{{ 'wiki.ai.submit'|trans({}, 'NowoWikiBundle') }}</button>
-{% endset %}
-{% set _body %}
-    <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.ai.highlight_intro'|trans({}, 'NowoWikiBundle') }}</p>
-    {{ form_start(ai_form, {attr: {id: _form_id, class: nowo_ui_class('form', bundle)}}) }}
-        {% for child in ai_form %}
-            {% if not child.rendered %}
-                {{ form_row(child) }}
-            {% endif %}
-        {% endfor %}
-    {{ form_end(ai_form) }}
-    <p class="{{ nowo_ui_class('muted', bundle) }}">{{ 'wiki.ai.help'|trans({}, 'NowoWikiBundle') }}</p>
-{% endset %}
-{{ include(nowo_ui_partial('dialog', bundle), {
+{{ include(nowo_ui_partial('remote_form_dialog', bundle), {
     id: 'nowo-wiki-ai-dialog',
     title: 'wiki.ai.highlight_title'|trans({}, 'NowoWikiBundle'),
     size: 'md',
-    body: _body,
-    footer: _footer,
     bundle: bundle,
-    nowo_ui_page_type: nowo_ui_page_type|default(null),
     attr: {'data-testid': 'wiki-ai-dialog'},
 }, false) }}
-{% endif %}

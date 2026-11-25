@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Panel\WikiPanelStatesInterface;
-use Nowo\WikiBundle\Panel\WikiPanelStateStoreInterface;
+use Nowo\WikiBundle\Port\Internal\WikiPanelStateStoreInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**

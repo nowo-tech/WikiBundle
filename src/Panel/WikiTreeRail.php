@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Panel;
 
 use Nowo\WikiBundle\Controller\WikiCommentController;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiPanelStateStoreInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\User\UserInterface;

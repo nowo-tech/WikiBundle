@@ -19,12 +19,12 @@ use Nowo\WikiBundle\ValueObject\WikiNewSpace;
 use function array_map;
 
 /**
- * 1.55 (Beacon): the id operations as a host gets them from the container, with the shared entity manager (the 1.x
- * default; {@see BeaconIdOperationsPrivateKernelTest} runs the same with `database.private_entity_manager: true`):
+ * 1.55 (Beacon): the id operations as a host gets them from the container, through the wiki's private entity manager
+ * (2.0: the only mode):
  * a space created with a tenant-path slug and an icon of the settings, a taken slug refused with the host's manager
  * still open and its pending changes neither flushed nor dropped, the comment read models, and the erasure.
  */
-class BeaconIdOperationsKernelTest extends ApiTestCase
+final class BeaconIdOperationsKernelTest extends ApiTestCase
 {
     protected const OWNER = '0b0c6b66-5c43-4c49-9a1c-3f0b8e2a7d11';
 
@@ -37,9 +37,9 @@ class BeaconIdOperationsKernelTest extends ApiTestCase
 
     public function testTheHostCreatesReadsAndErasesThroughTheWiki(): void
     {
-        $spaces = static::getContainer()->get(WikiSpaceOperationsInterface::class);
-        $pages  = static::getContainer()->get(WikiPageOperationsInterface::class);
-        $life   = static::getContainer()->get(WikiSpaceLifecycleInterface::class);
+        $spaces = self::getContainer()->get(WikiSpaceOperationsInterface::class);
+        $pages  = self::getContainer()->get(WikiPageOperationsInterface::class);
+        $life   = self::getContainer()->get(WikiSpaceLifecycleInterface::class);
         self::assertInstanceOf(WikiSpaceOperationsInterface::class, $spaces);
         self::assertInstanceOf(WikiPageOperationsInterface::class, $pages);
         self::assertInstanceOf(WikiSpaceLifecycleInterface::class, $life);

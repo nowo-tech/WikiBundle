@@ -8,29 +8,23 @@ Root key: `nowo_wiki`.
 | `accepted_user_classes` | `[]` | 1.27: security-user classes other than `user_class` stored as `user_class` by their `getId()` (wrappers / read models). Empty: only `user_class` instances write and own comments; any other user is refused, so overlapping ids of another identity domain fail closed. Ids ≤ 0 and empty ids are refused |
 | `table_prefix` | `wiki_` | DB table prefix |
 | `space_scope` | `team` | `team` or `user` |
-| `team_membership_resolver` | null | Service id implementing `WikiTeamMembershipResolverInterface` |
+| `team_membership_resolver` | null | Service id implementing `WikiTeamMembershipSourceInterface` |
 | `database.entity_manager` | `default` | Doctrine entity manager used by the wiki repositories and search |
 | `database.mapping_type` | `attribute` | 1.36: `xml` maps the 16 wiki entities (13 before 1.45) from `Resources/config/doctrine-xml` (same schema) on `database.entity_manager`. Literal value only (read before the configuration is processed). See [ARCHITECTURE](ARCHITECTURE.md#mapping-and-user-references) |
 | `database.user_reference` | `entity` | 1.36: `id` stores revision authors, link creators, uploaders, comment authors, resolvers and reactions as the user's id (`VARCHAR(128)`, binary collation on MySQL / MariaDB, no foreign key); `user_class` need not be a Doctrine entity. Schema migration: [UPGRADING](UPGRADING.md#to-1340) |
-| `database.private_entity_manager` | `false` | 1.36: `true` reads and writes the wiki rows through a private entity manager on the connection and mapping of `database.entity_manager`: a wiki write never flushes, clears or closes your manager. The only mode in 2.0. 1.49: unset or `false` triggers a deprecation notice and runs the host-flush probe ([UPGRADING › To 1.49.0](UPGRADING.md#to-1490)) |
+| `database.private_entity_manager` | (none) | 2.0: no effect, the private entity manager is the only mode (the wiki rows are read and written through a private manager on the connection and mapping of `database.entity_manager`; a wiki write never flushes, clears or closes your manager). `false` fails the build; `true` triggers a deprecation notice and is accepted until 3.0: remove the key |
 | `user_directory` | `null` | 1.36: service id of a `User\WikiUserDirectoryInterface` (`find(string $id): ?object`, exact id) for names and avatars of users stored by id |
-| `database.driver` | `doctrine_orm` | **Deprecated since 1.6, no effect** (only Doctrine ORM is supported); remove it from your config |
-| `database.platform` | `mysql` | **Deprecated since 1.6, no effect** (the platform comes from the Doctrine connection); remove it from your config |
-| `firewall` | `main` | **Deprecated since 1.6, no effect** (the bundle trusts any secured firewall that handles the wiki routes); remove it from your config |
 | `sanitizer.extra_allowed_elements` | `{}` | 1.11: extra elements kept in page bodies, element => its extra attributes (e.g. `{details: [open], summary: []}`); see [Sanitizer allowlist](#sanitizer-allowlist-111) |
 | `sanitizer.extra_allowed_attributes` | `[]` | 1.11: attributes kept on every allowed element (e.g. `[data-callout]`). 1.16.2: an `id` listed here (or under `extra_allowed_elements`) has no effect — only the renderer anchors `nowo-h-…` / `nowo-fn-…` are kept, every other id is dropped, and a deprecation is logged at container build; `name` is refused (configuration error) |
 | `editor.type` | `tiptap` | `tiptap`: HTML pages edited with TiptapEditorType; `markdown` (1.11): Markdown pages (`content_markdown` is the source, `content_html` its sanitized render cache), see [Markdown pages](#markdown-pages-111); `milkdown` (1.13): Markdown pages in the nowo-tech/milkdown-editor-bundle dialect, see [Milkdown editor](#milkdown-editor-113) |
 | `editor.tiptap_config` | `notion` | TiptapEditorBundle config profile name |
 | `editor.markdown_form_type` | null | 1.11: form type FQCN of the page body when `editor.type` is `markdown` (e.g. a Markdown editor bundle); null = a plain textarea (`MilkdownEditorType` with `milkdown`) |
 | `editor.milkdown.page_resolver` | null | 1.13: service id of the Milkdown `PageResolverInterface` that resolves `[[wiki:<uuid>]]` in wiki pages for the viewer; null = `WikiMilkdownPageResolver` (pages the viewer may read, `page_view` URLs) |
-| `security.access_checker` | null | Custom `WikiAccessCheckerInterface` service id |
+| `security.access_checker` | null | Custom `WikiAccessPolicyInterface` service id |
 | `security.access_roles` | `[ROLE_USER]` | General gate of the wiki (REQ-UI-002); an empty list grants nothing through it |
-| `security.roles.<action>` | see [Roles per action](#roles-per-action-req-ui-003) | Roles per action (`admin`, `list`, `create`, `edit`, `history`, `archive`, `ai`, `import`, `export`); `null` = the deprecated `<action>_roles` key, else the default |
-| `security.<action>_roles` | null | **Deprecated since 1.10**: use `security.roles.<action>` |
+| `security.roles.<action>` | see [Roles per action](#roles-per-action-req-ui-003) | Roles per action (`admin`, `list`, `create`, `edit`, `history`, `archive`, `ai`, `import`, `export`); `null` = the default key, else the default |
 | `security.allow_unauthenticated` | `false` | DEV/DEMO only — wires AllowAll checker; requires SecurityBundle when `false` |
 | `routes.*` | see defaults | Path and route name per action |
-| `route_prefix` | null | **Deprecated since 1.10**: use `web_ui.path_prefix` |
-| `templates.*` | null | **Deprecated since 1.10**: use `web_ui.layout_template` and `web_ui.templates.<page>` |
 | `ai.enabled` | `false` | Enable Symfony AI assistant (`composer require symfony/ai-bundle`) |
 | `ai.agent` | `wiki_assistant` | Agent name from `config/packages/ai.yaml` (service `ai.agent.{name}`) |
 | `ai.context_injection` | `true` | Inject wiki search hits into the system prompt |
@@ -42,11 +36,10 @@ Root key: `nowo_wiki`.
 | `import_export.max_upload_bytes` | `52428800` | Max upload size for space import (bytes) |
 | `import_export.max_document_bytes` | `8388608` | Largest Markdown document an import accepts (bytes, 1024 to 536870912). A ZIP entry that declares more is refused before anything is extracted, one that holds more while it is written, and a file over it in a directory source (`wiki:import`) before anything is written. It bounds one document, not the sum: the sum is checked against `memory_limit`, see [SECURITY](SECURITY.md) |
 | `web_ui.enabled` | `true` | `false`: the `nowo_wiki` route loader registers no route |
-| `web_ui.path_prefix` | null | Prefix of every wiki route path (e.g. `/admin`); null = the deprecated `route_prefix`, else none |
+| `web_ui.path_prefix` | null | Prefix of every wiki route path (e.g. `/admin`); null = none |
 | `web_ui.layout_template` | null | Layout the pages extend; null = `nowo_ui_kit.layouts.admin` (see [TEMPLATES](TEMPLATES.md#layout)) |
 | `web_ui.templates.<page>` | null | Per-page template override (`index`, `space`, `page_view`, `page_edit`, `page_history`, `page_diff`, `search`, `ai_ask`); null = the bundle page |
 | `web_ui.tab_icons.<tab>` | `page`: `tabler:file-text`, `edit`: `tabler:pencil`, `history`: `tabler:history` | 1.18: icon of each page tab (Page / Edit / History) passed to the UiKit `tabs` partial, so the row follows the host's tab style (text, icon and text, icon only); null or `''` = no icon on that tab; a name must be `[prefix:]name` in lowercase letters, digits and single hyphens (checked at container build) |
-| `web_ui.css_framework` | null | **Deprecated since 1.10**: set `nowo_ui_kit.css_framework` once for every bundle (when set, it only seeds `nowo_ui_kit.css_framework` / `icon_set` if the host left them unset) |
 | `space_icon.allowed_prefixes` | `[tabler]` | 1.32: icon set prefixes accepted for `WikiSpace::icon` (`<prefix>:<name>`, each prefix `[a-z0-9-]+`); the setter and `WikiSpaceIconType` reject any other. 1.38: also for `WikiPage::icon` (form, API, import) |
 | `tree.default_expanded` | `current_path` | 1.38, the nested page tree (`tree.enabled: false`): which parent rows start open once `wiki.js` runs. `current_path`: the ancestors of the current page; `all`: every row; `none`: none but the current page's ancestors (they always start open). The reader's own choices, remembered per space in localStorage (`nowo-wiki-tree:<space id>`), win. Without JavaScript every row is open |
 | `page_icon.form_field` | `false` | 1.38: `true` adds the optional "Icon" field (`WikiSpaceIconType`, `wiki.page.icon`) to the page form, new and edit. The page icon itself is always shown when set and always read / written by the API and import / export |
@@ -152,7 +145,6 @@ nowo_milkdown_editor:
 
 Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates`, part of the generated schema only while `collaboration.enabled` is true (1.13.1; see [UPGRADING](UPGRADING.md#to-1131)).
 
-
 **Host files (1.25).** `editor.milkdown.host_files` decides whether the per-viewer render (page body, comments, the API
 reader view) resolves host file references through Milkdown's `HostFileResolverInterface`, with the render's
 `WikiRenderFrame` (space, page, reach) as context:
@@ -253,7 +245,7 @@ nowo_wiki:
     tree:
         enabled: true          # literal boolean; off = the 1.13 nested list, no tree routes
         max_depth: 10          # deepest level after a move (root pages are level 1)
-        state_store: null      # service id of a WikiTreeStateStoreInterface (null: the session)
+        state_store: null      # service id of a WikiTreeStatesInterface (null: the session)
         default_expanded: current_path   # 1.38, the nested list (enabled: false): current_path | all | none
     page_icon:
         form_field: false      # 1.38: the page form's optional icon field
@@ -496,7 +488,7 @@ nowo_wiki:
             comments_per_thread: 500
             reactions_per_comment: 20          # distinct emoji on one comment
             user_reactions_per_comment: 10
-        state_store: null                      # a WikiPanelStateStoreInterface service id (null: the session)
+        state_store: null                      # a WikiPanelStatesInterface service id (null: the session)
         read_view_source: false                # true: non-editors get the page Markdown on the read view (see below)
         shortcut: null                         # e.g. 'Alt+Shift+C' (aria-keyshortcuts); none by default
 ```
@@ -507,7 +499,7 @@ nowo_wiki:
 | `comments.rate_limiter` | null (required when on) | `RateLimiterFactory` service id, keyed by **user identifier, across all pages**, on every write (429) |
 | `comments.page_rate_limiter` | null | Optional `RateLimiterFactory` service id keyed by user identifier + page id, on top of `rate_limiter` |
 | `comments.limits.*` | 500 / 50 / 1000 / 500 / 20 / 10 | Open threads per page, open threads one user starts on one page (1.16.1), every thread of a page including resolved ones (1.16.1), comments per thread, distinct emoji per comment, reactions of one user per comment (422 `limit_reached` beyond) |
-| `comments.state_store` | null | Service id of a `WikiPanelStateStoreInterface` (open / closed per user); the session by default |
+| `comments.state_store` | null | Service id of a `WikiPanelStatesInterface` (open / closed per user); the session by default |
 | `comments.read_view_source` | `false` | Literal boolean. `false`: on the read view only editors get the read-only Milkdown mount (inline highlights) and so the page source; other commenters get the threads rendered by the server. `true`: every viewer with `ViewComments` gets the mount **and the Markdown source** ([SECURITY](SECURITY.md#comments-threat-model-116)) |
 | `comments.moderation_panel` | `false` | 1.21, literal boolean. `true`: users with `ModerateComments` get *Moderate threads* in the panel: the threads of the page (at most the 50 of `GET …/threads`), each with *Delete thread* behind a confirm dialog (`DELETE …/threads/{id}`). The endpoint exists either way |
 | `comments.error_notices` | `false` | 1.21. `true`: a write refused with 422 or 429 shows its own text (a UiKit toast when the toast script is loaded, else a notice in the panel). The Milkdown event only carries the status, so every 422 reads as `wiki.comments.error.limit_reached` |
@@ -517,7 +509,7 @@ nowo_wiki:
 | `routes.space_panel_state` | `…/spaces/{spaceSlug}/panel-state` | `POST {panel: "comments", open}` (204); 1.29 also `{panel: "tree_rail", open}` with `web_ui.tree_rail` (registered with either feature) |
 
 The tab row (*Page* / *Edit* / *History*) is rendered with or without comments. The toggle and the panel appear only
-for viewers with `WikiAction::ViewComments`. **Rights** are default deny: the host's `WikiSpaceAccessCheckerInterface`
+for viewers with `WikiAction::ViewComments`. **Rights** are default deny: the host's `WikiSpaceAccessPolicyInterface`
 grants `ViewComments`, `Comment`, `ResolveComment` and `ModerateComments` (Beacon maps them to its View, Edit, manage
 and manage permissions); the 1.x legacy mapping denies them all. Every endpoint also applies the read rule (View on the
 page and every ancestor): an unreadable page answers 404, a missing right 403.
@@ -532,10 +524,10 @@ their page (purge) and hidden with it (archive, trash). A deleted user's comment
 ```yaml
 # config/services.yaml
 services:
-    Nowo\WikiBundle\Avatar\WikiUserAvatarResolverInterface: '@App\Wiki\WikiAvatarUrls'
+    Nowo\WikiBundle\Avatar\WikiUserAvatarSourceInterface: '@App\Wiki\WikiAvatarUrls'
 ```
 
-`WikiUserAvatarResolverInterface::urlsFor(list<UserInterface>, int $size): array<string, ?string>` is called once per
+`WikiUserAvatarSourceInterface::urlsFor(list<WikiUserRef>, int $size): array<string, ?string>` is called once per
 response, keyed by `WikiAvatarKey::of($user)` (`getId()` as a string, else the user identifier), with `$size` 32 (CSS
 pixels). Return a stable, access-checked URL: `https://` without userinfo, or a same-origin path starting with one `/`
 (the UiKit avatar URL policy drops anything else, and initials are shown). The default
@@ -590,8 +582,8 @@ nowo_wiki:
 ```yaml
 # config/services.yaml — decide per space / page and create spaces on the first visit
 services:
-    Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface: '@App\Wiki\Security\MyWikiAccessChecker'
-    Nowo\WikiBundle\Service\WikiSpaceLocatorInterface: '@App\Wiki\Tenancy\MySpaceLocator'
+    Nowo\WikiBundle\Security\WikiSpaceAccessPolicyInterface: '@App\Wiki\Security\MyWikiAccessPolicy'
+    Nowo\WikiBundle\Service\WikiSpaceIdLocatorInterface: '@App\Wiki\Tenancy\MySpaceLocator'
 ```
 
 ## Attachments (1.9)
@@ -608,7 +600,7 @@ nowo_wiki:
         # allowed_types: { png: [image/png], pdf: [application/pdf], … }   # extension => sniffed MIME types
 ```
 
-Limits per space can come from host settings: alias `WikiAttachmentLimitsProviderInterface` to your service.
+Limits per space can come from host settings: alias `WikiAttachmentLimitsPolicyInterface` to your service.
 
 ## Web UI (REQ-UI-001 / REQ-UI-003)
 
@@ -638,7 +630,7 @@ nowo_wiki:
             history: 'tabler:history'
 ```
 
-- **Layout:** a host layout that renders the canonical blocks (`nowo_ui_document_title`, `nowo_ui_styles`, `nowo_ui_page_header`, `nowo_ui_flashes`, `nowo_ui_content`, `nowo_ui_modals`, `nowo_ui_scripts`) is used as is — the reference is a one-file bridge that `{% use '@NowoUiKit/layout/_bridge.html.twig' %}` (see `demo/symfony8/templates/layouts/admin.html.twig`). A pre-1.10 layout that only renders `{% block body %}` keeps working through a **deprecated** bridge (removed in 2.0).
+- **Layout:** a host layout that renders the canonical blocks (`nowo_ui_document_title`, `nowo_ui_styles`, `nowo_ui_page_header`, `nowo_ui_flashes`, `nowo_ui_content`, `nowo_ui_modals`, `nowo_ui_scripts`) is used as is — the reference is a one-file bridge that `{% use '@NowoUiKit/layout/_bridge.html.twig' %}` (see `demo/symfony8/templates/layouts/admin.html.twig`). 2.0: a layout that only renders `{% block body %}` (a pre-1.10 layout) fails with a `LogicException` naming it when a page renders (the 1.10 bridge was removed).
 - **CSS stack:** the pages emit `nowo-ui-*` classes plus the theme slots of `nowo_ui_kit.theme` (Bootstrap 5, Tailwind, Foundation, `custom` / `none` = semantic classes only); the bundle loads no framework and no CDN. Switch the stack with `nowo_ui_kit.css_framework`, re-skin with `nowo_ui_kit.theme` (classes, attributes, partials, `--nowo-ui-*` tokens).
 - **Assets:** each page stacks `{{ parent() }}` + `wiki.css` (asset package `nowo_wiki`) in `nowo_ui_styles`; the page editor adds the TiptapEditorBundle script in `nowo_ui_scripts` (with the request attribute `csp_nonce` when set). `wiki.css` only lays out the wiki-specific regions (tree, two columns, page body, diff) with the `--nowo-ui-*` tokens.
 - **Form fields:** the form types carry no framework class; the host form theme (`twig.form_themes`, e.g. `bootstrap_5_layout.html.twig`) or the FormKit `wiki` profile styles them.
@@ -848,7 +840,7 @@ nowo_wiki:
             export: [ROLE_USER]
 ```
 
-An empty list grants that action to nobody but the `admin` roles. When `access_roles` and every list are empty (and there is no `access_checker` and `allow_unauthenticated` is false), the container refuses to compile. The 1.x keys `security.admin_roles`, `list_roles`, `create_roles`, `edit_roles`, `history_roles`, `archive_roles`, `ai_roles`, `import_roles`, `export_roles` still work (deprecated since 1.10, removed in 2.0); `security.roles.<action>` wins when both are set. Space- and page-level decisions stay with `WikiSpaceAccessCheckerInterface` (1.9).
+An empty list grants that action to nobody but the `admin` roles. When `access_roles` and every list are empty (and there is no `access_checker` and `allow_unauthenticated` is false), the container refuses to compile. The 1.x keys `security.<action>_roles` were removed in 2.0 (the build names `security.roles.<action>`). Space- and page-level decisions stay with the space access policy (`WikiSpaceAccessPolicyInterface`, alias it to your service).
 
 ## Pagination (REQ-PERF-001)
 

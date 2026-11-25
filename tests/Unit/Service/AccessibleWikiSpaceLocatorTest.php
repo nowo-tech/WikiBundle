@@ -6,8 +6,8 @@ namespace Nowo\WikiBundle\Tests\Unit\Service;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Service\AccessibleWikiSpaceLocator;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use PHPUnit\Framework\TestCase;
 

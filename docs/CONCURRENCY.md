@@ -45,11 +45,8 @@ API suites and both race files pass on MariaDB 11.4 with no code change.
 - **Events after the unit.** Page, comment, link, attachment and trash events, the co-editing bookkeeping and Mercure
   updates are held by `WikiEventDeferral` and dispatched once the unit is done (after the commit when the unit is the
   outermost transaction). A listener that fails afterwards is logged; it does not report a stored write as failed.
-- **The host's entity manager is never reset or cleared.** With the private manager
-  (`database.private_entity_manager: true`) the wiki never touches it. With the shared manager (the default until 2.0)
-  only the wiki rows a failed unit touched are forgotten; a manager closed by a failed flush stays closed until the
-  next request, message or command boundary, where `WikiRequestBoundaryResetter` replaces it. An open host manager is
-  never replaced.
+- **The host's entity manager is never flushed, reset or cleared.** The wiki writes through its private manager (the
+  only mode since 2.0) and never touches the application's manager.
 - **No silent swallowing.** A deadlock or lock wait inside a listener, the backlink index or a page visit that runs in a
   transaction of the application is rethrown. Outside such a transaction only the read-side paths named below log it.
 - **Bounded work under locks.** Files are written before the unit and deleted after a refused unit; mails and HTTP
@@ -142,7 +139,6 @@ conflicts and keep their normal error path.
 | `nowo_transaction_doctrine.conflict_response.status` | `409` (default) or `503` for every rule 6 answer |
 | `nowo_transaction_doctrine.conflict_response.retry_after` | The `Retry-After` used when the failure carries no hint |
 | `nowo_transaction_doctrine.commit_detection` | The request watermark behind `CONFLICT_002` for earlier commits of the request |
-| `nowo_wiki.database.private_entity_manager` | `true`: the wiki never touches the application's manager |
 | `doctrine.dbal.use_savepoints: true` (DBAL 3) | Required so that a wiki failure inside the application's transaction rolls back only the wiki's savepoint |
 | `innodb_lock_wait_timeout` / `lock_timeout` | Keep below the request timeout: a timeout becomes `CONFLICT_001`, never a stuck worker |
 
@@ -154,9 +150,6 @@ Accepted and documented:
   transaction's snapshot: two replies at once can share a position or pass the reply cap by one, and a concurrent
   identical link ends on the unique key (409, never a duplicate). PostgreSQL's READ COMMITTED and calls outside the
   application's transaction have the full guarantee.
-- **Shared entity manager:** a wiki unit writes what the application left pending in the shared manager, and a failed
-  unit closes that manager until the next boundary (audit QN-M1). The private manager removes both; it becomes the
-  only mode in 2.0 (REQ-ARCH-001 rule 6).
 - **Events inside an application transaction** are dispatched when the wiki's savepoint is released, before the
   application commits; a later rollback leaves listeners told of rows that do not exist.
 - **Favourites:** two concurrent adds of one person can pass `favourites.max` by one; recents can keep one visit more

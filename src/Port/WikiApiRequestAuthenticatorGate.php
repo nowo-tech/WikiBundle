@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Port;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiAuthenticatorInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRequestAuthenticatorInterface;
 use Nowo\WikiBundle\Api\WikiApiAuthFailure;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
+use Nowo\WikiBundle\Port\Internal\WikiApiAuthenticatorInterface;
 use Symfony\Component\HttpFoundation\Request;
 
 /**

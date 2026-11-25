@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Avatar;
 
+use Nowo\WikiBundle\Port\Internal\WikiUserAvatarResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**

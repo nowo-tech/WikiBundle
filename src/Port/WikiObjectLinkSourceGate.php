@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Link\WikiLinkedObject;
-use Nowo\WikiBundle\Link\WikiObjectLinkResolverInterface;
 use Nowo\WikiBundle\Link\WikiObjectLinkSourceInterface;
+use Nowo\WikiBundle\Port\Internal\WikiObjectLinkResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function in_array;
@@ -24,15 +24,15 @@ final readonly class WikiObjectLinkSourceGate implements WikiObjectLinkResolverI
     }
 
     /**
-     * The resolver to ask for a tagged service: itself when it implements the deprecated interface, a gate when it
-     * implements only the twin, null otherwise.
+     * The resolver to ask for a tagged service: a gate around a host twin, the service itself when it is a bundle
+     * resolver implementing the bundle-side interface, null otherwise.
      */
     public static function of(object $service): ?WikiObjectLinkResolverInterface
     {
         return match (true) {
-            $service instanceof WikiObjectLinkResolverInterface => $service,
-            $service instanceof WikiObjectLinkSourceInterface   => new self($service),
-            default                                             => null,
+            $service instanceof WikiObjectLinkSourceInterface                                                => new self($service),
+            $service instanceof WikiObjectLinkResolverInterface && WikiPorts::isBundleClass($service::class) => $service,
+            default                                                                                          => null,
         };
     }
 

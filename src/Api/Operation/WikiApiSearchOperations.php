@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api\Operation;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Api\Hook\WikiApiPlanGateInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Value\WikiApiWiki;
 use Nowo\WikiBundle\Api\Value\WikiApiWikiFilter;
@@ -16,9 +14,12 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
+use Nowo\WikiBundle\Port\Internal\WikiApiPlanGateInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiSearchService;
 
 use function array_map;
@@ -66,7 +67,7 @@ final readonly class WikiApiSearchOperations
         if ($query === '' || mb_strlen($query) > 200) {
             throw WikiApiRefusal::invalid('q');
         }
-        if (!$this->roles->canList($principal->securityUser())) {
+        if (!$this->roles->canList(WikiUserRefs::securityUser($principal->userRef()))) {
             throw WikiApiRefusal::permissionRefused();
         }
 
@@ -90,7 +91,7 @@ final readonly class WikiApiSearchOperations
             $read += $rows;
             $exhausted = $rows < $batch;
             foreach ($hits as $hit) {
-                if (WikiPageVisibility::isReadable($this->checker, $principal->securityUser(), $hit['space'], $hit['page'], $decisions)) {
+                if (WikiPageVisibility::isReadable($this->checker, WikiUserRefs::securityUser($principal->userRef()), $hit['space'], $hit['page'], $decisions)) {
                     $readable[] = $hit;
                 }
             }
@@ -137,7 +138,7 @@ final readonly class WikiApiSearchOperations
             return $wikis;
         }
         foreach ($this->directory->list($principal, new WikiApiWikiFilter()) as $wiki) {
-            if ($this->guard->isSlug($wiki->slug) && $this->guard->sees($principal, $wiki) && $this->planGate->allowsWiki($principal->securityUser(), $wiki)) {
+            if ($this->guard->isSlug($wiki->slug) && $this->guard->sees($principal, $wiki) && $this->planGate->allowsWiki(WikiUserRefs::securityUser($principal->userRef()), $wiki)) {
                 $wikis[] = $wiki;
             }
         }

@@ -64,7 +64,7 @@ final class WikiQuotaGateTest extends TestCase
         self::assertInstanceOf(WikiQuotaCheckEvent::class, $seen);
         self::assertSame(WikiQuotaCheckEvent::ATTACHMENT_UPLOAD, $seen->action);
         self::assertSame($space, $seen->space);
-        self::assertSame($user, $seen->user);
+        self::assertSame($user, $seen->userRef()->user());
         self::assertSame(1, $seen->count);
         self::assertSame(2048, $seen->bytes);
         self::assertSame($page, $seen->page);

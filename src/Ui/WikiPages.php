@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Ui;
 
+use LogicException;
 use Nowo\UiKitBundle\View\Label;
 use Nowo\WikiBundle\WikiBundle;
 use Throwable;
@@ -11,13 +12,12 @@ use Twig\Environment;
 
 use function in_array;
 use function is_string;
-use function trigger_deprecation;
+use function sprintf;
 
 /**
  * Page plumbing of the UiKit page contract (REQ-UI-003): resolves the layout the wiki pages extend
- * (`web_ui.layout_template`, null = `nowo_ui_kit.layouts.admin`), wraps a pre-1.10 layout (one that renders
- * `{% block body %}` instead of the UiKit canonical blocks) in a deprecated bridge, and resolves the per-page template
- * overrides (`web_ui.templates.<page>`). Configuration only: no request state, safe in worker mode.
+ * (`web_ui.layout_template`, null = `nowo_ui_kit.layouts.admin`; 2.0: it must render the UiKit canonical blocks) and
+ * resolves the per-page template overrides (`web_ui.templates.<page>`). Configuration only: no request state, safe in worker mode.
  */
 final readonly class WikiPages
 {
@@ -26,9 +26,6 @@ final readonly class WikiPages
 
     /** Translation domain of the bundle labels (REQ-I18N-003). */
     public const DOMAIN = WikiBundle::TRANSLATION_DOMAIN;
-
-    /** BC bridge around a pre-1.10 layout that renders `{% block body %}` (removed in 2.0). */
-    public const LEGACY_ADMIN_BRIDGE = '@NowoWikiBundle/manage/_legacy_layout.html.twig';
 
     /** The 1.x default of `templates.layout`: the removed bundle layout, read as "no layout override". */
     public const LEGACY_DEFAULT_LAYOUT = '@NowoWikiBundle/layout.html.twig';
@@ -62,13 +59,10 @@ final readonly class WikiPages
     /** A layout that defines this block renders the UiKit canonical blocks. */
     private const CANONICAL_BLOCK = 'nowo_ui_page_header';
 
-    /** Canonical blocks a pre-1.10 layout may already render (the bridge skips them). */
-    private const LEGACY_HOST_BLOCKS = ['nowo_ui_flashes', 'nowo_ui_styles', 'nowo_ui_scripts'];
-
     /**
      * @param string|null $layoutTemplate `web_ui.layout_template` (null = the UiKit admin layout)
      * @param array<string, string|null> $templates `web_ui.templates` (page id => template; null = bundle template)
-     * @param Environment|null $twig Twig, to tell a pre-1.10 layout from a canonical one (null = never bridged)
+     * @param Environment|null $twig Twig, to refuse a pre-1.10 layout (null = never checked)
      */
     public function __construct(
         private ?string $layoutTemplate = null,
@@ -98,8 +92,10 @@ final readonly class WikiPages
     }
 
     /**
-     * Layout the scaffolds extend (`page.layout`): `web_ui.layout_template`, the legacy bridge for a pre-1.10 layout,
-     * else null (UiKit `nowo_ui_layout.admin`).
+     * Layout the scaffolds extend (`page.layout`): `web_ui.layout_template`, else null (UiKit `nowo_ui_layout.admin`).
+     *
+     * @throws LogicException 2.0: when the configured layout does not render the UiKit canonical blocks (a pre-1.10
+     *                        layout; the deprecated bridge that wrapped it is removed)
      */
     public function layout(): ?string
     {
@@ -107,13 +103,16 @@ final readonly class WikiPages
         if ($layout === null) {
             return null;
         }
+        if ($this->lacksCanonicalBlocks($layout)) {
+            throw new LogicException(sprintf('The wiki layout "%s" (nowo_wiki.web_ui.layout_template) does not render the UiKit canonical blocks (nowo_ui_page_header, nowo_ui_content, ...). 2.0 removed the bridge that wrapped such a pre-1.10 layout: render the canonical blocks (or extend @NowoUiKit/layout/admin.html.twig), or set nowo_wiki.web_ui.layout_template to null to use nowo_ui_kit.layouts.admin. See UPGRADING "To 2.0.0".', $layout));
+        }
 
-        return $this->legacy($layout) !== null ? self::LEGACY_ADMIN_BRIDGE : $layout;
+        return $layout;
     }
 
     /**
-     * Shared variables of the wiki pages (added to the controller variables): the pre-1.10 layout wrapped by the
-     * deprecated bridge and the canonical blocks it already renders.
+     * Shared variables of the wiki pages (added to the controller variables). 2.0: none (the pre-1.10 layout bridge and
+     * its variables are removed); the page variables are returned as they are.
      *
      * @param array<string, mixed> $vars page variables
      *
@@ -121,13 +120,7 @@ final readonly class WikiPages
      */
     public function context(array $vars): array
     {
-        $layout = $this->configuredLayout();
-        $legacy = $layout !== null ? $this->legacy($layout, false) : null;
-
-        return $vars + [
-            'nowo_wiki_legacy_layout' => $legacy,
-            'nowo_wiki_legacy_blocks' => $this->hostBlocks($legacy),
-        ];
+        return $vars;
     }
 
     private function configuredLayout(): ?string
@@ -140,51 +133,19 @@ final readonly class WikiPages
     }
 
     /**
-     * Canonical blocks a pre-1.10 layout defines itself (the bridge does not render them a second time).
-     *
-     * @return list<string>
+     * Whether the configured layout is a pre-1.10 layout (it loads, but does not define the UiKit canonical blocks).
+     * A layout Twig cannot load is left to Twig's own error when the page renders.
      */
-    private function hostBlocks(?string $legacy): array
-    {
-        if ($legacy === null || !$this->twig instanceof Environment) {
-            return [];
-        }
-
-        $template = $this->twig->load($legacy);
-        $context  = $this->twig->mergeGlobals([]);
-        $blocks   = [];
-        foreach (self::LEGACY_HOST_BLOCKS as $block) {
-            if ($template->hasBlock($block, $context)) {
-                $blocks[] = $block;
-            }
-        }
-
-        return $blocks;
-    }
-
-    /**
-     * The configured layout when it is a pre-1.10 layout (it does not define the UiKit canonical blocks), else null.
-     */
-    private function legacy(string $layout, bool $deprecate = true): ?string
+    private function lacksCanonicalBlocks(string $layout): bool
     {
         if (!$this->twig instanceof Environment) {
-            return null;
+            return false;
         }
 
         try {
-            $canonical = $this->twig->load($layout)->hasBlock(self::CANONICAL_BLOCK, $this->twig->mergeGlobals([]));
+            return !$this->twig->load($layout)->hasBlock(self::CANONICAL_BLOCK, $this->twig->mergeGlobals([]));
         } catch (Throwable) {
-            return null;
+            return false;
         }
-
-        if ($canonical) {
-            return null;
-        }
-
-        if ($deprecate) {
-            trigger_deprecation('nowo-tech/wiki-bundle', '1.10', 'The layout "%s" does not render the UiKit canonical blocks (nowo_ui_page_header, nowo_ui_content, ...); it is wrapped in a deprecated bridge. Render the canonical blocks (or extend @NowoUiKit/layout/admin.html.twig) or set nowo_wiki.web_ui.layout_template to null to use nowo_ui_kit.layouts.admin; see docs/UPGRADING.md.', $layout);
-        }
-
-        return $layout;
     }
 }

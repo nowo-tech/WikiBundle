@@ -12,6 +12,7 @@ use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Event\WikiEvents;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Service\WikiQuotaGate;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
@@ -63,7 +64,7 @@ final class WikiApiAuditTest extends TestCase
         $dispatcher->addListener(WikiEvents::API_WRITE, static fn (): never => throw new RuntimeException('audit store down: page text'));
         $logger = new RecordingLogger();
 
-        (new WikiApiAudit($dispatcher, new WikiQuotaGate($dispatcher), true, $logger))->written(new WikiApiPrincipal(new TestUser(), WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n'), 'page.update', 'eng', 's', 'p');
+        (new WikiApiAudit($dispatcher, new WikiQuotaGate($dispatcher), true, $logger))->written(WikiApiPrincipal::of(WikiUserRefs::fromUser(new TestUser()), WikiApiLevel::Edit, WikiApiWhere::everything(), 't', 'n'), 'page.update', 'eng', 's', 'p');
 
         self::assertSame(['error: Wiki API: the audit listener failed; the write stands.'], $logger->lines());
         self::assertSame(RuntimeException::class, $logger->records[0]['context']['exception_class']);

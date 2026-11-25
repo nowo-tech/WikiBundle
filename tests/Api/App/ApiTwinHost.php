@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Tests\Api\App;
 
-use Doctrine\Persistence\ManagerRegistry;
 use Nowo\WikiBundle\Api\Hook\WikiApiPlanPolicyInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRateLimiterInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiRequestAuthenticatorInterface;
@@ -18,6 +17,7 @@ use Nowo\WikiBundle\Api\Value\WikiApiWikiFilter;
 use Nowo\WikiBundle\Api\Value\WikiApiWikiPatch;
 use Nowo\WikiBundle\Api\WikiApiAuthFailure;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
+use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
@@ -39,7 +39,7 @@ final readonly class ApiTwinHost implements WikiApiRequestAuthenticatorInterface
 {
     public function __construct(
         private ApiTestHost $inner,
-        private ManagerRegistry $doctrine,
+        private WikiEntityManagerProvider $doctrine,
     ) {
     }
 
@@ -127,7 +127,7 @@ final readonly class ApiTwinHost implements WikiApiRequestAuthenticatorInterface
 
     public function isGranted(WikiUserRef $user, WikiAction $action, WikiSpaceSnapshot $space, ?WikiPageSnapshot $page = null): bool
     {
-        $manager      = $this->doctrine->getManager();
+        $manager      = $this->doctrine->get();
         $spaceEntity  = $manager->find(WikiSpace::class, $space->id);
         $pageEntity   = $page instanceof WikiPageSnapshot ? $manager->find(WikiPage::class, $page->id) : null;
         $securityUser = WikiUserRefs::securityUser($user);

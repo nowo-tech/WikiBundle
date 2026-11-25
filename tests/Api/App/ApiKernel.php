@@ -16,13 +16,13 @@ use Nowo\UiKitBundle\NowoUiKitBundle;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\LinkPicker\WikiLinkTenantResolverInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchDefinition;
 use Nowo\WikiBundle\Search\SearchKit\WikiPageSearchKitProvider;
 use Nowo\WikiBundle\Search\SearchKit\WikiSearchKitAvailability;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
-use Nowo\WikiBundle\Service\WikiSpaceLocatorInterface;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
 use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\RecordingQuotaListener;
@@ -105,7 +105,7 @@ final class ApiKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return $this->getProjectDir() . '/' . md5(serialize([$this->api, $this->wiki, $this->withFirewall, $this->legacySpaceChecker, $this->slugLocator, $this->debug, WikiTestDatabase::url(), self::twinPorts(), self::privateEntityManager()])) . '/cache';
+        return $this->getProjectDir() . '/' . md5(serialize([$this->api, $this->wiki, $this->withFirewall, $this->legacySpaceChecker, $this->slugLocator, $this->debug, WikiTestDatabase::url(), self::twinPorts()])) . '/cache';
     }
 
     public function getLogDir(): string
@@ -123,12 +123,6 @@ final class ApiKernel extends Kernel
     public static function twinPorts(): bool
     {
         return ($_SERVER['WIKI_TEST_PORTS'] ?? getenv('WIKI_TEST_PORTS')) === 'twin';
-    }
-
-    /** 1.36: whether the wiki writes through its private entity manager (`WIKI_TEST_PRIVATE_EM=1`). */
-    public static function privateEntityManager(): bool
-    {
-        return ($_SERVER['WIKI_TEST_PRIVATE_EM'] ?? getenv('WIKI_TEST_PRIVATE_EM')) === '1';
     }
 
     private function configureContainer(ContainerConfigurator $container): void
@@ -167,8 +161,8 @@ final class ApiKernel extends Kernel
         $hostPorts = 'app.api_host';
         $filesPort = 'app.api_files';
         if (self::twinPorts()) {
-            $services->set('app.api_twin', ApiTwinHost::class)->args([service('app.api_host'), service('doctrine')])->public();
-            $services->set('app.api_files_twin', ApiTwinFiles::class)->args([service('app.api_files'), service('doctrine')])->public();
+            $services->set('app.api_twin', ApiTwinHost::class)->args([service('app.api_host'), service(WikiEntityManagerProvider::class)])->public();
+            $services->set('app.api_files_twin', ApiTwinFiles::class)->args([service('app.api_files'), service(WikiEntityManagerProvider::class)])->public();
             $hostPorts = 'app.api_twin';
             $filesPort = 'app.api_files_twin';
         }
@@ -231,7 +225,7 @@ final class ApiKernel extends Kernel
                 'wiki_management' => $hostPorts,
                 'files'           => $filesPort,
             ]],
-        ], self::privateEntityManager() ? ['database' => ['private_entity_manager' => true]] : [], $this->wiki));
+        ], $this->wiki));
     }
 
     private function configureRoutes(RoutingConfigurator $routes): void

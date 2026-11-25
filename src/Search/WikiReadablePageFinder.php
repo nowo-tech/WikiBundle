@@ -9,12 +9,12 @@ use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\Markdown\WikiMarkdownLimitsInterface;
 use Nowo\WikiBundle\Markdown\WikiMarkdownRendererInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Service\WikiSearchService;
-use Nowo\WikiBundle\Service\WikiSpaceAccessResolverInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_values;

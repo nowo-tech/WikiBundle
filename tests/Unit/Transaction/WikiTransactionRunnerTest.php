@@ -6,11 +6,8 @@ namespace Nowo\WikiBundle\Tests\Unit\Transaction;
 
 use Doctrine\DBAL\Driver\Exception as DriverExceptionInterface;
 use Doctrine\DBAL\Exception\DeadlockException;
-use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Event\OnFlushEventArgs;
-use Doctrine\ORM\UnitOfWork;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use LogicException;
@@ -18,7 +15,6 @@ use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Entity\WikiPage;
-use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Tests\Stub\TestUserEntity;
@@ -28,7 +24,11 @@ use Nowo\WikiBundle\Transaction\WikiFlushObserver;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use stdClass;
+
+use function restore_error_handler;
+use function set_error_handler;
+
+use const E_USER_DEPRECATED;
 
 /**
  * 1.37 (Beacon spec 239): the wiki's transaction runner.
@@ -58,24 +58,16 @@ final class WikiTransactionRunnerTest extends TestCase
         self::assertSame($this->em, $runner->manager());
     }
 
-    /** Audit QD-M1: after a refusal only the wiki rows the unit touched are forgotten, never the application's. */
-    public function testAFailedUnitForgetsOnlyTheWikiRowsItTouched(): void
+    /** 2.0: a manager given by hand: the unit rolls back, and nothing of that manager is cleared or detached. */
+    public function testAFailedUnitOnAHandGivenManagerRollsBackAndClearsNothing(): void
     {
-        $host  = new TestUserEntity('host');
         $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1');
-        $kept  = new WikiSpace('ops', 'Operations', WikiSpaceOwnerScope::Team, 'team-1');
-        $page  = new WikiPage($space, 'p', 'P');
-        $rev   = new WikiPageRevision($page, 1, '<p>x</p>', $host);
-        foreach ([$host, $space, $kept, $page, $rev] as $entity) {
-            $this->em->persist($entity);
-        }
+        $this->em->persist($space);
         $this->em->flush();
-        $pending = new TestUserEntity('pending');
-        $this->em->persist($pending);
 
         try {
-            (new WikiTransactionRunner($this->em))->run(function () use ($page): never {
-                $page->setTitle('Changed');
+            (new WikiTransactionRunner($this->em))->run(function () use ($space): never {
+                $space->setName('Changed');
                 $this->em->persist(new WikiSpace('new', 'New', WikiSpaceOwnerScope::Team, 'team-1'));
 
                 throw new RuntimeException('refused');
@@ -85,51 +77,35 @@ final class WikiTransactionRunnerTest extends TestCase
             self::assertSame('refused', $refused->getMessage());
         }
 
-        self::assertFalse($this->em->contains($page), 'The changed page is forgotten.');
-        self::assertFalse($this->em->contains($rev), 'A kept row that points at a forgotten one goes too.');
-        self::assertTrue($this->em->contains($kept), 'An untouched wiki row stays.');
-        self::assertTrue($this->em->contains($host));
-        self::assertTrue($this->em->contains($pending), 'The application\'s pending entity stays pending.');
         self::assertSame(0, (int) $this->em->getConnection()->fetchOne("SELECT COUNT(*) FROM wiki_spaces WHERE slug = 'new'"));
+        self::assertSame('Engineering', $this->em->getConnection()->fetchOne("SELECT name FROM wiki_spaces WHERE slug = 'eng'"));
+        self::assertTrue($this->em->contains($space), 'the hand-given manager is never cleared');
+        self::assertSame(0, $this->em->getConnection()->getTransactionNestingLevel());
     }
 
-    public function testAClosedSharedManagerStaysClosedAndIsReplacedAtTheBoundary(): void
-    {
-        $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManager')->with('default')->willReturn($this->em);
-        $registry->expects(self::once())->method('resetManager')->with('default');
-        $logger = new RecordingLogger();
-        $runner = new WikiTransactionRunner(new WikiEntityManagerProvider($registry), $registry, 'default', logger: $logger);
-
-        try {
-            $runner->run(function (): void {
-                $this->em->persist(new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1'));
-                $this->em->persist(new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1'));
-            });
-            self::fail('Expected the unique violation.');
-        } catch (UniqueConstraintViolationException) {
-        }
-        self::assertFalse($this->em->isOpen());
-
-        $runner->reset();
-        self::assertNotSame([], $logger->records);
-    }
-
-    public function testTheBoundaryLeavesAnOpenOrPrivateManagerAlone(): void
+    /** 2.0: the 1.x boundary reset of a closed shared manager is gone: its arguments are ignored, reset() does nothing. */
+    public function testTheDeprecatedRegistryArgumentsAndResetDoNothing(): void
     {
         $registry = $this->createMock(ManagerRegistry::class);
         $registry->expects(self::never())->method('resetManager');
-        $registry->method('getManager')->willReturn($this->em);
-        (new WikiTransactionRunner($this->em))->reset();
-        (new WikiTransactionRunner($this->em, $registry))->reset();
-        (new WikiTransactionRunner(new WikiEntityManagerProvider($registry), $registry))->reset();
+        $registry->expects(self::never())->method('getManager');
+        $notices = [];
+        set_error_handler(static function (int $level, string $message) use (&$notices): bool {
+            $notices[] = $message;
 
-        $closed = $this->createMock(EntityManagerInterface::class);
-        $closed->method('isOpen')->willReturn(false);
-        $private = $this->createMock(ManagerRegistry::class);
-        $private->method('getManager')->willReturn($closed);
-        $private->expects(self::never())->method('resetManager');
-        (new WikiTransactionRunner(new WikiEntityManagerProvider($private, 'default', new WikiEntityManager($this->registryOf($this->em))), $private))->reset();
+            return true;
+        }, E_USER_DEPRECATED);
+        try {
+            $runner = new WikiTransactionRunner($this->em, $registry, 'default', logger: new RecordingLogger());
+            new WikiTransactionRunner($this->em);
+        } finally {
+            restore_error_handler();
+        }
+        self::assertCount(1, $notices);
+        self::assertStringContainsString('are ignored since 2.0', $notices[0]);
+        $runner->reset();
+        self::assertSame($this->em, $runner->manager());
+        self::assertSame($this, $runner->attach($this), 'a manager given by hand: rows are returned as they are');
     }
 
     public function testThePrivateManagerRunsOnTransactionDoctrinesOrmRunner(): void
@@ -153,24 +129,11 @@ final class WikiTransactionRunnerTest extends TestCase
         self::assertSame(0, $this->em->getConnection()->getTransactionNestingLevel());
     }
 
-    /** Audit QN-M1: a collection change of an application entity counts as an application write. */
-    public function testTheFlushObserverSeesApplicationCollections(): void
+    public function testTheWikiEntityClassesAreTold(): void
     {
-        $unitOfWork = $this->createMock(UnitOfWork::class);
-        $unitOfWork->method('getScheduledEntityInsertions')->willReturn([new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::Team, 'team-1')]);
-        $unitOfWork->method('getScheduledEntityUpdates')->willReturn([]);
-        $unitOfWork->method('getScheduledEntityDeletions')->willReturn([]);
-        $unitOfWork->method('getScheduledCollectionUpdates')->willReturn([]);
-        $unitOfWork->method('getScheduledCollectionDeletions')->willReturnOnConsecutiveCalls([], [new stdClass()]);
-        $manager = $this->createMock(EntityManagerInterface::class);
-        $manager->method('getUnitOfWork')->willReturn($unitOfWork);
-
-        $observer = new WikiFlushObserver();
-        $observer->onFlush(new OnFlushEventArgs($manager));
-        self::assertFalse($observer->hostWritten, 'Wiki rows only.');
-        $observer->onFlush(new OnFlushEventArgs($manager));
-        self::assertTrue($observer->hostWritten, 'A collection change is the application\'s.');
         self::assertTrue(WikiFlushObserver::isWikiEntity('Proxies\\__CG__\\Nowo\\WikiBundle\\Entity\\WikiPage'));
+        self::assertTrue(WikiFlushObserver::isWikiEntity(WikiPage::class));
+        self::assertFalse(WikiFlushObserver::isWikiEntity(TestUserEntity::class));
     }
 
     public function testRunRetryingReplaysAnOutermostTransientFailure(): void

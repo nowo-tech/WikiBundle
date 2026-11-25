@@ -2,8 +2,17 @@
 
 ## Table of contents
 
-- [Preparing for 2.0](#preparing-for-20)
+- [Done in 2.0](#done-in-20)
 - [Unreleased](#unreleased)
+  - [Before you upgrade (on 1.55.1)](#before-you-upgrade-on-1551)
+  - [Default flip: the private entity manager is the only mode](#default-flip-the-private-entity-manager-is-the-only-mode)
+  - [Private manager only](#private-manager-only)
+  - [REST API: the firewall user and the token's user must be the same person](#rest-api-the-firewall-user-and-the-tokens-user-must-be-the-same-person)
+  - [Removed](#removed)
+  - [Deprecated for 3.0](#deprecated-for-30)
+  - [Composer](#composer)
+  - [Unchanged](#unchanged)
+  - [1.x support](#1x-support)
 - [To 1.55.2](#to-1552)
   - [Private entity manager: host-loaded spaces and pages (1.55.2)](#private-entity-manager-host-loaded-spaces-and-pages-1552)
 - [To 1.55.1](#to-1551)
@@ -134,25 +143,208 @@
   - [Breaking changes](#breaking-changes)
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
-## Preparing for 2.0
+## Done in 2.0
 
-2.0 contains only the breaks announced in 1.x as deprecations; nothing else changes without a notice first. From 1.49
-every one of them triggers a runtime deprecation notice when your application uses it, so an application whose
-deprecation log is free of `nowo-tech/wiki-bundle` notices on the last 1.x minor upgrades without code changes:
-
-| 1.x | 2.0 | Notice since |
-|---|---|---|
-| `database.private_entity_manager: false` (the 1.x default) | removed: the private entity manager is the only mode | 1.49 (container build) + the host-flush probe |
-| The 16 port interfaces with a framework-free twin ([table](ARCHITECTURE.md#host-ports)) | removed: implement the twin | 1.49 (container build) |
-| `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user`, `WikiEditorOptionsEvent::$user` | removed: `userRef()` | 1.49 (when read) |
-| `WikiStorageFailureSubscriber::committed()` | removed: `ConflictCode::forRequest()` | 1.49 (when called) |
-| `WikiAlignedHeaderConverter` | removed: `WikiHeadingIdConverter` | 1.49 (when built) |
-| The configuration keys deprecated in 1.6 and 1.10 | removed | when set |
-
-The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and higher are backported to the last 1.x
-minor; Low ones are fixed in 2.x only (upgrade to get them).
+2.0 removed what 1.x announced as deprecated and made the private entity manager the only mode; nothing else changed
+without a notice first. See [Unreleased](#unreleased) (promoted to "To 2.0.0" at release) for the steps.
 
 ## Unreleased
+
+From **1.55.1** (the last 1.x release):
+
+```bash
+composer require nowo-tech/wiki-bundle:^2.0 -W
+php bin/console cache:clear
+```
+
+2.0 contains only changes that 1.x announced through deprecation notices: an application that runs the last 1.x minor
+without deprecation notices from this bundle upgrades without code changes. After 2.0.0 is released, the 1.x line
+receives security fixes for 6 months: fixes rated Moderate and above are backported to the last 1.x minor; Low ones are
+fixed in 2.x only.
+
+No schema change and no migration: the tables, columns and indexes are those of 1.55.1.
+
+### Before you upgrade (on 1.55.1)
+
+Clear every `nowo-tech/wiki-bundle` notice from your deprecation log (`var/log/*.log` with the `php` channel, the
+profiler's "Deprecations" tab, or your test suite's deprecation report), for a full deploy cycle of your tests and
+production traffic:
+
+1. **The private entity manager notice** (once per container build):
+
+   > Since nowo-tech/wiki-bundle 1.49: nowo_wiki.database.private_entity_manager is false (the 1.x default): every wiki
+   > write flushes your entity manager "default", including what your application left pending in it. 2.0 removes the
+   > option: the private entity manager becomes the only mode, and wiki writes never flush, clear or close your manager.
+   > Opt in now with "nowo_wiki: { database: { private_entity_manager: true } }" once the host-flush probe notices
+   > ("flushed by NowoWikiBundle", "rows with its own entity manager") are gone; see UPGRADING "To 1.49.0".
+
+   Set `nowo_wiki.database.private_entity_manager: true` on 1.55.1 first, once the two probe notices below are gone, and
+   run with it for a deploy cycle.
+2. **The host-flush probe** (the migration list, see [Reading the host-flush probe](#reading-the-host-flush-probe-as-a-migration-list)):
+   - "Your pending changes to App\X were flushed by NowoWikiBundle; 2.0 no longer does.": flush your own changes
+     yourself;
+   - "Your application inserted / updated / deleted Nowo\WikiBundle\Entity\X rows with its own entity manager, outside a
+     wiki write. ...": write those rows through the wiki (the id operations), never through your manager.
+3. **The port interfaces** ("The service "app.x" (App\X) implements the deprecated ..., which 2.0 removes: implement ...
+   instead ..."): implement the twin ([Host ports](#host-ports-move-to-the-framework-free-twins-optional-until-20)).
+4. **The `$user` members** ("Reading ...::$user (a Symfony user) is deprecated, 2.0 removes it: read userRef() (a
+   framework-free WikiUserRef) instead."): read `userRef()`. In 2.0 the member is private: reading it throws an `Error`.
+5. **`WikiStorageFailureSubscriber::committed()`** and **`new WikiAlignedHeaderConverter()`** ("... is deprecated, 2.0
+   removes it ..."): use `ConflictCode::forRequest()` / `WikiHeadingIdConverter`.
+6. **Configuration keys** deprecated in 1.6 and 1.10 ("The "nowo_wiki.x" option is deprecated ..."): see the table below.
+7. **The REST API log notice** "Wiki API: the firewall user (…) and the token's user (…) are matched by their id only:
+   add … to nowo_wiki.accepted_user_classes only if it carries user_class ids (an adapter or wrapper); otherwise the
+   firewall and the authenticator must return the same user. This will be refused in 2.0." (a `notice` of the
+   `nowo_wiki` log channel since 1.36, not a deprecation): fix it as it says (see "REST API: same person" below).
+8. **Without a notice**, check by hand: a `web_ui.layout_template` that renders only `{% block body %}` (it reported a
+   notice per page render since 1.10), host template overrides that include the dialog partials with the 1.35–1.52
+   variables (`new_page_dialog.form`, `import_form` / `export_links` in the Import & export dialog, `ai_form`,
+   `tree_menu.icon_form` / `move_form`; see "To 1.53.0"), and host code that reads wiki rows with your own entity manager
+   and hands them to the wiki (below).
+
+### Default flip: the private entity manager is the only mode
+
+| | 1.x default | 2.0 |
+|---|---|---|
+| `database.private_entity_manager` | `false`: wiki writes flush `database.entity_manager` (your manager) | no option: the wiki's private manager on the same connection, mapping and tables |
+| `false` | the shared manager | the build fails |
+| `true` | the private manager | no effect, a deprecation notice ("has no effect since 2.0"); remove the key (it goes in 3.0) |
+
+There is no way to keep the 1.x behaviour: the private manager is the only mode.
+
+### Private manager only
+
+- **Your pending changes are no longer flushed by the wiki.** A change of yours that was only stored because a wiki
+  write flushed your manager is no longer stored: typically in a listener of a wiki event (`WikiEvents::*`), in a port of
+  yours, or in code that changes an entity and then calls a wiki service. Flush your manager yourself. The 1.49 probe
+  ("Your pending changes to App\X were flushed by NowoWikiBundle") listed these cases.
+- **The reverse, which the probe cannot see:** host code that loads a wiki row through the wiki's repository services
+  (now on the private manager), changes it and flushes its own manager saves nothing (the private manager drops it at
+  the next boundary with only a warning in the log). Change wiki rows through the wiki's services and id operations
+  (`WikiPageOperationsInterface`, `WikiSpaceOperationsInterface`, `WikiPageLinkOperationsInterface`), or through the
+  wiki's own manager (`WikiEntityManagerProvider::get()`) and flush that.
+- **Wiki rows your manager loaded** (a route value resolver, a repository of yours, a query on your manager) and hand to a
+  wiki service (`WikiPageServiceInterface`, `WikiPageLinkServiceInterface`, the trash, attachment, page mover and page
+  icon services) are loaded again by their id in the private manager: the wiki writes the row itself and never inserts it
+  a second time. What you changed on your instance before the call is not carried over: change wiki rows through the
+  wiki. A row deleted meanwhile answers `WikiPageNotFoundException` / `WikiSpaceNotFoundException`. Persisting,
+  refreshing or locking such a row through the wiki's manager yourself fails with a `LogicException` that says so (never
+  a duplicate `INSERT`).
+- **Your entities on wiki rows** (the revision author, the link creator, the uploader, the comment author of
+  `database.user_reference: entity`): the wiki writes a reference to the same id in its private manager and never your
+  instance. A user you persisted but did not flush yet (no id) fails with a `LogicException` before anything is written:
+  flush your user first. Events still hand you the user object you passed.
+- **Your entities that point at wiki rows** (a `ManyToOne` from one of yours to `WikiPage` / `WikiSpace`): set them with
+  `$entityManager->getReference(WikiPage::class, $id)` on your own manager (the id from a snapshot or an id operation),
+  never with an instance the wiki returned (it belongs to the private manager, and your flush would take it for a new
+  entity).
+- Users and wiki rows read back through the wiki are the private manager's instances: compare them by id, never with
+  `===`.
+- **Ports of yours whose 1.x correctness relied on the wiki's flush** (a `WikiApiWikiDirectoryInterface::provision()`
+  that only changed a managed row of yours, a membership source or a quota listener that wrote your entities): your
+  implementation must commit its own change.
+- In a FrankenPHP worker with the kernel kept alive and not reset, the private manager is dropped at every request,
+  Messenger message and console command boundary and at `kernel.reset`, as on 1.36–1.55.1 with the option on.
+
+### REST API: the firewall user and the token's user must be the same person
+
+1.36 compared the firewall's user and the user your `api.hooks.authenticator` returns by class and id, but still let
+two users of **different classes that only share an id** through (a security adapter that is not in
+`accepted_user_classes`), with the log notice above. 2.0 refuses them (audit OX-D1-L1): an id that looks the same in
+another user class is another person, so the request is a configuration error and answers 500, with `Wiki API:
+configuration error: the firewall user (…) and the token's user (…) share only their id; 2.0 refuses this: …` in the
+log. Nothing is written.
+
+- If the firewall's class is an adapter or wrapper that carries the `user_class` ids, add it to
+  `nowo_wiki.accepted_user_classes`.
+- Otherwise make the firewall and the authenticator return the same user.
+
+Unchanged: the same object, two users of `user_class` / an accepted class with the same usable id, and two users of
+one other class with the same exact id still match; ownership and the API id are still judged on the token's user.
+
+### Removed
+
+| Removed | Deprecated since | Replacement |
+|---|---|---|
+| `database.private_entity_manager: false`, the host-flush probe (`Doctrine\WikiHostFlushProbe`) and its notices | 1.36 (docs), 1.49 (notice) | nothing to configure: the private manager is the only mode |
+| `Security\WikiAccessCheckerInterface` | 1.36, notice 1.49 | `Security\WikiAccessPolicyInterface` (`security.access_checker`) |
+| `Security\WikiSpaceAccessCheckerInterface` | 1.36, notice 1.49 | `Security\WikiSpaceAccessPolicyInterface` (alias it) |
+| `Security\WikiTeamMembershipResolverInterface` | 1.36, notice 1.49 | `Security\WikiTeamMembershipSourceInterface` (`team_membership_resolver`) |
+| `Service\WikiSpaceAccessResolverInterface` | 1.36, notice 1.49 | `Service\WikiSpaceReachInterface` (alias it) |
+| `Service\WikiSpaceLocatorInterface` | 1.36, notice 1.49 | `Service\WikiSpaceIdLocatorInterface` (alias it) |
+| `Link\WikiObjectLinkResolverInterface` | 1.36, notice 1.49 | `Link\WikiObjectLinkSourceInterface` (autoconfigured with the tag `nowo_wiki.object_link_resolver`) |
+| `Avatar\WikiUserAvatarResolverInterface` | 1.36, notice 1.49 | `Avatar\WikiUserAvatarSourceInterface` (alias it) |
+| `Panel\WikiPanelStateStoreInterface` | 1.36, notice 1.49 | `Panel\WikiPanelStatesInterface` (`comments.state_store`) |
+| `Tree\WikiTreeStateStoreInterface` | 1.36, notice 1.49 | `Tree\WikiTreeStatesInterface` (`tree.state_store`) |
+| `Collaboration\WikiCollabSubscriberAuthorizerInterface`, `Collaboration\WikiCollabTopicsAuthorizerInterface` | 1.36, notice 1.49 | `Collaboration\WikiCollabSubscriptionPolicyInterface` (`collaboration.subscriber_authorizer`) |
+| `Api\Hook\WikiApiAuthenticatorInterface` | 1.36, notice 1.49 | `Api\Hook\WikiApiRequestAuthenticatorInterface` (`api.hooks.authenticator`) |
+| `Api\Hook\WikiApiFilesInterface` | 1.36, notice 1.49 | `Api\Hook\WikiApiFileStoreInterface` (`api.hooks.files`) |
+| `Api\Hook\WikiApiPlanGateInterface` | 1.36, notice 1.49 | `Api\Hook\WikiApiPlanPolicyInterface` (`api.hooks.plan_gate`) |
+| `Api\Hook\WikiApiDirectoryInterface` | 1.36, notice 1.49 | `Api\Hook\WikiApiWikiDirectoryInterface` (`api.hooks.directory`) |
+| `Ai\WikiAiAssistantInterface` | 1.36, notice 1.49 | `Ai\WikiAiAnswererInterface` (alias it) |
+| `Attachment\WikiAttachmentLimitsProviderInterface` | 1.36, notice 1.49 | `Attachment\WikiAttachmentLimitsPolicyInterface` (alias it) |
+| `WikiApiPrincipal::$user`, `WikiQuotaCheckEvent::$user`, `WikiEditorOptionsEvent::$user` (and their `@internal` `securityUser()`) | 1.36, notice 1.49 | `userRef()` (a `WikiUserRef`; `userRef()->user()` gives back the object) |
+| `WikiStorageFailureSubscriber::committed()` | 1.48, notice 1.49 | `Nowo\TransactionDoctrine\ConflictCode::forRequest()` |
+| `Interchange\HtmlToMarkdown\WikiAlignedHeaderConverter` | 1.40, notice 1.49 | `WikiHeadingIdConverter` |
+| `route_prefix` | 1.10 | `web_ui.path_prefix` |
+| `templates.layout`, `templates.<page>` | 1.10 | `web_ui.layout_template`, `web_ui.templates.<page>` |
+| `web_ui.css_framework` (and its seeding of `nowo_ui_kit.css_framework` / `icon_set`, the parameter `nowo_wiki.web_ui.css_framework`) | 1.10 | `nowo_ui_kit.css_framework` / `icon_set` |
+| `security.admin_roles`, `list_roles`, `create_roles`, `edit_roles`, `history_roles`, `archive_roles`, `ai_roles`, `import_roles`, `export_roles` | 1.10 | `security.roles.<action>` |
+| `firewall` (and the parameter `nowo_wiki.firewall`), `database.driver`, `database.platform` | 1.6 | remove them (they never had an effect) |
+| `@NowoWikiBundle/manage/_legacy_layout.html.twig`, `WikiPages::LEGACY_ADMIN_BRIDGE`, the variables `nowo_wiki_legacy_layout` / `nowo_wiki_legacy_blocks` | 1.10 | a layout that renders the UiKit canonical blocks (or `web_ui.layout_template: null`) |
+| The inline forms of `_new_page_dialog.html.twig` (`new_page_dialog.form`), `_import_export_dialog.html.twig` (`import_form`, `export_links`), `_ai_dialog.html.twig` (`ai_form`), `_tree_menu.html.twig` (`icon_form`, `move_form`) | 1.53 | the on-demand dialogs (`new_page_dialog.url`, `import_export_src`, `ai_dialog`, `tree_menu.icon_src` / `move_src`) |
+| `wiki-code-blocks.ts` and the `data-code-label` attribute of the `wiki.js` script tags | 1.29 | UiKit `js/nowo-ui-scroll-region.js` (loaded by the read view) |
+| The REST API match of a firewall user and a token user of different classes that only share an id | 1.36 (log notice) | the same user, or the adapter class in `accepted_user_classes` |
+| `Doctrine\WikiSpaceCollationListener::postGenerateSchemaTable()` | 1.49.1 | none (a no-op; the collation is applied on `postGenerateSchema`) |
+
+What fails loudly:
+
+- a removed configuration key fails the build with the key to use (`The option "nowo_wiki.route_prefix" was removed in
+  2.0 (deprecated since 1.10): use "nowo_wiki.web_ui.path_prefix"`);
+- `database.private_entity_manager: false` fails the build;
+- a service configured for a port (its configuration key, or an alias of the twin) whose class does not implement the
+  twin fails the build naming the key and the twin; so do a service or alias registered under a removed interface's
+  id, a decorator of a removed id (`#[AsDecorator]`, `decorates:`, also with `onInvalid: IGNORE`) and an autodiscovered
+  class that still implements a removed interface (Symfony would otherwise drop it as unused, and a restriction of yours
+  would silently stop applying);
+- a layout without the UiKit canonical blocks fails when a wiki page renders, naming the layout;
+- a host template that includes a dialog partial with only the 1.35–1.52 variables renders the empty on-demand dialog
+  (pass the 1.53 variables).
+
+**Decorators.** A decorator of a removed port id (for example of `WikiSpaceAccessCheckerInterface` to restrict
+access) has no replacement hook: implement the twin with your whole rule and configure it with the port's key or alias
+the twin to it. The bundle's own services are asked through `@internal` interfaces of the same names in
+`Nowo\WikiBundle\Port\Internal\`; they carry no BC promise. A class of yours configured as a port (its key, or an
+alias of the twin) that implements one instead of the twin is refused; decorating a bundle service through one of them
+works, but carries no BC promise either.
+
+**Consumers of the removed interfaces.** Code of yours that injected a removed interface to ask it (for example
+`WikiSpaceAccessCheckerInterface` or `WikiSpaceAccessResolverInterface`) asks the read ports instead
+(`WikiPageAccessInterface`, `WikiSpaceQueryInterface`, `WikiPageQueryInterface`, 1.51) or your own twin service.
+
+### Deprecated for 3.0
+
+- Building a `WikiApiPrincipal` with its constructor (a Symfony user) triggers a deprecation notice; 3.0 removes it.
+  Answer `WikiApiPrincipal::of()` with a `WikiUserRef` from your authenticator (REQ-ARCH-001 rule 3:
+  `new WikiUserRef($user::class, $id, $user->getUserIdentifier(), $user->getRoles(), $user)` keeps your user object
+  for the wiki's ownership checks).
+- `database.private_entity_manager: true` (no effect since 2.0) triggers a deprecation notice; remove the key, 3.0
+  refuses it.
+
+### Composer
+
+No package moves to `suggest`; the requirements are those of 1.55.1.
+
+### Unchanged
+
+The schema, the routes and their answers, the REST API, co-editing, comments, search, the conflict answers
+(`CONFLICT_001` / `CONFLICT_002`), the HTML sanitizer, the access rules of the bundle's default checkers, and the
+worker-mode resets.
+
+### 1.x support
+
+After 2.0.0 is released, the 1.x line receives security fixes for 6 months: fixes rated Moderate and above are
+backported to the last 1.x minor; Low ones are fixed in 2.x only (upgrade to get them).
 
 ## To 1.55.2
 

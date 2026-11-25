@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Api\App;
 
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
-use Nowo\WikiBundle\Collaboration\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiCollabSubscriberAuthorizerInterface;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Request;
 

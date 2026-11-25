@@ -16,6 +16,7 @@ use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Enum\WikiAction;
 use Nowo\WikiBundle\History\WikiActorLabels;
+use Nowo\WikiBundle\Port\WikiUserRefs;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiRevisionDiffService;
@@ -109,7 +110,7 @@ final readonly class WikiApiRevisionOperations
     /** Spec 234 (audit PQ-M1): the token name only beside a real name, or for the author themself. */
     private function tokenName(WikiApiPrincipal $principal, WikiPageRevision $revision, WikiPage $page): ?string
     {
-        return $this->actorLabels?->visibleOnPage($revision->getActorLabel(), $revision->getAuthor(), $page, $principal->securityUser());
+        return $this->actorLabels?->visibleOnPage($revision->getActorLabel(), $revision->getAuthor(), $page, WikiUserRefs::securityUser($principal->userRef()));
     }
 
     /** @throws WikiApiRefusal */

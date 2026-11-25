@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Api\Operation;
 
-use Nowo\WikiBundle\Api\Hook\WikiApiFilesInterface;
 use Nowo\WikiBundle\Api\Hook\WikiApiWikiManagementInterface;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\Serializer\WikiApiSerializer;
@@ -18,6 +17,7 @@ use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiAction;
+use Nowo\WikiBundle\Port\Internal\WikiApiFilesInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\File\UploadedFile;

@@ -6,6 +6,7 @@ namespace Nowo\WikiBundle\Security;
 
 use InvalidArgumentException;
 use Nowo\WikiBundle\Api\Security\WikiApiRequestListener;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
 use Nowo\WikiBundle\User\WikiUserId;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Core\User\UserInterface;

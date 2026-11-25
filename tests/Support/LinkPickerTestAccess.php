@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Support;
 
 use Closure;
-use Nowo\WikiBundle\Security\WikiAccessCheckerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiAccessCheckerInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**

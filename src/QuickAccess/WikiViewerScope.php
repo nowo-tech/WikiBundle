@@ -6,8 +6,8 @@ namespace Nowo\WikiBundle\QuickAccess;
 
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\Security\WikiPageVisibility;
-use Nowo\WikiBundle\Security\WikiSpaceAccessCheckerInterface;
 use Nowo\WikiBundle\User\WikiUserId;
 use Nowo\WikiBundle\ValueObject\WikiStoredUserRef;
 use Symfony\Component\Security\Core\User\UserInterface;

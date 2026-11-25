@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Nowo\WikiBundle\Collaboration;
 
+use Nowo\WikiBundle\Port\Internal\WikiCollabSubscriberAuthorizerInterface;
+use Nowo\WikiBundle\Port\Internal\WikiCollabTopicsAuthorizerInterface;
 use Nowo\WikiBundle\ValueObject\WikiRequestContext;
 
 /**
- * Lets a browser subscribe to co-editing topics, framework-free (1.36.0): the twin of the deprecated
- * {@see WikiCollabSubscriberAuthorizerInterface} / {@see WikiCollabTopicsAuthorizerInterface}
- * (`nowo_wiki.collaboration.subscriber_authorizer` takes either). Return the cookies to set (e.g. the hub's
+ * Lets a browser subscribe to co-editing topics, framework-free (1.36.0): since 2.0 the only host port; it replaced the removed 1.x
+ * `WikiCollabSubscriberAuthorizerInterface` / `WikiCollabTopicsAuthorizerInterface`
+ * (`nowo_wiki.collaboration.subscriber_authorizer` names your service). Return the cookies to set (e.g. the hub's
  * subscriber JWT); the bundle adds them to the response of that request.
  */
 interface WikiCollabSubscriptionPolicyInterface
