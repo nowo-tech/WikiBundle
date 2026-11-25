@@ -10,8 +10,8 @@ use Nowo\WikiBundle\ValueObject\WikiUserRef;
 use Symfony\Contracts\EventDispatcher\Event;
 
 /**
- * 1.50 ({@see WikiEvents::SPACE_ACCESS_CHECK}): dispatched before a person renames, archives, unarchives or purges a
- * space, once the space checker answered. The checker's decision (`Manage` on the space) is the default
+ * 1.50 ({@see WikiEvents::SPACE_ACCESS_CHECK}): dispatched before a person renames, changes the icon of (1.56,
+ * {@see WikiSpaceLifecycleAction::Icon}), archives, unarchives or purges a space, once the space checker answered. The checker's decision (`Manage` on the space) is the default
  * ({@see self::isDefaultGranted()}); a listener may override it with {@see self::grant()} or {@see self::deny()}. A
  * deny sticks: a later grant() is ignored. Only asked for a space the person can open: a space they cannot open is
  * answered as an unknown one before this event.

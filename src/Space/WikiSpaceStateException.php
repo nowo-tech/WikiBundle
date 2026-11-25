@@ -18,14 +18,19 @@ final class WikiSpaceStateException extends RuntimeException
     /** A purge started: the space only goes on to be deleted. */
     public const PURGING = 'purging';
 
-    /** A rename of an archived space (as the REST API refuses it): bring it back first. */
+    /** A rename (1.56: or an icon change) of an archived space (as the REST API refuses it): bring it back first. */
     public const ARCHIVED = 'archived';
 
-    public function __construct(public readonly string $reason)
+    /**
+     * @param string $reason one of the constants (the code callers compare)
+     * @param WikiSpaceLifecycleAction|null $action 1.56: the refused change, for the message only (the reason stays the
+     *                                              same: `Icon` says "changing its icon", anything else "renaming it")
+     */
+    public function __construct(public readonly string $reason, public readonly ?WikiSpaceLifecycleAction $action = null)
     {
         parent::__construct(match ($reason) {
             self::NOT_ARCHIVED => 'Archive the space before purging it.',
-            self::ARCHIVED     => 'Bring the space back before renaming it.',
+            self::ARCHIVED     => $action === WikiSpaceLifecycleAction::Icon ? 'Bring the space back before changing its icon.' : 'Bring the space back before renaming it.',
             default            => 'The space is being purged.',
         });
     }

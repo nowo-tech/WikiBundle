@@ -323,6 +323,29 @@ final class WikiSpaceLifecycleTest extends TestCase
         self::assertSame([$id . '@2<1', $id . '@3<2'], $this->events[WikiEvents::SPACE_ICON_CHANGED] ?? []);
     }
 
+    public function testSetSpaceIconAcceptsAnEmojiOnlyWithTheEmojiPrefix(): void
+    {
+        // Audit ZBR-4: `emoji:` as createSpaceFrom() checks it (space_icon.emoji adds the pseudo-prefix).
+        $id = $this->doomed->getId();
+        try {
+            $this->lifecycle()->setSpaceIcon($id, 'emoji:🚀', $this->ana);
+            self::fail('Expected the emoji prefix to be refused without space_icon.emoji.');
+        } catch (WikiInvalidIconException) {
+        }
+        $withEmoji = $this->lifecycle(iconPrefixes: ['tabler', 'emoji']);
+        self::assertSame('emoji:🚀', $withEmoji->setSpaceIcon($id, 'emoji:🚀', $this->ana)->icon);
+        self::assertSame('emoji:🚀', $this->fresh($this->doomed)->getIcon());
+        foreach (['emoji:abc', 'emoji:', 'emoji:🚀 x', 'emoji:<b>'] as $invalid) {
+            try {
+                $withEmoji->setSpaceIcon($id, $invalid, $this->ana);
+                self::fail('Expected an invalid emoji shape: ' . $invalid);
+            } catch (WikiInvalidIconException) {
+            }
+        }
+        self::assertSame('tabler:book', $withEmoji->setSpaceIcon($id, 'tabler:book', $this->ana)->icon);
+        self::assertSame('emoji:🚀', $withEmoji->setSpaceIcon($id, 'emoji:🚀', $this->ana)->icon, 'back to the emoji');
+    }
+
     public function testSetSpaceIconFollowsTheRenameRules(): void
     {
         $lifecycle = $this->lifecycle();
@@ -346,6 +369,8 @@ final class WikiSpaceLifecycleTest extends TestCase
             self::fail('Expected the archived state.');
         } catch (WikiSpaceStateException $state) {
             self::assertSame(WikiSpaceStateException::ARCHIVED, $state->reason);
+            self::assertSame(WikiSpaceLifecycleAction::Icon, $state->action);
+            self::assertSame('Bring the space back before changing its icon.', $state->getMessage(), 'audit ZBR-3: its own message');
         }
         $lifecycle->unarchiveSpace($id, $this->ana);
         self::assertSame('tabler:book', $lifecycle->setSpaceIcon($id, 'tabler:book')->icon, 'a trusted call checks no person');
@@ -773,7 +798,10 @@ final class WikiSpaceLifecycleTest extends TestCase
         self::assertSame('Renamed', $lifecycle->renameSpace($this->doomed->getId(), 'Renamed', null, $this->ana)->name);
     }
 
-    private function lifecycle(int $batchSize = 100, ?WikiEventDeferral $deferral = null, int $maxFiles = 50): WikiSpaceLifecycle
+    /**
+     * @param list<string> $iconPrefixes
+     */
+    private function lifecycle(int $batchSize = 100, ?WikiEventDeferral $deferral = null, int $maxFiles = 50, array $iconPrefixes = ['tabler']): WikiSpaceLifecycle
     {
         $storage = new class($this) implements WikiAttachmentStorageInterface {
             public function __construct(private readonly WikiSpaceLifecycleTest $test)
@@ -811,6 +839,8 @@ final class WikiSpaceLifecycleTest extends TestCase
             $storage,
             $this->logger,
             $batchSize,
+            null,
+            $iconPrefixes,
         );
     }
 

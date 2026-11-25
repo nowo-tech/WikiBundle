@@ -168,7 +168,7 @@ final readonly class WikiSpaceLifecycle implements WikiSpaceLifecycleInterface
                 throw new WikiSpaceStateException(WikiSpaceStateException::PURGING);
             }
             if ($space->isArchived()) {
-                throw new WikiSpaceStateException(WikiSpaceStateException::ARCHIVED);
+                throw new WikiSpaceStateException(WikiSpaceStateException::ARCHIVED, WikiSpaceLifecycleAction::Icon);
             }
             $this->assertVersion($space, $expectedVersion);
             $before = WikiSnapshots::space($space);

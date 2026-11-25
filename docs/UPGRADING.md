@@ -165,7 +165,11 @@ From **1.55.2**: `composer update nowo-tech/wiki-bundle`. Nothing to change unle
 - `WikiSpaceOperationsInterface` and `WikiSpaceLifecycleInterface` gain `setSpaceIcon()`: a class of yours that
   implements either (a test double) must add it.
 - `WikiSpaceLifecycleAction` gains the case `Icon`: a `WikiSpaceAccessCheckEvent` listener that `match`es every case
-  without a `default` must handle it.
+  without a `default` must handle it, and a listener that grants every action but some ("grant all except purge") now
+  grants icon changes too: add `Icon` to its exceptions if that person must not change icons. A listener of
+  `WikiSpaceLifecycleEvent` that tells the events apart by `$action` sees `Icon` with `SPACE_ICON_CHANGED`.
+- `WikiSpaceStateException` gains an optional second argument (the action, for the message only): an icon change of
+  an archived space says "…before changing its icon."; the reason stays `ARCHIVED`.
 
 ## To 1.55.2
 
