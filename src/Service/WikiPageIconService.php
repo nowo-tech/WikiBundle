@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Service;
 
 use Nowo\TransactionContract\TransientStorageFailure;
-use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Port\WikiSnapshots;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
@@ -35,7 +34,6 @@ final readonly class WikiPageIconService
      * @param object|null $iconRenderer optional Symfony UX Icons `IconRendererInterface`
      * @param object|null $emojiCatalog 1.39: IconSelector's `EmojiCatalogInterface` (`page_icon.emoji`): an `emoji:`
      *                                  value must be exactly one RGI emoji of it; without it no emoji is accepted
-     * @param WikiManagedEntities|null $managed 1.55.2: the wiki manager's instance of a page another manager loaded
      */
     public function __construct(
         private WikiPageRepositoryInterface $pages,
@@ -43,7 +41,6 @@ final readonly class WikiPageIconService
         private ?WikiTransactionRunner $runner = null,
         private ?object $iconRenderer = null,
         private ?object $emojiCatalog = null,
-        private ?WikiManagedEntities $managed = null,
     ) {
     }
 

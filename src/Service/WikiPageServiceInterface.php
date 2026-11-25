@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
+use Nowo\WikiBundle\Space\WikiSpaceNotFoundException;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 
 /**
@@ -26,6 +27,23 @@ interface WikiPageServiceInterface
      */
     public function create(
         WikiSpace $space,
+        string $title,
+        string $contentHtml,
+        object $author,
+        ?WikiPage $parent = null,
+        ?string $slug = null,
+        string $format = WikiPageRevision::FORMAT_HTML,
+    ): WikiPage;
+
+    /**
+     * 2.0 (1.55.2 on the class): {@see self::create()} in the space with exactly that id, read through the wiki's private
+     * entity manager (nothing of the caller's is attached to the new page).
+     *
+     * @throws WikiSpaceNotFoundException when no space has exactly that id (nothing written)
+     * @throws InvalidArgumentException when the slug is invalid or taken, or the format is unknown
+     */
+    public function createInSpace(
+        string $spaceId,
         string $title,
         string $contentHtml,
         object $author,

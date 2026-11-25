@@ -6,7 +6,6 @@ namespace Nowo\WikiBundle\Port;
 
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Port\Internal\WikiSpaceAccessResolverInterface;
-use Nowo\WikiBundle\Repository\WikiSpaceBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Service\WikiSpaceReachInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -37,13 +36,12 @@ final readonly class WikiSpaceReachGate implements WikiSpaceAccessResolverInterf
                 $ids[$id] = $id;
             }
         }
-        // 1.55.2: one query for every id when the repository can (it was 2 queries per space).
-        if ($this->spaces instanceof WikiSpaceBatchFinderInterface) {
-            return array_values($this->spaces->findByIds(array_values($ids)));
-        }
+        // 1.55.2: one query for every id (it was 2 queries per space); 2.0: every space repository has findByIds(). The
+        // exact id is checked here again, whatever repository answered (REQ-SEC-006).
+        $found  = $ids === [] ? [] : $this->spaces->findByIds(array_values($ids));
         $spaces = [];
         foreach ($ids as $id) {
-            $space = $this->spaces->findById($id);
+            $space = $found[$id] ?? null;
             if ($space instanceof WikiSpace && $space->getId() === $id) {
                 $spaces[] = $space;
             }

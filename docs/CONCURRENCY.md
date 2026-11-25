@@ -174,9 +174,7 @@ Accepted and documented:
   the wiki's manager already holds, so it may miss an archive, rename or owner change another worker committed since
   that read. It is for read paths within one request (repeated access checks) only; every write path, and every
   decision to write, uses `findById()` or `findByIds()` (fresh) and the row lock of its unit. The private manager is
-  dropped at every request boundary, so with it no stale state crosses requests in a kept-alive worker; with the shared
-  manager the application decides when its identity map is cleared, and in a FrankenPHP worker without kernel reset
-  that state can be older than the request.
+  dropped at every request boundary, so no stale state crosses requests in a kept-alive worker.
 - **Commit detection** sees DBAL writes on DoctrineBundle connections only; a commit on another connection of the same
   request is not seen and its conflict answers `CONFLICT_001`.
 

@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 2.0.0 (REQ-ARCH-001 rules 1, 3 and 6): only what 1.x announced through deprecation notices changes. An application whose
-deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.1 (the last 1.x release) upgrades without code changes. See
+deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.2 (the last 1.x release) upgrades without code changes. See
 [UPGRADING › To 2.0.0](UPGRADING.md#to-200).
 
 ### Changed
@@ -147,6 +147,19 @@ deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.1 (the last 1
   another user class is another person. Add the adapter to `accepted_user_classes` or return the same user.
 - A `web_ui.layout_template` that does not render the UiKit canonical blocks (a pre-1.10 layout) fails with a
   `LogicException` naming the layout when a page renders, instead of being wrapped in the removed bridge.
+
+- **BREAKING:** `WikiSpaceRepositoryInterface` extends `WikiSpaceBatchFinderInterface` (1.55.2: `findByIds()`,
+  `findByIdWithoutRefresh()`), and `WikiPageServiceInterface` gains `createInSpace()` (1.55.2 on the class): your own
+  implementations add them. The port gates check the exact id of every `findByIds()` answer again.
+- 1.55.2's host-loaded row re-reads are the 2.0 `WikiTransactionRunner::attach()` (the internal
+  `Doctrine\WikiManagedEntities` is removed); `WikiPageDuplicator` attaches too, the page mover answers a row of yours
+  that no longer exists with `page_missing` / `parent_missing`, a detached row (no manager holds it) is loaded again by
+  id (audit ZBO-5), and a space you persisted without flushing is `WikiSpaceNotFoundException`.
+
+### Fixed
+
+- The deprecation notice of `database.private_entity_manager` names the option once
+  (`nowo_wiki.database.private_entity_manager`, not `….private_entity_manager.private_entity_manager`; audit ZBL-1).
 
 ### Deprecated
 
@@ -199,6 +212,9 @@ deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.1 (the last 1
 
 - The 1.x line gets security fixes for 6 months after the 2.0.0 tag: Moderate and higher are backported to the last
   1.x minor; Low ones are fixed in 2.x only ([SECURITY](SECURITY.md)).
+- Update `symfony/ux-icons` and `twig/twig` in your application: the bundle's dev and demo locks carry the fixed
+  versions (ux-icons sanitizer advisories CVE-2026-133775..133779, Twig 3.31.1), but a host resolves its own; the wiki
+  renders editor-chosen page icons through `ux_icon()` (audit ZBL-4; no wiki GHSA).
 
 ## [1.56.1] - 2026-11-25
 
