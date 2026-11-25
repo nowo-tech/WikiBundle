@@ -18,8 +18,11 @@ use function sprintf;
 
 /**
  * Asks a framework-free {@see WikiApiWikiDirectoryInterface} (1.36.0). A wiki named with a space id gets that space,
- * loaded and re-checked byte for byte; an id that names no stored space fails closed (`LogicException`: a wrong
- * directory must never make the API provision a second space or open another one).
+ * loaded through the wiki's private manager and re-checked byte for byte. 2.0 (audit ZBL-v-2): a space entity the
+ * directory put on its answer is never used as it is: its id is read again the same way, so the guards, the quota and
+ * the plan decide on the wiki's own row. A wiki whose space is not stored (purged meanwhile) is answered as missing
+ * (404, never provisioned again); a provision that names no stored space fails closed (`LogicException`: a wrong
+ * directory must never make the API open another space).
  *
  * @internal
  */
@@ -34,19 +37,26 @@ final readonly class WikiApiWikiDirectoryGate implements WikiApiDirectoryInterfa
     public function list(WikiApiPrincipal $principal, WikiApiWikiFilter $filter): array
     {
         $answered = $this->directory->list($principal, $filter);
-        // 1.55.2: the named spaces in one query when the repository can (it was one read per wiki); each is still
-        // re-checked byte for byte and a missing one fails closed.
+        // 1.55.2: the named spaces in one query (it was one read per wiki), each re-checked byte for byte; a wiki whose
+        // space is no longer stored is left out, like a missing one.
         $ids = [];
         foreach ($answered as $wiki) {
-            if (!$wiki->space instanceof WikiSpace && $wiki->spaceId !== null) {
+            if ($wiki->spaceId !== null) {
                 $ids[$wiki->spaceId] = $wiki->spaceId;
             }
         }
         $found = $ids !== [] ? $this->spaces->findByIds(array_values($ids)) : [];
         $wikis = [];
         foreach ($answered as $wiki) {
-            $space   = $wiki->spaceId !== null && !$wiki->space instanceof WikiSpace ? ($found[$wiki->spaceId] ?? null) : null;
-            $wikis[] = $space instanceof WikiSpace && $space->getId() === $wiki->spaceId ? $wiki->withSpace($space) : $this->hydrate($wiki);
+            if ($wiki->spaceId === null) {
+                $wikis[] = $wiki;
+
+                continue;
+            }
+            $space = $found[$wiki->spaceId] ?? null;
+            if ($space instanceof WikiSpace && $space->getId() === $wiki->spaceId) {
+                $wikis[] = $wiki->withSpace($space);
+            }
         }
 
         return $wikis;
@@ -68,7 +78,7 @@ final readonly class WikiApiWikiDirectoryGate implements WikiApiDirectoryInterfa
         // Audit OX-I1: kept only when it names exactly the asked space (a twin's answer is re-checked).
         $wiki = $this->hydrate($wiki);
 
-        return $wiki->space?->getId() === $space->getId() ? $wiki : null;
+        return $wiki?->space?->getId() === $space->getId() ? $wiki : null;
     }
 
     public function provision(WikiApiPrincipal $principal, WikiApiWiki $wiki): WikiSpace
@@ -76,22 +86,29 @@ final readonly class WikiApiWikiDirectoryGate implements WikiApiDirectoryInterfa
         return $this->space($this->directory->provision($principal, $wiki));
     }
 
-    private function hydrate(WikiApiWiki $wiki): WikiApiWiki
+    /**
+     * The wiki with the private manager's space of its id (an entity on the answer is never kept as it is); null when
+     * that space is not stored, a wiki nobody opened (no id) as it is.
+     */
+    private function hydrate(WikiApiWiki $wiki): ?WikiApiWiki
     {
-        if ($wiki->space instanceof WikiSpace || $wiki->spaceId === null) {
+        if ($wiki->spaceId === null) {
             return $wiki;
         }
+        $space = $this->stored($wiki->spaceId);
 
-        return $wiki->withSpace($this->space($wiki->spaceId));
+        return $space instanceof WikiSpace ? $wiki->withSpace($space) : null;
     }
 
     private function space(string $id): WikiSpace
     {
-        $space = $this->spaces->findById($id);
-        if (!$space instanceof WikiSpace || $space->getId() !== $id) {
-            throw new LogicException(sprintf('nowo_wiki.api.hooks.directory named the space "%s", which does not exist.', $id));
-        }
+        return $this->stored($id) ?? throw new LogicException(sprintf('nowo_wiki.api.hooks.directory named the space "%s", which does not exist.', $id));
+    }
 
-        return $space;
+    private function stored(string $id): ?WikiSpace
+    {
+        $space = $this->spaces->findById($id);
+
+        return $space instanceof WikiSpace && $space->getId() === $id ? $space : null;
     }
 }
