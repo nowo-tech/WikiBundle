@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Tests\Api\PrivateEntityManager;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\ORM\Tools\SchemaTool;
 use LogicException;
 use Nowo\WikiBundle\Api\Security\WikiApiGuard;
 use Nowo\WikiBundle\Api\WikiApiLevel;
@@ -51,6 +52,18 @@ final class HostManagerEntitiesTest extends ApiTestCase
 {
     /** @var array<string, mixed> */
     protected static array $wikiConfig = ['database' => ['private_entity_manager' => true], 'trash' => ['enabled' => true]];
+
+    /**
+     * The trash table of this class's configuration is unknown to the next classes' schema tools (their drop would leave
+     * it, and its foreign key, behind on MySQL / MariaDB / PostgreSQL): drop every table.
+     */
+    protected function tearDown(): void
+    {
+        $this->private()->clear();
+        $this->em()->clear();
+        (new SchemaTool($this->em()))->dropDatabase();
+        parent::tearDown();
+    }
 
     public function testANewPageAttachesToTheWikisOwnInstanceOfAHostLoadedSpace(): void
     {
