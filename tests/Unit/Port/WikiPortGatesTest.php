@@ -74,8 +74,10 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 
+use function array_filter;
 use function array_slice;
 use function file_put_contents;
+use function in_array;
 use function property_exists;
 use function sys_get_temp_dir;
 use function tempnam;
@@ -240,12 +242,12 @@ final class WikiPortGatesTest extends TestCase
             }
         };
         $spaces = $this->createMock(WikiSpaceRepositoryInterface::class);
-        $spaces->method('findById')->willReturnCallback(fn (string $id): ?WikiSpace => match ($id) {
-            $this->space->getId() => $this->space,
-            'look'                => $other, // a store that folds: the returned id differs
-            $other->getId()       => $other,
-            default               => null,
-        });
+        // 2.0: one batch read; a store that folds answers `look` with another space (the returned id differs).
+        $spaces->method('findByIds')->willReturnCallback(fn (array $ids): array => array_filter([
+            $this->space->getId() => in_array($this->space->getId(), $ids, true) ? $this->space : null,
+            'look'                => in_array('look', $ids, true) ? $other : null,
+            $other->getId()       => in_array($other->getId(), $ids, true) ? $other : null,
+        ]));
         $gate = new WikiSpaceReachGate($reach, $spaces);
 
         self::assertSame([$this->space, $other], $gate->listSpacesForUser(new TestUser()));

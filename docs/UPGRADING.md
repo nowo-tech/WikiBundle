@@ -4,10 +4,11 @@
 
 - [Unreleased](#unreleased)
 - [To 2.0.0](#to-200)
-  - [Before you upgrade (on 1.55.1)](#before-you-upgrade-on-1551)
+  - [Before you upgrade (on 1.55.2)](#before-you-upgrade-on-1552)
   - [Default flip: the private entity manager is the only mode](#default-flip-the-private-entity-manager-is-the-only-mode)
   - [Private manager only](#private-manager-only)
   - [REST API: the firewall user and the token's user must be the same person](#rest-api-the-firewall-user-and-the-tokens-user-must-be-the-same-person)
+  - [From 1.55.2: host-loaded rows, batch space reads, `createInSpace()`](#from-1552-host-loaded-rows-batch-space-reads-createinspace)
   - [Removed](#removed)
   - [Deprecated for 3.0](#deprecated-for-30)
   - [Composer](#composer)
@@ -151,7 +152,7 @@
 
 ## To 2.0.0
 
-From **1.55.1** (the last 1.x release; a major version: widen your constraint):
+From **1.55.2** (the last 1.x release; a major version: widen your constraint):
 
 ```bash
 composer require nowo-tech/wiki-bundle:^2.0 -W
@@ -163,9 +164,9 @@ without deprecation notices from this bundle upgrades without code changes. Afte
 receives security fixes for 6 months: fixes rated Moderate and above are backported to the last 1.x minor; Low ones are
 fixed in 2.x only.
 
-No schema change and no migration: the tables, columns and indexes are those of 1.55.1.
+No schema change and no migration: the tables, columns and indexes are those of 1.55.2.
 
-### Before you upgrade (on 1.55.1)
+### Before you upgrade (on 1.55.2)
 
 Clear every `nowo-tech/wiki-bundle` notice from your deprecation log (`var/log/*.log` with the `php` channel, the
 profiler's "Deprecations" tab, or your test suite's deprecation report), for a full deploy cycle of your tests and
@@ -179,7 +180,7 @@ production traffic:
    > Opt in now with "nowo_wiki: { database: { private_entity_manager: true } }" once the host-flush probe notices
    > ("flushed by NowoWikiBundle", "rows with its own entity manager") are gone; see UPGRADING "To 1.49.0".
 
-   Set `nowo_wiki.database.private_entity_manager: true` on 1.55.1 first, once the two probe notices below are gone, and
+   Set `nowo_wiki.database.private_entity_manager: true` on 1.55.2 first, once the two probe notices below are gone, and
    run with it for a deploy cycle.
 2. **The host-flush probe** (the migration list, see [Reading the host-flush probe](#reading-the-host-flush-probe-as-a-migration-list)):
    - "Your pending changes to App\X were flushed by NowoWikiBundle; 2.0 no longer does.": flush your own changes
@@ -245,7 +246,7 @@ There is no way to keep the 1.x behaviour: the private manager is the only mode.
   that only changed a managed row of yours, a membership source or a quota listener that wrote your entities): your
   implementation must commit its own change.
 - In a FrankenPHP worker with the kernel kept alive and not reset, the private manager is dropped at every request,
-  Messenger message and console command boundary and at `kernel.reset`, as on 1.36–1.55.1 with the option on.
+  Messenger message and console command boundary and at `kernel.reset`, as on 1.36–1.55.2 with the option on.
 
 ### REST API: the firewall user and the token's user must be the same person
 
@@ -259,9 +260,29 @@ log. Nothing is written.
 - If the firewall's class is an adapter or wrapper that carries the `user_class` ids, add it to
   `nowo_wiki.accepted_user_classes`.
 - Otherwise make the firewall and the authenticator return the same user.
+- When you move to `WikiApiPrincipal::of()` (the 2.0 deprecation of the constructor), put the **authenticated user
+  object** in the `WikiUserRef` (`new WikiUserRef($user::class, $id, $user->getUserIdentifier(), $user->getRoles(),
+  $user)`): an id-only ref (`WikiUserRef::ofId(...)`) is refused by this check, so every API call answers 500 (audit
+  ZBL-3).
 
 Unchanged: the same object, two users of `user_class` / an accepted class with the same usable id, and two users of
 one other class with the same exact id still match; ownership and the API id are still judged on the token's user.
+
+### From 1.55.2: host-loaded rows, batch space reads, `createInSpace()`
+
+- The 1.55.2 re-reads of host-loaded spaces and pages are the 2.0 rule above (a wiki row your manager loaded is loaded
+  again by id): the internal `Doctrine\WikiManagedEntities` of 1.55.2 is gone, `WikiTransactionRunner::attach()` does
+  it for `WikiPageServiceInterface`, `WikiPageLinkServiceInterface`, `WikiPageIconService`, `WikiPageMover`,
+  `WikiPageDuplicator`, `WikiTrashService` and `WikiAttachmentService`. A row of yours that no longer exists is
+  `WikiPageNotFoundException` / `WikiSpaceNotFoundException` (the mover: `page_missing` / `parent_missing`); a space you
+  persisted without flushing is `WikiSpaceNotFoundException` (1.55.2: `LogicException`); a detached row (no manager
+  holds it) is loaded again by its id. The API and UI guards need no re-read: their spaces come from the framework-free
+  ports by id.
+- `WikiSpaceRepositoryInterface` extends `WikiSpaceBatchFinderInterface` (1.55.2): a space repository of your own must
+  implement `findByIds(array $ids): array` (keyed by id, exact ids only) and `findByIdWithoutRefresh(string $id)`. The
+  gates check the exact id of every answer again.
+- `WikiPageServiceInterface` gains `createInSpace(string $spaceId, …)` (on the class since 1.55.2): a class of your own
+  implementing the interface must add it.
 
 ### Removed
 
@@ -334,7 +355,7 @@ works, but carries no BC promise either.
 
 ### Composer
 
-No package moves to `suggest`; the requirements are those of 1.55.1.
+No package moves to `suggest`; the requirements are those of 1.55.2.
 
 ### Unchanged
 
@@ -344,7 +365,7 @@ worker-mode resets.
 
 ### Host checklist
 
-Search your application for each item; every hit is a change to make on 1.55.1 (where it works and the notices tell
+Search your application for each item; every hit is a change to make on 1.55.2 (where it works and the notices tell
 you) or in the 2.0 bump.
 
 | Search your code / config for | Change |
@@ -357,7 +378,9 @@ you) or in the 2.0 bump.
 | A Doctrine `onFlush` / `postFlush` listener of yours that reacts to wiki rows | it now runs on the wiki's private manager flush (same connection, mapping and listeners): it must not rely on your manager's unit of work there |
 | The 17 removed interfaces ([Removed](#removed)) in `implements`, `#[AsAlias]`, `#[AsDecorator]`, `decorates:`, constructor types, service ids | the 1.36 twin |
 | `->user` on `WikiApiPrincipal`, `WikiQuotaCheckEvent`, `WikiEditorOptionsEvent` | `userRef()` (`userRef()->user()` gives back the object) |
-| `new WikiApiPrincipal($user, …)` in your API authenticator | still works with a deprecation notice (removed in 3.0): `WikiApiPrincipal::of(new WikiUserRef($user::class, $id, $user->getUserIdentifier(), $user->getRoles(), $user), …)` |
+| `new WikiApiPrincipal($user, …)` in your API authenticator | still works with a deprecation notice (removed in 3.0): `WikiApiPrincipal::of(new WikiUserRef($user::class, $id, $user->getUserIdentifier(), $user->getRoles(), $user), …)`; keep the user object in the ref (an id-only `WikiUserRef::ofId()` answers 500 on every call, audit ZBL-3) |
+| `implements WikiSpaceRepositoryInterface` / `implements WikiPageServiceInterface` | add `findByIds()` + `findByIdWithoutRefresh()` / `createInSpace()` |
+| `symfony/ux-icons`, `twig/twig` in your own lock | update them (ux-icons sanitizer advisories CVE-2026-133775..133779; the wiki renders editor-chosen page icons through `ux_icon()`); the bundle's locks are updated, yours are not (audit ZBL-4) |
 | `route_prefix`, `templates:` directly under `nowo_wiki`, `firewall`, `database.driver` / `platform`, `web_ui.css_framework`, `security.*_roles` | the key in [Removed](#removed) (each fails the build naming it) |
 | `web_ui.layout_template` pointing at a layout without the UiKit canonical blocks | render the canonical blocks or set it to `null` |
 | Overrides of `_new_page_dialog`, `_import_export_dialog`, `_ai_dialog`, `_tree_menu` passing the 1.35–1.52 variables | the 1.53 on-demand variables |

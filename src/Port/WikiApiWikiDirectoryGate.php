@@ -11,7 +11,6 @@ use Nowo\WikiBundle\Api\Value\WikiApiWikiFilter;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Port\Internal\WikiApiDirectoryInterface;
-use Nowo\WikiBundle\Repository\WikiSpaceBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 
 use function array_values;
@@ -43,10 +42,11 @@ final readonly class WikiApiWikiDirectoryGate implements WikiApiDirectoryInterfa
                 $ids[$wiki->spaceId] = $wiki->spaceId;
             }
         }
-        $found = $this->spaces instanceof WikiSpaceBatchFinderInterface && $ids !== [] ? $this->spaces->findByIds(array_values($ids)) : [];
+        $found = $ids !== [] ? $this->spaces->findByIds(array_values($ids)) : [];
         $wikis = [];
         foreach ($answered as $wiki) {
-            $wikis[] = $wiki->spaceId !== null && isset($found[$wiki->spaceId]) && !$wiki->space instanceof WikiSpace ? $wiki->withSpace($found[$wiki->spaceId]) : $this->hydrate($wiki);
+            $space   = $wiki->spaceId !== null && !$wiki->space instanceof WikiSpace ? ($found[$wiki->spaceId] ?? null) : null;
+            $wikis[] = $space instanceof WikiSpace && $space->getId() === $wiki->spaceId ? $wiki->withSpace($space) : $this->hydrate($wiki);
         }
 
         return $wikis;
