@@ -156,6 +156,9 @@ deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.56.0 (the last 1
 
 ### Fixed
 
+- REST API without a stateless firewall (contract F2) on Symfony 7.4.24+: reading the security token of such a stateless
+  request now throws `UnexpectedSessionUsageException`, which the API reported as an unexpected error; it is answered
+  as no security user again (500 `SERVER_001` with the "must sit behind a stateless, secured firewall" log line).
 - The REST API's directory gate never keeps a `WikiSpace` entity your `WikiApiWikiDirectoryInterface` put on a
   `WikiApiWiki`: the space of its id is read through the wiki's private manager, so the guards, the quota and the plan
   decide on the wiki's own row, and a wiki whose space is no longer stored (purged meanwhile) answers 404 instead of a
