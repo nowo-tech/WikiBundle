@@ -15,7 +15,6 @@ use Nowo\WikiBundle\Api\WikiApiInput;
 use Nowo\WikiBundle\Api\WikiApiPrincipal;
 use Nowo\WikiBundle\Api\WikiApiRefusal;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
-use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -88,7 +87,6 @@ final readonly class WikiApiPageWriteOperations
         private ?RequestStack $requestStack = null,
         private ?WikiPageIconService $icons = null,
         private ?LoggerInterface $logger = null,
-        private ?WikiManagedEntities $managed = null,
     ) {
     }
 
@@ -130,7 +128,6 @@ final readonly class WikiApiPageWriteOperations
         // the directory hands over is always read again by id through the wiki's own (private) manager before the page
         // is attached to it ("A new entity was found through WikiPage#space" with a host-manager instance otherwise).
         $space = $wiki->space ?? $this->directory->provision($principal, $wiki);
-        $space = $this->managed instanceof WikiManagedEntities ? $this->managed->space($space) : $space;
         $wiki  = $wiki->withSpace($space);
         $this->guard->require($principal, WikiAction::Create, $space);
         $parent = null;

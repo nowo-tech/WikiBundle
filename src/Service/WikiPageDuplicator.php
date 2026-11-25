@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Service;
 
 use Nowo\TransactionContract\TransientStorageFailure;
-use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Event\WikiEvents;
 use Nowo\WikiBundle\Event\WikiPageDuplicatedEvent;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
+use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\Util\WikiSlugger;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
@@ -51,7 +51,7 @@ final readonly class WikiPageDuplicator
         private ?WikiPageIconService $icons = null,
         private int $maxPages = self::MAX_PAGES,
         private ?EventDispatcherInterface $dispatcher = null,
-        private ?WikiManagedEntities $managed = null,
+        private ?WikiTransactionRunner $runner = null,
     ) {
     }
 
@@ -71,8 +71,8 @@ final readonly class WikiPageDuplicator
      */
     public function duplicate(WikiPage $page, string $title, object $actor, ?WikiPageMoveScope $scope = null, bool $withChildren = false): WikiPageCreateResult
     {
-        // 1.55.2 (audit ZBO-2): a page of another manager (the host's, with the private manager) is read again by id.
-        $page   = $this->managed?->page($page) ?? $page;
+        // 2.0 (W1-2, 1.55.2 audit ZBO-2): a wiki row your manager loaded is loaded again by id in the wiki's private manager.
+        $page   = $this->runner?->attach($page) ?? $page;
         $space  = $page->getSpace();
         $create = fn (): WikiPage => $this->copy($page, $title, $page->getParent(), $actor);
         // Audit SM-L1: with a scope, its parent id is the parent the caller checked; a page moved since then is `stale`.

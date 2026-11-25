@@ -7,10 +7,6 @@ namespace Nowo\WikiBundle\Tests\Api\PrivateEntityManager;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\Tools\SchemaTool;
 use LogicException;
-use Nowo\WikiBundle\Api\Security\WikiApiGuard;
-use Nowo\WikiBundle\Api\WikiApiLevel;
-use Nowo\WikiBundle\Api\WikiApiPrincipal;
-use Nowo\WikiBundle\Api\WikiApiWhere;
 use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
@@ -24,7 +20,6 @@ use Nowo\WikiBundle\Service\WikiPageDuplicator;
 use Nowo\WikiBundle\Service\WikiPageIconService;
 use Nowo\WikiBundle\Service\WikiPageMoveException;
 use Nowo\WikiBundle\Service\WikiPageMover;
-use Nowo\WikiBundle\Service\WikiPageNotFoundException;
 use Nowo\WikiBundle\Space\WikiSpaceNotFoundException;
 use Nowo\WikiBundle\Tests\Api\ApiTestCase;
 use Nowo\WikiBundle\Tests\Api\App\ApiTestHost;
@@ -89,8 +84,8 @@ final class HostManagerEntitiesTest extends ApiTestCase
         try {
             $this->pages()->create($draft, 'Lost', 'body', $this->ana);
             self::fail('a space the wiki cannot read is refused');
-        } catch (LogicException $exception) {
-            self::assertStringContainsString('is not stored yet', $exception->getMessage());
+        } catch (WikiSpaceNotFoundException) {
+            // 2.0 (W1-2): a space your manager holds that the wiki cannot load is a missing space.
         }
         self::assertSame(0, $this->rows('SELECT COUNT(*) FROM wiki_pages', []));
         self::assertTrue($this->em()->getUnitOfWork()->isScheduledForInsert($draft), 'the application\'s pending work is left alone');
@@ -106,11 +101,10 @@ final class HostManagerEntitiesTest extends ApiTestCase
 
         self::assertSame(201, $created->getStatusCode(), (string) $created->getContent());
         self::assertSame(['fresh'], ApiTestHost::$provisioned);
-        $guard = self::getContainer()->get(WikiApiGuard::class);
-        assert($guard instanceof WikiApiGuard);
-        $wiki = $guard->wiki(new WikiApiPrincipal($this->ana, WikiApiLevel::Full, WikiApiWhere::everything(), 't', 'n'), 'fresh');
-        self::assertInstanceOf(WikiSpace::class, $wiki->space);
-        self::assertTrue($this->private()->contains($wiki->space), 'the directory\'s space is the wiki\'s own instance');
+        // 2.0: the page services load the directory's space again by id in the private manager (W1-2).
+        $page = $this->private()->find(WikiPage::class, (string) $this->json($created)['id']);
+        self::assertInstanceOf(WikiPage::class, $page);
+        self::assertSame('fresh', $page->getSpace()->getSlug());
     }
 
     public function testHostLoadedPagesAreWrittenThroughTheWikisOwnInstance(): void
@@ -215,12 +209,22 @@ final class HostManagerEntitiesTest extends ApiTestCase
         self::assertNotSame($detached, $page->getSpace());
     }
 
-    public function testAPageTheWikiCannotReadIsRefusedAsMissing(): void
+    public function testTheMoverAnswersAHostPageThatNoLongerExistsAsMissing(): void
     {
-        $ghost = new WikiPage($this->eng, 'ghost', 'Ghost');
+        $page = $this->page($this->eng, 'Gone soon', 'g');
+        $host = $this->em()->find(WikiPage::class, $page->getId());
+        self::assertInstanceOf(WikiPage::class, $host);
+        $this->connection()->executeStatement('DELETE FROM wiki_pages WHERE id = ?', [$page->getId()]);
+        $this->private()->clear();
+        $mover = self::getContainer()->get(WikiPageMover::class);
+        assert($mover instanceof WikiPageMover);
 
-        $this->expectException(WikiPageNotFoundException::class);
-        $this->pages()->saveRevision($ghost, 'Ghost', 'body', $this->ana);
+        try {
+            $mover->move($host, null, 0);
+            self::fail('a page of yours that no longer exists is gone');
+        } catch (WikiPageMoveException $exception) {
+            self::assertSame('page_missing', $exception->reason);
+        }
     }
 
     public function testCreateInSpaceReadsTheSpaceById(): void

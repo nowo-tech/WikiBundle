@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/wiki-bundle`  
-**Last audited**: 2026-11-25 (2.0.0: every file of `src/` mapped, including 1.52 to 1.55.1 and the 2.0 removals; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 605)
+**Last audited**: 2026-11-25 (2.0.0: every file of `src/` mapped, including 1.52 to 1.55.2 and the 2.0 removals; audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` → 606)
 
 This file proves that **every production source artifact** under `src/` is referenced by the baseline specification. Test-only files under `tests/` and `*.test.ts` under `src/` are out of Packagist scope. Built assets under `Resources/public/` are documented as Vite/build outputs.
 
@@ -830,6 +830,12 @@ This file proves that **every production source artifact** under `src/` is refer
 | `ValueObject/WikiCommentThreadSnapshot.php` | Comment thread read model | FR-COMMENT-004 |
 | `ValueObject/WikiNewSpace.php` | Space to create by id with its settings | FR-SPACE-003 |
 
+## Batch space reads (1.55.2)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Repository/WikiSpaceBatchFinderInterface.php` | Spaces by ids in one query per 500 ids, and the no-refresh read for read paths; extended by the space repository since 2.0 | FR-REPO-001 / FR-WORKER-002 |
+
 ## 2.0 removals (REQ-ARCH-001)
 
 | Source file | Spec section | Requirement IDs |
@@ -884,7 +890,8 @@ This file proves that **every production source artifact** under `src/` is refer
 | Dialogs on demand (1.53) | 6 | 6 |
 | Browser console line (1.54) | 2 | 2 |
 | Space create, erasure and comment reads by id (1.55) | 6 | 6 |
+| Batch space reads (1.55.2) | 1 | 1 |
 | 2.0 removals (REQ-ARCH-001) | 1 | 1 |
-| **Total production sources** | **605** | **605** |
+| **Total production sources** | **606** | **606** |
 
-Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 605. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
+Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 606. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).

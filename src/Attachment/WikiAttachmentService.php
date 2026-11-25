@@ -6,7 +6,6 @@ namespace Nowo\WikiBundle\Attachment;
 
 use DateTimeImmutable;
 use finfo;
-use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiAttachment;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Event\WikiAttachmentEvent;
@@ -63,7 +62,6 @@ final readonly class WikiAttachmentService
         ?LoggerInterface $logger = null,
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiTransactionRunner $runner = null,
-        private ?WikiManagedEntities $managed = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }

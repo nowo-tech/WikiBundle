@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\WikiBundle\Link;
 
 use InvalidArgumentException;
-use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageLink;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -36,7 +35,6 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
      * @param iterable<object> $resolvers host resolvers (WikiObjectLinkResolverInterface, or since 1.36 WikiObjectLinkSourceInterface)
      * @param EventDispatcherInterface $eventDispatcher dispatcher of the link events
      * @param WikiUserReferenceResolverInterface|null $users 1.27: the stored link creator for a non-entity user
-     * @param WikiManagedEntities|null $managed 1.55.2: the wiki manager's instance of a page another manager loaded
      */
     public function __construct(
         private WikiPageLinkRepositoryInterface $linkRepository,
@@ -45,7 +43,6 @@ final readonly class WikiPageLinkService implements WikiPageLinkServiceInterface
         private EventDispatcherInterface $eventDispatcher,
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiTransactionRunner $runner = null,
-        private ?WikiManagedEntities $managed = null,
     ) {
     }
 
