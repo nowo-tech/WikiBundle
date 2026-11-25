@@ -176,6 +176,13 @@ Accepted and documented:
   (it is idempotent: run it from a retried message or a sweep).
 - **Space purge files:** attachment files are removed after each batch commits; a process that dies in between leaves
   orphan files for the attachment maintenance.
+- **No-refresh space reads (1.55.2):** `WikiSpaceBatchFinderInterface::findByIdWithoutRefresh()` answers the instance
+  the wiki's manager already holds, so it may miss an archive, rename or owner change another worker committed since
+  that read. It is for read paths within one request (repeated access checks) only; every write path, and every
+  decision to write, uses `findById()` or `findByIds()` (fresh) and the row lock of its unit. The private manager is
+  dropped at every request boundary, so with it no stale state crosses requests in a kept-alive worker; with the shared
+  manager the application decides when its identity map is cleared, and in a FrankenPHP worker without kernel reset
+  that state can be older than the request.
 - **Commit detection** sees DBAL writes on DoctrineBundle connections only; a commit on another connection of the same
   request is not seen and its conflict answers `CONFLICT_001`.
 

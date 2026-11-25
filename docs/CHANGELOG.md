@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Fixed (1.55.2, Unreleased)](#fixed-1552-unreleased)
+  - [Added (1.55.2, Unreleased)](#added-1552-unreleased)
 - [[1.55.1] - 2026-11-23](#1551---2026-11-23)
   - [Fixed (1.55.1, Unreleased)](#fixed-1551-unreleased)
 - [[1.55.0] - 2026-11-23](#1550---2026-11-23)
@@ -308,6 +310,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-10)
 
 ## [Unreleased]
+
+### Fixed (1.55.2, Unreleased)
+
+- **Host-loaded spaces and pages with the private entity manager (Beacon, `database.private_entity_manager: true`).** A space or page the host hands over may be an instance of the application's entity manager: a deprecated `WikiApiDirectoryInterface` (`find()`, `provision()`), a deprecated `WikiSpaceLocatorInterface`, or host code calling the page services. The wiki now always reads it again by id through its own (private) manager before a page is attached to it, or before it is locked or saved (`Doctrine\WikiManagedEntities`, internal): in `WikiApiGuard::wiki()`, the API page create (`WikiApiPageWriteOperations::create()`, also after `provision()`), `WikiSpaceGuard::requireSpace()` (UI routes), `WikiPageService::create()` (space and parent), `saveRevision()`, `restore()`, `convertToMarkdown()`, `archive()`, `unarchive()`, `WikiPageLinkService::link()` / `unlink()` and `WikiPageIconService::setIcon()`. Before, a host-manager page failed every write with "Entity WikiPage@… is not managed" (the page lock refreshes it), and a space the host persisted without flushing failed with "A new entity was found through the relationship 'WikiPage#space'"; such a space is now refused with a `LogicException` that says to flush it first, before anything is written. With the shared manager (the 1.x default) the instances are the wiki's own already: nothing changes.
+- **`WikiSpaceRepositoryInterface::findById()` costs one query.** The bundle's repository refreshed a space right after loading it (two queries for a space it did not hold); it now refreshes only a space its manager already holds, and loads any other one once. Same result: always the database's state.
+- **The framework-free port gates read spaces in one query.** `WikiSpaceReachGate::listSpacesForUser()` (a `WikiSpaceReachInterface` host) and `WikiApiWikiDirectoryGate::list()` (a `WikiApiWikiDirectoryInterface` host) read every named space with one `findByIds()` instead of one `findById()` per space; a named space that does not exist still fails closed.
+- **Dependencies (no constraint change):** the root lock moves to `twig/twig` 3.31.1 and `symfony/ux-icons` 2.36.3, the demo lock to `twig/twig` 3.31.1, `twig/html-extra` 3.31.1, `symfony/ux-icons` 3.8.1, `symfony/http-client` 8.1.11 and `symfony/serializer` 8.1.11: `composer audit` reported advisories against the previous locks (dev / demo only; the bundle's constraints already allowed the fixed versions).
+
+### Added (1.55.2, Unreleased)
+
+- **`WikiPageService::createInSpace(string $spaceId, …)`**: `create()` with the space read by id through the wiki's own manager (`Space\WikiSpaceNotFoundException` when no space has exactly that id). Prefer it when you hold an id or a space of the application's manager. The id-only `WikiPageOperationsInterface::createPage()` (snapshots in and out) stays the port for framework-free hosts.
+- **`Repository\WikiSpaceBatchFinderInterface`** (implemented by the bundle's space repository, autowirable): `findByIds(array $ids)` (one query, fresh, keyed by id in the asked order) and `findByIdWithoutRefresh(string $id)` (identity map first; read paths only: it may return a state another worker changed since, so never on a write path or to decide a write, REQ-RUNTIME-003). Use them in a host access checker instead of `findById()` per space. 2.0 folds both into `WikiSpaceRepositoryInterface`.
 
 ## [1.55.1] - 2026-11-23
 

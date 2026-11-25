@@ -76,6 +76,7 @@ use Nowo\WikiBundle\Doctrine\WikiEntityManager;
 use Nowo\WikiBundle\Doctrine\WikiEntityManagerProvider;
 use Nowo\WikiBundle\Doctrine\WikiExactKeyColumns;
 use Nowo\WikiBundle\Doctrine\WikiHostFlushProbe;
+use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Doctrine\WikiMetadataListener;
 use Nowo\WikiBundle\Doctrine\WikiSpaceCollationListener;
 use Nowo\WikiBundle\Event\WikiEvents;
@@ -139,6 +140,7 @@ use Nowo\WikiBundle\Repository\WikiPageProvenanceFinderInterface;
 use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiRevisionLabelRepositoryInterface;
+use Nowo\WikiBundle\Repository\WikiSpaceBatchFinderInterface;
 use Nowo\WikiBundle\Repository\WikiSpaceRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiTrashRepositoryInterface;
 use Nowo\WikiBundle\Routing\WikiRouteLoader;
@@ -533,6 +535,12 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 ->setArgument('$entityManager', $emProviderRef));
             $container->setAlias($interface, $repoClass);
         }
+        // 1.55.2: the batch / no-refresh space reads (host access checkers) and the wiki manager's instance of a space or
+        // page another manager loaded (deprecated host ports with the private manager).
+        $container->setAlias(WikiSpaceBatchFinderInterface::class, DoctrineOrmWikiSpaceRepository::class);
+        $container->setDefinition(WikiManagedEntities::class, (new Definition(WikiManagedEntities::class))
+            ->setAutowired(false)
+            ->setArgument('$entityManager', $emProviderRef));
 
         $container->setDefinition(WikiMetadataListener::class, (new Definition(WikiMetadataListener::class))
             ->setArgument('$spacesTableName', $spacesTable)

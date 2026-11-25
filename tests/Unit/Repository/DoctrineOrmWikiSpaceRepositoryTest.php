@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Tests\Unit\Repository;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
+use Doctrine\ORM\UnitOfWork;
 use Nowo\WikiBundle\Entity\WikiSpace;
 use Nowo\WikiBundle\Enum\WikiSpaceOwnerScope;
 use Nowo\WikiBundle\Repository\DoctrineOrmWikiSpaceRepository;
@@ -77,13 +78,17 @@ final class DoctrineOrmWikiSpaceRepositoryTest extends TestCase
     public function testFindById(): void
     {
         $space = new WikiSpace('s', 'S', WikiSpaceOwnerScope::Team, 't');
-        $em    = $this->createMock(EntityManagerInterface::class);
-        $em->expects(self::once())->method('refresh');
-        $em->method('find')->willReturn($space);
+        $uow   = $this->createMock(UnitOfWork::class);
+        $uow->method('tryGetById')->willReturnOnConsecutiveCalls($space, false);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getUnitOfWork')->willReturn($uow);
+        // 1.55.2: a held space is refreshed; any other one is loaded once, never loaded then refreshed.
+        $em->expects(self::once())->method('refresh')->with($space);
+        $em->expects(self::once())->method('find')->willReturn($space);
+        $repository = new DoctrineOrmWikiSpaceRepository($em);
 
-        $found = (new DoctrineOrmWikiSpaceRepository($em))->findById($space->getId());
-
-        self::assertSame($space, $found);
+        self::assertSame($space, $repository->findById($space->getId()));
+        self::assertSame($space, $repository->findById($space->getId()));
     }
 
     public function testFindAccessibleReturnsEmptyForNoScopeIds(): void

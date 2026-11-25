@@ -10,6 +10,7 @@ use Doctrine\ORM\EntityNotFoundException;
 use LogicException;
 use Nowo\TransactionContract\TransientStorageFailure;
 use Nowo\WikiBundle\Attachment\WikiAttachmentReferenceFilter;
+use Nowo\WikiBundle\Doctrine\WikiManagedEntities;
 use Nowo\WikiBundle\Entity\WikiPage;
 use Nowo\WikiBundle\Entity\WikiPageRevision;
 use Nowo\WikiBundle\Entity\WikiSpace;
@@ -26,6 +27,7 @@ use Nowo\WikiBundle\Repository\WikiPageRepositoryInterface;
 use Nowo\WikiBundle\Repository\WikiPageRevisionRepositoryInterface;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizer;
 use Nowo\WikiBundle\Security\WikiHtmlSanitizerInterface;
+use Nowo\WikiBundle\Space\WikiSpaceNotFoundException;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Nowo\WikiBundle\User\WikiUserReferenceResolverInterface;
 use Nowo\WikiBundle\Util\WikiSlugger;
@@ -72,6 +74,8 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      *                                                              new revision (null: nothing recorded)
      * @param WikiTransactionRunner|null $runner 1.37 (Beacon spec 239): one transaction per write, the page row locked
      *                                           and read again under it (null: the writes of 1.36)
+     * @param WikiManagedEntities|null $managed 1.55.2: the wiki manager's instance of a space or page the caller loaded
+     *                                          (another manager's instance is read again by id; null: used as given)
      */
     public function __construct(
         private WikiPageRepositoryInterface $pageRepository,
@@ -86,6 +90,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         private ?WikiUserReferenceResolverInterface $users = null,
         private ?WikiWriteProvenanceProviderInterface $provenance = null,
         private ?WikiTransactionRunner $runner = null,
+        private ?WikiManagedEntities $managed = null,
     ) {
         $this->logger           = $logger ?? new NullLogger();
         $this->markdownRenderer = $markdownRenderer ?? new WikiMarkdownRenderer();
@@ -125,6 +130,10 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         string $format = WikiPageRevision::FORMAT_HTML,
     ): WikiPage {
         $this->assertFormat($format);
+        // 1.55.2: a space or parent of another manager (a host port's, with the private manager) is read again by id, so
+        // the new page never points at an instance the wiki's unit of work does not hold.
+        $space  = $this->managedSpace($space);
+        $parent = $parent instanceof WikiPage ? $this->managedPage($parent) : null;
         $slug ??= $this->slugger->slugify($title);
         if (!$this->slugger->isValid($slug)) {
             throw new WikiInvalidSlugException('Invalid page slug.');
@@ -166,6 +175,43 @@ final readonly class WikiPageService implements WikiPageServiceInterface
     }
 
     /**
+     * 1.55.2: {@see self::create()} in the space with exactly that id, read through the wiki's own entity manager (the
+     * private one with `database.private_entity_manager: true`). Prefer it to `create()` when the caller holds an id, or
+     * a space of the application's manager: nothing of the caller's is attached to the new page.
+     *
+     * @param string $spaceId id of the space the page belongs to
+     * @param string $title page title
+     * @param string $contentHtml initial content: HTML (sanitized before storage) or Markdown, see $format
+     * @param object $author application user recorded as revision author
+     * @param WikiPage|null $parent optional parent page (read again by id when another manager loaded it)
+     * @param string|null $slug explicit slug, or null to slugify the title
+     * @param string $format content format, {@see WikiPageRevision::FORMAT_HTML} or {@see WikiPageRevision::FORMAT_MARKDOWN}
+     *
+     * @throws WikiSpaceNotFoundException when no space has exactly that id (nothing written)
+     * @throws LogicException when the service was built without the wiki's entity manager (the container always wires it)
+     * @throws WikiInvalidSlugException when the slug is invalid
+     * @throws WikiSlugTakenException when the slug already exists in the space
+     * @throws WikiUnknownFormatException when the format is unknown
+     * @throws UniqueConstraintViolationException when another create took the slug meanwhile (nothing written)
+     *
+     * @return WikiPage the persisted page
+     */
+    public function createInSpace(
+        string $spaceId,
+        string $title,
+        string $contentHtml,
+        object $author,
+        ?WikiPage $parent = null,
+        ?string $slug = null,
+        string $format = WikiPageRevision::FORMAT_HTML,
+    ): WikiPage {
+        $managed = $this->managed ?? throw new LogicException('WikiPageService::createInSpace() needs the wiki\'s entity manager (WikiManagedEntities).');
+        $space   = $managed->spaceById($spaceId) ?? throw new WikiSpaceNotFoundException();
+
+        return $this->create($space, $title, $contentHtml, $author, $parent, $slug, $format);
+    }
+
+    /**
      * Appends a new sanitized revision to a page, updates its title and dispatches {@see WikiEvents::PAGE_SAVED}.
      *
      * @param WikiPage $page page to update
@@ -196,6 +242,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         ?int $expectedRevision = null,
     ): WikiPageRevision {
         $this->assertFormat($format);
+        $page = $this->managedPage($page);
         if ($expectedRevision !== null) {
             return $this->saveFromRevision($page, $title, $contentHtml, $author, $format, $expectedRevision);
         }
@@ -248,6 +295,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function restore(WikiPage $page, WikiPageRevision $from, object $actor, ?int $expectedRevision = null): WikiPageRevision
     {
+        $page = $this->managedPage($page);
         if ($expectedRevision === null && $page->isArchived()) {
             throw new WikiPageArchivedException('Archived pages cannot be restored.');
         }
@@ -306,6 +354,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function convertToMarkdown(WikiPage $page, string $markdown, object $actor): WikiPageRevision
     {
+        $page     = $this->managedPage($page);
         $previous = $page->getCurrentRevision();
         if ($this->runner instanceof WikiTransactionRunner && $this->pageRepository instanceof WikiPageLockInterface) {
             // 1.37: under the page lock like a save (archived pages included).
@@ -336,6 +385,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function archive(WikiPage $page, ?object $actor = null): void
     {
+        $page = $this->managedPage($page);
         if (!$this->toggleArchived($page, true)) {
             return;
         }
@@ -358,6 +408,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
      */
     public function unarchive(WikiPage $page, ?object $actor = null): void
     {
+        $page = $this->managedPage($page);
         if (!$this->toggleArchived($page, false)) {
             return;
         }
@@ -394,6 +445,18 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         $runner = $this->runner;
 
         return $runner->run(static fn (): bool => $runner->lockEntity($page) && $apply());
+    }
+
+    /** 1.55.2: the wiki manager's instance of the space ({@see WikiManagedEntities}); as given without it. */
+    private function managedSpace(WikiSpace $space): WikiSpace
+    {
+        return $this->managed instanceof WikiManagedEntities ? $this->managed->space($space) : $space;
+    }
+
+    /** 1.55.2: the wiki manager's instance of the page ({@see WikiManagedEntities}); as given without it. */
+    private function managedPage(WikiPage $page): WikiPage
+    {
+        return $this->managed instanceof WikiManagedEntities ? $this->managed->page($page) : $page;
     }
 
     /**
