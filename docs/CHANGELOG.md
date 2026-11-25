@@ -113,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 2.0.0 (REQ-ARCH-001 rules 1, 3 and 6): only what 1.x announced through deprecation notices changes. An application whose
-deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.55.2 (the last 1.x release) upgrades without code changes. See
+deprecation log is free of `nowo-tech/wiki-bundle` notices on 1.56.0 (the last 1.x release) upgrades without code changes. See
 [UPGRADING › To 2.0.0](UPGRADING.md#to-200).
 
 ### Changed
