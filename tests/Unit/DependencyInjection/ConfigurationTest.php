@@ -261,6 +261,7 @@ final class ConfigurationTest extends TestCase
         self::assertTrue($config['database']['private_entity_manager']);
         self::assertCount(1, $deprecations);
         self::assertStringContainsString('has no effect since 2.0', $deprecations[0]);
+        self::assertStringNotContainsString('private_entity_manager.private_entity_manager', $deprecations[0], 'audit ZBL-1: the path once');
 
         $this->expectException(InvalidConfigurationException::class);
         $this->expectExceptionMessage('private_entity_manager: false is no longer supported');
