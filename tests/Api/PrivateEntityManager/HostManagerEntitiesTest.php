@@ -124,6 +124,21 @@ final class HostManagerEntitiesTest extends ApiTestCase
         self::assertSame(0, $this->rows('SELECT COUNT(*) FROM wiki_pages WHERE id = ? AND archived_at IS NOT NULL', [$page->getId()]));
     }
 
+    public function testTheFlushStillAdoptsAHostSpaceThatReachesTheWikiAnotherWay(): void
+    {
+        // The safety net under the by-id reads: a wiki row built directly on the private manager with a stored space of
+        // the application's manager is flushed against the private manager's reference to it.
+        $hostSpace = $this->em()->find(WikiSpace::class, $this->eng->getId());
+        self::assertInstanceOf(WikiSpace::class, $hostSpace);
+        $private = $this->private();
+        $page    = new WikiPage($hostSpace, 'direct', 'Direct');
+        $private->persist($page);
+        $private->flush();
+
+        self::assertNotSame($hostSpace, $page->getSpace());
+        self::assertSame(1, $this->rows('SELECT COUNT(*) FROM wiki_pages WHERE slug = ?', ['direct']));
+    }
+
     public function testAPageTheWikiCannotReadIsRefusedAsMissing(): void
     {
         $ghost = new WikiPage($this->eng, 'ghost', 'Ghost');

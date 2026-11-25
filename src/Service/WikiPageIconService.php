@@ -122,6 +122,7 @@ final readonly class WikiPageIconService
             if ($page->getIcon() === $icon) {
                 return false;
             }
+            // @igor-ignore - $page is a request-scoped wiki entity (1.55.2: the wiki manager's instance from WikiManagedEntities), not a shared service.
             $page->setIcon($icon, $this->allowedPrefixes);
             $this->pages->save($page);
 

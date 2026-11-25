@@ -251,6 +251,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
             // revision), the number follows the current one, and the revision and the page's pointer commit together.
             // Two saves at once no longer collide on the number or leave the page on the older revision.
             [$revision, $previous] = $this->underPageLock($page, null, 'Archived pages cannot be edited.', static fn (): ?WikiPageRevision => null, function (?WikiPageRevision $current) use ($page, $title, $contentHtml, $format, $author): WikiPageRevision {
+                // @igor-ignore - $page is a request-scoped wiki entity (1.55.2: the wiki manager's instance from WikiManagedEntities), not a shared service.
                 $page->setTitle($title);
 
                 return $this->appendRevision($page, $contentHtml, $format, $author, $this->nextAfter($page, $current?->getRevisionNumber() ?? 0));
@@ -267,6 +268,7 @@ final readonly class WikiPageService implements WikiPageServiceInterface
         }
 
         $previous = $page->getCurrentRevision();
+        // @igor-ignore - $page is a request-scoped wiki entity (1.55.2: the wiki manager's instance from WikiManagedEntities), not a shared service.
         $page->setTitle($title);
         $revision = $this->appendRevision($page, $contentHtml, $format, $author);
 
