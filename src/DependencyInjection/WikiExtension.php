@@ -49,6 +49,8 @@ use Nowo\WikiBundle\Collaboration\MercureWikiCollabSubscriberAuthorizer;
 use Nowo\WikiBundle\Collaboration\WikiCollabCookieListener;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSaveListener;
+use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaimErasureListener;
+use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaims;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
 use Nowo\WikiBundle\Command\WikiBacklinksRebuildCommand;
@@ -577,6 +579,7 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
         $this->registerComments($container, $config, $emProviderRef);
         $this->registerLinkPicker($container, $config);
         $this->registerQuickAccess($container, $config);
+        $this->registerSeedClaims($container);
         $this->registerBacklinks($container, $config);
         $this->registerRenderedDiff($container, $config);
 
@@ -982,6 +985,24 @@ final class WikiExtension extends Extension implements PrependExtensionInterface
                 '$logger'     => new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE),
             ])
             ->addTag('monolog.logger', ['channel' => 'nowo_wiki']));
+    }
+
+    /**
+     * 2.0.1 (Beacon 207 T030): the co-editing seed claims of the person in the privacy export and erasure, and the
+     * one-shot clean-up command of the raw identifiers 2.0.0 stored. Always (like the quick-access erasure): they act on
+     * the document table when it exists, whether or not co-editing is on now.
+     */
+    private function registerSeedClaims(ContainerBuilder $container): void
+    {
+        $container->setDefinition(WikiCollabSeedClaims::class, (new Definition(WikiCollabSeedClaims::class))
+            ->setArgument('$runner', new Reference(WikiTransactionRunner::class))
+            ->setArgument('$secret', '%kernel.secret%'));
+        $container->setDefinition(WikiCollabSeedClaimErasureListener::class, (new Definition(WikiCollabSeedClaimErasureListener::class))
+            ->setArgument('$claims', new Reference(WikiCollabSeedClaims::class))
+            ->addTag('kernel.event_listener', ['event' => WikiEvents::COMMENT_AUTHOR_ERASED, 'method' => 'onAuthorErased']));
+        if ($container->hasDefinition(WikiCommentService::class)) {
+            $container->getDefinition(WikiCommentService::class)->setArgument('$seedClaims', new Reference(WikiCollabSeedClaims::class));
+        }
     }
 
     /**

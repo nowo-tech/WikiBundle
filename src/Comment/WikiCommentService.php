@@ -11,6 +11,7 @@ use LogicException;
 use Nowo\MilkdownEditorBundle\Comment\CommentAnchor;
 use Nowo\MilkdownEditorBundle\Comment\InvalidCommentAnchorException;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
+use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaims;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Entity\WikiComment;
 use Nowo\WikiBundle\Entity\WikiCommentReaction;
@@ -177,6 +178,8 @@ final readonly class WikiCommentService
      * @param WikiUserClassPolicy|null $userClasses 1.27 (JX-W1): which users comment ownership may match by id
      * @param WikiQuickAccessStore|null $quickAccess 1.45 (audit VC2-1): the person's favourites and recent visits in the
      *                                               privacy export (`quick_access`)
+     * @param WikiCollabSeedClaims|null $seedClaims 2.0.1 (Beacon 207 T030): the person's co-editing seed claims in the
+     *                                              privacy export (`collab_seed_claims`)
      */
     public function __construct(
         private WikiCommentRepositoryInterface $comments,
@@ -203,6 +206,7 @@ final readonly class WikiCommentService
         private ?WikiWriteProvenanceErasure $provenance = null,
         private ?WikiTransactionRunner $runner = null,
         private ?WikiQuickAccessStore $quickAccess = null,
+        private ?WikiCollabSeedClaims $seedClaims = null,
     ) {
     }
 
@@ -698,12 +702,15 @@ final readonly class WikiCommentService
      * and the threads they started or resolved (ids, page, dates; never the quote of others' text). Mentions of the user
      * in other people's comments are those people's data and are not included (nor erased). Spec 234 (audit PQ-D1-I2):
      * with the provenance erasure service, `revision_actor_labels` too ({@see WikiWriteProvenanceErasure::exportActor()}).
-     * 1.45 (audit VC2-1): with the quick-access store, `quick_access` (favourites and recent visits) too.
+     * 1.45 (audit VC2-1): with the quick-access store, `quick_access` (favourites and recent visits) too. 2.0.1 (Beacon
+     * 207 T030): with the seed claims service, `collab_seed_claims` (pages whose co-editing log the person claims to
+     * seed, shown as `seeded_by: you`) too.
      *
-     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>, revision_actor_labels?: list<array{revision_id: string, page_id: string, revision: int, channel: string|null, actor_label: string, created_at: string}>, quick_access?: array{favourites: list<array<string, string>>, visits: list<array<string, string>>}}
+     * @return array{comments: list<array<string, mixed>>, reactions: list<array{comment_id: string, thread_id: string, page_id: string, emoji: string}>, threads_started: list<array{id: string, page_id: string, created_at: string}>, threads_resolved: list<array{id: string, page_id: string, resolved_at: string|null}>, revision_actor_labels?: list<array{revision_id: string, page_id: string, revision: int, channel: string|null, actor_label: string, created_at: string}>, quick_access?: array{favourites: list<array<string, string>>, visits: list<array<string, string>>}, collab_seed_claims?: list<array{page_id: string, seeded_at: string|null, seeded_by: string}>}
      */
     public function exportAuthorData(object $user): array
     {
+        $claims = $this->seedClaims instanceof WikiCollabSeedClaims ? ['collab_seed_claims' => $this->seedClaims->exportUser($user)] : [];
         // A host store written for 1.16.0 (no per-author queries) exports the comments only.
         $authors = $this->comments instanceof WikiCommentAuthorRepositoryInterface ? $this->comments : null;
         $user    = $this->stored($user);
@@ -727,7 +734,8 @@ final readonly class WikiCommentService
                 'resolved_at' => $t->getResolvedAt()?->format(self::DATE),
             ], $authors?->threadsBy($user, 'resolvedBy') ?? []),
         ] + ($this->provenance instanceof WikiWriteProvenanceErasure ? ['revision_actor_labels' => $this->provenance->exportActor($user)] : [])
-            + $this->quickAccessExport($user);
+            + $this->quickAccessExport($user)
+            + $claims;
     }
 
     /**
