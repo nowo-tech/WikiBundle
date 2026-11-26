@@ -46,7 +46,7 @@ class WikiCollabDocument
      * @param string $pageId id of the page (one document per page)
      * @param string|null $baseRevisionId revision the log started from or was last saved as
      * @param DateTimeImmutable|null $seededAt when a client was asked to seed the log
-     * @param string|null $seededBy identifier of the user (and client) that seeds the log
+     * @param string|null $seededBy the claimant that seeds the log: since 2.0.1 `h1:` + a keyed hash of the user identifier, plus `#<tab id>` (never the identifier)
      * @param int $recentResets resets after a client reported a corrupt log, in the current window
      * @param DateTimeImmutable|null $lastResetAt last such reset
      */

@@ -174,8 +174,10 @@ The column, its length and the schema do not change (no migration to generate).
   holds a raw identifier, in batches of 500 (`--batch-size`), one transaction per batch, and only where the row still
   holds the value it read. A claim only matters for `collaboration.seed_timeout` seconds and 2.0.1 never takes an old
   raw claim for a user's own, so nothing is lost: the next editor of the page claims the seed again. Run it any time
-  after the deploy (it is safe to run again; `--dry-run` only counts). Until it ran, the person's erasure and export
-  still find their raw claims (see below).
+  right after the deploy (it is safe to run again; `--dry-run` only counts). Until it ran, the person's erasure and
+  export still find their raw claims (see below). A raw 2.0.0 claim `bob#42` is user `bob` in tab 42 or a user whose
+  identifier is literally `bob#42`; the old format cannot tell them apart, so until the clean-up ran `bob`'s export
+  and erasure also cover such a claim (a page id and a time). Hashed claims have no such ambiguity.
 - **`kernel.secret`.** Co-editing now refuses to claim a seed with an empty `kernel.secret` (it already refused to build
   the editor options). If you change `kernel.secret`, the stored claims no longer match anybody; run
   `wiki:collab:seed-claims:clear --all` to clear every claim (an editor that is seeding right then claims again on its
@@ -185,7 +187,9 @@ The column, its length and the schema do not change (no migration to generate).
   `page_id`, `seeded_at` and `seeded_by: "you"` (never the stored value), and the erasure clears them. A host that
   erases through `WikiCommentService::eraseAuthor()` gets the same through `nowo_wiki.comment.author_erased`. If your
   GDPR adapter copies the wiki export key by key, add `collab_seed_claims`.
-- **Your own collaboration store** (`collaboration.store`): `claimSeed()` now receives the hashed claimant. Rows your
+- **Your own collaboration store** (`collaboration.store`): `claimSeed()` now receives the hashed claimant
+  (`h1:` + 64 hex characters, plus `#<tab id>`: at most 84 characters). It is opaque and only compared for equality:
+  store it as given, in a column of at least 84 characters, and do not parse it. Rows your
   store kept from before still hold raw identifiers: clear them yourself (the command acts on the bundle's table only).
 
 ## To 2.0.0

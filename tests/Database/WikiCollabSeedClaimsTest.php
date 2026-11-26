@@ -12,15 +12,18 @@ use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaimant;
 use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaims;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
 use Nowo\WikiBundle\Tests\Stub\TestUser;
+use Nowo\WikiBundle\Tests\Support\RecordingLogger;
 use Nowo\WikiBundle\Tests\Support\WikiTestDatabase;
 use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
 use function array_column;
+use function array_filter;
 use function memory_get_usage;
 use function sort;
 use function sprintf;
+use function str_contains;
 
 use const DATE_ATOM;
 
@@ -154,6 +157,35 @@ final class WikiCollabSeedClaimsTest extends TestCase
         self::assertSame(0, (fn (array $rows): int => $this->clear($rows))->call($this->claims, $rows));
         self::assertSame('bob#2', $this->store->info('p1')->seededBy);
         self::assertSame(0, (fn (array $rows): int => $this->clear($rows))->call($this->claims, []));
+
+        // Audit ZCK-WK-I2: a look-alike written meanwhile (case, trailing space) is not the value read, on MySQL too.
+        foreach (['ANA#1', 'ana#1 '] as $lookalike) {
+            $this->em->getConnection()->update($this->table(), ['seeded_by' => $lookalike], ['page_id' => 'p1']);
+            self::assertSame(0, (fn (array $rows): int => $this->clear($rows))->call($this->claims, $rows), $lookalike);
+            self::assertSame($lookalike, $this->store->info('p1')->seededBy);
+        }
+    }
+
+    /** Audit ZCK-WK-L1: a person's erasure clears one keyset batch per transaction, never all their rows in one. */
+    public function testAPersonsErasureClearsOneBatchPerTransaction(): void
+    {
+        $sql = new RecordingLogger();
+        $this->em->getConnection()->close();
+        $this->em = $em = WikiTestDatabase::create($sql);
+        $store    = new DoctrineWikiCollabStateStore($em);
+        $claims   = new WikiCollabSeedClaims(new WikiTransactionRunner($em, backoffBaseMilliseconds: 0), self::SECRET, 2);
+        $ana      = WikiCollabSeedClaimant::user('ana', self::SECRET);
+        foreach (['p1', 'p2', 'p3', 'p4', 'p5'] as $i => $page) {
+            self::assertTrue($store->claimSeed($page, new DateTimeImmutable('+1 minute'), $ana . '#' . $i));
+        }
+        self::assertTrue($store->claimSeed('p6', new DateTimeImmutable('+1 minute'), 'bob#1'));
+        self::assertCount(5, $claims->exportUser(new TestUser('u', 'ana')));
+        $sql->records = [];
+
+        self::assertSame(5, $claims->eraseUser(new TestUser('u', 'ana')));
+        $begins = array_filter($sql->lines(), static fn (string $line): bool => str_contains($line, 'Beginning transaction'));
+        self::assertCount(3, $begins, 'five rows in batches of two: three units');
+        self::assertSame(['p6'], $this->claimed());
     }
 
     /** REQ-RUNTIME-002: one instance serves many people in turn; each call sees only that person's rows, memory stays flat. */

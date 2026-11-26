@@ -347,6 +347,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `%` / `_`, matches nothing else); each row is written by its primary key only while it still holds the value
   that was read, in one transaction per batch of 500 (REQ-RUNTIME-003). The services are stateless (worker mode,
   REQ-RUNTIME-002) and registered whether or not co-editing is on now (they act on the table when it exists).
+- **Seed claim erasure in bounded units** (audit ZCK-WK-L1). A person's erasure clears their claims one keyset batch
+  of 500 rows at a time, one transaction per batch, never all of them in one transaction.
+- **Byte-exact compare-and-clear on MySQL / MariaDB** (audit ZCK-WK-I2). The clearing `UPDATE` compares `seeded_by`
+  as binary strings, so a look-alike value (case, trailing spaces) written between the read and the write is never
+  cleared under the column's collation. Until `wiki:collab:seed-claims:clear` ran, a raw 2.0.0 claim `bob#42` (user
+  `bob` in tab 42, or a user named `bob#42`) is matched as `bob`'s: the old format cannot tell them apart (audit
+  ZCK-WK-I1); the identifier part must still be exactly `bob`, followed by `#` and 1 to 16 digits.
 
 ## [2.0.0] - 2026-11-26
 

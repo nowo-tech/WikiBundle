@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Collaboration;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Types\Types;
 use InvalidArgumentException;
 use Nowo\WikiBundle\Entity\WikiCollabDocument;
@@ -14,6 +15,7 @@ use Nowo\WikiBundle\Transaction\WikiTransactionRunner;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function count;
+use function max;
 use function str_replace;
 
 /**
@@ -39,10 +41,12 @@ final readonly class WikiCollabSeedClaims
 
     /**
      * @param string $secret `kernel.secret` (the key of the claimant hash)
+     * @param int $batchSize rows read, and cleared in one unit, per batch of a person's erasure and export
      */
     public function __construct(
         private WikiTransactionRunner $runner,
         private string $secret = '',
+        private int $batchSize = self::BATCH,
     ) {
     }
 
@@ -59,16 +63,19 @@ final readonly class WikiCollabSeedClaims
             return [];
         }
         $export = [];
-        foreach ($this->rowsOf($bases) as $row) {
-            $export[] = ['page_id' => $row['page_id'], 'seeded_at' => $this->date($row['seeded_at']), 'seeded_by' => 'you'];
+        foreach ($this->batchesOf($bases) as $rows) {
+            foreach ($rows as $row) {
+                $export[] = ['page_id' => $row['page_id'], 'seeded_at' => $this->date($row['seeded_at']), 'seeded_by' => 'you'];
+            }
         }
 
         return $export;
     }
 
     /**
-     * Clears the person's seed claims (`seeded_by` and `seeded_at` set to NULL), in units of at most {@see self::BATCH}
-     * rows. The next editor of each page claims the seed again.
+     * Clears the person's seed claims (`seeded_by` and `seeded_at` set to NULL): one unit per keyset batch of at most
+     * `$batchSize` rows (audit ZCK-WK-L1: never all of a person's rows in one transaction). The next editor of each
+     * page claims the seed again. A batch that fails leaves the earlier ones cleared; run the erasure again.
      *
      * @return int the claims cleared
      */
@@ -79,7 +86,12 @@ final readonly class WikiCollabSeedClaims
             return 0;
         }
 
-        return $this->clear($this->rowsOf($bases));
+        $cleared = 0;
+        foreach ($this->batchesOf($bases) as $rows) {
+            $cleared += $this->clear($rows);
+        }
+
+        return $cleared;
     }
 
     /**
@@ -139,18 +151,23 @@ final readonly class WikiCollabSeedClaims
     }
 
     /**
-     * Every claimed row of the person (keyset batches), compared byte for byte in PHP.
+     * The claimed rows of the person, one keyset batch at a time, compared byte for byte in PHP: exactly the base, or
+     * the base followed by `#` and a tab id of 1 to 16 digits ({@see WikiCollabSeedClaimant::belongsTo()}). For a raw
+     * 2.0.0 base `bob` that is user `bob` in a tab, or a user whose identifier is literally `bob#42` without a tab: the
+     * 2.0.0 format cannot tell them apart (audit ZCK-WK-I1), which is why the clean-up command should run right after
+     * the upgrade; hashed claims have no such ambiguity (a hash never contains `#`).
      *
      * @param list<string> $bases
      *
-     * @return list<array{page_id: string, seeded_by: string, seeded_at: mixed}>
+     * @return iterable<list<array{page_id: string, seeded_by: string, seeded_at: mixed}>>
      */
-    private function rowsOf(array $bases): array
+    private function batchesOf(array $bases): iterable
     {
-        $rows  = [];
         $after = '';
+        $size  = max(1, $this->batchSize);
         do {
-            $batch = $this->page($after, self::BATCH, $bases);
+            $batch = $this->page($after, $size, $bases);
+            $rows  = [];
             foreach ($batch as $row) {
                 $after = $row['page_id'];
                 foreach ($bases as $base) {
@@ -161,9 +178,8 @@ final readonly class WikiCollabSeedClaims
                     }
                 }
             }
-        } while (count($batch) === self::BATCH);
-
-        return $rows;
+            yield $rows;
+        } while (count($batch) === $size);
     }
 
     /**
@@ -202,7 +218,9 @@ final readonly class WikiCollabSeedClaims
     }
 
     /**
-     * Clears the given claims by primary key, each only while it still holds the value that was read; one unit.
+     * Clears the given claims by primary key, each only while it still holds, byte for byte, the value that was read
+     * (audit ZCK-WK-I2: on MySQL / MariaDB both sides are compared as binary strings, never under the column's case- or
+     * PAD-insensitive collation); one unit.
      *
      * @param list<array{page_id: string, seeded_by: string, seeded_at: mixed}> $rows
      */
@@ -212,14 +230,15 @@ final readonly class WikiCollabSeedClaims
             return 0;
         }
         $table = $this->table();
+        $exact = $this->connection()->getDatabasePlatform() instanceof AbstractMySQLPlatform ? 'CAST(seeded_by AS BINARY) = CAST(? AS BINARY)' : 'seeded_by = ?';
 
         // @igor-ignore - the closure is one unit of work, run and released by the runner within this call; nothing is kept on the service.
-        return $this->runner->runOnConnection(function () use ($rows, $table): int {
+        return $this->runner->runOnConnection(function () use ($rows, $table, $exact): int {
             $connection = $this->connection();
             $cleared    = 0;
             foreach ($rows as $row) {
                 $cleared += (int) $connection->executeStatement(
-                    'UPDATE ' . $table . ' SET seeded_by = NULL, seeded_at = NULL WHERE page_id = ? AND seeded_by = ?',
+                    'UPDATE ' . $table . ' SET seeded_by = NULL, seeded_at = NULL WHERE page_id = ? AND ' . $exact,
                     [$row['page_id'], $row['seeded_by']],
                 );
             }

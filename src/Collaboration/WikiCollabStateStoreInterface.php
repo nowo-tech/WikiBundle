@@ -40,7 +40,9 @@ interface WikiCollabStateStoreInterface
 
     /**
      * Marks the log as being seeded by `$claimant`; true for one caller only — the first after a reset, or the first
-     * after a claim older than `$staleBefore` (the client that claimed it left without seeding).
+     * after a claim older than `$staleBefore` (the client that claimed it left without seeding). `$claimant` is opaque
+     * and only compared for equality: since 2.0.1 `h1:` + a keyed hash of the user identifier, plus `#<tab id>` (at most
+     * 84 characters), never the identifier; keep it as given.
      */
     public function claimSeed(string $pageId, DateTimeImmutable $staleBefore, string $claimant): bool;
 
