@@ -21,7 +21,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | Source file | Spec section | Requirement IDs |
 | --- | --- | --- |
 | `Command/WikiCollabPurgeCommand.php` | `wiki:collab:purge`: deletes the co-editing logs of pages untouched for N days | FR-MD-004 |
-| `Command/WikiCommentsEraseUserCommand.php` | `wiki:comments:erase-user`: exports or erases a user's comments and mentions (privacy requests) | FR-COMMENT-003 |
+| `Command/WikiCommentsEraseUserCommand.php` | `wiki:comments:erase-user`: exports or erases a user's comments and mentions (privacy requests); 2.0.1: their co-editing seed claims too | FR-COMMENT-003 / FR-PRIV-001 |
 | `Command/WikiExportCommand.php` | CLI command | FR-CLI-001 |
 | `Command/WikiImportCommand.php` | CLI command | FR-CLI-001 |
 | `Command/WikiSearchBackfillTextCommand.php` | `wiki:search:backfill-text`: fills `content_text` of older revisions | FR-SEARCH-003 |
@@ -842,6 +842,15 @@ This file proves that **every production source artifact** under `src/` is refer
 | --- | --- | --- |
 | `DependencyInjection/Compiler/WikiRemovedPortsPass.php` | Fails the build on any trace of a removed 1.x host port (service id, decorator, class that still implements it) | FR-ARCH-004 |
 
+## Co-editing seed claims (2.0.1)
+
+| Source file | Spec section | Requirement IDs |
+| --- | --- | --- |
+| `Collaboration/WikiCollabSeedClaimant.php` | `@internal`: the stored seed claimant, `h1:` + HMAC-SHA256 of the user identifier under a subkey of `kernel.secret` (+ `#<tab id>`); hashed-form check and byte-exact ownership | FR-PRIV-001 |
+| `Collaboration/WikiCollabSeedClaims.php` | `@internal`: a person's seed claims in the privacy export (`seeded_by: you`) and erasure, and the clean-up of raw identifiers; keyset batches, exact re-check, writes by primary key | FR-PRIV-001 |
+| `Collaboration/WikiCollabSeedClaimErasureListener.php` | `@internal`: clears the erased person's seed claims on `COMMENT_AUTHOR_ERASED` | FR-PRIV-001 |
+| `Command/WikiCollabSeedClaimsClearCommand.php` | `wiki:collab:seed-claims:clear`: one-shot clean-up of the claims that still hold a raw identifier (`--all`, `--dry-run`, `--batch-size`) | FR-PRIV-001 |
+
 ## Coverage summary
 
 | Category | Files | Mapped |
@@ -892,6 +901,7 @@ This file proves that **every production source artifact** under `src/` is refer
 | Space create, erasure and comment reads by id (1.55) | 6 | 6 |
 | Batch space reads (1.55.2) | 1 | 1 |
 | 2.0 removals (REQ-ARCH-001) | 1 | 1 |
-| **Total production sources** | **606** | **606** |
+| Co-editing seed claims (2.0.1) | 4 | 4 |
+| **Total production sources** | **610** | **610** |
 
-Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 606. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
+Audit: `find src -type f ! -path '*/assets/dist/*' ! -name '*.test.ts' | wc -l` must print 610. Every path in the tables exists, once, and every `FR-*` above is defined in [`spec.md`](spec.md).
