@@ -145,6 +145,12 @@ nowo_milkdown_editor:
 
 Schema: `<prefix>_page_collab_documents` and `<prefix>_page_collab_updates`, part of the generated schema only while `collaboration.enabled` is true (1.13.1; see [UPGRADING](UPGRADING.md#to-1131)).
 
+**Personal data (2.0.1).** The seed claim of a page's log (`seeded_by`) holds `h1:` + HMAC-SHA256 of the claimant's
+user identifier, keyed by a subkey of `kernel.secret`, plus the tab id; never the identifier (co-editing therefore needs a
+non-empty `kernel.secret`). `wiki:comments:erase-user <user>` exports (`--export`, key `collab_seed_claims`, shown as
+`seeded_by: "you"`) and clears a person's claims; `wiki:collab:seed-claims:clear` clears the raw identifiers 2.0.0
+stored (`--all`: every claim, after `kernel.secret` changed). See [UPGRADING](UPGRADING.md#to-201).
+
 **Host files (1.25).** `editor.milkdown.host_files` decides whether the per-viewer render (page body, comments, the API
 reader view) resolves host file references through Milkdown's `HostFileResolverInterface`, with the render's
 `WikiRenderFrame` (space, page, reach) as context:
@@ -465,7 +471,8 @@ the user id without a foreign key (they outlive an account); visits are kept at 
 erases them with the person's comments and actor labels; `WikiCommentService::exportAuthorData()` carries them as
 `quick_access` too, and `WikiCommentService::eraseAuthor()` erases them (through `nowo_wiki.comment.author_erased`); `bin/console wiki:quick-access:erase-user <id> [--export]` does only these rows.
 Both are always available and act on every table of the two that exists, whatever the switches say now. The backlink
-index holds no personal data.
+index holds no personal data. Since 2.0.1 the same command also exports (`collab_seed_claims`) and clears the person's
+co-editing seed claims (see [Collaboration](#collaboration-113)).
 
 ## Comments (1.16)
 

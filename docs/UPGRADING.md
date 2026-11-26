@@ -3,6 +3,8 @@
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 2.0.1](#to-201)
+  - [Co-editing seed claims are hashed (2.0.1)](#co-editing-seed-claims-are-hashed-201)
 - [To 2.0.0](#to-200)
   - [Before you upgrade (on 1.56.1)](#before-you-upgrade-on-1561)
   - [Default flip: the private entity manager is the only mode](#default-flip-the-private-entity-manager-is-the-only-mode)
@@ -149,6 +151,46 @@
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
 ## Unreleased
+
+## To 2.0.1
+
+A patch release: no configuration or code change in your application. One console command to run once.
+
+```bash
+composer require nowo-tech/wiki-bundle:^2.0.1
+php bin/console cache:clear
+php bin/console wiki:collab:seed-claims:clear --dry-run   # how many claims still hold a raw identifier
+php bin/console wiki:collab:seed-claims:clear             # clear them
+```
+
+### Co-editing seed claims are hashed (2.0.1)
+
+Up to 2.0.0 the seed claim of a page's co-editing log (`<prefix>_page_collab_documents.seeded_by`) stored the claimant's
+user identifier (`getUserIdentifier()`, an e-mail in many applications) plus the tab id, and nothing erased it.
+From 2.0.1 it stores `h1:` + HMAC-SHA256 of the identifier, keyed by a subkey of `kernel.secret`, plus `#<tab id>`.
+The column, its length and the schema do not change (no migration to generate).
+
+- **Clean-up, once.** `wiki:collab:seed-claims:clear` sets `seeded_by` and `seeded_at` to NULL on every row that still
+  holds a raw identifier, in batches of 500 (`--batch-size`), one transaction per batch, and only where the row still
+  holds the value it read. A claim only matters for `collaboration.seed_timeout` seconds and 2.0.1 never takes an old
+  raw claim for a user's own, so nothing is lost: the next editor of the page claims the seed again. Run it any time
+  right after the deploy (it is safe to run again; `--dry-run` only counts). Until it ran, the person's erasure and
+  export still find their raw claims (see below). A raw 2.0.0 claim `bob#42` is user `bob` in tab 42 or a user whose
+  identifier is literally `bob#42`; the old format cannot tell them apart, so until the clean-up ran `bob`'s export
+  and erasure also cover such a claim (a page id and a time). Hashed claims have no such ambiguity.
+- **`kernel.secret`.** Co-editing now refuses to claim a seed with an empty `kernel.secret` (it already refused to build
+  the editor options). If you change `kernel.secret`, the stored claims no longer match anybody; run
+  `wiki:collab:seed-claims:clear --all` to clear every claim (an editor that is seeding right then claims again on its
+  next token request).
+- **Erasure and export.** `wiki:comments:erase-user <user>` (the wiki's person erasure) and
+  `WikiCommentService::exportAuthorData()` now include the claims: the export key `collab_seed_claims` lists
+  `page_id`, `seeded_at` and `seeded_by: "you"` (never the stored value), and the erasure clears them. A host that
+  erases through `WikiCommentService::eraseAuthor()` gets the same through `nowo_wiki.comment.author_erased`. If your
+  GDPR adapter copies the wiki export key by key, add `collab_seed_claims`.
+- **Your own collaboration store** (`collaboration.store`): `claimSeed()` now receives the hashed claimant
+  (`h1:` + 64 hex characters, plus `#<tab id>`: at most 84 characters). It is opaque and only compared for equality:
+  store it as given, in a column of at least 84 characters, and do not parse it. Rows your
+  store kept from before still hold raw identifiers: clear them yourself (the command acts on the bundle's table only).
 
 ## To 2.0.0
 

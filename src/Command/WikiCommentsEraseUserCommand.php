@@ -7,6 +7,7 @@ namespace Nowo\WikiBundle\Command;
 use InvalidArgumentException;
 use JsonException;
 use LogicException;
+use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaims;
 use Nowo\WikiBundle\Comment\WikiCommentMentionErasure;
 use Nowo\WikiBundle\Comment\WikiCommentService;
 use Nowo\WikiBundle\Provenance\WikiWriteProvenanceErasure;
@@ -52,7 +53,8 @@ use const JSON_UNESCAPED_UNICODE;
  * disabled the command handles the actor labels only. Since 1.17 (audit FG-L2) the user's `@handle` mentions in other people's
  * comments and thread quotes are erased too ({@see WikiCommentService::eraseMentions()}): the handles of the repeatable
  * `--handle` option plus the user's own `getHandle()` when the user class has one; without any handle a warning says
- * that mentions were kept. Hosts may call {@see WikiCommentService::exportAuthor()} /
+ * that mentions were kept. 2.0.1 (Beacon 207 T030): the user's co-editing seed claims are exported
+ * (`collab_seed_claims`, as `seeded_by: you`) and cleared too. Hosts may call {@see WikiCommentService::exportAuthor()} /
  * {@see WikiCommentService::eraseAuthor()} / {@see WikiCommentService::eraseMentions()} directly instead.
  */
 #[AsCommand(
@@ -66,6 +68,7 @@ final class WikiCommentsEraseUserCommand extends Command
         private readonly ?WikiCommentService $comments = null,
         private readonly ?WikiWriteProvenanceErasure $provenance = null,
         private readonly ?WikiQuickAccessStore $quickAccess = null,
+        private readonly ?WikiCollabSeedClaims $seedClaims = null,
     ) {
         parent::__construct();
     }
@@ -123,6 +126,10 @@ final class WikiCommentsEraseUserCommand extends Command
             if ($this->quickAccess instanceof WikiQuickAccessStore && $userId !== null && !isset($data['quick_access'])) {
                 $data['quick_access'] = $this->quickAccess->exportUser($userId);
             }
+            // 2.0.1 (Beacon 207 T030): the pages whose co-editing log the person claims to seed.
+            if ($this->seedClaims instanceof WikiCollabSeedClaims && !isset($data['collab_seed_claims'])) {
+                $data['collab_seed_claims'] = $this->seedClaims->exportUser($user);
+            }
             $output->writeln(json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 
             return Command::SUCCESS;
@@ -168,6 +175,7 @@ final class WikiCommentsEraseUserCommand extends Command
         $labels = $this->provenance?->eraseActor($user) ?? 0;
         // 1.45: favourites and visits first too (counted here; the erasure event finds nothing left).
         $this->reportQuickAccess($io, $user);
+        $this->reportSeedClaims($io, $user);
         $io->success(sprintf('%d comment(s) %s; reactions deleted, threads and resolutions unlinked.', $this->comments->eraseAuthor($user, !$keep), $keep ? 'unlinked' : 'erased'));
         if ($this->provenance instanceof WikiWriteProvenanceErasure) {
             $io->success(sprintf('%d revision actor label(s) erased (%d of deleted authors).', $labels, $this->provenance->eraseOrphaned()));
@@ -201,6 +209,7 @@ final class WikiCommentsEraseUserCommand extends Command
         }
         $io->success(sprintf('%d revision actor label(s) erased (%d of deleted authors).', $erasure->eraseActor($user), $erasure->eraseOrphaned()));
         $this->reportQuickAccess($io, $user);
+        $this->reportSeedClaims($io, $user);
 
         return Command::SUCCESS;
     }
@@ -217,6 +226,7 @@ final class WikiCommentsEraseUserCommand extends Command
             return Command::SUCCESS;
         }
         $this->reportQuickAccess($io, $user);
+        $this->reportSeedClaims($io, $user);
 
         return Command::SUCCESS;
     }
@@ -229,6 +239,16 @@ final class WikiCommentsEraseUserCommand extends Command
         $userId = WikiViewerScope::idOf($user);
         if ($this->quickAccess instanceof WikiQuickAccessStore && $userId !== null) {
             $io->success(sprintf('%d favourite(s) and recent visit(s) erased.', $this->quickAccess->eraseUser($userId)));
+        }
+    }
+
+    /**
+     * 2.0.1 (Beacon 207 T030): clears the person's co-editing seed claims and says how many.
+     */
+    private function reportSeedClaims(SymfonyStyle $io, object $user): void
+    {
+        if ($this->seedClaims instanceof WikiCollabSeedClaims) {
+            $io->success(sprintf('%d co-editing seed claim(s) cleared.', $this->seedClaims->eraseUser($user)));
         }
     }
 

@@ -8,7 +8,10 @@ use LogicException;
 use Nowo\WikiBundle\Backlink\WikiBacklinks;
 use Nowo\WikiBundle\Backlink\WikiPageReferenceIndex;
 use Nowo\WikiBundle\Backlink\WikiPageReferenceListener;
+use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaimErasureListener;
+use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaims;
 use Nowo\WikiBundle\Command\WikiBacklinksRebuildCommand;
+use Nowo\WikiBundle\Command\WikiCollabSeedClaimsClearCommand;
 use Nowo\WikiBundle\Command\WikiQuickAccessEraseUserCommand;
 use Nowo\WikiBundle\Command\WikiRecentsPurgeCommand;
 use Nowo\WikiBundle\Comment\WikiCommentService;
@@ -51,6 +54,10 @@ final class WikiExtensionQuickAccessTest extends TestCase
         self::assertSame(90, $container->getDefinition(WikiRecentsPurgeCommand::class)->getArgument('$retentionDays'));
         self::assertSame([['event' => WikiEvents::COMMENT_AUTHOR_ERASED, 'method' => 'onAuthorErased']], $container->getDefinition(WikiQuickAccessErasureListener::class)->getTag('kernel.event_listener'));
         self::assertTrue($container->hasDefinition(WikiQuickAccessStore::class));
+        // 2.0.1 (Beacon 207 T030): the seed claims' erasure, export and clean-up, always (co-editing is off here).
+        self::assertSame([['event' => WikiEvents::COMMENT_AUTHOR_ERASED, 'method' => 'onAuthorErased']], $container->getDefinition(WikiCollabSeedClaimErasureListener::class)->getTag('kernel.event_listener'));
+        self::assertSame('%kernel.secret%', $container->getDefinition(WikiCollabSeedClaims::class)->getArgument('$secret'));
+        self::assertTrue($container->getDefinition(WikiCollabSeedClaimsClearCommand::class)->hasTag('console.command'));
         self::assertArrayNotHasKey('favourite_remove', (array) $container->getParameter('nowo_wiki.routes'));
         $listener = $container->getDefinition(WikiMetadataListener::class);
         self::assertFalse($listener->getArgument('$favouritesEnabled'));
@@ -107,6 +114,7 @@ final class WikiExtensionQuickAccessTest extends TestCase
         $container = $this->load(['editor' => ['type' => 'milkdown'], 'comments' => ['enabled' => true, 'rate_limiter' => 'limiter.c']]);
 
         self::assertSame(WikiQuickAccessStore::class, (string) $container->getDefinition(WikiCommentService::class)->getArgument('$quickAccess'));
+        self::assertSame(WikiCollabSeedClaims::class, (string) $container->getDefinition(WikiCommentService::class)->getArgument('$seedClaims'));
     }
 
     public function testTheRenderedDiffNeedsMilkdown(): void

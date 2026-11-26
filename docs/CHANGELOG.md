@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+  - [Security (2.0.1, Unreleased)](#security-201-unreleased)
+  - [Fixed (2.0.1, Unreleased)](#fixed-201-unreleased)
 - [[2.0.0] - 2026-11-26](#200---2026-11-26)
   - [Changed](#changed)
   - [Fixed](#fixed)
@@ -321,6 +323,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - [Security](#security-11)
 
 ## [Unreleased]
+
+### Security (2.0.1, Unreleased)
+
+- **Co-editing seed claims no longer store the user identifier** (Beacon 207 T030, DATA-WIKI-COLLAB-SEEDEDBY,
+  REQ-DATA-004). Up to 2.0.0 the seed claim of a page's co-editing log (`<prefix>_page_collab_documents.seeded_by`)
+  held the claimant's `getUserIdentifier()` (an e-mail in many hosts) plus the tab id, and nothing erased or exported
+  it: only a log reset cleared it. 2.0.1 stores `h1:` + HMAC-SHA256 of the identifier under a subkey of
+  `kernel.secret` used for this purpose only (plus `#<tab id>`), so the value cannot be reversed by hashing a list of
+  known e-mails; the claim is only ever compared for equality, so seeding works as before. Collaboration now refuses
+  to claim a seed with an empty `kernel.secret` (it already refused to build the editor options). Run
+  `bin/console wiki:collab:seed-claims:clear` once after the upgrade to clear the raw identifiers already stored (see
+  [UPGRADING › To 2.0.1](UPGRADING.md#to-201)). Only the bundle's Doctrine store keeps these rows; a host store
+  (`collaboration.store`) receives the hashed claimant from now on.
+
+### Fixed (2.0.1, Unreleased)
+
+- **The person's erasure and export cover the seed claims** (REQ-DATA-004). `wiki:comments:erase-user` and
+  `WikiCommentService::exportAuthorData()` export them as `collab_seed_claims` (page id, `seeded_at`,
+  `seeded_by: "you"`, never the stored value), and the erasure clears them (`seeded_by` and `seeded_at` set to NULL),
+  also through `nowo_wiki.comment.author_erased` (a host's own erasure flow). A person's claims are found by their hash
+  and, until the clean-up ran, by their raw identifier, compared byte for byte in PHP (a look-alike identifier, or one
+  with `%` / `_`, matches nothing else); each row is written by its primary key only while it still holds the value
+  that was read, in one transaction per batch of 500 (REQ-RUNTIME-003). The services are stateless (worker mode,
+  REQ-RUNTIME-002) and registered whether or not co-editing is on now (they act on the table when it exists).
+- **Seed claim erasure in bounded units** (audit ZCK-WK-L1). A person's erasure clears their claims one keyset batch
+  of 500 rows at a time, one transaction per batch, never all of them in one transaction.
+- **Byte-exact compare-and-clear on MySQL / MariaDB** (audit ZCK-WK-I2). The clearing `UPDATE` compares `seeded_by`
+  as binary strings, so a look-alike value (case, trailing spaces) written between the read and the write is never
+  cleared under the column's collation. Until `wiki:collab:seed-claims:clear` ran, a raw 2.0.0 claim `bob#42` (user
+  `bob` in tab 42, or a user named `bob#42`) is matched as `bob`'s: the old format cannot tell them apart (audit
+  ZCK-WK-I1); the identifier part must still be exactly `bob`, followed by `#` and 1 to 16 digits.
 
 ## [2.0.0] - 2026-11-26
 

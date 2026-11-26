@@ -16,6 +16,7 @@ use Nowo\WikiBundle\Collaboration\WikiCollabLockingStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabNumberedStoreInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabPublisherInterface;
 use Nowo\WikiBundle\Collaboration\WikiCollabSchema;
+use Nowo\WikiBundle\Collaboration\WikiCollabSeedClaimant;
 use Nowo\WikiBundle\Collaboration\WikiCollabService;
 use Nowo\WikiBundle\Collaboration\WikiCollabState;
 use Nowo\WikiBundle\Collaboration\WikiCollabStateStoreInterface;
@@ -286,6 +287,35 @@ final class WikiCollabServiceTest extends TestCase
         self::assertFalse($service->state($this->page, $this->user, $tab('222'))['seed'], 'same user, other tab');
         self::assertFalse($service->state($this->page, $this->user, $tab('x1'))['seed'], 'an invalid id is ignored');
         self::assertFalse($service->state($this->page, $this->user)['seed']);
+    }
+
+    /** 2.0.1 (Beacon 207 T030): the store keeps a keyed hash of the claimant, never the identifier (an e-mail here). */
+    public function testTheSeedClaimStoresAKeyedHashNotTheIdentifier(): void
+    {
+        $service = $this->service();
+        $tab     = Request::create('/', 'POST', [], [], [], ['HTTP_X_NOWO_COLLAB_CLIENT' => '111']);
+
+        $service->token($tab, $this->page, $this->user);
+        $stored = (string) $this->store->info($this->page->getId())->seededBy;
+        self::assertStringNotContainsString('ana', $stored);
+        self::assertSame(WikiCollabSeedClaimant::user('ana@x.test', 'test-secret') . '#111', $stored);
+        self::assertTrue($service->state($this->page, $this->user, $tab)['seed']);
+
+        // A 2.0.0 claim (the raw identifier) is never taken for the user's own.
+        $this->store->pages[$this->page->getId()]['seededBy'] = 'ana@x.test#111';
+        self::assertFalse($service->state($this->page, $this->user, $tab)['seed']);
+        $this->store->pages[$this->page->getId()]['seededBy'] = 'ana@x.test';
+        self::assertFalse($service->state($this->page, $this->user)['seed']);
+        $this->store->pages[$this->page->getId()]['seededBy'] = WikiCollabSeedClaimant::user('ana@x.test', 'test-secret');
+        self::assertTrue($service->state($this->page, $this->user)['seed']);
+    }
+
+    public function testTheSeedClaimNeedsASecret(): void
+    {
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('kernel.secret');
+
+        $this->service([], null, null, '')->token(new Request(), $this->page, $this->user);
     }
 
     public function testACorruptReportResetsOnceWithinTheCap(): void

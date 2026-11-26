@@ -254,7 +254,7 @@ final readonly class WikiCollabService
         // refused. The other order gives the old log with the new name, whose posts are not.
         $named = $this->store instanceof WikiCollabEpochStoreInterface ? ['epoch' => $this->store->epoch($page->getId())] : [];
         $state = $this->store->load($page->getId());
-        $me    = $request instanceof Request ? $this->claimant($request, $user) : $user->getUserIdentifier();
+        $me    = $request instanceof Request ? $this->claimant($request, $user) : WikiCollabSeedClaimant::user($user->getUserIdentifier(), $this->secret);
 
         return $named + [
             'state'   => $state->snapshot ?? self::EMPTY_STATE,
@@ -804,13 +804,12 @@ final readonly class WikiCollabService
     }
 
     /**
-     * Who claims the seed: the user, plus the tab's Yjs client id when the client sends it (one seed per tab).
+     * Who claims the seed: the user, plus the tab's Yjs client id when the client sends it (one seed per tab). 2.0.1
+     * (Beacon 207 T030): the user as a keyed hash ({@see WikiCollabSeedClaimant}), never the identifier itself.
      */
     private function claimant(Request $request, UserInterface $user): string
     {
-        $client = (string) $request->headers->get(self::CLIENT_HEADER, '');
-
-        return $user->getUserIdentifier() . (preg_match('/^\d{1,16}$/', $client) === 1 ? '#' . $client : '');
+        return WikiCollabSeedClaimant::of($user->getUserIdentifier(), (string) $request->headers->get(self::CLIENT_HEADER, ''), $this->secret);
     }
 
     private function staleBefore(): DateTimeImmutable

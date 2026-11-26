@@ -18,7 +18,7 @@ final readonly class WikiCollabState
      * @param int $seq highest sequence number in the log (0 when empty)
      * @param string|null $baseRevisionId revision the log was seeded from (null: never seeded)
      * @param DateTimeImmutable|null $seededAt when a client claimed the seeding
-     * @param string|null $seededBy identifier of the user who claimed it
+     * @param string|null $seededBy who claimed it: an opaque claimant compared only for equality; since 2.0.1 `h1:` + a keyed hash of the user identifier, plus `#<tab id>` (at most 84 characters), never the identifier
      * @param DateTimeImmutable|null $updatedAt last append, compaction, claim or reset (null: no document yet)
      * @param int $updateCount number of updates after the snapshot
      * @param int $bytes stored bytes (snapshot and updates, base64)
