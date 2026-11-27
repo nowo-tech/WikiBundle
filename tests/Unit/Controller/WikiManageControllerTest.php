@@ -2570,7 +2570,7 @@ MD);
             [new UploadedFile($temp, 'notes.txt', 'text/plain', null, true), 'wiki.import.invalid_archive'],
             [null, 'wiki.import.missing_file'],
         ] as [$file, $key]) {
-            $request  = Request::create('/import', 'POST', ['_token' => $token], [], $file === null ? [] : ['archive' => $file], ['HTTP_X_NOWO_DIALOG' => '1']);
+            $request  = Request::create('/import', 'POST', ['_token' => $token], [], $file instanceof UploadedFile ? ['archive' => $file] : [], ['HTTP_X_NOWO_DIALOG' => '1']);
             $response = $controller->importSpace($request, 'eng');
 
             self::assertSame(422, $response->getStatusCode(), $key);

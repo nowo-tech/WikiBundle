@@ -1675,12 +1675,13 @@ final class WikiManageController extends AbstractController
             return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
         }
 
-        $text = $reason;
-        if (!$literal) {
+        if ($literal) {
+            $text = is_string($reason) ? $reason : $reason->getMessage();
+        } else {
             $message = is_string($reason) ? new TranslatableMessage($reason, [], WikiPages::DOMAIN) : $reason;
             $text    = $this->translator instanceof TranslatorInterface ? $message->trans($this->translator) : $message->getMessage();
         }
-        $form->addError(new FormError((string) $text));
+        $form->addError(new FormError($text));
         $user = $this->requireUser();
         $can  = ['create' => false, 'import' => true, 'export' => $this->accessChecker->canExport($user) && $this->spaceGuard->grants($user, $space)['export']];
 
