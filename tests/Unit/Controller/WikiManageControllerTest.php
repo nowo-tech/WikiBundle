@@ -2548,6 +2548,56 @@ MD);
         @unlink($temp);
     }
 
+    /** Owner rule 2026-11-23 (every dialog loads its content on demand): a refusal inside the dialog is a form error, 422 in place. */
+    public function testImportSpaceRefusalFromTheDialogIsAFormErrorNotAFlash(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver, maxUploadBytes: 10);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $temp = tempnam(sys_get_temp_dir(), 'wiki-upload-');
+        file_put_contents($temp, str_repeat('x', 20));
+        $token = WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId());
+
+        // Too large, not a ZIP and no file: each one 422 with the form, nothing flashed.
+        foreach ([
+            [new UploadedFile($temp, 'big.zip', 'application/zip', null, true), 'wiki.import.file_too_large'],
+            [new UploadedFile($temp, 'notes.txt', 'text/plain', null, true), 'wiki.import.invalid_archive'],
+            [null, 'wiki.import.missing_file'],
+        ] as [$file, $key]) {
+            $request  = Request::create('/import', 'POST', ['_token' => $token], [], $file === null ? [] : ['archive' => $file], ['HTTP_X_NOWO_DIALOG' => '1']);
+            $response = $controller->importSpace($request, 'eng');
+
+            self::assertSame(422, $response->getStatusCode(), $key);
+            self::assertContains('X-Nowo-Dialog', $response->getVary(), $key);
+            self::assertSame([], $this->flashes($container, 'error'), $key);
+        }
+        @unlink($temp);
+    }
+
+    public function testImportSpaceRefusalWithoutTheDialogStaysAFlashAndARedirect(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $controller = $this->controller(spaceAccessResolver: $resolver);
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+        $request    = Request::create('/import', 'POST', ['_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId())]);
+
+        $response = $controller->importSpace($request, 'eng');
+
+        self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        self::assertCount(1, $this->flashes($container, 'error'));
+    }
+
     public function testImportSpaceImportsZipArchive(): void
     {
         $user  = new TestUser('user-1');
@@ -2597,6 +2647,65 @@ MD);
         try {
             $response = $controller->importSpace($request, 'eng');
             self::assertTrue($response->isRedirect('/generated/nowo_wiki_space'));
+        } finally {
+            unlink($sourceDir . '/intro.md');
+            rmdir($sourceDir);
+            if (is_file($zipPath)) {
+                unlink($zipPath);
+            }
+        }
+    }
+
+    public function testImportSpaceFromTheDialogAnswers204AndTheRedirect(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $sourceDir = sys_get_temp_dir() . '/wiki-upload-src-' . bin2hex(random_bytes(4));
+        mkdir($sourceDir);
+        file_put_contents($sourceDir . '/intro.md', <<<'MD'
+---
+title: Intro
+wiki_slug: intro
+---
+Welcome.
+MD);
+
+        $zipPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(4)) . '.zip';
+        $zip     = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFile($sourceDir . '/intro.md', 'intro.md');
+        $zip->close();
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $pageRepo = $this->createMock(WikiPageRepositoryInterface::class);
+        $pageRepo->method('findActiveBySpace')->willReturn([]);
+        $pageRepo->method('countBySpaceAndSlug')->willReturn(0);
+        $pageRepo->expects(self::exactly(2))->method('save');
+
+        $revisionRepo = $this->createMock(WikiPageRevisionRepositoryInterface::class);
+        $revisionRepo->method('getNextRevisionNumber')->willReturn(1);
+        $revisionRepo->expects(self::once())->method('save');
+
+        $controller = $this->controller(
+            spaceAccessResolver: $resolver,
+            pageRepository: $pageRepo,
+            revisionRepository: $revisionRepo,
+        );
+        $container = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $request = Request::create('/import', 'POST', [
+            '_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId()),
+        ], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ], ['HTTP_X_NOWO_DIALOG' => '1']);
+
+        try {
+            $response = $controller->importSpace($request, 'eng');
+            self::assertSame(204, $response->getStatusCode());
+            self::assertSame('/generated/nowo_wiki_space', $response->headers->get('X-Nowo-Redirect'));
         } finally {
             unlink($sourceDir . '/intro.md');
             rmdir($sourceDir);

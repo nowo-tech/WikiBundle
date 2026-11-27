@@ -94,6 +94,7 @@ use RuntimeException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
+use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -1591,31 +1592,23 @@ final class WikiManageController extends AbstractController
 
         $upload = $form->get('archive')->getData();
         if (!$upload instanceof UploadedFile) {
-            $this->flash('error', 'wiki.import.missing_file');
-
-            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+            return $this->rejectImport($request, $space, $form, 'wiki.import.missing_file');
         }
 
         if ($upload->getSize() > $this->importExport['max_upload_bytes']) {
-            $this->flash('error', 'wiki.import.file_too_large');
-
-            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+            return $this->rejectImport($request, $space, $form, 'wiki.import.file_too_large');
         }
 
         $formatValue = $form->get('format')->getData();
         $format      = WikiInterchangeFormat::tryFrom(is_string($formatValue) ? $formatValue : '') ?? WikiInterchangeFormat::Auto;
 
         if (strtolower($upload->getClientOriginalExtension()) !== 'zip') {
-            $this->flash('error', 'wiki.import.invalid_archive');
-
-            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+            return $this->rejectImport($request, $space, $form, 'wiki.import.invalid_archive');
         }
 
         $zipTempPath = sys_get_temp_dir() . '/wiki-upload-' . bin2hex(random_bytes(8)) . '.zip';
         if (!copy($upload->getPathname(), $zipTempPath)) {
-            $this->flash('error', 'wiki.import.invalid_archive');
-
-            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+            return $this->rejectImport($request, $space, $form, 'wiki.import.invalid_archive');
         }
         // @igor-ignore - Not shared worker service state.
         $this->archiveHelper->removeAtShutdown($zipTempPath);
@@ -1626,9 +1619,7 @@ final class WikiManageController extends AbstractController
             if ($this->quota?->isActive() === true) {
                 $refusal = $this->quota->refusal(WikiQuotaCheckEvent::IMPORT, $user, $space, $this->documentImporter->countDocuments($zipTempPath, $format), (int) $upload->getSize());
                 if ($refusal !== null) {
-                    $this->addFlash('error', $refusal);
-
-                    return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+                    return $this->rejectImport($request, $space, $form, $refusal, true);
                 }
             }
 
@@ -1644,9 +1635,7 @@ final class WikiManageController extends AbstractController
             );
         } catch (WikiInterchangeException $exception) {
             // 1.41: a refused archive only (audit SH-L1): an ORM error is not reported as a bad archive.
-            $this->flash('error', new TranslatableMessage('wiki.import.failed', ['%reason%' => $exception->getMessage()], WikiPages::DOMAIN));
-
-            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+            return $this->rejectImport($request, $space, $form, new TranslatableMessage('wiki.import.failed', ['%reason%' => $exception->getMessage()], WikiPages::DOMAIN));
         } finally {
             if (is_file($zipTempPath)) {
                 unlink($zipTempPath);
@@ -1665,7 +1654,41 @@ final class WikiManageController extends AbstractController
             $this->flash('warning', $message);
         }
 
-        return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+        $done = $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+
+        // Owner rule 2026-11-23: from the on-demand dialog the dialog closes and the page goes there (the report flashes follow).
+        return $this->dialogs()->isDialog($request) ? $this->dialogs()->redirect($done->getTargetUrl(), request: $request) : $done;
+    }
+
+    /**
+     * A refused import. From the on-demand dialog (`X-Nowo-Dialog: 1`) the reason is an error of the form, answered in place
+     * (422, the dialog keeps the choice); any other request keeps the error flash and the redirect to the space.
+     *
+     * @param FormInterface<mixed> $form
+     */
+    private function rejectImport(Request $request, WikiSpace $space, FormInterface $form, string|TranslatableMessage $reason, bool $literal = false): Response
+    {
+        if (!$this->dialogs()->isDialog($request)) {
+            // A host's quota refusal is a finished text, every other reason a catalogue message.
+            $literal ? $this->addFlash('error', $reason) : $this->flash('error', $reason);
+
+            return $this->redirectToRoute($this->routes['space']['name'], ['spaceSlug' => $space->getSlug()]);
+        }
+
+        $text = $reason;
+        if (!$literal) {
+            $message = is_string($reason) ? new TranslatableMessage($reason, [], WikiPages::DOMAIN) : $reason;
+            $text    = $this->translator instanceof TranslatorInterface ? $message->trans($this->translator) : $message->getMessage();
+        }
+        $form->addError(new FormError((string) $text));
+        $user = $this->requireUser();
+        $can  = ['create' => false, 'import' => true, 'export' => $this->accessChecker->canExport($user) && $this->spaceGuard->grants($user, $space)['export']];
+
+        return $this->dialogs()->fragment($this->render('@NowoWikiBundle/manage/_import_export_form.html.twig', [
+            'import_form'  => $form->createView(),
+            'export_links' => $this->pages()->exportLinks($space, $can),
+            'bundle'       => WikiPages::BUNDLE,
+        ], new Response(null, Response::HTTP_UNPROCESSABLE_ENTITY, ['Cache-Control' => 'private, no-store'])));
     }
 
     /**
