@@ -332,6 +332,20 @@ describe('comments panel extras', () => {
             document.body.innerHTML = '';
             expect(moderationItem(document, thread('t1'), labels).querySelector('button')?.hasAttribute('data-nowo-confirm-open')).toBe(false);
         });
+
+        it('uses the confirmation text as the title when the labels carry no title', () => {
+            document.body.innerHTML = moderation();
+            const { confirm_title: _title, ...withoutTitle } = labels;
+            const button = moderationItem(document, thread('t1'), withoutTitle).querySelector('button') as HTMLButtonElement;
+            expect(button.getAttribute('data-nowo-confirm-title')).toBe('Sure?');
+        });
+
+        it('asks the browser when the panel names no shared dialog', async () => {
+            document.body.innerHTML = moderation().replace(' data-confirm-id="shared"', '');
+            const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+            await expect(confirmDeletion(document, root())).resolves.toBe(true);
+            expect(confirm).toHaveBeenCalledWith('Sure?');
+        });
     });
 
     describe('deleteThread', () => {
