@@ -1239,10 +1239,6 @@
   font-size: 0.875em;
 }
 
-.nowo-wiki-moderation__confirm {
-  max-width: min(28rem, calc(100vw - 2rem));
-}
-
 /* 1.35 (web_ui.new_page_dialog): the «…» button of a page tree row (shown on hover / focus of the row, always on touch
    screens) and the "New page above / below / as child" menu it opens (fixed, next to the row or the pointer). */
 .nowo-wiki-tree__more {

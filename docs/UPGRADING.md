@@ -2,7 +2,7 @@
 
 ## Table of contents
 
-- [Unreleased](#unreleased)
+- [To 2.1.0](#to-210)
 - [To 2.0.1](#to-201)
   - [Co-editing seed claims are hashed (2.0.1)](#co-editing-seed-claims-are-hashed-201)
 - [To 2.0.0](#to-200)
@@ -150,7 +150,17 @@
   - [Breaking changes](#breaking-changes)
   - [FormKitBundle (admin forms)](#formkitbundle-admin-forms)
 
-## Unreleased
+## To 2.1.0
+
+**Moderation confirm.** A host that overrides `manage/_comments_panel_body.html.twig` replaces the `<dialog data-nowo-wiki-moderation-confirm>`
+with `{{ include(nowo_ui_partial('confirm_shared', bundle), {id: 'nowo-wiki-moderation-confirm', bundle: bundle}, false) }}`, adds
+`data-confirm-id="nowo-wiki-moderation-confirm"` to the `[data-nowo-wiki-moderation]` element and `confirm_title` to its `data-labels`.
+Rebuild `wiki.js` if you build your own copy.
+
+**Import refusals inside the dialog.** A refused upload in Import & export (missing file, too large, not a ZIP, unreadable
+archive, quota) now answers `422` with the form inside the dialog instead of a flash and a redirect. A host that overrides
+`manage/_import_export_form.html.twig` adds `{{ form_errors(import_form) }}` inside the form, or the dialog shows the `422`
+with no visible reason.
 
 ## To 2.0.1
 
