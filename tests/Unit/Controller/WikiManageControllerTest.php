@@ -2785,6 +2785,39 @@ MD);
         self::assertSame($bytes, $seen[0]->bytes);
     }
 
+    /** A host's quota refusal is a finished text: inside the dialog it is a form error (422), not a flash. */
+    public function testImportSpaceQuotaRefusalFromTheDialogIsAFormError(): void
+    {
+        $user  = new TestUser('user-1');
+        $space = new WikiSpace('eng', 'Engineering', WikiSpaceOwnerScope::User, 'user-1');
+
+        $resolver = $this->createMock(WikiSpaceAccessResolverInterface::class);
+        $resolver->method('listSpacesForUser')->willReturn([$space]);
+
+        $seen       = [];
+        $controller = $this->controller(spaceAccessResolver: $resolver, quota: $this->refusingQuota('No more pages on this plan.', $seen));
+        $container  = WikiControllerContainerBuilder::bind($controller, $user);
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'wiki-quota-');
+        $zip     = new ZipArchive();
+        self::assertTrue($zip->open($zipPath, ZipArchive::OVERWRITE));
+        $zip->addFromString('one.md', "# One\n");
+        $zip->close();
+        $request = Request::create('/import', 'POST', ['_token' => WikiControllerContainerBuilder::csrfToken($container, 'wiki_import_' . $space->getId())], [], [
+            'archive' => new UploadedFile($zipPath, 'archive.zip', 'application/zip', null, true),
+        ], ['HTTP_X_NOWO_DIALOG' => '1']);
+
+        try {
+            $response = $controller->importSpace($request, 'eng');
+        } finally {
+            @unlink($zipPath);
+        }
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame([], $this->flashes($container, 'error'));
+        self::assertSame(WikiQuotaCheckEvent::IMPORT, $seen[0]->action);
+    }
+
     /** With a listener the archive is read before the check: a broken one fails as it does without one, unasked. */
     public function testImportSpaceWithABrokenArchiveNeverAsksTheQuota(): void
     {
