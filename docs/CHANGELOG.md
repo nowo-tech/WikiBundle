@@ -325,6 +325,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The comment moderation confirm is UiKit's shared confirm** (owner rule 2026-11-23, every dialog loads its content on
+  demand): the panel no longer prints a `<dialog>` of its own; it includes UiKit's `confirm_shared` dialog once, and each *Delete thread*
+  row button carries the `data-nowo-confirm-*` attributes the kit fills it from when it opens. Accepting submits a hidden form
+  the script creates and answers (the delete still goes to the moderation endpoint with `X-CSRF-Token`); without the kit script
+  the browser's `confirm()` is used as before. New label `confirm_title` in `data-labels`, new `data-confirm-id` on the panel.
+  Requires UiKit with `confirm_shared` (2.68).
+- **Removed** the `.nowo-wiki-moderation__confirm` CSS and the `data-nowo-wiki-moderation-confirm|accept|cancel` hooks.
+
 ## [2.0.1] - 2026-11-26
 
 ### Security (2.0.1, Unreleased)

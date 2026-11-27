@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     bindCommentsModeration,
     commentErrorText,
+    CONFIRM_FORM_ID,
     confirmDeletion,
     deleteThread,
+    ensureConfirmForm,
     loadModeration,
     moderationItem,
     notify,
@@ -23,6 +25,7 @@ const labels: ModerationLabels = {
     empty: 'No threads.',
     rate_limited: 'Too many.',
     confirm: 'Sure?',
+    confirm_title: 'Delete?',
 };
 
 const toastTemplates = `
@@ -33,11 +36,11 @@ const toastTemplates = `
 const notice = '<p id="notice" data-nowo-wiki-comments-notice hidden data-limit-reached="Limit." data-rated="x" data-rate-limited="Slow down."></p>';
 
 const moderation = (dialog = true): string => `
-    <details id="mod" data-nowo-wiki-moderation data-url="/p/comments/" data-token="tok" data-button-class=" btn " data-labels='${JSON.stringify(labels)}'>
+    <details id="mod" data-nowo-wiki-moderation data-url="/p/comments/" data-token="tok" data-confirm-id="shared" data-button-class=" btn " data-labels='${JSON.stringify(labels)}'>
         <summary>Moderate</summary>
         <p id="status" data-nowo-wiki-moderation-status></p>
         <ul id="list" data-nowo-wiki-moderation-list></ul>
-        ${dialog ? '<dialog data-nowo-wiki-moderation-confirm><button id="accept" data-nowo-wiki-moderation-accept></button><button id="cancel" data-nowo-wiki-moderation-cancel></button><p id="other"></p></dialog>' : ''}
+        ${dialog ? '<dialog id="shared" data-nowo-ui-confirm data-nowo-confirm-shared></dialog>' : ''}
     </details>
 `;
 
@@ -57,15 +60,6 @@ const flush = async (): Promise<void> => {
 const root = (): HTMLElement => document.getElementById('mod') as HTMLElement;
 
 type ToastWindow = Window & { nowoUiDismissToast?: (toast: HTMLElement) => void };
-
-/** jsdom has no modal dialogs: the parts of HTMLDialogElement the code uses. */
-function polyfillDialog(dialog: HTMLDialogElement): void {
-    dialog.showModal = vi.fn();
-    dialog.close = (value?: string) => {
-        dialog.returnValue = value ?? '';
-        dialog.dispatchEvent(new Event('close'));
-    };
-}
 
 describe('comments panel extras', () => {
     let calls: Array<{ url: string; init: RequestInit }>;
@@ -291,46 +285,52 @@ describe('comments panel extras', () => {
             await expect(confirmDeletion(detached, root())).resolves.toBe(false);
         });
 
-        it('falls back to confirm() when the browser has no showModal', async () => {
+        it('falls back to confirm() when the kit script did not open the shared dialog', async () => {
             document.body.innerHTML = moderation();
-            const dialog = root().querySelector('dialog') as HTMLDialogElement;
-            Object.defineProperty(dialog, 'showModal', { value: undefined });
-            vi.spyOn(window, 'confirm').mockReturnValue(false);
+            const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
             await expect(confirmDeletion(document, root())).resolves.toBe(false);
+            expect(confirm).toHaveBeenCalledWith('Sure?');
         });
 
-        it('resolves with the button of the dialog, ignoring other clicks', async () => {
+        it('resolves true when the hidden form of the shared confirm is submitted, false when the dialog closes', async () => {
             document.body.innerHTML = moderation();
-            const dialog = root().querySelector('dialog') as HTMLDialogElement;
-            polyfillDialog(dialog);
+            const dialog = document.getElementById('shared') as HTMLDialogElement;
+            dialog.setAttribute('open', '');
 
             const accepted = confirmDeletion(document, root());
-            expect(dialog.showModal).toHaveBeenCalled();
-            document.getElementById('other')?.click();
-            dialog.dispatchEvent(new Event('click'));
-            document.getElementById('accept')?.click();
+            const form = document.getElementById(CONFIRM_FORM_ID) as HTMLFormElement;
+            expect(form.hidden).toBe(true);
+            form.dispatchEvent(new Event('submit', { cancelable: true }));
             await expect(accepted).resolves.toBe(true);
 
             const cancelled = confirmDeletion(document, root());
-            document.getElementById('cancel')?.click();
+            dialog.dispatchEvent(new Event('close'));
             await expect(cancelled).resolves.toBe(false);
-
-            // Closed by Escape: no accept.
-            const escaped = confirmDeletion(document, root());
-            dialog.close();
-            await expect(escaped).resolves.toBe(false);
         });
 
-        it('treats a click with a non-element target as no answer', async () => {
+        it('creates the hidden form once, and it never submits to the server', () => {
             document.body.innerHTML = moderation();
-            const dialog = root().querySelector('dialog') as HTMLDialogElement;
-            polyfillDialog(dialog);
-            const pending = confirmDeletion(document, root());
-            const event = new Event('click');
-            Object.defineProperty(event, 'target', { value: window });
-            dialog.dispatchEvent(event);
-            dialog.close('cancel');
-            await expect(pending).resolves.toBe(false);
+            const form = ensureConfirmForm(document, root());
+            expect(ensureConfirmForm(document, root())).toBe(form);
+            const submit = new Event('submit', { cancelable: true });
+            form.dispatchEvent(submit);
+            expect(submit.defaultPrevented).toBe(true);
+        });
+    });
+
+    describe('moderationItem and the shared confirm', () => {
+        it('gives the row button the attributes UiKit reads, only when the panel names a shared dialog', () => {
+            document.body.innerHTML = moderation();
+            const button = moderationItem(document, thread('t1'), labels).querySelector('button') as HTMLButtonElement;
+            expect(button.getAttribute('data-nowo-confirm-target')).toBe('shared');
+            expect(button.getAttribute('data-nowo-confirm-form')).toBe(CONFIRM_FORM_ID);
+            expect(button.getAttribute('data-nowo-confirm-title')).toBe('Delete?');
+            expect(button.getAttribute('data-nowo-confirm-message')).toBe('Sure?');
+            expect(button.getAttribute('data-nowo-confirm-variant')).toBe('danger');
+            expect(button.getAttribute('data-nowo-confirm-confirm-label')).toBe('Delete thread');
+
+            document.body.innerHTML = '';
+            expect(moderationItem(document, thread('t1'), labels).querySelector('button')?.hasAttribute('data-nowo-confirm-open')).toBe(false);
         });
     });
 
