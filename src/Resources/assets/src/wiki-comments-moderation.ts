@@ -240,6 +240,13 @@ export function confirmDeletion(doc: Document, root: HTMLElement): Promise<boole
     return new Promise((resolve) => {
         const onSubmit = (): void => {
             dialog.removeEventListener('close', onClose);
+            // Audit ZDJ-WK-M1: UiKit's shared confirm does not close on submit (it expects a navigating form).
+            const kit = (doc.defaultView as Window & { nowoUiCloseConfirm?: (el: HTMLDialogElement) => void }).nowoUiCloseConfirm;
+            if (typeof kit === 'function') {
+                kit(dialog);
+            } else {
+                dialog.close();
+            }
             resolve(true);
         };
         const onClose = (): void => {

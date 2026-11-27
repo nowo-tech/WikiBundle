@@ -132,11 +132,11 @@ test.describe('Wiki comments panel', () => {
     expect(await seriousViolations(page, '#nowo-wiki-comments')).toEqual([]);
 
     await rows.last().getByTestId('wiki-comments-delete-thread').click();
-    const confirm = page.getByTestId('wiki-comments-moderation-confirm');
+    const confirm = page.locator('dialog#nowo-wiki-moderation-confirm');
     await expect(confirm).toBeVisible();
     await Promise.all([
       page.waitForResponse((r) => /\/comments\/threads\/[^/]+$/.test(r.url()) && r.request().method() === 'DELETE' && r.status() === 204),
-      page.getByTestId('wiki-comments-moderation-accept').click(),
+      confirm.locator('.nowo-ui-confirm__submit:not([hidden])').click(),
     ]);
     await expect(rows).toHaveCount(before - 1);
     await expect(confirm).toBeHidden();

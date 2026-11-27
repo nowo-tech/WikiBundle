@@ -296,6 +296,7 @@ describe('comments panel extras', () => {
             document.body.innerHTML = moderation();
             const dialog = document.getElementById('shared') as HTMLDialogElement;
             dialog.setAttribute('open', '');
+            dialog.close = vi.fn();
 
             const accepted = confirmDeletion(document, root());
             const form = document.getElementById(CONFIRM_FORM_ID) as HTMLFormElement;
@@ -306,6 +307,26 @@ describe('comments panel extras', () => {
             const cancelled = confirmDeletion(document, root());
             dialog.dispatchEvent(new Event('close'));
             await expect(cancelled).resolves.toBe(false);
+        });
+
+        it('closes the shared dialog once the deletion is accepted (with the kit closer, or the dialog itself)', async () => {
+            document.body.innerHTML = moderation();
+            const dialog = document.getElementById('shared') as HTMLDialogElement;
+            dialog.setAttribute('open', '');
+            const close = vi.fn();
+            const win = window as Window & { nowoUiCloseConfirm?: (el: HTMLDialogElement) => void };
+            win.nowoUiCloseConfirm = close;
+            const viaKit = confirmDeletion(document, root());
+            (document.getElementById(CONFIRM_FORM_ID) as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+            await expect(viaKit).resolves.toBe(true);
+            expect(close).toHaveBeenCalledWith(dialog);
+
+            delete win.nowoUiCloseConfirm;
+            dialog.close = vi.fn();
+            const direct = confirmDeletion(document, root());
+            (document.getElementById(CONFIRM_FORM_ID) as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+            await expect(direct).resolves.toBe(true);
+            expect(dialog.close).toHaveBeenCalled();
         });
 
         it('creates the hidden form once, and it never submits to the server', () => {
