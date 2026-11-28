@@ -21,6 +21,7 @@ use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\Compiler\MergeExtensionConfigurationPass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Exception\RuntimeException;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 
 /**
@@ -140,9 +141,21 @@ final class WikiExtensionSearchKitTest extends TestCase
         $container->registerExtension(new WikiExtension());
         $container->loadFromExtension('nowo_wiki', ['user_class' => 'App\\Entity\\User', 'search_kit_provider' => ['enabled' => '%env(bool:WIKI_SEARCH_KIT)%']]);
 
-        $this->expectException(InvalidConfigurationException::class);
-        $this->expectExceptionMessage('nowo_wiki.search_kit_provider.enabled must be a literal boolean');
-        (new MergeExtensionConfigurationPass())->process($container);
+        try {
+            (new MergeExtensionConfigurationPass())->process($container);
+        } catch (InvalidConfigurationException $e) {
+            self::assertStringContainsString('nowo_wiki.search_kit_provider.enabled must be a literal boolean', $e->getMessage());
+
+            return;
+        } catch (RuntimeException $e) {
+            // Symfony 8.2 resolves the placeholder of an `enabled` node itself while the container is built (the real
+            // value, or a refusal when the variable is unknown then): never the fail-open cast this test guards against.
+            self::assertStringContainsString('nowo_wiki.search_kit_provider.enabled" must be known when the container is compiled', $e->getMessage());
+
+            return;
+        }
+
+        self::fail('The placeholder was accepted.');
     }
 
     /**
