@@ -19,6 +19,7 @@
 {% endif %}
 {% if import_form %}
     {{ form_start(import_form, {attr: {id: _form_id, class: nowo_ui_class('form', bundle) ~ ' nowo-wiki-import-export__import', 'data-testid': 'wiki-import-form'}}) }}
+        {{ form_errors(import_form) }}
         {% for child in import_form %}
             {% if not child.rendered %}
                 {{ form_row(child) }}

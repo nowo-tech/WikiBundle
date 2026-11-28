@@ -918,7 +918,11 @@ final class PageContractTest extends PageContractTestCase
         self::assertSame(1, substr_count($html, 'data-nowo-wiki-comments-toast="success"'));
         self::assertMatchesRegularExpression('#<details class="nowo-wiki-moderation" data-nowo-wiki-moderation[^>]*data-url="/p/comments"[^>]*data-token="token"#s', $html);
         self::assertStringContainsString('&quot;delete&quot;:&quot;Delete thread&quot;', $html);
-        self::assertStringContainsString('<dialog class="nowo-wiki-moderation__confirm"', $html);
+        // Owner rule 2026-11-23: no confirm markup of our own, UiKit's shared confirm (one dialog, filled when it opens).
+        self::assertStringNotContainsString('nowo-wiki-moderation__confirm', $html);
+        self::assertMatchesRegularExpression('#<dialog id="nowo-wiki-moderation-confirm"[^>]*data-nowo-confirm-shared#', $html);
+        self::assertStringContainsString('data-confirm-id="nowo-wiki-moderation-confirm"', $html);
+        self::assertStringContainsString('&quot;confirm_title&quot;', $html);
     }
 
     public function testHistoryAvatarsOnlyBesideRealNames(): void

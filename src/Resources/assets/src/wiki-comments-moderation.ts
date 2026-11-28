@@ -8,7 +8,9 @@
  *   `<template data-nowo-wiki-comments-toast>`), else it is written into the notice (a polite live region).
  * - `comments.moderation_panel` (`[data-nowo-wiki-moderation]`, users with ModerateComments only): *Moderate threads*
  *   reads every thread of the page when it is first opened (`GET …/comments/threads`) and lists them, each with
- *   *Delete thread* behind the confirm dialog (`<dialog data-nowo-wiki-moderation-confirm>`), which calls the
+ *   *Delete thread* behind UiKit's shared confirm dialog (owner rule 2026-11-23: no confirm markup of our own; the row button
+ *   carries the `data-nowo-confirm-*` attributes and binds the dialog to a hidden form this script creates, whose submit is the
+ *   accept), which calls the
  *   moderation endpoint (`DELETE …/comments/threads/{id}`, header `X-CSRF-Token`). The thread component drops a
  *   deleted thread on its next refresh (live with co-editing).
  *
@@ -34,6 +36,7 @@ export interface ModerationLabels {
     empty: string;
     rate_limited: string;
     confirm: string;
+    confirm_title?: string;
 }
 
 /** HTTP transport of the moderation list (tests and hosts may replace it). */
@@ -54,6 +57,25 @@ export function setModerationFetch(next: ModerationFetch): void {
 export const TOAST_TIMEOUT = 8000;
 
 const QUOTE_MAX = 80;
+
+/** Id of the hidden form UiKit's shared confirm submits when the deletion is accepted. */
+export const CONFIRM_FORM_ID = 'nowo-wiki-moderation-confirm-form';
+
+/** The hidden form the shared confirm binds to (created once; never submitted to the server: the script answers its submit). */
+export function ensureConfirmForm(doc: Document, root: HTMLElement): HTMLFormElement {
+    const existing = doc.getElementById(CONFIRM_FORM_ID);
+    if (existing instanceof HTMLFormElement) {
+        return existing;
+    }
+    const form = doc.createElement('form');
+    form.id = CONFIRM_FORM_ID;
+    form.hidden = true;
+    form.noValidate = true;
+    form.addEventListener('submit', (event) => event.preventDefault());
+    root.append(form);
+
+    return form;
+}
 
 type ToastWindow = Window & { nowoUiDismissToast?: (toast: HTMLElement) => void };
 
@@ -148,6 +170,17 @@ export function moderationItem(doc: Document, thread: ModerationThread, labels: 
     button.dataset.nowoWikiModerationDelete = thread.id;
     button.dataset.testid = 'wiki-comments-delete-thread';
     button.textContent = labels.delete;
+    // UiKit's shared confirm opens from these attributes (js/nowo-ui-confirm.js), filled with textContent.
+    const confirmId = doc.querySelector<HTMLElement>('[data-nowo-wiki-moderation]')?.dataset.confirmId ?? '';
+    if ('' !== confirmId) {
+        button.setAttribute('data-nowo-confirm-open', '');
+        button.setAttribute('data-nowo-confirm-target', confirmId);
+        button.setAttribute('data-nowo-confirm-form', CONFIRM_FORM_ID);
+        button.setAttribute('data-nowo-confirm-title', labels.confirm_title ?? labels.confirm);
+        button.setAttribute('data-nowo-confirm-message', labels.confirm);
+        button.setAttribute('data-nowo-confirm-variant', 'danger');
+        button.setAttribute('data-nowo-confirm-confirm-label', labels.delete);
+    }
     li.append(text, button);
 
     return li;
@@ -173,6 +206,7 @@ export async function loadModeration(doc: Document, root: HTMLElement): Promise<
         return;
     }
     root.dataset.loaded = '1';
+    ensureConfirmForm(doc, root);
     const labels = labelsOf(root);
     const response = await request(root, 'GET', '/threads').catch(() => null);
     // Not JSON (e.g. a login page after a redirect) counts as a failed read.
@@ -189,37 +223,46 @@ export async function loadModeration(doc: Document, root: HTMLElement): Promise<
 }
 
 /**
- * Asks to confirm a deletion: the confirm dialog of the panel, else the browser's confirm().
+ * Asks to confirm a deletion: UiKit's shared confirm dialog (the row button carries the content; accepting submits the hidden
+ * form), else the browser's confirm() when the page has no shared dialog or the kit script did not open it.
  *
  * @param doc - The document.
  * @param root - The `[data-nowo-wiki-moderation]` element.
  */
 export function confirmDeletion(doc: Document, root: HTMLElement): Promise<boolean> {
-    const dialog = root.querySelector<HTMLDialogElement>('dialog[data-nowo-wiki-moderation-confirm]');
-    if (!dialog || typeof dialog.showModal !== 'function') {
-        return Promise.resolve(doc.defaultView?.confirm(labelsOf(root).confirm) ?? false);
+    const dialog = doc.getElementById(root.dataset.confirmId ?? '');
+    const fallback = (): boolean => doc.defaultView?.confirm(labelsOf(root).confirm) ?? false;
+    if (!(dialog instanceof HTMLDialogElement) || !dialog.hasAttribute('data-nowo-confirm-shared')) {
+        return Promise.resolve(fallback());
     }
+    const form = ensureConfirmForm(doc, root);
 
     return new Promise((resolve) => {
-        const onClick = (event: Event): void => {
-            const target = event.target instanceof Element ? event.target : null;
-            if (target?.closest('[data-nowo-wiki-moderation-accept]')) {
-                dialog.close('accept');
-            } else if (target?.closest('[data-nowo-wiki-moderation-cancel]')) {
-                dialog.close('cancel');
+        const onSubmit = (): void => {
+            dialog.removeEventListener('close', onClose);
+            // Audit ZDJ-WK-M1: UiKit's shared confirm does not close on submit (it expects a navigating form).
+            const kit = (doc.defaultView as Window & { nowoUiCloseConfirm?: (el: HTMLDialogElement) => void }).nowoUiCloseConfirm;
+            if (typeof kit === 'function') {
+                kit(dialog);
+            } else {
+                dialog.close();
             }
+            resolve(true);
         };
-        dialog.addEventListener('click', onClick);
-        dialog.addEventListener(
-            'close',
-            () => {
-                dialog.removeEventListener('click', onClick);
-                resolve(dialog.returnValue === 'accept');
-            },
-            { once: true },
-        );
-        dialog.returnValue = '';
-        dialog.showModal();
+        const onClose = (): void => {
+            form.removeEventListener('submit', onSubmit);
+            resolve(false);
+        };
+        form.addEventListener('submit', onSubmit, { once: true });
+        dialog.addEventListener('close', onClose, { once: true });
+        // The kit script opens the dialog from the same click; when it did not (script missing), ask the browser.
+        doc.defaultView?.setTimeout(() => {
+            if (!dialog.open) {
+                form.removeEventListener('submit', onSubmit);
+                dialog.removeEventListener('close', onClose);
+                resolve(fallback());
+            }
+        }, 0);
     });
 }
 
